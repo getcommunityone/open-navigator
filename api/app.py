@@ -703,6 +703,11 @@ from api.routes import batch_jobs as batch_jobs_routes
 
 app.include_router(batch_jobs_routes.router, prefix="/api")
 
+# Prod deployment jobs (database → Neon prod, web → HuggingFace)
+from api.routes import deployments as deployments_routes
+
+app.include_router(deployments_routes.router, prefix="/api")
+
 # Serve React frontend
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():

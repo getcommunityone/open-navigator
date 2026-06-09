@@ -21,6 +21,7 @@ import {
   type PipelineStage,
   type StageReportRow,
 } from '../api/batchJobs'
+import DeploymentPanel from '../components/DeploymentPanel'
 import { LinkifiedText } from '../utils/linkifiedText'
 import {
   formatCompactHours,
@@ -867,8 +868,51 @@ function BatchDetailPanel({
 // youtube_run_priority_states_last_n.sh). "All states" uses STATE_CODES (50 + DC).
 const PRIORITY_STATE_CODES = ['AL', 'GA', 'IN', 'MA', 'MT', 'WA', 'WI']
 
+type JobType = 'youtube' | 'deployment'
+
+function JobTypeTabs({
+  active,
+  onChange,
+}: {
+  active: JobType
+  onChange: (t: JobType) => void
+}) {
+  const tabs: { key: JobType; label: string }[] = [
+    { key: 'youtube', label: 'YouTube pipeline' },
+    { key: 'deployment', label: 'Prod deployment' },
+  ]
+  return (
+    <div className="flex gap-1 border-b border-slate-200">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          onClick={() => onChange(t.key)}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+            active === t.key
+              ? 'border-sky-500 text-sky-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function BatchJobStatusPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const jobType: JobType = searchParams.get('type') === 'deployment' ? 'deployment' : 'youtube'
+  const setJobType = useCallback(
+    (t: JobType) => {
+      const next = new URLSearchParams(searchParams)
+      if (t === 'deployment') next.set('type', 'deployment')
+      else next.delete('type')
+      setSearchParams(next, { replace: true })
+    },
+    [searchParams, setSearchParams],
+  )
   const batchId = searchParams.get('batch') ?? ''
   const jurisdictionId = searchParams.get('jurisdiction') ?? ''
   const stateFilter = (searchParams.get('state') ?? '').toUpperCase()
@@ -1343,8 +1387,18 @@ export default function BatchJobStatusPage() {
     (data?.totals.running ?? 0) > 0 && !!runningTiming.activeVideo,
   )
 
+  if (jobType === 'deployment') {
+    return (
+      <div className="min-h-0 w-full space-y-4">
+        <JobTypeTabs active={jobType} onChange={setJobType} />
+        <DeploymentPanel />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-0 w-full space-y-4">
+      <JobTypeTabs active={jobType} onChange={setJobType} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-600">
           Live from <code>bronze.youtube_batch_job_runs</code> via{' '}

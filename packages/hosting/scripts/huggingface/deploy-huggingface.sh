@@ -206,7 +206,9 @@ fi
 
 # Ask to create space if it doesn't exist
 echo "🌟 Creating Hugging Face Space (if it doesn't exist)..."
-hf repo create --type space --space-sdk docker "${HF_USERNAME}/${SPACE_NAME}" --exist-ok || true
+# hf CLI (huggingface_hub >= 0.30) uses `--repo-type` + `--space_sdk` with a
+# positional repo_id; the old `--type`/`--space-sdk` flags were huggingface-cli.
+hf repo create "${HF_USERNAME}/${SPACE_NAME}" --repo-type space --space_sdk docker --exist-ok || true
 echo ""
 
 # Update cache-bust timestamps to force fresh build
@@ -235,6 +237,34 @@ echo ""
 
 # Create deployment branch
 echo "🔧 Preparing deployment branch (clean, no binary history)..."
+
+# This script does heavy git surgery (orphan branch, `rm --cached`, force-push)
+# and the deployment orchestrator launches it from whatever branch you're on —
+# frequently with uncommitted changes. A bare `git checkout main` aborts on a
+# dirty tree, so record where we started, stash any local work (incl. untracked),
+# and restore it on exit even if a later step fails.
+ORIGINAL_REF=$(git symbolic-ref --short -q HEAD || git rev-parse HEAD)
+STASH_REF=""
+if ! git diff --quiet || ! git diff --cached --quiet \
+        || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    echo "📦 Stashing local changes before deployment branch surgery..."
+    git stash push --include-untracked -m "deploy-huggingface autostash" >/dev/null
+    STASH_REF=$(git rev-parse -q --verify "stash@{0}")
+fi
+
+restore_working_state() {
+    local rc=$?
+    echo ""
+    echo "♻️  Restoring original working state (${ORIGINAL_REF})..."
+    git checkout "$ORIGINAL_REF" >/dev/null 2>&1 || true
+    if [ -n "$STASH_REF" ]; then
+        git stash pop >/dev/null 2>&1 \
+            || echo "⚠️  Could not auto-pop the deploy stash; recover with: git stash list && git stash pop"
+    fi
+    return $rc
+}
+trap restore_working_state EXIT
+
 # Make sure we're on main
 git checkout main
 
