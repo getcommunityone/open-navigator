@@ -175,7 +175,7 @@ async def _spending(conn, *, state_code: Optional[str], city: Optional[str], sco
 
 
 _GRANTS_SQL = """
-    SELECT grantor_name, grantee_name, amount, purpose, tax_year
+    SELECT grant_id, grantor_name, grantee_name, amount, purpose, tax_year
     FROM "grant"
     WHERE amount IS NOT NULL AND amount > 0
       AND grantor_name IS NOT NULL AND grantee_name IS NOT NULL
