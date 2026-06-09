@@ -97,12 +97,12 @@ export default function NotFound() {
               documentation
             </a>{' '}
             or{' '}
-            <a
-              href="mailto:hello@communityone.com"
+            <Link
+              to="/support"
               className="text-blue-600 hover:text-blue-800 font-semibold"
             >
               contact support
-            </a>
+            </Link>
             .
           </p>
           

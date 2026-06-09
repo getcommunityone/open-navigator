@@ -22,6 +22,7 @@ import Explore from './pages/Explore'
 import Events from './pages/Events'
 import Services from './pages/Services'
 import Developers from './pages/Developers'
+import Support from './pages/Support'
 import JurisdictionMappingQualityPage from './pages/JurisdictionMappingQualityPage'
 import LighthouseReportPage from './pages/LighthouseReportPage'
 import BatchJobStatusPage from './pages/BatchJobStatusPage'
@@ -198,6 +199,7 @@ function App() {
         <Route path="events" element={<Events />} />
         <Route path="services" element={<Services />} />
         <Route path="developers" element={<Developers />} />
+        <Route path="support" element={<Support />} />
         <Route
           path="build/jurisdiction-mapping-quality"
           element={<Navigate to="/data-explorer/jurisdiction-quality" replace />}
