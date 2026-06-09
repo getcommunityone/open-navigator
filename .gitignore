@@ -141,3 +141,6 @@ analyze_backlog_shard*.out
 
 # VS Code "VSCode Counter" extension output (local code-stats dumps)
 .VSCodeCounter/
+
+# Runtime API server log (not source)
+api_server.out
