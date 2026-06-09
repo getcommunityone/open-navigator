@@ -43,7 +43,7 @@ workspace member requires `uv sync`** (fallback: `.venv/bin/pip install -e packa
 — always call this out in your summary.
 
 ## Port recipe (when moving scripts/ → packages/)
-Follow the established recipe verbatim (full version in docs/CLEANUP_ROADMAP.md):
+Follow the established recipe verbatim (full version in web_docs/docs/development/cleanup-roadmap.md):
 1. Branch off `main`: `feat/datasource-<source>-port` (or suitable name).
 2. **Two commits:** first a pure `git mv legacy.py <name>.py` (preserves
    `git blame --follow`), then a second commit refactoring contents.

@@ -240,5 +240,5 @@ website/docs/development/
 ## 📚 Related Documentation
 
 - [Bronze to Production Merge Strategy](../../website/docs/development/bronze-to-production-merge.md) - Full guide
-- [Data Sources](../../docs/DATA_SOURCES.md) - All data sources and formats
+- [Data Sources](../../web_docs/docs/data-sources/overview.md) - All data sources and formats
 - [Gold Table Consolidation](../../website/docs/development/gold-consolidation.md) - Parquet file structure
