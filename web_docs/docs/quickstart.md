@@ -299,8 +299,13 @@ user data**:
 | `make restore-neon VERSION=v1.5.0` | Restore a Neon snapshot into a separate local db (`open_navigator_serving`). **Dev only.** | — |
 | `make restore-public VERSION=v1.5.0` | Restore the local `public` schema (needs `gold` present). **Dev only.** | — |
 
-Use a semver tag (`v1.5.0`) for a release, or any label for an ad-hoc snapshot
-(`make backup-neon VERSION=snapshot-20260609`). Exact commands live in the
+The `VERSION` label decides **where the dump is filed** inside the backup folder:
+
+- A **semver tag** (`v1.5.0`) → `open-navigator-backups/releases/v1.5.0/` — for tagged releases.
+- **Any other label** (e.g. `2026-06-09`, `snapshot-20260609`) → `open-navigator-backups/snapshots/<label>/` — for ad-hoc point-in-time backups.
+
+`restore*` searches **both** folders, so you restore with the same label you backed up with
+regardless of which one it landed in. Exact commands live in the
 [`backup` targets in the Makefile](https://github.com/getcommunityone/open-navigator/blob/main/Makefile).
 
 ### Backing up the serving data without user PII
@@ -346,9 +351,11 @@ make backup-public VERSION=snapshot-20260609   # local public, personal tables e
 > `make backup` is the only one that contains user accounts; treat its dumps as private and
 > do not share them via a public Drive link.
 
-> **Client version.** Use **PostgreSQL 17** client tools (see [Prerequisites](#prerequisites)).
-> If you have several PG majors installed and hit `unsupported version`, pin the client dir
-> for any backup command, e.g. `make backup-neon VERSION=… PG_BIN=/usr/lib/postgresql/17/bin/`.
+> **Client version.** The backup targets auto-select the newest PostgreSQL client under
+> `/usr/lib/postgresql/*/bin` (so a PG 17 `pg_dump` is used for the PG 17 Neon server even
+> when your `PATH` still points at PG 16). Install PG 17 client tools (see
+> [Prerequisites](#prerequisites)). Override the choice if needed with
+> `make backup-neon VERSION=… PG_BIN=/usr/lib/postgresql/17/bin/` (or `PG_BIN=` to force `PATH`).
 
 ### Google Drive folder (one-time setup)
 
@@ -384,12 +391,12 @@ make backup VERSION=snapshot-20260609
 ```
 
 This stages the dumps on local disk, copies them into
-`open-navigator-backups/releases/snapshot-20260609/` (each filename stamped with the
-version, date, and git SHA), and Google Drive for Desktop syncs them off-machine
-automatically. Confirm they landed:
+`open-navigator-backups/snapshots/snapshot-20260609/` (a non-`v` label files under
+`snapshots/`; each filename stamped with the version, date, and git SHA), and Google Drive
+for Desktop syncs them off-machine automatically. Confirm they landed:
 
 ```bash
-ls open-navigator-backups/releases/snapshot-20260609/
+ls open-navigator-backups/snapshots/snapshot-20260609/
 # open_navigator_snapshot-20260609_20260609_a1b2c3d.dump
 # openstates_snapshot-20260609_20260609_a1b2c3d.dump
 ```

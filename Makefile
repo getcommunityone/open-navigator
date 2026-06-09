@@ -259,7 +259,7 @@ backup:
 	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make backup VERSION=v1.5.0"; exit 1; }
 	@$(MAKE) --no-print-directory backup-preflight
 	@set -e; stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
-		stage="$(BACKUP_STAGING)/$(VERSION)"; dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		stage="$(BACKUP_STAGING)/$(VERSION)"; case "$(VERSION)" in v[0-9]*) sub=releases;; *) sub=snapshots;; esac; dir="$(BACKUP_DIR)/$$sub/$(VERSION)"; \
 		mkdir -p "$$stage" "$$dir"; \
 		on="open_navigator_$(VERSION)_$${stamp}_$${sha}.dump"; \
 		os="openstates_$(VERSION)_$${stamp}_$${sha}.dump"; \
@@ -275,7 +275,7 @@ restore:
 	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make restore VERSION=v1.5.0"; exit 1; }
 	@$(MAKE) --no-print-directory backup-preflight
 	@echo "⚠️  Restoring $(VERSION) into LOCAL dev warehouse ($(PG_HOST):$(PG_PORT)) — never run against prod."
-	@dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+	@dir=$$(ls -d "$(BACKUP_DIR)"/releases/$(VERSION) "$(BACKUP_DIR)"/snapshots/$(VERSION) 2>/dev/null | head -1); test -n "$$dir" || dir="$(BACKUP_DIR)/snapshots/$(VERSION)"; \
 		on=$$(ls "$$dir"/open_navigator_$(VERSION)_*.dump 2>/dev/null | head -1); \
 		os=$$(ls "$$dir"/openstates_$(VERSION)_*.dump 2>/dev/null | head -1); \
 		test -n "$$on" -a -n "$$os" || { echo "❌ Could not find $(VERSION) dumps in $$dir/"; exit 1; }; \
@@ -298,7 +298,7 @@ backup-public:
 	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make backup-public VERSION=v1.5.0"; exit 1; }
 	@$(MAKE) --no-print-directory backup-preflight
 	@set -e; stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
-		stage="$(BACKUP_STAGING)/$(VERSION)"; dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		stage="$(BACKUP_STAGING)/$(VERSION)"; case "$(VERSION)" in v[0-9]*) sub=releases;; *) sub=snapshots;; esac; dir="$(BACKUP_DIR)/$$sub/$(VERSION)"; \
 		mkdir -p "$$stage" "$$dir"; \
 		f="open_navigator_public_$(VERSION)_$${stamp}_$${sha}.dump"; \
 		excl=""; for t in $(PII_EXCLUDE_TABLES); do excl="$$excl --exclude-table=public.$$t"; done; \
@@ -324,7 +324,7 @@ backup-neon:
 		test -n "$$url" || { echo "❌ NEON_DATABASE_URL not found in .env (the prod serving DB)."; exit 1; }; \
 		url=$$(printf '%s' "$$url" | sed 's/-pooler//'); \
 		stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
-		stage="$(BACKUP_STAGING)/$(VERSION)"; dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		stage="$(BACKUP_STAGING)/$(VERSION)"; case "$(VERSION)" in v[0-9]*) sub=releases;; *) sub=snapshots;; esac; dir="$(BACKUP_DIR)/$$sub/$(VERSION)"; \
 		mkdir -p "$$stage" "$$dir"; \
 		f="neon_serving_$(VERSION)_$${stamp}_$${sha}.dump"; \
 		echo "📦 Dumping Neon serving DB (civic only — no personal user data) at $(VERSION) to local staging..."; \
@@ -342,7 +342,7 @@ restore-neon:
 	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make restore-neon VERSION=v1.5.0"; exit 1; }
 	@$(MAKE) --no-print-directory backup-preflight
 	@echo "⚠️  Restoring Neon serving $(VERSION) into LOCAL db '$(NEON_RESTORE_DB)' ($(PG_HOST):$(PG_PORT)) — never prod."
-	@dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+	@dir=$$(ls -d "$(BACKUP_DIR)"/releases/$(VERSION) "$(BACKUP_DIR)"/snapshots/$(VERSION) 2>/dev/null | head -1); test -n "$$dir" || dir="$(BACKUP_DIR)/snapshots/$(VERSION)"; \
 		f=$$(ls "$$dir"/neon_serving_$(VERSION)_*.dump 2>/dev/null | head -1); \
 		test -n "$$f" || { echo "❌ Could not find $(VERSION) Neon dump in $$dir/ (run: make backup-neon VERSION=$(VERSION))"; exit 1; }; \
 		PGPASSWORD=$(PGPASSWORD) $(PG_CREATEDB) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) $(NEON_RESTORE_DB) 2>/dev/null || true; \
@@ -355,7 +355,7 @@ restore-public:
 	@$(MAKE) --no-print-directory backup-preflight
 	@echo "⚠️  Restoring $(VERSION) PUBLIC schema into LOCAL dev warehouse ($(PG_HOST):$(PG_PORT)) — never run against prod."
 	@echo "   Note: public serving views reference 'gold'; restore the full backup first if gold is absent."
-	@dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+	@dir=$$(ls -d "$(BACKUP_DIR)"/releases/$(VERSION) "$(BACKUP_DIR)"/snapshots/$(VERSION) 2>/dev/null | head -1); test -n "$$dir" || dir="$(BACKUP_DIR)/snapshots/$(VERSION)"; \
 		f=$$(ls "$$dir"/open_navigator_public_$(VERSION)_*.dump 2>/dev/null | head -1); \
 		test -n "$$f" || { echo "❌ Could not find $(VERSION) public dump in $$dir/ (run: make backup-public VERSION=$(VERSION))"; exit 1; }; \
 		echo "♻️  Restoring open_navigator (public schema only) from $$f..."; \
