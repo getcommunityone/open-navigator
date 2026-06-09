@@ -319,6 +319,27 @@ test -d open-navigator-backups/ && echo "✅ Drive backup folder ready"
 > Different Drive letter? Swap `H:` / `/mnt/h`. No Drive for Desktop? Point `BACKUP_DIR`
 > at any folder and sync it with [`rclone`](https://rclone.org/drive/) instead.
 
+### Create a backup
+
+With the [Google Drive folder](#google-drive-folder-one-time-setup) in place, dump both
+databases with one command. Pick any label — a semver tag for a release, or a date for an
+ad-hoc snapshot:
+
+```bash
+make backup VERSION=snapshot-20260609
+```
+
+This stages the dumps on local disk, copies them into
+`open-navigator-backups/releases/snapshot-20260609/` (each filename stamped with the
+version, date, and git SHA), and Google Drive for Desktop syncs them off-machine
+automatically. Confirm they landed:
+
+```bash
+ls open-navigator-backups/releases/snapshot-20260609/
+# open_navigator_snapshot-20260609_20260609_a1b2c3d.dump
+# openstates_snapshot-20260609_20260609_a1b2c3d.dump
+```
+
 ### Share a snapshot with a collaborator
 
 1. Run `make backup VERSION=<label>`.
