@@ -101,7 +101,6 @@ _LOAD_COLUMNS = [
     "segments", "event_title", "event_date", "jurisdiction_name", "jurisdiction_type",
     "state_code", "state", "city", "video_url", "created_at",
 ]
-
 # Source the FULL warehouse copy from `gold`, NOT the `public` serving layer.
 # `public.event_documents` is the SLIM, analyzed-scoped, standalone table that
 # publish_public_serving.sql materializes FROM gold.event_documents (content
