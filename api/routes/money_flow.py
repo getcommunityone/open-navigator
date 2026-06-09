@@ -6,9 +6,9 @@ fabricated numbers, per CLAUDE.md):
   - spending : real money-flagged decisions (public.item_interestingness,
                net_dollar_impact), jurisdiction -> decision.
   - grants   : real 990 Schedule I grant flows (public.grant), grantor -> grantee.
-  - economy  : a real decomposition of nonprofit sector revenue into its 990
-               components (contributions / program-service / other) — an honest
-               breakdown of one real total, NOT invented funder->grantee edges.
+  - economy  : the largest nonprofits in scope by total 990 revenue
+               (scope -> org), with the headline showing the real scope-wide
+               sector total — NOT invented funder->grantee edges.
 
 WIRE-FORMAT: every displayed number is a STRING (head_amount / value_label). The
 link `value` stays NUMERIC because the Sankey layout needs it to size links — it
@@ -251,6 +251,25 @@ _ECONOMY_SQL = """
     WHERE scope_key = ANY($1::text[])
 """
 
+# Top nonprofits in scope, by total 990 revenue — these are the Sankey links (the
+# "top items"). We show the largest orgs rather than a contributions/program/other
+# split because the gt990_* component columns are too sparsely populated for that
+# decomposition to be meaningful (it collapses to ~all "Other revenue"). The grain
+# filter mirrors whichever scope the headline mart row matched, so orgs and total
+# line up. city_norm is the lowercased master value, matched exactly.
+_ECONOMY_TOP_SQL = """
+    SELECT o.org_name,
+           COALESCE(n.gt990_total_revenue, n.revenue) AS revenue,
+           n.ntee_description
+    FROM mdm_organization_nonprofit n
+    JOIN mdm_organization o USING (master_org_id)
+    WHERE COALESCE(n.gt990_total_revenue, n.revenue) > 0
+      AND ($1::text IS NULL OR o.state_code = $1)
+      AND ($2::text IS NULL OR o.city_norm = $2)
+    ORDER BY COALESCE(n.gt990_total_revenue, n.revenue) DESC
+    LIMIT 6
+"""
+
 
 def _economy_scope_keys(state_code: Optional[str], city: Optional[str]) -> List[str]:
     """Candidate scope_keys, most-specific first: city -> state -> us."""
@@ -277,40 +296,56 @@ async def _economy(conn, *, state_code: Optional[str], city: Optional[str], scop
     if row is None:
         return lens
     total = float(row["total"])
-    contrib = float(row["contributions"] or 0)
-    program = float(row["program"] or 0)
-    other = max(total - contrib - program, 0.0)
-    nodes = [FlowNode(name="Nonprofit sector", url="/nonprofits")]
-    links: List[FlowLink] = []
-    for label, val in (("Contributions & grants", contrib), ("Program service revenue", program), ("Other revenue", other)):
-        if val <= 0:
-            continue
-        nodes.append(FlowNode(name=label, url="/nonprofits"))
-        pct = round(100.0 * val / total) if total else 0
-        links.append(FlowLink(
-            source=0, target=len(nodes) - 1, value=val, value_label=money_fmt(val),
-            meta=FlowMeta(title=label, subtitle=f"~{pct}% of sector revenue",
-                          url="/nonprofits", source_label="990 aggregate"),
-        ))
-    if not links:
-        return lens
-    lens.nodes, lens.links, lens.placeholder = nodes, links, False
-    lens.head_amount = money_fmt(total)
-    # Label by the grain that actually matched (which may differ from what was
-    # requested if a city fell back to its state/national context), so the figure
-    # never implies a scope it doesn't have.
     matched_scope = row["scope"]
+    # Match the org list to the grain the headline matched (NULL = no filter at
+    # that level). city_norm from the mart is already lowercased.
+    g_state = row["state_code"]
+    g_city = row["city_norm"]
+    try:
+        top = await conn.fetch(_ECONOMY_TOP_SQL, g_state, g_city)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("money-flow economy top-orgs failed: {}", exc)
+        return lens
+    if not top:
+        return lens
+
+    # Source node + headline labels by the grain that actually matched (which may
+    # differ from what was requested if a city fell back to its state/national
+    # context), so the figure never implies a scope it doesn't have.
     if matched_scope == "city":
+        src_name = scope_label
+        src_url = f"/search?types=organizations&state={quote(g_state)}&city={quote(g_city)}"
         lens.head_label = f"{scope_label} nonprofit revenue"
-        lens.count_label = f"{int(row['orgs']):,} orgs · 990"
+        lens.count_label = f"{int(row['orgs']):,} nonprofits · 990"
     elif matched_scope == "state":
-        lens.head_label = f"{row['state_code']} nonprofit revenue"
-        lens.count_label = f"{int(row['orgs']):,} orgs · 990"
+        src_name = g_state
+        src_url = f"/search?types=organizations&state={quote(g_state)}"
+        lens.head_label = f"{g_state} nonprofit revenue"
+        lens.count_label = f"{int(row['orgs']):,} nonprofits · 990"
     else:  # 'us'
+        src_name = "U.S. nonprofits"
+        src_url = "/nonprofits"
         lens.head_label = "U.S. nonprofit sector revenue"
-        lens.count_label = f"{int(row['orgs']):,} orgs · 990 · nationwide"
-    # Drill down to the nonprofit directory behind this aggregate.
-    lens.head_url = "/nonprofits"
+        lens.count_label = f"{int(row['orgs']):,} nonprofits · 990 · nationwide"
+
+    nodes = [FlowNode(name=_trunc(src_name, 24), url=src_url)]
+    links: List[FlowLink] = []
+    for r in top:
+        name = (r["org_name"] or "Unnamed nonprofit").strip()
+        rev = float(r["revenue"])
+        # Each org node drills to its own organization search.
+        org_url = f"/search?q={quote(name)}&types=organizations" if name else "/nonprofits"
+        nodes.append(FlowNode(name=_trunc(name, 40), url=org_url))
+        links.append(FlowLink(
+            source=0, target=len(nodes) - 1, value=rev, value_label=money_fmt(rev),
+            meta=FlowMeta(title=name, subtitle=(r["ntee_description"] or None),
+                          url=org_url, source_label="IRS 990"),
+        ))
+    lens.nodes, lens.links, lens.placeholder = nodes, links, False
+    # Headline stays the real scope-wide total (all orgs in scope), not just the
+    # top few shown as links.
+    lens.head_amount = money_fmt(total)
+    lens.head_url = src_url
     return lens
 
 

@@ -6,8 +6,8 @@ import api from '../lib/api'
 
 // "Follow the money" — a tabbed Sankey flow hero (Money Moves lens on the
 // homepage). Three lenses, ALL traced to the warehouse via GET /api/money-flow:
-//   spending (real money decisions) · grants (990 Schedule I) · economy (real
-//   nonprofit revenue decomposition). No fabricated numbers: a lens with no real
+//   spending (real money decisions) · grants (990 Schedule I) · economy (largest
+//   nonprofits by 990 revenue). No fabricated numbers: a lens with no real
 //   data renders an honest empty state; we never draw an invented diagram.
 
 interface FlowMeta {
@@ -327,8 +327,8 @@ export default function FollowTheMoney({
 
       <p className="mt-3 text-[12.5px] leading-relaxed text-gray-500">
         Live from the warehouse — spending is real money-flagged decisions, grants are 990 Schedule I
-        flows, and the nonprofit-economy tab is a real decomposition of sector revenue (a snapshot drawn
-        as a flow), not invented funder&rarr;grantee edges.
+        flows, and the nonprofit-economy tab is this area&rsquo;s largest nonprofits by total 990 revenue,
+        not invented funder&rarr;grantee edges.
       </p>
 
       {tip && (
