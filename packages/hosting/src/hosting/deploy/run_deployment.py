@@ -37,14 +37,39 @@ from typing import Any, Dict, List, Optional
 # ---------------------------------------------------------------------------
 # Step registry
 # ---------------------------------------------------------------------------
-# ``{python}`` is replaced with the running interpreter. ``cwd`` is relative to
-# the repo root. Add a new deployment target by adding an entry here — the API
-# and UI discover steps from :func:`available_steps`, so no other change needed.
+# ``{python}`` is replaced with the running interpreter. Optional ``cwd`` is a
+# path relative to the repo root the step runs in (default: repo root). Add a new
+# deployment target by adding an entry here — the API and UI discover steps from
+# :func:`available_steps`, so no other change needed.
+#
+# The database phase is TWO ordered steps, not one. Loading the Neon serving data
+# is not a single command: the bulk of the civic marts (event, event_meeting,
+# jurisdictions, decisions, …) are rebuilt on Neon by dbt, and only then is the
+# slim transcript-cue table copied in. Splitting them means the dashboard shows a
+# real per-phase status and the job fails loudly if the marts build doesn't run —
+# instead of one green tick that only ever reflected the cue copy (which is why an
+# earlier single "database" step looked done while most serving tables were empty).
+#   1. ``database-marts`` — dbt build of the civic marts on the Neon target.
+#   2. ``database-cues``  — slim event_documents (transcript cues), which dbt
+#                           CANNOT rebuild on Neon (its bronze upstream is
+#                           excluded from the neon_serving selector), so it is
+#                           copied here after the marts.
+# Both target the *dev* Neon (the dbt `neon` profile resolves NEON_*_DEV and the
+# cue loader prefers NEON_DATABASE_URL_DEV) — never prod, per repo policy. The
+# legacy hosting.neon.migrate civic_* search loader is intentionally NOT wired in:
+# it is MA-only example data and a parallel schema, not the dbt serving marts.
 STEP_DEFS: Dict[str, Dict[str, Any]] = {
-    "database": {
-        "label": "Database (Neon prod)",
-        "description": "Sync serving data to the Neon production Postgres.",
-        "target": "neon-prod",
+    "database-marts": {
+        "label": "Database — civic marts (Neon, dbt)",
+        "description": "Rebuild the civic serving marts on Neon via `dbt run --selector neon_serving`.",
+        "target": "neon-dev",
+        "argv": [".venv_dbt/bin/dbt", "run", "--target", "neon", "--selector", "neon_serving"],
+        "cwd": "dbt_project",
+    },
+    "database-cues": {
+        "label": "Database — transcript cues (Neon)",
+        "description": "Copy the slim event_documents transcript cues to Neon (run after the marts build).",
+        "target": "neon-dev",
         "argv": ["{python}", "-m", "hosting.neon.sync_event_documents_to_neon"],
     },
     "web": {
@@ -54,8 +79,8 @@ STEP_DEFS: Dict[str, Dict[str, Any]] = {
         "argv": ["bash", "packages/hosting/scripts/huggingface/deploy-huggingface.sh", "--skip-test"],
     },
 }
-# Default ordered pipeline: stand up the database, then ship the web app.
-DEFAULT_STEPS: List[str] = ["database", "web"]
+# Default ordered pipeline: build the marts, copy the cues, then ship the web app.
+DEFAULT_STEPS: List[str] = ["database-marts", "database-cues", "web"]
 
 
 def available_steps() -> List[Dict[str, str]]:
@@ -158,6 +183,13 @@ def _step_argv(key: str) -> List[str]:
     return [sys.executable if tok == "{python}" else tok for tok in raw]
 
 
+def _step_cwd(key: str) -> Path:
+    """Absolute working directory for a step (``cwd`` is repo-root-relative)."""
+    rel = STEP_DEFS[key].get("cwd")
+    root = _repo_root()
+    return (root / rel) if rel else root
+
+
 def _child_env() -> Dict[str, str]:
     """Child env with ``packages/hosting/src`` on PYTHONPATH so ``-m hosting.*``
     step commands resolve even when hosting isn't installed in this venv."""
@@ -223,7 +255,7 @@ class _Orchestrator:
                     logf.flush()
                     self._current = subprocess.Popen(
                         argv,
-                        cwd=str(root),
+                        cwd=str(_step_cwd(step["key"])),
                         env=_child_env(),
                         stdout=logf,
                         stderr=subprocess.STDOUT,

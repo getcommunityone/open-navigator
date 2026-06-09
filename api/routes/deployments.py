@@ -35,12 +35,22 @@ router = APIRouter(prefix="/deployments", tags=["deployments"])
 # Step metadata is duplicated (lightly) from hosting.deploy.run_deployment so the
 # API need not import the hosting package (not installed in the API venv). The
 # orchestrator remains the source of truth for the argv that actually runs.
+# Keep in sync with hosting.deploy.run_deployment.STEP_DEFS (source of truth for
+# the argv). The database phase is two steps — the dbt marts build then the slim
+# transcript-cue copy — so the dashboard reflects each and fails loudly if the
+# marts build doesn't run, rather than one green tick that only covered the cues.
 _STEP_DEFS: List[Dict[str, str]] = [
     {
-        "key": "database",
-        "label": "Database (Neon prod)",
-        "description": "Sync serving data to the Neon production Postgres.",
-        "target": "neon-prod",
+        "key": "database-marts",
+        "label": "Database — civic marts (Neon, dbt)",
+        "description": "Rebuild the civic serving marts on Neon via `dbt run --selector neon_serving`.",
+        "target": "neon-dev",
+    },
+    {
+        "key": "database-cues",
+        "label": "Database — transcript cues (Neon)",
+        "description": "Copy the slim event_documents transcript cues to Neon (run after the marts build).",
+        "target": "neon-dev",
     },
     {
         "key": "web",
@@ -50,7 +60,7 @@ _STEP_DEFS: List[Dict[str, str]] = [
     },
 ]
 _STEP_KEYS = [d["key"] for d in _STEP_DEFS]
-_DEFAULT_STEPS = ["database", "web"]
+_DEFAULT_STEPS = ["database-marts", "database-cues", "web"]
 
 
 def _repo_root() -> Path:
