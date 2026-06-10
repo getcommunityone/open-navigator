@@ -84,6 +84,10 @@ models:
 seeds:
   open_navigator_dbt:
     +schema: seeds
+    cap_topic:
+      +column_types:
+        code: varchar
+        major_code: varchar
 
 # Snapshots configuration
 snapshots:

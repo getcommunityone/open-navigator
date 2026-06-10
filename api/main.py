@@ -320,6 +320,7 @@ from api.routes import social as social_routes
 from api.routes import search as search_routes
 from api.routes import people as people_routes
 from api.routes import decisions as decisions_routes
+from api.routes import policy_questions as policy_questions_routes
 from api.routes import documents as documents_routes
 from api.routes import jurisdiction_documents as jurisdiction_documents_routes
 from api.routes import jurisdiction_meeting_documents as jurisdiction_meeting_documents_routes
@@ -352,6 +353,7 @@ app.include_router(social_routes.router, prefix="/api")
 app.include_router(search_routes.router, prefix="/api")
 app.include_router(people_routes.router, prefix="/api")
 app.include_router(decisions_routes.router, prefix="/api")
+app.include_router(policy_questions_routes.router, prefix="/api")
 app.include_router(jurisdiction_documents_routes.router, prefix="/api")
 app.include_router(jurisdiction_meeting_documents_routes.router, prefix="/api")
 app.include_router(documents_routes.router, prefix="/api")
@@ -677,10 +679,9 @@ async def get_api_opportunities(
 ):
     """API endpoint for React frontend opportunities page - returns fluoridation bills as advocacy opportunities."""
     try:
-        import duckdb
-        from pathlib import Path
         import random
-        
+        from api.routes.bills_neon import get_pool
+
         # State center coordinates for mapping
         STATE_COORDS = {
             'AL': (32.806671, -86.791130),
@@ -690,45 +691,46 @@ async def get_api_opportunities(
             'WA': (47.400902, -121.490494),
             'WI': (44.268543, -89.616508)
         }
-        
+
         # Build query for fluoridation-related bills
         states = [state] if state else list(STATE_COORDS.keys())
         opportunities = []
-        
-        # Use consolidated parquet file
-        # NOTE: stays on parquet until bronze_bills_openstates ingestion is complete (13k/1.55M)
-        parquet_path = Path("data/gold/bills_bills.parquet")
-        if not parquet_path.exists():
+
+        pool = await get_pool()
+        if pool is None:
             return {"opportunities": [], "total": 0}
-        
-        # Build state filter
-        state_filter = f"state IN ({','.join(repr(s) for s in states)})"
-        
-        # Query for fluoridation-related bills
-        query = f"""
-            SELECT 
-                state,
+
+        # Query the Postgres `bills` mart (public serving view over gold).
+        query = """
+            SELECT
+                state_code,
                 title,
                 identifier,
-                session,
-                latest_action,
-                created_at,
-                updated_at
-            FROM read_parquet('{parquet_path}')
-            WHERE ({state_filter})
-                AND (LOWER(title) LIKE '%fluorid%' 
+                session_identifier,
+                latest_action_description,
+                latest_action_date
+            FROM bills
+            WHERE state_code = ANY($1::text[])
+                AND (LOWER(title) LIKE '%fluorid%'
                    OR LOWER(title) LIKE '%dental%'
                    OR LOWER(title) LIKE '%oral health%'
                    OR LOWER(title) LIKE '%water treat%')
-            LIMIT {limit}
+            ORDER BY latest_action_date DESC NULLS LAST
+            LIMIT $2
         """
-        
-        result = duckdb.query(query).fetchall()
-        
+
+        async with pool.acquire() as conn:
+            result = await conn.fetch(query, states, limit)
+
         # Convert to opportunities format
         for row in result:
-                state_code, title, identifier, session, latest_action, created_at, updated_at = row
-                
+                state_code = row['state_code']
+                title = row['title']
+                identifier = row['identifier']
+                session = row['session_identifier']
+                latest_action = row['latest_action_description']
+                latest_action_date = row['latest_action_date']
+
                 # Determine urgency based on keywords
                 title_lower = title.lower() if title else ""
                 # Check for fluoride topics (both pro and anti fluoride are critical)
@@ -754,6 +756,8 @@ async def get_api_opportunities(
                     continue
                 
                 # Get state coordinates with slight random offset for multiple bills
+                if state_code not in STATE_COORDS:
+                    continue
                 base_lat, base_lon = STATE_COORDS[state_code]
                 lat_offset = random.uniform(-0.5, 0.5)
                 lon_offset = random.uniform(-0.5, 0.5)
@@ -766,7 +770,7 @@ async def get_api_opportunities(
                     'topic': topic_type,
                     'urgency': urgency_level,
                     'confidence': confidence,
-                    'meeting_date': updated_at.isoformat() if updated_at else created_at.isoformat(),
+                    'meeting_date': latest_action_date.isoformat() if latest_action_date else None,
                     'title': title,
                     'bill_id': identifier,
                     'session': session,

@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: policy_question_relation
+    description: >
+      public.policy_question_relation — cross-level edges between policy questions
+      (Phase 3). from_question_id (state-bill question) preempts / implements /
+      relates to to_question_id (local-decision question). The state-preemption
+      surface: a local council action paired with state legislation that would
+      override or enable it. Both endpoints FK -> policy_question via relationships
+      tests (the repo convention).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'policy-questions']
+      contract:
+        enforced: true
+    columns:
+      - name: relation_id
+        description: "PK — md5(from_question_id || to_question_id || relation_type)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: from_question_id
+        description: "FK -> policy_question.question_id (typically a state-bill question)."
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships:
+              to: ref('policy_question')
+              field: question_id
+      - name: to_question_id
+        description: "FK -> policy_question.question_id (typically a local-decision question)."
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships:
+              to: ref('policy_question')
+              field: question_id
+      - name: relation_type
+        description: "preempts | implements | related."
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: evidence
+        description: "How the link was inferred (similarity score + matched keyword)."
+        data_type: text

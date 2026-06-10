@@ -49,6 +49,10 @@ export interface FollowTheMoneyProps {
   stateCode?: string
   city?: string
   national?: boolean
+  /** Free-text search; filters spending/contract/grant flows server-side. */
+  query?: string
+  /** WHEN selector value (month|quarter|year|fiveyear|all|auto) — scopes the spending lens by date. */
+  window?: string
 }
 
 type LensKey = 'spending' | 'grants' | 'economy'
@@ -108,6 +112,8 @@ export default function FollowTheMoney({
   stateCode,
   city,
   national = false,
+  query,
+  window,
 }: FollowTheMoneyProps) {
   const navigate = useNavigate()
   const [tab, setTab] = useState<LensKey>('spending')
@@ -115,12 +121,15 @@ export default function FollowTheMoney({
 
   const scopedState = national ? undefined : stateCode || undefined
   const scopedCity = national ? undefined : city || undefined
+  const q = query?.trim() || undefined
+  // 'auto'/'all' impose no date filter server-side; only send a concrete window.
+  const win = window && window !== 'auto' && window !== 'all' ? window : undefined
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['money-flow', national, scopedState, scopedCity],
+    queryKey: ['money-flow', national, scopedState, scopedCity, q, win],
     queryFn: () =>
       api
-        .get('/money-flow', { params: { state: scopedState, city: scopedCity } })
+        .get('/money-flow', { params: { state: scopedState, city: scopedCity, q, window: win } })
         .then((r) => r.data as MoneyFlowResp),
     staleTime: 5 * 60 * 1000,
   })

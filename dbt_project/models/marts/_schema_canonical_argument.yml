@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: canonical_argument
+    description: >
+      public.canonical_argument — recurring pro/con key points per policy question
+      (Key Point Analysis), each tagged with a Boydstun policy frame. FKs asserted
+      via relationships tests (the repo convention; see event_decision_place).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'policy-questions']
+      contract:
+        enforced: true
+    columns:
+      - name: argument_id
+        description: "PK — md5(question_id || '|' || label)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: question_id
+        description: "FK -> policy_question.question_id."
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships:
+              to: ref('policy_question')
+              field: question_id
+      - name: stance
+        description: "pro | con (relative to approving/enacting the question)."
+        data_type: text
+      - name: label
+        data_type: text
+      - name: summary
+        data_type: text
+      - name: source_role
+        description: "staff | applicant | resident | official | legislative_staff."
+        data_type: text
+      - name: frame_id
+        description: "FK -> policy_frame.frame_id (Boydstun frame dimension)."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('policy_frame')
+              field: frame_id
+              config:
+                severity: warn
+      - name: frame_label
+        description: "Display label for frame_id (denormalized from the policy_frame seed)."
+        data_type: text
+      - name: member_count
+        data_type: integer
+      - name: model_name
+        data_type: text

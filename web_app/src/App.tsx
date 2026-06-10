@@ -4,6 +4,8 @@ import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-do
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
 import Home from './pages/Home'
+import PolicyQuestionsPage from './pages/PolicyQuestionsPage'
+import PolicyQuestionPage from './pages/PolicyQuestionPage'
 import Dashboard from './pages/Dashboard'
 import Analytics from './pages/Analytics'
 import Heatmap from './pages/Heatmap'
@@ -152,6 +154,8 @@ function App() {
         <Route path="heatmap" element={<Heatmap />} />
         <Route path="policy-map" element={<PolicyMap />} />
         <Route path="decisions-map" element={<DecisionsMapPage />} />
+        <Route path="policy-questions" element={<PolicyQuestionsPage />} />
+        <Route path="policy-question/:questionId" element={<PolicyQuestionPage />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
         <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />
         <Route path="data-explorer" element={<DataExplorerLayout />}>

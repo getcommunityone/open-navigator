@@ -1,7 +1,7 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { Menu, Transition, Dialog } from '@headlessui/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
 import { tracer } from '../instrumentation'
 import { homeLog } from '../utils/devLog'
@@ -72,28 +72,34 @@ interface LocationStats {
   source?: string
 }
 
-// Featured stories for tabbed hero banner
+// Featured stories for tabbed hero banner.
+//
+// Headline figures are NOT hard-coded. Any `{metric}` token below is replaced at
+// render time (resolveStoryText) with the real national rollup from /api/stats —
+// so every number a visitor sees traces to a warehouse figure. Stories whose
+// hook has no real backing metric carry no number at all (we de-numbered the
+// former invented "$2.5B" / "8,500+ providers" style copy rather than fabricate).
 const FEATURED_STORIES = [
   {
     type: 'hero',
     title: 'CommunityOne',
     subtitle: 'Track Local Decisions. Take Action.',
     description: 'Follow leaders, charities, and causes in your community.',
-    stats: '925 jurisdictions • 43.7K nonprofits • 8.8K legislators • 650+ causes • 100% free',
+    stats: '{nonprofits} nonprofits • {decisions} decisions • {bills} bills tracked • 100% free',
     category: 'Home',
     link: '/'
   },
   {
     type: 'story',
-    title: 'World Press Freedom Day: 43,726 Nonprofits Fighting for Transparency',
-    subtitle: 'How local journalism and civic organizations are tracking government decisions across 925 jurisdictions',
+    title: '{nonprofits} Nonprofits Working for Transparency',
+    subtitle: 'How local journalism and civic organizations track government decisions nationwide',
     image: 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1200&h=600&fit=crop',
     category: 'Civic Engagement',
     link: '/search?q=press+freedom'
   },
   {
     type: 'story',
-    title: 'AI Policy Tracking: 15,000+ Government Decisions Analyzed',
+    title: 'AI Policy Tracking: {decisions} Government Decisions Analyzed',
     subtitle: 'Machine learning models identify patterns in legislative discussions and regulatory frameworks',
     image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=600&fit=crop',
     category: 'Artificial Intelligence',
@@ -102,15 +108,15 @@ const FEATURED_STORIES = [
   {
     type: 'story',
     title: 'Healthcare Access: Dental Clinics in Focus',
-    subtitle: 'Tracking 8,500+ dental health providers and community health initiatives nationwide',
+    subtitle: 'Tracking dental health providers and community health initiatives nationwide',
     image: 'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=1200&h=600&fit=crop',
     category: 'Health & Medicine',
     link: '/search?q=dental+health'
   },
   {
     type: 'story',
-    title: 'Local Sports Funding: $2.5B in Community Programs',
-    subtitle: 'Analysis of recreation budget allocation across 12,000+ jurisdictions',
+    title: 'Local Sports Funding in Community Programs',
+    subtitle: 'Analysis of recreation budget allocation across local jurisdictions',
     image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200&h=600&fit=crop',
     category: 'Sports & Recreation',
     link: '/search?q=sports+funding'
@@ -125,7 +131,7 @@ const FEATURED_STORIES = [
   },
   {
     type: 'story',
-    title: 'Business Development: 8,000+ Economic Initiatives',
+    title: 'Business Development and Economic Initiatives',
     subtitle: 'Economic development zones, tax incentives, and small business support programs',
     image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&h=600&fit=crop',
     category: 'Business & Markets',
@@ -133,13 +139,38 @@ const FEATURED_STORIES = [
   },
   {
     type: 'story',
-    title: 'Government Transparency: 12,000+ Hours of Meeting Video',
+    title: 'Government Transparency: {events} Meetings Archived',
     subtitle: 'Comprehensive archive of city council, county board, and planning commission meetings',
     image: 'https://images.unsplash.com/photo-1555421689-d68471e189f2?w=1200&h=600&fit=crop',
     category: 'Government',
     link: '/documents'
   },
 ]
+
+// Featured-story `{metric}` token -> LocationStats field. Resolved against the
+// national /api/stats rollup so headline numbers are real, never hard-coded.
+const STORY_METRIC_KEYS: Record<string, keyof LocationStats> = {
+  nonprofits: 'nonprofits',
+  decisions: 'decisions',
+  events: 'events',
+  bills: 'bills',
+  persons: 'persons',
+  leaders: 'leaders',
+}
+
+// Replace `{metric}` tokens in story copy with the real national figure. A token
+// whose metric is unavailable/zero is dropped (and surrounding whitespace tidied)
+// rather than shown as a fabricated number or a bare "0".
+function resolveStoryText(text: string, stats: LocationStats | null | undefined): string {
+  return text
+    .replace(/\{(\w+)\}/g, (_m, key: string) => {
+      const statKey = STORY_METRIC_KEYS[key]
+      const v = statKey ? (stats?.[statKey] as number | undefined) : undefined
+      return v != null && v > 0 ? v.toLocaleString() : ''
+    })
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
 
 type HeroSearchCategoryTab =
   | 'all'
@@ -152,28 +183,32 @@ type HeroSearchCategoryTab =
   | 'causes'
   | 'bills'
   | 'grants'
+  | 'transcripts'
   | 'donors'
 
 const HERO_SEARCH_TAB_DEFS: {
   id: HeroSearchCategoryTab
   label: string
   types: string
-  count?: string
   /* `activity` surfaces an orange "new this week" dot in the category dropdown. */
   activity?: boolean
   /* Shown in the input when this category is active (the box narrows a browsable list). */
   filterPlaceholder?: string
 }[] = [
-  { id: 'all', label: 'All', types: 'meetings,decisions,causes,leaders,organizations,bills,topics' },
+  { id: 'all', label: 'All', types: 'meetings,decisions,causes,leaders,organizations,bills,topics,documents' },
   { id: 'meetings', label: 'Meetings', types: 'meetings', activity: true, filterPlaceholder: 'Filter meetings by body or topic…' },
-  { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
-  { id: 'leaders', label: 'Leaders', types: 'leaders', count: '75K', filterPlaceholder: 'Filter leaders by name or office…' },
+  // Meeting transcripts (full-text). Most policy terms (e.g. "fluoride") are
+  // discussed in the transcript body, not in meeting titles or extracted
+  // decisions — so this is often the only category that surfaces them.
+  { id: 'transcripts', label: 'Transcripts', types: 'documents', activity: true, filterPlaceholder: 'Filter meeting transcripts by topic…' },
+  { id: 'decisions', label: 'Decisions', types: 'decisions', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
+  { id: 'leaders', label: 'Leaders', types: 'leaders', filterPlaceholder: 'Filter leaders by name or office…' },
   // Nonprofit board members / officers — distinct from civic `leaders`. No
   // dedicated search type yet, so browsing drills into the person index.
   { id: 'nonprofit_leaders', label: 'Nonprofit leaders', types: 'persons', filterPlaceholder: 'Filter nonprofit board members by name…' },
   { id: 'persons', label: 'Persons', types: 'persons', filterPlaceholder: 'Filter people by name…' },
-  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', count: '1.8M', filterPlaceholder: 'Filter nonprofits by name or cause…' },
-  { id: 'causes', label: 'Causes', types: 'causes', count: '650+', filterPlaceholder: 'Filter causes by name…' },
+  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', filterPlaceholder: 'Filter nonprofits by name or cause…' },
+  { id: 'causes', label: 'Causes', types: 'causes', filterPlaceholder: 'Filter causes by name…' },
   { id: 'bills', label: 'Bills', types: 'bills', filterPlaceholder: 'Filter bills by number or topic…' },
   { id: 'grants', label: 'Grants', types: 'grants', filterPlaceholder: 'Filter grants by organization or purpose…' },
   {
@@ -197,6 +232,14 @@ function formatCompactCount(n: number | undefined): string | undefined {
   }
   return String(n)
 }
+
+// The hero category-counts query (below) fetches at limit=1, but the /search
+// backend over-fetches by +100 for cross-type mixing/sorting (search.py:
+// search_limit = offset + limit + 100), so each per-type `type_totals` value
+// saturates at 101. A saturated value is a floor ("at least this many"), not an
+// exact count — render it as "100+" rather than a misleading exact "101".
+const HERO_COUNT_QUERY_LIMIT = 1
+const HERO_COUNT_CAP = HERO_COUNT_QUERY_LIMIT + 100 // 101
 
 export default function Home() {
   const navigate = useNavigate()
@@ -330,11 +373,75 @@ export default function Home() {
     staleTime: 5 * 60 * 1000 // Cache for 5 minutes
   });
 
-  // Hero category badge counts, scoped to the selected geography. The /stats
-  // endpoint serves these from the cached jurisdiction_state_aggregate rollup
-  // (national/state/county/city rows). When a location is selected we show the
-  // real count; otherwise we fall back to the static marketing string so the
-  // idle hero still reads as designed.
+  // National catalog rollup (GET /api/stats with no location) — the real source
+  // for the "Search in" badges when the user has no location set and isn't
+  // searching. Replaces the former hard-coded count strings: every badge number
+  // now traces to a warehouse figure (or shows nothing when none exists).
+  const { data: nationalStats } = useQuery<LocationStats | null>({
+    queryKey: ['national-stats'],
+    queryFn: async () => {
+      const response = await api.get('/stats');
+      return response.data;
+    },
+    staleTime: 30 * 60 * 1000 // Catalog totals barely move; cache 30 min.
+  });
+
+  // Live, query-scoped counts for the "Search in" badges. The preview query
+  // above only fetches the ACTIVE tab's types, so it can't populate per-category
+  // badges; this fans out across every category type at limit=1 (we consume only
+  // `type_totals`, not the rows) so each badge shows how many results that
+  // category will ACTUALLY return for the current query. Without this the badges
+  // read the /stats catalog rollup regardless of the query — which misreports
+  // bills (jurisdiction_state_aggregate.bills_count is unfilled -> "Bills 0")
+  // and grants (no rollup column at all -> no badge), even though both are fully
+  // searchable. Scoped to the active state so the count matches the search the
+  // user will run.
+  const { data: categoryCountsData } = useQuery<any>({
+    queryKey: ['hero-category-counts', debouncedKeyword, location?.state, searchScope],
+    queryFn: async () => {
+      const hasKw = debouncedKeyword.length >= 2
+      // Browse mode (no keyword): meetings, decisions + transcripts need a live
+      // count — they have no catalog-rollup field in /stats, so without this they
+      // render blank. All three have real, uncapped COUNT helpers server-side
+      // (count_events / count_decisions / count_documents, the last GIN-index-
+      // backed + 1h-cached), so this stays cheap; the other categories use the
+      // /stats rollup in browse.
+      const params: any = {
+        types: hasKw
+          ? 'meetings,decisions,leaders,organizations,causes,bills,grants,documents'
+          : 'meetings,decisions,documents',
+        limit: HERO_COUNT_QUERY_LIMIT,
+      }
+      if (hasKw) params.q = debouncedKeyword
+      if (location?.state && searchScope !== 'national') params.state = location.state
+      const response = await api.get('/search/', { params })
+      return response.data
+    },
+    enabled: true,
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  })
+
+  // Hero category badge counts. Two sources, in priority order:
+  //   1. Live, query-scoped `type_totals` (above) when a query is active and the
+  //      category is backed by an ENABLED live search. This is the honest "what
+  //      you'll get" number — and the only one correct for bills/grants/decisions.
+  //   2. Geography-scoped catalog rollup from /stats (jurisdiction_state_aggregate)
+  //      for browse mode and for the persons-backed categories, whose server-side
+  //      search is disabled (a live 0 there would be misleading, so we keep the
+  //      "how many exist" catalog figure instead).
+  // The persons-backed categories (persons, nonprofit_leaders) and 'all' have no
+  // entry here, so they fall through to the catalog rollup / static string.
+  const HERO_LIVE_TOTAL_KEY: Partial<Record<HeroSearchCategoryTab, string>> = {
+    meetings: 'meetings',
+    decisions: 'decisions',
+    leaders: 'leaders',
+    nonprofits: 'organizations',
+    causes: 'causes',
+    bills: 'bills',
+    grants: 'grants',
+    transcripts: 'documents',
+  }
   const HERO_COUNT_STAT_FIELD: Partial<Record<HeroSearchCategoryTab, keyof LocationStats>> = {
     leaders: 'leaders',
     nonprofit_leaders: 'nonprofit_leaders',
@@ -343,13 +450,56 @@ export default function Home() {
     decisions: 'decisions',
     bills: 'bills',
   }
-  const heroCategoryCount = (cat: { id: HeroSearchCategoryTab; count?: string }): string | undefined => {
-    const statKey = HERO_COUNT_STAT_FIELD[cat.id]
-    if (statKey) {
-      const real = formatCompactCount(locationStats?.[statKey] as number | undefined)
-      if (real != null) return real
+  const heroCategoryCount = (cat: { id: HeroSearchCategoryTab }): string | undefined => {
+    const hasQuery = debouncedKeyword.length >= 2
+
+    // 1. Live, query-scoped count (preferred whenever a query is active).
+    // meetings, decisions + transcripts get a REAL, uncapped server COUNT
+    // (count_events / count_decisions / count_documents over the small
+    // event_meeting/event_decision/event_documents marts) and have no usable
+    // /stats rollup field, so use their live count even in browse mode.
+    const liveKey = HERO_LIVE_TOTAL_KEY[cat.id]
+    const isRealCount =
+      cat.id === 'meetings' || cat.id === 'decisions' || cat.id === 'transcripts'
+    if ((hasQuery || isRealCount) && liveKey) {
+      const totals = categoryCountsData?.type_totals as Record<string, number | undefined> | undefined
+      const live = totals?.[liveKey]
+      if (live != null) {
+        // Over-fetch estimates (len-based) saturate at the cap → "100+". The real
+        // COUNT categories (meetings/decisions) are exact, so never cap them.
+        if (!isRealCount && live >= HERO_COUNT_CAP) return `${HERO_COUNT_CAP - 1}+`
+        return formatCompactCount(live)
+      }
     }
-    return cat.count
+
+    const statKey = HERO_COUNT_STAT_FIELD[cat.id]
+
+    // 2. Geography-scoped catalog rollup. The rollup is unfilled for many
+    // locations, so a 0 means "not rolled up yet", not "none exist" — suppress
+    // it rather than render a misleading "0" (this is why bills no longer shows
+    // a false "0" in browse mode).
+    if (location && statKey) {
+      const v = locationStats?.[statKey] as number | undefined
+      if (v != null && v > 0) {
+        const real = formatCompactCount(v)
+        if (real != null) return real
+      }
+    }
+
+    // 3. National catalog rollup — only when the user has no location set, so we
+    // never render a national figure next to a location-scoped view. This is the
+    // real number that replaced the former hard-coded fallback strings.
+    if (!location && statKey) {
+      const v = nationalStats?.[statKey] as number | undefined
+      if (v != null && v > 0) {
+        const real = formatCompactCount(v)
+        if (real != null) return real
+      }
+    }
+
+    // No real figure for this category (e.g. causes has no catalog count and no
+    // active query) → show no badge rather than invent a number.
+    return undefined
   }
 
   const activeHeroTab = React.useMemo(
@@ -370,7 +520,10 @@ export default function Home() {
   // Human-readable label for the currently selected search scope (reused by the
   // location selector button and the live "Searching … in …" hint line).
   const scopeLabel = React.useMemo(() => {
-    if (!location) return 'your area'
+    // No location set → default to a nationwide search (the API is hit with no
+    // state/city filter, which returns results from everywhere). Label it
+    // explicitly as national rather than the ambiguous "your area".
+    if (!location) return 'the United States'
     switch (searchScope) {
       case 'city':
         return `My City (${location.city || '—'})`
@@ -605,6 +758,24 @@ export default function Home() {
     navigate(`/search?${params.toString()}`)
   }
 
+  // Click handler for a preview result row. Prefer the deep-link `url` the
+  // search API already returns (e.g. an org's EIN link that auto-expands it on
+  // /search) so the row navigates to the actual entity, not a generic
+  // re-search. Fall back to searching by the row's title when no url is present.
+  const handleResultClick = (result: any) => {
+    const url = result?.url as string | undefined
+    if (url) {
+      setShowSuggestions(false)
+      if (/^https?:\/\//i.test(url)) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } else {
+        navigate(url)
+      }
+      return
+    }
+    handleSelectSuggestion(result?.title ?? '')
+  }
+
   const handleViewAllCategory = (category: string) => {
     if (keyword.trim().length >= 2) {
       const params = new URLSearchParams()
@@ -615,8 +786,8 @@ export default function Home() {
     }
   }
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault()
     homeLog('🔍 [Home] Search submitted:', { keyword, location: location?.state, searchScope });
 
     const q = keyword.trim()
@@ -1410,7 +1581,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <CalendarIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1446,7 +1617,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1482,7 +1653,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <HeartIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1520,7 +1691,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <BuildingLibraryIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1556,7 +1727,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <UserGroupIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1599,7 +1770,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <UserCircleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1635,7 +1806,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <DocumentTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1671,7 +1842,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <BanknotesIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1707,7 +1878,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <ChatBubbleBottomCenterTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1725,7 +1896,8 @@ export default function Home() {
                                     {previewResults.total_results > 0 && (
                                       <div className="px-4 py-3 bg-gray-50 text-center border-t border-gray-200">
                                         <button
-                                          type="submit"
+                                          type="button"
+                                          onClick={() => handleSearch()}
                                           className="text-sm text-[#354F52] hover:text-[#2e4346] font-medium"
                                         >
                                           See all {previewResults.total_results} results →
@@ -1743,24 +1915,40 @@ export default function Home() {
                           const intent =
                             trimmed.length > 0 ? 'query' : heroSearchTab === 'all' ? 'idle' : 'browse'
 
-                          if (intent === 'idle') {
+                          // In the "All" scope the lens boxes stay mounted whether
+                          // the input is empty (idle) or holds a query — typing
+                          // filters the cards in place instead of unmounting them.
+                          if (heroSearchTab === 'all' && (intent === 'idle' || intent === 'query')) {
                             return (
-                              <StoryLenses
-                                national={searchScope === 'national'}
-                                locationLabel={location?.city || location?.county || undefined}
-                                stateCode={location?.state || undefined}
-                                city={location?.city || undefined}
-                                onSearch={(q) => {
-                                  // Navigate to scoped search results. (Previously
-                                  // setKeyword(q) only filled the hero box far above
-                                  // the fold, so topic pills / cards felt dead.)
-                                  const params = new URLSearchParams()
-                                  params.set('q', q)
-                                  applyLocationScope(params)
-                                  navigate(`/search?${params.toString()}`)
-                                }}
-                                onBrowseTopics={() => navigate('/search?types=topics')}
-                              />
+                              <>
+                                {intent === 'query' && (
+                                  <p
+                                    className="mt-3 text-sm text-[#6b8a8a]"
+                                    style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                  >
+                                    Filtering <span className="font-semibold text-[#0f2b2b]">{scopeNoun}</span> in{' '}
+                                    <span className="font-semibold text-[#1a6b6b]">{scopeLabel}</span>
+                                    {' — press Enter to search everything'}
+                                  </p>
+                                )}
+                                <StoryLenses
+                                  national={searchScope === 'national'}
+                                  query={intent === 'query' ? debouncedKeyword : undefined}
+                                  locationLabel={location?.city || location?.county || undefined}
+                                  stateCode={location?.state || undefined}
+                                  city={location?.city || undefined}
+                                  onSearch={(q) => {
+                                    // Navigate to scoped search results. (Previously
+                                    // setKeyword(q) only filled the hero box far above
+                                    // the fold, so topic pills / cards felt dead.)
+                                    const params = new URLSearchParams()
+                                    params.set('q', q)
+                                    applyLocationScope(params)
+                                    navigate(`/search?${params.toString()}`)
+                                  }}
+                                  onBrowseTopics={() => navigate('/search?types=topics')}
+                                />
+                              </>
                             )
                           }
 
@@ -1811,16 +1999,16 @@ export default function Home() {
                     <div className="relative overflow-hidden rounded-2xl bg-gray-900 shadow-2xl h-[500px]">
                       <img
                         src={FEATURED_STORIES[selectedStoryTab].image}
-                        alt={FEATURED_STORIES[selectedStoryTab].title}
+                        alt={resolveStoryText(FEATURED_STORIES[selectedStoryTab].title, nationalStats)}
                         className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-50 transition-opacity duration-300"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
                       <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12">
                         <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 leading-tight group-hover:text-primary-300 transition-colors">
-                          {FEATURED_STORIES[selectedStoryTab].title}
+                          {resolveStoryText(FEATURED_STORIES[selectedStoryTab].title, nationalStats)}
                         </h2>
                         <p className="text-lg md:text-xl text-gray-200 max-w-3xl">
-                          {FEATURED_STORIES[selectedStoryTab].subtitle}
+                          {resolveStoryText(FEATURED_STORIES[selectedStoryTab].subtitle, nationalStats)}
                         </p>
                       </div>
 
