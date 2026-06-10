@@ -749,12 +749,19 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // nationwide, so the UI must not claim they're local ("in your area").
   const unscoped = !scopedState && !scopedCity
 
+  // Free-text filter from the hero search. Sent to the API so cards are filtered
+  // server-side across the full warehouse (not just the handful loaded here);
+  // 'auto' window widens automatically to the grain that holds matches.
+  const trimmedQuery = (query ?? '').trim()
+  const apiQuery = trimmedQuery || undefined
+  const hasQuery = !!trimmedQuery
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['lenses', national, scopedState, scopedCity, windowParam],
+    queryKey: ['lenses', national, scopedState, scopedCity, windowParam, apiQuery],
     queryFn: () =>
       api
         .get('/lenses', {
-          params: { state: scopedState, city: scopedCity, window: windowParam, limit_per_lens: 6 },
+          params: { state: scopedState, city: scopedCity, window: windowParam, limit_per_lens: 6, q: apiQuery },
         })
         .then((r) => r.data as LensesResponse),
     staleTime: 5 * 60 * 1000,
@@ -797,30 +804,6 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
     if (c.url) navigate(c.url)
   }
 
-  // Hero free-text filter. When the user types in the hero search, we keep the
-  // lens cards mounted and narrow them to matches instead of unmounting the
-  // section. Tokenized AND-match over the card's real text (headline,
-  // jurisdiction, stat labels/values) — never fabricates a match.
-  const queryTokens = useMemo(
-    () =>
-      (query ?? '')
-        .trim()
-        .toLowerCase()
-        .split(/\s+/)
-        .filter(Boolean),
-    [query],
-  )
-  const hasQuery = queryTokens.length > 0
-  const matchCard = useMemo(() => {
-    if (!hasQuery) return () => true
-    return (c: RenderCard) => {
-      const hay = [c.h, c.juris, ...(c.stats ?? []).flatMap((s) => [s.l, s.v])]
-        .join(' ')
-        .toLowerCase()
-      return queryTokens.every((tok) => hay.includes(tok))
-    }
-  }, [hasQuery, queryTokens])
-
   // Per-lens normalized cards from the live response (empty until data loads).
   const lensCards = useMemo(
     () =>
@@ -842,7 +825,6 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
     for (const { lens, cards } of lensCards) {
       if (signals.size > 0 && !signals.has(lens.id)) continue
       for (const card of cards) {
-        if (!matchCard(card)) continue
         const k = card.url || `${card.h}__${card.juris}`
         if (seen.has(k)) continue
         seen.add(k)
@@ -850,7 +832,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       }
     }
     return out
-  }, [lensCards, signals, matchCard])
+  }, [lensCards, signals])
 
   const selected = STRIP_LENSES.find((l) => l.id === lensId) ?? HOME_LENS
   const isHome = lensId === 'home'
@@ -1166,7 +1148,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
           {selected.note && <LensNote note={selected.note} />}
           <SingleLensBody
             lens={selected}
-            cards={(sel?.cards ?? []).filter(matchCard)}
+            cards={sel?.cards ?? []}
             placeholder={!!sel?.placeholder && !hasQuery}
             query={hasQuery ? query?.trim() : undefined}
             onSearch={onSearch}

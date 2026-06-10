@@ -520,7 +520,10 @@ export default function Home() {
   // Human-readable label for the currently selected search scope (reused by the
   // location selector button and the live "Searching … in …" hint line).
   const scopeLabel = React.useMemo(() => {
-    if (!location) return 'your area'
+    // No location set → default to a nationwide search (the API is hit with no
+    // state/city filter, which returns results from everywhere). Label it
+    // explicitly as national rather than the ambiguous "your area".
+    if (!location) return 'the United States'
     switch (searchScope) {
       case 'city':
         return `My City (${location.city || '—'})`
