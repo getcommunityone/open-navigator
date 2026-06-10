@@ -17,10 +17,8 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from enrich_nonprofits_gt990 import GivingTuesday990Enricher
+# Ported: GivingTuesday990Enricher now lives in the scrapers package.
+from scrapers.irs.enrich_nonprofits_gt990 import GivingTuesday990Enricher
 import duckdb
 import pandas as pd
 from loguru import logger

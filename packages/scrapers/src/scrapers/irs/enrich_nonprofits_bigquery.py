@@ -3,7 +3,7 @@
 Enrich nonprofit data with mission statements and website URLs from Google BigQuery IRS 990 dataset.
 
 Usage:
-    python scripts/enrich_nonprofits_bigquery.py \\
+    python -m scrapers.irs.enrich_nonprofits_bigquery \\
         --input data/gold/nonprofits_tuscaloosa_form990.parquet \\
         --output data/gold/nonprofits_tuscaloosa_bigquery.parquet
 
@@ -15,28 +15,30 @@ Features:
     - Adds bigquery_mission and bigquery_website fields
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
 from typing import Optional
 
-import pandas as pd
-from google.cloud import bigquery
-from google.auth import exceptions as auth_exceptions
 from loguru import logger
 
-# Configure logging
-logger.remove()
-logger.add(sys.stderr, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | {message}")
+
+def _configure_logging() -> None:
+    """Configure loguru sink. Kept out of import so importing this module as a
+    library does not mutate global loguru handlers."""
+    logger.remove()
+    logger.add(sys.stderr, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | {message}")
 
 
 class BigQueryNonprofitEnricher:
     """Enrich nonprofit data using Google BigQuery IRS 990 public dataset."""
-    
+
     def __init__(self, project: Optional[str] = None, skip_client: bool = False):
         """
         Initialize BigQuery client.
-        
+
         Args:
             project: Google Cloud project ID (required for queries)
             skip_client: Skip client initialization (for SQL export only)
@@ -44,7 +46,10 @@ class BigQueryNonprofitEnricher:
         if skip_client:
             self.client = None
             return
-            
+
+        from google.auth import exceptions as auth_exceptions
+        from google.cloud import bigquery
+
         try:
             self.client = bigquery.Client(project=project)
             logger.info(f"✅ BigQuery client initialized (project: {project})")
@@ -208,6 +213,8 @@ ORDER BY ein;
         Returns:
             DataFrame with columns: ein, mission, website, tax_year, form_type, officers (if include_officers=True)
         """
+        import pandas as pd
+
         query = self.build_query(eins, years, include_officers)
         
         logger.info(f"🔍 Querying BigQuery for {len(eins):,} EINs...")
@@ -259,6 +266,8 @@ ORDER BY ein;
         Returns:
             Enriched DataFrame with bigquery_mission, bigquery_website, bigquery_officers, etc.
         """
+        import pandas as pd
+
         logger.info(f"📊 Enriching {len(df):,} organizations from BigQuery")
         if include_officers:
             logger.info("   Including officer and board member data")
@@ -350,38 +359,39 @@ ORDER BY ein;
         return enriched
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser (pure; safe to call without heavy deps)."""
     parser = argparse.ArgumentParser(
         description="Enrich nonprofit data with BigQuery IRS 990 missions and websites",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Export SQL query for BigQuery web UI (no auth required)
-  python scripts/enrich_nonprofits_bigquery.py \\
+  python -m scrapers.irs.enrich_nonprofits_bigquery \\
       --input data/gold/nonprofits_tuscaloosa_form990.parquet \\
-      --export-sql scripts/bigquery_tuscaloosa_missions.sql
+      --export-sql data/cache/bigquery_tuscaloosa_missions.sql
 
   # Merge BigQuery CSV export into existing file (update in place)
-  python scripts/enrich_nonprofits_bigquery.py \\
+  python -m scrapers.irs.enrich_nonprofits_bigquery \\
       --input data/gold/nonprofits_tuscaloosa_form990.parquet \\
       --from-csv data/cache/bigquery_results.csv \\
       --update-in-place
 
   # Merge BigQuery CSV export into new file
-  python scripts/enrich_nonprofits_bigquery.py \\
+  python -m scrapers.irs.enrich_nonprofits_bigquery \\
       --input data/gold/nonprofits_tuscaloosa_form990.parquet \\
       --output data/gold/nonprofits_tuscaloosa_bigquery.parquet \\
       --from-csv data/cache/bigquery_results.csv
 
   # Direct BigQuery query (requires auth)
-  python scripts/enrich_nonprofits_bigquery.py \\
+  python -m scrapers.irs.enrich_nonprofits_bigquery \\
       --input data/gold/nonprofits_organizations.parquet \\
       --output data/gold/nonprofits_bigquery.parquet \\
       --project my-gcp-project \\
       --years 2023 2022
         """
     )
-    
+
     parser.add_argument('--input', required=True, help='Input parquet file with nonprofit data')
     parser.add_argument('--output', help='Output parquet file for enriched data (required unless --export-sql)')
     parser.add_argument('--ein-column', default='ein', help='Name of EIN column (default: ein)')
@@ -395,9 +405,18 @@ Examples:
                         help='Update input file instead of creating new output file')
     parser.add_argument('--no-officers', action='store_true',
                         help='Skip officer/board member data from Schedule J (use if tables unavailable)')
-    
+
+    return parser
+
+
+def main():
+    import pandas as pd
+
+    _configure_logging()
+
+    parser = build_parser()
     args = parser.parse_args()
-    
+
     # Validate: --output required unless using --export-sql or --update-in-place
     if not args.export_sql and not args.output and not args.update_in_place:
         parser.error("--output is required unless using --export-sql or --update-in-place")
@@ -451,7 +470,7 @@ Examples:
         logger.info(f"5. Click 'SAVE RESULTS' → 'CSV (local file)'")
         logger.info(f"6. Save as: data/cache/bigquery_results.csv")
         logger.info(f"7. Merge results:")
-        logger.info(f"   python scripts/enrich_nonprofits_bigquery.py \\")
+        logger.info(f"   python -m scrapers.irs.enrich_nonprofits_bigquery \\")
         logger.info(f"       --input {args.input} \\")
         logger.info(f"       --from-csv data/cache/bigquery_results.csv \\")
         logger.info(f"       --update-in-place")
@@ -507,19 +526,19 @@ Examples:
             logger.error("❌ ERROR: --project required for direct BigQuery access")
             logger.error("")
             logger.error("OPTION 1 - Use Web UI (No auth required):")
-            logger.error("  1. Run: python scripts/enrich_nonprofits_bigquery.py \\")
+            logger.error("  1. Run: python -m scrapers.irs.enrich_nonprofits_bigquery \\")
             logger.error("           --input data/gold/nonprofits_tuscaloosa_form990.parquet \\")
-            logger.error("           --export-sql scripts/bigquery_query.sql")
+            logger.error("           --export-sql data/cache/bigquery_query.sql")
             logger.error("  2. Run SQL in BigQuery web console")
             logger.error("  3. Export CSV")
-            logger.error("  4. Run: python scripts/enrich_nonprofits_bigquery.py \\")
+            logger.error("  4. Run: python -m scrapers.irs.enrich_nonprofits_bigquery \\")
             logger.error("           --input data/gold/nonprofits_tuscaloosa_form990.parquet \\")
             logger.error("           --output data/gold/nonprofits_tuscaloosa_bigquery.parquet \\")
             logger.error("           --from-csv data/cache/bigquery_results.csv")
             logger.error("")
             logger.error("OPTION 2 - Set up authentication:")
             logger.error("  Run: gcloud auth application-default login")
-            logger.error("  Then: python scripts/enrich_nonprofits_bigquery.py \\")
+            logger.error("  Then: python -m scrapers.irs.enrich_nonprofits_bigquery \\")
             logger.error("           --input ... --output ... --project YOUR_PROJECT_ID")
             sys.exit(1)
         

@@ -174,7 +174,7 @@ def cmd_enrich_990(args):
     
     # Build command
     cmd = [
-        "python", "scripts/enrich_nonprofits_gt990.py",
+        sys.executable, "-m", "scrapers.irs.enrich_nonprofits_gt990",
         "--input", str(MAIN_FILE),
         "--concurrent", str(args.concurrent)
     ]
@@ -203,9 +203,9 @@ def cmd_enrich_bigquery(args):
     import subprocess
     
     # Step 1: Export SQL
-    sql_file = "scripts/bigquery_query.sql"
+    sql_file = "data/cache/bigquery_query.sql"
     cmd_export = [
-        "python", "scripts/enrich_nonprofits_bigquery.py",
+        sys.executable, "-m", "scrapers.irs.enrich_nonprofits_bigquery",
         "--input", str(MAIN_FILE),
         "--export-sql", sql_file
     ]
@@ -226,7 +226,7 @@ def cmd_enrich_bigquery(args):
     logger.info(f"2. Paste SQL from: {sql_file}")
     logger.info("3. Click 'RUN'")
     logger.info("4. Export as CSV to: data/cache/bigquery_results.csv")
-    logger.info("5. Run: python scripts/manage_nonprofits.py merge-bigquery")
+    logger.info("5. Run: python -m scrapers.irs.manage_nonprofits merge-bigquery")
     logger.info("=" * 70)
 
 
@@ -242,7 +242,7 @@ def cmd_merge_bigquery(args):
         sys.exit(1)
     
     cmd = [
-        "python", "scripts/enrich_nonprofits_bigquery.py",
+        sys.executable, "-m", "scrapers.irs.enrich_nonprofits_bigquery",
         "--input", str(MAIN_FILE),
         "--from-csv", csv_file,
         "--update-in-place"
