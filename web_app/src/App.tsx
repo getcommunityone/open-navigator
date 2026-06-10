@@ -4,7 +4,6 @@ import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-do
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
 import Home from './pages/Home'
-import HomeModern from './pages/HomeModern'
 import PolicyQuestionsPage from './pages/PolicyQuestionsPage'
 import PolicyQuestionPage from './pages/PolicyQuestionPage'
 import Dashboard from './pages/Dashboard'
@@ -142,12 +141,7 @@ function App() {
       <Routes>
       {/* Ground News-style homepage without Layout (has its own header) */}
       <Route path="/" element={<Home />} />
-      
-      {/* Old modern home page (if needed) */}
-      <Route path="/classic" element={<Layout />}>
-        <Route index element={<HomeModern />} />
-      </Route>
-      
+
       {/* All other pages with sidebar layout */}
       <Route path="/" element={<Layout />}>
         <Route path="explore" element={<Explore />} />
