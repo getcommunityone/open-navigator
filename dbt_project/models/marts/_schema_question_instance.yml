@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: question_instance
+    description: >
+      public.question_instance — polymorphic bridge of decisions/bills to the
+      policy question they instantiate, with normalized outcome. source_id ->
+      event_decision is a relationships(warn) test only because event_decision is
+      partitioned with a composite PK (same limitation as event_decision_place).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'policy-questions']
+      contract:
+        enforced: true
+    columns:
+      - name: instance_id
+        description: "PK — md5(source_type || '|' || source_id || '|' || question_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: question_id
+        description: "FK -> policy_question.question_id."
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships:
+              to: ref('policy_question')
+              field: question_id
+      - name: source_type
+        description: "local_decision | state_bill."
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: source_id
+        description: >
+          The decision/bill id. For local_decision -> event_decision.event_decision_id,
+          asserted via relationships(warn) (partitioned composite-PK parent).
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: state_code
+        data_type: text
+      - name: jurisdiction_name
+        data_type: text
+      - name: city
+        data_type: text
+      - name: outcome_raw
+        data_type: text
+      - name: outcome_normalized
+        description: "decisions: approved|denied|deferred|other; bills: pending (Phase 2 extends)."
+        data_type: text
+      - name: occurred_at
+        data_type: timestamp with time zone
+      - name: session
+        data_type: text
+      - name: assign_score
+        data_type: double precision

@@ -320,6 +320,7 @@ from api.routes import social as social_routes
 from api.routes import search as search_routes
 from api.routes import people as people_routes
 from api.routes import decisions as decisions_routes
+from api.routes import policy_questions as policy_questions_routes
 from api.routes import documents as documents_routes
 from api.routes import jurisdiction_documents as jurisdiction_documents_routes
 from api.routes import jurisdiction_meeting_documents as jurisdiction_meeting_documents_routes
@@ -352,6 +353,7 @@ app.include_router(social_routes.router, prefix="/api")
 app.include_router(search_routes.router, prefix="/api")
 app.include_router(people_routes.router, prefix="/api")
 app.include_router(decisions_routes.router, prefix="/api")
+app.include_router(policy_questions_routes.router, prefix="/api")
 app.include_router(jurisdiction_documents_routes.router, prefix="/api")
 app.include_router(jurisdiction_meeting_documents_routes.router, prefix="/api")
 app.include_router(documents_routes.router, prefix="/api")

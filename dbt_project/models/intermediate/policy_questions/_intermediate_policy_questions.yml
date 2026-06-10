@@ -1,0 +1,10 @@
+version: 2
+
+models:
+  - name: int_policy_question_rollup
+    description: >
+      Per-question comparative rollup (jurisdiction + outcome counts) feeding the
+      public policy_question mart and the API rollup response.
+    columns:
+      - name: question_id
+        tests: [unique, not_null]

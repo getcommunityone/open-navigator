@@ -12,6 +12,10 @@ dependencies = [
     "python-dotenv>=1.0",
     "loguru>=0.7",
     "psycopg2-binary>=2.9",
+    # policy_questions registry pipeline (embed + cluster + label)
+    "sentence-transformers>=2.2",
+    "scikit-learn>=1.3",  # provides native sklearn.cluster.HDBSCAN
+    "numpy>=1.24",
 ]
 
 [tool.setuptools.packages.find]
