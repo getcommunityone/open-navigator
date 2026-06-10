@@ -343,6 +343,7 @@ from api.routes import addresses as addresses_routes
 from api.routes import geocode as geocode_routes
 from api.routes import cpi as cpi_routes
 from api.routes import grants as grants_routes
+from api.routes import efile990 as efile990_routes
 from api.routes import lenses as lenses_routes
 from api.routes import money_flow as money_flow_routes
 from api.routes import feed as feed_routes
@@ -374,6 +375,7 @@ app.include_router(addresses_routes.router, prefix="/api")
 app.include_router(geocode_routes.router, prefix="/api")
 app.include_router(cpi_routes.router, prefix="/api", tags=["cpi"])
 app.include_router(grants_routes.router, prefix="/api")
+app.include_router(efile990_routes.router, prefix="/api")
 # Prefix ("/api/lenses") is baked into the router — include with NO extra prefix
 # (mirrors how trending_routes is registered).
 app.include_router(lenses_routes.router)
