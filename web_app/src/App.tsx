@@ -13,6 +13,7 @@ import Heatmap from './pages/Heatmap'
 import Documents from './pages/Documents'
 import Opportunities from './pages/Opportunities'
 import Nonprofits from './pages/Nonprofits'
+import Efile990Viewer from './pages/Efile990Viewer'
 import NonprofitsHF from './pages/NonprofitsHF'
 import Settings from './pages/Settings'
 import PeopleFinder from './pages/PeopleFinder'
@@ -184,6 +185,8 @@ function App() {
         </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="grants/:id" element={<GrantDetail />} />
+        <Route path="efile990" element={<Efile990Viewer />} />
+        <Route path="efile990/:objectId" element={<Efile990Viewer />} />
         <Route path="decisions/:id" element={<DecisionDetail />} />
         <Route path="meetings/:id" element={<MeetingDetail />} />
         <Route path="jurisdiction/:jurisdictionId/meetings" element={<MeetingDocuments />} />

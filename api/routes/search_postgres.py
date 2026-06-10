@@ -71,6 +71,11 @@ _STATE_NAME_CASE = "CASE state_code\n" + "\n".join(
     for name, code in STATE_NAME_TO_CODE.items()
 ) + "\n                    ELSE NULL END"
 
+# Python reverse of STATE_NAME_TO_CODE: 2-letter code -> full state name. Used
+# to render human-friendly locations ("MA" -> "Massachusetts") in serving
+# strings (e.g. the grant subtitle) without a round-trip to the DB CASE above.
+_STATE_CODE_TO_NAME = {code: name for name, code in STATE_NAME_TO_CODE.items()}
+
 
 def normalize_state_input(state: Optional[str]) -> Optional[str]:
     """
@@ -501,7 +506,14 @@ async def search_persons_pg(
                 org = row['org_name']
                 org_display = org if org else 'No known organization'
                 title = format_title(row['title']) if row['title'] else 'Person'
-                location = f"{row['city_norm']}, {row['state_code']}" if row['city_norm'] and row['state_code'] else (row['state_code'] or '')
+                # Title-case the (lowercased) city and expand the 2-letter code
+                # to the full state name ("boston", "MA" -> "Boston,
+                # Massachusetts"). Raw values stay in metadata below.
+                _p_city = (row['city_norm'] or '').strip()
+                _p_city_display = _p_city.title() if _p_city else ''
+                _p_code = row['state_code'] or ''
+                _p_state_display = _STATE_CODE_TO_NAME.get(_p_code, _p_code)
+                location = ", ".join(p for p in (_p_city_display, _p_state_display) if p)
 
                 # Key the detail URL on person_uid (the true unique PK), NOT
                 # master_person_id. The MDM resolved-entity id badly over-merges
@@ -2241,11 +2253,16 @@ async def search_grants_pg(
                 amount = row['amount']
                 amount_str = f"${amount:,}" if amount is not None else None
 
-                # Grantor location for context (golden 2-letter state + city).
-                grantor_location = (
-                    f"{row['grantor_city_norm']}, {row['grantor_state_code']}"
-                    if row['grantor_city_norm'] and row['grantor_state_code']
-                    else (row['grantor_state_code'] or '')
+                # Grantor location for context: title-case the (lowercased)
+                # city and expand the 2-letter code to the full state name
+                # ("boston", "MA" -> "Boston, Massachusetts"). Raw codes stay in
+                # metadata below; this only affects the human-facing subtitle.
+                _city = (row['grantor_city_norm'] or '').strip()
+                _city_display = _city.title() if _city else ''
+                _code = row['grantor_state_code'] or ''
+                _state_display = _STATE_CODE_TO_NAME.get(_code, _code)
+                grantor_location = ", ".join(
+                    p for p in (_city_display, _state_display) if p
                 )
 
                 subtitle = " • ".join(

@@ -24,7 +24,7 @@ import {
   MegaphoneIcon,
   DocumentMagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
-import { formatCurrency } from '../utils/formatters'
+import { formatCurrency, formatCityState } from '../utils/formatters'
 
 type SearchResultType =
   | 'leader'
@@ -990,7 +990,7 @@ export default function UnifiedSearch() {
               )}
               {(result.metadata.city || result.metadata.state_code) && (
                 <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                  📍 {[result.metadata.city, result.metadata.state_code].filter(Boolean).join(', ')}
+                  📍 {formatCityState(result.metadata.city, result.metadata.state_code)}
                 </span>
               )}
               {result.metadata.tax_year && (
