@@ -76,7 +76,30 @@ flat Colab imports rewritten to package-relative (`from .x import …`); dead `c
 `scripts.utils.gdrive_paths` (shared with `scripts/discovery/*`) — port that util next so the
 package stops reaching into `scripts/`.
 
-**In flight:** `feat/llm-enrichment-extraction` (current branch) — enrichment subpackage port.
+**`scripts/` dead-code sweep + 5 ports** (2026-06-10, branch `feat/scripts-refactor-cleanup`):
+- **Deleted provably-dead/archived code** (16 files, zero importers): `datasources/localview/archive/*`,
+  `discovery/archive/*`, `datasources/osf/load_osf_rds_to_bronze.R`, `datasources/hifld/download_and_load_hifld.sh`,
+  `datasources/voter_data/*`, the one-off state-naming migrations (`migrations/migrate_state_naming.py`,
+  `fix_persons_scraped_jurisdiction_ids.sql`, top-level `migrate_all_*state_naming.py`), and personal-machine
+  Cursor scripts.
+- **Ported (git mv + all importers re-pointed + tests):**
+  - nonprofit-990 enrichers → `scrapers.irs.{enrich_nonprofits_gt990,enrich_nonprofits_bigquery}` (heavy deps
+    boto3/bigquery/xmltodict made lazy; fixed broken subprocess paths in `manage_nonprofits.py`).
+  - `jurisdiction_id.py` → `core_lib.jurisdictions.jurisdiction_id` (foundational, ~20 importers incl.
+    `api/batch_jobs`); resolved an upward layering bug by relocating `slug_snake_case` down to `core_lib.text`.
+  - jurisdiction-mapping analysis → `ingestion.jurisdictions.mapping.*` (5 modules + CLI).
+  - reusable discovery modules → `scrapers.discovery.*` (8 from `discovery/` + `crawl_llm_sidecar` from
+    `scraping/`; ~70 importers re-pointed).
+  - clean leaf scrapers → `scrapers.discovery.social_media_discovery`, `scrapers.youtube.{scrape_youtube_channels,
+    youtube_channel_enrich}` (removed real packages→scripts violations).
+- **Deferred (complex, needs scoping):** the `jurisdiction_pilot` hub — `scrape_priority_states` (~3500L) top-level
+  imports ~10 `scripts/discovery` persist/orchestrator KEEP modules (`bronze_*_persist`, `contact_directory_heuristics`,
+  `contact_profile_images`, `jurisdiction_contact_seed_urls`, …) plus `ma_pilot.mayor_boost`. Porting it cleanly
+  requires porting those discovery modules first. Same for `website_elections` (→ needs `election_extract_from_html`)
+  and the `http_fetch`/`mayor_url_discovery`/`county_municipality_websites` sub-web. The two big orchestrators
+  (`jurisdiction_discovery_pipeline`, `comprehensive_discovery_pipeline_jurisdiction`) stay in `scripts/` for now.
+
+**In flight:** `feat/llm-enrichment-extraction` — enrichment subpackage port.
 
 **Backlog (prioritized):**
 - _Small/clean ports:_ nccs, naco, ballotpedia (measures), nces.
