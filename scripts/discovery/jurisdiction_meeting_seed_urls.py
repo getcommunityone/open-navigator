@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from scripts.jurisdictions.jurisdiction_id import builtin_seed_urls_for_jurisdiction
+from core_lib.jurisdictions.jurisdiction_id import builtin_seed_urls_for_jurisdiction
 
 _BUILTIN: Dict[str, Tuple[str, ...]] = {
     # Baker County, GA — Wix minutes/agendas table + ``/_files/ugd/*.pdf`` (labels in aria-label).

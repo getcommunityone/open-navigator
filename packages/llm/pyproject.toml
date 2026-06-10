@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "LLM clients & pipelines (Gemini, …) ported out of scripts/gemini into a proper package."
 requires-python = ">=3.11"
 dependencies = [
+    "core-lib",
     "google-genai>=0.3",
     "python-dotenv>=1.0",
     "loguru>=0.7",
@@ -16,3 +17,6 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+core-lib = { workspace = true }

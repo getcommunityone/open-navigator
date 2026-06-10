@@ -61,7 +61,7 @@ from scripts.discovery.meeting_document_naming import (
 from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _norm_http_url
 
-from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
+from core_lib.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
 
 MIGRATION_PATH = _root / "scripts" / "deployment" / "neon" / "migrations" / "020_recreate_bronze_events_meetings_scraped_link_document.sql"
 

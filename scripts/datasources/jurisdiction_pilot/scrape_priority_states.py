@@ -94,7 +94,7 @@ _ROOT = Path(__file__).resolve().parents[3]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
+from core_lib.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
 from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import (  # noqa: E402
     find_ocd_match,
 )

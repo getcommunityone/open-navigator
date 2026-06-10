@@ -44,7 +44,7 @@ from scripts.discovery.youtube_channel_verification import (  # noqa: E402
     DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,
     rejection_reason_for_channel,
 )
-from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
+from core_lib.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
 
 MEETINGS_SCRAPE_SYNC_BATCH_ID = uuid.UUID("a0000000-0000-4000-8000-000000000002")
 

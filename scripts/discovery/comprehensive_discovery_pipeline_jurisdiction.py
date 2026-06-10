@@ -239,7 +239,7 @@ from scripts.discovery.jurisdiction_discovery_pipeline import (
     jurisdiction_pk_from_geoid,
     resolve_database_url,
 )
-from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
+from core_lib.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
 from scripts.utils.gdrive_paths import (
     resolve_scraped_meetings_output_root,
     scraped_meetings_root_resolution_note,

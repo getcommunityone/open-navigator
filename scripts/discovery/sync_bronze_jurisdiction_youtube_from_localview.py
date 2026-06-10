@@ -41,7 +41,7 @@ from scripts.discovery.int_events_channels_persist import (  # noqa: E402
     upsert_int_events_channels_verified,
 )
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
-from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
+from core_lib.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
 from scripts.discovery.youtube_channel_purpose import classify_channel_purpose  # noqa: E402
 from scripts.discovery.youtube_channel_verification import (  # noqa: E402
     DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,

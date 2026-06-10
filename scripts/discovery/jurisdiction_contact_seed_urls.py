@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from scripts.jurisdictions.jurisdiction_id import builtin_seed_urls_for_jurisdiction
+from core_lib.jurisdictions.jurisdiction_id import builtin_seed_urls_for_jurisdiction
 
 # jurisdiction_id -> absolute URLs (deduped, defaults listed before CLI seeds in merge)
 _BUILTIN: Dict[str, Tuple[str, ...]] = {

@@ -23,7 +23,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc, assignment]
 
-from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id
+from core_lib.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id
 
 
 def insert_bronze_persons_scraped(

@@ -245,7 +245,7 @@ def jurisdiction_pk_from_geoid(
     name: Optional[str] = None,
 ) -> str:
     """Primary key matching bronze / ``int_jurisdictions`` (``{place_slug}_{geoid}``)."""
-    from scripts.jurisdictions.jurisdiction_id import jurisdiction_pk_from_geoid as _pk
+    from core_lib.jurisdictions.jurisdiction_id import jurisdiction_pk_from_geoid as _pk
 
     return _pk(geoid, jtype, name=name)
 

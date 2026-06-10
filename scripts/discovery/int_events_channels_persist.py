@@ -17,7 +17,7 @@ except ModuleNotFoundError:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc, assignment]
 
 from scripts.discovery.youtube_channel_verification import canonical_source_from_row
-from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id
+from core_lib.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id
 
 _GOLDEN_JURISDICTION_TYPES = frozenset({"county", "municipality"})
 

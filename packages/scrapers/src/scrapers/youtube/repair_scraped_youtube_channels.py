@@ -142,7 +142,7 @@ def collect_verified_from_gemini_cache(
 
 def collect_verified_from_bronze_events(conn) -> dict[str, VerifiedChannel]:
     """Map canonical ``jurisdiction_id`` → channel with most cataloged videos."""
-    from scripts.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
+    from core_lib.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
     from scripts.discovery.youtube_channel_verification import (
         qualifies_for_bronze_jurisdiction_youtube,
     )

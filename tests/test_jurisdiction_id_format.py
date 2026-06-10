@@ -1,6 +1,6 @@
 """Canonical jurisdiction_id: {place_slug}_{geoid}."""
 
-from scripts.jurisdictions.jurisdiction_id import (
+from core_lib.jurisdictions.jurisdiction_id import (
     ensure_canonical_jurisdiction_id,
     jurisdiction_id_from_name_geoid,
     jurisdiction_pk_from_geoid,
@@ -19,7 +19,7 @@ def test_mobile_county_id():
 
 
 def test_jurisdiction_pk_from_bronze_geoid_lookup():
-    from scripts.jurisdictions.jurisdiction_id import (
+    from core_lib.jurisdictions.jurisdiction_id import (
         lookup_canonical_jurisdiction_id_from_bronze,
     )
 

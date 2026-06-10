@@ -171,7 +171,7 @@ def _map_jurisdiction_type(raw: str) -> str:
 
 
 def _jurisdiction_group_from_id(jurisdiction_id: str) -> str:
-    from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id
+    from core_lib.jurisdictions.jurisdiction_id import parse_jurisdiction_id
 
     jid = (jurisdiction_id or "").strip().lower()
     if jid.startswith("county_"):
