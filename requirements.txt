@@ -41,9 +41,11 @@ google-generativeai>=0.8.0
 # (langchain_openai / langchain_core), which work on the 1.x line; the uv
 # workspace already resolves langchain 1.x, so this only realigns pip.
 # langgraph was dropped — it is not imported anywhere in the codebase.
+# langchain-community has no 1.x release; its 0.4 line allows langchain-core
+# <2.0 (so it co-resolves with the 1.x core) and is in no advisory.
 langchain>=1.0
 langchain-openai>=1.1.14
-langchain-community>=1.0
+langchain-community>=0.4
 langchain-core>=1.2.22
 tiktoken>=0.5.0
 
