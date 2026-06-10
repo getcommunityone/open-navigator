@@ -573,6 +573,11 @@ export default function Home() {
   // intentionally omit county even when the scope is county-level.
   const applyLocationScope = (params: URLSearchParams) => {
     if (!location) return
+    // National scope is explicitly UN-scoped: never attach a state/city filter.
+    // Without this early return a "National" search falls into the state-level
+    // branch below and leaks the user's home state (e.g. State: AL) onto the
+    // results page even though they asked for nationwide.
+    if (searchScope === 'national') return
     if (searchScope === 'city' && location.city) {
       if (location.state) params.set('state', location.state)
       params.set('city', location.city)
@@ -581,7 +586,7 @@ export default function Home() {
       if (location.state) params.set('state', location.state)
       params.set('city', location.city)
     } else if (location.state) {
-      // county / state / national / fallback: state-level only (no county param downstream)
+      // county / state / fallback: state-level only (no county param downstream)
       params.set('state', location.state)
     }
   }
