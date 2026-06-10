@@ -638,9 +638,7 @@ async def count_events(
                     f"OR meeting_summary ILIKE ${idx} OR city ILIKE ${idx} "
                     f"OR EXISTS (SELECT 1 FROM event_decision d "
                     f"WHERE d.c1_event_id = event_meeting.c1_event_id "
-                    f"AND to_tsvector('english', COALESCE(d.headline, '') || ' ' || "
-                    f"COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, '')) "
-                    f"@@ plainto_tsquery('english', ${idx + 1})))"
+                    f"AND d.search_tsv @@ plainto_tsquery('english', ${idx + 1})))"
                 )
                 params.append(f"%{q}%")
                 params.append(q)
@@ -727,10 +725,12 @@ async def count_decisions(
                 idx += 1
 
             if has_query:
+                # d.search_tsv: persisted GIN-indexed tsvector on event_decision
+                # (headline||decision_statement||primary_theme) — index-backed
+                # replacement for the old ad-hoc to_tsvector, matching
+                # search_decisions_pg.
                 where_clauses.append(
-                    f"(to_tsvector('english', COALESCE(d.headline, '') || ' ' || "
-                    f"COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, '')) "
-                    f"@@ plainto_tsquery('english', ${idx}))"
+                    f"(d.search_tsv @@ plainto_tsquery('english', ${idx}))"
                 )
                 params.append(q)
                 idx += 1

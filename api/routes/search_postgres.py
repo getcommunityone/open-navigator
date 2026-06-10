@@ -1192,9 +1192,7 @@ async def search_events_pg(
                 f"OR meeting_summary ILIKE ${p} OR city ILIKE ${p} "
                 f"OR EXISTS (SELECT 1 FROM event_decision d "
                 f"WHERE d.c1_event_id = event_meeting.c1_event_id "
-                f"AND to_tsvector('english', COALESCE(d.headline, '') || ' ' || "
-                f"COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, '')) "
-                f"@@ plainto_tsquery('english', ${p_fts})))"
+                f"AND d.search_tsv @@ plainto_tsquery('english', ${p_fts})))"
             )
 
         if state:
@@ -1873,10 +1871,12 @@ async def search_decisions_pg(
         has_query = bool(query and query.strip())
         rank_idx = None
         if has_query:
-            where_conditions.append(f"""(
-                to_tsvector('english', COALESCE(d.headline, '') || ' ' || COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, ''))
-                @@ plainto_tsquery('english', ${param_idx})
-            )""")
+            # d.search_tsv is the persisted, GIN-indexed tsvector over
+            # headline || decision_statement || primary_theme (built in the
+            # event_decision mart) — same expression the column was generated
+            # from, so this is a drop-in for the old ad-hoc to_tsvector and uses
+            # the index instead of recomputing per row.
+            where_conditions.append(f"(d.search_tsv @@ plainto_tsquery('english', ${param_idx}))")
             params.append(query.strip())
             rank_idx = param_idx
             param_idx += 1
@@ -1913,7 +1913,7 @@ async def search_decisions_pg(
         elif has_query:
             # relevance (default when there's a text query)
             order_by = (
-                f"ts_rank(to_tsvector('english', COALESCE(d.headline, '') || ' ' || COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, '')), "
+                f"ts_rank(d.search_tsv, "
                 f"plainto_tsquery('english', ${rank_idx})) DESC, {meeting_date_expr} DESC NULLS LAST"
             )
         else:
