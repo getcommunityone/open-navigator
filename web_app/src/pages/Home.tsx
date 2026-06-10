@@ -159,7 +159,6 @@ const HERO_SEARCH_TAB_DEFS: {
   id: HeroSearchCategoryTab
   label: string
   types: string
-  count?: string
   /* `activity` surfaces an orange "new this week" dot in the category dropdown. */
   activity?: boolean
   /* Shown in the input when this category is active (the box narrows a browsable list). */
@@ -171,14 +170,14 @@ const HERO_SEARCH_TAB_DEFS: {
   // discussed in the transcript body, not in meeting titles or extracted
   // decisions — so this is often the only category that surfaces them.
   { id: 'transcripts', label: 'Transcripts', types: 'documents', activity: true, filterPlaceholder: 'Filter meeting transcripts by topic…' },
-  { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
-  { id: 'leaders', label: 'Leaders', types: 'leaders', count: '75K', filterPlaceholder: 'Filter leaders by name or office…' },
+  { id: 'decisions', label: 'Decisions', types: 'decisions', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
+  { id: 'leaders', label: 'Leaders', types: 'leaders', filterPlaceholder: 'Filter leaders by name or office…' },
   // Nonprofit board members / officers — distinct from civic `leaders`. No
   // dedicated search type yet, so browsing drills into the person index.
   { id: 'nonprofit_leaders', label: 'Nonprofit leaders', types: 'persons', filterPlaceholder: 'Filter nonprofit board members by name…' },
   { id: 'persons', label: 'Persons', types: 'persons', filterPlaceholder: 'Filter people by name…' },
-  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', count: '1.8M', filterPlaceholder: 'Filter nonprofits by name or cause…' },
-  { id: 'causes', label: 'Causes', types: 'causes', count: '650+', filterPlaceholder: 'Filter causes by name…' },
+  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', filterPlaceholder: 'Filter nonprofits by name or cause…' },
+  { id: 'causes', label: 'Causes', types: 'causes', filterPlaceholder: 'Filter causes by name…' },
   { id: 'bills', label: 'Bills', types: 'bills', filterPlaceholder: 'Filter bills by number or topic…' },
   { id: 'grants', label: 'Grants', types: 'grants', filterPlaceholder: 'Filter grants by organization or purpose…' },
   {
@@ -343,6 +342,19 @@ export default function Home() {
     staleTime: 5 * 60 * 1000 // Cache for 5 minutes
   });
 
+  // National catalog rollup (GET /api/stats with no location) — the real source
+  // for the "Search in" badges when the user has no location set and isn't
+  // searching. Replaces the former hard-coded count strings: every badge number
+  // now traces to a warehouse figure (or shows nothing when none exists).
+  const { data: nationalStats } = useQuery<LocationStats | null>({
+    queryKey: ['national-stats'],
+    queryFn: async () => {
+      const response = await api.get('/stats');
+      return response.data;
+    },
+    staleTime: 30 * 60 * 1000 // Catalog totals barely move; cache 30 min.
+  });
+
   // Live, query-scoped counts for the "Search in" badges. The preview query
   // above only fetches the ACTIVE tab's types, so it can't populate per-category
   // badges; this fans out across every category type at limit=1 (we consume only
@@ -399,7 +411,7 @@ export default function Home() {
     decisions: 'decisions',
     bills: 'bills',
   }
-  const heroCategoryCount = (cat: { id: HeroSearchCategoryTab; count?: string }): string | undefined => {
+  const heroCategoryCount = (cat: { id: HeroSearchCategoryTab }): string | undefined => {
     const hasQuery = debouncedKeyword.length >= 2
 
     // 1. Live, query-scoped count (preferred whenever a query is active).
@@ -414,19 +426,34 @@ export default function Home() {
       }
     }
 
+    const statKey = HERO_COUNT_STAT_FIELD[cat.id]
+
     // 2. Geography-scoped catalog rollup. The rollup is unfilled for many
     // locations, so a 0 means "not rolled up yet", not "none exist" — suppress
     // it rather than render a misleading "0" (this is why bills no longer shows
     // a false "0" in browse mode).
-    const statKey = HERO_COUNT_STAT_FIELD[cat.id]
-    if (statKey) {
+    if (location && statKey) {
       const v = locationStats?.[statKey] as number | undefined
       if (v != null && v > 0) {
         const real = formatCompactCount(v)
         if (real != null) return real
       }
     }
-    return cat.count
+
+    // 3. National catalog rollup — only when the user has no location set, so we
+    // never render a national figure next to a location-scoped view. This is the
+    // real number that replaced the former hard-coded fallback strings.
+    if (!location && statKey) {
+      const v = nationalStats?.[statKey] as number | undefined
+      if (v != null && v > 0) {
+        const real = formatCompactCount(v)
+        if (real != null) return real
+      }
+    }
+
+    // No real figure for this category (e.g. causes has no catalog count and no
+    // active query) → show no badge rather than invent a number.
+    return undefined
   }
 
   const activeHeroTab = React.useMemo(
