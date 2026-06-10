@@ -72,28 +72,34 @@ interface LocationStats {
   source?: string
 }
 
-// Featured stories for tabbed hero banner
+// Featured stories for tabbed hero banner.
+//
+// Headline figures are NOT hard-coded. Any `{metric}` token below is replaced at
+// render time (resolveStoryText) with the real national rollup from /api/stats —
+// so every number a visitor sees traces to a warehouse figure. Stories whose
+// hook has no real backing metric carry no number at all (we de-numbered the
+// former invented "$2.5B" / "8,500+ providers" style copy rather than fabricate).
 const FEATURED_STORIES = [
   {
     type: 'hero',
     title: 'CommunityOne',
     subtitle: 'Track Local Decisions. Take Action.',
     description: 'Follow leaders, charities, and causes in your community.',
-    stats: '925 jurisdictions • 43.7K nonprofits • 8.8K legislators • 650+ causes • 100% free',
+    stats: '{nonprofits} nonprofits • {decisions} decisions • {bills} bills tracked • 100% free',
     category: 'Home',
     link: '/'
   },
   {
     type: 'story',
-    title: 'World Press Freedom Day: 43,726 Nonprofits Fighting for Transparency',
-    subtitle: 'How local journalism and civic organizations are tracking government decisions across 925 jurisdictions',
+    title: '{nonprofits} Nonprofits Working for Transparency',
+    subtitle: 'How local journalism and civic organizations track government decisions nationwide',
     image: 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1200&h=600&fit=crop',
     category: 'Civic Engagement',
     link: '/search?q=press+freedom'
   },
   {
     type: 'story',
-    title: 'AI Policy Tracking: 15,000+ Government Decisions Analyzed',
+    title: 'AI Policy Tracking: {decisions} Government Decisions Analyzed',
     subtitle: 'Machine learning models identify patterns in legislative discussions and regulatory frameworks',
     image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=600&fit=crop',
     category: 'Artificial Intelligence',
@@ -102,15 +108,15 @@ const FEATURED_STORIES = [
   {
     type: 'story',
     title: 'Healthcare Access: Dental Clinics in Focus',
-    subtitle: 'Tracking 8,500+ dental health providers and community health initiatives nationwide',
+    subtitle: 'Tracking dental health providers and community health initiatives nationwide',
     image: 'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=1200&h=600&fit=crop',
     category: 'Health & Medicine',
     link: '/search?q=dental+health'
   },
   {
     type: 'story',
-    title: 'Local Sports Funding: $2.5B in Community Programs',
-    subtitle: 'Analysis of recreation budget allocation across 12,000+ jurisdictions',
+    title: 'Local Sports Funding in Community Programs',
+    subtitle: 'Analysis of recreation budget allocation across local jurisdictions',
     image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200&h=600&fit=crop',
     category: 'Sports & Recreation',
     link: '/search?q=sports+funding'
@@ -125,7 +131,7 @@ const FEATURED_STORIES = [
   },
   {
     type: 'story',
-    title: 'Business Development: 8,000+ Economic Initiatives',
+    title: 'Business Development and Economic Initiatives',
     subtitle: 'Economic development zones, tax incentives, and small business support programs',
     image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&h=600&fit=crop',
     category: 'Business & Markets',
@@ -133,13 +139,38 @@ const FEATURED_STORIES = [
   },
   {
     type: 'story',
-    title: 'Government Transparency: 12,000+ Hours of Meeting Video',
+    title: 'Government Transparency: {events} Meetings Archived',
     subtitle: 'Comprehensive archive of city council, county board, and planning commission meetings',
     image: 'https://images.unsplash.com/photo-1555421689-d68471e189f2?w=1200&h=600&fit=crop',
     category: 'Government',
     link: '/documents'
   },
 ]
+
+// Featured-story `{metric}` token -> LocationStats field. Resolved against the
+// national /api/stats rollup so headline numbers are real, never hard-coded.
+const STORY_METRIC_KEYS: Record<string, keyof LocationStats> = {
+  nonprofits: 'nonprofits',
+  decisions: 'decisions',
+  events: 'events',
+  bills: 'bills',
+  persons: 'persons',
+  leaders: 'leaders',
+}
+
+// Replace `{metric}` tokens in story copy with the real national figure. A token
+// whose metric is unavailable/zero is dropped (and surrounding whitespace tidied)
+// rather than shown as a fabricated number or a bare "0".
+function resolveStoryText(text: string, stats: LocationStats | null | undefined): string {
+  return text
+    .replace(/\{(\w+)\}/g, (_m, key: string) => {
+      const statKey = STORY_METRIC_KEYS[key]
+      const v = statKey ? (stats?.[statKey] as number | undefined) : undefined
+      return v != null && v > 0 ? v.toLocaleString() : ''
+    })
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
 
 type HeroSearchCategoryTab =
   | 'all'
@@ -1929,16 +1960,16 @@ export default function Home() {
                     <div className="relative overflow-hidden rounded-2xl bg-gray-900 shadow-2xl h-[500px]">
                       <img
                         src={FEATURED_STORIES[selectedStoryTab].image}
-                        alt={FEATURED_STORIES[selectedStoryTab].title}
+                        alt={resolveStoryText(FEATURED_STORIES[selectedStoryTab].title, nationalStats)}
                         className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-50 transition-opacity duration-300"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
                       <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12">
                         <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 leading-tight group-hover:text-primary-300 transition-colors">
-                          {FEATURED_STORIES[selectedStoryTab].title}
+                          {resolveStoryText(FEATURED_STORIES[selectedStoryTab].title, nationalStats)}
                         </h2>
                         <p className="text-lg md:text-xl text-gray-200 max-w-3xl">
-                          {FEATURED_STORIES[selectedStoryTab].subtitle}
+                          {resolveStoryText(FEATURED_STORIES[selectedStoryTab].subtitle, nationalStats)}
                         </p>
                       </div>
 
