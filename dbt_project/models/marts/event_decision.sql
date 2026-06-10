@@ -65,6 +65,15 @@ events as (
         jurisdiction_type,
         city
     from {{ source('civic_core', 'civic_event') }}
+),
+
+-- Parent guard: the analysis_id FK targets event_meeting(event_meeting_id). A
+-- handful of analysis runs land child extractions in bronze without a matching
+-- meeting-level row in bronze_meetings_from_ai (analysis-cache -> bronze promotion
+-- gap). Inner-join to the parent so we never emit a child whose parent is absent,
+-- which both satisfies the enforced FK and pins build order after event_meeting.
+meeting_keys as (
+    select event_meeting_id from {{ ref('event_meeting') }}
 )
 
 select
@@ -113,5 +122,6 @@ select
     dd.extracted_at
 
 from decisions dd
+join meeting_keys mk on mk.event_meeting_id = dd.source_event_id
 left join analysis a on a.analysis_id = dd.source_event_id
 left join events   e on e.legacy_id   = a.legacy_event_id

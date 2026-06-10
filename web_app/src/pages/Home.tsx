@@ -1,7 +1,7 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { Menu, Transition, Dialog } from '@headlessui/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
 import { tracer } from '../instrumentation'
 import { homeLog } from '../utils/devLog'
@@ -152,6 +152,7 @@ type HeroSearchCategoryTab =
   | 'causes'
   | 'bills'
   | 'grants'
+  | 'transcripts'
   | 'donors'
 
 const HERO_SEARCH_TAB_DEFS: {
@@ -164,8 +165,12 @@ const HERO_SEARCH_TAB_DEFS: {
   /* Shown in the input when this category is active (the box narrows a browsable list). */
   filterPlaceholder?: string
 }[] = [
-  { id: 'all', label: 'All', types: 'meetings,decisions,causes,leaders,organizations,bills,topics' },
+  { id: 'all', label: 'All', types: 'meetings,decisions,causes,leaders,organizations,bills,topics,documents' },
   { id: 'meetings', label: 'Meetings', types: 'meetings', activity: true, filterPlaceholder: 'Filter meetings by body or topic…' },
+  // Meeting transcripts (full-text). Most policy terms (e.g. "fluoride") are
+  // discussed in the transcript body, not in meeting titles or extracted
+  // decisions — so this is often the only category that surfaces them.
+  { id: 'transcripts', label: 'Transcripts', types: 'documents', activity: true, filterPlaceholder: 'Filter meeting transcripts by topic…' },
   { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
   { id: 'leaders', label: 'Leaders', types: 'leaders', count: '75K', filterPlaceholder: 'Filter leaders by name or office…' },
   // Nonprofit board members / officers — distinct from civic `leaders`. No
@@ -197,6 +202,14 @@ function formatCompactCount(n: number | undefined): string | undefined {
   }
   return String(n)
 }
+
+// The hero category-counts query (below) fetches at limit=1, but the /search
+// backend over-fetches by +100 for cross-type mixing/sorting (search.py:
+// search_limit = offset + limit + 100), so each per-type `type_totals` value
+// saturates at 101. A saturated value is a floor ("at least this many"), not an
+// exact count — render it as "100+" rather than a misleading exact "101".
+const HERO_COUNT_QUERY_LIMIT = 1
+const HERO_COUNT_CAP = HERO_COUNT_QUERY_LIMIT + 100 // 101
 
 export default function Home() {
   const navigate = useNavigate()
@@ -330,11 +343,54 @@ export default function Home() {
     staleTime: 5 * 60 * 1000 // Cache for 5 minutes
   });
 
-  // Hero category badge counts, scoped to the selected geography. The /stats
-  // endpoint serves these from the cached jurisdiction_state_aggregate rollup
-  // (national/state/county/city rows). When a location is selected we show the
-  // real count; otherwise we fall back to the static marketing string so the
-  // idle hero still reads as designed.
+  // Live, query-scoped counts for the "Search in" badges. The preview query
+  // above only fetches the ACTIVE tab's types, so it can't populate per-category
+  // badges; this fans out across every category type at limit=1 (we consume only
+  // `type_totals`, not the rows) so each badge shows how many results that
+  // category will ACTUALLY return for the current query. Without this the badges
+  // read the /stats catalog rollup regardless of the query — which misreports
+  // bills (jurisdiction_state_aggregate.bills_count is unfilled -> "Bills 0")
+  // and grants (no rollup column at all -> no badge), even though both are fully
+  // searchable. Scoped to the active state so the count matches the search the
+  // user will run.
+  const { data: categoryCountsData } = useQuery<any>({
+    queryKey: ['hero-category-counts', debouncedKeyword, location?.state, searchScope],
+    queryFn: async () => {
+      if (debouncedKeyword.length < 2) return null
+      const params: any = {
+        q: debouncedKeyword,
+        types: 'meetings,decisions,leaders,organizations,causes,bills,grants,documents',
+        limit: HERO_COUNT_QUERY_LIMIT,
+      }
+      if (location?.state && searchScope !== 'national') params.state = location.state
+      const response = await api.get('/search/', { params })
+      return response.data
+    },
+    enabled: debouncedKeyword.length >= 2,
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  })
+
+  // Hero category badge counts. Two sources, in priority order:
+  //   1. Live, query-scoped `type_totals` (above) when a query is active and the
+  //      category is backed by an ENABLED live search. This is the honest "what
+  //      you'll get" number — and the only one correct for bills/grants/decisions.
+  //   2. Geography-scoped catalog rollup from /stats (jurisdiction_state_aggregate)
+  //      for browse mode and for the persons-backed categories, whose server-side
+  //      search is disabled (a live 0 there would be misleading, so we keep the
+  //      "how many exist" catalog figure instead).
+  // The persons-backed categories (persons, nonprofit_leaders) and 'all' have no
+  // entry here, so they fall through to the catalog rollup / static string.
+  const HERO_LIVE_TOTAL_KEY: Partial<Record<HeroSearchCategoryTab, string>> = {
+    meetings: 'meetings',
+    decisions: 'decisions',
+    leaders: 'leaders',
+    nonprofits: 'organizations',
+    causes: 'causes',
+    bills: 'bills',
+    grants: 'grants',
+    transcripts: 'documents',
+  }
   const HERO_COUNT_STAT_FIELD: Partial<Record<HeroSearchCategoryTab, keyof LocationStats>> = {
     leaders: 'leaders',
     nonprofit_leaders: 'nonprofit_leaders',
@@ -344,10 +400,31 @@ export default function Home() {
     bills: 'bills',
   }
   const heroCategoryCount = (cat: { id: HeroSearchCategoryTab; count?: string }): string | undefined => {
+    const hasQuery = debouncedKeyword.length >= 2
+
+    // 1. Live, query-scoped count (preferred whenever a query is active).
+    const liveKey = HERO_LIVE_TOTAL_KEY[cat.id]
+    if (hasQuery && liveKey) {
+      const totals = categoryCountsData?.type_totals as Record<string, number | undefined> | undefined
+      const live = totals?.[liveKey]
+      if (live != null) {
+        // Saturated at the over-fetch cap → "100+", since the true total is unknown.
+        if (live >= HERO_COUNT_CAP) return `${HERO_COUNT_CAP - 1}+`
+        return formatCompactCount(live)
+      }
+    }
+
+    // 2. Geography-scoped catalog rollup. The rollup is unfilled for many
+    // locations, so a 0 means "not rolled up yet", not "none exist" — suppress
+    // it rather than render a misleading "0" (this is why bills no longer shows
+    // a false "0" in browse mode).
     const statKey = HERO_COUNT_STAT_FIELD[cat.id]
     if (statKey) {
-      const real = formatCompactCount(locationStats?.[statKey] as number | undefined)
-      if (real != null) return real
+      const v = locationStats?.[statKey] as number | undefined
+      if (v != null && v > 0) {
+        const real = formatCompactCount(v)
+        if (real != null) return real
+      }
     }
     return cat.count
   }
@@ -600,6 +677,24 @@ export default function Home() {
     navigate(`/search?${params.toString()}`)
   }
 
+  // Click handler for a preview result row. Prefer the deep-link `url` the
+  // search API already returns (e.g. an org's EIN link that auto-expands it on
+  // /search) so the row navigates to the actual entity, not a generic
+  // re-search. Fall back to searching by the row's title when no url is present.
+  const handleResultClick = (result: any) => {
+    const url = result?.url as string | undefined
+    if (url) {
+      setShowSuggestions(false)
+      if (/^https?:\/\//i.test(url)) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } else {
+        navigate(url)
+      }
+      return
+    }
+    handleSelectSuggestion(result?.title ?? '')
+  }
+
   const handleViewAllCategory = (category: string) => {
     if (keyword.trim().length >= 2) {
       const params = new URLSearchParams()
@@ -610,8 +705,8 @@ export default function Home() {
     }
   }
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault()
     homeLog('🔍 [Home] Search submitted:', { keyword, location: location?.state, searchScope });
 
     const q = keyword.trim()
@@ -1405,7 +1500,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <CalendarIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1441,7 +1536,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1477,7 +1572,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <HeartIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1515,7 +1610,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <BuildingLibraryIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1551,7 +1646,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <UserGroupIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1594,7 +1689,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <UserCircleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1630,7 +1725,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <DocumentTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1666,7 +1761,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <BanknotesIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1702,7 +1797,7 @@ export default function Home() {
                                             <button
                                               key={idx}
                                               type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              onClick={() => handleResultClick(result)}
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <ChatBubbleBottomCenterTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1720,7 +1815,8 @@ export default function Home() {
                                     {previewResults.total_results > 0 && (
                                       <div className="px-4 py-3 bg-gray-50 text-center border-t border-gray-200">
                                         <button
-                                          type="submit"
+                                          type="button"
+                                          onClick={() => handleSearch()}
                                           className="text-sm text-[#354F52] hover:text-[#2e4346] font-medium"
                                         >
                                           See all {previewResults.total_results} results →

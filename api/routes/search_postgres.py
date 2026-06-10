@@ -1130,127 +1130,106 @@ async def get_nonprofit_compensation_pg(
         return []
 
 
-# Scope cut (Neon free-tier): only surface meetings we've actually analyzed.
-# public.event has ~153k scraped rows but only ~641 have AI analysis (tracked in
-# mdm_bridge_event_analysis, event_id FK -> event). Searching the un-analyzed
-# remainder returns bare titles with no decisions/summary and forces the giant
-# event table into the Neon mirror. With this True, event search is filtered to
-# analyzed meetings via an indexed EXISTS on the bridge. Flip to False to search
-# all scraped events again.
-EVENTS_REQUIRE_ANALYSIS = True
-
-
 async def search_events_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
     limit: int = 10
 ) -> List[SearchResult]:
     """
-    Search meetings/events using PostgreSQL
-    
+    Search meetings using PostgreSQL.
+
+    Backed by `public.event_meeting` — the AI-analyzed meeting mart (~6k rows,
+    body name + jurisdiction + summary + video). This is the set that has a real
+    drilldown page (`/meetings/{event_meeting_id}` -> GET /api/meetings/{id},
+    decisions + financial items), so every result is clickable.
+
+    We intentionally do NOT search the raw `public.event` table (~153k scraped
+    rows): those have no analysis, no summary, and no detail page, and dragging
+    that table into the serving mirror is the Neon-size cut we already made.
+
     Args:
-        query: Search text (title, jurisdiction, description)
-        state: Filter by state code (e.g., 'MA') or full name (e.g., 'Massachusetts')
-        limit: Max results
-    
+        query: Search text (meeting body, jurisdiction, summary).
+        state: Filter by state code ('MA') or full name ('Massachusetts').
+        limit: Max results.
+
     Returns:
-        List of SearchResult objects
+        List of SearchResult objects.
     """
     # Normalize state input to 2-letter code
     state = normalize_state_input(state)
-    
+
     try:
         pool = await get_db_pool()
 
-        cols = """event_id, event_title, event_description, event_date,
-                jurisdiction_name, jurisdiction_type, state_code, state,
-                city, video_url, agenda_url"""
+        cols = """event_meeting_id, body_name, jurisdiction_name, jurisdiction_type,
+                state_code, state, city, meeting_date, meeting_summary,
+                agenda_summary, video_id"""
 
-        has_query = bool(query and query.strip())
+        # event_meeting is small (~6k rows); a plain ILIKE seq-scan is sub-millisecond,
+        # so no FTS/trigram index gymnastics are needed here (unlike the 153k event table).
         params = []
+        where = []
 
-        # Analyzed-only filter (see EVENTS_REQUIRE_ANALYSIS). The alias differs
-        # per branch: the query branch aliases `event e`, the browse branch uses
-        # the bare `event` table.
-        analysis_exists = "EXISTS (SELECT 1 FROM mdm_bridge_event_analysis b WHERE b.event_id = {alias}.event_id)"
-        analysis_filter_q = (
-            f" WHERE {analysis_exists.format(alias='e')}" if EVENTS_REQUIRE_ANALYSIS else ""
-        )
-        analysis_filter_browse = (
-            f" AND {analysis_exists.format(alias='event')}" if EVENTS_REQUIRE_ANALYSIS else ""
-        )
-
-        if has_query:
-            # The title-FTS / jurisdiction-substring match used to be a single
-            # `to_tsvector(title) @@ q OR LOWER(jurisdiction) LIKE '%q%'`. The
-            # leading-wildcard LIKE in an OR is un-indexable, forcing a full
-            # 153k-row seq scan that recomputed to_tsvector on every row (~3.8s
-            # for a common term). Split into a UNION of two index-backed branches:
-            #   - title @@ query  -> event_title_fts_idx (GIN on to_tsvector)
-            #   - jurisdiction ILIKE -> event_jurisdiction_trgm_idx (GIN pg_trgm)
-            # Order by event_date (recent first) instead of ts_rank: the result
-            # score is a constant 1.0 anyway, so ranking was only internal
-            # tie-breaking, and ranking a large match set was itself the stall.
+        if query and query.strip():
             q = query.strip()
-            params.append(q)
-            q_pos = len(params)
             params.append(f"%{q}%")
-            like_pos = len(params)
-            state_clause = ""
-            if state:
-                params.append(state.upper())
-                state_clause = f" AND state_code = ${len(params)}"
-            params.append(limit)
-            lim_pos = len(params)
+            p = len(params)
+            where.append(
+                f"(body_name ILIKE ${p} OR jurisdiction_name ILIKE ${p} "
+                f"OR meeting_summary ILIKE ${p} OR city ILIKE ${p})"
+            )
 
-            sql = f"""
-                WITH matched AS (
-                    SELECT event_id FROM event
-                    WHERE to_tsvector('english', event_title) @@ plainto_tsquery('english', ${q_pos}){state_clause}
-                    UNION
-                    SELECT event_id FROM event
-                    WHERE jurisdiction_name ILIKE ${like_pos}{state_clause}
-                )
-                SELECT {cols}
-                FROM event e
-                JOIN matched m USING (event_id)
-                {analysis_filter_q}
-                ORDER BY e.event_date DESC NULLS LAST
-                LIMIT ${lim_pos}
-            """
-        else:
-            # Browse: most recent meetings first (optionally state-scoped).
-            where_sql = "TRUE"
-            if state:
-                params.append(state.upper())
-                where_sql = f"state_code = ${len(params)}"
-            params.append(limit)
-            sql = f"""
-                SELECT {cols}
-                FROM event
-                WHERE {where_sql}{analysis_filter_browse}
-                ORDER BY event_date DESC NULLS LAST
-                LIMIT ${len(params)}
-            """
+        if state:
+            params.append(state.upper())
+            where.append(f"state_code = ${len(params)}")
+
+        where_sql = " AND ".join(where) if where else "TRUE"
+        params.append(limit)
+
+        # meeting_date is mostly ISO 'YYYY-MM-DD' text, but ~180 rows carry the
+        # literal 'unknown' (and a few are NULL). A bare lexical DESC would float
+        # 'unknown' above every real date, so we null out anything that isn't an
+        # ISO date in the sort key — real, recent meetings first; undated last.
+        iso_date = "(CASE WHEN meeting_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN meeting_date END)"
+        sql = f"""
+            SELECT {cols}
+            FROM event_meeting
+            WHERE {where_sql}
+            ORDER BY {iso_date} DESC NULLS LAST
+            LIMIT ${len(params)}
+        """
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
-            
+
             results = []
             for row in rows:
-                location = f"{row['jurisdiction_name']}, {row['state']}" if row['jurisdiction_name'] and row['state'] else ''
-                date_str = row['event_date'].strftime('%Y-%m-%d') if row['event_date'] else ''
-                
-                description = (row['event_description'] or '')[:200]
+                location = (
+                    f"{row['jurisdiction_name']}, {row['state']}"
+                    if row['jurisdiction_name'] and row['state']
+                    else (row['jurisdiction_name'] or '')
+                )
+                # Only show a real ISO date; 'unknown'/blank renders as no date.
+                raw_date = row['meeting_date'] or ''
+                date_str = raw_date if raw_date[:4].isdigit() and '-' in raw_date else ''
+                # body_name is the meeting's display name (e.g. "City Council");
+                # fall back to the jurisdiction when an analysis omitted it.
+                title = row['body_name'] or row['jurisdiction_name'] or 'Meeting'
+
+                subtitle = location
+                if date_str:
+                    subtitle = f"{location} - {date_str}" if location else date_str
+
+                description = (row['meeting_summary'] or row['agenda_summary'] or '')[:200]
                 if len(description) == 200:
                     description += "..."
-                
+
                 results.append(SearchResult(
                     result_type='meeting',
-                    title=row['event_title'],
-                    subtitle=f"{location} - {date_str}",
+                    title=title,
+                    subtitle=subtitle,
                     description=description,
-                    url=f"/documents?meeting_id={row['event_id']}",
+                    url=f"/meetings/{row['event_meeting_id']}",
                     score=1.0,
                     metadata={
                         'jurisdiction': row['jurisdiction_name'],
@@ -1259,15 +1238,15 @@ async def search_events_pg(
                         'state_code': row['state_code'],
                         'city': row['city'],
                         'date': date_str,
-                        'meeting_id': row['event_id'],
-                        'video_url': row['video_url'],
-                        'agenda_url': row['agenda_url']
+                        'event_meeting_id': row['event_meeting_id'],
+                        'meeting_id': row['event_meeting_id'],
+                        'video_id': row['video_id'],
                     }
                 ))
-            
+
             logger.info(f"📅 PostgreSQL events search: {len(results)} results")
             return results
-            
+
     except Exception as e:
         logger.error(f"PostgreSQL events search error: {e}")
         return []
@@ -1374,11 +1353,17 @@ async def search_documents_pg(
 
                 # event_id is nullable (orphan transcripts have no golden event);
                 # deep-link to the meeting when one exists, else fall back to the
-                # source video.
+                # source video. Most orphan transcripts carry only a YouTube
+                # video_id (video_url is null), so synthesize the watch URL from
+                # it — otherwise the card has nothing to link to.
                 if row['event_id'] is not None:
                     url = f"/documents?meeting_id={row['event_id']}"
+                elif row['video_url']:
+                    url = row['video_url']
+                elif row['video_id']:
+                    url = f"https://www.youtube.com/watch?v={row['video_id']}"
                 else:
-                    url = row['video_url'] or ''
+                    url = ''
 
                 results.append(SearchResult(
                     result_type='document',

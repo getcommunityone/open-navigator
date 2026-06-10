@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Dialog, Transition } from '@headlessui/react'
 import { MapPinIcon, CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -10,8 +11,11 @@ import { toLensSlug, fromLensSlug, toSignalSlug, fromSignalSlug } from '../lib/f
  * Home" profile: where you live, the value-frames you care about, and the
  * signals to surface. Doubles as an editor (pre-fills from GET /api/feed/config).
  *
- * Saving PUTs the full config (which marks profile_completed=true server-side),
- * then returns to '/' where Close-to-Home is now unlocked.
+ * Presented as a centered modal popup over a dimmed backdrop (not an inline
+ * page in the content column). Dismissing it — close button, Esc, or backdrop
+ * click — returns to '/'. Saving PUTs the full config (which marks
+ * profile_completed=true server-side), then returns to '/' where Close-to-Home
+ * is now unlocked.
  *
  * No fabricated data: location suggestions come ONLY from the real geocoder
  * (GET /api/feed/places); an empty/short query shows nothing.
@@ -273,6 +277,13 @@ export default function FeedSetup() {
       setSaveError('Could not save your feed. Please try again.')
       setSaving(false)
     }
+  }
+
+  // Dismiss the modal (close button, Esc, backdrop) — never trap the user on a
+  // bare route; send them back to the homepage. Ignored mid-save.
+  const close = () => {
+    if (saving) return
+    navigate('/')
   }
 
   if (authLoading) {

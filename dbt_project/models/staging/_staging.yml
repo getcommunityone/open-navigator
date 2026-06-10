@@ -2009,13 +2009,14 @@ sources:
 
   - name: civic_core
     description: |
-      Canonical OCD/Popolo civic entity tables in the PUBLIC schema (the `c1_*`
-      family). Loaded by the OCD ingestion path, NOT by dbt — declared as a
-      source so the AI-extraction marts (event_*) can resolve to the canonical
-      event via the enforced FK bronze_events_analysis_ai.event_id =
-      civic_event.legacy_id.
+      Canonical OCD/Popolo civic entity tables in the GOLD schema (the `civic_*`
+      family). Loaded by the OCD ingestion path / promote_to_c1_event, NOT by dbt
+      — declared as a source so the AI-extraction marts (event_*) can resolve to
+      the canonical event via the enforced FK bronze_events_analysis_ai.event_id =
+      civic_event.legacy_id. Moved public -> gold by the gold/public serving split;
+      the full warehouse (including civic_event) lives in gold.
     database: open_navigator
-    schema: public
+    schema: gold
     tables:
       - name: civic_event
         description: "Canonical OCD event. legacy_id is the integer surrogate the bronze AI-analysis FK points at; id is the canonical OCD string id."

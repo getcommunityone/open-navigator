@@ -274,6 +274,24 @@ export default function HomeModern() {
     navigate(`/search?${params.toString()}`)
   }
 
+  // Click handler for a preview result row. Prefer the deep-link `url` the
+  // search API returns (e.g. an org's EIN link that auto-expands it on /search)
+  // so the row goes to the actual entity instead of a generic re-search; fall
+  // back to searching by the row's title when no url is present.
+  const handleResultClick = (result: any) => {
+    const url = result?.url as string | undefined
+    if (url) {
+      setShowSuggestions(false)
+      if (/^https?:\/\//i.test(url)) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } else {
+        navigate(url)
+      }
+      return
+    }
+    handleSelectSuggestion(result?.title ?? '')
+  }
+
   const handleViewAllCategory = (category: string) => {
     if (keyword.trim().length >= 2) {
       const params = new URLSearchParams()
@@ -741,7 +759,7 @@ export default function HomeModern() {
                                         type="button"
                                         onMouseDown={(e) => {
                                           e.preventDefault();
-                                          handleSelectSuggestion(result.title);
+                                          handleResultClick(result);
                                         }}
                                         className="w-full text-left px-4 py-2 bg-white hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                       >
@@ -780,7 +798,7 @@ export default function HomeModern() {
                                         type="button"
                                         onMouseDown={(e) => {
                                           e.preventDefault();
-                                          handleSelectSuggestion(result.title);
+                                          handleResultClick(result);
                                         }}
                                         className="w-full text-left px-4 py-2 bg-white hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                       >
@@ -819,7 +837,7 @@ export default function HomeModern() {
                                         type="button"
                                         onMouseDown={(e) => {
                                           e.preventDefault();
-                                          handleSelectSuggestion(result.title);
+                                          handleResultClick(result);
                                         }}
                                         className="w-full text-left px-4 py-2 bg-white hover:bg-gray-50 flex items-start gap-3 transition-colors last:rounded-b-lg"
                                       >

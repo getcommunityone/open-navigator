@@ -21,7 +21,8 @@ import {
   ChatBubbleBottomCenterTextIcon,
   ScaleIcon,
   BanknotesIcon,
-  MegaphoneIcon
+  MegaphoneIcon,
+  DocumentMagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
 import { formatCurrency } from '../utils/formatters'
 
@@ -34,6 +35,7 @@ type SearchResultType =
   | 'bill'
   | 'topic'
   | 'decision'
+  | 'document'
   | 'grant'
   | 'grant_opportunity'
 
@@ -63,6 +65,7 @@ interface SearchResponse {
     topics: number
     decisions: number
     jurisdictions: number
+    documents?: number
     grants?: number
     grant_opportunities?: number
   }
@@ -76,6 +79,7 @@ interface SearchResponse {
     topics: SearchResult[]
     decisions: SearchResult[]
     jurisdictions?: SearchResult[]
+    documents?: SearchResult[]
     grants?: SearchResult[]
     grant_opportunities?: SearchResult[]
   }
@@ -115,6 +119,10 @@ const RESULT_TYPES = [
   { type: 'organizations', label: 'Organizations' },
   { type: 'causes', label: 'Causes' },
   { type: 'meetings', label: 'Meetings' },
+  // 'documents' = meeting transcripts (full-text searched). Most fluoride/
+  // policy-term hits live in the transcript body, not in meeting titles or
+  // extracted decisions, so this is often the only category that surfaces them.
+  { type: 'documents', label: 'Transcripts' },
   { type: 'bills', label: 'Bills' },
   { type: 'topics', label: 'Topics' },
   { type: 'decisions', label: 'Decisions' },
@@ -139,6 +147,7 @@ const RESULT_TABS = [
   { key: 'organizations', label: 'Organizations' },
   { key: 'causes', label: 'Causes' },
   { key: 'meetings', label: 'Meetings' },
+  { key: 'documents', label: 'Transcripts' },
   { key: 'bills', label: 'Bills' },
   { key: 'topics', label: 'Topics' },
   { key: 'grants', label: 'Grants' },
@@ -646,6 +655,8 @@ export default function UnifiedSearch() {
         return <HeartIcon className="h-5 w-5" />
       case 'bill':
         return <DocumentTextIcon className="h-5 w-5" />
+      case 'document':
+        return <DocumentMagnifyingGlassIcon className="h-5 w-5" />
       case 'topic':
         return <ChatBubbleBottomCenterTextIcon className="h-5 w-5" />
       case 'decision':
@@ -681,6 +692,8 @@ export default function UnifiedSearch() {
         return 'bg-pink-100 text-pink-700 border-pink-200'
       case 'bill':
         return 'bg-indigo-100 text-indigo-700 border-indigo-200'
+      case 'document':
+        return 'bg-cyan-100 text-cyan-700 border-cyan-200'
       case 'topic':
         return 'bg-teal-100 text-teal-700 border-teal-200'
       case 'decision':
@@ -699,6 +712,17 @@ export default function UnifiedSearch() {
 
   const ResultCard = ({ result }: { result: SearchResult }) => {
     const resultType = result.result_type ?? result.type
+    // Transcript snippets arrive with the matched passage wrapped in literal
+    // <mark>…</mark> markers (ts_headline). Render them as highlighted React
+    // nodes WITHOUT dangerouslySetInnerHTML: split on the markers and wrap the
+    // odd segments in <mark>, so every text segment is React-escaped and the
+    // raw transcript body can never inject markup.
+    const renderSnippet = (text: string) =>
+      text.split(/<\/?mark>/).map((seg, i) =>
+        i % 2 === 1
+          ? <mark key={i} className="bg-yellow-200 text-gray-900 rounded px-0.5">{seg}</mark>
+          : <span key={i}>{seg}</span>
+      )
     return (
     <div
       className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
@@ -796,7 +820,11 @@ export default function UnifiedSearch() {
 
           </div>
           
-          <p className="text-sm text-gray-500 line-clamp-2 mb-2">{result.description}</p>
+          {resultType === 'document' ? (
+            <p className="text-sm text-gray-500 line-clamp-3 mb-2">{renderSnippet(result.description || '')}</p>
+          ) : (
+            <p className="text-sm text-gray-500 line-clamp-2 mb-2">{result.description}</p>
+          )}
           
           {/* Mission statement for organizations */}
           {result.type === 'organization' && result.metadata?.mission && (
@@ -2148,6 +2176,23 @@ export default function UnifiedSearch() {
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
                       {searchResults.results.meetings.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {effectiveTab === 'documents' && searchResults.results?.documents && searchResults.results.documents.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <DocumentMagnifyingGlassIcon className="h-6 w-6 text-cyan-600" />
+                      Transcripts ({searchResults.type_totals?.documents?.toLocaleString() || searchResults.results.documents.length})
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4 -mt-2">
+                      Passages from meeting transcripts that mention your search term — the discussion itself, even when it never became a titled agenda item or a recorded decision.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.documents.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>
