@@ -436,11 +436,53 @@ async def fetch_map_data_from_neon(
             return _map_cache[cache_key]
     
     async with pool.acquire() as conn:
+        requested_topic = topic.lower() if topic else 'all'
+
+        # The serving table `rpt_bill_map_aggregate` was repurposed by the
+        # trending-topics dbt mart — its grain is now (jurisdiction_id, subject) and
+        # it no longer carries the legacy policy-map columns
+        # (topic / type_* / status_* / primary_*). When that schema is live, the old
+        # choropleth query below 500s with `column "topic" does not exist`. Detect the
+        # legacy schema first and, when it's gone, return a clean empty map instead of
+        # erroring. We deliberately do NOT fabricate type/status counts to fill the
+        # gap — restoring policy-map shading needs a dedicated aggregate table.
+        has_legacy_schema = await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'rpt_bill_map_aggregate'
+                  AND column_name = 'topic'
+            )
+            """
+        )
+        if not has_legacy_schema:
+            logger.warning(
+                "📊 rpt_bill_map_aggregate has no legacy policy-map schema "
+                "(topic/type/status columns); returning empty map. The table is now "
+                "the trending-topics mart — policy-map shading needs its own aggregate."
+            )
+            return {
+                "topic": requested_topic,
+                "session": session,
+                "states": {},
+                "total_states": 0,
+                "legend": {
+                    "types": {},
+                    "statuses": {
+                        "enacted": "Enacted",
+                        "failed": "Failed",
+                        "pending": "Pending",
+                    },
+                },
+                "message": "Policy-map aggregates are not available on this database.",
+                "source": "neon",
+            }
+
         # For now, we only support topic='all' (no topic filtering yet)
         # Session filtering would require aggregating bills on-the-fly
-        
+
         sql = """
-            SELECT 
+            SELECT
                 state_code,
                 topic,
                 total_bills,
@@ -460,8 +502,7 @@ async def fetch_map_data_from_neon(
             FROM rpt_bill_map_aggregate
             WHERE topic = $1
         """
-        
-        requested_topic = topic.lower() if topic else 'all'
+
         rows = await conn.fetch(sql, requested_topic)
         
         # If topic-specific data not found, return empty (don't fallback)
