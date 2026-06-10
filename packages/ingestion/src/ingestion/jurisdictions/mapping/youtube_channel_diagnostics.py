@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from scripts.datasources.jurisdictions.jurisdiction_mapping_queries import (
+from .queries import (
     ENTITY_SLICE_WHERE,
     VALID_ENTITIES,
 )

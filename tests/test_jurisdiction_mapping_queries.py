@@ -1,6 +1,6 @@
 """Tests for jurisdiction mapping unmapped SQL builders."""
 
-from scripts.datasources.jurisdictions.jurisdiction_mapping_queries import (
+from ingestion.jurisdictions.mapping.queries import (
     build_unmapped_where_asyncpg,
     build_unmapped_where_psycopg,
 )

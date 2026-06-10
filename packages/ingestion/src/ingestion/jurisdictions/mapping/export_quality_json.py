@@ -47,7 +47,7 @@ Usage (repo root):
   # State ACS parquets (once per vintage):
   .venv/bin/python scripts/datasources/census/download_census_acs_data.py --geography state --state '*' --year 2022
 
-  .venv/bin/python scripts/datasources/jurisdictions/export_jurisdiction_mapping_quality_json.py
+  .venv/bin/python -m ingestion.jurisdictions.mapping.export_quality_json
 
 Full unmapped drill-down lists (no JSON cap): ``GET /api/jurisdiction-mapping/unmapped`` (see
 ``api/routes/jurisdiction_mapping.py``).
@@ -68,20 +68,24 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[3]
+# Repo root (…/packages/ingestion/src/ingestion/jurisdictions/mapping/<this>).
+# Kept on sys.path so the lazily-imported ``scripts.discovery`` category
+# classifier (still legacy) resolves when ``build_state_youtube_category_rollup``
+# runs, and to locate the dashboard JSON output under ``web_app/``.
+ROOT = Path(__file__).resolve().parents[6]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 OUT = ROOT / "web_app" / "public" / "data" / "jurisdiction_mapping_quality.json"
 
-from scripts.datasources.jurisdictions.jurisdiction_mapping_queries import (
+from .queries import (
     ENTITY_SLICE_WHERE,
     MISSING_YOUTUBE_ROW_SELECT,
     UNMAPPED_ROW_SELECT,
     build_missing_youtube_where_psycopg,
     build_unmapped_where_psycopg,
 )
-from scripts.datasources.jurisdictions.state_acs_mapping_quality import build_states_payload
-from scripts.datasources.jurisdictions.state_youtube_category_rollup import (
+from .state_acs_quality import build_states_payload
+from .state_youtube_category_rollup import (
     build_state_youtube_category_rollup,
 )
 

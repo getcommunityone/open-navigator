@@ -1,6 +1,6 @@
 """Tests for jurisdiction mapping quality query helpers."""
 
-from scripts.datasources.jurisdictions.jurisdiction_mapping_queries import (
+from ingestion.jurisdictions.mapping.queries import (
     build_missing_youtube_where_asyncpg,
     build_missing_youtube_where_psycopg,
 )
