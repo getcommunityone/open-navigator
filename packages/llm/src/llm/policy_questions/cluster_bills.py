@@ -162,6 +162,13 @@ def run(state: str = "AL", use_llm: bool = False, min_cluster_size: int = 4,
                                b.get("session_identifier"), score))
             n_questions += 1
 
+    # Dedupe by PK: heuristic labels (shared AL bill-title prefixes) can land two
+    # clusters on the same question_id; merge them (a single upsert batch cannot
+    # touch the same conflict key twice).
+    q_rows = list({r[0]: r for r in q_rows}.values())
+    c_rows = list({r[0]: r for r in c_rows}.values())
+    i_rows = list({r[0]: r for r in i_rows}.values())
+
     # Additive rebuild: clear only this scope's rows (decisions untouched).
     with conn.cursor() as cur:
         cur.execute("delete from bronze.bronze_question_instance where source_type = %s",

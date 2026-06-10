@@ -2765,3 +2765,82 @@ google.genai.errors.ServerError: 503 UNAVAILABLE. {'error': {'code': 503, 'messa
 2026-06-10 06:50:39.904 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] 453OWIf30i8 — Bridgeport Township Board Meeting  May 2nd, 2023
 2026-06-10 06:50:39.977 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 453OWIf30i8 (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
 2026-06-10 06:50:40.052 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:51:02.019 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for 453OWIf30i8: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-10 06:51:02.115 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/NE/municipality/bridgeport_3106295/UC9CDuA3sJJPg8uWmmwZHLKA/02_analysis/2023-05-02_Bridgeport_Township_Board_Meeting.json
+2026-06-10 06:51:02.204 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for YPMx2AkilVQ
+2026-06-10 06:51:02.205 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] YPMx2AkilVQ — Bridgeport Township Board Meeting  March 7th, 2023
+2026-06-10 06:51:02.276 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for YPMx2AkilVQ (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:51:02.364 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:51:02.630 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-10 06:51:22.182 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for YPMx2AkilVQ: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-10 06:51:22.242 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/NE/municipality/bridgeport_3106295/UC9CDuA3sJJPg8uWmmwZHLKA/02_analysis/2023-03-07_Bridgeport_Township_Board_Meeting.json
+2026-06-10 06:51:22.301 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for xZe6aqzUTKU
+2026-06-10 06:51:22.302 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] xZe6aqzUTKU — Bridgeport Township Board Meeting  December 6th, 2022
+2026-06-10 06:51:22.367 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for xZe6aqzUTKU (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:51:22.376 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-10 06:51:22.435 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:51:27.617 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — peer closed connection without sending complete message body (incomplete chunked read))
+2026-06-10 06:52:25.938 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for xZe6aqzUTKU: {'bills': 8, 'item_links': 9, 'decisions': 3, 'youtube_updated': 1}
+2026-06-10 06:52:26.053 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/NE/municipality/bridgeport_3106295/UC9CDuA3sJJPg8uWmmwZHLKA/02_analysis/2022-12-06_Bridgeport_Township_Board_Meeting.json
+2026-06-10 06:52:26.054 | INFO     | __main__:run_backlog:691 - Progress 92/318 jurisdictions (12.16/min, ETA 18m35s)
+2026-06-10 06:52:26.059 | INFO     | __main__:run_backlog:623 - [93/318] hartford_4627540 (SD) — pending~145, model=gemini-2.5-flash-lite
+2026-06-10 06:52:27.034 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/SD/municipality/hartford_4627540/_contact_images/contacts.json
+2026-06-10 06:52:27.406 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip 9QC4x53ymH4 — analysis exists (2023-05-02_City_of_Hartford_City_Council_Meeting.json)
+2026-06-10 06:52:27.409 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip LbEiyUCRniw — analysis exists (2023-04-04_City_of_Hartford_City_Council_Meeting.json)
+2026-06-10 06:52:27.412 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip N5tuoSnvkNc — analysis exists (2023-03-21_City_of_Hartford_City_Council_Meeting.json)
+2026-06-10 06:52:27.414 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip MjkDkUc5Q1E — analysis exists (2023-02-21_City_of_Hartford_City_Council_Meeting.json)
+2026-06-10 06:52:27.415 | INFO     | __main__:run_backlog:691 - Progress 93/318 jurisdictions (12.25/min, ETA 18m21s)
+2026-06-10 06:52:27.417 | INFO     | __main__:run_backlog:623 - [94/318] fairfield_0912026620 (CT) — pending~135, model=gemini-2.5-flash-lite
+2026-06-10 06:52:28.611 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/CT/township/fairfield_0912026620/_contact_images/contacts.json
+2026-06-10 06:52:28.921 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip mAEMJ-GTH3s — analysis exists (2023-04-24_Fairfield_County_Council_Meeting.json)
+2026-06-10 06:52:28.924 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip 5-MGFa40gDo — analysis exists (2023-04-03_Fairfield_County_Council_Budget_Work_Session.json)
+2026-06-10 06:52:28.927 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip Ru-N8Ikqdlo — analysis exists (2023-03-27_Fairfield_County_Council_Meeting.json)
+2026-06-10 06:52:28.931 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip 157p3ajcOZM — analysis exists (2023-03-13_Fairfield_County_Council_Meeting.json)
+2026-06-10 06:52:28.931 | INFO     | __main__:run_backlog:691 - Progress 94/318 jurisdictions (12.34/min, ETA 18m08s)
+2026-06-10 06:52:28.933 | INFO     | __main__:run_backlog:623 - [95/318] port_clinton_3964150 (OH) — pending~170, model=gemini-2.5-flash-lite
+2026-06-10 06:52:29.707 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/OH/municipality/port_clinton_3964150/_contact_images/contacts.json
+2026-06-10 06:52:30.072 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for q9MLHqzeHlM
+2026-06-10 06:52:30.073 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [1/4] q9MLHqzeHlM — March 28, 2023, Port Clinton City Council Meeting, Part 1
+2026-06-10 06:52:30.139 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for q9MLHqzeHlM (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:52:30.191 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:52:30.438 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-10 06:52:47.872 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/OH/municipality/port_clinton_3964150/UCogMKz7LtjWj2yP13-rmHcQ/02_analysis/2023-03-28_,_Port_Clinton_City_Council_Meeting,_Part_1.json
+2026-06-10 06:52:47.922 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for EA27rzI1ALA
+2026-06-10 06:52:47.923 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] EA27rzI1ALA — March 28, 2023, City of Port Clinton Council Meeting, Part 2
+2026-06-10 06:52:48.012 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for EA27rzI1ALA (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:52:48.099 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:52:50.678 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/OH/municipality/port_clinton_3964150/UCogMKz7LtjWj2yP13-rmHcQ/02_analysis/2023-03-28_,_City_of_Port_Clinton_Council_Meeting,_Part_2.json
+2026-06-10 06:52:50.769 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for AjnSIDoNZ-I
+2026-06-10 06:52:50.770 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] AjnSIDoNZ-I — March 14, 2023, Port Clinton City Council Meeting, Part 1
+2026-06-10 06:52:50.876 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for AjnSIDoNZ-I (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:52:50.970 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:53:15.361 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for AjnSIDoNZ-I: {'bills': 7, 'item_links': 7, 'decisions': 6, 'youtube_updated': 1}
+2026-06-10 06:53:15.390 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/OH/municipality/port_clinton_3964150/UCogMKz7LtjWj2yP13-rmHcQ/02_analysis/2023-03-14_,_Port_Clinton_City_Council_Meeting,_Part_1.json
+2026-06-10 06:53:15.419 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for uHSCGPwDnvU
+2026-06-10 06:53:15.419 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] uHSCGPwDnvU — March 14, 2023, Port Clinton City Council Meeting, Part 2
+2026-06-10 06:53:15.452 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for uHSCGPwDnvU (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:53:15.494 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:53:15.675 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-10 06:53:19.109 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/OH/municipality/port_clinton_3964150/UCogMKz7LtjWj2yP13-rmHcQ/02_analysis/2023-03-14_,_Port_Clinton_City_Council_Meeting,_Part_2.json
+2026-06-10 06:53:19.110 | INFO     | __main__:run_backlog:691 - Progress 95/318 jurisdictions (11.31/min, ETA 19m42s)
+2026-06-10 06:53:19.111 | INFO     | __main__:run_backlog:623 - [96/318] bristol_5109816 (VA) — pending~47, model=gemini-2.5-flash-lite
+2026-06-10 06:53:19.689 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/VA/municipality/bristol_5109816/_contact_images/contacts.json
+2026-06-10 06:53:23.240 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for hD9EWa3ZscY
+2026-06-10 06:53:23.241 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [1/4] hD9EWa3ZscY — 7 11 2023 City Council Meeting
+2026-06-10 06:53:23.288 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for hD9EWa3ZscY (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:53:23.289 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-10 06:53:23.318 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:53:34.670 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/VA/municipality/bristol_5109816/UCsXxrQvvnpoAC60lEn67FhQ/02_analysis/2023-07-11_City_Council_Meeting.json
+2026-06-10 06:53:34.751 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for j0ZJh2JD4Do
+2026-06-10 06:53:34.751 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] j0ZJh2JD4Do — 5 9 2023 City Council Meeting
+2026-06-10 06:53:34.801 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for j0ZJh2JD4Do (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:53:34.802 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-10 06:53:34.856 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:54:45.701 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for j0ZJh2JD4Do: {'bills': 9, 'item_links': 9, 'decisions': 6, 'youtube_updated': 1}
+2026-06-10 06:54:45.742 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/VA/municipality/bristol_5109816/UCsXxrQvvnpoAC60lEn67FhQ/02_analysis/2023-05-09_City_Council_Meeting.json
+2026-06-10 06:54:45.784 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for Qs6FSapf1VI
+2026-06-10 06:54:45.785 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] Qs6FSapf1VI — 3 14 2023 City Council Meeting
+2026-06-10 06:54:45.822 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for Qs6FSapf1VI (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-10 06:54:45.822 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-10 06:54:45.844 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-10 06:54:46.281 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
