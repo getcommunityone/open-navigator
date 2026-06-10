@@ -1042,8 +1042,11 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
         </div>
       )}
 
-      {/* What's happening strip — Close to Home only; hidden on a hard failure */}
-      {isHome && !errored && (
+      {/* What's happening strip — Close to Home only; hidden on a hard failure.
+          Also hidden during an active text search: it's an ambient browse cue, and
+          its counts are query-scoped, so a search would otherwise show a row of
+          zero tiles above the filtered cards. */}
+      {isHome && !errored && !hasQuery && (
         <div className="mb-4">
           <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             <h3 className="text-[15px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
