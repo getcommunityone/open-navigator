@@ -76,11 +76,36 @@ class PolicyQuestionSummary(BaseModel):
     jurisdictions_approved: int = 0
 
 
+class RelationOut(BaseModel):
+    relation_type: str
+    direction: str  # "outgoing" (this -> other) | "incoming" (other -> this)
+    evidence: Optional[str] = None
+    question_id: str
+    canonical_text: Optional[str] = None
+    scope: Optional[str] = None
+
+
 class PolicyQuestionDetail(PolicyQuestionSummary):
     first_seen: Optional[Any] = None
     rollup: RollupOut
     arguments: List[ArgumentOut] = []
     sample_instances: List[InstanceOut] = []
+    relations: List[RelationOut] = []
+
+
+_RELATIONS_SQL = """
+    select
+        r.relation_type,
+        r.evidence,
+        case when r.from_question_id = $1 then 'outgoing' else 'incoming' end as direction,
+        q.question_id, q.canonical_text, q.scope
+    from public.policy_question_relation r
+    join public.policy_question q
+      on q.question_id = case when r.from_question_id = $1
+                              then r.to_question_id else r.from_question_id end
+    where r.from_question_id = $1 or r.to_question_id = $1
+    order by r.relation_type
+"""
 
 
 _LIST_SQL = """
@@ -143,6 +168,10 @@ async def get_policy_question(
                     raise HTTPException(status_code=404, detail=f"No policy question '{question_id}'")
                 args = await conn.fetch(_ARGS_SQL, question_id)
                 insts = await conn.fetch(_INSTANCES_SQL, question_id, sample, 0)
+                try:
+                    rels = await conn.fetch(_RELATIONS_SQL, question_id)
+                except Exception:  # noqa: BLE001 — relations are best-effort (Phase 3 mart optional)
+                    rels = []
         except HTTPException:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -167,6 +196,7 @@ async def get_policy_question(
             rollup=rollup,
             arguments=[ArgumentOut(**dict(a)) for a in args],
             sample_instances=[InstanceOut(**dict(i)) for i in insts],
+            relations=[RelationOut(**dict(r)) for r in rels],
         )
 
 

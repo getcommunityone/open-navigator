@@ -136,6 +136,33 @@ export default function PolicyQuestionPage() {
 
         <RollupBar q={q} />
 
+        {q.relations && q.relations.length > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+            <h2 className="text-sm font-semibold text-amber-900 mb-2">Across levels of government</h2>
+            <ul className="space-y-1.5">
+              {q.relations.map((r) => (
+                <li key={`${r.relation_type}-${r.question_id}`} className="text-sm">
+                  <span className="mr-2 rounded bg-amber-200 px-1.5 py-0.5 text-[11px] font-medium text-amber-900">
+                    {r.relation_type === 'preempts'
+                      ? r.direction === 'incoming'
+                        ? 'may be preempted by'
+                        : 'may preempt'
+                      : r.relation_type === 'implements'
+                      ? r.direction === 'incoming'
+                        ? 'may be enabled by'
+                        : 'may enable'
+                      : 'related to'}
+                  </span>
+                  <Link to={`/policy-question/${r.question_id}`} className="text-blue-700 hover:underline">
+                    {r.canonical_text}
+                  </Link>
+                  {r.scope && <span className="ml-1 text-gray-400">({r.scope})</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <h2 className="mb-2 text-sm font-semibold text-green-700">

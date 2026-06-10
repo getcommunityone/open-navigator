@@ -52,11 +52,21 @@ export interface QuestionInstance {
   assign_score: number | null
 }
 
+export interface QuestionRelation {
+  relation_type: string
+  direction: string
+  evidence: string | null
+  question_id: string
+  canonical_text: string | null
+  scope: string | null
+}
+
 export interface PolicyQuestionDetail extends PolicyQuestionSummary {
   first_seen: string | null
   rollup: QuestionRollup
   arguments: CanonicalArgument[]
   sample_instances: QuestionInstance[]
+  relations: QuestionRelation[]
 }
 
 export async function fetchPolicyQuestions(params?: {

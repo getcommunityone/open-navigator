@@ -92,7 +92,7 @@ def run(threshold: float = 0.45, database_url: str | None = None) -> Dict[str, i
         conn.close()
         return {"relations": 0}
 
-    local_mat = np.vstack([l[1] for l in local])
+    local_mat = np.vstack([lq[1] for lq in local])
     member_text = _member_text(conn, sources.STATE_BILL)
 
     rel_rows = []
