@@ -119,13 +119,42 @@ select 1;
         diagram_mindmap_lines    jsonb,
         source_ai_model          varchar(100),
         extracted_at             timestamp   not null,
+        -- Persisted full-text-search vector over the searchable narrative fields,
+        -- so the API can query `search_tsv @@ plainto_tsquery(...)` against a GIN
+        -- index instead of recomputing to_tsvector(headline||decision_statement||
+        -- primary_theme) per row at query time (seq-scan).
+        --
+        -- PLAIN (not GENERATED) column, populated by the model SELECT
+        -- (to_tsvector(...) AS search_tsv). A STORED generated column can't be used
+        -- here: dbt-postgres' `incremental_strategy='append'` builds its INSERT
+        -- column list from the TARGET table's columns (not the model SELECT), so it
+        -- always lists search_tsv and then errors ("cannot insert into generated
+        -- column"). A plain column matched 1:1 by the SELECT avoids that. Lives at
+        -- the END so a fresh create and an in-place `add column if not exists` yield
+        -- the same column order, keeping the public `select *` view recreatable.
+        search_tsv               tsvector,
         primary key (event_decision_id, extracted_at),
         unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
 
+    -- Idempotent add for tables bootstrapped before search_tsv existed (adding a
+    -- column to a partitioned parent propagates to every partition automatically).
+    -- Back-fill any pre-existing rows that predate the column.
+    alter table gold.event_decision add column if not exists search_tsv tsvector;
+    update gold.event_decision
+       set search_tsv = to_tsvector('english',
+               coalesce(headline, '') || ' ' ||
+               coalesce(decision_statement, '') || ' ' ||
+               coalesce(primary_theme, ''))
+     where search_tsv is null;
+
     create index if not exists ix_event_decision_c1_event  on gold.event_decision (c1_event_id);
     create index if not exists ix_event_decision_state      on gold.event_decision (state_code);
     create index if not exists ix_event_decision_extracted  on gold.event_decision (extracted_at);
+    -- GIN on the partitioned parent (PG 11+ propagates a partitioned index to every
+    -- child partition, including future ones) so decisions full-text search uses a
+    -- Bitmap Index Scan instead of a per-row tsvector recompute.
+    create index if not exists ix_event_decision_search_tsv on gold.event_decision using gin (search_tsv);
   {% endset %}
   {% do run_query(ddl) %}
   {% do run_query(ensure_event_partitions('gold.event_decision')) %}

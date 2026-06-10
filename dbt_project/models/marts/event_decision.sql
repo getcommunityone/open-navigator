@@ -119,7 +119,19 @@ select
 
     -- extraction provenance
     dd.source_ai_model,
-    dd.extracted_at
+    dd.extracted_at,
+
+    -- Persisted full-text-search vector (PLAIN tsvector column, backed by the GIN
+    -- index ix_event_decision_search_tsv from bootstrap_event_decision). Computed
+    -- here in the SELECT so dbt's append insert (whose column list is derived from
+    -- the target table) gets a matching value — a STORED generated column can't be
+    -- used because that same append insert would try to write to it. Must stay in
+    -- sync with the to_tsvector(...) expression in bootstrap_event_decision's
+    -- back-fill UPDATE.
+    to_tsvector('english',
+        coalesce(dd.headline, '') || ' ' ||
+        coalesce(dd.decision_statement, '') || ' ' ||
+        coalesce(dd.primary_theme, ''))          as search_tsv
 
 from decisions dd
 join meeting_keys mk on mk.event_meeting_id = dd.source_event_id

@@ -217,6 +217,10 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
         'create index if not exists event_documents_event_id_idx on public.event_documents (event_id)',
         'create index if not exists event_documents_state_code_idx on public.event_documents (state_code)'
     ],
+    'event_decision': [
+        'create index if not exists event_decision_state_code_idx on public.event_decision (state_code)',
+        'create index if not exists event_decision_search_tsv_idx on public.event_decision using gin (search_tsv)'
+    ],
     'mdm_organization': [
         'create unique index if not exists mdm_organization_pkey on public.mdm_organization (master_org_id)',
         "create index if not exists mdm_organization_org_name_fts_idx on public.mdm_organization using gin (to_tsvector('english', org_name))",
