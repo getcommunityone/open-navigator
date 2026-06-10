@@ -1836,6 +1836,7 @@ export default function UnifiedSearch() {
                       {' '}of {searchResults.total_results.toLocaleString()}{' '}
                       {(RESULT_TABS.find((t) => t.key === effectiveTab)?.label ?? effectiveTab).toLowerCase()}
                       {selectedState && ` · State: ${selectedState}`}
+                      {selectedCity && ` · City: ${selectedCity}`}
                     </p>
                   )}
                 </div>

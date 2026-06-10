@@ -72,6 +72,12 @@ _count_cache_ttl = {}
 # past any real browse depth.
 PERSON_COUNT_CAP = 1000
 
+# Upper bound for the grants pager total. public.grant is ~6.7M rows with no
+# full-text index, so even a location-scoped count is capped via a LIMIT subquery
+# so a large state can't run long; a returned value == GRANT_COUNT_CAP means
+# "this many or more". 5000 / 20-per-page = 250 pages, far past any real browse.
+GRANT_COUNT_CAP = 5000
+
 # Scope cut (Neon free-tier storage): the "persons" category serves
 # mdm_person (~13.8M rows) plus its bridges and 990 compensation records —
 # ~38 GB and almost entirely NON-government people (nonprofit officers, residents).
@@ -737,6 +743,450 @@ async def count_decisions(
             return 0
 
 
+async def count_bills(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+) -> int:
+    """Count meeting-referenced legislation matching the bills search filters.
+
+    Mirrors the WHERE predicates of search_postgres.search_bills_pg over
+    public.event_bill: the same state_code filter, the same exact-name city scope
+    (jurisdiction_name OR city), and the same title-FTS / official_number LIKE for
+    a query. Used to report an HONEST type_total for "bills" so the count is
+    independent of the caller's limit — the tab-counts call sends limit=1, which
+    would otherwise cap the fetched-length estimate at 1 in single-type browse.
+
+    event_bill is small (~14k rows) so this uncapped count(*) is sub-second.
+    Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_bills_{norm_state}_{city}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_bills") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if norm_state:
+                where_clauses.append(f"state_code = ${idx}")
+                params.append(norm_state.upper())
+                idx += 1
+
+            if city and city.strip():
+                where_clauses.append(
+                    f"(lower(jurisdiction_name) = lower(${idx}) OR lower(city) = lower(${idx}))"
+                )
+                params.append(city.strip())
+                idx += 1
+
+            if has_query:
+                where_clauses.append(
+                    f"(to_tsvector('english', COALESCE(title, '')) "
+                    f"@@ plainto_tsquery('english', ${idx}) "
+                    f"OR LOWER(official_number) LIKE LOWER(${idx + 1}))"
+                )
+                params.append(q)
+                params.append(f"%{q}%")
+                idx += 2
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM event_bill WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+
+            # search_bills_pg also surfaces OpenStates legislation from the `bills`
+            # serving relation (title-FTS, query-gated, state-only). Count those too
+            # so the badge reflects the FULL bills match set, not just event_bill —
+            # otherwise "fluoride" reads "Bills 4" while the tab shows 100+. Title
+            # FTS is GIN-indexed (sub-ms); wrapped so it degrades to the event_bill
+            # count where `bills` isn't published.
+            if has_query:
+                try:
+                    leg_params: List[Any] = [q]
+                    leg_state = ""
+                    if norm_state:
+                        leg_params.append(norm_state.upper())
+                        leg_state = " AND state_code = $2"
+                    leg_sql = (
+                        "SELECT count(*) FROM bills "
+                        "WHERE to_tsvector('english', coalesce(title, '')) "
+                        f"@@ plainto_tsquery('english', $1){leg_state}"
+                    )
+                    async with pool.acquire() as conn:
+                        leg_count = await conn.fetchval(leg_sql, *leg_params)
+                    count += int(leg_count or 0)
+                except Exception as leg_err:
+                    logger.debug(f"Legislative bills count skipped: {leg_err}")
+
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Bills count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
+async def count_documents(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+) -> int:
+    """Count meeting transcripts matching the documents search filters.
+
+    Mirrors the WHERE predicates of search_postgres.search_documents_pg over
+    public.event_documents: the same state_code filter, the same exact-name city
+    scope (jurisdiction_name OR city), and the same full-text match against the
+    STORED content_tsv vector (GIN-indexed, so this count is index-backed and fast
+    even though the search's ts_headline/ts_rank work is not). Reports an HONEST
+    type_total for "documents" so the count is independent of the caller's limit.
+
+    Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_documents_{norm_state}_{city}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_documents") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if norm_state:
+                where_clauses.append(f"state_code = ${idx}")
+                params.append(norm_state.upper())
+                idx += 1
+
+            if city and city.strip():
+                where_clauses.append(
+                    f"(lower(jurisdiction_name) = lower(${idx}) OR lower(city) = lower(${idx}))"
+                )
+                params.append(city.strip())
+                idx += 1
+
+            if has_query:
+                where_clauses.append(
+                    f"content_tsv @@ plainto_tsquery('english', ${idx})"
+                )
+                params.append(q)
+                idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM event_documents WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Documents count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
+async def count_topics(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+) -> int:
+    """Count meeting topics matching the topics search filters.
+
+    Mirrors the WHERE predicates of search_postgres.search_topics_pg over
+    public.event_topic: the same state_code filter, the same exact-name city scope
+    (jurisdiction_name OR city), and the same headline/theme FTS + theme ILIKE for
+    a query. event_topic is small (~12k rows) so this count(*) is sub-second.
+    Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_topics_{norm_state}_{city}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_topics") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if norm_state:
+                where_clauses.append(f"state_code = ${idx}")
+                params.append(norm_state.upper())
+                idx += 1
+
+            if city and city.strip():
+                where_clauses.append(
+                    f"(lower(jurisdiction_name) = lower(${idx}) OR lower(city) = lower(${idx}))"
+                )
+                params.append(city.strip())
+                idx += 1
+
+            if has_query:
+                where_clauses.append(
+                    f"(to_tsvector('english', COALESCE(headline, '') || ' ' || "
+                    f"COALESCE(primary_theme, '')) @@ plainto_tsquery('english', ${idx}) "
+                    f"OR primary_theme ILIKE ${idx + 1})"
+                )
+                params.append(q)
+                params.append(f"%{q}%")
+                idx += 2
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM event_topic WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Topics count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
+async def count_causes(query: Optional[str] = None) -> int:
+    """Count NTEE causes matching the causes search filter.
+
+    Mirrors the WHERE predicates of search_postgres.search_causes_pg over
+    public.tag (vocabulary='ntee'): the label/description FTS + source_code ILIKE
+    for a query. tag(ntee) is a tiny bounded vocabulary (~200 rows). Causes carry
+    no geography, so there is no state/city filter. Result cached for 1 hour.
+    """
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_causes_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_causes") as span:
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = ["vocabulary = 'ntee'"]
+            params: List[Any] = []
+            idx = 1
+
+            if has_query:
+                where_clauses.append(
+                    f"(to_tsvector('english', COALESCE(label, '') || ' ' || "
+                    f"COALESCE(description, '')) @@ plainto_tsquery('english', ${idx}) "
+                    f"OR source_code ILIKE ${idx + 1})"
+                )
+                params.append(q)
+                params.append(f"%{q}%")
+                idx += 2
+
+            where_sql = " AND ".join(where_clauses)
+            sql = f"SELECT count(*) FROM tag WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Causes count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
+async def count_grants(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    jurisdiction_id: Optional[str] = None,
+) -> int:
+    """Count nonprofit grants matching the grants search filters (CAPPED).
+
+    Mirrors the WHERE predicates of search_postgres.search_grants_pg over
+    public.grant: grantor-location scope (jurisdiction_id via the org bridge, else
+    indexed grantor_state_code / grantor_city_norm) and the grantor/grantee/purpose
+    ILIKE for a query.
+
+    public.grant is ~6.7M rows with NO full-text index, so an UNSCOPED count is a
+    ~10s seq-scan (over the sub-search timeout). The caller therefore only invokes
+    this when the search is LOCATION-SCOPED — those hit the indexed grantor columns
+    and count in <0.5s. The count is additionally capped via a LIMIT subquery
+    (GRANT_COUNT_CAP) so even a large state can't run long; a returned value == the
+    cap means "this many or more". Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_grants_{norm_state}_{city}_{jurisdiction_id}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_grants") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_jurisdiction", bool(jurisdiction_id))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            # Grantor-location scope (mirrors search_grants_pg). jurisdiction_id
+            # (exact) goes through the org bridge; else indexed direct columns.
+            if jurisdiction_id:
+                where_clauses.append(
+                    f"grantor_master_org_id IN ("
+                    f"SELECT master_org_id FROM mdm_bridge_org_jurisdiction "
+                    f"WHERE jurisdiction_id = ${idx})"
+                )
+                params.append(jurisdiction_id)
+                idx += 1
+            else:
+                if norm_state:
+                    where_clauses.append(f"grantor_state_code = ${idx}")
+                    params.append(norm_state.upper())
+                    idx += 1
+                if city and city.strip():
+                    where_clauses.append(f"lower(grantor_city_norm) = lower(${idx})")
+                    params.append(city.strip())
+                    idx += 1
+
+            if has_query:
+                where_clauses.append(
+                    f"(grantor_name ILIKE ${idx} OR grantee_name ILIKE ${idx} "
+                    f"OR purpose ILIKE ${idx})"
+                )
+                params.append(f"%{q}%")
+                idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            # Cap the work: stop counting once GRANT_COUNT_CAP matches are seen.
+            sql = (
+                f'SELECT count(*) FROM '
+                f'(SELECT 1 FROM "grant" WHERE {where_sql} LIMIT {GRANT_COUNT_CAP}) t'
+            )
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Grants count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
+async def count_grant_opportunities(query: Optional[str] = None) -> int:
+    """Count federal grant opportunities matching the search filter.
+
+    Mirrors the WHERE predicates of search_postgres.search_grant_opportunities_pg
+    over public.grant_opportunity: the title/agency/number ILIKE for a query.
+    Opportunities carry no resolved geography, so (like the search) state/city are
+    NOT applied — the feed is national. ~1.9k rows, so count(*) is sub-millisecond.
+    Result cached for 1 hour.
+    """
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_grant_opportunities_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_grant_opportunities") as span:
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if has_query:
+                where_clauses.append(
+                    f"(title ILIKE ${idx} OR agency_name ILIKE ${idx} "
+                    f"OR opportunity_number ILIKE ${idx})"
+                )
+                params.append(f"%{q}%")
+                idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM grant_opportunity WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Grant opportunities count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
 # NOTE: organizations search moved to search_postgres.search_organizations_pg
 # (mdm_organization JOIN mdm_organization_nonprofit). The old DuckDB/parquet
 # search_organizations() reading nonprofits_organizations.parquet was removed
@@ -926,7 +1376,7 @@ async def unified_search(
             search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort)))
 
         if 'bills' in requested_types:
-            search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, city=city, limit=search_limit)))
+            search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, city=city, limit=search_limit, offset=search_offset)))
 
         if 'grants' in requested_types:
             # Nonprofit grants (public.grant) — ILIKE over grantor/grantee/purpose,
@@ -943,19 +1393,19 @@ async def unified_search(
             search_tasks.append(('grant_opportunities', search_postgres.search_grant_opportunities_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset)))
 
         if 'topics' in requested_types:
-            search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)))
+            search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, city=city, limit=search_limit, offset=search_offset)))
 
         if 'decisions' in requested_types:
-            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, city=city, sort=sort, limit=search_limit)))
+            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, city=city, sort=sort, limit=search_limit, offset=search_offset)))
 
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)
-            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit)))
+            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset)))
 
         if 'causes' in requested_types:
             # NTEE causes now come from public.tag (vocabulary='ntee'); the old
             # causes_ntee_codes.parquet feed was retired.
-            search_tasks.append(('causes', search_postgres.search_causes_pg(q, limit=search_limit)))
+            search_tasks.append(('causes', search_postgres.search_causes_pg(q, limit=search_limit, offset=search_offset)))
 
         if 'jurisdictions' in requested_types:
             search_tasks.append(('jurisdictions', search_postgres.search_jurisdictions_pg(q, state, city, jurisdiction_levels_list, limit=search_limit, offset=search_offset)))
@@ -1103,6 +1553,45 @@ async def unified_search(
         if 'decisions' in requested_types:
             type_totals['decisions'] = await count_decisions(
                 query=q, state=state, city=city
+            )
+
+        # Bills & transcripts: the other small meeting-derived civic marts. Real
+        # COUNTs (event_bill ~14k ILIKE/title-FTS; event_documents via the GIN
+        # content_tsv) so their tab badges and pagers don't collapse to the
+        # fetched-length estimate under the limit=1 tab-counts call.
+        if 'bills' in requested_types:
+            type_totals['bills'] = await count_bills(
+                query=q, state=state, city=city
+            )
+        if 'documents' in requested_types:
+            type_totals['documents'] = await count_documents(
+                query=q, state=state, city=city
+            )
+
+        # Topics: city-scoped meeting-derived mart (event_topic, ~12k), same shape
+        # as bills/decisions — honest count so the badge/pager don't collapse.
+        if 'topics' in requested_types:
+            type_totals['topics'] = await count_topics(
+                query=q, state=state, city=city
+            )
+
+        # Causes: tiny national NTEE vocabulary (public.tag, ~200 rows), no
+        # geography — honest count over the matched taxonomy.
+        if 'causes' in requested_types:
+            type_totals['causes'] = await count_causes(query=q)
+
+        # Grant opportunities: small national feed (~1.9k) — cheap honest count.
+        if 'grant_opportunities' in requested_types:
+            type_totals['grant_opportunities'] = await count_grant_opportunities(query=q)
+
+        # Grants: public.grant is ~6.7M rows with NO full-text index, so an
+        # UNSCOPED count is a ~10s seq-scan (over the sub-search timeout). Only run
+        # the (capped) honest count when the search is LOCATION-SCOPED — those use
+        # the indexed grantor columns / org bridge and count in <0.5s. Otherwise
+        # leave the fetched-length estimate rather than risk the slow path.
+        if 'grants' in requested_types and (state or city or jurisdiction_id):
+            type_totals['grants'] = await count_grants(
+                query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
             )
 
         # Derive the grand total from the (now partly-accurate) per-type totals

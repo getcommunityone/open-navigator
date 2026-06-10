@@ -1907,24 +1907,40 @@ export default function Home() {
                           const intent =
                             trimmed.length > 0 ? 'query' : heroSearchTab === 'all' ? 'idle' : 'browse'
 
-                          if (intent === 'idle') {
+                          // In the "All" scope the lens boxes stay mounted whether
+                          // the input is empty (idle) or holds a query — typing
+                          // filters the cards in place instead of unmounting them.
+                          if (heroSearchTab === 'all' && (intent === 'idle' || intent === 'query')) {
                             return (
-                              <StoryLenses
-                                national={searchScope === 'national'}
-                                locationLabel={location?.city || location?.county || undefined}
-                                stateCode={location?.state || undefined}
-                                city={location?.city || undefined}
-                                onSearch={(q) => {
-                                  // Navigate to scoped search results. (Previously
-                                  // setKeyword(q) only filled the hero box far above
-                                  // the fold, so topic pills / cards felt dead.)
-                                  const params = new URLSearchParams()
-                                  params.set('q', q)
-                                  applyLocationScope(params)
-                                  navigate(`/search?${params.toString()}`)
-                                }}
-                                onBrowseTopics={() => navigate('/search?types=topics')}
-                              />
+                              <>
+                                {intent === 'query' && (
+                                  <p
+                                    className="mt-3 text-sm text-[#6b8a8a]"
+                                    style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                  >
+                                    Filtering <span className="font-semibold text-[#0f2b2b]">{scopeNoun}</span> in{' '}
+                                    <span className="font-semibold text-[#1a6b6b]">{scopeLabel}</span>
+                                    {' — press Enter to search everything'}
+                                  </p>
+                                )}
+                                <StoryLenses
+                                  national={searchScope === 'national'}
+                                  query={intent === 'query' ? debouncedKeyword : undefined}
+                                  locationLabel={location?.city || location?.county || undefined}
+                                  stateCode={location?.state || undefined}
+                                  city={location?.city || undefined}
+                                  onSearch={(q) => {
+                                    // Navigate to scoped search results. (Previously
+                                    // setKeyword(q) only filled the hero box far above
+                                    // the fold, so topic pills / cards felt dead.)
+                                    const params = new URLSearchParams()
+                                    params.set('q', q)
+                                    applyLocationScope(params)
+                                    navigate(`/search?${params.toString()}`)
+                                  }}
+                                  onBrowseTopics={() => navigate('/search?types=topics')}
+                                />
+                              </>
                             )
                           }
 

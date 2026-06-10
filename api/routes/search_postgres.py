@@ -1278,7 +1278,8 @@ async def search_documents_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
     city: Optional[str] = None,
-    limit: int = 10
+    limit: int = 10,
+    offset: int = 0
 ) -> List[SearchResult]:
     """
     Full-text search over event documents (meeting transcripts) using PostgreSQL.
@@ -1370,11 +1371,12 @@ async def search_documents_pg(
                 {snippet_sql} AS snippet
             FROM event_documents
             WHERE {where_sql}
-            ORDER BY {order_by}
-            LIMIT ${param_idx}
+            ORDER BY {order_by}, event_document_id DESC
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
         """
         # Bound the snippet/detoast work regardless of the caller's over-fetch.
         params.append(min(limit, DOCUMENT_RESULT_CAP))
+        params.append(max(offset, 0))
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
@@ -1577,15 +1579,18 @@ async def search_bills_pg(
                     }
                 ))
 
-            # Also surface REAL legislation from the OpenStates bills mart
-            # (gold.bills, ~1.55M rows; title GIN-indexed by bills_title_fts_idx).
+            # Also surface REAL legislation from the OpenStates bills serving
+            # relation (`bills`; title GIN-indexed by bills_title_fts_idx).
             # event_bill above is only the meeting-derived ordinance feed, so a
             # policy term ("fluoride") never reached actual statehouse bills.
-            # gold is the LOCAL/private full warehouse — the Neon-served prod
-            # instance has no gold.bills, so this is wrapped to degrade to nothing
-            # (the public serving path doesn't carry the legislative mart). Only
-            # runs on a text query: a no-query browse of 1.55M bills belongs on the
-            # dedicated /bills page, not the unified search.
+            # Unqualified `bills` resolves via the connection search_path to the
+            # serving layer published by publish_public_serving: a full view over
+            # gold.bills in dev (search_path=public; or gold.bills directly on the
+            # private gold instance), and a Neon-scoped TABLE (recent sessions,
+            # lean columns + its own FTS index) on the Neon-served prod. Wrapped in
+            # try/except so it degrades to nothing where `bills` isn't published.
+            # Only runs on a text query: a no-query browse of 1.55M bills belongs
+            # on the dedicated /bills page, not the unified search.
             if query and query.strip():
                 try:
                     q = query.strip()
@@ -1603,7 +1608,7 @@ async def search_bills_pg(
                     leg_params.append(limit)
                     leg_sql = f"""
                         SELECT identifier, title, session_name, state_code, year
-                        FROM gold.bills
+                        FROM bills
                         WHERE to_tsvector('english', coalesce(title, '')) @@ plainto_tsquery('english', $1){leg_state}
                         ORDER BY ts_rank(to_tsvector('english', coalesce(title, '')),
                                          plainto_tsquery('english', $1)) DESC,
@@ -1643,7 +1648,7 @@ async def search_bills_pg(
                             }
                         ))
                 except Exception as leg_err:
-                    # gold.bills absent (Neon/public-only serving) or any error:
+                    # `bills` serving relation not yet published, or any error:
                     # degrade to just the event_bill results.
                     logger.debug(f"Legislative bills search skipped: {leg_err}")
 
@@ -1659,7 +1664,9 @@ async def search_topics_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
     ntee_code: Optional[str] = None,
-    limit: int = 10
+    city: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0
 ) -> List[SearchResult]:
     """
     Search meeting topics, backed by the public.event_topic mart (AI-extracted
@@ -1692,6 +1699,16 @@ async def search_topics_pg(
         if state:
             where_conditions.append(f"state_code = ${param_idx}")
             params.append(state.upper())
+            param_idx += 1
+
+        # Location scope. event_topic carries jurisdiction_name (always set) and a
+        # sparser city column; a city browse must not leak the rest of the state's
+        # topics, so match the city against either (mirrors bills/decisions).
+        if city and city.strip():
+            where_conditions.append(
+                f"(lower(jurisdiction_name) = lower(${param_idx}) OR lower(city) = lower(${param_idx}))"
+            )
+            params.append(city.strip())
             param_idx += 1
 
         if query and query.strip():
@@ -1729,10 +1746,11 @@ async def search_topics_pg(
                 extracted_at
             FROM event_topic
             WHERE {where_sql}
-            ORDER BY {order_by}
-            LIMIT ${param_idx}
+            ORDER BY {order_by}, event_topic_id DESC
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
         """
         params.append(limit)
+        params.append(max(offset, 0))
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
@@ -1912,10 +1930,11 @@ async def search_decisions_pg(
             FROM event_decision d
             LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
             WHERE {where_sql}
-            ORDER BY {order_by}
-            LIMIT ${param_idx}
+            ORDER BY {order_by}, d.event_decision_id DESC
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
         """
         params.append(limit)
+        params.append(max(offset, 0))
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
@@ -1996,7 +2015,8 @@ async def search_decisions_pg(
 
 async def search_causes_pg(
     query: Optional[str] = None,
-    limit: int = 10
+    limit: int = 10,
+    offset: int = 0
 ) -> List[SearchResult]:
     """
     Search causes / NTEE categories, backed by the public.tag mart
@@ -2052,9 +2072,10 @@ async def search_causes_pg(
             FROM tag
             WHERE {where_sql}
             ORDER BY {order_by}
-            LIMIT ${param_idx}
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
         """
         params.append(limit)
+        params.append(max(offset, 0))
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
