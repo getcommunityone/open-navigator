@@ -92,12 +92,17 @@ package stops reaching into `scripts/`.
     `scraping/`; ~70 importers re-pointed).
   - clean leaf scrapers → `scrapers.discovery.social_media_discovery`, `scrapers.youtube.{scrape_youtube_channels,
     youtube_channel_enrich}` (removed real packages→scripts violations).
+  - `jurisdiction_pilot` leaf sub-web → `scrapers.discovery.{http_fetch,mayor_url_discovery,
+    county_municipality_websites,website_youtube_search}` (clean of the hub).
 - **Deferred (complex, needs scoping):** the `jurisdiction_pilot` hub — `scrape_priority_states` (~3500L) top-level
   imports ~10 `scripts/discovery` persist/orchestrator KEEP modules (`bronze_*_persist`, `contact_directory_heuristics`,
-  `contact_profile_images`, `jurisdiction_contact_seed_urls`, …) plus `ma_pilot.mayor_boost`. Porting it cleanly
-  requires porting those discovery modules first. Same for `website_elections` (→ needs `election_extract_from_html`)
-  and the `http_fetch`/`mayor_url_discovery`/`county_municipality_websites` sub-web. The two big orchestrators
-  (`jurisdiction_discovery_pipeline`, `comprehensive_discovery_pipeline_jurisdiction`) stay in `scripts/` for now.
+  `contact_profile_images`, `jurisdiction_contact_seed_urls`, …) plus `ma_pilot.mayor_boost`, and is itself a CLI
+  pipeline (`run_scrape_priority_states_*.sh`). Porting it cleanly requires first porting those `scripts/discovery`
+  persist modules (DB-writing — route via the data/ingestion lens); `website_elections` is deferred too (→ needs
+  `election_extract_from_html`). The two big orchestrators (`jurisdiction_discovery_pipeline`,
+  `comprehensive_discovery_pipeline_jurisdiction`) stay in `scripts/` for now. The remaining `jurisdiction_pilot`
+  internal helpers (`vendor_detection`, `legistar_scraper`, `google_civic_youtube`, `website_civicplus_meetings`,
+  `load_ocd_jurisdictions`, `debug_youtube_discovery`) are used only by the hub — port them together with it.
 
 **In flight:** `feat/llm-enrichment-extraction` — enrichment subpackage port.
 
