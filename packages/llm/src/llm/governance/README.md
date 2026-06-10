@@ -9,7 +9,7 @@ Use this when you **do not** have a high-end local GPU: heavy work runs in Colab
 
 **Colab vs local (notebooks):** [`colab_paths.py`](colab_paths.py) — `maybe_mount_google_drive()` (no-op locally), `setup_notebook_paths()` (Colab + Drive: `…/CommunityOne/hackathons/2026_Gemma_4_Good`; local: `<repo>/data/hackathons/2026_Gemma_4_Good` unless **`GOVERNANCE_PIPELINE_DATA_ROOT`** is set). Set **`OPEN_NAVIGATOR_ROOT`** if Jupyter’s cwd is not inside the repo.
 
-Pipeline folder layout under that root: [`scripts/utils/gdrive_paths.py`](../../../../../scripts/utils/gdrive_paths.py) (`GovernancePipelinePaths`). Drive mount defaults for WSL are documented next to [`scripts/utils/log_sync.py`](../../../../../scripts/utils/log_sync.py).
+Pipeline folder layout under that root: [`core_lib.gdrive_paths`](../../../../core-lib/src/core_lib/gdrive_paths.py) (`GovernancePipelinePaths`). Drive mount defaults for WSL are documented next to [`scripts/utils/log_sync.py`](../../../../../scripts/utils/log_sync.py).
 
 ## Notebooks & scripts (this folder)
 

@@ -3,7 +3,7 @@
 Create governance pipeline folders on a mounted Google Drive (WSL / Linux).
 
 Uses the same paths as ``packages/llm/src/llm/governance/02_init_drive_layout.ipynb`` and
-``GovernancePipelinePaths`` in ``scripts/utils/gdrive_paths.py``.
+``GovernancePipelinePaths`` in ``core_lib.gdrive_paths``.
 
 Environment (optional):
   LOG_GDRIVE_MOUNT                 Drive mount root (default: /mnt/g/My Drive)
@@ -19,9 +19,11 @@ import sys
 from pathlib import Path
 
 _repo = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_repo))
+for _p in (str(_repo), str(_repo / "packages" / "core-lib" / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-from scripts.utils.gdrive_paths import GovernancePipelinePaths  # noqa: E402
+from core_lib.gdrive_paths import GovernancePipelinePaths  # noqa: E402
 
 
 def main() -> int:

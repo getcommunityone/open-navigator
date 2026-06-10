@@ -2375,7 +2375,7 @@ def run_triage(
 def _default_raw_root() -> Path:
     """Best-effort default: hackathon ``01_raw_inputs`` on Colab Drive or in repo."""
     try:
-        from scripts.utils.gdrive_paths import GovernancePipelinePaths
+        from core_lib.gdrive_paths import GovernancePipelinePaths
 
         return GovernancePipelinePaths.resolve().raw_inputs
     except Exception:

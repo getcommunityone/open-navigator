@@ -62,7 +62,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 # Drive config — same mount helper as log_sync / meetings scraper
 # ---------------------------------------------------------------------------
-from scripts.utils.gdrive_paths import gdrive_mount_path
+from core_lib.gdrive_paths import gdrive_mount_path
 
 GDRIVE_MOUNT = gdrive_mount_path()
 WIKIDATA_GDRIVE_BASE = os.getenv("WIKIDATA_GDRIVE_BASE", "CommunityOne/wikidata")
