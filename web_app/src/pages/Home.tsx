@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
-import { Menu, Transition } from '@headlessui/react'
+import { Menu, Transition, Dialog } from '@headlessui/react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { tracer } from '../instrumentation'
@@ -201,6 +201,7 @@ function formatCompactCount(n: number | undefined): string | undefined {
 export default function Home() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const [showStrategicPlan, setShowStrategicPlan] = useState(false)
   const [keyword, setKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
   const [searchScope, setSearchScope] = useState('city') // city, county, state, national, community (school)
@@ -1975,9 +1976,17 @@ export default function Home() {
               Our Impact
             </h2>
             <div className="w-24 h-1 bg-gradient-to-r from-[#52796F] to-[#84A98C] mx-auto rounded mb-4"></div>
-            <p className="mb-10 text-lg text-gray-600">
+            <p className="mb-6 text-lg text-gray-600">
               One platform connecting residents, leaders, and funders to what's really happening on the ground
             </p>
+            <button
+              onClick={() => setShowStrategicPlan(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-white shadow-md hover:shadow-xl transition-shadow"
+              style={{ backgroundColor: '#354F52' }}
+            >
+              <DocumentTextIcon className="h-5 w-5" />
+              View Our Strategic Plan
+            </button>
           </div>
 
           {/* Mission + PBC */}
@@ -2014,6 +2023,70 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Strategic Plan PDF popup */}
+      <Transition appear show={showStrategicPlan} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowStrategicPlan(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black bg-opacity-50" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-5xl h-[85vh] transform overflow-hidden rounded-2xl bg-white text-left align-middle shadow-xl transition-all flex flex-col">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <DocumentTextIcon className="h-6 w-6" style={{ color: '#52796F' }} />
+                      <Dialog.Title as="h3" className="text-lg font-semibold text-gray-900">
+                        CommunityOne Strategic Plan
+                      </Dialog.Title>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <a
+                        href="/pdf/c1_strategic_plan.PDF"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-[#52796F] hover:underline"
+                      >
+                        Open in new tab
+                      </a>
+                      <button
+                        onClick={() => setShowStrategicPlan(false)}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label="Close"
+                      >
+                        <XMarkIcon className="h-6 w-6" />
+                      </button>
+                    </div>
+                  </div>
+                  <iframe
+                    src="/pdf/c1_strategic_plan.PDF"
+                    title="CommunityOne Strategic Plan"
+                    className="flex-1 w-full"
+                  />
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
 
       {/* Features Grid */}
       <div className="py-16" style={{ backgroundColor: '#354F52' }}>

@@ -1,0 +1,436 @@
+2026-06-09 20:47:23.462 | INFO     | __main__:run_backlog:588 - Shard slice: 1/3
+2026-06-09 20:47:23.462 | INFO     | __main__:_log_plan:552 - Backlog plan: 317 jurisdiction(s), 32,300 pending transcript(s)
+2026-06-09 20:47:23.462 | INFO     | __main__:_log_plan:556 -    1. boonville_1806616        IN  pending=3      newest=2026-06-09
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -    2. franklin_25011           MA  pending=3      newest=2026-06-09
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -    3. bulloch_13031            GA  pending=8      newest=2026-06-09
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -    4. bainbridge_1304896       GA  pending=8      newest=2026-06-09
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -    5. snoqualmie_5365205       WA  pending=84     newest=2026-05-13
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -    6. milledgeville_1351492    GA  pending=145    newest=2026-05-12
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -    7. medford_2539835          MA  pending=35     newest=2026-05-06
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -    8. dublin_1324376           GA  pending=1      newest=2026-05-05
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -    9. beloit_5506500           WI  pending=56     newest=2026-05-05
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:556 -   10. detroit_0120392          AL  pending=1      newest=2026-04-29
+2026-06-09 20:47:23.463 | INFO     | __main__:_log_plan:565 -   … and 307 more jurisdiction(s)
+2026-06-09 20:47:23.463 | INFO     | __main__:run_backlog:590 - Model rotation: gemini-2.5-flash-lite -> gemini-2.5-flash
+2026-06-09 20:47:23.643 | INFO     | __main__:run_backlog:623 - [1/317] boonville_1806616 (IN) — pending~3, model=gemini-2.5-flash-lite
+2026-06-09 20:47:25.569 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/IN/municipality/boonville_1806616/_contact_images/contacts.json
+2026-06-09 20:47:26.517 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip zYs6aba6WyI — analysis exists (2025-12-30_City_of_Boonville_City_Council.json)
+2026-06-09 20:47:26.519 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip ClZcWt3E3bE — analysis exists (2025-12-02_City_of_Boonville_City_Council.json)
+2026-06-09 20:47:26.520 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip rW9rO8SOHio — analysis exists (unknown-date_City_of_Boonville,_City_Council_Meeting.json)
+2026-06-09 20:47:26.521 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip JLHFNKmb7aU — analysis exists (unknown-date_City_of_Boonville_City_Council_Public_Meeting.json)
+2026-06-09 20:47:26.521 | INFO     | __main__:run_backlog:691 - Progress 1/317 jurisdictions (19.62/min, ETA 16m06s)
+2026-06-09 20:47:26.523 | INFO     | __main__:run_backlog:623 - [2/317] franklin_25011 (MA) — pending~3, model=gemini-2.5-flash-lite
+2026-06-09 20:47:27.332 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/MA/county/franklin_25011/_contact_images/contacts.json
+2026-06-09 20:47:27.529 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip o9Ebr6LNoM0 — analysis exists (2022-01-27_Franklin_Regional_Planning_Board_Meeting,.json)
+2026-06-09 20:47:27.531 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip yKJWr3LLrV0 — analysis exists (unknown-date_Extreme_Heat_Planning_Workshop.json)
+2026-06-09 20:47:27.532 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip LHgGQqujWDI — analysis exists (unknown-date_FH_Training_Hub_and_WMPHA_Power_Hour_Reduced_Oxygen_Packaging_workshop.json)
+2026-06-09 20:47:27.534 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip y3t3VW7CHmw — analysis exists (unknown-date_Municipal_TIP_Workshop_Part_1_Video.json)
+2026-06-09 20:47:27.534 | INFO     | __main__:run_backlog:691 - Progress 2/317 jurisdictions (29.48/min, ETA 10m41s)
+2026-06-09 20:47:27.535 | INFO     | __main__:run_backlog:623 - [3/317] bulloch_13031 (GA) — pending~8, model=gemini-2.5-flash-lite
+2026-06-09 20:47:28.220 | INFO     | llm.gemini.meeting_transcript_policy:load_speaker_context:340 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/county/bulloch_13031
+2026-06-09 20:47:28.510 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip 5G7MatGOoAc — analysis exists (2026-05-19_Planning_and_Zoning_Commission_meeting_530PM.json)
+2026-06-09 20:47:28.513 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip vNcX8KrT7AE — analysis exists (2026-04-21_Planning_&_Zoning_Commission_meeting_530PM.json)
+2026-06-09 20:47:28.515 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip AgbWX2ezPH4 — analysis exists (2025-11-18_Planning_and_Zoning_Commission_regularly_scheduled_meeting_-_530PM.json)
+2026-06-09 20:47:28.517 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip rWaauW53H54 — analysis exists (2025-10-21_Planning_&_Zoning_Commission_-_530PM.json)
+2026-06-09 20:47:28.518 | INFO     | __main__:run_backlog:691 - Progress 3/317 jurisdictions (35.62/min, ETA 8m48s)
+2026-06-09 20:47:28.520 | INFO     | __main__:run_backlog:623 - [4/317] bainbridge_1304896 (GA) — pending~8, model=gemini-2.5-flash-lite
+2026-06-09 20:47:29.036 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/municipality/bainbridge_1304896/_contact_images/contacts.json
+2026-06-09 20:47:29.199 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip tET958k0-pw — analysis exists (2025-07-15_City_Council_Meeting.json)
+2026-06-09 20:47:29.201 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip 8XloZn3wcmE — analysis exists (2024-05-21_City_Council_Meeting.json)
+2026-06-09 20:47:29.203 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip yeYlwRLVtp4 — analysis exists (2024-04-16_City_Council_Meeting.json)
+2026-06-09 20:47:29.204 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip dpZhflxodWw — analysis exists (2024-03-19_City_Council_Meeting.json)
+2026-06-09 20:47:29.204 | INFO     | __main__:run_backlog:691 - Progress 4/317 jurisdictions (41.81/min, ETA 7m29s)
+2026-06-09 20:47:29.205 | INFO     | __main__:run_backlog:623 - [5/317] snoqualmie_5365205 (WA) — pending~84, model=gemini-2.5-flash-lite
+2026-06-09 20:47:29.860 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WA/municipality/snoqualmie_5365205/_contact_images/contacts.json
+2026-06-09 20:47:30.096 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip ddTYCCMfyC8 — analysis exists (2026-05-18_Planning_Committee_Meeting.json)
+2026-06-09 20:47:30.101 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip SfaJ5Fkjb8Y — analysis exists (2026-05-13_Snoqualmie_City_Council_Meeting.json)
+2026-06-09 20:47:30.106 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip COzHIYWRGo8 — analysis exists (2026-05-11_Snoqualmie_City_Council_Round_table.json)
+2026-06-09 20:47:30.111 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip d1RYS2aSImE — analysis exists (2026-05-11_Snoqualmie_Special_City_Council_Meeting.json)
+2026-06-09 20:47:30.111 | INFO     | __main__:run_backlog:691 - Progress 5/317 jurisdictions (45.13/min, ETA 6m54s)
+2026-06-09 20:47:30.115 | INFO     | __main__:run_backlog:623 - [6/317] milledgeville_1351492 (GA) — pending~145, model=gemini-2.5-flash-lite
+2026-06-09 20:47:30.737 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/municipality/milledgeville_1351492/_contact_images/contacts.json
+2026-06-09 20:47:30.906 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip O8nCh2RT8m0 — analysis exists (2026-05-12_Milledgeville_City_Council_Meeting.json)
+2026-06-09 20:47:30.909 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip kMXrgKhIqIc — analysis exists (2026-05-12_Milledgeville_City_Council_Meeting.json)
+2026-06-09 20:47:30.912 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip Jo5nTRjNEM0 — analysis exists (2026-04-28_Milledgeville_City_Council_Meeting.json)
+2026-06-09 20:47:30.914 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip VgznkeMSH7s — analysis exists (2026-04-28_Milledgeville_City_Council_Meeting.json)
+2026-06-09 20:47:30.914 | INFO     | __main__:run_backlog:691 - Progress 6/317 jurisdictions (48.32/min, ETA 6m26s)
+2026-06-09 20:47:30.916 | INFO     | __main__:run_backlog:623 - [7/317] medford_2539835 (MA) — pending~35, model=gemini-2.5-flash-lite
+2026-06-09 20:47:31.479 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/MA/municipality/medford_2539835/_contact_images/contacts.json
+2026-06-09 20:47:31.659 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip 9vjyz8Up3VY — analysis exists (2026-05-19_City_Council_Committee_of_the_Whole.json)
+2026-06-09 20:47:31.660 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip UXjoTYnBHEI — analysis exists (2026-05-13_Joint_Meeting_of_the_Medford_City_Council_and_Community_Development_Board.json)
+2026-06-09 20:47:31.661 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip cDjBmWMBPbM — analysis exists (2026-05-05_City_Council_Planning_and_Permitting_Committee.json)
+2026-06-09 20:47:31.662 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip RzLuluF40ro — analysis exists (2026-04-29_City_Council_Committee_of_the_Whole.json)
+2026-06-09 20:47:31.663 | INFO     | __main__:run_backlog:691 - Progress 7/317 jurisdictions (51.23/min, ETA 6m03s)
+2026-06-09 20:47:31.663 | INFO     | __main__:run_backlog:623 - [8/317] dublin_1324376 (GA) — pending~1, model=gemini-2.5-flash-lite
+2026-06-09 20:47:32.399 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/municipality/dublin_1324376/_contact_images/contacts.json
+2026-06-09 20:47:32.614 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip DuofTvunpfY — analysis exists (2026-05-20_Premier_Heating_&_Air_Memorial_Day_Special!.json)
+2026-06-09 20:47:32.619 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip csx67BtQrEg — analysis exists (2026-05-18_Meg_Greer_Evans_with_Middle_Ga_Estate_Planning.json)
+2026-06-09 20:47:32.623 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip QhsgiVCfL58 — analysis exists (2026-05-08_City_Council_Meeting.json)
+2026-06-09 20:47:32.627 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip oWc_zgrI_Bo — analysis exists (2026-05-05_Aging_Americans_Special_-_Allison_Keen_with_Clements_&_Keen.json)
+2026-06-09 20:47:32.628 | INFO     | __main__:run_backlog:691 - Progress 8/317 jurisdictions (52.38/min, ETA 5m53s)
+2026-06-09 20:47:32.631 | INFO     | __main__:run_backlog:623 - [9/317] beloit_5506500 (WI) — pending~56, model=gemini-2.5-flash-lite
+2026-06-09 20:47:33.929 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WI/municipality/beloit_5506500/_contact_images/contacts.json
+2026-06-09 20:47:34.166 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip l400_ZSm-KU — analysis exists (2026-05-18_Beloit_City_Council_Meeting.json)
+2026-06-09 20:47:34.167 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip OHLUscF_Lw0 — analysis exists (2026-05-04_Beloit_City_Council_Meeting.json)
+2026-06-09 20:47:34.169 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip rLtFMsFbjo0 — analysis exists (2026-04-20_Beloit_City_Council_Meeting.json)
+2026-06-09 20:47:34.170 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip XldnuuYgya8 — analysis exists (2026-04-06_Beloit_City_Council_Meeting.json)
+2026-06-09 20:47:34.171 | INFO     | __main__:run_backlog:691 - Progress 9/317 jurisdictions (53.70/min, ETA 5m44s)
+2026-06-09 20:47:34.171 | INFO     | __main__:run_backlog:623 - [10/317] detroit_0120392 (AL) — pending~1, model=gemini-2.5-flash-lite
+2026-06-09 20:47:34.753 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/municipality/detroit_0120392/_contact_images/contacts.json
+2026-06-09 20:47:34.991 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip teXBqMHurQ4 — analysis exists (2026-05-18_Board_of_Zoning_Appeals_(BZA)_Zoom_Meeting.json)
+2026-06-09 20:47:34.993 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip S99cyB4727o — analysis exists (2025-06-26_–_City_Planning_Commission_(CPC)_Meeting_(Part_2).json)
+2026-06-09 20:47:34.995 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip Wzu79ECg_Xk — analysis exists (2025-09-18_–_City_Planning_Commission_(CPC)_Meeting.json)
+2026-06-09 20:47:34.997 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip NboEKX8wX8A — analysis exists (2025-02-06_–_City_Planning_Commission_(CPC)_Meeting.json)
+2026-06-09 20:47:34.997 | INFO     | __main__:run_backlog:691 - Progress 10/317 jurisdictions (55.14/min, ETA 5m34s)
+2026-06-09 20:47:34.999 | INFO     | __main__:run_backlog:623 - [11/317] federal_way_5323515 (WA) — pending~234, model=gemini-2.5-flash-lite
+2026-06-09 20:47:35.625 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WA/municipality/federal_way_5323515/_contact_images/contacts.json
+2026-06-09 20:47:35.867 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip YngcE0OiuoA — analysis exists (2026-05-05_Federal_Way_City_Council_-_Special_Meeting.json)
+2026-06-09 20:47:35.870 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip aMNR0mw05Dc — analysis exists (2026-05-05_Federal_Way_City_Council_-_Regular_Meeting.json)
+2026-06-09 20:47:35.873 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip eYZF4HWoVio — analysis exists (2026-04-21_Federal_Way_City_Council_-_Regular_Meeting.json)
+2026-06-09 20:47:35.876 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip G7Hk8ZZFyUk — analysis exists (2026-04-21_Federal_Way_City_Council_-_Special_Meeting.json)
+2026-06-09 20:47:35.876 | INFO     | __main__:run_backlog:691 - Progress 11/317 jurisdictions (56.12/min, ETA 5m27s)
+2026-06-09 20:47:35.878 | INFO     | __main__:run_backlog:623 - [12/317] birmingham_0107000 (AL) — pending~9, model=gemini-2.5-flash-lite
+2026-06-09 20:47:36.545 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/municipality/birmingham_0107000/_contact_images/contacts.json
+2026-06-09 20:47:36.803 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip aaanlBtG6zA — analysis exists (2026-05-05_Birmingham_City_Council_Meeting.json)
+2026-06-09 20:47:36.806 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip g6umyGE8XoI — analysis exists (2026-04-28_Birmingham_City_Council_Meeting.json)
+2026-06-09 20:47:36.839 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] poM5odKc_rw — Birmingham City Council Meeting 4.21.26
+2026-06-09 20:47:36.978 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for poM5odKc_rw (2993 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:47:37.009 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 8 agenda segment hint(s) for presenter linking
+2026-06-09 20:47:37.090 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:47:37.129 | INFO     | llm.gemini.genai_text_client:_key_pool:695 - Gemini key rotation enabled: 4 keys in pool
+2026-06-09 20:48:30.815 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for poM5odKc_rw: {'bills': 7, 'item_links': 7, 'decisions': 3, 'youtube_updated': 1}
+2026-06-09 20:48:30.864 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/birmingham_0107000/UCxKV8MgjDbqw9PMGTsF_NUw/02_analysis/2026-04-21_Birmingham_City_Council_Meeting.json
+2026-06-09 20:48:30.873 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] dZcqtdFP0cM — Birmingham City Council Week Ahead Tease: 11/7 - 11/11
+2026-06-09 20:48:30.905 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for dZcqtdFP0cM (24 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:48:30.927 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:48:36.931 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/birmingham_0107000/UCxKV8MgjDbqw9PMGTsF_NUw/02_analysis/2026-04-16_Birmingham_City_Council_Week_Ahead_Tease_11-7_-_11-11.json
+2026-06-09 20:48:36.932 | INFO     | __main__:run_backlog:691 - Progress 12/317 jurisdictions (9.98/min, ETA 30m34s)
+2026-06-09 20:48:36.933 | INFO     | __main__:run_backlog:623 - [13/317] cullman_0118976 (AL) — pending~5, model=gemini-2.5-flash-lite
+2026-06-09 20:48:37.496 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/municipality/cullman_0118976/_contact_images/contacts.json
+2026-06-09 20:48:37.686 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip Ln9iHfqEQc0 — analysis exists (2026-05-18_Cullman_City_Council_Meeting.json)
+2026-06-09 20:48:37.687 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip YCr33w-jDNE — analysis exists (2026-04-20_Cullman_City_Council_Meeting.json)
+2026-06-09 20:48:37.689 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip 6a3tWRAjAK0 — analysis exists (2026-04-20_Cullman_City_Council_Working_Session.json)
+2026-06-09 20:48:37.690 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip 5FKUAj9MaHA — analysis exists (2026-04-20_Cullman_City_Council_Meeting.json)
+2026-06-09 20:48:37.690 | INFO     | __main__:run_backlog:691 - Progress 13/317 jurisdictions (10.70/min, ETA 28m25s)
+2026-06-09 20:48:37.691 | INFO     | __main__:run_backlog:623 - [14/317] nantucket_25019 (MA) — pending~1, model=gemini-2.5-flash-lite
+2026-06-09 20:48:38.330 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/MA/county/nantucket_25019/_contact_images/contacts.json
+2026-06-09 20:48:38.511 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/2] Skip kUJj1AV6a1U — analysis exists (2026-04-16_Retreat_&_Relocation_Public_Workshop.json)
+2026-06-09 20:48:38.514 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/2] Skip boJbm7bmMbY — analysis exists (2026-04-09_Zoning_Board_of_Appeals.json)
+2026-06-09 20:48:38.514 | INFO     | __main__:run_backlog:691 - Progress 14/317 jurisdictions (11.39/min, ETA 26m36s)
+2026-06-09 20:48:38.516 | INFO     | __main__:run_backlog:623 - [15/317] mobile_0150000 (AL) — pending~569, model=gemini-2.5-flash-lite
+2026-06-09 20:48:39.858 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/municipality/mobile_0150000/_contact_images/contacts.json
+2026-06-09 20:48:40.046 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip P-fW3wm9IJ4 — analysis exists (2026-05-05_City_of_Mobile_City_Council_Meeting.json)
+2026-06-09 20:48:40.047 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip 1mJzNfsXcm0 — analysis exists (2026-05-05_Mobile_City_Pre-Council_Meeting,.json)
+2026-06-09 20:48:40.048 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip 2PT5inr6C-4 — analysis exists (2026-05-05_Mobile_City_Council_-_Administrative_Services_Committee_Meeting,.json)
+2026-06-09 20:48:40.050 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip Cd9Pmsa2sPU — analysis exists (2026-04-28_City_of_Mobile_City_Council_Meeting.json)
+2026-06-09 20:48:40.050 | INFO     | __main__:run_backlog:691 - Progress 15/317 jurisdictions (12.06/min, ETA 25m02s)
+2026-06-09 20:48:40.051 | INFO     | __main__:run_backlog:623 - [16/317] wausau_5584475 (WI) — pending~8, model=gemini-2.5-flash-lite
+2026-06-09 20:48:40.703 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WI/municipality/wausau_5584475/_contact_images/contacts.json
+2026-06-09 20:48:40.914 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip CIhVYLRBgok — analysis exists (2026-04-28_Wausau_City_Council_Meeting.json)
+2026-06-09 20:48:40.916 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip Qbd9FzAcuIA — analysis exists (2026-04-21_Wausau_City_Council_Meeting.json)
+2026-06-09 20:48:40.937 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] nhvnLLNPcqI — Wausau City Council Meeting - 4/14/26
+2026-06-09 20:48:40.990 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for nhvnLLNPcqI (1463 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:48:41.023 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:49:43.736 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for nhvnLLNPcqI: {'bills': 0, 'item_links': 0, 'decisions': 7, 'youtube_updated': 1}
+2026-06-09 20:49:43.780 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/wausau_5584475/UC-Nigpdco_i8sq5FbbJD_aw/02_analysis/2026-04-14_Wausau_City_Council_Meeting.json
+2026-06-09 20:49:43.788 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] rQcjCEY36e4 — Wausau City Council Meeting - 3/24/26
+2026-06-09 20:49:43.826 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for rQcjCEY36e4 (1134 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:49:43.855 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:49:44.205 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 20:50:32.824 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for rQcjCEY36e4: {'bills': 15, 'item_links': 11, 'decisions': 2, 'youtube_updated': 1}
+2026-06-09 20:50:32.860 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/wausau_5584475/UC-Nigpdco_i8sq5FbbJD_aw/02_analysis/2026-03-24_Wausau_City_Council_Meeting.json
+2026-06-09 20:50:32.861 | INFO     | __main__:run_backlog:691 - Progress 16/317 jurisdictions (5.18/min, ETA 58m06s)
+2026-06-09 20:50:32.862 | INFO     | __main__:run_backlog:623 - [17/317] carver_2502311665 (MA) — pending~124, model=gemini-2.5-flash-lite
+2026-06-09 20:50:33.406 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/MA/township/carver_2502311665/_contact_images/contacts.json
+2026-06-09 20:50:33.557 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip w-pMyR6lYTA — analysis exists (2026-05-12_Carver_Planning_Board.json)
+2026-06-09 20:50:33.559 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip jq2RCKpjOW0 — analysis exists (2026-04-28_Carver_Planning_Board.json)
+2026-06-09 20:50:33.578 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] XifukG9xigA — Carver Zoning Board of Appeals - April 9, 2026
+2026-06-09 20:50:33.661 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for XifukG9xigA (2365 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:50:33.671 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 20:50:33.697 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:51:19.221 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for XifukG9xigA: {'bills': 5, 'item_links': 5, 'decisions': 4, 'youtube_updated': 1}
+2026-06-09 20:51:19.265 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/township/carver_2502311665/UCMCiSx6ZLvw-QXGKmkBrIQA/02_analysis/2026-04-09_Carver_Zoning_Board_of_Appeals.json
+2026-06-09 20:51:19.285 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] aaRlElAlsqk — Carver Annual & Special Town Meeting - April 7, 2026
+2026-06-09 20:51:19.329 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for aaRlElAlsqk (4585 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:51:19.372 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:51:22.504 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/township/carver_2502311665/UCMCiSx6ZLvw-QXGKmkBrIQA/02_analysis/2026-04-07_Carver_Annual_&_Special_Town_Meeting.json
+2026-06-09 20:51:22.506 | INFO     | __main__:run_backlog:691 - Progress 17/317 jurisdictions (4.35/min, ETA 1h08m)
+2026-06-09 20:51:22.508 | INFO     | __main__:run_backlog:623 - [18/317] milford_2541200 (MA) — pending~308, model=gemini-2.5-flash-lite
+2026-06-09 20:51:23.082 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/MA/municipality/milford_2541200/_contact_images/contacts.json
+2026-06-09 20:51:23.244 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip swnIIDOrats — analysis exists (2026-05-19_Planning_Board_Meeting.json)
+2026-06-09 20:51:23.247 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip QRPjJ5UQkdw — analysis exists (2026-05-05_Planning_Board_Meeting.json)
+2026-06-09 20:51:23.249 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip hd2ljo7FTkM — analysis exists (2026-04-21_Planning_Board_Meeting.json)
+2026-06-09 20:51:23.251 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip ckSOPBCiuP8 — analysis exists (2026-04-09_Zoning_Board_Meeting.json)
+2026-06-09 20:51:23.251 | INFO     | __main__:run_backlog:691 - Progress 18/317 jurisdictions (4.59/min, ETA 1h05m)
+2026-06-09 20:51:23.253 | INFO     | __main__:run_backlog:623 - [19/317] delaware_18035 (IN) — pending~21, model=gemini-2.5-flash-lite
+2026-06-09 20:51:24.390 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/IN/county/delaware_18035/_contact_images/contacts.json
+2026-06-09 20:51:24.626 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip Lcwv6ukPqKY — analysis exists (2026-04-30_Board_of_Zoning_Appeals,.json)
+2026-06-09 20:51:24.629 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip s3kh-CbpSXQ — analysis exists (2026-04-28_County_Council_Meeting,.json)
+2026-06-09 20:51:24.674 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] u82CDtXJeug — Board of Zoning Appeals, March 26th, 2026
+2026-06-09 20:51:24.815 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for u82CDtXJeug (2155 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:51:24.834 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 20:51:24.876 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:51:25.345 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 20:52:23.555 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/IN/county/delaware_18035/UCGw1znI7YHoxXgqqMJZnZwQ/02_analysis/2026-03-26_Board_of_Zoning_Appeals,.json
+2026-06-09 20:52:23.564 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] W3XOMZ6dAtg — Commissioners Special Meeting, March 26th, 2026
+2026-06-09 20:52:23.589 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for W3XOMZ6dAtg (134 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:52:23.613 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:52:31.561 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/IN/county/delaware_18035/UCGw1znI7YHoxXgqqMJZnZwQ/02_analysis/2026-03-26_Commissioners_Special_Meeting,.json
+2026-06-09 20:52:31.562 | INFO     | __main__:run_backlog:691 - Progress 19/317 jurisdictions (3.78/min, ETA 1h18m)
+2026-06-09 20:52:31.563 | INFO     | __main__:run_backlog:623 - [20/317] oak_harbor_5350360 (WA) — pending~163, model=gemini-2.5-flash-lite
+2026-06-09 20:52:32.172 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WA/municipality/oak_harbor_5350360/_contact_images/contacts.json
+2026-06-09 20:52:32.369 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip u-MPJQY9nPk — analysis exists (2026-05-05_City_of_Oak_Harbor_Council_Meeting.json)
+2026-06-09 20:52:32.371 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip LGXGDujJ_A8 — analysis exists (2026-04-28_City_of_Oak_Harbor_Council_Workshop.json)
+2026-06-09 20:52:32.372 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip KyPSu7bjot8 — analysis exists (2026-04-21_City_of_Oak_Harbor_Council_Meeting.json)
+2026-06-09 20:52:32.375 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip beysS6ho_IQ — analysis exists (2026-04-14_City_of_Oak_Harbor_Council_Workshop.json)
+2026-06-09 20:52:32.375 | INFO     | __main__:run_backlog:691 - Progress 20/317 jurisdictions (3.97/min, ETA 1h14m)
+2026-06-09 20:52:32.377 | INFO     | __main__:run_backlog:623 - [21/317] nekoosa_5555875 (WI) — pending~151, model=gemini-2.5-flash-lite
+2026-06-09 20:52:32.902 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WI/municipality/nekoosa_5555875/_contact_images/contacts.json
+2026-06-09 20:52:33.057 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip 9pAKkLAGoig — analysis exists (2026-05-19_WR_Planning_Commission.json)
+2026-06-09 20:52:33.059 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip TIdq1E3GRBE — analysis exists (2026-05-04_WR_Planning_Commission.json)
+2026-06-09 20:52:33.073 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] u8R4ImfpXR4 — Special Finance & Property Committee | 3/17/2026
+2026-06-09 20:52:33.140 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for u8R4ImfpXR4 (273 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:52:33.170 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:52:44.995 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for u8R4ImfpXR4: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-09 20:52:45.025 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/nekoosa_5555875/UCDlw-U76jO-IpbRZVN1JxcA/02_analysis/2026-03-17_Special_Finance_&_Property_Committee.json
+2026-06-09 20:52:45.032 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] z8I0iLugHHA — WR Planning Commission | 3/2/2026
+2026-06-09 20:52:45.067 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for z8I0iLugHHA (849 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:52:45.095 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:52:45.398 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 20:53:12.209 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for z8I0iLugHHA: {'bills': 0, 'item_links': 0, 'decisions': 2, 'youtube_updated': 1}
+2026-06-09 20:53:12.245 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/nekoosa_5555875/UCDlw-U76jO-IpbRZVN1JxcA/02_analysis/2026-03-02_WR_Planning_Commission.json
+2026-06-09 20:53:12.246 | INFO     | __main__:run_backlog:691 - Progress 21/317 jurisdictions (3.69/min, ETA 1h20m)
+2026-06-09 20:53:12.247 | INFO     | __main__:run_backlog:623 - [22/317] price_55099 (WI) — pending~3, model=gemini-2.5-flash-lite
+2026-06-09 20:53:12.800 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WI/county/price_55099/_contact_images/contacts.json
+2026-06-09 20:53:12.966 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [1/3] 6n1gsWXYWwQ — Land Info Council Meeting 02/19/2026
+2026-06-09 20:53:13.011 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 6n1gsWXYWwQ (406 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:53:13.063 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:53:24.597 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/county/price_55099/UCIOdNDOlPnTrzOa_LgvuuRg/02_analysis/2026-02-19_Land_Info_Council_Meeting.json
+2026-06-09 20:53:24.607 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/3] sfrYH1wa0SE — Local Emergency Planning Committee Meeting 01/21/2026
+2026-06-09 20:53:24.657 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for sfrYH1wa0SE (855 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:53:24.700 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:54:01.398 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for sfrYH1wa0SE: {'bills': 0, 'item_links': 0, 'decisions': 4, 'youtube_updated': 1}
+2026-06-09 20:54:01.430 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/county/price_55099/UCIOdNDOlPnTrzOa_LgvuuRg/02_analysis/2026-01-21_Local_Emergency_Planning_Committee_Meeting.json
+2026-06-09 20:54:01.437 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/3] 5LaXzbP9ujA — Land Information Council Meeting 10/23/2025
+2026-06-09 20:54:01.465 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 5LaXzbP9ujA (422 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:54:01.492 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:54:01.810 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 20:54:21.795 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for 5LaXzbP9ujA: {'bills': 0, 'item_links': 0, 'decisions': 2, 'youtube_updated': 1}
+2026-06-09 20:54:21.824 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/county/price_55099/UCIOdNDOlPnTrzOa_LgvuuRg/02_analysis/2025-10-23_Land_Information_Council_Meeting.json
+2026-06-09 20:54:21.824 | INFO     | __main__:run_backlog:691 - Progress 22/317 jurisdictions (3.22/min, ETA 1h31m)
+2026-06-09 20:54:21.825 | INFO     | __main__:run_backlog:623 - [23/317] dane_5518700 (WI) — pending~9, model=gemini-2.5-flash-lite
+2026-06-09 20:54:22.387 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WI/municipality/dane_5518700/_contact_images/contacts.json
+2026-06-09 20:54:22.573 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip wvelz6HduCQ — analysis exists (2026-02-18_Know_Your_Candidates_Madison_City_Council_District_14_Katherine_Blood.json)
+2026-06-09 20:54:22.595 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] 3qySTJssEP4 — Know Your Candidates: Madison School Board Seat 6: Daniella Molle
+2026-06-09 20:54:22.685 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 3qySTJssEP4 (348 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:54:22.720 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:54:25.606 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/dane_5518700/UC3IAPMgYfaBEJ5eeqbvWkzQ/02_analysis/2026-02-18_Know_Your_Candidates_Madison_School_Board_Seat_6_Daniella_Molle.json
+2026-06-09 20:54:25.612 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] 3TynjLE2-Ss — Know Your Candidates: Madison City Council District 8: Bobby Gronert
+2026-06-09 20:54:25.639 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 3TynjLE2-Ss (349 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:54:25.662 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:54:55.230 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/dane_5518700/UC3IAPMgYfaBEJ5eeqbvWkzQ/02_analysis/2026-02-18_Know_Your_Candidates_Madison_City_Council_District_8_Bobby_Gronert.json
+2026-06-09 20:54:55.238 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] 6swmVDpzkxo — Know Your Candidates: Madison School Board Seat 7: Dana Colussi-Lynde
+2026-06-09 20:54:55.269 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 6swmVDpzkxo (250 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:54:55.295 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:54:55.533 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 20:55:07.999 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for 6swmVDpzkxo: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-09 20:55:08.028 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/dane_5518700/UC3IAPMgYfaBEJ5eeqbvWkzQ/02_analysis/2026-02-18_Know_Your_Candidates_Madison_School_Board_Seat_7_Dana_Colussi-Lynde.json
+2026-06-09 20:55:08.028 | INFO     | __main__:run_backlog:691 - Progress 23/317 jurisdictions (3.03/min, ETA 1h36m)
+2026-06-09 20:55:08.030 | INFO     | __main__:run_backlog:623 - [24/317] northport_0155200 (AL) — pending~214, model=gemini-2.5-flash-lite
+2026-06-09 20:55:08.535 | INFO     | llm.gemini.meeting_transcript_policy:load_speaker_context:340 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/municipality/northport_0155200
+2026-06-09 20:55:08.746 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip ZEUtD3gLRF4 — analysis exists (2026-05-18_Council_Meeting.json)
+2026-06-09 20:55:08.748 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip TG2v_aJvsC0 — analysis exists (2026-05-04_Council_Meeting.json)
+2026-06-09 20:55:08.750 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip G-OB-OtnPi8 — analysis exists (2026-04-20_Council_Meeting.json)
+2026-06-09 20:55:08.751 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip 36kQnmX57Vs — analysis exists (2026-04-06_Council_Meeting.json)
+2026-06-09 20:55:08.751 | INFO     | __main__:run_backlog:691 - Progress 24/317 jurisdictions (3.16/min, ETA 1h32m)
+2026-06-09 20:55:08.752 | INFO     | __main__:run_backlog:623 - [25/317] fayette_13113 (GA) — pending~8, model=gemini-2.5-flash-lite
+2026-06-09 20:55:09.353 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/county/fayette_13113/_contact_images/contacts.json
+2026-06-09 20:55:09.523 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip PbPS8vI4ecA — analysis exists (2026-05-21_Special_Called_BOC_Meeting_A.json)
+2026-06-09 20:55:09.543 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] Kjtp9GQXeks — December 8, 2025 Special Called Tax Milliage 5 pm
+2026-06-09 20:55:09.644 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for Kjtp9GQXeks (111 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:55:09.711 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:55:22.458 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for Kjtp9GQXeks: {'bills': 1, 'item_links': 1, 'decisions': 1, 'youtube_updated': 1}
+2026-06-09 20:55:22.488 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/GA/county/fayette_13113/UCTr5WkcHOlIHTTVfAOj5gzg/02_analysis/2025-12-08_Special_Called_Tax_Milliage_5_pm.json
+2026-06-09 20:55:22.493 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] d9GvXQVdUPE — December 1, 2025 Special Called Tax Milliage 10 am
+2026-06-09 20:55:22.522 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for d9GvXQVdUPE (156 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:55:22.551 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:55:33.184 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for d9GvXQVdUPE: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-09 20:55:33.236 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/GA/county/fayette_13113/UCTr5WkcHOlIHTTVfAOj5gzg/02_analysis/2025-12-01_Special_Called_Tax_Milliage_10_am.json
+2026-06-09 20:55:33.243 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] A54vl7viyNk — December 1, 2025 Special Called Tax Milliage 6 pm
+2026-06-09 20:55:33.272 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for A54vl7viyNk (152 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:55:33.297 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:55:33.526 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 20:55:49.397 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for A54vl7viyNk: {'bills': 1, 'item_links': 1, 'decisions': 1, 'youtube_updated': 1}
+2026-06-09 20:55:49.426 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/GA/county/fayette_13113/UCTr5WkcHOlIHTTVfAOj5gzg/02_analysis/2025-12-01_Special_Called_Tax_Milliage_6_pm.json
+2026-06-09 20:55:49.427 | INFO     | __main__:run_backlog:691 - Progress 25/317 jurisdictions (3.03/min, ETA 1h36m)
+2026-06-09 20:55:49.428 | INFO     | __main__:run_backlog:623 - [26/317] gordon_1333980 (GA) — pending~5, model=gemini-2.5-flash-lite
+2026-06-09 20:55:49.922 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/municipality/gordon_1333980/_contact_images/contacts.json
+2026-06-09 20:55:50.074 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip 74cg-7pC9lg — analysis exists (2026-03-03_Quitman,_GA._City_Council_Meeting_With_George_Boston_Rhynes-The_Getto_Free_Press.json)
+2026-06-09 20:55:50.076 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip ha8jdsDTHJo — analysis exists (2026-02-03_QUITMAN_CITY_COUNCIL_MEETING_WITH_THE_PUBLIC_RIGHT_TO_KNOW_TUESDAY.json)
+2026-06-09 20:55:50.233 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for f62cRRjRbLo
+2026-06-09 20:55:50.233 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] f62cRRjRbLo — QUITMAN, GA. CITY COUNCIL MEETING DECEMBER 3, 2025 WITH THE GETTO FREE PRESS REP
+2026-06-09 20:55:50.294 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for f62cRRjRbLo (1301 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:55:50.326 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:56:19.259 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for f62cRRjRbLo: {'bills': 0, 'item_links': 0, 'decisions': 4, 'youtube_updated': 1}
+2026-06-09 20:56:19.295 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/GA/municipality/gordon_1333980/UCXouBUErOAg75vra7x9iBGQ/02_analysis/2025-12-03_QUITMAN,_GA._CITY_COUNCIL_MEETING_WITH_THE_GETTO_FREE_PRESS_REPORTING.json
+2026-06-09 20:56:19.472 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for uH9OM60_UlE
+2026-06-09 20:56:19.472 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] uH9OM60_UlE — Citizens Speaking Out!  Then The Complete Valdosta City Council Meeting Follows!
+2026-06-09 20:56:19.509 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for uH9OM60_UlE (1909 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:56:19.547 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:56:40.210 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for uH9OM60_UlE: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-09 20:56:40.278 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/GA/municipality/gordon_1333980/UCXouBUErOAg75vra7x9iBGQ/02_analysis/2025-09-11_Citizens_Speaking_Out!_Then_The_Complete_Valdosta_City_Council_Meeting_Follows!.json
+2026-06-09 20:56:40.280 | INFO     | __main__:run_backlog:691 - Progress 26/317 jurisdictions (2.86/min, ETA 1h41m)
+2026-06-09 20:56:40.282 | INFO     | __main__:run_backlog:623 - [27/317] walton_13297 (GA) — pending~12, model=gemini-2.5-flash-lite
+2026-06-09 20:56:40.966 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/county/walton_13297/_contact_images/contacts.json
+2026-06-09 20:56:41.180 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip 5MuCX5DFoPI — analysis exists (2026-05-07_Planning_Commission_Meeting.json)
+2026-06-09 20:56:41.182 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip -V1VPbKJUI4 — analysis exists (2026-04-02_Planning_Commission_Meeting.json)
+2026-06-09 20:56:41.184 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip k3U-zyQEWWM — analysis exists (2026-02-05_Planning_Commission_Meeting.json)
+2026-06-09 20:56:41.187 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip y6DexTHrdMw — analysis exists (2026-01-08_Planning_Commission_Meeting.json)
+2026-06-09 20:56:41.187 | INFO     | __main__:run_backlog:691 - Progress 27/317 jurisdictions (2.96/min, ETA 1h37m)
+2026-06-09 20:56:41.189 | INFO     | __main__:run_backlog:623 - [28/317] milton_5552200 (WI) — pending~151, model=gemini-2.5-flash-lite
+2026-06-09 20:56:41.917 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/WI/municipality/milton_5552200/_contact_images/contacts.json
+2026-06-09 20:56:42.106 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [1/4] jVEf2Rsv1jc — City of Milton, Special Common Council, 10/27/2025
+2026-06-09 20:56:42.163 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for jVEf2Rsv1jc (1913 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 20:56:42.168 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 8 agenda segment hint(s) for presenter linking
+2026-06-09 20:56:42.192 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:56:42.620 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 20:57:04.848 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for jVEf2Rsv1jc: {'bills': 1, 'item_links': 1, 'decisions': 2, 'youtube_updated': 1}
+2026-06-09 20:57:04.888 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/milton_5552200/UC1qBPPqNVT4SsvN9enN9rFw/02_analysis/2025-10-27_City_of_Milton,_Special_Common_Council,.json
+2026-06-09 20:57:05.094 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for sqUZRQ7F3Qo
+2026-06-09 20:57:05.094 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] sqUZRQ7F3Qo — City of Milton, Wisconsin Common Council 04/18/2023
+2026-06-09 20:57:05.142 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for sqUZRQ7F3Qo (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 20:57:05.170 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 20:58:00.911 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for sqUZRQ7F3Qo: {'bills': 3, 'item_links': 4, 'decisions': 6, 'youtube_updated': 1}
+2026-06-09 20:58:00.938 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/milton_5552200/UC1qBPPqNVT4SsvN9enN9rFw/02_analysis/2023-04-18_City_of_Milton,_Wisconsin_Common_Council.json
+2026-06-09 20:58:01.034 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for Z8sUPCUmvz8
+2026-06-09 20:58:01.034 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] Z8sUPCUmvz8 — City of Milton, Wisconsin Common Council 03/21/2023
+2026-06-09 20:58:01.069 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for Z8sUPCUmvz8 (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 20:58:01.077 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 20:58:01.109 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:00:32.453 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/milton_5552200/UC1qBPPqNVT4SsvN9enN9rFw/02_analysis/2023-03-21_City_of_Milton,_Wisconsin_Common_Council.json
+2026-06-09 21:00:32.548 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for FW0UWCD2I44
+2026-06-09 21:00:32.548 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] FW0UWCD2I44 — City of Milton, Wisconsin Common Council 01/03/2023
+2026-06-09 21:00:32.577 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for FW0UWCD2I44 (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:00:32.578 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:00:32.603 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:00:32.921 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 21:01:06.199 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for FW0UWCD2I44: {'bills': 0, 'item_links': 0, 'decisions': 3, 'youtube_updated': 1}
+2026-06-09 21:01:06.228 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/milton_5552200/UC1qBPPqNVT4SsvN9enN9rFw/02_analysis/2023-01-03_City_of_Milton,_Wisconsin_Common_Council.json
+2026-06-09 21:01:06.229 | INFO     | __main__:run_backlog:691 - Progress 28/317 jurisdictions (2.08/min, ETA 2h18m)
+2026-06-09 21:01:06.230 | INFO     | __main__:run_backlog:623 - [29/317] cullman_01043 (AL) — pending~2, model=gemini-2.5-flash-lite
+2026-06-09 21:01:06.772 | INFO     | llm.gemini.meeting_transcript_policy:load_speaker_context:340 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/county/cullman_01043
+2026-06-09 21:01:06.926 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/3] Skip 8gkb5Z2TIcQ — analysis exists (2026-02-10_Cullman_County_Commission_Special_Called_Meeting.json)
+2026-06-09 21:01:06.943 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/3] wfXqxfd3KpY — 02-24-2025 Cullman County Commission Special Called Meeting
+2026-06-09 21:01:06.979 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for wfXqxfd3KpY (89 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 21:01:06.980 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:01:07.003 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:01:15.384 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/county/cullman_01043/UCDMxv879i8uidEMJIHxTEeg/02_analysis/2025-02-24_Cullman_County_Commission_Special_Called_Meeting.json
+2026-06-09 21:01:15.396 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/3] c_xvCQjKOIk — 08-29-2023 Cullman County Commission Special Called Meeting
+2026-06-09 21:01:15.430 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for c_xvCQjKOIk (759 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-09 21:01:15.440 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:01:15.467 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:03:51.581 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/county/cullman_01043/UCDMxv879i8uidEMJIHxTEeg/02_analysis/2023-08-29_Cullman_County_Commission_Special_Called_Meeting.json
+2026-06-09 21:03:51.581 | INFO     | __main__:run_backlog:691 - Progress 29/317 jurisdictions (1.80/min, ETA 2h40m)
+2026-06-09 21:03:51.582 | INFO     | __main__:run_backlog:623 - [30/317] bryan_13029 (GA) — pending~9, model=gemini-2.5-flash-lite
+2026-06-09 21:03:52.181 | INFO     | llm.gemini.meeting_transcript_policy:load_speaker_context:340 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/county/bryan_13029
+2026-06-09 21:03:52.335 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [1/4] Skip F28uI3vtwrU — analysis exists (2026-04-21_Bryan_County_Planning_&_Zoning_Commission_Meeting.json)
+2026-06-09 21:03:52.337 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [2/4] Skip ImD3qfK2r1w — analysis exists (2026-02-17_Bryan_County_Planning_&_Zoning_Meeting.json)
+2026-06-09 21:03:52.338 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [3/4] Skip KzIcQKKMYDA — analysis exists (2026-02-03_Bryan_County_Special_Called_Meeting.json)
+2026-06-09 21:03:52.340 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1245 - [4/4] Skip svMDylBZjUI — analysis exists (2025-12-16_Bryan_County_Planning_&_Zoning_Meeting.json)
+2026-06-09 21:03:52.340 | INFO     | __main__:run_backlog:691 - Progress 30/317 jurisdictions (1.86/min, ETA 2h34m)
+2026-06-09 21:03:52.341 | INFO     | __main__:run_backlog:623 - [31/317] brownsville_4810768 (TX) — pending~170, model=gemini-2.5-flash-lite
+2026-06-09 21:03:52.887 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/TX/municipality/brownsville_4810768/_contact_images/contacts.json
+2026-06-09 21:03:53.139 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for B5VPHV_Flv8
+2026-06-09 21:03:53.139 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [1/4] B5VPHV_Flv8 — Brownsville ISD: Special Called Board Meeting - September 22, 2023
+2026-06-09 21:03:53.223 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for B5VPHV_Flv8 (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:03:53.232 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:03:53.271 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:03:53.663 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 21:04:24.583 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for B5VPHV_Flv8: {'bills': 0, 'item_links': 0, 'decisions': 3, 'youtube_updated': 1}
+2026-06-09 21:04:24.614 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/TX/municipality/brownsville_4810768/_unknown/02_analysis/2023-09-22_Brownsville_ISD_Special_Called_Board_Meeting.json
+2026-06-09 21:04:24.659 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for q_ClyGYeYJQ
+2026-06-09 21:04:24.660 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] q_ClyGYeYJQ — Brownsville ISD Regular Board Meeting September 5, 2023
+2026-06-09 21:04:24.696 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for q_ClyGYeYJQ (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:04:24.696 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:04:24.719 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:07:05.694 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/TX/municipality/brownsville_4810768/_unknown/02_analysis/2023-09-05_Brownsville_ISD_Regular_Board_Meeting.json
+2026-06-09 21:07:05.733 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for Nruvn1WzyVQ
+2026-06-09 21:07:05.733 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] Nruvn1WzyVQ — Brownsville ISD Special Called Board Meeting August 21, 2023
+2026-06-09 21:07:05.761 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for Nruvn1WzyVQ (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:07:05.762 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:07:05.783 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:07:34.397 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/TX/municipality/brownsville_4810768/_unknown/02_analysis/2023-08-21_Brownsville_ISD_Special_Called_Board_Meeting.json
+2026-06-09 21:07:34.432 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for pGSkMIxOyWU
+2026-06-09 21:07:34.432 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] pGSkMIxOyWU — Brownsville ISD Regular Board Meeting August 1, 2023
+2026-06-09 21:07:34.477 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for pGSkMIxOyWU (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:07:34.478 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:07:34.511 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:07:34.864 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 21:08:05.774 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/TX/municipality/brownsville_4810768/_unknown/02_analysis/2023-08-01_Brownsville_ISD_Regular_Board_Meeting.json
+2026-06-09 21:08:05.775 | INFO     | __main__:run_backlog:691 - Progress 31/317 jurisdictions (1.53/min, ETA 3h07m)
+2026-06-09 21:08:05.777 | INFO     | __main__:run_backlog:623 - [32/317] thornton_0877290 (CO) — pending~277, model=gemini-2.5-flash-lite
+2026-06-09 21:08:06.443 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/CO/municipality/thornton_0877290/_contact_images/contacts.json
+2026-06-09 21:08:06.660 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for 4jNmsywDop8
+2026-06-09 21:08:06.660 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [1/4] 4jNmsywDop8 — Thornton City Council Planning Session - September 19, 2023
+2026-06-09 21:08:06.707 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 4jNmsywDop8 (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:08:06.742 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:09:03.833 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/CO/municipality/thornton_0877290/_unknown/02_analysis/2023-09-19_Thornton_City_Council_Planning_Session.json
+2026-06-09 21:09:03.879 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for 8XYSymOOsrI
+2026-06-09 21:09:03.880 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] 8XYSymOOsrI — Thornton City Council Meeting - September 12, 2023
+2026-06-09 21:09:03.911 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 8XYSymOOsrI (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:09:03.916 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:09:03.938 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:11:21.215 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/CO/municipality/thornton_0877290/_unknown/02_analysis/2023-09-12_Thornton_City_Council_Meeting.json
+2026-06-09 21:11:21.263 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for HUv-6qE30R8
+2026-06-09 21:11:21.263 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] HUv-6qE30R8 — Thornton City Council Planning Session - September 7, 2023 - 2024 Budget Review
+2026-06-09 21:11:21.298 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for HUv-6qE30R8 (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:11:21.309 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:11:21.334 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:11:21.838 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 21:14:04.396 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/CO/municipality/thornton_0877290/_unknown/02_analysis/2023-09-07_Thornton_City_Council_Planning_Session_-_-_2024_Budget_Review.json
+2026-06-09 21:14:04.440 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for DN3vjFdfWV0
+2026-06-09 21:14:04.440 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] DN3vjFdfWV0 — Thornton City Council Planning Session - August 29, 2023
+2026-06-09 21:14:04.469 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for DN3vjFdfWV0 (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:14:04.498 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:14:45.786 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for DN3vjFdfWV0: {'bills': 0, 'item_links': 0, 'decisions': 3, 'youtube_updated': 1}
+2026-06-09 21:14:45.815 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/CO/municipality/thornton_0877290/_unknown/02_analysis/2023-08-29_Thornton_City_Council_Planning_Session.json
+2026-06-09 21:14:45.815 | INFO     | __main__:run_backlog:691 - Progress 32/317 jurisdictions (1.19/min, ETA 3h58m)
+2026-06-09 21:14:45.816 | INFO     | __main__:run_backlog:623 - [33/317] whitehall_3984742 (OH) — pending~123, model=gemini-2.5-flash-lite
+2026-06-09 21:14:46.375 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/OH/municipality/whitehall_3984742/_contact_images/contacts.json
+2026-06-09 21:14:46.664 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for yDpWr94QxlA
+2026-06-09 21:14:46.665 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [1/4] yDpWr94QxlA — City Council Meeting 09-19-2023
+2026-06-09 21:14:46.742 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for yDpWr94QxlA (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:14:46.783 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:15:01.582 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/OH/municipality/whitehall_3984742/UCvjez8n5YvwKfEZ-2RX9fkg/02_analysis/2023-09-19_City_Council_Meeting.json
+2026-06-09 21:15:01.607 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for T_11rJN1AfY
+2026-06-09 21:15:01.607 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] T_11rJN1AfY — City Council Meeting 06-20-2023
+2026-06-09 21:15:01.635 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for T_11rJN1AfY (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:15:01.664 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:15:01.983 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 21:15:27.953 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:252 - Persisted legislation bronze for T_11rJN1AfY: {'bills': 0, 'item_links': 5, 'decisions': 4, 'youtube_updated': 1}
+2026-06-09 21:15:27.978 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/OH/municipality/whitehall_3984742/UCvjez8n5YvwKfEZ-2RX9fkg/02_analysis/2023-06-20_City_Council_Meeting.json
+2026-06-09 21:15:28.005 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for dTHGiaRnWDs
+2026-06-09 21:15:28.006 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [3/4] dTHGiaRnWDs — City Council Meeting 01-17-2023
+2026-06-09 21:15:28.035 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for dTHGiaRnWDs (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:15:28.073 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:18:09.595 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/OH/municipality/whitehall_3984742/UCvjez8n5YvwKfEZ-2RX9fkg/02_analysis/2023-01-17_City_Council_Meeting.json
+2026-06-09 21:18:09.627 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for bBT7pvJfpDs
+2026-06-09 21:18:09.627 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [4/4] bBT7pvJfpDs — City Council Meeting 11-15-2022
+2026-06-09 21:18:09.658 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for bBT7pvJfpDs (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:18:09.660 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:18:09.683 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:20:56.384 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/OH/municipality/whitehall_3984742/UCvjez8n5YvwKfEZ-2RX9fkg/02_analysis/2022-11-15_City_Council_Meeting.json
+2026-06-09 21:20:56.384 | INFO     | __main__:run_backlog:691 - Progress 33/317 jurisdictions (1.00/min, ETA 4h42m)
+2026-06-09 21:20:56.386 | INFO     | __main__:run_backlog:623 - [34/317] st_louis_park_2757220 (MN) — pending~132, model=gemini-2.5-flash-lite
+2026-06-09 21:20:57.033 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:343 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/MN/municipality/st_louis_park_2757220/_contact_images/contacts.json
+2026-06-09 21:20:57.294 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for QoX-lmxN4ZI
+2026-06-09 21:20:57.294 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [1/4] QoX-lmxN4ZI — St Louis Park study session and city council meeting Sept. 18, 2023
+2026-06-09 21:20:57.349 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for QoX-lmxN4ZI (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:20:57.358 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:968 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-09 21:20:57.381 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-09 21:20:57.757 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash-lite: rate limit / quota (429) — sleeping 1s, retry 2/5 (rotating key 2/4)
+2026-06-09 21:23:40.431 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:583 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MN/municipality/st_louis_park_2757220/UCzQFTRvOv-RbSJt6xTbz4Iw/02_analysis/2023-09-18_St_Louis_Park_study_session_and_city_council_meeting_Sept._18,_2023.json
+2026-06-09 21:23:40.456 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1270 - Synced bronze transcript to local cache for P-j3BBAKAcw
+2026-06-09 21:23:40.456 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1277 - [2/4] P-j3BBAKAcw — St. Louis Park city council study session Aug 28, 2023 mp4
+2026-06-09 21:23:40.486 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for P-j3BBAKAcw (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
+2026-06-09 21:23:40.518 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1042 - Calling gemini-2.5-flash-lite (AI Studio API)

@@ -355,6 +355,18 @@ shopt -u nullglob
 echo "🧹 Adding web_app/web_docs sources (node_modules auto-excluded by .gitignore)..."
 git add web_app/ web_docs/
 
+# Force-add the runtime static data the SPA fetches at /data/* (census-map choropleth
+# metrics + trends, jurisdiction_mapping_quality, zcta geometry). The whole tree lives
+# under the broad `data/` .gitignore rule, so the plain `git add web_app/` above silently
+# skips it — which means production nginx serves the SPA index.html fallback for every
+# /data/*.json request, the frontend's fetch().json() chokes on HTML, and maps render
+# with NO shading. Force-staging here is the fix. All files are JSON < 10 MiB, so the
+# oversized/binary drop passes below leave them intact.
+if [ -d web_app/public/data ]; then
+    echo "🗺️  Force-adding web_app/public/data (gitignored static map data)..."
+    git add -f web_app/public/data/
+fi
+
 # Verify node_modules are NOT staged
 NODE_MODULES_COUNT=$(git diff --cached --name-only | grep "node_modules" | wc -l)
 if [ "$NODE_MODULES_COUNT" -gt 0 ]; then
