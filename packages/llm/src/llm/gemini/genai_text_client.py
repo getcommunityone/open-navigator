@@ -623,6 +623,18 @@ def check_gemini_api_key(api_key: str, *, model: Optional[str] = None) -> None:
                 "and set GEMINI_API_KEY in .env. If your shell exports GEMINI_API_KEY or "
                 "GOOGLE_API_KEY, that value overrides .env — run: unset GEMINI_API_KEY GOOGLE_API_KEY"
             ) from exc
+        # A transient server overload (502/503/504 / UNAVAILABLE / DEADLINE_EXCEEDED)
+        # on the probe says the server is busy, NOT that the key is bad — a Gemini
+        # demand spike must not crash the whole run at startup. The real analysis
+        # calls go through call_with_genai_quota_retry, which rotates keys/models and
+        # cools down on overload, so proceed and let that machinery handle it.
+        if is_genai_server_overload_error(exc):
+            logger.warning(
+                "Gemini key-validation probe hit a transient {} — skipping preflight "
+                "and proceeding; the key is presumed valid (retry/rotation handles it).",
+                classify_genai_error(exc),
+            )
+            return
         raise
 
 
