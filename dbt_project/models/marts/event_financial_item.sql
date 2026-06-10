@@ -73,7 +73,12 @@ select
     s.funding_source,
 
     s.source_ai_model,
-    s.extracted_at
+    s.extracted_at,
+
+    -- Date the dollars are dated to (contract award / payment / budget-effective).
+    -- Null until the analysis prompt populates it (policy_analysis_part_1.md).
+    s.item_date,
+    s.item_date_type
 
 from src s
 join meeting_keys mk on mk.event_meeting_id = s.source_event_id

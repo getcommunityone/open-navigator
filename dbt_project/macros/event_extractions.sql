@@ -196,9 +196,18 @@ select 1;
         funding_source           text,
         source_ai_model          varchar(100),
         extracted_at             timestamp   not null,
+        -- item_date* live at the END (Postgres ALTER ADD COLUMN only appends), so a
+        -- fresh create and an in-place alter yield the SAME column order — which lets
+        -- the public `select *` view be recreated with CREATE OR REPLACE.
+        item_date                date,
+        item_date_type           text,
         primary key (event_financial_item_id, extracted_at),
         unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
+    -- Idempotent add for tables bootstrapped before item_date existed (adding a
+    -- column to a partitioned parent propagates to every partition automatically).
+    alter table gold.event_financial_item add column if not exists item_date      date;
+    alter table gold.event_financial_item add column if not exists item_date_type text;
     create index if not exists ix_event_financial_item_c1_event  on gold.event_financial_item (c1_event_id);
     create index if not exists ix_event_financial_item_state      on gold.event_financial_item (state_code);
     create index if not exists ix_event_financial_item_extracted  on gold.event_financial_item (extracted_at);
