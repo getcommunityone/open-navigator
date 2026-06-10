@@ -33,13 +33,20 @@ pdf2image>=1.17.0          # PDF page rasterization (meeting cache PNGs; needs p
 openai>=1.6.0
 anthropic>=0.8.0
 google-generativeai>=0.8.0
-# Capped <1.0: the agents use the 0.x import path `from langchain.chat_models import ChatOpenAI`,
-# removed in langchain 1.x. The 0.3.x line supports pydantic 2.x, so it coexists with the bump above.
-langchain>=0.3,<1.0
-langchain-openai>=0.2,<1.0
-langchain-community>=0.3,<1.0
-langgraph>=0.2,<1.0
-langchain-core>=0.3,<1.0
+# Pinned to the 1.x line for the security-patched releases (dependabot):
+#   langchain-core >= 1.2.22   (GHSA path traversal in legacy load_prompt, high)
+#   langchain-openai >= 1.1.14 (image token-counting SSRF, low)
+# The lone 0.x-only import (`from langchain.chat_models import ChatOpenAI` in
+# agents/mlflow_classifier.py) was migrated to the split-package paths
+# (langchain_openai / langchain_core), which work on the 1.x line; the uv
+# workspace already resolves langchain 1.x, so this only realigns pip.
+# langgraph was dropped — it is not imported anywhere in the codebase.
+# langchain-community has no 1.x release; its 0.4 line allows langchain-core
+# <2.0 (so it co-resolves with the 1.x core) and is in no advisory.
+langchain>=1.0
+langchain-openai>=1.1.14
+langchain-community>=0.4
+langchain-core>=1.2.22
 tiktoken>=0.5.0
 
 # Model Context Protocol (MCP) - Optional, for local MCP server only

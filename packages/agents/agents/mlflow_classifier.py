@@ -11,9 +11,12 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from enum import Enum
 import mlflow
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.output_parsers import PydanticOutputParser
+# Split-package imports (langchain 1.x). The old `langchain.chat_models` /
+# `langchain.prompts` / `langchain.output_parsers` shims were removed in 1.x;
+# these paths work on both the 0.3 and 1.x lines.
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
 from agents.mlflow_base import MLflowChainAgent
@@ -277,7 +280,8 @@ def register_classifier_to_unity_catalog():
         registered_model_name=f"{settings.catalog_name}.{settings.schema_name}.policy_classifier",
         pip_requirements=[
             "mlflow>=2.10.0",
-            "langchain>=0.1.0",
+            "langchain-openai>=1.1.14",
+            "langchain-core>=1.2.22",
             "openai>=1.6.0",
             "pydantic>=2.5.0"
         ]

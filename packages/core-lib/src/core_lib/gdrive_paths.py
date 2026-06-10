@@ -1,5 +1,9 @@
 """
-Path helpers shared with ``scripts/utils/log_sync.py`` and ``export_bronze_to_json.py``.
+Google Drive path / pipeline-layout helpers (``core_lib.gdrive_paths``).
+
+Shared across the workspace — primary consumers are ``llm.governance.*`` (the Gemma
+hackathon governance pipeline) and ``scrapers.wikidata.export_bronze_to_json``, plus the
+legacy ``scripts/utils/log_sync.py`` and ``scripts/discovery/*`` loaders.
 
 - ``LOG_GDRIVE_MOUNT`` / ``gdrive_mount_path()`` — configured path (may not exist yet).
   ``resolved_gdrive_mount_path()`` — when the configured path is missing, may pick another
@@ -26,8 +30,9 @@ from pathlib import Path
 
 _DEFAULT_LOG_GDRIVE_MOUNT = "/mnt/g/My Drive"
 
-# ``scripts/utils/gdrive_paths.py`` → repo root is two parents up from ``scripts/``.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+# ``packages/core-lib/src/core_lib/gdrive_paths.py`` → repo root is four parents up
+# (``core_lib`` → ``src`` → ``core-lib`` → ``packages`` → repo root).
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def gdrive_mount_path() -> Path:
