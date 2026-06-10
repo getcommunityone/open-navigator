@@ -1133,7 +1133,9 @@ async def get_nonprofit_compensation_pg(
 async def search_events_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
-    limit: int = 10
+    city: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0
 ) -> List[SearchResult]:
     """
     Search meetings using PostgreSQL.
@@ -1150,7 +1152,9 @@ async def search_events_pg(
     Args:
         query: Search text (meeting body, jurisdiction, summary).
         state: Filter by state code ('MA') or full name ('Massachusetts').
+        city: Filter by city name (matched against jurisdiction_name / city).
         limit: Max results.
+        offset: Rows to skip, for single-type browse pagination.
 
     Returns:
         List of SearchResult objects.
@@ -1183,20 +1187,38 @@ async def search_events_pg(
             params.append(state.upper())
             where.append(f"state_code = ${len(params)}")
 
+        # City scope. event_meeting carries both jurisdiction_name (the body's
+        # place, e.g. "Tuscaloosa") and a city column; a city browse must not leak
+        # the rest of the state's meetings (e.g. a county fair in another town), so
+        # match the requested city against EITHER column by exact, case-insensitive
+        # name. Equality (not substring) keeps "Tuscaloosa County" out of a
+        # "Tuscaloosa" city filter. Mirrors search_bills_pg.
+        if city and city.strip():
+            params.append(city.strip())
+            p = len(params)
+            where.append(
+                f"(lower(jurisdiction_name) = lower(${p}) OR lower(city) = lower(${p}))"
+            )
+
         where_sql = " AND ".join(where) if where else "TRUE"
         params.append(limit)
+        limit_idx = len(params)
+        params.append(max(offset, 0))
+        offset_idx = len(params)
 
         # meeting_date is mostly ISO 'YYYY-MM-DD' text, but ~180 rows carry the
         # literal 'unknown' (and a few are NULL). A bare lexical DESC would float
         # 'unknown' above every real date, so we null out anything that isn't an
         # ISO date in the sort key — real, recent meetings first; undated last.
+        # event_meeting_id is a deterministic tiebreaker so OFFSET paging is
+        # stable when many rows share a date (or are undated).
         iso_date = "(CASE WHEN meeting_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN meeting_date END)"
         sql = f"""
             SELECT {cols}
             FROM event_meeting
             WHERE {where_sql}
-            ORDER BY {iso_date} DESC NULLS LAST
-            LIMIT ${len(params)}
+            ORDER BY {iso_date} DESC NULLS LAST, event_meeting_id DESC
+            LIMIT ${limit_idx} OFFSET ${offset_idx}
         """
 
         async with pool.acquire() as conn:
@@ -1255,6 +1277,7 @@ async def search_events_pg(
 async def search_documents_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
+    city: Optional[str] = None,
     limit: int = 10
 ) -> List[SearchResult]:
     """
@@ -1267,6 +1290,7 @@ async def search_documents_pg(
     Args:
         query: Search text (matched against the document body)
         state: Filter by state code ('MA') or full name ('Massachusetts')
+        city: Filter by city name (matched against jurisdiction_name / city)
         limit: Max results
 
     Returns:
@@ -1285,6 +1309,17 @@ async def search_documents_pg(
         if state:
             where_clauses.append(f"state_code = ${param_idx}")
             params.append(state.upper())
+            param_idx += 1
+
+        # City scope — exact, case-insensitive match on jurisdiction_name OR city
+        # (mirrors search_events_pg / search_bills_pg), so a city browse doesn't
+        # leak the rest of the state's transcripts. jurisdiction_name is the
+        # reliably-populated column; city is the OR fallback.
+        if city and city.strip():
+            where_clauses.append(
+                f"(lower(jurisdiction_name) = lower(${param_idx}) OR lower(city) = lower(${param_idx}))"
+            )
+            params.append(city.strip())
             param_idx += 1
 
         # Full-text body search against the STORED content_tsv vector (GIN-indexed
@@ -1402,7 +1437,8 @@ async def search_bills_pg(
     state: Optional[str] = None,
     session: Optional[str] = None,
     city: Optional[str] = None,
-    limit: int = 10
+    limit: int = 10,
+    offset: int = 0
 ) -> List[SearchResult]:
     """
     Search legislation referenced in meetings, backed by the public.event_bill mart
@@ -1486,10 +1522,11 @@ async def search_bills_pg(
                 extracted_at
             FROM event_bill
             WHERE {where_sql}
-            ORDER BY {order_by}
-            LIMIT ${param_idx}
+            ORDER BY {order_by}, event_bill_id DESC
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
         """
         params.append(limit)
+        params.append(max(offset, 0))
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
@@ -1539,6 +1576,76 @@ async def search_bills_pg(
                         'extracted_at': row['extracted_at'].isoformat() if row['extracted_at'] else None,
                     }
                 ))
+
+            # Also surface REAL legislation from the OpenStates bills mart
+            # (gold.bills, ~1.55M rows; title GIN-indexed by bills_title_fts_idx).
+            # event_bill above is only the meeting-derived ordinance feed, so a
+            # policy term ("fluoride") never reached actual statehouse bills.
+            # gold is the LOCAL/private full warehouse — the Neon-served prod
+            # instance has no gold.bills, so this is wrapped to degrade to nothing
+            # (the public serving path doesn't carry the legislative mart). Only
+            # runs on a text query: a no-query browse of 1.55M bills belongs on the
+            # dedicated /bills page, not the unified search.
+            if query and query.strip():
+                try:
+                    q = query.strip()
+                    # Title FTS ONLY — served by the bills_title_fts_idx GIN index
+                    # (sub-ms over 1.55M rows). Do NOT OR-in an `identifier ILIKE
+                    # '%q%'`: a leading-wildcard ILIKE is un-indexable, and OR-ing it
+                    # with the GIN match forces a full 1.55M-row seq scan (~11s ->
+                    # trips SUBSEARCH_TIMEOUT_S and degrades bills to empty). Bill
+                    # numbers don't contain policy words, so there's nothing to lose.
+                    leg_params = [q]
+                    leg_state = ""
+                    if state:
+                        leg_params.append(state.upper())
+                        leg_state = " AND state_code = $2"
+                    leg_params.append(limit)
+                    leg_sql = f"""
+                        SELECT identifier, title, session_name, state_code, year
+                        FROM gold.bills
+                        WHERE to_tsvector('english', coalesce(title, '')) @@ plainto_tsquery('english', $1){leg_state}
+                        ORDER BY ts_rank(to_tsvector('english', coalesce(title, '')),
+                                         plainto_tsquery('english', $1)) DESC,
+                                 year DESC NULLS LAST
+                        LIMIT ${len(leg_params)}
+                    """
+                    for lr in await conn.fetch(leg_sql, *leg_params):
+                        ident = lr['identifier'] or ''
+                        ltitle = lr['title'] or 'Untitled bill'
+                        disp = f"{ident}: {ltitle}" if ident else ltitle
+                        if len(disp) > 120:
+                            disp = disp[:117] + "..."
+                        sc = lr['state_code']
+                        # Detail route /bill/{state}-{identifier} (BillDetail page ->
+                        # /api/bills/{state}-{number}); only linkable with both parts.
+                        url = f"/bill/{sc.lower()}-{ident}" if (sc and ident) else ""
+                        # year -> string at the JSON/wire boundary (never a number).
+                        year_str = str(lr['year']) if lr['year'] is not None else None
+                        subtitle = " • ".join(
+                            b for b in (sc, lr['session_name'], year_str) if b
+                        )
+                        results.append(SearchResult(
+                            result_type='bill',
+                            title=disp,
+                            subtitle=subtitle,
+                            description=ltitle,
+                            url=url,
+                            # Just below the meeting-derived event_bill (1.0) so the
+                            # locally-relevant ordinance references lead the tab.
+                            score=0.95,
+                            metadata={
+                                'identifier': ident,
+                                'state_code': sc,
+                                'session_name': lr['session_name'],
+                                'year': year_str,
+                                'source': 'legislation',
+                            }
+                        ))
+                except Exception as leg_err:
+                    # gold.bills absent (Neon/public-only serving) or any error:
+                    # degrade to just the event_bill results.
+                    logger.debug(f"Legislative bills search skipped: {leg_err}")
 
             logger.info(f"📜 PostgreSQL bills search: {len(results)} results")
             return results
@@ -1686,7 +1793,8 @@ async def search_decisions_pg(
     outcome: Optional[str] = None,
     city: Optional[str] = None,
     sort: Optional[str] = None,
-    limit: int = 10
+    limit: int = 10,
+    offset: int = 0
 ) -> List[SearchResult]:
     """
     Search governance decisions, backed by the public.event_decision mart
