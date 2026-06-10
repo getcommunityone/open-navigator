@@ -54,9 +54,13 @@ class Labeler:
         from llm.gemini.genai_text_client import call_gemini_text, call_with_genai_quota_retry
 
         def _call() -> str:
+            # gemini-2.5-* are thinking models: thinking tokens draw from
+            # max_output_tokens, so a tight cap (e.g. 400) gets fully consumed by
+            # reasoning and returns empty/truncated output. Give enough headroom
+            # that thinking + the short JSON label both fit.
             res = call_gemini_text(
                 api_key=self._key, model=self._model, user_text=user,
-                system_instruction=system, temperature=0.1, max_output_tokens=400,
+                system_instruction=system, temperature=0.1, max_output_tokens=2048,
             )
             return res.text
 
