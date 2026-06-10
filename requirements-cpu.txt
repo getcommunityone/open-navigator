@@ -51,6 +51,15 @@ uvicorn[standard]>=0.25.0
 # Removed fastapi-cache2 - not strictly required
 python-multipart>=0.0.27
 
+# Observability (OpenTelemetry tracing for FastAPI — see api/telemetry.py)
+# Required at API startup; keep in sync with requirements.txt so CPU-only
+# installs (install.sh / install.ps1 prefer this file) don't break on
+# `import opentelemetry.instrumentation.fastapi`.
+opentelemetry-api==1.42.0
+opentelemetry-sdk==1.42.0
+opentelemetry-instrumentation-fastapi==0.63b0
+opentelemetry-exporter-otlp-proto-http==1.42.0
+
 # Visualization
 plotly>=5.18.0
 folium>=0.15.0
