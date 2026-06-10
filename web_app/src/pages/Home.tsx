@@ -399,17 +399,23 @@ export default function Home() {
   const { data: categoryCountsData } = useQuery<any>({
     queryKey: ['hero-category-counts', debouncedKeyword, location?.state, searchScope],
     queryFn: async () => {
-      if (debouncedKeyword.length < 2) return null
+      const hasKw = debouncedKeyword.length >= 2
+      // Browse mode (no keyword): only meetings + decisions need a live count —
+      // they have no catalog-rollup field in /stats, so without this they render
+      // blank. Both are small marts with real, uncapped COUNT helpers server-side,
+      // so this is cheap; the other categories use the /stats rollup in browse.
       const params: any = {
-        q: debouncedKeyword,
-        types: 'meetings,decisions,leaders,organizations,causes,bills,grants,documents',
+        types: hasKw
+          ? 'meetings,decisions,leaders,organizations,causes,bills,grants,documents'
+          : 'meetings,decisions',
         limit: HERO_COUNT_QUERY_LIMIT,
       }
+      if (hasKw) params.q = debouncedKeyword
       if (location?.state && searchScope !== 'national') params.state = location.state
       const response = await api.get('/search/', { params })
       return response.data
     },
-    enabled: debouncedKeyword.length >= 2,
+    enabled: true,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
@@ -446,13 +452,18 @@ export default function Home() {
     const hasQuery = debouncedKeyword.length >= 2
 
     // 1. Live, query-scoped count (preferred whenever a query is active).
+    // meetings + decisions get a REAL, uncapped server COUNT (count_events /
+    // count_decisions over the small event_meeting/event_decision marts) and have
+    // no usable /stats rollup field, so use their live count even in browse mode.
     const liveKey = HERO_LIVE_TOTAL_KEY[cat.id]
-    if (hasQuery && liveKey) {
+    const isRealCount = cat.id === 'meetings' || cat.id === 'decisions'
+    if ((hasQuery || isRealCount) && liveKey) {
       const totals = categoryCountsData?.type_totals as Record<string, number | undefined> | undefined
       const live = totals?.[liveKey]
       if (live != null) {
-        // Saturated at the over-fetch cap → "100+", since the true total is unknown.
-        if (live >= HERO_COUNT_CAP) return `${HERO_COUNT_CAP - 1}+`
+        // Over-fetch estimates (len-based) saturate at the cap → "100+". The real
+        // COUNT categories (meetings/decisions) are exact, so never cap them.
+        if (!isRealCount && live >= HERO_COUNT_CAP) return `${HERO_COUNT_CAP - 1}+`
         return formatCompactCount(live)
       }
     }

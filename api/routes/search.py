@@ -585,6 +585,158 @@ async def count_persons(
             return 0
 
 
+async def count_events(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+) -> int:
+    """Count meetings matching the events search filters.
+
+    Mirrors the WHERE predicates of search_postgres.search_events_pg over
+    public.event_meeting: the same state_code filter, the same exact-name city
+    scope (jurisdiction_name OR city), and the same body/jurisdiction/summary/city
+    ILIKE for a query. Used to report an HONEST type_total for "meetings" so the
+    count is independent of the caller's limit — the lightweight tab-counts call
+    sends limit=1, which would otherwise cap the fetched-length estimate at 1.
+
+    event_meeting is small (~6k rows) so this uncapped count(*) is sub-millisecond.
+    Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_events_{norm_state}_{city}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_events") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if has_query:
+                where_clauses.append(
+                    f"(body_name ILIKE ${idx} OR jurisdiction_name ILIKE ${idx} "
+                    f"OR meeting_summary ILIKE ${idx} OR city ILIKE ${idx})"
+                )
+                params.append(f"%{q}%")
+                idx += 1
+
+            if norm_state:
+                where_clauses.append(f"state_code = ${idx}")
+                params.append(norm_state.upper())
+                idx += 1
+
+            if city and city.strip():
+                where_clauses.append(
+                    f"(lower(jurisdiction_name) = lower(${idx}) OR lower(city) = lower(${idx}))"
+                )
+                params.append(city.strip())
+                idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM event_meeting WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Events count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
+async def count_decisions(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+) -> int:
+    """Count governance decisions matching the decisions search filters.
+
+    Mirrors the WHERE predicates of search_postgres.search_decisions_pg over
+    public.event_decision: the same state_code filter, the same exact-name city
+    scope (jurisdiction_name OR city), and the same English-FTS over
+    headline/decision_statement/primary_theme for a query. Used to report an
+    HONEST type_total for "decisions" so the count is independent of the caller's
+    limit — the lightweight tab-counts call sends limit=1, which would otherwise
+    cap the fetched-length estimate at 1 in single-type browse mode.
+
+    event_decision is small (~9k rows) so this uncapped count(*) is sub-millisecond.
+    Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_decisions_{norm_state}_{city}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_decisions") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if norm_state:
+                where_clauses.append(f"d.state_code = ${idx}")
+                params.append(norm_state.upper())
+                idx += 1
+
+            if city and city.strip():
+                where_clauses.append(
+                    f"(lower(d.jurisdiction_name) = lower(${idx}) OR lower(d.city) = lower(${idx}))"
+                )
+                params.append(city.strip())
+                idx += 1
+
+            if has_query:
+                where_clauses.append(
+                    f"(to_tsvector('english', COALESCE(d.headline, '') || ' ' || "
+                    f"COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, '')) "
+                    f"@@ plainto_tsquery('english', ${idx}))"
+                )
+                params.append(q)
+                idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM event_decision d WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Decisions count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
 # NOTE: organizations search moved to search_postgres.search_organizations_pg
 # (mdm_organization JOIN mdm_organization_nonprofit). The old DuckDB/parquet
 # search_organizations() reading nonprofits_organizations.parquet was removed
@@ -768,7 +920,7 @@ async def unified_search(
             search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, city=city, limit=search_limit)))
 
         if 'meetings' in requested_types:
-            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, limit=search_limit)))
+            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset)))
 
         if 'organizations' in requested_types:
             search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort)))
@@ -798,7 +950,7 @@ async def unified_search(
 
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)
-            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, limit=search_limit)))
+            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit)))
 
         if 'causes' in requested_types:
             # NTEE causes now come from public.tag (vocabulary='ntee'); the old
@@ -932,6 +1084,25 @@ async def unified_search(
         if is_filtered and 'persons' in requested_types:
             type_totals['persons'] = await count_persons(
                 query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
+            )
+
+        # Meetings: event_meeting is tiny (~6k rows) so a real COUNT is sub-ms.
+        # Always use it (not the fetched-length estimate) so the count is
+        # independent of the caller's limit — the lightweight tab-counts call
+        # sends limit=1, which would otherwise cap the meetings total at 1 in
+        # single-type browse mode (header said "1 results" over a 20-row page).
+        if 'meetings' in requested_types:
+            type_totals['meetings'] = await count_events(
+                query=q, state=state, city=city
+            )
+
+        # Decisions: event_decision is small (~9k rows) so a real COUNT is sub-ms.
+        # Always use it (like meetings) so the count is independent of the caller's
+        # limit — the tab-counts call sends limit=1, which would otherwise cap the
+        # decisions total and leave the homepage "Search in" badge blank in browse.
+        if 'decisions' in requested_types:
+            type_totals['decisions'] = await count_decisions(
+                query=q, state=state, city=city
             )
 
         # Derive the grand total from the (now partly-accurate) per-type totals
