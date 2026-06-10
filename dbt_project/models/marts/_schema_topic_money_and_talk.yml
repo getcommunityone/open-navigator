@@ -1,0 +1,108 @@
+version: 2
+
+# public.topic_money_and_talk — per (jurisdiction, canonical theme, month) rollup
+# of decision counts ("talk") vs net dollar impact ("money"), for the topic
+# money-vs-talk web feature.
+#
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - PK: topic_money_and_talk_id (surrogate md5 of jurisdiction_id ||
+#     canonical_theme || month).
+#   - FK: jurisdiction_id -> public.jurisdictions.jurisdiction_id. jurisdictions
+#     has a single-column PK and every source jurisdiction_id resolves (0 orphans),
+#     so this is a REAL enforced FK. NOT NULL: null-jurisdiction decisions are
+#     excluded upstream.
+
+models:
+  - name: topic_money_and_talk
+    description: >
+      public.topic_money_and_talk — per (jurisdiction, canonical COFOG theme,
+      month) rollup of the "talk" (decision_count) vs the "money"
+      (spend_amount = SUM(ABS(net_dollar_impact))) signals, powering the topic
+      money-vs-talk web feature. Built from item_interestingness (decision grain):
+      the noisy free-text primary_theme is collapsed to one of the 18 canonical
+      COFOG buckets via the normalize_coarse_theme() macro (rows resolving to
+      '__unthemed__' are excluded), and cofog_code is resolved by join to the
+      policy_theme_cofog seed. One row per (jurisdiction_id, canonical_theme,
+      month = date_trunc('month', occurred_at)).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'topic', 'money']
+      contract:
+        enforced: true
+    columns:
+      - name: topic_money_and_talk_id
+        description: "Primary key — surrogate md5(jurisdiction_id || canonical_theme || month)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: >
+          FK -> public.jurisdictions.jurisdiction_id. NOT NULL — null-jurisdiction
+          decisions are excluded upstream. Enforced FK (jurisdictions has a
+          single-column PK).
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('jurisdictions')
+                field: jurisdiction_id
+      - name: jurisdiction_name
+        description: "Jurisdiction display name (carried from item_interestingness)."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+      - name: city
+        description: "City name."
+        data_type: text
+      - name: canonical_theme
+        description: >
+          Canonical COFOG theme bucket (one of the 18 controlled labels), derived
+          from the free-text primary_theme via normalize_coarse_theme().
+          '__unthemed__' rows are excluded.
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('policy_theme_cofog')
+                field: primary_theme
+      - name: cofog_code
+        description: "COFOG code for the canonical_theme (from the policy_theme_cofog seed)."
+        data_type: text
+      - name: month
+        description: "First day of the meeting month (date_trunc('month', occurred_at))."
+        data_type: date
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: decision_count
+        description: "The 'talk' metric — COUNT(*) of decisions in this theme/month/jurisdiction."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: spend_amount
+        description: >
+          The 'money' metric — SUM(ABS(net_dollar_impact)) over decisions with a
+          non-null, non-zero impact; 0 when none contribute money.
+        data_type: numeric
+        constraints:
+          - type: not_null
+      - name: spend_count
+        description: "Count of decisions contributing money (non-null, non-zero net_dollar_impact)."
+        data_type: integer
+        constraints:
+          - type: not_null

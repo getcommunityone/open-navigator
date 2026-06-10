@@ -59,6 +59,7 @@
     'bills', 'bill_sponsorship',
     'cpi_annual',
     'item_interestingness', 'item_flags', 'nonprofit_sector_revenue',
+    'topic_money_and_talk', 'civicsearch_topic',
     'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction',
     'mdm_bridge_event_analysis',
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',

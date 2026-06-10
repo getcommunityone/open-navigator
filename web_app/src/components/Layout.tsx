@@ -23,6 +23,8 @@ import {
   HeartIcon,
   CodeBracketIcon,
   XCircleIcon,
+  TagIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
@@ -44,6 +46,8 @@ const navigation = [
     section: 'Policy & Government',
     items: [
       { name: 'Policy Decisions', href: '/documents', icon: DocumentTextIcon },
+      { name: 'Browse Topics', href: '/browse-topics', icon: TagIcon },
+      { name: 'Money & Talk', href: '/money-and-talk', icon: BanknotesIcon },
       { name: 'Budget Analysis', href: '/analytics', icon: ChartBarIcon },
       { name: 'Elected Officials', href: '/people', icon: UserGroupIcon },
       { name: 'Public Policies', href: '/public-policies', icon: DocumentTextIcon },

@@ -543,6 +543,28 @@ sources:
           - name: loaded_at
           - name: last_updated
 
+      - name: bronze_events_civicsearch_topic
+        description: |
+          Raw CivicSearch policy-topic taxonomy — the flat topic -> keyword-cluster
+          dictionary CivicSearch uses to tag meeting snippets. Landed VERBATIM by
+          the CivicSearch harvest loader. One row per topic_id. keyword_stats is a
+          JSONB array of the cluster's representative keywords (~10 strings). NOT
+          hierarchical. Promoted to staging.stg_civicsearch__topic and then to the
+          public mart civicsearch_topic.
+        columns:
+          - name: topic_id
+            description: "CivicSearch topic id — natural key (one row per topic)."
+          - name: name
+            description: "Human-readable topic label."
+          - name: query_id
+            description: "CivicSearch query/slug this topic was harvested under."
+          - name: keyword_stats
+            description: "JSONB array of representative keyword strings for the topic cluster."
+          - name: raw_record
+          - name: scraped_at
+          - name: loaded_at
+          - name: last_updated
+
       - name: bronze_events_channels
         description: "YouTube channels from government jurisdictions - validated and enriched"
         columns:
