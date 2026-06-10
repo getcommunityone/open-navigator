@@ -296,7 +296,7 @@ PENDING_BY_JURISDICTION_SQL = """
                 now()
             )
         ) AS newest_pending
-    FROM public.event_youtube_with_jurisdiction v
+    FROM event_youtube_with_jurisdiction v
     JOIN bronze.bronze_event_youtube_transcript t
         ON t.video_id = v.video_id
        AND t.has_transcript IS TRUE
@@ -475,7 +475,16 @@ def fetch_pending_plans(
     ``states`` (2-letter codes) pushes a ``state_code IN (...)`` filter into the SQL so a
     state-sliced run scans only its own jurisdictions instead of the whole backlog.
     """
+    import os
+
     import psycopg2
+
+    # The work-list view (event_youtube_with_jurisdiction) lives in the full-warehouse
+    # DATA schema, which is `gold` on the split warehouse and `public` on a non-split
+    # one. Mirror api/database.py: reference the view UNqualified and resolve it via
+    # search_path (data schema first, public fallback). bronze.* refs stay explicit.
+    data_schema = (os.getenv("API_DB_SCHEMA") or "gold").strip() or "gold"
+    search_path = data_schema if data_schema == "public" else f"{data_schema},public"
 
     state_codes = parse_states(list(states) if states else None)
     sql = PENDING_BY_JURISDICTION_SQL
@@ -493,6 +502,7 @@ def fetch_pending_plans(
     conn = psycopg2.connect(database_url)
     try:
         with conn.cursor() as cur:
+            cur.execute(f"SET search_path TO {search_path}")
             cur.execute(sql, params)
             rows = cur.fetchall()
     finally:

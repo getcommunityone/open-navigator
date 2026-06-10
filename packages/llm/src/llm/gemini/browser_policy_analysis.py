@@ -318,8 +318,16 @@ def fetch_videos(
     dedupe_duplicate_meetings: bool = True,
     only_has_transcript: bool = False,
 ) -> List[VideoRow]:
+    import os
+
     import psycopg2
     from psycopg2.extras import RealDictCursor
+
+    # event_youtube_with_jurisdiction lives in the full-warehouse DATA schema (`gold`
+    # on the split warehouse, `public` otherwise). Reference it UNqualified and resolve
+    # via search_path, mirroring api/database.py; bronze.* refs stay explicit.
+    data_schema = (os.getenv("API_DB_SCHEMA") or "gold").strip() or "gold"
+    search_path = data_schema if data_schema == "public" else f"{data_schema},public"
 
     sql = """
         SELECT DISTINCT ON (y.video_url)
@@ -340,7 +348,7 @@ def fetch_videos(
         -- int_event_youtube__jurisdiction_resolved. This is what lets ~39.9k
         -- channel-first videos (NULL jurisdiction_id in raw bronze) be targeted
         -- by the per-jurisdiction analyze loop. Must be dbt-built where this runs.
-        FROM public.event_youtube_with_jurisdiction y
+        FROM event_youtube_with_jurisdiction y
         LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
         WHERE y.jurisdiction_id = %s
           AND y.video_url IS NOT NULL
@@ -388,6 +396,7 @@ def fetch_videos(
     conn = psycopg2.connect(database_url)
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"SET search_path TO {search_path}")
             cur.execute(sql, params)
             rows = cur.fetchall()
     finally:
