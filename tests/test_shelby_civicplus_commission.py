@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 import requests
 
-from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
-from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (
+from scrapers.discovery.http_fetch import BROWSER_USER_AGENT
+from scrapers.discovery.mayor_url_discovery import (
     discover_county_commission_page_url,
     discover_seed_urls,
 )
@@ -34,7 +34,7 @@ def test_discover_county_commission_via_government_hub():
     )
     if r.status_code != 200:
         pytest.skip(f"Shelby government hub unavailable ({r.status_code})")
-    from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (
+    from scrapers.discovery.mayor_url_discovery import (
         _commission_url_from_html,
     )
 

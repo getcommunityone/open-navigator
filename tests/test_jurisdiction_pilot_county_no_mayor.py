@@ -1,6 +1,6 @@
 """Counties must not probe or scrape mayor office pages."""
 
-from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (
+from scrapers.discovery.mayor_url_discovery import (
     candidate_urls,
     discover_seed_urls,
 )
@@ -34,7 +34,7 @@ def test_discover_seed_urls_county_returns_no_mayor(monkeypatch):
         return list(urls)[:1] if urls else []
 
     monkeypatch.setattr(
-        "scripts.datasources.jurisdiction_pilot.mayor_url_discovery.probe_urls",
+        "scrapers.discovery.mayor_url_discovery.probe_urls",
         fake_probe,
     )
     out = discover_seed_urls(

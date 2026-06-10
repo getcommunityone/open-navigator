@@ -1,6 +1,6 @@
 """Website YouTube link extraction for jurisdiction pilot."""
 
-from scripts.datasources.jurisdiction_pilot.website_youtube_search import (
+from scrapers.discovery.website_youtube_search import (
     _extract_youtube_urls_from_html,
     _normalize_youtube_url,
 )

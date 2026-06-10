@@ -114,7 +114,7 @@ def candidate_election_urls(homepage_url: str) -> list[str]:
 
 def probe_election_path_urls(homepage_url: str, session) -> list[str]:
     """HEAD/GET common ``/elections``-style paths on the site host."""
-    from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import probe_urls
+    from scrapers.discovery.mayor_url_discovery import probe_urls
 
     return probe_urls(candidate_election_urls(homepage_url), session=session)
 

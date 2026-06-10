@@ -26,7 +26,7 @@ if str(_ROOT) not in sys.path:
 from scripts.datasources.jurisdiction_pilot.google_civic_youtube import (  # noqa: E402
     get_youtube_from_civic_api,
 )
-from scripts.datasources.jurisdiction_pilot.website_youtube_search import (  # noqa: E402
+from scrapers.discovery.website_youtube_search import (  # noqa: E402
     crawl_website_for_youtube,
     search_duckduckgo_for_youtube,
     search_multiple_queries,
@@ -53,7 +53,7 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     for name in (
-        "scripts.datasources.jurisdiction_pilot.website_youtube_search",
+        "scrapers.discovery.website_youtube_search",
         "scrapers.youtube.youtube_channel_enrich",
         "scripts.datasources.jurisdiction_pilot.google_civic_youtube",
     ):

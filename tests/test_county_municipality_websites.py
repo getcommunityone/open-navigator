@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import requests
 
-from scripts.datasources.jurisdiction_pilot.county_municipality_websites import (
+from scrapers.discovery.county_municipality_websites import (
     discover_county_municipalities_page_url,
     extract_county_municipality_website_links,
     scrape_county_municipality_websites,
 )
-from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
+from scrapers.discovery.http_fetch import BROWSER_USER_AGENT
 
 _HEADERS = {"User-Agent": BROWSER_USER_AGENT}
 _SHELBY_MUNI = "https://www.shelbyal.com/185/Municipalities"

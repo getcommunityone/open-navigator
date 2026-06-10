@@ -98,7 +98,7 @@ from core_lib.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction
 from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import (  # noqa: E402
     find_ocd_match,
 )
-from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (  # noqa: E402
+from scrapers.discovery.mayor_url_discovery import (  # noqa: E402
     discover_seed_urls,
 )
 from scrapers.youtube.youtube_channel_enrich import (  # noqa: E402
@@ -113,7 +113,7 @@ from scripts.datasources.jurisdiction_pilot.legistar_scraper import (  # noqa: E
 from scripts.datasources.jurisdiction_pilot.google_civic_youtube import (  # noqa: E402
     get_youtube_from_civic_api,
 )
-from scripts.datasources.jurisdiction_pilot.website_youtube_search import (  # noqa: E402
+from scrapers.discovery.website_youtube_search import (  # noqa: E402
     search_multiple_queries,
 )
 from scrapers.youtube.youtube_channel_discovery import (  # noqa: E402
@@ -149,7 +149,7 @@ from scripts.datasources.jurisdiction_pilot.website_civicplus_meetings import ( 
     scrape_civicplus_meetings,
     write_meetings_snapshot,
 )
-from scripts.datasources.jurisdiction_pilot.county_municipality_websites import (  # noqa: E402
+from scrapers.discovery.county_municipality_websites import (  # noqa: E402
     scrape_county_municipality_websites,
 )
 from scripts.discovery.bronze_websites_ballotpedia_persist import (  # noqa: E402
@@ -190,9 +190,9 @@ def _quiet_http_loggers() -> None:
 
 # Submodule DEBUG (probe errors, Civic/YouTube lookups, OCD misses) drowns progress lines.
 _QUIET_HELPER_LOGGER_NAMES = (
-    "scripts.datasources.jurisdiction_pilot.mayor_url_discovery",
+    "scrapers.discovery.mayor_url_discovery",
     "scripts.datasources.jurisdiction_pilot.google_civic_youtube",
-    "scripts.datasources.jurisdiction_pilot.website_youtube_search",
+    "scrapers.discovery.website_youtube_search",
     "scrapers.youtube.youtube_channel_enrich",
     "scripts.datasources.jurisdiction_pilot.website_elections",
     "scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions",
@@ -219,7 +219,7 @@ MIN_CHANNEL_CONFIDENCE = float(
 # Stricter bar for the single primary on ``*_scraped`` (counties-scraped loader reads this).
 SCRAPED_PRIMARY_MIN_CONFIDENCE = float(os.getenv("SCRAPED_PRIMARY_MIN_CONFIDENCE", "0.7"))
 
-from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
+from scrapers.discovery.http_fetch import BROWSER_USER_AGENT
 
 _USER_AGENT = BROWSER_USER_AGENT
 _REQUEST_TIMEOUT_S = 20
@@ -518,7 +518,7 @@ def _resolve_seed_urls(j: Jurisdiction) -> list[tuple[str, str]]:
 
 
 def _fetch(url: str, session: requests.Session) -> tuple[int, str]:
-    from scripts.datasources.jurisdiction_pilot.http_fetch import fetch_page_html
+    from scrapers.discovery.http_fetch import fetch_page_html
 
     status, html, block = fetch_page_html(
         url, session, timeout_s=_REQUEST_TIMEOUT_S, try_playwright=True
