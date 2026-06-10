@@ -1178,9 +1178,23 @@ async def search_events_pg(
             q = query.strip()
             params.append(f"%{q}%")
             p = len(params)
+            # Meetings inherit matches from their child decisions: a meeting's own
+            # body/jurisdiction/summary may never mention the term (e.g. "Fluoride"),
+            # but a decision taken at that meeting does. We OR in an EXISTS over
+            # event_decision linked by c1_event_id, using the SAME English-FTS
+            # predicate as search_decisions_pg / count_decisions so a meeting
+            # surfaces whenever one of its decisions would. Raw query (not the LIKE
+            # %wildcards%) is passed to plainto_tsquery.
+            params.append(q)
+            p_fts = len(params)
             where.append(
                 f"(body_name ILIKE ${p} OR jurisdiction_name ILIKE ${p} "
-                f"OR meeting_summary ILIKE ${p} OR city ILIKE ${p})"
+                f"OR meeting_summary ILIKE ${p} OR city ILIKE ${p} "
+                f"OR EXISTS (SELECT 1 FROM event_decision d "
+                f"WHERE d.c1_event_id = event_meeting.c1_event_id "
+                f"AND to_tsvector('english', COALESCE(d.headline, '') || ' ' || "
+                f"COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, '')) "
+                f"@@ plainto_tsquery('english', ${p_fts})))"
             )
 
         if state:

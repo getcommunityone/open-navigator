@@ -629,12 +629,22 @@ async def count_events(
             idx = 1
 
             if has_query:
+                # Mirror search_events_pg: a meeting counts when its own text
+                # matches OR when a child decision (linked by c1_event_id) matches
+                # the same English-FTS used by count_decisions. Keeps the meetings
+                # type_total honest about inherited-from-decisions matches.
                 where_clauses.append(
                     f"(body_name ILIKE ${idx} OR jurisdiction_name ILIKE ${idx} "
-                    f"OR meeting_summary ILIKE ${idx} OR city ILIKE ${idx})"
+                    f"OR meeting_summary ILIKE ${idx} OR city ILIKE ${idx} "
+                    f"OR EXISTS (SELECT 1 FROM event_decision d "
+                    f"WHERE d.c1_event_id = event_meeting.c1_event_id "
+                    f"AND to_tsvector('english', COALESCE(d.headline, '') || ' ' || "
+                    f"COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, '')) "
+                    f"@@ plainto_tsquery('english', ${idx + 1})))"
                 )
                 params.append(f"%{q}%")
-                idx += 1
+                params.append(q)
+                idx += 2
 
             if norm_state:
                 where_clauses.append(f"state_code = ${idx}")
