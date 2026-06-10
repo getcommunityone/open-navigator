@@ -86,14 +86,16 @@ def _bill_families(bills: List[dict], threshold: float) -> Dict[str, int]:
     return fam_ids
 
 
-def run(state: str = "AL", use_llm: bool = False, min_cluster_size: int = 4,
-        lsh_threshold: float = 0.8, max_llm_calls: int = 600,
+def run(state: str = "AL", states: list[str] | None = None, use_llm: bool = False,
+        min_cluster_size: int = 4, lsh_threshold: float = 0.8, max_llm_calls: int = 600,
         database_url: str | None = None) -> Dict[str, int]:
     conn = db.connect(database_url)
     db.ensure_tables(conn)
     labeler = Labeler(use_llm=use_llm, max_calls=max_llm_calls)
 
-    bills = {b["source_id"]: b for b in sources.load_bills(conn, state_code=state)}
+    state_list = states or [state]
+    bills = {b["source_id"]: b for b in sources.load_bills(conn, state_codes=state_list)}
+    logger.info("Loaded {} bills across states {}", len(bills), state_list)
     with conn.cursor() as cur:
         cur.execute(
             "select source_id, coarse_theme, embedding from bronze.bronze_pq_embedding "
@@ -200,13 +202,16 @@ def run(state: str = "AL", use_llm: bool = False, min_cluster_size: int = 4,
 def main() -> None:
     ap = argparse.ArgumentParser(description="Cluster state bills into policy questions.")
     ap.add_argument("--state", default="AL")
+    ap.add_argument("--states", default=None,
+                    help="Comma-separated state codes (overrides --state), e.g. AL,GA,MS,TN,SC,FL.")
     ap.add_argument("--use-llm", action="store_true", help="Label clusters with Gemini (billed).")
     ap.add_argument("--min-cluster-size", type=int, default=4)
     ap.add_argument("--lsh-threshold", type=float, default=0.8)
     ap.add_argument("--max-llm-calls", type=int, default=600)
     ap.add_argument("--database-url", default=None)
     args = ap.parse_args()
-    run(state=args.state, use_llm=args.use_llm, min_cluster_size=args.min_cluster_size,
+    states = [s.strip().upper() for s in args.states.split(",")] if args.states else None
+    run(state=args.state, states=states, use_llm=args.use_llm, min_cluster_size=args.min_cluster_size,
         lsh_threshold=args.lsh_threshold, max_llm_calls=args.max_llm_calls,
         database_url=args.database_url)
 

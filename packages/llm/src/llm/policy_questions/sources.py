@@ -86,7 +86,7 @@ select
     br.abstracts
 from gold.bills b
 left join bronze.bronze_bills_openstates br on br.ocd_bill_id = b.ocd_bill_id
-where b.state_code = %s
+where b.state_code = any(%s)
 """
 
 
@@ -110,9 +110,10 @@ def _abstract_text(abstracts: Any) -> str:
     return ""
 
 
-def load_bills(conn, state_code: str = "AL") -> List[Dict[str, Any]]:
+def load_bills(conn, state_code: str = "AL", state_codes: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    states = state_codes if state_codes else [state_code]
     with conn.cursor() as cur:
-        cur.execute(_BILLS_SQL, (state_code,))
+        cur.execute(_BILLS_SQL, (states,))
         cols = [c.name for c in cur.description]
         rows = [dict(zip(cols, r)) for r in cur.fetchall()]
     out = []
