@@ -228,7 +228,7 @@ class YouTubeChannelDiscovery:
                 await asyncio.sleep(0.3)
                 continue
 
-            from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (
+            from scrapers.youtube.youtube_channel_enrich import (
                 enrich_channel,
             )
             from scrapers.youtube.pattern_match_gate import (

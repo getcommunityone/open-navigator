@@ -31,7 +31,7 @@ from scripts.datasources.jurisdiction_pilot.website_youtube_search import (  # n
     search_duckduckgo_for_youtube,
     search_multiple_queries,
 )
-from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (  # noqa: E402
+from scrapers.youtube.youtube_channel_enrich import (  # noqa: E402
     enrich_channel,
 )
 from scrapers.youtube.pattern_match_gate import (  # noqa: E402
@@ -54,7 +54,7 @@ def main() -> int:
     )
     for name in (
         "scripts.datasources.jurisdiction_pilot.website_youtube_search",
-        "scripts.datasources.jurisdiction_pilot.youtube_channel_enrich",
+        "scrapers.youtube.youtube_channel_enrich",
         "scripts.datasources.jurisdiction_pilot.google_civic_youtube",
     ):
         logging.getLogger(name).setLevel(logging.DEBUG)

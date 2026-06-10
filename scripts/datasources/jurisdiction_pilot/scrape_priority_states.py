@@ -101,7 +101,7 @@ from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import (  # n
 from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (  # noqa: E402
     discover_seed_urls,
 )
-from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (  # noqa: E402
+from scrapers.youtube.youtube_channel_enrich import (  # noqa: E402
     enrich_channel,
 )
 from scripts.datasources.jurisdiction_pilot.vendor_detection import (  # noqa: E402
@@ -193,7 +193,7 @@ _QUIET_HELPER_LOGGER_NAMES = (
     "scripts.datasources.jurisdiction_pilot.mayor_url_discovery",
     "scripts.datasources.jurisdiction_pilot.google_civic_youtube",
     "scripts.datasources.jurisdiction_pilot.website_youtube_search",
-    "scripts.datasources.jurisdiction_pilot.youtube_channel_enrich",
+    "scrapers.youtube.youtube_channel_enrich",
     "scripts.datasources.jurisdiction_pilot.website_elections",
     "scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions",
 )

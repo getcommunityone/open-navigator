@@ -167,7 +167,7 @@ def _maybe_enrich_rows(
     cookies_file: str | None,
     sleep: float,
 ) -> None:
-    from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel
+    from scrapers.youtube.youtube_channel_enrich import enrich_channel
 
     session = requests.Session()
     for raw in rows:

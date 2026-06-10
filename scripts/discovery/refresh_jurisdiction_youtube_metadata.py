@@ -32,7 +32,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel
+from scrapers.youtube.youtube_channel_enrich import enrich_channel
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
 from scripts.discovery.int_youtube_channel_metadata import (
     row_needs_youtube_metadata_refresh,

@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from typing import Any, Sequence
 
-from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (
+from scrapers.youtube.youtube_channel_enrich import (
     _GOV_TITLE_KEYWORDS,
     _MEETING_TITLE_KEYWORDS,
     _jurisdiction_name_tokens,

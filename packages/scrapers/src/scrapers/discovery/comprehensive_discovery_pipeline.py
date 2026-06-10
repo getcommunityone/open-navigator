@@ -39,7 +39,7 @@ from pathlib import Path
 
 from .url_discovery_agent import URLDiscoveryAgent
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
-from scripts.datasources.social_media.social_media_discovery import SocialMediaDiscovery
+from scrapers.discovery.social_media_discovery import SocialMediaDiscovery
 from .platform_detector import detect_platform
 from scrapers.wikidata.wikidata_integration import WikidataQuery
 import httpx

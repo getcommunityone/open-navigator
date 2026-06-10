@@ -42,7 +42,7 @@ from scripts.discovery.int_youtube_channel_metadata import (  # noqa: E402
     update_jurisdiction_youtube_row,
 )
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
-from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel  # noqa: E402
+from scrapers.youtube.youtube_channel_enrich import enrich_channel  # noqa: E402
 
 import requests
 

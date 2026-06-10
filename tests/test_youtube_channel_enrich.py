@@ -1,6 +1,6 @@
 """Tests for YouTube channel About-page enrichment."""
 
-from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (
+from scrapers.youtube.youtube_channel_enrich import (
     jurisdiction_website_back_links,
     score_official_meeting_channel,
 )
