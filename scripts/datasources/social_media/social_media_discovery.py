@@ -26,7 +26,7 @@ import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
-from scripts.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+from scrapers.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
 
 
 class SocialMediaDiscovery:

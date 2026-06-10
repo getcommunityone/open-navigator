@@ -42,7 +42,7 @@ from scripts.discovery.meetings_platform_heuristics import (
     is_trusted_offsite,
     is_vendor_meeting_page_url,
 )
-from scripts.discovery.meetings_playwright_fetch import (
+from scrapers.discovery.meetings_playwright_fetch import (
     fetch_resource_bytes_via_playwright,
     httpx_status_should_try_playwright,
     playwright_fallback_enabled,

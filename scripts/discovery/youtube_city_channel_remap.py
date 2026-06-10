@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping, Optional
 
-from scripts.discovery.youtube_channel_verification import (
+from scrapers.discovery.youtube_channel_verification import (
     _looks_like_city_channel_for_county,
 )
 from core_lib.jurisdictions.jurisdiction_id import normalize_place_label_for_slug

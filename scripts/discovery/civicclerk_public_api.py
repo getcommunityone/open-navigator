@@ -207,7 +207,7 @@ def event_anchor_text(
     """Title for PDF naming; calendar date belongs in the filename prefix, not repeated here."""
     from datetime import date as _date
 
-    from scripts.discovery.meeting_document_naming import strip_redundant_meeting_date_from_title
+    from scrapers.discovery.meeting_document_naming import strip_redundant_meeting_date_from_title
 
     name = str(pf.get("name") or "").strip()
     if meeting_date and isinstance(meeting_date, _date):

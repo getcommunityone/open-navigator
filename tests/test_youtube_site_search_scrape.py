@@ -182,7 +182,7 @@ async def test_playwright_fallback_renders_js_search_results(monkeypatch):
 
     import sys
 
-    monkeypatch.setitem(sys.modules, "scripts.discovery.meetings_playwright_fetch", fake_module)
+    monkeypatch.setitem(sys.modules, "scrapers.discovery.meetings_playwright_fetch", fake_module)
 
     channels = await discovery._scrape_website_for_channels("https://example.gov/")
 
@@ -229,7 +229,7 @@ async def test_playwright_fallback_skipped_when_httpx_finds_links(monkeypatch):
 
     import sys
 
-    monkeypatch.setitem(sys.modules, "scripts.discovery.meetings_playwright_fetch", fake_module)
+    monkeypatch.setitem(sys.modules, "scrapers.discovery.meetings_playwright_fetch", fake_module)
 
     channels = await discovery._scrape_website_for_channels("https://example.gov/")
 

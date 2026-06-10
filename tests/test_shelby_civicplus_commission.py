@@ -14,7 +14,7 @@ from scripts.datasources.jurisdiction_pilot.website_civicplus_meetings import (
     extract_civicplus_agenda_center_items,
     scrape_civicplus_meetings,
 )
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_civicplus_commission_member_list_contacts_from_html,
     extract_structured_contacts_from_html,
 )

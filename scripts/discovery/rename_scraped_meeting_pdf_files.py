@@ -5,7 +5,7 @@ into the ``{calendar_year}/`` folder that matches the meeting date (or URL fallb
 ``pdfs[].path`` / ``pdfs[].year`` inside each ``_manifest.json``, and by default remove leftover
 ``filedownload_<sha256(url)[:14]>.pdf`` copies once the manifest already points at the canonical file.
 
-Uses the same logic as live scraping (:mod:`scripts.discovery.meeting_document_naming`).
+Uses the same logic as live scraping (:mod:`scrapers.discovery.meeting_document_naming`).
 
 Examples::
 
@@ -32,7 +32,7 @@ _root = Path(__file__).resolve().parents[2]
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-from scripts.discovery.meeting_document_naming import (
+from scrapers.discovery.meeting_document_naming import (
     allocate_unique_pdf_path,
     infer_year_hint_from_url,
     legacy_sha14_pdf_candidate,

@@ -103,7 +103,7 @@ def infer_meeting_date_from_path(path: Path) -> Optional[str]:
     if compact:
         return f"{compact.group(1)}-{compact.group(2)}-{compact.group(3)}"
     try:
-        from scripts.discovery.meeting_document_naming import pick_meeting_date
+        from scrapers.discovery.meeting_document_naming import pick_meeting_date
 
         d, _ = pick_meeting_date(url="", anchor=stem.replace("_", " "))
         return d.isoformat() if d else None

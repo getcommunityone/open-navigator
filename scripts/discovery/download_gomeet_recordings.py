@@ -66,7 +66,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from loguru import logger
 
-from scripts.discovery.meeting_document_naming import (
+from scrapers.discovery.meeting_document_naming import (
     clean_anchor_text,
     infer_calendar_folder_year,
     pdf_meeting_title,
@@ -142,7 +142,7 @@ def build_gomeet_video_stem_and_year(url: str, anchor_text: str, *, fallback_yea
     """
     Calendar-year folder (string) + yt-dlp stem ``YYYY-MM-DD_title_snake`` / ``{year}_…`` / ``undated_…``.
 
-    Aligns with :func:`scripts.discovery.meeting_document_naming.build_meeting_pdf_disk_filename`
+    Aligns with :func:`scrapers.discovery.meeting_document_naming.build_meeting_pdf_disk_filename`
     prefixes without embedding ``doc_type``.
     """
     anchor = clean_anchor_text(anchor_text)

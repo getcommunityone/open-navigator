@@ -40,7 +40,7 @@ from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E40
 from scripts.discovery.int_youtube_channel_metadata import cache_from_enriched_row  # noqa: E402
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
 from scripts.discovery.youtube_channel_purpose import classify_channel_purpose  # noqa: E402
-from scripts.discovery.youtube_channel_verification import (  # noqa: E402
+from scrapers.discovery.youtube_channel_verification import (  # noqa: E402
     DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,
     rejection_reason_for_channel,
 )

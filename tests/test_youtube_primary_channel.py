@@ -1,6 +1,6 @@
 """Primary YouTube channel selection from discovery payloads."""
 
-from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel
+from scrapers.discovery.youtube_primary_channel import pick_primary_youtube_channel
 
 
 def test_pick_primary_prefers_official_meeting_confidence():

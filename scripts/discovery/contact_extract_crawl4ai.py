@@ -3,7 +3,7 @@
 LLM-backed contact-directory extraction via `crawl4ai` + Groq.
 
 Standalone alternative to the heuristic extractor in
-``scripts.discovery.contact_extract_from_html`` for pages whose roster is
+``scrapers.discovery.contact_extract_from_html`` for pages whose roster is
 prose-shaped (e.g. ``https://applingcountyga.org/?page_id=1464``: "L – R
 Standing — County Manager Reid Lovett; Commissioner Daryl Edwards, District 3;
 …"). Renders the page in a headless browser, hands the LLM the cleaned

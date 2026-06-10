@@ -177,7 +177,7 @@ def _profile_image_url_is_plugin_or_ui_chrome(url: str) -> bool:
 
 def _profile_image_url_is_brand_or_chrome(url: str) -> bool:
     """Sitewide logos, favicons, and header marks — not official portrait photos."""
-    from scripts.discovery.contact_extract_from_html import is_decorative_profile_image_url
+    from scrapers.discovery.contact_extract_from_html import is_decorative_profile_image_url
 
     if _profile_image_url_is_plugin_or_ui_chrome(url):
         return True
@@ -368,7 +368,7 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     Sources: JSON-LD ``Person`` ``image``; ``<img>`` near headings / portrait-ish classes.
     """
     from bs4 import BeautifulSoup
-    from scripts.discovery.contact_extract_from_html import (
+    from scrapers.discovery.contact_extract_from_html import (
         extract_caboose_background_profile_jobs,
         extract_caboose_flex_grid_profile_jobs,
         extract_centreville_big_box_profile_background_profile_jobs,
@@ -438,7 +438,7 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
             continue
         _json_ld_collect_person_images(data, page_url, out, seen_url, max_jobs=max_jobs)
 
-    from scripts.discovery.contact_extract_from_html import (
+    from scrapers.discovery.contact_extract_from_html import (
         _iter_elementor_official_bands,
         _parse_elementor_official_band,
     )
@@ -529,7 +529,7 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     for img in soup.find_all("img"):
         if len(out) >= max_jobs:
             break
-        from scripts.discovery.contact_extract_from_html import _tag_inside_wp_caption
+        from scrapers.discovery.contact_extract_from_html import _tag_inside_wp_caption
 
         if _tag_inside_wp_caption(img):
             continue
@@ -541,7 +541,7 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
                 continue
         if img.find_parent("div", class_=lambda c: c and "et_pb_team_member" in " ".join(c)):
             continue
-        from scripts.discovery.contact_extract_from_html import _parse_infomedia_official_paragraph
+        from scrapers.discovery.contact_extract_from_html import _parse_infomedia_official_paragraph
 
         infomedia_p = img.find_parent("p")
         if infomedia_p is not None and _parse_infomedia_official_paragraph(infomedia_p, page_url):

@@ -81,7 +81,7 @@ Goals:
 
     ``{root}/{state}/{jurisdiction_type}/{jurisdiction_id}/{year}/``
 
-  where ``{year}`` is the **meeting calendar year** when :func:`~scripts.discovery.meeting_document_naming.pick_meeting_date`
+  where ``{year}`` is the **meeting calendar year** when :func:`~scrapers.discovery.meeting_document_naming.pick_meeting_date`
   can infer a date from anchor text / ``FileName=`` / URL (aligned with readable filenames); otherwise the same URL-only
   ``20xx`` heuristics as before, falling back to the scrape-time calendar year.
 
@@ -245,7 +245,7 @@ from scripts.utils.gdrive_paths import (
     scraped_meetings_root_resolution_note,
 )
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _normalize_http_url_path_encoding
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_caboose_person_detail_urls_from_html,
     extract_civicplus_directory_detail_urls_from_html,
     extract_contacts_from_page,
@@ -263,7 +263,7 @@ from scripts.discovery.contact_profile_images import (
 )
 from scripts.discovery.jurisdiction_contact_seed_urls import merged_contact_seed_urls
 from scripts.discovery.jurisdiction_meeting_seed_urls import merged_meeting_seed_urls
-from scripts.discovery.meeting_document_naming import (
+from scrapers.discovery.meeting_document_naming import (
     allocate_unique_pdf_path,
     infer_calendar_folder_year,
     meeting_document_storage_suffix,
@@ -291,13 +291,13 @@ from scripts.discovery.meetings_sitemap_discovery import (
     SitemapPersistConfig,
     discover_meeting_candidate_urls_from_sitemaps,
 )
-from scripts.discovery.meetings_playwright_fetch import (
+from scrapers.discovery.meetings_playwright_fetch import (
     fetch_html_via_playwright,
     httpx_status_should_try_playwright,
     playwright_fallback_enabled,
     print_agenda_html_page_to_pdf_via_playwright,
 )
-from scripts.discovery.scrape_http import async_get_with_vpn_bypass
+from scrapers.discovery.scrape_http import async_get_with_vpn_bypass
 
 try:
     import psycopg2
@@ -3017,7 +3017,7 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                         result.errors.append(f"snapshot_readable_build:{txt_path}:{exc!r}")
                     else:
                         try:
-                            from scripts.scraping.crawl_llm_sidecar import (
+                            from scrapers.discovery.crawl_llm_sidecar import (
                                 maybe_extract_after_readable_txt,
                             )
 

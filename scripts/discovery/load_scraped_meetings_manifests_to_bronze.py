@@ -53,7 +53,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc,assignment]
 
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
-from scripts.discovery.meeting_document_naming import (
+from scrapers.discovery.meeting_document_naming import (
     date_from_url_query,
     pdf_meeting_title as _pdf_meeting_title,
     pick_meeting_date as _pick_meeting_date,

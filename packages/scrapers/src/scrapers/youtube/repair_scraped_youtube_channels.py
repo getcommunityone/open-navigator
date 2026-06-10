@@ -143,7 +143,7 @@ def collect_verified_from_gemini_cache(
 def collect_verified_from_bronze_events(conn) -> dict[str, VerifiedChannel]:
     """Map canonical ``jurisdiction_id`` → channel with most cataloged videos."""
     from core_lib.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
-    from scripts.discovery.youtube_channel_verification import (
+    from scrapers.discovery.youtube_channel_verification import (
         qualifies_for_bronze_jurisdiction_youtube,
     )
 
@@ -196,7 +196,7 @@ def collect_verified_from_bronze_events(conn) -> dict[str, VerifiedChannel]:
 
 
 def _best_non_pattern_from_payload(payload: dict | None) -> VerifiedChannel | None:
-    from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel
+    from scrapers.discovery.youtube_primary_channel import pick_primary_youtube_channel
 
     channels = []
     for ch in (payload or {}).get("youtube_channels") or []:

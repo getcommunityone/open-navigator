@@ -13,17 +13,13 @@ from scrapers.youtube.pattern_match_gate import (
     is_pattern_match_discovery,
     passes_pattern_match_gate,
 )
-from scripts.discovery.youtube_channel_purpose import (
-    classify_channel_purpose_from_row,
-    has_government_channel_signal,
-    has_meeting_purpose_signal,
-    is_meeting_primary_purpose,
-    is_tv_public_channel,
-    looks_like_non_government_channel,
-    min_confidence_for_purpose,
-    purpose_requires_explicit_meeting,
-    title_indicates_meeting_channel,
-)
+
+# NOTE: ``scripts.discovery.youtube_channel_purpose`` is a KEEP-in-scripts discovery
+# util (not part of this port round). It is import-clean (depends only on
+# ``scrapers.*``), but a packages/ module must not carry a top-level ``import
+# scripts.*``, so the symbols below are imported lazily inside each consuming
+# function. FOLLOW-UP: port ``youtube_channel_purpose`` into ``scrapers.discovery``
+# and replace these function-local imports with a single relative import.
 
 # Default bar for canonical table (override via env in pilot runner).
 DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE = 0.55
@@ -107,6 +103,11 @@ def _has_strong_gov_channel_signal(
     jurisdiction_name: str = "",
 ) -> bool:
     """Stricter than ``has_government_channel_signal`` — bare ``Franklin County`` is not enough."""
+    from scripts.discovery.youtube_channel_purpose import (  # noqa: E402
+        has_meeting_purpose_signal,
+        title_indicates_meeting_channel,
+    )
+
     title = channel_title or ""
     desc = channel_description or ""
     if title_indicates_meeting_channel(title):
@@ -150,6 +151,15 @@ def rejection_reason_for_channel(
     Return a short reason string when *row* must not enter the canonical table,
     or ``None`` when it qualifies.
     """
+    from scripts.discovery.youtube_channel_purpose import (  # noqa: E402
+        classify_channel_purpose_from_row,
+        has_government_channel_signal,
+        has_meeting_purpose_signal,
+        looks_like_non_government_channel,
+        min_confidence_for_purpose,
+        purpose_requires_explicit_meeting,
+    )
+
     if qualifies_for_bronze_jurisdiction_youtube(
         row,
         jurisdiction_type=jurisdiction_type,
@@ -254,6 +264,15 @@ def qualifies_for_bronze_jurisdiction_youtube(
     min_confidence: float = DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,
 ) -> bool:
     """True when a channel row should upsert into ``intermediate.int_events_channels``."""
+    from scripts.discovery.youtube_channel_purpose import (  # noqa: E402
+        classify_channel_purpose_from_row,
+        has_government_channel_signal,
+        has_meeting_purpose_signal,
+        looks_like_non_government_channel,
+        min_confidence_for_purpose,
+        purpose_requires_explicit_meeting,
+    )
+
     conf = float(row.get("official_meeting_confidence") or 0.0)
     method = str(row.get("discovery_method") or "").strip().lower()
     title = str(row.get("channel_title") or "").strip().lower()
@@ -418,6 +437,10 @@ def _looks_like_city_channel_for_county(
     ``@CityOfBaxley``-style handles. PA townships often say ``Board of Commissioners``
     in the description — title-level township/borough signals win over that.
     """
+    from scripts.discovery.youtube_channel_purpose import (  # noqa: E402
+        is_tv_public_channel,
+    )
+
     title = str(row.get("channel_title") or "")
     desc = str(row.get("channel_description") or "")
     blob = f"{title} {desc}".lower()

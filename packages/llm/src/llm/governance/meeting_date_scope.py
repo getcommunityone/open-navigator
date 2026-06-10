@@ -441,7 +441,7 @@ def infer_meeting_date_for_file(path: Path, raw_root: Path) -> Optional[str]:
             if d:
                 return d
             try:
-                from scripts.discovery.meeting_document_naming import pick_meeting_date
+                from scrapers.discovery.meeting_document_naming import pick_meeting_date
 
                 picked, _ = pick_meeting_date(
                     url=row.url,

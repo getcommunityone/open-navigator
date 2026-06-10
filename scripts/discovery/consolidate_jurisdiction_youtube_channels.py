@@ -33,7 +33,7 @@ from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E40
 )
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
 from scripts.discovery.int_youtube_channel_metadata import metadata_dict_for_channel  # noqa: E402
-from scripts.discovery.youtube_channel_verification import (  # noqa: E402
+from scrapers.discovery.youtube_channel_verification import (  # noqa: E402
     DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,
     events_catalog_auto_confidence_cap,
     qualifies_for_bronze_jurisdiction_youtube,

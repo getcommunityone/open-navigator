@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_civicplus_bio_detail_contacts_from_html,
     extract_civicplus_directory_detail_urls_from_html,
     extract_civicplus_mayor_council_roster_contacts_from_html,

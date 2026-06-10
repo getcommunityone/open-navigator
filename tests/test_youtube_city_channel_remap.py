@@ -6,7 +6,7 @@ from scripts.discovery.youtube_city_channel_remap import (
     parse_place_kind_from_channel,
     _handle_to_place_name,
 )
-from scripts.discovery.youtube_channel_verification import (
+from scrapers.discovery.youtube_channel_verification import (
     _looks_like_city_channel_for_county,
 )
 

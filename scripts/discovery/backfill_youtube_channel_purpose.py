@@ -22,7 +22,7 @@ if str(_ROOT) not in sys.path:
 
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
 from scripts.discovery.youtube_channel_purpose import classify_channel_purpose
-from scripts.discovery.youtube_channel_verification import (
+from scrapers.discovery.youtube_channel_verification import (
     qualifies_for_bronze_jurisdiction_youtube,
 )
 

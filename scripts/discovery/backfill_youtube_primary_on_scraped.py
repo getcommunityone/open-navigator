@@ -20,7 +20,7 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
-from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel
+from scrapers.discovery.youtube_primary_channel import pick_primary_youtube_channel
 
 _COUNTIES_TABLE = "bronze.bronze_jurisdictions_counties_scraped"
 _MUNICIPALITIES_TABLE = "bronze.bronze_jurisdictions_municipalities_scraped"

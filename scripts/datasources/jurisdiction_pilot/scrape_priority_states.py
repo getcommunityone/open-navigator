@@ -126,14 +126,14 @@ from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E40
     insert_bronze_jurisdiction_youtube_candidates,
     upsert_bronze_jurisdiction_youtube_verified,
 )
-from scripts.discovery.youtube_channel_verification import (  # noqa: E402
+from scrapers.discovery.youtube_channel_verification import (  # noqa: E402
     DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,
     rejection_reason_for_channel,
 )
 from scripts.discovery.sync_youtube_primary_from_jurisdiction_youtube import (  # noqa: E402
     sync_primary_youtube_to_scraped,
 )
-from scripts.discovery.youtube_primary_channel import (  # noqa: E402
+from scrapers.discovery.youtube_primary_channel import (  # noqa: E402
     _channel_url,
     pick_primary_youtube_channel,
 )
@@ -141,7 +141,7 @@ from scrapers.youtube.youtube_channel_page import canonical_channel_url  # noqa:
 from scripts.discovery.contact_directory_heuristics import (  # noqa: E402
     classify_contact_directory_page,
 )
-from scripts.discovery.contact_extract_from_html import (  # noqa: E402
+from scrapers.discovery.contact_extract_from_html import (  # noqa: E402
     extract_civicplus_commission_profile_urls_from_html,
     extract_structured_contacts_from_html,
 )
@@ -612,7 +612,7 @@ def _enrich_contact_rows_from_profile_pages(
 ) -> list[dict[str, Any]]:
     profile_urls: list[str] = []
     seen_profile: set[str] = set()
-    from scripts.discovery.contact_extract_from_html import _COUNTY_COMMISSION_PAGE_RE
+    from scrapers.discovery.contact_extract_from_html import _COUNTY_COMMISSION_PAGE_RE
 
     for page_url, html in html_by_url.items():
         if not _COUNTY_COMMISSION_PAGE_RE.search(page_url):

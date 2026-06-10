@@ -1,6 +1,6 @@
 """Tests for VPN/proxy bypass retry helpers."""
 
-from scripts.discovery.scrape_http import (
+from scrapers.discovery.scrape_http import (
     is_scrape_transport_or_vpn_failure,
     scrape_vpn_bypass_retry_enabled,
 )

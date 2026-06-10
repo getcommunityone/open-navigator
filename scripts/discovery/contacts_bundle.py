@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     dedupe_structured_contact_rows,
     is_city_council_person_row,
     is_generic_mailbox_email,
@@ -188,7 +188,7 @@ def build_contacts_bundle(
     person_rows: List[Dict[str, Any]] = []
     for row in rows:
         normalize_structured_contact_row(row)
-        from scripts.discovery.contact_extract_from_html import infer_profile_url_from_source_page
+        from scrapers.discovery.contact_extract_from_html import infer_profile_url_from_source_page
 
         infer_profile_url_from_source_page(row)
         if str(row.get("contact_scope") or "").strip().lower() == "department":

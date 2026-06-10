@@ -4,7 +4,7 @@ from scrapers.youtube.pattern_match_gate import (
     passes_pattern_match_gate,
     references_state,
 )
-from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel
+from scrapers.discovery.youtube_primary_channel import pick_primary_youtube_channel
 
 
 def test_references_state_usps_and_name():

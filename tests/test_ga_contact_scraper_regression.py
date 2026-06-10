@@ -27,7 +27,7 @@ from urllib.parse import urljoin, urlparse
 import pytest
 
 from scripts.discovery.contact_directory_heuristics import classify_contact_directory_page
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_structured_contacts_from_html,
     infer_profile_url_from_source_page,
 )

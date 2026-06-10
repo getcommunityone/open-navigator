@@ -37,14 +37,14 @@ import os
 import sys
 from pathlib import Path
 
-from scripts.discovery.url_discovery_agent import URLDiscoveryAgent
+from .url_discovery_agent import URLDiscoveryAgent
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 from scripts.datasources.social_media.social_media_discovery import SocialMediaDiscovery
-from scripts.discovery.platform_detector import detect_platform
+from .platform_detector import detect_platform
 from scrapers.wikidata.wikidata_integration import WikidataQuery
 import httpx
 
-from scripts.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+from .scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
 
 
 class ComprehensiveDiscoveryPipeline:

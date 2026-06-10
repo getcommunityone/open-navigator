@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_infomedia_official_paragraph_contacts_from_html,
     extract_structured_contacts_from_html,
 )
