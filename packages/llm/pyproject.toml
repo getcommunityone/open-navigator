@@ -16,6 +16,7 @@ dependencies = [
     "sentence-transformers>=2.2",
     "scikit-learn>=1.3",  # provides native sklearn.cluster.HDBSCAN
     "numpy>=1.24",
+    "datasketch>=1.6",  # MinHash/LSH near-duplicate (model-bill) detection in cluster_bills
 ]
 
 [tool.setuptools.packages.find]
