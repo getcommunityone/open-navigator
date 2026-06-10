@@ -400,14 +400,16 @@ export default function Home() {
     queryKey: ['hero-category-counts', debouncedKeyword, location?.state, searchScope],
     queryFn: async () => {
       const hasKw = debouncedKeyword.length >= 2
-      // Browse mode (no keyword): only meetings + decisions need a live count —
-      // they have no catalog-rollup field in /stats, so without this they render
-      // blank. Both are small marts with real, uncapped COUNT helpers server-side,
-      // so this is cheap; the other categories use the /stats rollup in browse.
+      // Browse mode (no keyword): meetings, decisions + transcripts need a live
+      // count — they have no catalog-rollup field in /stats, so without this they
+      // render blank. All three have real, uncapped COUNT helpers server-side
+      // (count_events / count_decisions / count_documents, the last GIN-index-
+      // backed + 1h-cached), so this stays cheap; the other categories use the
+      // /stats rollup in browse.
       const params: any = {
         types: hasKw
           ? 'meetings,decisions,leaders,organizations,causes,bills,grants,documents'
-          : 'meetings,decisions',
+          : 'meetings,decisions,documents',
         limit: HERO_COUNT_QUERY_LIMIT,
       }
       if (hasKw) params.q = debouncedKeyword
@@ -452,11 +454,13 @@ export default function Home() {
     const hasQuery = debouncedKeyword.length >= 2
 
     // 1. Live, query-scoped count (preferred whenever a query is active).
-    // meetings + decisions get a REAL, uncapped server COUNT (count_events /
-    // count_decisions over the small event_meeting/event_decision marts) and have
-    // no usable /stats rollup field, so use their live count even in browse mode.
+    // meetings, decisions + transcripts get a REAL, uncapped server COUNT
+    // (count_events / count_decisions / count_documents over the small
+    // event_meeting/event_decision/event_documents marts) and have no usable
+    // /stats rollup field, so use their live count even in browse mode.
     const liveKey = HERO_LIVE_TOTAL_KEY[cat.id]
-    const isRealCount = cat.id === 'meetings' || cat.id === 'decisions'
+    const isRealCount =
+      cat.id === 'meetings' || cat.id === 'decisions' || cat.id === 'transcripts'
     if ((hasQuery || isRealCount) && liveKey) {
       const totals = categoryCountsData?.type_totals as Record<string, number | undefined> | undefined
       const live = totals?.[liveKey]
