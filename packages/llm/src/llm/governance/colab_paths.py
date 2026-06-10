@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-# Single hackathon pipeline root (must match ``scripts/utils/gdrive_paths.py``).
+# Single hackathon pipeline root (must match ``core_lib.gdrive_paths``).
 HACKATHON_PIPELINE_ROOT_REL = Path("CommunityOne") / "hackathons" / "2026_Gemma_4_Good"
 
 
@@ -67,7 +67,7 @@ def setup_notebook_paths(mount_point: str = "/content/drive") -> NotebookLayoutP
     """
     Resolve repo root and the governance pipeline data directory.
 
-    - **project_path** — ``open-navigator`` root (prompts, ``scripts.utils.gdrive_paths``, etc.).
+    - **project_path** — ``open-navigator`` root (prompts, ``core_lib.gdrive_paths``, etc.).
     - **governance_pipeline_data** — hackathon root with ``01_raw_inputs``, ``02_reference_data``,
       ``03_processed_outputs``:
 
@@ -97,7 +97,7 @@ def setup_notebook_paths(mount_point: str = "/content/drive") -> NotebookLayoutP
     if explicit:
         return NotebookLayoutPaths(False, repo, Path(explicit).expanduser().resolve())
     # Local/WSL: prefer mounted Google Drive (same folder as Colab) when present.
-    from scripts.utils.gdrive_paths import resolve_governance_pipeline_data_root
+    from core_lib.gdrive_paths import resolve_governance_pipeline_data_root
 
     pipeline_root = resolve_governance_pipeline_data_root()
     return NotebookLayoutPaths(False, repo, pipeline_root.resolve())

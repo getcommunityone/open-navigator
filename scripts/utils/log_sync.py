@@ -9,7 +9,7 @@ Logs land at:
   <gdrive_root>/CommunityOne/open-navigator-logs/<machine_id>/<run_type>/<run_id>/
 
 For governance / Gemma pipeline folder layout (``01_raw_inputs``, ``02_reference_data/orbis_files``,
-``03_processed_outputs/...``), see ``GovernancePipelinePaths`` in ``scripts/utils/gdrive_paths.py`` and
+``03_processed_outputs/...``), see ``GovernancePipelinePaths`` in ``core_lib.gdrive_paths`` and
 ``scripts/utils/ensure_governance_pipeline_drive_layout.py``.
 
 Configuration (env vars — all optional):
@@ -26,11 +26,19 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 from pathlib import Path
 
 from loguru import logger
 
-from scripts.utils.gdrive_paths import gdrive_mount_path
+# ``gdrive_paths`` was ported to ``core_lib``; ensure it resolves when this module is
+# imported as a bare script (repo root on path but workspace not editable-installed).
+_repo_root = Path(__file__).resolve().parents[2]
+_core_lib_src = _repo_root / "packages" / "core-lib" / "src"
+if str(_core_lib_src) not in sys.path:
+    sys.path.insert(0, str(_core_lib_src))
+
+from core_lib.gdrive_paths import gdrive_mount_path
 
 
 GDRIVE_MOUNT = gdrive_mount_path()
