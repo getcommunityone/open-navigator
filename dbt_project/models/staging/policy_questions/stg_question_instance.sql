@@ -44,6 +44,20 @@ normalized as (
                          or outcome_raw ilike '%elected%' then 'approved'
                     else 'other'
                 end
+            when source_type = 'state_bill' then
+                case
+                    when outcome_raw is null then 'pending'
+                    when outcome_raw ilike '%enact%' or outcome_raw ilike '%assigned act%'
+                         or outcome_raw ilike '%became law%' or outcome_raw ilike '%signed by%'
+                         or outcome_raw ilike '%approved by the governor%' then 'enacted'
+                    when outcome_raw ilike '%veto%' then 'vetoed'
+                    when outcome_raw ilike '%indefinitely postpone%'
+                         or outcome_raw ilike '%postponed indefinitely%' then 'failed'
+                    when outcome_raw ilike '%carried over%' then 'carried_over'
+                    when outcome_raw ilike '%died%' or outcome_raw ilike '%failed%'
+                         or outcome_raw ilike '%rejected%' then 'died_in_committee'
+                    else 'pending'
+                end
             else 'pending'
         end as outcome_normalized
     from src

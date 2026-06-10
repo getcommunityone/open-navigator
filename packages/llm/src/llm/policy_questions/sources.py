@@ -68,3 +68,76 @@ def embed_text_for(row: Dict[str, Any]) -> str:
             if isinstance(pd, str) and pd.strip():
                 parts.append(pd.strip())
     return "\n".join(parts)[:2000]
+
+
+# --- state bills (Phase 2) -------------------------------------------------
+
+# gold.bills joined to bronze abstracts (only ~40% of bills carry an abstract).
+_BILLS_SQL = """
+select
+    b.bill_uid,
+    b.identifier,
+    b.title,
+    b.subject,
+    b.state_code,
+    b.session_identifier,
+    b.latest_action_date,
+    b.latest_action_description,
+    br.abstracts
+from gold.bills b
+left join bronze.bronze_bills_openstates br on br.ocd_bill_id = b.ocd_bill_id
+where b.state_code = %s
+"""
+
+
+def _subject_text(subject: Any) -> str:
+    subject = _as_obj(subject)
+    if isinstance(subject, list):
+        return " ".join(str(s) for s in subject if s)
+    return ""
+
+
+def _abstract_text(abstracts: Any) -> str:
+    abstracts = _as_obj(abstracts)
+    if isinstance(abstracts, list):
+        out = []
+        for a in abstracts:
+            if isinstance(a, dict) and a.get("abstract"):
+                out.append(str(a["abstract"]))
+            elif isinstance(a, str):
+                out.append(a)
+        return " ".join(out)
+    return ""
+
+
+def load_bills(conn, state_code: str = "AL") -> List[Dict[str, Any]]:
+    with conn.cursor() as cur:
+        cur.execute(_BILLS_SQL, (state_code,))
+        cols = [c.name for c in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    out = []
+    for r in rows:
+        r["source_type"] = STATE_BILL
+        r["source_id"] = r["bill_uid"]
+        r["subject_text"] = _subject_text(r.get("subject"))
+        r["abstract_text"] = _abstract_text(r.get("abstracts"))
+        r["jurisdiction_name"] = r.get("state_code")  # state-grain
+        out.append(r)
+    return out
+
+
+def embed_text_for_bill(row: Dict[str, Any]) -> str:
+    """Text used to embed a bill: title + abstract + subject tags."""
+    parts: List[str] = []
+    if row.get("title"):
+        parts.append(str(row["title"]).strip())
+    if row.get("abstract_text"):
+        parts.append(row["abstract_text"].strip())
+    if row.get("subject_text"):
+        parts.append(row["subject_text"].strip())
+    return "\n".join(parts)[:2000]
+
+
+def shingle_text_for_bill(row: Dict[str, Any]) -> str:
+    """Text for MinHash near-duplicate detection (literal model-bill copies)."""
+    return f"{row.get('title') or ''} {row.get('abstract_text') or ''}".lower().strip()
