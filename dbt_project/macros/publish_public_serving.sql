@@ -277,8 +277,16 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
     {%- set chk = run_query("select to_regclass('gold." ~ q ~ "') as r") -%}
     {%- if chk and chk.rows and chk.rows[0][0] is not none -%}
       {%- set body = projections.get(name, "select * from gold." ~ q) -%}
-      {#- Idempotent: a prior materialize run may have left a TABLE here. -#}
-      {%- do run_query("drop table if exists public." ~ q ~ " cascade") -%}
+      {#- Idempotent: a prior materialize run may have left a TABLE here. Only
+          DROP TABLE when the public relation is actually a base table — issuing
+          `drop table` against an existing VIEW raises
+          "<x> is not a table. HINT: Use DROP VIEW to remove a view." and aborts
+          the on-run-end hook. A pre-existing view is handled by the subsequent
+          CREATE OR REPLACE VIEW (no drop needed). -#}
+      {%- set kind = run_query("select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = '" ~ name ~ "'") -%}
+      {%- if kind and kind.rows and kind.rows[0][0] in ('r', 'p') -%}
+        {%- do run_query("drop table if exists public." ~ q ~ " cascade") -%}
+      {%- endif -%}
       {%- do run_query("create or replace view public." ~ q ~ " as " ~ body) -%}
       {%- if name in projections -%}{%- do redacted.append(name) -%}{%- else -%}{%- do created.append(name) -%}{%- endif -%}
     {%- else -%}

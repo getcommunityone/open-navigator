@@ -67,6 +67,13 @@ events as (
         jurisdiction_type,
         city
     from {{ source('civic_core', 'civic_event') }}
+),
+
+-- Parent guard: only emit child rows whose analysis_id has a matching
+-- event_meeting parent (satisfies the enforced FK; analysis-cache -> bronze
+-- promotion can leave orphan child extractions without a meeting-level row).
+meeting_keys as (
+    select event_meeting_id from {{ ref('event_meeting') }}
 )
 
 select
@@ -100,5 +107,6 @@ select
     p.extracted_at
 
 from persons p
+join meeting_keys mk on mk.event_meeting_id = p.source_event_id
 left join analysis a on a.analysis_id    = p.source_event_id
 left join events   e on e.legacy_id      = a.legacy_event_id
