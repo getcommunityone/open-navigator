@@ -292,9 +292,22 @@ function MoneyHookZip() {
     setChoices(null)
     setBusy(true)
     try {
-      const res = await api.get(`/geocode/search`, { params: { q: zip, limit: 10 } })
-      const results = Array.isArray(res.data) ? res.data : [res.data]
-      const opts = buildZipChoices(results)
+      const fwd = await api.get(`/geocode/search`, { params: { q: zip, limit: 10 } })
+      const fwdResults = Array.isArray(fwd.data) ? fwd.data : [fwd.data]
+      // Nominatim's forward ZIP lookup often omits the city — but reverse-geocoding
+      // the ZIP centroid reliably returns it. Merge both so we recover every real
+      // city the ZIP touches (e.g. 35406 → Tuscaloosa), then dedupe in buildZipChoices.
+      let revResults: any[] = []
+      const first = fwdResults.find((r) => r?.lat && r?.lon)
+      if (first) {
+        try {
+          const rev = await api.get(`/geocode/reverse`, { params: { lat: first.lat, lon: first.lon } })
+          revResults = Array.isArray(rev.data) ? rev.data : [rev.data]
+        } catch {
+          /* reverse is best-effort */
+        }
+      }
+      const opts = buildZipChoices([...revResults, ...fwdResults])
       if (opts.length === 0) {
         setError("We couldn't find that ZIP. Try another, or use your location.")
         return
@@ -311,15 +324,10 @@ function MoneyHookZip() {
     }
   }
 
+  // The button only works with a valid 5-digit ZIP (or "use my location").
   const handleShow = () => {
-    if (needsChoice) return // wait for the user to pick a place
-    if (zipValid) {
-      void resolveZip()
-    } else if (scope?.state) {
-      setModalOpen(true)
-    } else {
-      setError('Enter your 5-digit ZIP to see your local tax split.')
-    }
+    if (needsChoice || busy) return // waiting on a pick or a lookup
+    if (zipValid) void resolveZip()
   }
 
   const useMyLocation = () => {
@@ -421,8 +429,9 @@ function MoneyHookZip() {
           />
           <button
             onClick={handleShow}
-            disabled={busy || needsChoice}
-            style={{ background: (zipValid || scope?.state) && !needsChoice ? TEAL : '#e7e5e4', color: (zipValid || scope?.state) && !needsChoice ? '#fff' : '#a8a29e', border: 'none', borderRadius: 999, padding: '13px 28px', fontSize: 16.5, fontWeight: 700, cursor: busy || needsChoice ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'background 200ms ease, color 200ms ease' }}
+            disabled={busy || needsChoice || !zipValid}
+            title={!zipValid ? 'Enter your 5-digit ZIP first' : undefined}
+            style={{ background: zipValid && !needsChoice ? TEAL : '#e7e5e4', color: zipValid && !needsChoice ? '#fff' : '#a8a29e', border: 'none', borderRadius: 999, padding: '13px 28px', fontSize: 16.5, fontWeight: 700, cursor: zipValid && !needsChoice && !busy ? 'pointer' : 'default', fontFamily: 'inherit', transition: 'background 200ms ease, color 200ms ease' }}
           >
             {busy ? 'Finding…' : needsChoice ? 'Pick your area first' : 'Show me my money'}
           </button>

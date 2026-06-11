@@ -1015,7 +1015,10 @@ export default function MoneyGameModal({
     return { score: Math.max(0, Math.min(100, 100 - totalError / 2)), totalError }
   }, [revealed, game, guesses])
 
-  const title = data ? `Your ${data.jurisdiction_name} impact` : 'Your local money impact'
+  // Title reflects the user's CHOSEN place (requestedLabel) so it reads e.g.
+  // "Your Tuscaloosa impact" even when the budget data falls back to statewide.
+  const placeName = requestedLabel || data?.jurisdiction_name || null
+  const title = placeName ? `Your ${placeName} impact` : 'Your local money impact'
 
   return (
     <Transition appear show={open} as={Fragment}>
@@ -1068,7 +1071,7 @@ export default function MoneyGameModal({
                 {/* Subtitle — prototype-style, all real data. */}
                 {data && (
                   <p className="mt-1 text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-                    {data.jurisdiction_name}
+                    {placeName || data.jurisdiction_name}
                     {data.state_code ? `, ${data.state_code}` : ''} · starts at the median household —
                     adjust the sliders to make it yours.
                   </p>
