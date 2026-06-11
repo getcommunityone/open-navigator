@@ -152,6 +152,159 @@ class LocalFinanceResponse(BaseModel):
     note: str = ""
 
 
+# ---------------------------------------------------------------------------
+# Effective property-tax rate (ACS B25103 / B25077), for the money modal's
+# personal "your tax bill" estimate. Grain: Census place + county (no state
+# row), so resolution is place → county only; a miss is a 404 (the frontend
+# simply hides the card — no fabricated rate). effective_property_tax_rate is
+# median_real_estate_taxes_paid / median_home_value, both REAL ACS medians.
+# ---------------------------------------------------------------------------
+_PROPTAX_SOURCE = (
+    "U.S. Census Bureau, American Community Survey (ACS) 5-year — median real "
+    "estate taxes paid (B25103) ÷ median home value (B25077)"
+)
+
+_PROPTAX_COLS = """
+    name,
+    state_code,
+    state,
+    geography_type,
+    acs_vintage_year,
+    median_real_estate_taxes_paid,
+    median_home_value,
+    effective_property_tax_rate
+"""
+
+# Place (city) lookup: exact name-stem match first, then tolerant of the stored
+# Census suffix ("Tuscaloosa city, Alabama"). Only rows with a real rate.
+_PROPTAX_PLACE_SQL = f"""
+    SELECT {_PROPTAX_COLS}
+    FROM jurisdiction_property_tax_rate
+    WHERE geography_type = 'place'
+      AND state_code = $1
+      AND effective_property_tax_rate IS NOT NULL
+      AND (lower(name) = lower($2)
+           OR name ILIKE $2 || ' city,%'
+           OR name ILIKE $2 || '%')
+    ORDER BY (name ILIKE $2 || ' city,%') DESC,
+             median_home_value DESC NULLS LAST
+    LIMIT 1
+"""
+
+# County lookup: exact stem, then tolerant of a trailing " County".
+_PROPTAX_COUNTY_SQL = f"""
+    SELECT {_PROPTAX_COLS}
+    FROM jurisdiction_property_tax_rate
+    WHERE geography_type = 'county'
+      AND state_code = $1
+      AND effective_property_tax_rate IS NOT NULL
+      AND (lower(name) = lower($2)
+           OR name ILIKE $2 || ' County,%'
+           OR name ILIKE $2 || '%')
+    ORDER BY (name ILIKE $2 || ' County,%') DESC,
+             median_home_value DESC NULLS LAST
+    LIMIT 1
+"""
+
+
+class PropertyTaxRateResponse(BaseModel):
+    level: str  # "place" | "county"
+    matched: bool  # always True on a 200 (a miss is a 404, never a placeholder)
+    jurisdiction_name: str
+    state_code: str
+    state: str
+    acs_vintage_year: Optional[int] = None
+    # Effective rate as a fraction (e.g. 0.004746 = 0.47%); multiply home value.
+    effective_property_tax_rate: Optional[float] = None
+    median_home_value: Optional[int] = None  # ACS median, a sensible slider default
+    median_real_estate_taxes_paid: Optional[int] = None
+    source: str = _PROPTAX_SOURCE
+    note: str = ""
+
+
+@router.get("/property-tax-rate", response_model=PropertyTaxRateResponse)
+async def get_property_tax_rate(
+    state: str = Query(..., description="2-letter state code (full names accepted)."),
+    city: Optional[str] = Query(None, description="City name (Census place)."),
+    county: Optional[str] = Query(None, description="County name."),
+) -> PropertyTaxRateResponse:
+    """Real effective property-tax rate + median home value for the best place/county.
+
+    Resolution: place (city) → county. Used to estimate a household property-tax
+    bill from a home value. No state-level row exists, so a state-only request
+    (or an unmatched city/county) is a 404 — the caller hides the estimate
+    rather than show an invented rate.
+    """
+    state_code = normalize_state_input(state)
+    if not state_code:
+        raise HTTPException(status_code=400, detail="A valid state code is required.")
+
+    with tracer.start_as_current_span("property-tax-rate") as span:
+        span.set_attribute("property_tax_rate.state_code", state_code)
+        span.set_attribute("property_tax_rate.city", city or "")
+        span.set_attribute("property_tax_rate.county", county or "")
+
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                row = None
+                level = "county"
+
+                if city:
+                    with tracer.start_as_current_span("property-tax-rate-place"):
+                        row = await conn.fetchrow(_PROPTAX_PLACE_SQL, state_code, city)
+                    if row is not None:
+                        level = "place"
+
+                if row is None and county:
+                    with tracer.start_as_current_span("property-tax-rate-county"):
+                        row = await conn.fetchrow(
+                            _PROPTAX_COUNTY_SQL, state_code, county
+                        )
+                    if row is not None:
+                        level = "county"
+
+                if row is None:
+                    span.set_attribute("property_tax_rate.found", False)
+                    raise HTTPException(
+                        status_code=404,
+                        detail="No property-tax rate available for this location.",
+                    )
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("property-tax-rate query failed")
+            span.record_exception(exc)
+            raise HTTPException(
+                status_code=500, detail="Failed to load property-tax rate."
+            ) from exc
+
+        vintage = _int_or_none(row["acs_vintage_year"])
+        note = (
+            f"Effective rate is the ACS median real-estate tax ÷ median home value"
+            + (f" (ACS {vintage} 5-year)." if vintage else ".")
+        )
+        span.set_attribute("property_tax_rate.level", level)
+
+        return PropertyTaxRateResponse(
+            level=level,
+            matched=True,
+            jurisdiction_name=row["name"],
+            state_code=row["state_code"],
+            state=row["state"],
+            acs_vintage_year=vintage,
+            effective_property_tax_rate=_float_or_none(
+                row["effective_property_tax_rate"]
+            ),
+            median_home_value=_int_or_none(row["median_home_value"]),
+            median_real_estate_taxes_paid=_int_or_none(
+                row["median_real_estate_taxes_paid"]
+            ),
+            source=_PROPTAX_SOURCE,
+            note=note,
+        )
+
+
 def _int_or_none(value: object) -> Optional[int]:
     """bigint -> int, pass NULL through (never fabricate 0)."""
     return None if value is None else int(value)

@@ -53,3 +53,34 @@ export async function fetchLocalFinance(params: LocalFinanceParams): Promise<Loc
   const res = await api.get<LocalFinance>('/local-finance', { params: q })
   return res.data
 }
+
+// REAL effective property-tax rate (ACS B25103 ÷ B25077) for the best-matching
+// place/county. A location with no place/county match is a 404 — the caller
+// hides the estimate rather than invent a rate.
+export interface PropertyTaxRate {
+  level: 'place' | 'county'
+  matched: boolean
+  jurisdiction_name: string
+  state_code: string
+  state: string
+  acs_vintage_year: number | null
+  /** Fraction (0.004746 = 0.47%); multiply by home value for the annual bill. */
+  effective_property_tax_rate: number | null
+  /** ACS median home value — a sensible default for the slider. */
+  median_home_value: number | null
+  median_real_estate_taxes_paid: number | null
+  source: string
+  note: string
+}
+
+export async function fetchPropertyTaxRate(
+  params: LocalFinanceParams,
+): Promise<PropertyTaxRate> {
+  const q: Record<string, string> = { state: params.state }
+  if (params.city) q.city = params.city
+  if (params.county) q.county = params.county
+  const res = await api.get<PropertyTaxRate>('/local-finance/property-tax-rate', {
+    params: q,
+  })
+  return res.data
+}

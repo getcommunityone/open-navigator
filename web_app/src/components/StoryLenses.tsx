@@ -255,6 +255,10 @@ interface StoryLensesProps {
   onBrowsePolicyQuestions?: () => void
   /** Invoked by the "Browse causes" button. */
   onBrowseCauses?: () => void
+  /** Real directory counts for the Browse pills (Topics/Causes/Questions).
+   *  Omitted or non-positive values render the pill without a number — we
+   *  never show a fabricated count. */
+  browseCounts?: { topics?: number | null; causes?: number | null; questions?: number | null }
 }
 
 // ---------------------------------------------------------------------------
@@ -677,7 +681,18 @@ function SingleLensBody({
   )
 }
 
-export default function StoryLenses({ locationLabel, stateCode, city, national, query, onSearch, onBrowseTopics, onBrowsePolicyQuestions, onBrowseCauses }: StoryLensesProps) {
+// Small real-count badge for the Browse pills. Renders nothing for a missing or
+// non-positive count, so we never show a fabricated/zero directory number.
+function BrowseCount({ n }: { n?: number | null }) {
+  if (n == null || !Number.isFinite(n) || n <= 0) return null
+  return (
+    <span className="rounded-full bg-white/70 px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums text-[#1a6b6b]">
+      {n.toLocaleString('en-US')}
+    </span>
+  )
+}
+
+export default function StoryLenses({ locationLabel, stateCode, city, national, query, onSearch, onBrowseTopics, onBrowsePolicyQuestions, onBrowseCauses, browseCounts }: StoryLensesProps) {
   const navigate = useNavigate()
   const { isAuthenticated, isLoading: authLoading, user, login } = useAuth()
   // Gate: a visitor must be signed in AND have a completed feed profile to use
@@ -1054,6 +1069,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
               >
                 <span aria-hidden>{'\u{1F5C2}'}</span>
                 Topics
+                <BrowseCount n={browseCounts?.topics} />
               </button>
               <button
                 type="button"
@@ -1062,6 +1078,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
               >
                 <span aria-hidden>{'\u{1F49A}'}</span>
                 Causes
+                <BrowseCount n={browseCounts?.causes} />
               </button>
               <button
                 type="button"
@@ -1070,6 +1087,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
               >
                 <span aria-hidden>{'\u{2696}'}</span>
                 Questions
+                <BrowseCount n={browseCounts?.questions} />
               </button>
             </div>
           </div>

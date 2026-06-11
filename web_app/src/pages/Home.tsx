@@ -43,6 +43,7 @@ import { useAuth } from '../contexts/AuthContext'
 import AddressLookup from '../components/AddressLookup'
 import StoryLenses from '../components/StoryLenses'
 import { MoneyHook, CityAtAGlance, TrendingQuestions } from '../components/HomeMoneyAndSnapshot'
+import { fetchPolicyQuestions } from '../api/policyQuestions'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
 import { formatCommunityPlaceLine } from '../utils/communityLocationLabel'
 
@@ -420,6 +421,31 @@ export default function Home() {
     enabled: true,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
+  })
+
+  // Real directory counts for the StoryLenses "Browse" pills (Topics / Causes /
+  // Questions). Each count matches what its pill opens: topics & causes are the
+  // search type_totals (the same number the /search?types= browse lands on),
+  // questions is the policy-question registry size. State-scoped to match the
+  // pills' destinations. Any failure leaves a count undefined → the pill shows
+  // no number (BrowseCount hides it) rather than a fabricated one.
+  const { data: directoryCounts } = useQuery<{ topics: number | null; causes: number | null; questions: number | null }>({
+    queryKey: ['home-directory-counts', location?.state, searchScope],
+    queryFn: async () => {
+      const params: any = { types: 'topics,causes', limit: 1 }
+      if (location?.state && searchScope !== 'national') params.state = location.state
+      const [searchRes, questions] = await Promise.all([
+        api.get('/search/', { params }).then((r) => r.data).catch(() => null),
+        fetchPolicyQuestions().catch(() => [] as unknown[]),
+      ])
+      const tt = (searchRes?.type_totals ?? {}) as Record<string, number | undefined>
+      return {
+        topics: tt.topics ?? null,
+        causes: tt.causes ?? null,
+        questions: Array.isArray(questions) ? questions.length : null,
+      }
+    },
+    staleTime: 5 * 60 * 1000,
   })
 
   // Hero category badge counts. Two sources, in priority order:
@@ -1963,6 +1989,7 @@ export default function Home() {
                                   onBrowseTopics={() => navigate('/search?types=topics', { state: { fromHome: true } })}
                                   onBrowsePolicyQuestions={() => navigate('/policy-questions')}
                                   onBrowseCauses={() => navigate('/search?types=causes', { state: { fromHome: true } })}
+                                  browseCounts={directoryCounts}
                                 />
                               </>
                             )

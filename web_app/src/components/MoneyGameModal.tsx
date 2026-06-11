@@ -20,8 +20,10 @@ import { useQuery } from '@tanstack/react-query'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import {
   fetchLocalFinance,
+  fetchPropertyTaxRate,
   type LocalFinance,
   type LocalFinanceCategory,
+  type PropertyTaxRate,
 } from '../api/localFinance'
 import {
   fetchGrandkidOutlook,
@@ -203,6 +205,123 @@ function TaxSplitDonut({ fin }: { fin: LocalFinance }) {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// LEFT (Stage 1): "Your property-tax bill" — a personal estimate from a home
+// value slider × the REAL local effective property-tax rate (ACS B25103/B25077,
+// GET /api/local-finance/property-tax-rate). Property tax ONLY: there's no
+// sales-tax/fee rate mart, so we say so plainly rather than invent the rest
+// (CLAUDE.md: No Fabricated Data). When the location has no place/county rate
+// (404), the card renders nothing instead of a placeholder.
+// ---------------------------------------------------------------------------
+function YourTaxBillCard({
+  open,
+  stateCode,
+  city,
+  county,
+}: {
+  open: boolean
+  stateCode: string
+  city?: string
+  county?: string
+}) {
+  const { data } = useQuery<PropertyTaxRate>({
+    queryKey: ['property-tax-rate', stateCode, city, county],
+    queryFn: () => fetchPropertyTaxRate({ state: stateCode, city, county }),
+    enabled: open && !!stateCode,
+    staleTime: 10 * 60 * 1000,
+    retry: false, // a 404 (no local rate) is an expected miss — don't retry.
+  })
+
+  const rate = data?.effective_property_tax_rate ?? null
+  const median = data?.median_home_value ?? null
+
+  // Slider state seeded from the real ACS median once it loads. Hooks run
+  // unconditionally; the conditional return below sits AFTER them.
+  const [homeValue, setHomeValue] = useState<number | null>(null)
+  useEffect(() => {
+    if (median != null) setHomeValue((v) => (v == null ? median : v))
+  }, [median])
+
+  // No real rate/value for this place → hide entirely, never fabricate.
+  if (data == null || rate == null || median == null) return null
+
+  const value = homeValue ?? median
+  const annual = value * rate
+  // Cap the slider generously above the local median so it isn't pinned left.
+  const sliderMax = Math.max(1_000_000, Math.ceil((median * 2.5) / 50_000) * 50_000)
+  const sliderMin = 50_000
+  const pctRate = (rate * 100).toFixed(2)
+
+  return (
+    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-5 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
+        Your property-tax bill
+      </p>
+
+      <div className="mt-2 mb-1 flex items-baseline justify-between text-[13px]" style={FONT}>
+        <span className="font-medium text-[#0f2b2b]">Home value</span>
+        <span className="font-semibold tabular-nums text-[#1a6b6b]">{fmtDollars(value)}</span>
+      </div>
+      <input
+        type="range"
+        min={sliderMin}
+        max={sliderMax}
+        step={5_000}
+        value={Math.min(sliderMax, Math.max(sliderMin, value))}
+        onChange={(e) => setHomeValue(Number(e.target.value))}
+        style={
+          {
+            background: `linear-gradient(to right, #1a6b6b ${
+              ((value - sliderMin) / (sliderMax - sliderMin)) * 100
+            }%, #eef4f4 ${((value - sliderMin) / (sliderMax - sliderMin)) * 100}%)`,
+            '--thumb': '#1a6b6b',
+          } as React.CSSProperties
+        }
+        className={[
+          'h-2 w-full cursor-pointer appearance-none rounded-full',
+          '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4',
+          '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white',
+          '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(15,43,43,0.25)] [&::-webkit-slider-thumb]:[background:var(--thumb)]',
+          '[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full',
+          '[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:[background:var(--thumb)]',
+        ].join(' ')}
+        aria-label="Home value"
+      />
+
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
+            Estimated property tax
+          </p>
+          <p className="mt-1 text-[36px] font-semibold leading-none text-[#0f2b2b]" style={SERIF}>
+            {fmtDollars(annual)}
+          </p>
+          <p className="mt-1 text-[13px] text-[#56635e]" style={FONT}>
+            per year · {fmtDollars(annual / 12)}/mo
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[22px] font-semibold leading-none text-[#1a6b6b]" style={SERIF}>
+            {pctRate}%
+          </p>
+          <p className="mt-1 text-[11px] text-[#9bb8b8]" style={FONT}>
+            effective rate
+          </p>
+        </div>
+      </div>
+
+      <p className="mt-3 rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+        {data.jurisdiction_name}&apos;s effective rate, applied to your home value.
+        Property tax only — local sales tax and fees aren&apos;t in this number.
+      </p>
+      <p className="mt-2 text-[11px] text-[#9bb8b8]" style={MONO}>
+        Source: {data.source}
+        {data.acs_vintage_year ? ` · ACS ${data.acs_vintage_year}` : ''}
+      </p>
     </div>
   )
 }
@@ -992,6 +1111,15 @@ export default function MoneyGameModal({
                       <div className="grid gap-5 md:grid-cols-2">
                         {/* LEFT */}
                         <div className="space-y-5">
+                          {/* Stage 1: personal property-tax estimate (real local
+                              ACS rate × your home value). Self-hides when the
+                              location has no place/county rate. */}
+                          <YourTaxBillCard
+                            open={open}
+                            stateCode={stateCode}
+                            city={city}
+                            county={county}
+                          />
                           <TaxTotalCard fin={data} />
                           {game.length > 0 ? (
                             <GuessingGame
