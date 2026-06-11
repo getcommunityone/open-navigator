@@ -381,7 +381,7 @@ function YourBill({
       <button
         type="button"
         onClick={onContinue}
-        className="mt-5 w-full rounded-xl bg-[#1a6b6b] px-5 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-[#155757]"
+        className="mgm-pulse mt-5 w-full rounded-xl bg-[#1a6b6b] px-5 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-[#155757]"
         style={FONT}
       >
         Now — can you guess where it goes? →
@@ -408,7 +408,7 @@ function GuessDonut({
   if (!anyTouched) {
     return (
       <div
-        className="flex h-24 w-24 shrink-0 animate-pulse items-center justify-center rounded-full border-[3px] border-dashed border-[#cfe0e0]"
+        className="mgm-ring flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-[3px] border-dashed border-[#cfe0e0]"
         aria-hidden
       >
         <span className="text-[30px] font-semibold text-[#cfe0e0]" style={SERIF}>
@@ -463,6 +463,43 @@ function GuessDonut({
   )
 }
 
+// Small labelled conic donut for the reveal comparison (your guess vs. real).
+function RevealDonut({
+  parts,
+  label,
+  accent,
+}: {
+  parts: { pct: number; color: string }[]
+  label: React.ReactNode
+  accent?: boolean
+}) {
+  const total = parts.reduce((s, p) => s + p.pct, 0) || 1
+  let acc = 0
+  const stops = parts
+    .map((p) => {
+      const start = (acc / total) * 100
+      acc += p.pct
+      return `${p.color} ${start}% ${(acc / total) * 100}%`
+    })
+    .join(', ')
+  return (
+    <div
+      className="relative h-[76px] w-[76px] shrink-0 rounded-full"
+      style={{ background: `conic-gradient(${stops})` }}
+      aria-hidden
+    >
+      <div className="absolute inset-[28%] flex items-center justify-center rounded-full bg-white text-center">
+        <span
+          className={`text-[8.5px] font-semibold uppercase leading-tight tracking-[0.06em] ${accent ? 'text-[#1a6b6b]' : 'text-[#9bb8b8]'}`}
+          style={MONO}
+        >
+          {label}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // LEFT: the guessing game. Sliders start empty; the user must drag every
 // category before revealing, then each row shows the real share and how far
@@ -477,7 +514,6 @@ function GuessingGame({
   setGuesses,
   touched,
   setTouched,
-  scoreInfo,
 }: {
   fin: LocalFinance
   game: GameCategory[]
@@ -487,7 +523,6 @@ function GuessingGame({
   setGuesses: (g: number[]) => void
   touched: boolean[]
   setTouched: (t: boolean[]) => void
-  scoreInfo: { score: number; totalError: number } | null
 }) {
   const [hintDismissed, setHintDismissed] = useState(false)
   // The "Other" slider can be expanded to reveal its real constituents (read-only).
@@ -556,164 +591,163 @@ function GuessingGame({
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap items-start gap-4">
-        <GuessDonut game={game} guesses={guesses} touched={touched} />
+      {/* Guessing: donut + sliders (hidden once revealed). */}
+      {!revealed && (
+        <>
+          <div className="mt-4 flex flex-wrap items-start gap-4">
+            <GuessDonut game={game} guesses={guesses} touched={touched} />
 
-        <div className="min-w-[180px] flex-1 space-y-3.5">
-          {game.map((c, i) => {
-            const g = normGuess(i)
-            const delta = revealed ? Math.round(g - c.actual) : 0
-            const color = CAT_PALETTE[i % CAT_PALETTE.length]
-            // Filled portion tracks the raw slider value (0 until first drag).
-            const fill = touched[i] ? Math.round(guesses[i]) : 0
-            return (
-              <div key={c.category}>
-                <div className="mb-1 flex items-center justify-between text-[13px]" style={FONT}>
-                  <span className="flex items-center gap-1.5 font-medium text-[#0f2b2b]">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: CAT_PALETTE[i % CAT_PALETTE.length] }}
-                    />
-                    {c.category}
-                    {!revealed && i === firstUntouched && (
-                      <span className="animate-pulse text-[11px] font-semibold text-[#1a6b6b]">
-                        drag to guess →
+            <div className="min-w-[180px] flex-1 space-y-3.5">
+              {game.map((c, i) => {
+                const color = CAT_PALETTE[i % CAT_PALETTE.length]
+                const fill = touched[i] ? Math.round(guesses[i]) : 0
+                return (
+                  <div key={c.category}>
+                    <div className="mb-1 flex items-center justify-between text-[13px]" style={FONT}>
+                      <span className="flex items-center gap-1.5 font-medium text-[#0f2b2b]">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                        {c.category}
+                        {i === firstUntouched && (
+                          <span className="mgm-nudge text-[11px] font-semibold text-[#1a6b6b]">
+                            drag to guess →
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                  <span className="flex items-center gap-2 tabular-nums">
-                    {touched[i] ? (
-                      <span className="font-semibold text-[#1a6b6b]">{pct(g)}</span>
-                    ) : (
-                      <span className="font-semibold text-[#cfe0e0]">?</span>
-                    )}
-                    {revealed && <span className="text-[#9bb8b8]">actual {pct(c.actual)}</span>}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={Math.round(guesses[i])}
-                  disabled={revealed}
-                  onChange={(e) => setOne(i, Number(e.target.value))}
-                  style={
-                    {
-                      // Colored filled track up to the thumb, then light gray;
-                      // `--thumb` colors the knob (used by the pseudo-elements).
-                      background: `linear-gradient(to right, ${color} ${fill}%, #eef4f4 ${fill}%)`,
-                      '--thumb': color,
-                    } as React.CSSProperties
-                  }
-                  className={`${SLIDER_CLS} disabled:cursor-default`}
-                  aria-label={`Your guess for ${c.category}`}
-                />
-                {revealed && (
-                  <>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[#eef4f4]">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${Math.min(100, c.actual)}%`,
-                          backgroundColor: CAT_PALETTE[i % CAT_PALETTE.length],
-                        }}
-                      />
+                      <span className="tabular-nums">
+                        {touched[i] ? (
+                          <span className="font-semibold text-[#1a6b6b]">{pct(normGuess(i))}</span>
+                        ) : (
+                          <span className="font-semibold text-[#cfe0e0]">?</span>
+                        )}
+                      </span>
                     </div>
-                    <p
-                      className="mt-1 text-[11px]"
-                      style={{ ...FONT, color: Math.abs(delta) >= 8 ? '#9a6b12' : '#9bb8b8' }}
-                    >
-                      {Math.abs(delta) <= 3
-                        ? '✓ close'
-                        : delta > 0
-                          ? `you guessed ${Math.abs(delta)} high`
-                          : `you guessed ${Math.abs(delta)} low`}
-                    </p>
-                  </>
-                )}
-                {/* Read-only drill-down for the "Other" bucket: shows the real
-                    categories folded into it. Percentages only after reveal so
-                    expanding early doesn't leak the "Other" answer. */}
-                {c.breakdown && c.breakdown.length > 0 && (
-                  <div className="mt-2">
-                    <button
-                      type="button"
-                      onClick={() => setOtherExpanded((v) => !v)}
-                      aria-expanded={otherExpanded}
-                      className="flex items-center gap-1 text-[11px] font-medium text-[#1a6b6b] transition-colors hover:text-[#0f2b2b]"
-                      style={FONT}
-                    >
-                      <span
-                        className="inline-block transition-transform"
-                        style={{ transform: otherExpanded ? 'rotate(90deg)' : 'none' }}
-                        aria-hidden
-                      >
-                        ▸
-                      </span>
-                      {otherExpanded ? 'Hide what’s inside' : 'What’s in “Other”?'}
-                    </button>
-                    {otherExpanded && (
-                      <ul className="mt-1.5 space-y-1 rounded-lg border border-[#eef4f4] bg-[#f7fafb] px-3 py-2">
-                        {c.breakdown.map((part) => (
-                          <li
-                            key={part.label}
-                            className="flex items-center justify-between text-[11px]"
-                            style={FONT}
-                          >
-                            <span className="text-[#56635e]">{part.label}</span>
-                            {revealed ? (
-                              <span className="font-semibold tabular-nums text-[#1a6b6b]">
-                                {part.share.toFixed(1)}%
-                              </span>
-                            ) : (
-                              <span className="text-[#9bb8b8]">included</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(guesses[i])}
+                      onChange={(e) => setOne(i, Number(e.target.value))}
+                      style={
+                        {
+                          background: `linear-gradient(to right, ${color} ${fill}%, #eef4f4 ${fill}%)`,
+                          '--thumb': color,
+                        } as React.CSSProperties
+                      }
+                      className={SLIDER_CLS}
+                      aria-label={`Your guess for ${c.category}`}
+                    />
+                    {/* Read-only drill-down for the "Other" bucket. */}
+                    {c.breakdown && c.breakdown.length > 0 && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setOtherExpanded((v) => !v)}
+                          aria-expanded={otherExpanded}
+                          className="flex items-center gap-1 text-[11px] font-medium text-[#1a6b6b] transition-colors hover:text-[#0f2b2b]"
+                          style={FONT}
+                        >
+                          <span className="inline-block transition-transform" style={{ transform: otherExpanded ? 'rotate(90deg)' : 'none' }} aria-hidden>
+                            ▸
+                          </span>
+                          {otherExpanded ? 'Hide what’s inside' : 'What’s in “Other”?'}
+                        </button>
+                        {otherExpanded && (
+                          <ul className="mt-1.5 space-y-1 rounded-lg border border-[#eef4f4] bg-[#f7fafb] px-3 py-2">
+                            {c.breakdown.map((part) => (
+                              <li key={part.label} className="flex items-center justify-between text-[11px]" style={FONT}>
+                                <span className="text-[#56635e]">{part.label}</span>
+                                <span className="text-[#9bb8b8]">included</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+                )
+              })}
+            </div>
+          </div>
 
-      {!revealed ? (
-        <button
-          type="button"
-          onClick={() => allGuessed && onReveal()}
-          disabled={!allGuessed}
-          className={`mt-5 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
-            allGuessed
-              ? 'bg-[#1a6b6b] text-white hover:bg-[#155757]'
-              : 'cursor-default bg-[#eef4f4] text-[#9bb8b8]'
-          }`}
-          style={FONT}
-        >
-          {allGuessed
-            ? 'Reveal reality'
-            : `Guess all ${game.length} to reveal · ${game.length - touchedCount} to go`}
-        </button>
-      ) : (
-        <div className="mt-5 space-y-2">
+          <button
+            type="button"
+            onClick={() => allGuessed && onReveal()}
+            disabled={!allGuessed}
+            className={`mt-5 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
+              allGuessed ? 'mgm-pulse bg-[#1a6b6b] text-white hover:bg-[#155757]' : 'cursor-default bg-[#eef4f4] text-[#9bb8b8]'
+            }`}
+            style={FONT}
+          >
+            {allGuessed ? 'Reveal reality' : `Guess all ${game.length} to reveal · ${game.length - touchedCount} to go`}
+          </button>
+        </>
+      )}
+
+      {/* Reveal: your guess vs the real budget — two donuts + grow-in bars with
+          a vertical guess marker. */}
+      {revealed && (
+        <div className="mt-4 mgm-fade">
+          <div className="flex flex-wrap items-center gap-5">
+            <div className="flex shrink-0 gap-3">
+              <RevealDonut
+                parts={game.map((_, i) => ({ pct: guesses[i], color: CAT_PALETTE[i % CAT_PALETTE.length] }))}
+                label={<>YOUR<br />GUESS</>}
+              />
+              <RevealDonut
+                parts={game.map((c, i) => ({ pct: c.actual, color: CAT_PALETTE[i % CAT_PALETTE.length] }))}
+                label="REAL"
+                accent
+              />
+            </div>
+            <div className="min-w-[240px] flex-1 space-y-2.5">
+              {game.map((c, i) => {
+                const g = normGuess(i)
+                const d = Math.round(g - c.actual)
+                const color = CAT_PALETTE[i % CAT_PALETTE.length]
+                return (
+                  <div key={c.category}>
+                    <div className="flex items-baseline justify-between text-[12.5px]" style={FONT}>
+                      <span className="flex items-center gap-1.5 font-medium text-[#0f2b2b]">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                        {c.category}
+                      </span>
+                      <span>
+                        <span className="font-semibold tabular-nums text-[#0f2b2b]">{pct(c.actual)}</span>
+                        <span className="ml-1.5 text-[11px]" style={{ color: Math.abs(d) >= 8 ? '#9a6b12' : '#9bb8b8' }}>
+                          {Math.abs(d) <= 3 ? '✓ close' : d > 0 ? `${Math.abs(d)} high` : `${Math.abs(d)} low`}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="relative mt-1 h-2.5 rounded-full bg-[#f1f5f5]">
+                      <div className="mgm-grow h-full rounded-full" style={{ width: `${Math.min(100, c.actual)}%`, backgroundColor: color }} />
+                      <div
+                        className="absolute -top-[3px] h-[15px] w-[2.5px] rounded bg-[#0f2b2b]"
+                        style={{ left: `calc(${Math.min(100, g)}% - 1px)` }}
+                        title={`Your guess: ${pct(g)}`}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+              <p className="text-[9.5px] uppercase tracking-[0.05em] text-[#9bb8b8]" style={MONO}>
+                Bar = real budget · | = your guess
+              </p>
+            </div>
+          </div>
+
           {top && (
-            <p className="text-[14px] leading-relaxed text-[#0f2b2b]" style={FONT}>
-              <span className="font-semibold text-[#1a6b6b]">{pct(top.actual)}</span> of your money
-              goes to <span className="font-semibold">{top.category}</span>
+            <p className="mt-3.5 text-center text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
               {topDollars != null ? (
-                <> — about {fmtDollars(topDollars)} per resident, per year.</>
+                <>
+                  <span className="font-semibold text-[#1a6b6b]">{fmtDollars(topDollars)}</span> per resident
+                </>
               ) : (
-                <>.</>
-              )}
-            </p>
-          )}
-          {scoreInfo != null && (
-            <p className="text-[13px] text-[#6b8a8a]" style={FONT}>
-              Your guess accuracy:{' '}
-              <span className="font-semibold text-[#1a6b6b]">{pct(scoreInfo.score)}</span>
+                <>
+                  <span className="font-semibold text-[#1a6b6b]">{pct(top.actual)}</span> of the budget
+                </>
+              )}{' '}
+              goes to {top.category} alone — every year.
             </p>
           )}
         </div>
@@ -1124,7 +1158,6 @@ export default function MoneyGameModal({
                               setGuesses={setGuesses}
                               touched={touched}
                               setTouched={setTouched}
-                              scoreInfo={scoreInfo}
                             />
                           ) : (
                             <div className="rounded-2xl border border-dashed border-[#d4e8e8] bg-white p-6 text-center text-sm text-[#6b8a8a]" style={FONT}>
@@ -1135,7 +1168,7 @@ export default function MoneyGameModal({
 
                           {/* Score + grandkids CTA, lands where the reveal happened. */}
                           {revealed && scoreInfo != null && (
-                            <div className="mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-[#ccfbf1] bg-gradient-to-r from-[#f0faf8] to-[#f7fee7] px-5 py-4">
+                            <div className="mgm-fade mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-[#ccfbf1] bg-gradient-to-r from-[#f0faf8] to-[#f7fee7] px-5 py-4">
                               <span className="text-[34px] font-semibold leading-none" style={{ ...SERIF, color: scoreColor(scoreInfo.score) }}>
                                 {pct(scoreInfo.score)}
                               </span>
@@ -1154,7 +1187,7 @@ export default function MoneyGameModal({
                               <button
                                 type="button"
                                 onClick={() => setStage('grandkids')}
-                                className="rounded-full bg-[#1a6b6b] px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#155757]"
+                                className="mgm-pulse rounded-full bg-[#1a6b6b] px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#155757]"
                                 style={FONT}
                               >
                                 The grandkids forecast →
