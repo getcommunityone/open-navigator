@@ -100,6 +100,19 @@ _STATE_SQL = f"""
     LIMIT 1
 """
 
+# Last-resort fallback: state-level governments like Washington, DC are stored
+# as a single non-'state' row (DC's is gov_type='city'), so the state lookup
+# above misses them. Fall back to the largest single government for the state so
+# these resolve to real data instead of 404ing. Only reached when city, county,
+# AND state lookups all came up empty, so it never overrides a real state row.
+_ANY_SQL = f"""
+    SELECT {_FINANCE_COLS}
+    FROM jurisdiction_finance
+    WHERE state_code = $1
+    ORDER BY direct_expenditure DESC NULLS LAST, fiscal_year DESC
+    LIMIT 1
+"""
+
 # Spending categories for the matched government, sorted by amount desc.
 # amount is NOT NULL in the mart, but we drop any NULL defensively at the model
 # layer rather than fabricate a 0.
@@ -195,6 +208,14 @@ async def get_local_finance(
                     # matched stays False here: either no city/county was asked
                     # for, or the requested one wasn't found and we fell back.
                     level = "state"
+
+                if row is None:
+                    # Catch state-level governments stored under a non-'state'
+                    # gov_type (e.g. Washington, DC). matched stays False.
+                    with tracer.start_as_current_span("local-finance-any"):
+                        row = await conn.fetchrow(_ANY_SQL, state_code)
+                    if row is not None:
+                        level = row["gov_type"]
 
                 if row is None:
                     span.set_attribute("local_finance.found", False)

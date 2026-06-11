@@ -344,7 +344,7 @@ export function MoneyHook({
                     handleSubmit()
                   }
                 }}
-                placeholder="Try 123 Main St, Tuscaloosa"
+                placeholder="Enter your address or ZIP code"
                 className="w-full rounded-xl border border-[#d4e8e8] bg-white py-3 pl-10 pr-3 text-[15px] text-[#0f2b2b] placeholder-[#9bb8b8] outline-none transition-colors focus:border-[#1a6b6b] focus:ring-2 focus:ring-[#1a6b6b]/20"
                 style={FONT}
               />

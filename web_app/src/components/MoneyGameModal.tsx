@@ -83,30 +83,73 @@ export interface MoneyGameModalProps {
 // kept individually; any remainder is bucketed into a single "Other" row so the
 // guessed set === the revealed set.
 // ---------------------------------------------------------------------------
+interface CategoryPart {
+  /** real mart label, e.g. "Utilities" / "Other & Debt". */
+  label: string
+  /** share of the whole budget, percent (renormalized across the shown set). */
+  share: number
+}
+
 interface GameCategory {
   category: string
   /** real renormalized share across the shown set, percent. */
   actual: number
+  /** Present only on the "Other" bucket: its real constituents, for the
+   *  drill-down. Display-only — never guessed, so it has no slider. */
+  breakdown?: CategoryPart[]
 }
+
+// The named guess sliders, in the design prototype's order. We always show these
+// (when present in the data) and fold every OTHER real category — Utilities,
+// Health & Welfare, Other & Debt, etc. — into a single "Other" slider whose real
+// constituents stay visible via an expandable drill-down (so nothing real is
+// hidden). `match` is the verbose census label in the mart; `label` is the short
+// prototype label we render.
+const NAMED_CATEGORIES: { match: string; label: string }[] = [
+  { match: 'Education', label: 'Education' },
+  { match: 'Public Safety', label: 'Public Safety' },
+  { match: 'Infrastructure & Highways', label: 'Infrastructure' },
+  { match: 'Parks & Recreation', label: 'Parks & Rec' },
+  { match: 'Administration & Government', label: 'Administration' },
+]
 
 function buildGameCategories(categories: LocalFinanceCategory[]): GameCategory[] {
   const eligible = categories.filter((c) => c.share_pct != null && (c.share_pct as number) > 0)
   if (eligible.length === 0) return []
-  const sorted = [...eligible].sort((a, b) => (b.share_pct as number) - (a.share_pct as number))
 
-  let shown: { category: string; share: number }[]
-  if (sorted.length > 6) {
-    const top = sorted.slice(0, 6).map((c) => ({ category: c.category, share: c.share_pct as number }))
-    const restShare = sorted.slice(6).reduce((s, c) => s + (c.share_pct as number), 0)
-    shown = restShare > 0 ? [...top, { category: 'Other', share: restShare }] : top
-  } else {
-    shown = sorted.map((c) => ({ category: c.category, share: c.share_pct as number }))
+  // Pull the named service categories out in prototype order; everything left
+  // over becomes the single "Other" bucket.
+  const named: { label: string; share: number }[] = []
+  const usedRaw = new Set<string>()
+  for (const { match, label } of NAMED_CATEGORIES) {
+    const hit = eligible.find((c) => c.category === match)
+    if (hit) {
+      named.push({ label, share: hit.share_pct as number })
+      usedRaw.add(match)
+    }
+  }
+  const rest = eligible.filter((c) => !usedRaw.has(c.category))
+
+  const total =
+    named.reduce((s, n) => s + n.share, 0) +
+    rest.reduce((s, c) => s + (c.share_pct as number), 0)
+  if (total <= 0) return []
+
+  // Renormalize so the shown shares sum to exactly 100.
+  const result: GameCategory[] = named.map((n) => ({
+    category: n.label,
+    actual: (n.share / total) * 100,
+  }))
+
+  if (rest.length > 0) {
+    const otherShare = rest.reduce((s, c) => s + (c.share_pct as number), 0)
+    const breakdown: CategoryPart[] = rest
+      .map((c) => ({ label: c.category, share: ((c.share_pct as number) / total) * 100 }))
+      .sort((a, b) => b.share - a.share)
+    result.push({ category: 'Other', actual: (otherShare / total) * 100, breakdown })
   }
 
-  const total = shown.reduce((s, c) => s + c.share, 0)
-  if (total <= 0) return []
-  // Renormalize so the actual shares sum to exactly 100 across the shown set.
-  return shown.map((c) => ({ category: c.category, actual: (c.share / total) * 100 }))
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +262,82 @@ function TaxTotalCard({ fin }: { fin: LocalFinance }) {
 }
 
 // ---------------------------------------------------------------------------
-// LEFT: the guessing game (sliders that auto-normalize to 100%, then reveal).
+// The live "your guess" donut: a "?" placeholder until the user touches a
+// slider, then a conic split of the guessed categories with a faint remainder
+// slice standing in for the not-yet-guessed ones.
+// ---------------------------------------------------------------------------
+function GuessDonut({
+  game,
+  guesses,
+  touched,
+}: {
+  game: GameCategory[]
+  guesses: number[]
+  touched: boolean[]
+}) {
+  const anyTouched = touched.some(Boolean)
+  if (!anyTouched) {
+    return (
+      <div
+        className="flex h-24 w-24 shrink-0 animate-pulse items-center justify-center rounded-full border-[3px] border-dashed border-[#cfe0e0]"
+        aria-hidden
+      >
+        <span className="text-[30px] font-semibold text-[#cfe0e0]" style={SERIF}>
+          ?
+        </span>
+      </div>
+    )
+  }
+
+  const touchedCount = touched.filter(Boolean).length
+  const sum = guesses.reduce((s, g) => s + g, 0)
+  const parts = game.map((_, i) => ({
+    value: touched[i] ? guesses[i] : 0,
+    color: CAT_PALETTE[i % CAT_PALETTE.length],
+  }))
+  // Faint slice for the categories still left to guess, so the ring grows as
+  // the user works through them.
+  const remainder =
+    touchedCount < game.length
+      ? Math.max((sum * (game.length - touchedCount)) / Math.max(touchedCount, 1), 8)
+      : 0
+  const allParts = remainder > 0 ? [...parts, { value: remainder, color: '#eef4f4' }] : parts
+  const total = allParts.reduce((s, p) => s + p.value, 0) || 1
+
+  let acc = 0
+  const stops = allParts
+    .map((p) => {
+      const start = (acc / total) * 100
+      acc += p.value
+      const end = (acc / total) * 100
+      return `${p.color} ${start}% ${end}%`
+    })
+    .join(', ')
+
+  return (
+    <div
+      className="relative h-24 w-24 shrink-0 rounded-full"
+      style={{ background: `conic-gradient(${stops})` }}
+      aria-hidden
+    >
+      <div className="absolute inset-[30%] flex items-center justify-center rounded-full bg-white text-center">
+        <span
+          className="text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-[#9bb8b8]"
+          style={MONO}
+        >
+          Your
+          <br />
+          guess
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// LEFT: the guessing game. Sliders start empty; the user must drag every
+// category before revealing, then each row shows the real share and how far
+// off they were. Categories & shares are REAL (Census), never fabricated.
 // ---------------------------------------------------------------------------
 function GuessingGame({
   fin,
@@ -228,7 +346,9 @@ function GuessingGame({
   onReveal,
   guesses,
   setGuesses,
-  accuracy,
+  touched,
+  setTouched,
+  scoreInfo,
 }: {
   fin: LocalFinance
   game: GameCategory[]
@@ -236,18 +356,33 @@ function GuessingGame({
   onReveal: () => void
   guesses: number[]
   setGuesses: (g: number[]) => void
-  accuracy: number | null
+  touched: boolean[]
+  setTouched: (t: boolean[]) => void
+  scoreInfo: { score: number; totalError: number } | null
 }) {
-  // Normalize the guesses to sum to 100 for display/scoring (auto-normalize).
+  const [hintDismissed, setHintDismissed] = useState(false)
+  // The "Other" slider can be expanded to reveal its real constituents (read-only).
+  const [otherExpanded, setOtherExpanded] = useState(false)
+
+  // Normalize the guesses to sum to 100 for display/scoring (auto-balance).
   const guessTotal = guesses.reduce((s, g) => s + g, 0)
   const normGuess = (i: number): number =>
-    guessTotal > 0 ? (guesses[i] / guessTotal) * 100 : 100 / game.length
+    guessTotal > 0 ? (guesses[i] / guessTotal) * 100 : 0
 
   const setOne = (i: number, v: number) => {
     const next = [...guesses]
     next[i] = v
     setGuesses(next)
+    if (!touched[i]) {
+      const t = [...touched]
+      t[i] = true
+      setTouched(t)
+    }
   }
+
+  const touchedCount = touched.filter(Boolean).length
+  const allGuessed = touchedCount === game.length && guesses.some((v) => v > 0)
+  const firstUntouched = game.findIndex((_, i) => !touched[i])
 
   // Real top category after reveal.
   const top = useMemo(() => {
@@ -265,64 +400,181 @@ function GuessingGame({
       </h3>
       <p className="mt-1 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
         Drag each slider to guess how {fin.jurisdiction_name} splits its spending, then reveal the
-        real numbers. Guesses auto-balance to 100%.
+        real numbers.
       </p>
 
-      <div className="mt-4 space-y-3.5">
-        {game.map((c, i) => {
-          const g = normGuess(i)
-          return (
-            <div key={c.category}>
-              <div className="mb-1 flex items-center justify-between text-[13px]" style={FONT}>
-                <span className="flex items-center gap-1.5 font-medium text-[#0f2b2b]">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: CAT_PALETTE[i % CAT_PALETTE.length] }}
-                  />
-                  {c.category}
-                </span>
-                <span className="flex items-center gap-2 tabular-nums">
-                  <span className="font-semibold text-[#1a6b6b]">{pct(g)}</span>
-                  {revealed && (
-                    <span className="text-[#9bb8b8]">actual {pct(c.actual)}</span>
-                  )}
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={Math.round(guesses[i])}
-                disabled={revealed}
-                onChange={(e) => setOne(i, Number(e.target.value))}
-                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#eef4f4] accent-[#1a6b6b] disabled:cursor-default"
-                aria-label={`Your guess for ${c.category}`}
-              />
-              {revealed && (
-                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[#eef4f4]">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.min(100, c.actual)}%`,
-                      backgroundColor: CAT_PALETTE[i % CAT_PALETTE.length],
-                    }}
-                  />
+      {/* Dismissible scoring explainer. */}
+      {!hintDismissed ? (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#cdece7] bg-[#f0faf8] px-3 py-2.5">
+          <p className="flex-1 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
+            <span className="font-semibold">How scoring works:</span> drag all {game.length} sliders to
+            your gut feeling — they auto-balance to 100%, so just get the proportions right. On reveal,
+            you score 100 minus a point for every two percentage points you&apos;re off.
+          </p>
+          <button
+            type="button"
+            onClick={() => setHintDismissed(true)}
+            aria-label="Dismiss"
+            className="-mr-1 shrink-0 rounded text-[14px] leading-none text-[#1a6b6b] transition-colors hover:text-[#0f2b2b]"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <p className="mt-3 text-[12px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+          Slide your gut feeling, then reveal to score against the real budget.
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-start gap-4">
+        <GuessDonut game={game} guesses={guesses} touched={touched} />
+
+        <div className="min-w-[180px] flex-1 space-y-3.5">
+          {game.map((c, i) => {
+            const g = normGuess(i)
+            const delta = revealed ? Math.round(g - c.actual) : 0
+            const color = CAT_PALETTE[i % CAT_PALETTE.length]
+            // Filled portion tracks the raw slider value (0 until first drag).
+            const fill = touched[i] ? Math.round(guesses[i]) : 0
+            return (
+              <div key={c.category}>
+                <div className="mb-1 flex items-center justify-between text-[13px]" style={FONT}>
+                  <span className="flex items-center gap-1.5 font-medium text-[#0f2b2b]">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: CAT_PALETTE[i % CAT_PALETTE.length] }}
+                    />
+                    {c.category}
+                    {!revealed && i === firstUntouched && (
+                      <span className="animate-pulse text-[11px] font-semibold text-[#1a6b6b]">
+                        drag to guess →
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-2 tabular-nums">
+                    {touched[i] ? (
+                      <span className="font-semibold text-[#1a6b6b]">{pct(g)}</span>
+                    ) : (
+                      <span className="font-semibold text-[#cfe0e0]">?</span>
+                    )}
+                    {revealed && <span className="text-[#9bb8b8]">actual {pct(c.actual)}</span>}
+                  </span>
                 </div>
-              )}
-            </div>
-          )
-        })}
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round(guesses[i])}
+                  disabled={revealed}
+                  onChange={(e) => setOne(i, Number(e.target.value))}
+                  style={
+                    {
+                      // Colored filled track up to the thumb, then light gray;
+                      // `--thumb` colors the knob (used by the pseudo-elements).
+                      background: `linear-gradient(to right, ${color} ${fill}%, #eef4f4 ${fill}%)`,
+                      '--thumb': color,
+                    } as React.CSSProperties
+                  }
+                  className={[
+                    'h-2 w-full cursor-pointer appearance-none rounded-full disabled:cursor-default',
+                    // WebKit/Blink thumb.
+                    '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4',
+                    '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white',
+                    '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(15,43,43,0.25)] [&::-webkit-slider-thumb]:[background:var(--thumb)]',
+                    // Firefox thumb.
+                    '[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full',
+                    '[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:[background:var(--thumb)]',
+                  ].join(' ')}
+                  aria-label={`Your guess for ${c.category}`}
+                />
+                {revealed && (
+                  <>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[#eef4f4]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.min(100, c.actual)}%`,
+                          backgroundColor: CAT_PALETTE[i % CAT_PALETTE.length],
+                        }}
+                      />
+                    </div>
+                    <p
+                      className="mt-1 text-[11px]"
+                      style={{ ...FONT, color: Math.abs(delta) >= 8 ? '#9a6b12' : '#9bb8b8' }}
+                    >
+                      {Math.abs(delta) <= 3
+                        ? '✓ close'
+                        : delta > 0
+                          ? `you guessed ${Math.abs(delta)} high`
+                          : `you guessed ${Math.abs(delta)} low`}
+                    </p>
+                  </>
+                )}
+                {/* Read-only drill-down for the "Other" bucket: shows the real
+                    categories folded into it. Percentages only after reveal so
+                    expanding early doesn't leak the "Other" answer. */}
+                {c.breakdown && c.breakdown.length > 0 && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setOtherExpanded((v) => !v)}
+                      aria-expanded={otherExpanded}
+                      className="flex items-center gap-1 text-[11px] font-medium text-[#1a6b6b] transition-colors hover:text-[#0f2b2b]"
+                      style={FONT}
+                    >
+                      <span
+                        className="inline-block transition-transform"
+                        style={{ transform: otherExpanded ? 'rotate(90deg)' : 'none' }}
+                        aria-hidden
+                      >
+                        ▸
+                      </span>
+                      {otherExpanded ? 'Hide what’s inside' : 'What’s in “Other”?'}
+                    </button>
+                    {otherExpanded && (
+                      <ul className="mt-1.5 space-y-1 rounded-lg border border-[#eef4f4] bg-[#f7fafb] px-3 py-2">
+                        {c.breakdown.map((part) => (
+                          <li
+                            key={part.label}
+                            className="flex items-center justify-between text-[11px]"
+                            style={FONT}
+                          >
+                            <span className="text-[#56635e]">{part.label}</span>
+                            {revealed ? (
+                              <span className="font-semibold tabular-nums text-[#1a6b6b]">
+                                {part.share.toFixed(1)}%
+                              </span>
+                            ) : (
+                              <span className="text-[#9bb8b8]">included</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {!revealed ? (
         <button
           type="button"
-          onClick={onReveal}
-          className="mt-5 w-full rounded-xl bg-[#1a6b6b] px-5 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#155757]"
+          onClick={() => allGuessed && onReveal()}
+          disabled={!allGuessed}
+          className={`mt-5 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
+            allGuessed
+              ? 'bg-[#1a6b6b] text-white hover:bg-[#155757]'
+              : 'cursor-default bg-[#eef4f4] text-[#9bb8b8]'
+          }`}
           style={FONT}
         >
-          Reveal reality
+          {allGuessed
+            ? 'Reveal reality'
+            : `Guess all ${game.length} to reveal · ${game.length - touchedCount} to go`}
         </button>
       ) : (
         <div className="mt-5 space-y-2">
@@ -337,19 +589,14 @@ function GuessingGame({
               )}
             </p>
           )}
-          {accuracy != null && (
+          {scoreInfo != null && (
             <p className="text-[13px] text-[#6b8a8a]" style={FONT}>
-              Your guess accuracy: <span className="font-semibold text-[#1a6b6b]">{pct(accuracy)}</span>
+              Your guess accuracy:{' '}
+              <span className="font-semibold text-[#1a6b6b]">{pct(scoreInfo.score)}</span>
             </p>
           )}
         </div>
       )}
-
-      <p className="mt-4 border-t border-[#eef4f4] pt-3 text-[11px] leading-relaxed text-[#9bb8b8]" style={FONT}>
-        How scoring works: we compare your normalized guess to the government&apos;s reported
-        spending, sum the absolute error across categories, and score you{' '}
-        <code style={MONO}>100 − totalError/2</code>.
-      </p>
     </div>
   )
 }
@@ -358,13 +605,33 @@ function GuessingGame({
 // RIGHT: accuracy panel (locked until reveal). The mobility panel below it is
 // the real "Grandkids forecast" (GrandkidsForecast).
 // ---------------------------------------------------------------------------
-function AccuracyPanel({ revealed, accuracy }: { revealed: boolean; accuracy: number | null }) {
+// Prototype grade ladder + score color for the accuracy readout.
+function gradeFor(score: number): string {
+  if (score >= 90) return 'Civic genius'
+  if (score >= 75) return 'Sharp eye'
+  if (score >= 60) return 'Not bad'
+  if (score >= 40) return 'Most people miss this'
+  return 'Exactly why we built this'
+}
+function scoreColor(score: number): string {
+  if (score >= 75) return '#3f8f2e'
+  if (score >= 50) return '#9a6b12'
+  return '#c0432a'
+}
+
+function AccuracyPanel({
+  revealed,
+  scoreInfo,
+}: {
+  revealed: boolean
+  scoreInfo: { score: number; totalError: number } | null
+}) {
   return (
     <div className="rounded-2xl border border-[#d4e8e8] bg-white p-5 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
       <h3 className="text-[15px] font-semibold text-[#0f2b2b]" style={SERIF}>
         Your guess accuracy
       </h3>
-      {!revealed || accuracy == null ? (
+      {!revealed || scoreInfo == null ? (
         <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-[#d4e8e8] bg-[#f7fafb] py-8 text-center">
           <span className="text-[28px] font-semibold text-[#9bb8b8]" style={SERIF} aria-hidden>
             🔒
@@ -374,17 +641,21 @@ function AccuracyPanel({ revealed, accuracy }: { revealed: boolean; accuracy: nu
           </p>
         </div>
       ) : (
-        <div className="mt-4 text-center">
-          <p className="text-[52px] font-semibold leading-none text-[#1a6b6b]" style={SERIF}>
-            {pct(accuracy)}
+        <div className="mt-4 flex items-center gap-4">
+          <p
+            className="text-[52px] font-semibold leading-none"
+            style={{ ...SERIF, color: scoreColor(scoreInfo.score) }}
+          >
+            {pct(scoreInfo.score)}
           </p>
-          <p className="mt-1 text-[13px] text-[#6b8a8a]" style={FONT}>
-            {accuracy >= 80
-              ? 'Sharp — you know where the money goes.'
-              : accuracy >= 55
-                ? 'Not bad — a few surprises in there.'
-                : 'Most people are off too. Now you know.'}
-          </p>
+          <div>
+            <p className="text-[15px] font-semibold text-[#0f2b2b]" style={FONT}>
+              {gradeFor(scoreInfo.score)}
+            </p>
+            <p className="mt-0.5 text-[12px] text-[#9bb8b8]" style={FONT}>
+              Off by {Math.round(scoreInfo.totalError)} pts total · score = 100 − error ÷ 2
+            </p>
+          </div>
         </div>
       )}
     </div>
@@ -613,25 +884,22 @@ export default function MoneyGameModal({
 
   const game = useMemo(() => (data ? buildGameCategories(data.categories) : []), [data])
 
-  // Guess sliders: start each at an even split; reset whenever the game set changes.
+  // Guess sliders start empty (0 = "not yet guessed"); the user must drag each
+  // category before they can reveal. `touched` tracks which have been moved.
   const [guesses, setGuesses] = useState<number[]>([])
+  const [touched, setTouched] = useState<boolean[]>([])
   const [revealed, setRevealed] = useState(false)
 
+  // Reset the game whenever it (re)opens or the category set changes.
   useEffect(() => {
-    if (game.length > 0) {
-      setGuesses(game.map(() => 100 / game.length))
-      setRevealed(false)
-    }
-  }, [game])
+    setGuesses(game.map(() => 0))
+    setTouched(game.map(() => false))
+    setRevealed(false)
+  }, [open, game])
 
-  // Reset reveal state each time the modal (re)opens.
-  useEffect(() => {
-    if (open) setRevealed(false)
-  }, [open])
-
-  // Accuracy = 100 - totalError/2, where totalError sums |normalizedGuess - actual|
+  // Score = 100 - totalError/2, where totalError sums |normalizedGuess - actual|
   // across the shown set (same formula as the prototype). Only after reveal.
-  const accuracy = useMemo<number | null>(() => {
+  const scoreInfo = useMemo<{ score: number; totalError: number } | null>(() => {
     if (!revealed || game.length === 0 || guesses.length !== game.length) return null
     const guessTotal = guesses.reduce((s, g) => s + g, 0)
     if (guessTotal <= 0) return null
@@ -639,7 +907,7 @@ export default function MoneyGameModal({
       const ng = (guesses[i] / guessTotal) * 100
       return sum + Math.abs(ng - c.actual)
     }, 0)
-    return Math.max(0, Math.min(100, 100 - totalError / 2))
+    return { score: Math.max(0, Math.min(100, 100 - totalError / 2)), totalError }
   }, [revealed, game, guesses])
 
   const title = data ? `Your ${data.jurisdiction_name} impact` : 'Your local money impact'
@@ -670,32 +938,47 @@ export default function MoneyGameModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl bg-[#f7fafb] p-5 sm:p-7 text-left shadow-2xl">
+              <Dialog.Panel className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
+                {/* Pinned header — stays put while only the body below scrolls. */}
+                <div className="relative shrink-0 px-5 pb-4 pt-5 sm:px-7 sm:pt-7">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-1.5 text-[#56635e] transition-colors hover:bg-white hover:text-[#0f2b2b]"
+                  className="absolute right-4 top-4 z-10 rounded-full bg-white/90 p-1.5 text-[#56635e] shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-[#0f2b2b]"
                   aria-label="Close"
                 >
                   <XMarkIcon className="h-5 w-5" />
                 </button>
 
                 <Dialog.Title
-                  className="pr-10 text-2xl font-semibold text-[#0f2b2b]"
+                  className="pr-10 text-[26px] font-semibold leading-tight text-[#0f2b2b]"
                   style={SERIF}
                 >
                   {title}
                 </Dialog.Title>
 
-                {/* City→state fallback note. */}
-                {data && !data.matched && requestedLabel && (
-                  <p className="mt-2 rounded-lg bg-[#fff4ea] px-3 py-2 text-[12px] text-[#9a6b12]" style={FONT}>
-                    Showing {data.state} statewide figures — we don&apos;t have{' '}
-                    {data.level === 'county' ? 'county' : 'city'}-level finance for {requestedLabel} yet.
+                {/* Subtitle — sets up the game, prototype-style (all real data). */}
+                {data && (
+                  <p className="mt-1 text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+                    Real {data.jurisdiction_name} figures from the U.S. Census — guess how the budget
+                    splits, then reveal how close you got.
                   </p>
                 )}
 
-                <div className="mt-5">
+                {/* City→state fallback note — only on a true statewide fallback
+                    (level "state"); a city-state like DC resolves to real city
+                    data with matched=false but shouldn't claim a fallback. */}
+                {data && !data.matched && data.level === 'state' && requestedLabel && (
+                  <p className="mt-2 rounded-lg bg-[#fff4ea] px-3 py-2 text-[12px] text-[#9a6b12]" style={FONT}>
+                    Showing {data.state} statewide figures — we don&apos;t have
+                    local finance for {requestedLabel} yet.
+                  </p>
+                )}
+                </div>
+
+                {/* Scrollable body — the only scroll region, so the bar sits in
+                    the flat middle, not across the panel's rounded corners. */}
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-2 sm:px-7 sm:pb-7">
                   {isLoading ? (
                     <ModalSkeleton />
                   ) : isError || !data ? (
@@ -718,7 +1001,9 @@ export default function MoneyGameModal({
                               onReveal={() => setRevealed(true)}
                               guesses={guesses}
                               setGuesses={setGuesses}
-                              accuracy={accuracy}
+                              touched={touched}
+                              setTouched={setTouched}
+                              scoreInfo={scoreInfo}
                             />
                           ) : (
                             <div className="rounded-2xl border border-dashed border-[#d4e8e8] bg-white p-6 text-center text-sm text-[#6b8a8a]" style={FONT}>
@@ -730,24 +1015,34 @@ export default function MoneyGameModal({
 
                         {/* RIGHT */}
                         <div className="space-y-5">
-                          <AccuracyPanel revealed={revealed} accuracy={accuracy} />
+                          <AccuracyPanel revealed={revealed} scoreInfo={scoreInfo} />
                           <GrandkidsForecast open={open} stateCode={stateCode} city={city} />
                         </div>
                       </div>
 
-                      {/* "Decisions matter" banner after reveal. */}
+                      {/* "Decisions matter" closing panel after reveal — prototype's
+                          two-column layout (big serif left, score-aware body right). */}
                       {revealed && (
-                        <div className="mt-5 rounded-2xl bg-[#1a6b6b] p-5 text-white">
-                          <h3 className="text-[16px] font-semibold" style={SERIF}>
-                            Decisions matter.
-                          </h3>
-                          <p className="mt-1 text-[13px] leading-relaxed text-white/85" style={FONT}>
-                            Every one of these dollars is set in a public meeting you can attend,
-                            watch, and weigh in on. Follow your local decisions and you help decide
-                            where the money goes next.
-                          </p>
+                        <div className="mt-5 rounded-2xl bg-[#1a6b6b] p-6 text-white">
+                          <div className="flex flex-wrap items-center gap-5">
+                            <div className="text-[28px] font-semibold leading-[1.05]" style={SERIF}>
+                              Decisions
+                              <br />
+                              matter.
+                            </div>
+                            <p className="min-w-[240px] flex-1 text-[14px] leading-relaxed text-white/90" style={FONT}>
+                              {scoreInfo != null && scoreInfo.score >= 75
+                                ? `You scored ${pct(scoreInfo.score)} — better than most. But the split changes one vote at a time, in meetings almost nobody watches. `
+                                : scoreInfo != null
+                                  ? `You scored ${pct(scoreInfo.score)} — and that's typical. Most people can't say where their own money goes, because the decisions happen in meetings almost nobody watches. `
+                                  : ''}
+                              Every one of these dollars is set in a public meeting you can attend,
+                              watch, and weigh in on — and they shape the schools, streets, and parks
+                              your kids and grandkids grow up with. Open Navigator watches them for you.
+                            </p>
+                          </div>
                           {data.note && (
-                            <p className="mt-3 border-t border-white/20 pt-2 text-[11px] leading-relaxed text-white/70" style={FONT}>
+                            <p className="mt-4 border-t border-white/20 pt-2 text-[11px] leading-relaxed text-white/70" style={FONT}>
                               {data.note}
                             </p>
                           )}
