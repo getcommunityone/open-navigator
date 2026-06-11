@@ -125,4 +125,10 @@ from matched m
 left join juris j
     on  j.geoid = m.match_geoid
     and j.jurisdiction_type = m.match_jurisdiction_type
-where m.gov_type in ('state', 'county', 'city')
+-- school_district included so the money modal can stack a resident's full
+-- local government: city + county + their school district (which is where K-12
+-- spending actually lives — the city/county "education" line is tiny).
+where m.gov_type in ('state', 'county', 'city', 'school_district')
+  -- A handful of defunct interstate "joint" school districts carry no
+  -- state_code; drop them (state_code is NOT NULL by contract).
+  and m.state_code is not null

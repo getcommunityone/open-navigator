@@ -19,10 +19,11 @@ import { Dialog, Transition } from '@headlessui/react'
 import { useQuery } from '@tanstack/react-query'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import {
-  fetchLocalFinance,
+  fetchCombinedFinance,
   fetchPropertyTaxRate,
   fetchSalesTaxRate,
-  type LocalFinance,
+  type CombinedFinance,
+  type CombinedGovernment,
   type LocalFinanceCategory,
   type PropertyTaxRate,
   type SalesTaxRate,
@@ -55,6 +56,14 @@ const CAT_PALETTE = [
 function fmtDollars(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return '—'
   return `$${Math.round(n).toLocaleString('en-US')}`
+}
+
+// Human label for a stacked government: "City of Tuscaloosa", "Tuscaloosa
+// County", "Tuscaloosa City Schools".
+function labelGovernment(g: CombinedGovernment): string {
+  if (g.level === 'city') return `City of ${g.jurisdiction_name}`
+  if (g.level === 'county') return `${g.jurisdiction_name} County`
+  return `${g.jurisdiction_name} Schools`
 }
 
 function pct(n: number): string {
@@ -499,7 +508,8 @@ function RevealDonut({
 // off they were. Categories & shares are REAL (Census), never fabricated.
 // ---------------------------------------------------------------------------
 function GuessingGame({
-  fin,
+  placeName,
+  governments,
   game,
   revealed,
   onReveal,
@@ -508,7 +518,8 @@ function GuessingGame({
   touched,
   setTouched,
 }: {
-  fin: LocalFinance
+  placeName: string
+  governments: CombinedGovernment[]
   game: GameCategory[]
   revealed: boolean
   onReveal: () => void
@@ -547,8 +558,7 @@ function GuessingGame({
     return [...game].sort((a, b) => b.actual - a.actual)[0]
   }, [game])
 
-  const topDollars =
-    top && fin.taxes_per_capita != null ? fin.taxes_per_capita * (top.actual / 100) : null
+  const schoolGov = governments.find((g) => g.level === 'school_district')
 
   return (
     <div className="rounded-2xl border border-[#d4e8e8] bg-white p-4 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
@@ -727,29 +737,18 @@ function GuessingGame({
 
           {top && (
             <p className="mt-3.5 text-center text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-              {topDollars != null ? (
-                <>
-                  <span className="font-semibold text-[#1a6b6b]">{fmtDollars(topDollars)}</span> per resident
-                </>
-              ) : (
-                <>
-                  <span className="font-semibold text-[#1a6b6b]">{pct(top.actual)}</span> of the budget
-                </>
-              )}{' '}
+              <span className="font-semibold text-[#1a6b6b]">{pct(top.actual)}</span> of every local dollar
               goes to {top.category} alone — every year.
             </p>
           )}
 
-          {/* Why the splits look surprising — this is the local GOVERNMENT's own
-              direct spending (U.S. Census). Cities/counties don't run K-12, so
-              "Education" looks tiny; "Administration" includes general,
-              not-elsewhere-classified spending. Real data, just unintuitive. */}
+          {/* These are REAL combined Census figures — city + county + school
+              district stacked. That's why Education is a big slice now. */}
           <p className="mt-2 rounded-lg bg-[#f7fafb] px-3 py-2 text-center text-[11.5px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-            These are {fin.jurisdiction_name}&apos;s own direct expenditures (U.S. Census).
-            {(fin.gov_type === 'city' || fin.gov_type === 'county') && (
-              <> K-12 schools are run by a separate school district — so the {fin.gov_type}&apos;s education line is small.</>
-            )}{' '}
-            &ldquo;Administration&rdquo; also includes general spending the Census doesn&apos;t classify elsewhere.
+            This stacks {placeName}&apos;s city, county
+            {schoolGov ? <> and school district ({schoolGov.jurisdiction_name} Schools)</> : null} budgets —
+            the full local government you fund (U.S. Census). &ldquo;Administration&rdquo; also folds in
+            general spending the Census doesn&apos;t classify elsewhere.
           </p>
         </div>
       )}
@@ -985,9 +984,11 @@ export default function MoneyGameModal({
   county,
   requestedLabel,
 }: MoneyGameModalProps) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['local-finance', stateCode, city, county],
-    queryFn: () => fetchLocalFinance({ state: stateCode, city, county }),
+  // Combined city + county + school-district budget — the full local government
+  // a resident funds, so the guessing game's "Education" reflects real K-12.
+  const { data, isLoading, isError } = useQuery<CombinedFinance>({
+    queryKey: ['combined-finance', stateCode, city, county],
+    queryFn: () => fetchCombinedFinance({ state: stateCode, city, county }),
     enabled: open && !!stateCode,
     staleTime: 5 * 60 * 1000,
   })
@@ -1085,13 +1086,14 @@ export default function MoneyGameModal({
                   </p>
                 )}
 
-                {/* City→state fallback note — only on a true statewide fallback
-                    (level "state"); a city-state like DC resolves to real city
-                    data with matched=false but shouldn't claim a fallback. */}
-                {data && !data.matched && data.level === 'state' && requestedLabel && (
-                  <p className="mt-2 rounded-lg bg-[#fff4ea] px-3 py-2 text-[12px] text-[#9a6b12]" style={FONT}>
-                    Showing {data.state} statewide figures — we don&apos;t have
-                    local finance for {requestedLabel} yet.
+                {/* Stacked-governments callout — the FULL local government a
+                    resident funds (city + county + their school district), so
+                    K-12 spending is included rather than hidden. */}
+                {data && data.governments.length > 0 && (
+                  <p className="mt-2 rounded-lg bg-[#f0faf8] px-3 py-2 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
+                    <span className="font-semibold">Your full local government:</span>{' '}
+                    {data.governments.map((g) => labelGovernment(g)).join(' + ')} — stacked, because you
+                    fund all of them.
                   </p>
                 )}
 
@@ -1154,7 +1156,8 @@ export default function MoneyGameModal({
                         <div>
                           {game.length > 0 ? (
                             <GuessingGame
-                              fin={data}
+                              placeName={placeName || data.jurisdiction_name}
+                              governments={data.governments}
                               game={game}
                               revealed={revealed}
                               onReveal={() => setRevealed(true)}

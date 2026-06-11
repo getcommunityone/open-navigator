@@ -510,3 +510,162 @@ async def get_local_finance(
             source=_SOURCE,
             note=note,
         )
+
+
+# ---------------------------------------------------------------------------
+# Combined local government — stack the governments a resident actually pays:
+# city + county + their school district. K-12 spending lives in the school
+# district (the city/county "education" line is tiny), so without it the budget
+# split is misleading. All REAL Census figures; categories are summed across the
+# stacked governments and shares recomputed against the combined total.
+# ---------------------------------------------------------------------------
+
+# A school-district row, matched by its cleaned name. City-school-district names
+# end in " City" (e.g. "Tuscaloosa City"); county-school-district names end in
+# " County" (e.g. "Tuscaloosa County").
+_SCHOOL_SQL = f"""
+    SELECT {_FINANCE_COLS}
+    FROM jurisdiction_finance
+    WHERE gov_type = 'school_district'
+      AND state_code = $1
+      AND lower(jurisdiction_name) = lower($2)
+    ORDER BY fiscal_year DESC
+    LIMIT 1
+"""
+
+
+class CombinedGovernment(BaseModel):
+    level: str  # "city" | "county" | "school_district"
+    jurisdiction_name: str
+    direct_expenditure: Optional[int] = None
+
+
+class CombinedFinanceResponse(BaseModel):
+    jurisdiction_name: str  # the resident's place label, e.g. "Tuscaloosa"
+    state_code: str
+    state: str
+    fiscal_year: str
+    direct_expenditure: Optional[int] = None  # combined across stacked govs
+    categories: List[FinanceCategory] = []
+    governments: List[CombinedGovernment] = []  # what was stacked, for the callout
+    source: str = _SOURCE
+    note: str = ""
+
+
+def _strip_county(name: str) -> str:
+    """'Tuscaloosa County' -> 'Tuscaloosa'."""
+    return name[: -len(" County")].strip() if name.lower().endswith(" county") else name.strip()
+
+
+@router.get("/combined", response_model=CombinedFinanceResponse)
+async def get_combined_finance(
+    state: str = Query(..., description="2-letter state code (full names accepted)."),
+    city: Optional[str] = Query(None, description="City name (Census place)."),
+    county: Optional[str] = Query(None, description="County name."),
+) -> CombinedFinanceResponse:
+    """Stack city + county + the resident's school district into one budget.
+
+    A city resident is governed by the city, the county, and the *city* school
+    district ("<City> City"); an unincorporated resident by the county and the
+    *county* school district ("<County> County"). Categories are summed and
+    shares recomputed against the combined direct expenditure. Real Census data.
+    """
+    state_code = normalize_state_input(state)
+    if not state_code:
+        raise HTTPException(status_code=400, detail="A valid state code is required.")
+
+    with tracer.start_as_current_span("combined-finance") as span:
+        span.set_attribute("combined_finance.state_code", state_code)
+        span.set_attribute("combined_finance.city", city or "")
+        span.set_attribute("combined_finance.county", county or "")
+
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                stacked: list[tuple[str, object]] = []
+
+                if city:
+                    r = await conn.fetchrow(_CITY_SQL, state_code, city)
+                    if r is not None:
+                        stacked.append(("city", r))
+                if county:
+                    # County rows are stored under the bare stem ("Tuscaloosa"),
+                    # so strip a trailing " County" before matching.
+                    r = await conn.fetchrow(_COUNTY_SQL, state_code, _strip_county(county))
+                    if r is not None:
+                        stacked.append(("county", r))
+
+                # The resident's school district: city school district when they
+                # picked a city, else the county school district.
+                sd = None
+                if city:
+                    sd = await conn.fetchrow(_SCHOOL_SQL, state_code, f"{city} City")
+                if sd is None and county:
+                    stem = _strip_county(county)
+                    sd = await conn.fetchrow(_SCHOOL_SQL, state_code, f"{stem} County")
+                if sd is not None:
+                    stacked.append(("school_district", sd))
+
+                if not stacked:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="No local-government finance available for this location.",
+                    )
+
+                # Sum category amounts across the stacked governments.
+                cat_totals: dict[str, int] = {}
+                for _level, row in stacked:
+                    cats = await conn.fetch(
+                        _CATEGORY_SQL, row["jurisdiction_finance_id"]
+                    )
+                    for c in cats:
+                        if c["amount"] is not None:
+                            cat_totals[c["category"]] = cat_totals.get(
+                                c["category"], 0
+                            ) + int(c["amount"])
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("combined-finance query failed")
+            span.record_exception(exc)
+            raise HTTPException(
+                status_code=500, detail="Failed to load combined finance data."
+            ) from exc
+
+        combined_total = sum(cat_totals.values())
+        categories = [
+            FinanceCategory(
+                category=cat,
+                amount=amount,
+                share_pct=(round(amount / combined_total * 100, 1) if combined_total else None),
+            )
+            for cat, amount in sorted(cat_totals.items(), key=lambda kv: kv[1], reverse=True)
+            if amount > 0
+        ]
+
+        first = stacked[0][1]
+        place = (city or _strip_county(county) if county else None) or first["state"]
+        governments = [
+            CombinedGovernment(
+                level=level,
+                jurisdiction_name=row["jurisdiction_name"],
+                direct_expenditure=_int_or_none(row["direct_expenditure"]),
+            )
+            for level, row in stacked
+        ]
+        labels = ", ".join(g.jurisdiction_name for g in governments)
+        note = f"Combined direct expenditure across: {labels} (U.S. Census, latest year)."
+
+        span.set_attribute("combined_finance.gov_count", len(stacked))
+
+        return CombinedFinanceResponse(
+            jurisdiction_name=str(place),
+            state_code=first["state_code"],
+            state=first["state"],
+            fiscal_year=str(first["fiscal_year"]),
+            direct_expenditure=combined_total or None,
+            categories=categories,
+            governments=governments,
+            source=_SOURCE,
+            note=note,
+        )

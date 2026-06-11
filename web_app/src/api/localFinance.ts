@@ -103,3 +103,33 @@ export async function fetchSalesTaxRate(state: string): Promise<SalesTaxRate> {
   })
   return res.data
 }
+
+// REAL combined local government — city + county + the resident's school
+// district, summed (so K-12 spending shows up). Shares are recomputed against
+// the combined total.
+export interface CombinedGovernment {
+  level: 'city' | 'county' | 'school_district'
+  jurisdiction_name: string
+  direct_expenditure: number | null
+}
+
+export interface CombinedFinance {
+  jurisdiction_name: string
+  state_code: string
+  state: string
+  fiscal_year: string
+  direct_expenditure: number | null
+  categories: LocalFinanceCategory[]
+  /** What was stacked, for the "city + county + schools" callout. */
+  governments: CombinedGovernment[]
+  source: string
+  note: string
+}
+
+export async function fetchCombinedFinance(params: LocalFinanceParams): Promise<CombinedFinance> {
+  const q: Record<string, string> = { state: params.state }
+  if (params.city) q.city = params.city
+  if (params.county) q.county = params.county
+  const res = await api.get<CombinedFinance>('/local-finance/combined', { params: q })
+  return res.data
+}
