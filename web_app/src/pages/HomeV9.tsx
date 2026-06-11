@@ -501,7 +501,9 @@ export default function HomeV9() {
             {SIGNAL_ORDER.map((id) => {
               const s = SIGNAL_META[id]
               const lens = lensById[id]
-              const count = lens && !lens.placeholder ? lens.cards.length : 0
+              // Honest empty marker when this signal has no analyzed activity in
+              // the current window (e.g. "Moving Fast" is a placeholder lens).
+              const empty = !lens || lens.placeholder || lens.cards.length === 0
               return (
                 <button
                   key={id}
@@ -509,16 +511,16 @@ export default function HomeV9() {
                     setActiveSignals([id])
                     document.getElementById('close-to-home')?.scrollIntoView({ behavior: 'smooth' })
                   }}
-                  style={{ flex: '0 0 215px', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 16, cursor: 'pointer', fontFamily: 'inherit' }}
+                  style={{ flex: '0 0 215px', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 16, cursor: 'pointer', fontFamily: 'inherit', opacity: empty ? 0.6 : 1 }}
                 >
                   <div style={{ width: 42, height: 42, borderRadius: 11, background: s.bg, display: 'grid', placeItems: 'center', fontSize: 20 }}>
                     {s.icon}
                   </div>
                   <div style={{ fontSize: 16.5, fontWeight: 700, color: s.color, marginTop: 10 }}>{s.name}</div>
                   <div style={{ fontSize: 13, color: '#57534e', marginTop: 4, lineHeight: 1.45 }}>{s.desc}</div>
-                  {count > 0 && (
+                  {empty && (
                     <div className="font-mono-x" style={{ fontSize: 10, color: '#a8a29e', marginTop: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {count} this {when.label.replace('Past ', '')}
+                      None flagged yet
                     </div>
                   )}
                 </button>
