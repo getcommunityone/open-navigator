@@ -778,36 +778,125 @@ function scoreColor(score: number): string {
 // commuting zone to the U.S. on a 0–100 percentile scale. Every number is a real
 // API value; when there's no local cell we show only the national one + the note.
 // ---------------------------------------------------------------------------
-const PARENT_INCOME_OPTIONS: { value: string; label: string }[] = [
-  { value: 'low', label: 'Low' },
-  { value: 'middle', label: 'Middle' },
-  { value: 'high', label: 'High' },
+// Selector options — REAL Opportunity Atlas dimensions (value -> API code).
+const PARENT_OPTIONS: [string, string][] = [
+  ['low', 'Low'],
+  ['middle', 'Middle'],
+  ['high', 'High'],
+]
+const RACE_OPTIONS: [string, string][] = [
+  ['pooled', 'All'],
+  ['black', 'Black'],
+  ['white', 'White'],
+  ['hisp', 'Hispanic'],
+  ['asian', 'Asian'],
+]
+const GENDER_OPTIONS: [string, string][] = [
+  ['pooled', 'All'],
+  ['female', 'Female'],
+  ['male', 'Male'],
 ]
 
-interface ForecastBar {
-  label: string
-  pct: number
-  color: string
-}
-
-/** One labelled 0–100 percentile bar. */
-function PercentileBar({ bar }: { bar: ForecastBar }) {
+// Prototype-style vertical dot-column selector (radio dots).
+function DotColumn({
+  title,
+  options,
+  active,
+  onSelect,
+}: {
+  title: string
+  options: [string, string][]
+  active: string
+  onSelect: (v: string) => void
+}) {
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-[12px]" style={FONT}>
-        <span className="flex items-center gap-1.5 font-medium text-[#0f2b2b]">
-          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: bar.color }} />
-          {bar.label}
-        </span>
-        <span className="font-semibold tabular-nums text-[#0f2b2b]">{bar.pct.toFixed(1)}</span>
+      <div
+        className="mb-2 whitespace-pre-line text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-[#9bb8b8]"
+        style={MONO}
+      >
+        {title}
       </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-[#eef4f4]">
-        <div
-          className="h-full rounded-full transition-[width] duration-300"
-          style={{ width: `${Math.max(0, Math.min(100, bar.pct))}%`, backgroundColor: bar.color }}
-        />
-      </div>
+      {options.map(([value, label]) => {
+        const isActive = active === value
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onSelect(value)}
+            className="flex items-center gap-2 py-1"
+          >
+            <span
+              className="box-border h-[11px] w-[11px] shrink-0 rounded-full transition-colors"
+              style={{
+                background: isActive ? '#1a6b6b' : '#fff',
+                border: isActive ? '2px solid #1a6b6b' : '1.5px solid #a8a29e',
+              }}
+            />
+            <span
+              className="text-[10.5px] font-semibold uppercase tracking-[0.05em] transition-colors"
+              style={{ ...MONO, color: isActive ? '#1a6b6b' : '#44403c' }}
+            >
+              {label}
+            </span>
+          </button>
+        )
+      })}
     </div>
+  )
+}
+
+// REAL local-vs-U.S. slope on a 0–100 child-income-rank scale. (The Atlas is a
+// single cohort, so we compare place-vs-nation — not the prototype's invented
+// 1978-vs-1992 cohorts.)
+function SlopeChart({
+  localPct,
+  natPct,
+  localLabel,
+}: {
+  localPct: number | null
+  natPct: number
+  localLabel: string
+}) {
+  const W = 320
+  const H = 134
+  const topY = 16
+  const botY = 104
+  const y = (p: number) => botY - (Math.max(0, Math.min(100, p)) / 100) * (botY - topY)
+  const xUS = 66
+  const xLoc = 232
+  const short = localLabel.length > 14 ? localLabel.slice(0, 13) + '…' : localLabel
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Child income rank: your area vs the U.S.">
+      {[25, 50, 75].map((g) => (
+        <g key={g}>
+          <line x1="58" x2="250" y1={y(g)} y2={y(g)} stroke="#f1f5f5" strokeWidth="1" />
+          <text x="52" y={y(g) + 3} fontSize="8.5" fill="#9bb8b8" textAnchor="end" fontFamily="'IBM Plex Mono', monospace">{g}</text>
+        </g>
+      ))}
+      {localPct != null ? (
+        <>
+          <line x1={xUS} y1={y(natPct)} x2={xLoc} y2={y(localPct)} stroke="#1a6b6b" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx={xUS} cy={y(natPct)} r="4.5" fill="#9bb8b8" />
+          <circle cx={xLoc} cy={y(localPct)} r="5" fill="#1a6b6b" />
+          <text x={xLoc + 9} y={y(localPct) + 1} fontSize="11" fontWeight="800" fill="#1a6b6b" fontFamily="'Source Sans 3', sans-serif">
+            {localPct.toFixed(0)} {short}
+          </text>
+          <text x={xUS - 9} y={y(natPct) - 6} fontSize="10" fontWeight="700" fill="#9bb8b8" textAnchor="end" fontFamily="'Source Sans 3', sans-serif">
+            {natPct.toFixed(0)} U.S.
+          </text>
+        </>
+      ) : (
+        <>
+          <line x1="58" x2="250" y1={y(natPct)} y2={y(natPct)} stroke="#9bb8b8" strokeWidth="2.5" strokeDasharray="4 3" />
+          <text x="250" y={y(natPct) - 6} fontSize="10.5" fontWeight="700" fill="#9bb8b8" textAnchor="end" fontFamily="'Source Sans 3', sans-serif">
+            U.S. avg {natPct.toFixed(0)}
+          </text>
+        </>
+      )}
+      <text x={xUS} y={H - 4} fontSize="9" fill="#78716c" textAnchor="middle" fontFamily="'IBM Plex Mono', monospace">U.S. AVG</text>
+      <text x={xLoc} y={H - 4} fontSize="9" fill="#1c1917" fontWeight="700" textAnchor="middle" fontFamily="'IBM Plex Mono', monospace">{short.toUpperCase()}</text>
+    </svg>
   )
 }
 
@@ -821,128 +910,111 @@ function GrandkidsForecast({
   city?: string
 }) {
   const [parentIncome, setParentIncome] = useState('low')
+  const [race, setRace] = useState('pooled')
+  const [gender, setGender] = useState('pooled')
 
   const { data, isLoading, isError } = useQuery<GrandkidOutlookData>({
-    queryKey: ['grandkid-outlook', stateCode, city, parentIncome],
-    queryFn: () =>
-      fetchGrandkidOutlook({ state: stateCode, city, parent_income: parentIncome }),
+    queryKey: ['grandkid-outlook', stateCode, city, parentIncome, race, gender],
+    queryFn: () => fetchGrandkidOutlook({ state: stateCode, city, parent_income: parentIncome, race, gender }),
     enabled: open && !!stateCode,
     staleTime: 10 * 60 * 1000,
   })
 
-  // Real national + (optional) local percentiles. Only ever drawn from a real
-  // API value — never invented.
+  // Real national + (optional) local percentiles — only ever a real API value.
   const nat = data?.national
-  const natPct =
-    nat && nat.available && typeof nat.child_percentile === 'number' ? nat.child_percentile : null
-
+  const natPct = nat && nat.available && typeof nat.child_percentile === 'number' ? nat.child_percentile : null
   const local = data?.local
   const localPct =
-    local && local.available && typeof local.child_percentile === 'number'
-      ? local.child_percentile
-      : null
-  // local === null → no commuting zone matched; local.available === false → CZ
-  // matched but this group has too little data. Both mean "national only".
+    local && local.available && typeof local.child_percentile === 'number' ? local.child_percentile : null
   const hasLocal = localPct != null
   const localLabel = data?.cz_name || data?.scope_label || 'Your area'
+  const blank = isLoading || isError || !data || natPct == null
+  const diff = !blank && hasLocal ? (localPct as number) - (natPct as number) : null
 
-  const bars: ForecastBar[] = []
-  if (hasLocal) bars.push({ label: localLabel, pct: localPct as number, color: '#1a6b6b' })
-  if (natPct != null) bars.push({ label: 'United States', pct: natPct, color: '#9bb8b8' })
+  const raceLabel = RACE_OPTIONS.find(([v]) => v === race && v !== 'pooled')?.[1]
+  const genderLabel = GENDER_OPTIONS.find(([v]) => v === gender && v !== 'pooled')?.[1]
+  const demoQual = [raceLabel, genderLabel].filter(Boolean).join(' · ')
+
+  const verdict = blank
+    ? 'Grandkids forecast'
+    : !hasLocal
+      ? 'Grandkids forecast'
+      : diff != null && Math.abs(diff) < 1
+        ? `Kids raised in ${localLabel} land about the U.S. average`
+        : diff != null && diff > 0
+          ? `Better off: kids raised in ${localLabel} reach a higher income rank than the U.S. average`
+          : `Tougher odds: kids raised in ${localLabel} reach a lower income rank than the U.S. average`
 
   return (
-    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-5 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
-      <h3 className="text-[15px] font-semibold text-[#0f2b2b]" style={SERIF}>
-        Grandkids forecast
-      </h3>
-      <p className="mt-1 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-        For kids who grow up here with{' '}
-        <span className="font-semibold text-[#1a6b6b]">{parentIncome}-income</span> parents, the
-        average adult income percentile they reach — compared with the U.S.
-      </p>
-
-      {/* Parent-income toggle. */}
-      <div className="mt-4 inline-flex rounded-xl border border-[#d4e8e8] bg-[#f7fafb] p-0.5" role="group" aria-label="Parent income">
-        {PARENT_INCOME_OPTIONS.map((o) => {
-          const active = o.value === parentIncome
-          return (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => setParentIncome(o.value)}
-              aria-pressed={active}
-              className={`rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors ${
-                active ? 'bg-[#1a6b6b] text-white' : 'text-[#56635e] hover:text-[#0f2b2b]'
-              }`}
-              style={FONT}
-            >
-              {o.label}
-            </button>
-          )
-        })}
+    <div className="overflow-hidden rounded-2xl border border-[#d4e8e8] bg-white shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
+      {/* Teal verdict header (real numbers only). */}
+      <div className="bg-[#1a6b6b] px-5 py-3.5 text-white">
+        <h3 className="text-[15.5px] font-semibold leading-snug" style={SERIF}>
+          {verdict}
+        </h3>
+        <p className="mt-0.5 text-[12px] text-white/85" style={FONT}>
+          Adult income rank for kids with <span className="font-semibold">{parentIncome}-income</span> parents
+          {demoQual ? ` · ${demoQual}` : ''} · vs the U.S.
+        </p>
       </div>
 
-      <div className="mt-4">
-        {isLoading ? (
-          <div className="space-y-3" aria-hidden>
-            {[0, 1].map((r) => (
-              <div key={r}>
-                <div className="mb-1 h-3 w-1/3 animate-pulse rounded bg-[#eef4f4]" />
-                <div className="h-2.5 w-full animate-pulse rounded-full bg-[#eef4f4]" />
+      <div className="flex flex-wrap items-start gap-5 p-5">
+        {/* Dot-column selectors — REAL Atlas dimensions. */}
+        <div className="flex shrink-0 gap-5">
+          <DotColumn title={'Parent\nincome'} options={PARENT_OPTIONS} active={parentIncome} onSelect={setParentIncome} />
+          <DotColumn title={'Child\nrace'} options={RACE_OPTIONS} active={race} onSelect={setRace} />
+          <DotColumn title={'Child\ngender'} options={GENDER_OPTIONS} active={gender} onSelect={setGender} />
+        </div>
+
+        {/* Chart — dashed "?" while blank, else the local-vs-U.S. slope. */}
+        <div className="min-w-[220px] flex-1">
+          {blank ? (
+            <div className="flex h-[134px] items-center justify-center">
+              <div className="mgm-ring flex h-24 w-24 items-center justify-center rounded-full border-[3px] border-dashed border-[#cfe0e0]" aria-hidden>
+                <span className="text-[30px] font-semibold text-[#cfe0e0]" style={SERIF}>?</span>
               </div>
-            ))}
-          </div>
-        ) : isError || !data || natPct == null ? (
-          <p className="py-4 text-[13px] text-[#9bb8b8]" style={FONT}>
-            We couldn&apos;t load mobility data right now. Please try again in a moment.
-          </p>
-        ) : (
-          <>
-            {/* Local-CZ vs national comparison on a 0–100 percentile scale. */}
-            <div className="space-y-3">
-              {bars.map((b) => (
-                <PercentileBar key={b.label} bar={b} />
-              ))}
             </div>
-            <p className="mt-1.5 text-[10px] uppercase tracking-[0.1em] text-[#9bb8b8]" style={MONO}>
-              0 = bottom · 100 = top of the national income ladder
-            </p>
-
-            {/* Honest national-only explanation when there's no local number. */}
-            {!hasLocal && (
-              <p className="mt-3 rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-                {local == null
-                  ? 'We don’t have local mobility data matched to this place yet — showing the U.S. baseline.'
-                  : `Not enough local data for ${localLabel} in this group — showing the U.S. baseline.`}
+          ) : (
+            <>
+              <SlopeChart localPct={hasLocal ? (localPct as number) : null} natPct={natPct as number} localLabel={localLabel} />
+              <p className="mt-1 text-[9.5px] uppercase tracking-[0.08em] text-[#9bb8b8]" style={MONO}>
+                0 = bottom · 100 = top of the U.S. income ladder
               </p>
-            )}
+            </>
+          )}
+        </div>
+      </div>
 
-            {/* API note — verbatim, generated from real numbers. */}
-            {data.note && (
-              <p className="mt-3 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-                {data.note}
-              </p>
+      {/* Notes — honest about missing local cells + provenance. */}
+      <div className="px-5 pb-4">
+        {isError && (
+          <p className="text-[12px] text-[#9bb8b8]" style={FONT}>
+            We couldn&apos;t load mobility data right now. Try again, or change a filter.
+          </p>
+        )}
+        {!blank && !hasLocal && (
+          <p className="rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+            {local == null
+              ? 'No local mobility data matched to this place for this group yet — showing the U.S. baseline.'
+              : `Not enough local data for ${localLabel} in this group — showing the U.S. baseline.`}
+          </p>
+        )}
+        {!blank && data?.note && (
+          <p className="mt-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+            {data.note}
+          </p>
+        )}
+        {!blank && data?.source && (
+          <p className="mt-2 border-t border-[#eef4f4] pt-2 text-[11px] text-[#9bb8b8]" style={FONT}>
+            Source:{' '}
+            {data.source_url ? (
+              <a href={data.source_url} target="_blank" rel="noopener noreferrer" className="underline decoration-[#d4e8e8] underline-offset-2 hover:text-[#1a6b6b]">
+                {data.source}
+              </a>
+            ) : (
+              data.source
             )}
-
-            {/* Provenance. */}
-            {data.source && (
-              <p className="mt-3 border-t border-[#eef4f4] pt-2 text-[11px] text-[#9bb8b8]" style={FONT}>
-                Source:{' '}
-                {data.source_url ? (
-                  <a
-                    href={data.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-[#d4e8e8] underline-offset-2 hover:text-[#1a6b6b]"
-                  >
-                    {data.source}
-                  </a>
-                ) : (
-                  data.source
-                )}
-              </p>
-            )}
-          </>
+          </p>
         )}
       </div>
     </div>
