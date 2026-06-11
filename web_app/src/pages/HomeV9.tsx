@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MoneyGameModal from '../components/MoneyGameModal'
+import FollowTheMoney from '../components/FollowTheMoney'
 import { fetchPolicyQuestions } from '../api/policyQuestions'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
 import { nominatimUsStateCode } from '../utils/stateMapping'
@@ -765,6 +766,29 @@ export default function HomeV9() {
             </div>
           </section>
         )}
+
+        {/* ── Money Moves — the "follow the money" flowing Sankey (REAL
+            /api/money-flow: public spending / grants / nonprofit economy) ── */}
+        <section style={{ marginTop: 30 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 20 }}>💵</span>
+            <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#059669' }}>
+              Money Moves
+            </h2>
+            <span style={{ fontSize: 14, color: '#78716c' }}>
+              Follow the dollars — every flow traced to the record · 📍 {placeLabel}
+            </span>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <FollowTheMoney
+              embedded
+              national={national}
+              stateCode={stateCode}
+              city={city}
+              window={when.window}
+            />
+          </div>
+        </section>
 
         {/* ── Explore by signal + Browse the directory ── */}
         <section style={{ marginTop: 30 }}>
