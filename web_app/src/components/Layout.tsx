@@ -538,12 +538,18 @@ export default function Layout() {
                     362 Officials
                   </Link>
                 </div>
-                <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
                   <Link
                     to="/#contact"
-                    className="text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
+                    className="block text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
                   >
                     📍 Request Jurisdiction Coverage
+                  </Link>
+                  <Link
+                    to="/support"
+                    className="block text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
+                  >
+                    💬 Contact support
                   </Link>
                 </div>
               </div>

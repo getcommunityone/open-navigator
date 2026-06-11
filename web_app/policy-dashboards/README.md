@@ -238,7 +238,7 @@ Show all four to demonstrate:
 
 For questions or issues:
 
-- **Documentation**: See `docs/ACCOUNTABILITY_DASHBOARD_STRATEGY.md`
+- **Documentation**: See `web_docs/docs/guides/accountability-strategy.md`
 - **Python Backend**: See `extraction/accountability_dashboards.py`
 - **Examples**: See `scripts/examples/tuscaloosa_accountability_report.py`
 

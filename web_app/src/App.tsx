@@ -4,7 +4,8 @@ import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-do
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
 import Home from './pages/Home'
-import HomeModern from './pages/HomeModern'
+import PolicyQuestionsPage from './pages/PolicyQuestionsPage'
+import PolicyQuestionPage from './pages/PolicyQuestionPage'
 import Dashboard from './pages/Dashboard'
 import Analytics from './pages/Analytics'
 import Heatmap from './pages/Heatmap'
@@ -22,6 +23,7 @@ import Explore from './pages/Explore'
 import Events from './pages/Events'
 import Services from './pages/Services'
 import Developers from './pages/Developers'
+import Support from './pages/Support'
 import JurisdictionMappingQualityPage from './pages/JurisdictionMappingQualityPage'
 import LighthouseReportPage from './pages/LighthouseReportPage'
 import BatchJobStatusPage from './pages/BatchJobStatusPage'
@@ -139,12 +141,7 @@ function App() {
       <Routes>
       {/* Ground News-style homepage without Layout (has its own header) */}
       <Route path="/" element={<Home />} />
-      
-      {/* Old modern home page (if needed) */}
-      <Route path="/classic" element={<Layout />}>
-        <Route index element={<HomeModern />} />
-      </Route>
-      
+
       {/* All other pages with sidebar layout */}
       <Route path="/" element={<Layout />}>
         <Route path="explore" element={<Explore />} />
@@ -157,6 +154,8 @@ function App() {
         <Route path="heatmap" element={<Heatmap />} />
         <Route path="policy-map" element={<PolicyMap />} />
         <Route path="decisions-map" element={<DecisionsMapPage />} />
+        <Route path="policy-questions" element={<PolicyQuestionsPage />} />
+        <Route path="policy-question/:questionId" element={<PolicyQuestionPage />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
         <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />
         <Route path="data-explorer" element={<DataExplorerLayout />}>
@@ -198,6 +197,7 @@ function App() {
         <Route path="events" element={<Events />} />
         <Route path="services" element={<Services />} />
         <Route path="developers" element={<Developers />} />
+        <Route path="support" element={<Support />} />
         <Route
           path="build/jurisdiction-mapping-quality"
           element={<Navigate to="/data-explorer/jurisdiction-quality" replace />}

@@ -25,6 +25,10 @@ This page documents all data sources, standards, and research contributions used
     <strong>🎓 Academic Research</strong><br/>
     <span style={{fontSize: '0.9em', color: '#666'}}>MeetingBank, LocalView, Opportunity Insights, CivicSearch, Datamuse API, Roper Center, CDP, City Scrapers</span>
   </a>
+  <a href="#-comparative--deliberative-analysis" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #3F51B5'}}>
+    <strong>🆚 Comparative & Deliberative Analysis</strong><br/>
+    <span style={{fontSize: '0.9em', color: '#666'}}>AllSides, ProCon.org, iSideWith, OnTheIssues, Kialo, Ground News</span>
+  </a>
   <a href="#government-data" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #4CAF50'}}>
     <strong>🏛️ Government Data</strong><br/>
     <span style={{fontSize: '0.9em', color: '#666'}}>U.S. Census, IRS, Open States, LegiScan</span>
@@ -489,13 +493,143 @@ This is separate from the word-finding API and has different pricing.
 
 ---
 
+## 🆚 Comparative & Deliberative Analysis
+
+**In this section:**
+- [AllSides](#allsides)
+- [ProCon.org (Britannica)](#proconorg-britannica)
+- [iSideWith](#isidewith)
+- [OnTheIssues](#ontheissues)
+- [Kialo](#kialo)
+- [Ground News](#ground-news)
+
+These platforms present **multiple positions on the same issue side by side** — pro/con arguments, left/center/right framing, candidate stances, and structured debate trees. We cite them as **reference and design inspiration** for Open Navigator's "competing views" / "argued by" analysis, which surfaces the different sides of a local decision. **We do not redistribute their data, ratings, or argument content**; if you use anything from these sites, cite the specific page and follow each site's terms.
+
+### AllSides
+
+**Organization:** AllSides, Inc.  
+**What it does:** Rates the political lean of news outlets (**Left / Center / Right**) and presents the same story as covered by sources across the spectrum, plus a widely cited Media Bias Chart.
+
+- **Website:** https://www.allsides.com/
+- **Media Bias Ratings:** https://www.allsides.com/media-bias/ratings
+- **Use as reference for:** Presenting a single civic issue through multiple framings instead of one editorial voice.
+- **License / use:** Site content is proprietary; **reference-only**. Link and credit AllSides; do not republish their bias ratings or balanced-news feeds as your own.
+
+**BibTeX:**
+```bibtex
+@misc{allsides,
+  author = {{AllSides, Inc.}},
+  title  = {AllSides: Balanced News and Media Bias Ratings},
+  url    = {https://www.allsides.com/},
+  note   = {Left/Center/Right media bias ratings; reference-only, not redistributed.}
+}
+```
+
+### ProCon.org (Britannica)
+
+**Organization:** Encyclopaedia Britannica (ProCon.org)  
+**What it does:** Nonpartisan, **structured pro/con arguments** on controversial public-policy issues, with sourcing for each side.
+
+- **Website:** https://www.procon.org/
+- **Use as reference for:** The pro/con argument structure behind the "competing views" lens — each position stated plainly with its supporting evidence.
+- **License / use:** Proprietary (Britannica); **reference-only**. Cite the specific issue page; do not copy their argument text.
+
+**BibTeX:**
+```bibtex
+@misc{procon_britannica,
+  author = {{ProCon.org / Encyclopaedia Britannica}},
+  title  = {ProCon.org: Pros and Cons of Controversial Issues},
+  url    = {https://www.procon.org/},
+  note   = {Nonpartisan structured pro/con arguments; reference-only.}
+}
+```
+
+### iSideWith
+
+**Organization:** iSideWith  
+**What it does:** Matches users with candidates and parties by comparing the user's answers against **politicians' stated positions** across policy topics.
+
+- **Website:** https://www.isidewith.com/
+- **Use as reference for:** Mapping a decision or candidate to a set of positions per topic.
+- **License / use:** Proprietary; **reference-only**. Link and credit; do not scrape or redistribute their position data.
+
+**BibTeX:**
+```bibtex
+@misc{isidewith,
+  author = {{iSideWith}},
+  title  = {iSideWith: Political Quiz and Candidate Position Matching},
+  url    = {https://www.isidewith.com/},
+  note   = {Candidate/voter position matching by issue; reference-only.}
+}
+```
+
+### OnTheIssues
+
+**Organization:** OnTheIssues (Jesse Gordon / VoteMatch)  
+**What it does:** Nonpartisan archive of **politicians' positions and quotes organized by issue**, enabling side-by-side comparison of where officials stand.
+
+- **Website:** https://www.ontheissues.org/
+- **Use as reference for:** A per-official, per-topic stance record that complements the "argued by" attribution.
+- **License / use:** Proprietary compilation; **reference-only**. Cite the specific politician/issue page.
+
+**BibTeX:**
+```bibtex
+@misc{ontheissues,
+  author = {{OnTheIssues}},
+  title  = {OnTheIssues: Every Political Leader on Every Issue},
+  url    = {https://www.ontheissues.org/},
+  note   = {Politicians' positions and quotes by issue; reference-only.}
+}
+```
+
+### Kialo
+
+**Organization:** Kialo  
+**What it does:** Collaborative **debate platform** that maps an issue into a tree of pro and con arguments, each scored and sourced — a visual model of structured deliberation.
+
+- **Website:** https://www.kialo.com/
+- **Education edition:** https://www.kialo-edu.com/
+- **Use as reference for:** The branching pro/con argument tree as a way to render the competing-views analysis.
+- **License / use:** Proprietary platform; **reference-only**. Link and credit; user-generated debate content is subject to Kialo's terms.
+
+**BibTeX:**
+```bibtex
+@misc{kialo,
+  author = {{Kialo}},
+  title  = {Kialo: Structured Debate and Argument Mapping},
+  url    = {https://www.kialo.com/},
+  note   = {Pro/con argument trees; reference-only.}
+}
+```
+
+### Ground News
+
+**Organization:** Ground News (Snapwise Inc.)  
+**What it does:** News aggregator that **compares coverage of the same story across outlets**, showing bias distribution and "Blindspot" gaps between Left and Right reporting.
+
+- **Website:** https://ground.news/
+- **Use as reference for:** Quantifying and displaying how differently the same civic event is framed across sources.
+- **License / use:** Proprietary; **reference-only**. Link and credit; do not redistribute their bias/coverage analytics.
+
+**BibTeX:**
+```bibtex
+@misc{ground_news,
+  author = {{Ground News (Snapwise Inc.)}},
+  title  = {Ground News: Compare News Coverage and Media Bias},
+  url    = {https://ground.news/},
+  note   = {Cross-outlet coverage and bias comparison; reference-only.}
+}
+```
+
+---
+
 ## 🏛️ Government Data
 
 **In this section:**
 - [U.S. Census Bureau](#us-census-bureau)
 - [State Symbols USA (reference)](#state-symbols-usa-reference)
-- [IRS Tax-Exempt Organization Search (TEOS)](#irs-tax-exempt-organization-search-teos)
-- [Open States API](#open-states-api)
+- [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf)
+- [Open States / Plural Policy](#open-states--plural-policy-)
 - [LegiScan](#legiscan-)
 
 ### U.S. Census Bureau
@@ -1085,7 +1219,7 @@ concept_id_1 | concept_id_2 | relationship_id
 - [Findhelp.org (Aunt Bertha)](#findhelporg-aunt-bertha)
 - [211 Regional Directories](#211-regional-directories)
 - [Association of Religion Data Archives (ARDA)](#association-of-religion-data-archives-arda)
-- [Homeland Infrastructure Foundation-Level Data (HIFLD): Places of Worship](#homeland-infrastructure-foundation-level-data-hifld-places-of-worship)
+- [Homeland Infrastructure Foundation-Level Data (HIFLD)](#homeland-infrastructure-foundation-level-data-hifld)
 - [National Congregations Study (NCS)](#national-congregations-study-ncs)
 - [Microsoft Common Data Model for Nonprofits](#microsoft-common-data-model-for-nonprofits)
 
@@ -1841,6 +1975,8 @@ https://www.arcgis.com/home/item.html?id=f36521f6e07f4a859e838f0ad7536898"
 # Law Enforcement (46,972 locations)
 "HIFLD: Local Law Enforcement Locations. U.S. Department of Homeland Security. 
 https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
+
+### National Congregations Study (NCS)
 
 **Organization:** Duke University  
 **What we use:** Representative survey of U.S. congregations to understand social service provision, health programs, and civic engagement patterns.

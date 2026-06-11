@@ -15,6 +15,8 @@ from typing import Any, Tuple
 
 _REPO_MARKER = Path("packages") / "llm" / "src" / "llm" / "governance" / "colab_paths.py"
 _PKG_SRC_REL = Path("packages") / "llm" / "src"
+# ``core_lib.gdrive_paths`` lives here; governance modules import it.
+_CORE_LIB_SRC_REL = Path("packages") / "core-lib" / "src"
 _DEFAULT_COLAB_CLONE = Path("/content/open-navigator")
 _CLONE_URL = "https://github.com/getcommunityone/open-navigator.git"
 _EPHEMERAL_DATA_DIR = Path("/content/_ephemeral_colab_pipeline_shell")
@@ -100,7 +102,7 @@ def bootstrap_repo(
     root = discover_repo_root(clone_if_colab=clone_if_colab)
     if set_open_navigator_root:
         os.environ.setdefault("OPEN_NAVIGATOR_ROOT", str(root))
-    for entry in (str(root), str(root / _PKG_SRC_REL)):
+    for entry in (str(root), str(root / _PKG_SRC_REL), str(root / _CORE_LIB_SRC_REL)):
         if entry not in sys.path:
             sys.path.insert(0, entry)
     return root
@@ -120,7 +122,7 @@ def _git_refresh(repo: Path, *, run_git_update: bool = True) -> None:
 
 def _clear_stale_imports() -> None:
     for name in list(sys.modules):
-        if name.startswith("llm.governance") or name.startswith("scripts.utils.gdrive_paths"):
+        if name.startswith("llm.governance") or name.startswith("core_lib.gdrive_paths"):
             sys.modules.pop(name, None)
     stale = os.environ.pop("GOVERNANCE_PIPELINE_DATA_ROOT", None)
     if stale:
@@ -169,7 +171,11 @@ def complete_section1_bootstrap(
     """
     repo_path = (repo or bootstrap_repo()).resolve()
     os.environ.setdefault("OPEN_NAVIGATOR_ROOT", str(repo_path))
-    for entry in (str(repo_path), str(repo_path / _PKG_SRC_REL)):
+    for entry in (
+        str(repo_path),
+        str(repo_path / _PKG_SRC_REL),
+        str(repo_path / _CORE_LIB_SRC_REL),
+    ):
         if entry not in sys.path:
             sys.path.insert(0, entry)
     _dotenv = repo_path / ".env"

@@ -71,7 +71,7 @@ Includes:
 
 ## What You'll Find Here
 
-### 🚀 Setup & Installation
+### 🚀 Setup & Quick Start
 
 Get the platform running:
 - **[Quick Start](/docs/quickstart)** - Detailed installation instructions
@@ -117,15 +117,17 @@ Contributing and development:
 
 ## Quick Start (TL;DR)
 
+**macOS / Linux:**
+
 ```bash
 # Clone and install
-git clone https://github.com/getcommunityone/open-navigator-for-engagement.git
-cd oral-health-policy-pulse
+git clone https://github.com/getcommunityone/open-navigator.git
+cd open-navigator
 ./install.sh
 
 # Install frontend and docs
-cd frontend && npm install && cd ..
-cd website && npm install && cd ..
+cd web_app && npm install && cd ..
+cd web_docs && npm install && cd ..
 
 # Start all services
 ./start-all.sh
@@ -135,6 +137,27 @@ cd website && npm install && cd ..
 # - API Docs:  http://localhost:8000/docs
 # - This Site: http://localhost:3000
 ```
+
+**Windows (PowerShell)** — the `.sh` scripts are Unix-only (`start-all.sh` uses
+`tmux`); use the PowerShell equivalents:
+
+```powershell
+git clone https://github.com/getcommunityone/open-navigator.git
+cd open-navigator
+.\install.ps1                       # Python backend (creates .venv + .env)
+
+cd web_app;  npm install; cd ..
+cd web_docs; npm install; cd ..
+
+.\start-all.ps1                     # API (8000) + App (5173) + Docs (3000)
+```
+
+> **Don't use `uv sync` to install the backend** — the root `pyproject.toml` is a
+> uv *workspace*, so `uv sync` installs only the `packages/*` libraries and skips
+> the top-level `requirements.txt` (the `pytest`/`black`/`ruff` tooling and
+> `yt-dlp`). Use `install.sh` / `install.ps1` / `pip install -r requirements.txt`.
+> See the [Quick Start → Option 4: Windows (PowerShell)](/docs/quickstart#option-4-windows-powershell)
+> for the ExecutionPolicy fix and details.
 
 ## Architecture Overview
 

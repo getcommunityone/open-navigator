@@ -36,7 +36,7 @@
 - New Python belongs in `packages/` as a proper library — never extend `scripts/` in place.
 
 ## Refactor Workflow
-- **Roadmap / Manager memory:** `docs/CLEANUP_ROADMAP.md` — the living backlog + status for the `scripts/ → packages/` library refactor. Read it before starting cleanup work.
+- **Roadmap / Manager memory:** `web_docs/docs/development/cleanup-roadmap.md` — the living backlog + status for the `scripts/ → packages/` library refactor. Read it before starting cleanup work.
 - **Specialist sub-agents** (in `.claude/agents/`): route scoped work to `python-packages-specialist` (Python libraries in `packages/`; enforces prefer-packages / never-add-to-`scripts/`), `data-dbt-specialist` (dbt/SQL), `api-specialist` (FastAPI), or `frontend-specialist` (React/Docusaurus). Cross-layer tasks get split across them.
 
 ## Data Pipeline Standards (CRITICAL)

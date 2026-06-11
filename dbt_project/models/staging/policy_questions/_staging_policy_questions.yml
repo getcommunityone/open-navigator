@@ -1,0 +1,45 @@
+version: 2
+
+# Bronze landing tables written by the Python registry pipeline
+# (llm.policy_questions.*). Declared under a dedicated source name so we don't
+# have to edit the large shared `bronze` source block.
+sources:
+  - name: pq_bronze
+    schema: bronze
+    description: >
+      Policy-question registry bronze tables, written by the ML pipeline
+      (embed -> cluster -> label). Promoted to gold/public by the staging +
+      marts models here.
+    tables:
+      - name: bronze_policy_question
+      - name: bronze_canonical_argument
+      - name: bronze_question_instance
+      - name: bronze_instance_argument
+      - name: bronze_question_relation
+
+models:
+  - name: stg_policy_question
+    description: "Cleaned policy questions (one row per minted question)."
+    columns:
+      - name: question_id
+        tests: [unique, not_null]
+  - name: stg_canonical_argument
+    description: "Cleaned canonical arguments (key points) per question."
+    columns:
+      - name: argument_id
+        tests: [unique, not_null]
+  - name: stg_question_instance
+    description: "Decisions/bills mapped to a question, with normalized outcome."
+    columns:
+      - name: instance_id
+        tests: [unique, not_null]
+  - name: stg_instance_argument
+    description: "Bridge: each instance to the canonical arguments it expressed."
+    columns:
+      - name: instance_argument_id
+        tests: [unique, not_null]
+  - name: stg_question_relation
+    description: "Cross-level relations between policy questions (preempts/implements/related)."
+    columns:
+      - name: relation_id
+        tests: [unique, not_null]

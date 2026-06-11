@@ -20,6 +20,8 @@ dependencies = [
     "splink>=4.0",
     "sqlalchemy>=2.0",
     "psycopg2-binary>=2.9",
+    # ingestion.argkp pulls the IBM-Debater ArgKP key-point dataset from HF
+    "datasets>=2.18",
 ]
 
 [tool.setuptools.packages.find]

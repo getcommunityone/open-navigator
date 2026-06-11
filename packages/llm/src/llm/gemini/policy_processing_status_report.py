@@ -9,7 +9,7 @@ Usage (repo root):
   .venv/bin/python -m llm.gemini.policy_processing_status_report
   .venv/bin/python -m llm.gemini.policy_processing_status_report --states AL,GA,IN
   .venv/bin/python -m llm.gemini.policy_processing_status_report --all-states
-  .venv/bin/python -m llm.gemini.policy_processing_status_report -o docs/policy_processing_status.md
+  .venv/bin/python -m llm.gemini.policy_processing_status_report -o policy_processing_status.md
 """
 
 from __future__ import annotations

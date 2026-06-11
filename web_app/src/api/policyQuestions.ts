@@ -1,0 +1,97 @@
+// API client for the policy-question registry (cross-jurisdiction policy
+// questions + canonical arguments + comparative rollups).
+import api from '../lib/api'
+
+export interface PolicyQuestionSummary {
+  question_id: string
+  canonical_text: string | null
+  topic_code: string | null
+  primary_theme: string | null
+  cofog_code: string | null
+  scope: string | null
+  status: string | null
+  instances_total: number
+  jurisdictions_total: number
+  jurisdictions_approved: number
+}
+
+export interface CanonicalArgument {
+  argument_id: string
+  stance: string | null
+  label: string | null
+  summary: string | null
+  source_role: string | null
+  frame_id: string | null
+  frame_label: string | null
+  member_count: number
+}
+
+export interface QuestionRollup {
+  instances_total: number
+  decisions_total: number
+  bills_total: number
+  jurisdictions_total: number
+  jurisdictions_approved: number
+  states_total: number
+  approved_count: number
+  denied_count: number
+  deferred_count: number
+  other_count: number
+}
+
+export interface QuestionInstance {
+  instance_id: string
+  source_type: string
+  source_id: string
+  state_code: string | null
+  jurisdiction_name: string | null
+  city: string | null
+  outcome_raw: string | null
+  outcome_normalized: string | null
+  occurred_at: string | null
+  assign_score: number | null
+}
+
+export interface QuestionRelation {
+  relation_type: string
+  direction: string
+  evidence: string | null
+  question_id: string
+  canonical_text: string | null
+  scope: string | null
+}
+
+export interface PolicyQuestionDetail extends PolicyQuestionSummary {
+  first_seen: string | null
+  rollup: QuestionRollup
+  arguments: CanonicalArgument[]
+  sample_instances: QuestionInstance[]
+  relations: QuestionRelation[]
+}
+
+export async function fetchPolicyQuestions(params?: {
+  theme?: string
+  scope?: string
+  limit?: number
+}): Promise<PolicyQuestionSummary[]> {
+  const q = new URLSearchParams()
+  if (params?.theme) q.set('theme', params.theme)
+  if (params?.scope) q.set('scope', params.scope)
+  if (params?.limit) q.set('limit', String(params.limit))
+  const res = await api.get(`/policy-question/?${q.toString()}`)
+  return res.data
+}
+
+export async function fetchPolicyQuestion(id: string): Promise<PolicyQuestionDetail> {
+  const res = await api.get(`/policy-question/${id}`)
+  return res.data
+}
+
+export async function fetchQuestionInstances(
+  id: string,
+  limit = 50,
+  offset = 0,
+): Promise<QuestionInstance[]> {
+  const res = await api.get(`/policy-question/${id}/instances?limit=${limit}&offset=${offset}`)
+  return res.data
+}

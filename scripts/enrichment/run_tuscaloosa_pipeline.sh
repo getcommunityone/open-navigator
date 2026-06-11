@@ -38,7 +38,7 @@ python main.py scrape \
 if [ ! -f "eboard_cookies.json" ]; then
     echo -e "${YELLOW}  ⚠️  Warning: eboard_cookies.json not found${NC}"
     echo "     Tuscaloosa City Schools requires browser cookies."
-    echo "     See docs/EBOARD_COOKIE_GUIDE.md for instructions."
+    echo "     See web_docs/docs/integrations/eboard-cookies.md for instructions."
     echo ""
 else
     echo "  → Scraping Tuscaloosa City Schools (eBoard)..."

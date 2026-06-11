@@ -56,9 +56,13 @@
     'jurisdiction_document', 'jurisdiction_mapping_analysis',
     'jurisdiction_state_aggregate', 'jurisdiction_minutes_publish_lag',
     'grant', 'grant_opportunity', 'tag', 'rpt_bill_map_aggregate',
+    'bills', 'bill_sponsorship',
+    'cpi_annual',
     'item_interestingness', 'item_flags', 'nonprofit_sector_revenue',
     'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction',
-    'mdm_bridge_event_analysis'
+    'mdm_bridge_event_analysis',
+    'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
+    'policy_question_relation'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
@@ -188,7 +192,9 @@ inner join kept_org_ids k on k.master_org_id = b.master_org_id",
         kept_org_cte ~ "
 select g.* from gold.\"grant\" g
 where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_master_org_id)
-   or exists (select 1 from kept_org_ids k where k.master_org_id = g.grantee_master_org_id)"
+   or exists (select 1 from kept_org_ids k where k.master_org_id = g.grantee_master_org_id)",
+    'bills':
+        "select bill_uid, ocd_bill_id, identifier, title, session_identifier, session_name, ocd_jurisdiction_id, state_code, jurisdiction_id, latest_action_date, latest_action_description, year from gold.bills where year >= 2023"
 } -%}
 
 {#- Essential serving indexes to recreate on the standalone public tables
@@ -210,6 +216,10 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
         'create index if not exists event_documents_video_id_idx on public.event_documents (video_id)',
         'create index if not exists event_documents_event_id_idx on public.event_documents (event_id)',
         'create index if not exists event_documents_state_code_idx on public.event_documents (state_code)'
+    ],
+    'event_decision': [
+        'create index if not exists event_decision_state_code_idx on public.event_decision (state_code)',
+        'create index if not exists event_decision_search_tsv_idx on public.event_decision using gin (search_tsv)'
     ],
     'mdm_organization': [
         'create unique index if not exists mdm_organization_pkey on public.mdm_organization (master_org_id)',
@@ -234,6 +244,11 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
     'item_interestingness': [
         'create index if not exists item_interestingness_event_decision_id_idx on public.item_interestingness (event_decision_id)',
         'create index if not exists item_interestingness_jurisdiction_id_idx on public.item_interestingness (jurisdiction_id)'
+    ],
+    'bills': [
+        'create unique index if not exists bills_pkey on public.bills (bill_uid)',
+        'create index if not exists bills_state_code_idx on public.bills (state_code)',
+        "create index if not exists bills_title_fts_idx on public.bills using gin (to_tsvector('english', coalesce(title, '')))"
     ],
     'contact_official': [
         "create index if not exists contact_official_full_name_trgm_idx on public.contact_official using gin (full_name gin_trgm_ops)"
@@ -276,8 +291,16 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
     {%- set chk = run_query("select to_regclass('gold." ~ q ~ "') as r") -%}
     {%- if chk and chk.rows and chk.rows[0][0] is not none -%}
       {%- set body = projections.get(name, "select * from gold." ~ q) -%}
-      {#- Idempotent: a prior materialize run may have left a TABLE here. -#}
-      {%- do run_query("drop table if exists public." ~ q ~ " cascade") -%}
+      {#- Idempotent: a prior materialize run may have left a TABLE here. Only
+          DROP TABLE when the public relation is actually a base table — issuing
+          `drop table` against an existing VIEW raises
+          "<x> is not a table. HINT: Use DROP VIEW to remove a view." and aborts
+          the on-run-end hook. A pre-existing view is handled by the subsequent
+          CREATE OR REPLACE VIEW (no drop needed). -#}
+      {%- set kind = run_query("select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = '" ~ name ~ "'") -%}
+      {%- if kind and kind.rows and kind.rows[0][0] in ('r', 'p') -%}
+        {%- do run_query("drop table if exists public." ~ q ~ " cascade") -%}
+      {%- endif -%}
       {%- do run_query("create or replace view public." ~ q ~ " as " ~ body) -%}
       {%- if name in projections -%}{%- do redacted.append(name) -%}{%- else -%}{%- do created.append(name) -%}{%- endif -%}
     {%- else -%}

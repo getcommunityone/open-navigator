@@ -13,6 +13,10 @@ displayed_sidebar: gettingStartedSidebar
 
 **Open Navigator** is the open-source engine powering CommunityOne — an AI platform that analyzes municipal meeting minutes, budgets, and nonprofit data to surface opportunities for advocacy and community impact.
 
+:::note[👩‍💻 Developers — start here]
+Want to run the platform locally? Head straight to the **[Developer Quick Start Guide](/docs/quickstart)**. It walks you through cloning the repo, installing the three services (app, docs, API), configuring `.env`, and restoring a warehouse snapshot so the app shows real data.
+:::
+
 :::tip[All Data is Cited & Properly Attributed]
 Every dataset, standard, and research source used in this platform is properly cited with complete attribution, licenses, and BibTeX references.
 
@@ -48,7 +52,8 @@ This documentation is organized by audience. Click the section that best describ
     <li>Deploy to production</li>
     <li>Contribute to development</li>
   </ul>
-  <p><strong><a href="/docs/for-developers">→ Go to Developer Documentation</a></strong></p>
+  <p><strong><a href="/docs/quickstart">→ Start with the Developer Quick Start</a></strong></p>
+  <p><a href="/docs/for-developers">Or browse all developer documentation →</a></p>
 </div>
 
 </div>
@@ -57,38 +62,38 @@ This documentation is organized by audience. Click the section that best describ
 
 ## Platform Scale
 
-Open Navigator provides access to comprehensive data from 5 states:
+Open Navigator provides nationwide civic data, with deep AI meeting analysis concentrated across 7 states:
 
 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', margin: '30px 0', textAlign: 'center'}}>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#2196F3'}}>925</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#2196F3'}}>82,921</div>
   <div style={{marginTop: '10px', color: '#666'}}>Government Jurisdictions</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#4CAF50'}}>43,726</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#4CAF50'}}>3.6M</div>
   <div style={{marginTop: '10px', color: '#666'}}>Nonprofit Organizations</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#FF9800'}}>6,913</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#FF9800'}}>2,297</div>
   <div style={{marginTop: '10px', color: '#666'}}>Meeting Minutes Analyzed</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#9C27B0'}}>362</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#9C27B0'}}>34,322</div>
   <div style={{marginTop: '10px', color: '#666'}}>Elected Officials</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#F44336'}}>306</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#F44336'}}>10,893</div>
   <div style={{marginTop: '10px', color: '#666'}}>School Districts</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#00BCD4'}}>5</div>
-  <div style={{marginTop: '10px', color: '#666'}}>States with Full IRS Data</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#00BCD4'}}>52</div>
+  <div style={{marginTop: '10px', color: '#666'}}>States &amp; Territories Covered</div>
 </div>
 
 </div>
@@ -231,7 +236,7 @@ See [Data Sources Overview](/docs/data-sources/overview) for complete details.
 
 ## Quick Start
 
-Visit **[Developer Documentation](/docs/for-developers)** for installation and setup instructions.
+Follow the **[Developer Quick Start Guide](/docs/quickstart)** for step-by-step installation and setup instructions — clone, install the three services, configure `.env`, and restore a warehouse snapshot.
 
 For production deployment options, see:
 - [Databricks Apps Deployment](/docs/deployment/databricks-apps)
@@ -253,7 +258,7 @@ For production deployment options, see:
 <div className="card" style={{padding: '20px'}}>
   <h3>🛠️ For Developers</h3>
   <p>Install the platform, configure scrapers, and deploy to production.</p>
-  <p><strong><a href="/docs/for-developers">Go to Developer Guide →</a></strong></p>
+  <p><strong><a href="/docs/quickstart">Go to Quick Start →</a></strong></p>
 </div>
 
 <div className="card" style={{padding: '20px'}}>

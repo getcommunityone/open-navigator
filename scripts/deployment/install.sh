@@ -5,33 +5,64 @@ echo "🦷 CommunityOne Open Navigator - Installation Script"
 echo "=================================================="
 echo ""
 
-# Install system-level OCR dependency when possible
-echo "Checking for Tesseract OCR..."
-if command -v tesseract &> /dev/null; then
-    echo "✓ Tesseract already installed: $(tesseract --version | head -n 1)"
-else
-    echo "Tesseract not found. Attempting automatic install..."
-    if command -v apt-get &> /dev/null; then
-        if [ "$(id -u)" -eq 0 ]; then
-            apt-get update && apt-get install -y tesseract-ocr
-        elif command -v sudo &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y tesseract-ocr
-        else
-            echo "⚠ Could not auto-install Tesseract (no root/sudo)."
-            echo "  Install manually: apt-get install -y tesseract-ocr"
-        fi
-    elif command -v brew &> /dev/null; then
-        brew install tesseract || true
+# Install system-level dependencies when possible.
+#
+# Two things need OS packages, not just pip:
+#   - Tesseract OCR        (runtime, for the OCR fallback)
+#   - libxml2 + libxslt    (build-time headers for lxml — pip compiles lxml
+#                           from source on distros without a matching wheel,
+#                           e.g. a fresh Fedora, and the build fails without
+#                           the *-devel/*-dev headers + a C compiler)
+#
+# run_root: run a privileged command as root directly, via sudo, or warn.
+run_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo &> /dev/null; then
+        sudo "$@"
     else
-        echo "⚠ Unsupported package manager for automatic Tesseract install."
-        echo "  Install manually, then re-run setup."
+        echo "⚠ Need root to run: $*"
+        echo "  Re-run as root, or run that command manually, then re-run setup."
+        return 1
     fi
+}
 
-    if command -v tesseract &> /dev/null; then
-        echo "✓ Tesseract installed: $(tesseract --version | head -n 1)"
-    else
-        echo "⚠ Tesseract is still missing. OCR fallback will remain disabled."
-    fi
+echo "Checking system dependencies (Tesseract OCR + libxml2/libxslt headers)..."
+if command -v apt-get &> /dev/null; then
+    # Debian/Ubuntu. libxslt1-dev pulls in libxml2-dev; build-essential gives the compiler.
+    run_root apt-get update || true
+    run_root apt-get install -y tesseract-ocr libxml2-dev libxslt1-dev build-essential || \
+        echo "⚠ Could not auto-install system deps via apt-get; install them manually if pip fails on lxml."
+elif command -v dnf &> /dev/null; then
+    # Fedora/RHEL/CentOS Stream.
+    run_root dnf install -y tesseract libxml2-devel libxslt-devel gcc python3-devel || \
+        echo "⚠ Could not auto-install system deps via dnf; install them manually if pip fails on lxml."
+elif command -v yum &> /dev/null; then
+    # Older RHEL/CentOS.
+    run_root yum install -y tesseract libxml2-devel libxslt-devel gcc python3-devel || \
+        echo "⚠ Could not auto-install system deps via yum; install them manually if pip fails on lxml."
+elif command -v pacman &> /dev/null; then
+    # Arch.
+    run_root pacman -Sy --noconfirm tesseract libxml2 libxslt gcc || \
+        echo "⚠ Could not auto-install system deps via pacman; install them manually if pip fails on lxml."
+elif command -v zypper &> /dev/null; then
+    # openSUSE.
+    run_root zypper install -y tesseract-ocr libxml2-devel libxslt-devel gcc python3-devel || \
+        echo "⚠ Could not auto-install system deps via zypper; install them manually if pip fails on lxml."
+elif command -v brew &> /dev/null; then
+    # macOS. Homebrew ships lxml wheels via pip normally, but keep the libs handy.
+    brew install tesseract libxml2 libxslt || true
+else
+    echo "⚠ Unsupported package manager. Install these manually before continuing:"
+    echo "    - tesseract (OCR)"
+    echo "    - libxml2 + libxslt development headers (libxml2-devel/libxslt-devel or libxml2-dev/libxslt1-dev)"
+    echo "    - a C compiler (gcc) + Python development headers"
+fi
+
+if command -v tesseract &> /dev/null; then
+    echo "✓ Tesseract available: $(tesseract --version | head -n 1)"
+else
+    echo "⚠ Tesseract is still missing. OCR fallback will remain disabled."
 fi
 
 # Check Python version
@@ -44,21 +75,37 @@ fi
 PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
 echo "✓ Found Python $PYTHON_VERSION"
 
+# Python 3.14+ compatibility: some transitive deps (e.g. `whenever`) build a
+# Rust extension via PyO3, which currently supports up to Python 3.13. On 3.14+
+# that build hard-fails ("configured Python interpreter version is newer than
+# PyO3's maximum supported version"). Tell those packages to skip the Rust
+# extension and fall back to their (slower) pure-Python implementation so the
+# install still succeeds.
+PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d'.' -f2)
+if [ "${PYTHON_MINOR:-0}" -ge 14 ]; then
+    echo "⚠ Python $PYTHON_VERSION detected — newer than PyO3's max supported (3.13)."
+    echo "  Forcing pure-Python builds for Rust-backed deps (whenever) to avoid build failures."
+    export WHENEVER_NO_BUILD_RUST_EXT=1
+    # Belt-and-suspenders: if a dep still tries to compile against the stable ABI,
+    # let PyO3 build forward-compatibly instead of erroring out.
+    export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+fi
+
 # Create virtual environment
 echo ""
 echo "Creating virtual environment..."
-if [ -d "venv" ]; then
+if [ -d ".venv" ]; then
     echo "⚠ Virtual environment already exists. Removing old one..."
-    rm -rf venv
+    rm -rf .venv
 fi
 
-python3 -m venv venv
+python3 -m venv .venv
 echo "✓ Virtual environment created"
 
 # Activate virtual environment
 echo ""
 echo "Activating virtual environment..."
-source venv/bin/activate
+source .venv/bin/activate
 echo "✓ Virtual environment activated"
 
 # Upgrade pip
@@ -78,6 +125,22 @@ else
     pip install -r requirements.txt
 fi
 echo "✓ Dependencies installed"
+
+# Install the local workspace libraries (packages/*) as editable, top-level
+# importable modules. requirements.txt only pins third-party deps; the API
+# entrypoint imports agents/ingestion/config/llm/etc. which now live under
+# packages/* (there is no top-level agents/ tree anymore), so without this step
+# `python main.py serve` fails with `ModuleNotFoundError: No module named
+# 'agents'`. --no-deps keeps the dependency closure exactly as requirements.txt
+# pins it (these packages' own third-party deps are already installed above).
+# This is the full runtime set the Dockerfile installs (eager + lazy imports).
+echo ""
+echo "Installing local workspace packages (editable)..."
+pip install --no-deps \
+    -e packages/core -e packages/core-lib -e packages/datamodels \
+    -e packages/agents -e packages/scrapers -e packages/ingestion \
+    -e packages/llm -e packages/accessibility -e packages/hosting
+echo "✓ Workspace packages installed"
 
 # Create .env file if it doesn't exist
 echo ""
@@ -107,7 +170,7 @@ echo "✅ Installation Complete!"
 echo "=================================================="
 echo ""
 echo "To activate the virtual environment, run:"
-echo "  source venv/bin/activate"
+echo "  source .venv/bin/activate"
 echo ""
 echo "Then you can use the CLI:"
 echo "  python main.py --help"

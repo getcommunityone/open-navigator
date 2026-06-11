@@ -17,10 +17,26 @@ interface Props {
   /** Hidden visually but read by screen readers — e.g. "median home value". */
   ariaLabel?: string
   className?: string
+  /**
+   * CPI deflator couldn't be loaded (e.g. ``/api/cpi/annual`` failed), so real
+   * dollars can't be computed. We render nominal regardless, so reflect that
+   * honestly: disable the "Real" option and show Nominal as active rather than
+   * leaving "Real" highlighted while the figures are actually nominal.
+   */
+  realUnavailable?: boolean
 }
 
-export default function InflationToggle({ mode, onChange, ariaLabel, className }: Props) {
+export default function InflationToggle({
+  mode,
+  onChange,
+  ariaLabel,
+  className,
+  realUnavailable = false,
+}: Props) {
   const labelledBy = ariaLabel ? `inflation-toggle-${ariaLabel.replace(/\s+/g, '-')}` : undefined
+  // When the deflator is unavailable the card shows nominal no matter the
+  // persisted preference, so the pill must show Nominal as the live state.
+  const effectiveMode: InflationMode = realUnavailable ? 'nominal' : mode
   return (
     <div
       role="radiogroup"
@@ -35,10 +51,10 @@ export default function InflationToggle({ mode, onChange, ariaLabel, className }
       <button
         type="button"
         role="radio"
-        aria-checked={mode === 'nominal'}
+        aria-checked={effectiveMode === 'nominal'}
         onClick={() => onChange('nominal')}
         className={`rounded-full px-2.5 py-0.5 transition ${
-          mode === 'nominal'
+          effectiveMode === 'nominal'
             ? 'bg-white text-slate-900 shadow-sm'
             : 'text-slate-500 hover:text-slate-700'
         }`}
@@ -48,12 +64,16 @@ export default function InflationToggle({ mode, onChange, ariaLabel, className }
       <button
         type="button"
         role="radio"
-        aria-checked={mode === 'real'}
+        aria-checked={effectiveMode === 'real'}
+        disabled={realUnavailable}
+        title={realUnavailable ? 'Inflation data unavailable — showing nominal dollars' : undefined}
         onClick={() => onChange('real')}
         className={`rounded-full px-2.5 py-0.5 transition ${
-          mode === 'real'
-            ? 'bg-white text-slate-900 shadow-sm'
-            : 'text-slate-500 hover:text-slate-700'
+          realUnavailable
+            ? 'cursor-not-allowed text-slate-300'
+            : effectiveMode === 'real'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
         }`}
       >
         Real

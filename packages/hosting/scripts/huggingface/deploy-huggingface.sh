@@ -35,7 +35,14 @@ if [ -z "$HF_DEPLOY_ISOLATED" ]; then
         [ -f "$SRC_ROOT/.env" ] && cp "$SRC_ROOT/.env" "$CLONE_DIR/.env"
         cd "$CLONE_DIR"
         set +e
-        HF_DEPLOY_ISOLATED=1 bash "packages/hosting/scripts/huggingface/deploy-huggingface.sh" "$@"
+        # The throwaway clone has no .venv, so the child can't `source
+        # .venv/bin/activate` to find the `hf` CLI — it would fall back to a bare
+        # `pip install huggingface-hub`, which aborts on Debian's PEP-668
+        # "externally-managed" system Python. Carry the host venv's bin onto the
+        # child's PATH so hf (and its python/pip) resolve directly, no install needed.
+        _CHILD_PATH="$PATH"
+        [ -d "$SRC_ROOT/.venv/bin" ] && _CHILD_PATH="$SRC_ROOT/.venv/bin:$PATH"
+        HF_DEPLOY_ISOLATED=1 PATH="$_CHILD_PATH" bash "packages/hosting/scripts/huggingface/deploy-huggingface.sh" "$@"
         rc=$?
         set -e
         exit $rc
@@ -122,7 +129,12 @@ fi
 # Check if huggingface-hub is installed
 if ! command -v hf &> /dev/null; then
     echo "📦 Installing huggingface-hub..."
-    pip install huggingface-hub
+    # Debian/Ubuntu system Python is PEP-668 "externally managed", so a bare
+    # `pip install` aborts with externally-managed-environment. The project venv
+    # (carried onto PATH by the isolation re-exec) normally already has `hf`; this
+    # only runs on a bare host, so fall back to --break-system-packages.
+    pip install huggingface-hub 2>/dev/null \
+        || pip install --break-system-packages huggingface-hub
 fi
 
 # Authenticate with HuggingFace
@@ -354,6 +366,18 @@ shopt -u nullglob
 # Add web_app/web_docs source EXCLUDING node_modules (gitignore handles this)
 echo "🧹 Adding web_app/web_docs sources (node_modules auto-excluded by .gitignore)..."
 git add web_app/ web_docs/
+
+# Force-add the runtime static data the SPA fetches at /data/* (census-map choropleth
+# metrics + trends, jurisdiction_mapping_quality, zcta geometry). The whole tree lives
+# under the broad `data/` .gitignore rule, so the plain `git add web_app/` above silently
+# skips it — which means production nginx serves the SPA index.html fallback for every
+# /data/*.json request, the frontend's fetch().json() chokes on HTML, and maps render
+# with NO shading. Force-staging here is the fix. All files are JSON < 10 MiB, so the
+# oversized/binary drop passes below leave them intact.
+if [ -d web_app/public/data ]; then
+    echo "🗺️  Force-adding web_app/public/data (gitignored static map data)..."
+    git add -f web_app/public/data/
+fi
 
 # Verify node_modules are NOT staged
 NODE_MODULES_COUNT=$(git diff --cached --name-only | grep "node_modules" | wc -l)

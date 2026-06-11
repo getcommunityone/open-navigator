@@ -108,7 +108,7 @@ def build_video_to_event_map(conn) -> dict[str, int]:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT split_part(dedupe_key, '|', 2) AS video_id, legacy_id "
-                "FROM public.civic_event "
+                "FROM gold.civic_event "
                 "WHERE dedupe_key LIKE 'youtube|%' AND legacy_id IS NOT NULL"
             )
             for video_id, legacy_id in cur.fetchall():
