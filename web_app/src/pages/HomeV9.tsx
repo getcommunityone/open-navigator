@@ -21,9 +21,10 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
-import { MoneyHook } from '../components/HomeMoneyAndSnapshot'
+import MoneyGameModal from '../components/MoneyGameModal'
 import { fetchPolicyQuestions } from '../api/policyQuestions'
-import { useLocation as useLocationContext } from '../contexts/LocationContext'
+import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
+import { nominatimUsStateCode } from '../utils/stateMapping'
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -193,13 +194,236 @@ function StoryRow({ card, lensId, first }: { card: LensCard; lensId: string; fir
   )
 }
 
+// Build a real LocationData from a Nominatim geocode result (same parsing as
+// AddressLookup.processResult). Returns null when no US state resolves — we
+// never fabricate a location.
+function locationFromGeocode(result: any): LocationData | null {
+  if (!result) return null
+  const addr = result.address || {}
+  const stateCode = nominatimUsStateCode(addr) || ''
+  if (!stateCode) return null
+  const county = (addr.county as string) || ''
+  const city =
+    (addr.city as string) ||
+    (addr.town as string) ||
+    (addr.village as string) ||
+    (addr.municipality as string) ||
+    (addr.hamlet as string) ||
+    (addr.suburb as string) ||
+    ''
+  if (!city && !county) return null
+  return {
+    address: result.display_name,
+    state: stateCode,
+    county,
+    city,
+    granularity: !city ? 'county' : undefined,
+    latitude: parseFloat(result.lat),
+    longitude: parseFloat(result.lon),
+  }
+}
+
+// ── Money hook (ZIP-style, prototype look; REAL geocode + REAL modal) ───────
+// Mirrors the prototype's "How much of your money is on the line?" ZIP card,
+// but the ZIP is resolved to a real place via the /api/geocode proxy and the
+// "Show me my money" button opens the real <MoneyGameModal> (Census finances +
+// the ACS property-tax estimate + Opportunity Atlas) scoped to that place.
+function MoneyHookZip() {
+  const { location, setLocation } = useLocationContext()
+  const [zip, setZip] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [minimized, setMinimized] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // The place the modal is scoped to — the just-resolved ZIP, else any
+  // already-set community.
+  const [resolved, setResolved] = useState<LocationData | null>(location ?? null)
+
+  const zipValid = /^\d{5}$/.test(zip)
+  const scope = resolved ?? location ?? null
+
+  const openFor = (loc: LocationData) => {
+    setResolved(loc)
+    setLocation(loc)
+    setModalOpen(true)
+  }
+
+  const resolveZip = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await api.get(`/geocode/search`, { params: { q: zip, limit: 1 } })
+      const first = Array.isArray(res.data) ? res.data[0] : res.data
+      const loc = locationFromGeocode(first)
+      if (!loc) {
+        setError("We couldn't find that ZIP. Try another, or use your location.")
+        return
+      }
+      openFor(loc)
+    } catch {
+      setError("We couldn't look up that ZIP right now. Please try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleShow = () => {
+    if (zipValid) {
+      void resolveZip()
+    } else if (scope?.state) {
+      setModalOpen(true)
+    } else {
+      setError('Enter your 5-digit ZIP to see your local tax split.')
+    }
+  }
+
+  const useMyLocation = () => {
+    setError(null)
+    if (!navigator.geolocation) {
+      setError('Location services are unavailable. Enter your ZIP instead.')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const res = await api.get(`/geocode/reverse`, {
+            params: { lat: coords.latitude, lon: coords.longitude },
+          })
+          const first = Array.isArray(res.data) ? res.data[0] : res.data
+          const loc = locationFromGeocode(first)
+          if (!loc) {
+            setError("We couldn't pin your location. Enter your ZIP instead.")
+            return
+          }
+          openFor(loc)
+        } catch {
+          setError("We couldn't pin your location. Enter your ZIP instead.")
+        } finally {
+          setLocating(false)
+        }
+      },
+      () => {
+        setLocating(false)
+        setError("We couldn't access your location. Enter your ZIP instead.")
+      },
+      { timeout: 8000 },
+    )
+  }
+
+  if (minimized) {
+    return (
+      <section style={{ paddingTop: 24 }}>
+        <div
+          style={{ maxWidth: 720, margin: '0 auto', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}
+        >
+          <span className="font-display" style={{ fontSize: 17.5, fontWeight: 800, flex: 1, minWidth: 200 }}>
+            How much of <span style={{ color: TEAL }}>your money</span> is on the line?
+          </span>
+          <button
+            onClick={handleShow}
+            style={{ background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '9px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Show me my money
+          </button>
+          <button
+            onClick={() => setMinimized(false)}
+            className="font-mono-x"
+            style={{ background: 'none', border: 'none', fontSize: 10.5, letterSpacing: '0.06em', color: '#a8a29e', cursor: 'pointer', textTransform: 'uppercase' }}
+          >
+            See again
+          </button>
+        </div>
+        {scope?.state && (
+          <MoneyGameModal
+            open={modalOpen}
+            onClose={() => setModalOpen(false)}
+            stateCode={scope.state}
+            city={scope.city || undefined}
+            county={scope.county || undefined}
+            requestedLabel={scope.city || scope.county || scope.state}
+          />
+        )}
+      </section>
+    )
+  }
+
+  return (
+    <section style={{ paddingTop: 18 }}>
+      <div style={{ textAlign: 'center' }}>
+        <h2 className="font-display" style={{ fontSize: 'clamp(24px, 3.4vw, 34px)', fontWeight: 900, margin: 0, lineHeight: 1.12, letterSpacing: '-0.01em' }}>
+          How much of <span style={{ color: TEAL }}>your money</span> is on the line?
+        </h2>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, marginTop: 12 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 600, color: '#44403c' }}>
+          What&apos;s your ZIP? Every town reaches into your pocket a little differently.
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <input
+            value={zip}
+            onChange={(e) => {
+              setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
+              setError(null)
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && handleShow()}
+            placeholder="e.g. 35401"
+            inputMode="numeric"
+            className="font-mono-x"
+            style={{ width: 150, padding: '13px 14px', fontSize: 16, borderRadius: 999, border: `1.5px solid ${zipValid ? TEAL : '#d6d3d1'}`, outline: 'none', textAlign: 'center', letterSpacing: '0.12em', transition: 'border-color 150ms ease' }}
+          />
+          <button
+            onClick={handleShow}
+            disabled={busy}
+            style={{ background: zipValid || scope?.state ? TEAL : '#e7e5e4', color: zipValid || scope?.state ? '#fff' : '#a8a29e', border: 'none', borderRadius: 999, padding: '13px 28px', fontSize: 16.5, fontWeight: 700, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'background 200ms ease, color 200ms ease' }}
+          >
+            {busy ? 'Finding…' : 'Show me my money'}
+          </button>
+        </div>
+
+        {error && <div style={{ fontSize: 12.5, color: '#b45309', fontWeight: 600 }}>{error}</div>}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button
+            onClick={useMyLocation}
+            style={{ background: 'none', border: 'none', color: TEAL_DARK, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+          >
+            {locating ? 'Locating…' : '📍 use my location'}
+          </button>
+          <span className="font-mono-x" style={{ fontSize: 10, letterSpacing: '0.05em', color: '#a8a29e', textTransform: 'uppercase' }}>
+            just the ZIP · nothing stored · 15 seconds
+          </span>
+          <button
+            onClick={() => setMinimized(true)}
+            style={{ background: 'none', border: 'none', color: '#a8a29e', fontSize: 11.5, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'inherit' }}
+          >
+            hide
+          </button>
+        </div>
+      </div>
+
+      {scope?.state && (
+        <MoneyGameModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          stateCode={scope.state}
+          city={scope.city || undefined}
+          county={scope.county || undefined}
+          requestedLabel={scope.city || scope.county || scope.state}
+        />
+      )}
+    </section>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────
 export default function HomeV9() {
   const navigate = useNavigate()
   const { location } = useLocationContext()
   const stateCode = location?.state || undefined
   const city = location?.city || undefined
-  const county = location?.county || undefined
   const national = !stateCode
   const placeLabel = location?.city || location?.county || (stateCode ? stateCode : 'the U.S.')
 
@@ -356,17 +580,9 @@ export default function HomeV9() {
         </div>
       </header>
 
-      {/* ── Money hook (REAL: opens the real money game modal) ── */}
-      <MoneyHook
-        national={national}
-        stateCode={stateCode}
-        city={city}
-        county={county}
-        locationLabel={placeLabel}
-        onSetLocation={() => navigate('/feed-setup')}
-      />
-
+      {/* ── Money hook (ZIP-style prototype look; REAL geocode + REAL modal) ── */}
       <main style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
+        <MoneyHookZip />
         {/* ── Hero: thesis + search + trending ── */}
         <section style={{ padding: '24px 0 6px', textAlign: 'center' }}>
           <div style={{ fontSize: 16, fontWeight: 600, color: '#44403c', maxWidth: 640, margin: '0 auto' }}>
@@ -533,27 +749,36 @@ export default function HomeV9() {
             <MonoLabel style={{ color: '#57534e' }}>Or browse the directory</MonoLabel>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
               {[
-                { name: 'Topics', count: directoryCounts?.topics, to: '/search?types=topics' },
-                { name: 'Causes', count: directoryCounts?.causes, to: '/search?types=causes' },
-                { name: 'Questions', count: directoryCounts?.questions, to: '/policy-questions' },
+                { name: 'Topics', icon: '🗂️', count: directoryCounts?.topics, to: '/browse-topics', desc: 'Everything discussed in public meetings.' },
+                { name: 'Causes', icon: '💚', count: directoryCounts?.causes, to: '/search?types=causes', desc: 'Local nonprofits, grants & charitable work.' },
+                { name: 'Questions', icon: '⚖️', count: directoryCounts?.questions, to: '/policy-questions', desc: 'Open policy questions across jurisdictions.' },
               ].map((b) => (
                 <button
                   key={b.name}
+                  title={b.desc}
                   onClick={() => navigate(b.to, { state: { fromHome: true } })}
-                  style={{ textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 999, padding: '9px 16px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
+                  style={{ textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '10px 16px 10px 12px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
                 >
-                  <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK }}>
-                    {b.name}
+                  <span style={{ width: 30, height: 30, borderRadius: 8, background: '#f0fdfa', border: '1px solid #ccfbf1', display: 'grid', placeItems: 'center', fontSize: 15, flexShrink: 0 }}>
+                    {b.icon}
                   </span>
-                  {b.count != null && b.count > 0 && (
-                    <span
-                      className="font-mono-x"
-                      style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}
-                    >
-                      {b.count.toLocaleString('en-US')}
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK }}>
+                        {b.name}
+                      </span>
+                      {b.count != null && b.count > 0 && (
+                        <span
+                          className="font-mono-x"
+                          style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}
+                        >
+                          {b.count.toLocaleString('en-US')}
+                        </span>
+                      )}
                     </span>
-                  )}
-                  <span style={{ color: TEAL_DARK, fontWeight: 700 }}>→</span>
+                    <span style={{ display: 'block', fontSize: 11.5, color: '#78716c', marginTop: 1 }}>{b.desc}</span>
+                  </span>
+                  <span style={{ color: TEAL_DARK, fontWeight: 700, marginLeft: 'auto', paddingLeft: 8 }}>→</span>
                 </button>
               ))}
             </div>
