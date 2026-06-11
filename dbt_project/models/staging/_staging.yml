@@ -6,6 +6,32 @@ sources:
     database: open_navigator  # Single database with schemas
     schema: bronze  # Bronze schema for raw data
     tables:
+      - name: bronze_acs_property_tax
+        description: |
+          ACS 5-year median real estate taxes paid (B25103_001E) and median home
+          value (B25077_001E) at place and county grain, landed wide by
+          ingestion.census.property_tax. One row per
+          (geography_type, geoid, acs_vintage_year). Dollar amounts are whole
+          dollars; ACS jumbo-negative suppression sentinels are coerced to NULL
+          at load. Feeds public.jurisdiction_property_tax_rate (effective rate).
+        columns:
+          - name: geography_type
+            description: "'place' (city/town) or 'county'."
+          - name: geoid
+            description: "state(2)+place(5) for place, state(2)+county(3) for county. Part of the key."
+          - name: state_fips
+            description: "2-digit state/territory FIPS."
+          - name: name
+            description: "ACS geography display name."
+          - name: acs_vintage_year
+            description: "ACS 5-year vintage (calendar year). Part of the key."
+          - name: median_real_estate_taxes_paid
+            description: "B25103_001E (whole dollars). NULL when source-suppressed."
+          - name: median_home_value
+            description: "B25077_001E (whole dollars). NULL when source-suppressed."
+          - name: loaded_at
+            description: "When the row was upserted."
+
       - name: bronze_opportunity_atlas_cz
         description: |
           Opportunity Atlas commuting-zone (CZ) intergenerational-mobility
