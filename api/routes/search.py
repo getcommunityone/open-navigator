@@ -1054,6 +1054,55 @@ async def count_causes(query: Optional[str] = None) -> int:
             return 0
 
 
+async def count_questions(query: Optional[str] = None) -> int:
+    """Count policy questions matching the questions search filter.
+
+    Mirrors the WHERE predicate of search_postgres.search_questions_pg over
+    public.policy_question: the canonical_text ILIKE for a query (browse counts the
+    whole registry). The policy-question registry is a small curated/clustered set
+    (no FTS index needed) and carries no geography, so there is no state/city
+    filter. Result cached for 1 hour.
+    """
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_questions_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_questions") as span:
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if has_query:
+                where_clauses.append(f"canonical_text ILIKE ${idx}")
+                params.append(f"%{q}%")
+                idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM policy_question WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Questions count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
 async def count_grants(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -1258,7 +1307,7 @@ async def _traced_subsearch(
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants,grant_opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,questions,documents,grants,grant_opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_id: Optional[str] = Query(None, description="Filter by exact jurisdiction_id (city, county, or state) — scopes orgs/persons/grants through the MDM jurisdiction bridges"),
@@ -1323,7 +1372,7 @@ async def unified_search(
                 if t.strip()
             ]
         else:
-            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants', 'grant_opportunities']
+            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'questions', 'documents', 'grants', 'grant_opportunities']
 
         # Scope cut: drop the non-government "persons" category (mdm_person) unless
         # explicitly re-enabled. Stripping it here (rather than per-task) means
@@ -1408,6 +1457,12 @@ async def unified_search(
         if 'decisions' in requested_types:
             search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, city=city, sort=sort, limit=search_limit, offset=search_offset)))
 
+        if 'questions' in requested_types:
+            # Cross-jurisdiction policy-question registry (public.policy_question):
+            # canonical_text ILIKE on a query, curated featured rows first on browse.
+            # National registry (no geography), so state/city filters don't apply.
+            search_tasks.append(('questions', search_postgres.search_questions_pg(q, limit=search_limit, offset=search_offset)))
+
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)
             search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset)))
@@ -1480,6 +1535,7 @@ async def unified_search(
             'bills': [r.to_dict() for r in paginated_results if r.result_type == 'bill'],
             'topics': [r.to_dict() for r in paginated_results if r.result_type == 'topic'],
             'decisions': [r.to_dict() for r in paginated_results if r.result_type == 'decision'],
+            'questions': [r.to_dict() for r in paginated_results if r.result_type == 'question'],
             'causes': [r.to_dict() for r in paginated_results if r.result_type == 'cause'],
             'jurisdictions': [r.to_dict() for r in paginated_results if r.result_type == 'jurisdiction'],
             'documents': [r.to_dict() for r in paginated_results if r.result_type == 'document'],
@@ -1499,6 +1555,7 @@ async def unified_search(
             'bills': len([r for r in all_results if r.result_type == 'bill']),
             'topics': len([r for r in all_results if r.result_type == 'topic']),
             'decisions': len([r for r in all_results if r.result_type == 'decision']),
+            'questions': len([r for r in all_results if r.result_type == 'question']),
             'causes': len([r for r in all_results if r.result_type == 'cause']),
             'jurisdictions': len([r for r in all_results if r.result_type == 'jurisdiction']),
             'documents': len([r for r in all_results if r.result_type == 'document']),
@@ -1589,6 +1646,12 @@ async def unified_search(
         # geography — honest count over the matched taxonomy.
         if 'causes' in requested_types:
             type_totals['causes'] = await count_causes(query=q)
+
+        # Questions: small curated/clustered policy-question registry
+        # (public.policy_question), no geography — honest canonical_text count so
+        # the tab badge/pager don't collapse under the limit=1 tab-counts call.
+        if 'questions' in requested_types:
+            type_totals['questions'] = await count_questions(query=q)
 
         # Grant opportunities: small national feed (~1.9k) — cheap honest count.
         if 'grant_opportunities' in requested_types:

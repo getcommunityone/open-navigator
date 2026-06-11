@@ -73,3 +73,15 @@ models:
         data_type: integer
       - name: model_name
         data_type: text
+      - name: is_featured
+        description: >
+          true for hand-authored editorial "featured" questions (from the
+          curated_policy_questions seed); false for LLM-clustered questions.
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: display_order
+        description: >
+          1-based sort order for featured questions on the home page / search;
+          null for clustered questions.
+        data_type: integer

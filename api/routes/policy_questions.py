@@ -74,6 +74,8 @@ class PolicyQuestionSummary(BaseModel):
     instances_total: int = 0
     jurisdictions_total: int = 0
     jurisdictions_approved: int = 0
+    is_featured: bool = False
+    display_order: Optional[int] = None
 
 
 class RelationOut(BaseModel):
@@ -108,13 +110,34 @@ _RELATIONS_SQL = """
 """
 
 
-_LIST_SQL = """
-    select question_id, canonical_text, topic_code, primary_theme, cofog_code,
-           scope, status, instances_total, jurisdictions_total, jurisdictions_approved
+# Shared projection for the summary list. is_featured/display_order are the
+# curated-feature columns (added by the parallel dbt build); display_order is
+# nullable and only meaningful for featured rows.
+_LIST_COLS = """
+    question_id, canonical_text, topic_code, primary_theme, cofog_code,
+    scope, status, instances_total, jurisdictions_total, jurisdictions_approved,
+    is_featured, display_order
+"""
+
+# Default list: theme/scope filters, ranked by reach.
+_LIST_SQL = f"""
+    select {_LIST_COLS}
     from public.policy_question
     where ($1::text is null or primary_theme = $1)
       and ($2::text is null or scope = $2)
     order by instances_total desc
+    limit $3 offset $4
+"""
+
+# Featured list: curated home-page rows only, in editorial order
+# (display_order asc, nulls last), theme/scope filters still respected.
+_LIST_FEATURED_SQL = f"""
+    select {_LIST_COLS}
+    from public.policy_question
+    where is_featured = true
+      and ($1::text is null or primary_theme = $1)
+      and ($2::text is null or scope = $2)
+    order by display_order asc nulls last, instances_total desc
     limit $3 offset $4
 """
 
@@ -142,14 +165,23 @@ _INSTANCES_SQL = """
 async def list_policy_questions(
     theme: Optional[str] = Query(None, description="Filter by coarse primary_theme bucket."),
     scope: Optional[str] = Query(None, description="local | state | both."),
+    featured: bool = Query(
+        False,
+        description=(
+            "When true, return ONLY curated featured questions "
+            "(is_featured = true), ordered by display_order asc nulls last."
+        ),
+    ),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> List[PolicyQuestionSummary]:
     with tracer.start_as_current_span("policy-question-list") as span:
         span.set_attribute("policy_question.theme", theme or "")
+        span.set_attribute("policy_question.featured", featured)
+        sql = _LIST_FEATURED_SQL if featured else _LIST_SQL
         pool = await get_db_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch(_LIST_SQL, theme, scope, limit, offset)
+            rows = await conn.fetch(sql, theme, scope, limit, offset)
         return [PolicyQuestionSummary(**dict(r)) for r in rows]
 
 

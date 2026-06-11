@@ -13,6 +13,10 @@ export interface PolicyQuestionSummary {
   instances_total: number
   jurisdictions_total: number
   jurisdictions_approved: number
+  // Curated "featured" questions (homepage "big questions"). `display_order`
+  // controls their sequence; both may be absent on older API responses.
+  is_featured?: boolean
+  display_order?: number | null
 }
 
 export interface CanonicalArgument {
@@ -73,11 +77,15 @@ export async function fetchPolicyQuestions(params?: {
   theme?: string
   scope?: string
   limit?: number
+  // When true, request only the curated/featured questions (homepage
+  // "big questions" rail), ordered by display_order server-side.
+  featured?: boolean
 }): Promise<PolicyQuestionSummary[]> {
   const q = new URLSearchParams()
   if (params?.theme) q.set('theme', params.theme)
   if (params?.scope) q.set('scope', params.scope)
   if (params?.limit) q.set('limit', String(params.limit))
+  if (params?.featured) q.set('featured', 'true')
   const res = await api.get(`/policy-question/?${q.toString()}`)
   return res.data
 }

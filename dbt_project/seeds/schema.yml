@@ -9,6 +9,35 @@ seeds:
       - name: domain
         description: "FQDN to exclude, e.g. wilcoxcountyal.gov"
 
+  - name: curated_policy_questions
+    description: >
+      Hand-authored, editorial "featured" policy questions unioned into
+      public.policy_question as is_featured=true rows. NOT LLM-clustered: they
+      carry no linked decisions, so every rollup/comparative count in the mart is
+      0 (honest empty state — no fabricated numbers). question_id is derived in the
+      mart as md5(primary_theme || '|' || canonical_text), matching the clustered
+      PK convention. topic_code/cofog_code are intentionally empty until curated.
+      After editing: dbt seed --select curated_policy_questions && dbt run --select policy_question.
+    columns:
+      - name: canonical_text
+        description: "The featured question phrased neutrally; verbatim editorial copy."
+        tests:
+          - unique
+          - not_null
+      - name: primary_theme
+        description: "Coarse COFOG theme bucket; part of the md5 question_id."
+        tests:
+          - not_null
+      - name: topic_code
+        description: "CAP topic code; left empty for editorial questions (relationships test is warn/null-tolerant)."
+      - name: cofog_code
+        description: "COFOG code; left empty for editorial questions."
+      - name: display_order
+        description: "1-based sort order for the featured row on the home page / search."
+        tests:
+          - unique
+          - not_null
+
   - name: policy_theme_cofog
     description: >
       Maps each canonical policy-decision primary_theme label (the 18-label COFOG

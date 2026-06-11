@@ -2112,6 +2112,129 @@ async def search_decisions_pg(
         return []
 
 
+async def search_questions_pg(
+    query: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0
+) -> List[SearchResult]:
+    """
+    Search the cross-jurisdiction policy-question registry, backed by the
+    public.policy_question mart (canonical questions clustered from decisions and
+    bills, e.g. "Should the city fluoridate its water?").
+
+    Query mode matches canonical_text with a case-insensitive ILIKE (the registry
+    is small — curated/clustered questions — so a trigram-style ILIKE mirrors the
+    lighter sibling types like causes/topics without needing an FTS index). Browse
+    mode (no query) surfaces the curated featured questions first
+    (is_featured desc, display_order asc nulls last), then the rest by reach.
+
+    Args:
+        query: Search text (matched against canonical_text)
+        limit: Max results
+        offset: Pagination offset
+
+    Returns:
+        List of SearchResult objects (result_type='question')
+    """
+    try:
+        pool = await get_db_pool()
+
+        where_conditions: List[str] = []
+        params: List[Any] = []
+        param_idx = 1
+
+        has_query = bool(query and query.strip())
+        if has_query:
+            where_conditions.append(f"canonical_text ILIKE ${param_idx}")
+            params.append(f"%{query.strip()}%")
+            param_idx += 1
+            # Shorter (more specific) canonical_text first, then by reach.
+            order_by = "length(canonical_text) ASC, instances_total DESC NULLS LAST"
+        else:
+            # Browse: curated featured rows first, in editorial order, then reach.
+            order_by = (
+                "is_featured DESC, display_order ASC NULLS LAST, "
+                "instances_total DESC NULLS LAST"
+            )
+
+        where_sql = " AND ".join(where_conditions) if where_conditions else "TRUE"
+
+        sql = f"""
+            SELECT
+                question_id,
+                canonical_text,
+                topic_code,
+                primary_theme,
+                scope,
+                status,
+                instances_total,
+                jurisdictions_total,
+                jurisdictions_approved,
+                is_featured,
+                display_order
+            FROM policy_question
+            WHERE {where_sql}
+            ORDER BY {order_by}, question_id ASC
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        """
+        params.append(limit)
+        params.append(max(offset, 0))
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+            results = []
+            for row in rows:
+                title = row['canonical_text'] or 'Untitled Question'
+                if len(title) > 200:
+                    title = title[:200] + "..."
+
+                # Humanize the coarse theme bucket for the subtitle (same
+                # replace/title convention the jurisdictions type uses).
+                theme = row['primary_theme']
+                theme_label = theme.replace('_', ' ').title() if theme else ''
+
+                # Comparative-reach hint when the rollup is populated.
+                reach_bits = []
+                if row['jurisdictions_total']:
+                    reach_bits.append(f"{row['jurisdictions_total']} jurisdictions")
+                if row['instances_total']:
+                    reach_bits.append(f"{row['instances_total']} instances")
+                reach = " • ".join(reach_bits)
+
+                subtitle = " • ".join(p for p in (theme_label, reach) if p)
+                description = theme_label
+
+                results.append(SearchResult(
+                    result_type='question',
+                    title=title,
+                    subtitle=subtitle,
+                    description=description,
+                    url=f"/policy-question/{row['question_id']}",
+                    score=1.0,
+                    metadata={
+                        'id': row['question_id'],
+                        'question_id': row['question_id'],
+                        'topic_code': row['topic_code'],
+                        'primary_theme': row['primary_theme'],
+                        'scope': row['scope'],
+                        'status': row['status'],
+                        'instances_total': row['instances_total'],
+                        'jurisdictions_total': row['jurisdictions_total'],
+                        'jurisdictions_approved': row['jurisdictions_approved'],
+                        'is_featured': row['is_featured'],
+                        'display_order': row['display_order'],
+                    }
+                ))
+
+            logger.info(f"❓ PostgreSQL questions search: {len(results)} results")
+            return results
+
+    except Exception as e:
+        logger.error(f"PostgreSQL questions search error: {e}")
+        return []
+
+
 async def search_causes_pg(
     query: Optional[str] = None,
     limit: int = 10,

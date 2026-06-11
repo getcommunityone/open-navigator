@@ -88,6 +88,16 @@ seeds:
       +column_types:
         code: varchar
         major_code: varchar
+    curated_policy_questions:
+      # Hand-authored "featured" policy questions unioned into public.policy_question.
+      # Pin types: topic_code/cofog_code seed empty (all-null) which dbt would
+      # otherwise infer to boolean/integer and break the text union in the mart.
+      +column_types:
+        canonical_text: text
+        primary_theme: text
+        topic_code: text
+        cofog_code: text
+        display_order: integer
 
 # Snapshots configuration
 snapshots:
