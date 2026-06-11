@@ -32,9 +32,11 @@ import {
   type GrandkidOutlook as GrandkidOutlookData,
 } from '../api/grandkidOutlook'
 
-const FONT = { fontFamily: "'DM Sans', sans-serif" } as const
-const SERIF = { fontFamily: "'Fraunces', serif" } as const
-const MONO = { fontFamily: "'DM Mono', ui-monospace, monospace" } as const
+// Match the design prototype's typography (loaded globally by HomeV9): Playfair
+// Display for headlines, Source Sans for body, IBM Plex Mono for mono labels.
+const FONT = { fontFamily: "'Source Sans 3', system-ui, sans-serif" } as const
+const SERIF = { fontFamily: "'Playfair Display', Georgia, serif" } as const
+const MONO = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" } as const
 
 // Teal-forward palette for the spending categories (repo convention, not the
 // prototype's raw hex).
@@ -146,14 +148,16 @@ function buildGameCategories(categories: LocalFinanceCategory[]): GameCategory[]
   return result
 }
 
-// Shared range-slider classes (teal filled track + white thumb).
+// Shared range-slider classes — the prototype's look: an 8px inset track with a
+// colored fill, and an 18px HOLLOW thumb (white center, 3px ring in the
+// category color via --thumb).
 const SLIDER_CLS = [
-  'h-2 w-full cursor-pointer appearance-none rounded-full',
-  '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4',
-  '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white',
-  '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(15,43,43,0.25)] [&::-webkit-slider-thumb]:[background:var(--thumb)]',
-  '[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full',
-  '[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:[background:var(--thumb)]',
+  'h-2 w-full cursor-pointer appearance-none rounded-full shadow-[inset_0_0_0_1px_rgba(28,25,23,0.08)]',
+  '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-[18px] [&::-webkit-slider-thumb]:w-[18px]',
+  '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:[border-color:var(--thumb)] [&::-webkit-slider-thumb]:bg-white',
+  '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(28,25,23,0.25)]',
+  '[&::-moz-range-thumb]:h-[15px] [&::-moz-range-thumb]:w-[15px] [&::-moz-range-thumb]:rounded-full',
+  '[&::-moz-range-thumb]:border-[3px] [&::-moz-range-thumb]:[border-color:var(--thumb)] [&::-moz-range-thumb]:bg-white',
 ].join(' ')
 
 // One labelled estimate slider. `log` gives an exponential track (fine control
@@ -532,9 +536,10 @@ function GuessingGame({
       {!hintDismissed ? (
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#cdece7] bg-[#f0faf8] px-3 py-2.5">
           <p className="flex-1 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
-            <span className="font-semibold">How scoring works:</span> drag all {game.length} sliders to
-            your gut feeling — they auto-balance to 100%, so just get the proportions right. On reveal,
-            you score 100 minus a point for every two percentage points you&apos;re off.
+            <span className="font-semibold">How scoring works:</span> drag all {game.length} to your gut
+            feeling — percentages auto-balance to 100%, so just get the proportions right. On reveal, your
+            score is 100 minus a point for every two percentage points you&apos;re off versus the real
+            adopted budget.
           </p>
           <button
             type="button"
@@ -601,16 +606,7 @@ function GuessingGame({
                       '--thumb': color,
                     } as React.CSSProperties
                   }
-                  className={[
-                    'h-2 w-full cursor-pointer appearance-none rounded-full disabled:cursor-default',
-                    // WebKit/Blink thumb.
-                    '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4',
-                    '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white',
-                    '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(15,43,43,0.25)] [&::-webkit-slider-thumb]:[background:var(--thumb)]',
-                    // Firefox thumb.
-                    '[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full',
-                    '[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:[background:var(--thumb)]',
-                  ].join(' ')}
+                  className={`${SLIDER_CLS} disabled:cursor-default`}
                   aria-label={`Your guess for ${c.category}`}
                 />
                 {revealed && (
@@ -1042,8 +1038,9 @@ export default function MoneyGameModal({
                 {/* Subtitle — prototype-style, all real data. */}
                 {data && (
                   <p className="mt-1 text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-                    Real {data.jurisdiction_name} figures · starts at the median household — adjust the
-                    sliders to make it yours.
+                    {data.jurisdiction_name}
+                    {data.state_code ? `, ${data.state_code}` : ''} · starts at the median household —
+                    adjust the sliders to make it yours.
                   </p>
                 )}
 
