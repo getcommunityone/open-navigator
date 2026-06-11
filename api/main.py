@@ -348,6 +348,7 @@ from api.routes import lenses as lenses_routes
 from api.routes import money_flow as money_flow_routes
 from api.routes import topics as topics_routes
 from api.routes import money_and_talk as money_and_talk_routes
+from api.routes import grandkid_outlook as grandkid_outlook_routes
 from api.routes import local_finance as local_finance_routes
 from api.routes import feed as feed_routes
 from api.database import init_db
@@ -388,6 +389,8 @@ app.include_router(money_flow_routes.router)
 app.include_router(topics_routes.router)
 # Prefix ("/api/money-and-talk") baked into the router — include with NO extra prefix.
 app.include_router(money_and_talk_routes.router)
+# Prefix ("/api/grandkid-outlook") baked into the router — include with NO extra prefix.
+app.include_router(grandkid_outlook_routes.router)
 # Prefix ("/api/local-finance") baked into the router — include with NO extra prefix.
 app.include_router(local_finance_routes.router)
 

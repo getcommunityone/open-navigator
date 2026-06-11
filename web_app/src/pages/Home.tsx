@@ -1227,15 +1227,23 @@ export default function Home() {
         )}
       </nav>
 
-      {/* Money hook — "How much of your money is on the line?" (real
-          money-and-talk breakdown; the prototype's invented household tax
-          total + Grandkids slopegraph are intentionally dropped). */}
+      {/* Money hook — "How much of your money is on the line?" Opens the
+          interactive guess-and-reveal money game in a popup modal, wired to REAL
+          /api/local-finance figures, plus the "Grandkids forecast" mobility panel
+          on REAL Opportunity Atlas data (/api/grandkid-outlook). The prototype's
+          invented household tax total is intentionally dropped. */}
       <MoneyHook
         national={searchScope === 'national'}
         stateCode={location?.state || undefined}
+        city={location?.city || undefined}
+        county={location?.county || undefined}
         locationLabel={location?.city || location?.county || (location?.state ? location.state : undefined)}
         onSetLocation={() => setSelectedTab(1)}
       />
+
+      {/* The "Grandkids forecast" intergenerational-mobility panel now lives
+          inside the money-game modal (MoneyGameModal), opened from <MoneyHook>
+          above, scoped to the same location. */}
 
       {/* Featured Story Hero */}
       <div className="pt-2 pb-4 md:pt-3 md:pb-7 bg-gradient-to-b from-stone-50 via-white to-white">

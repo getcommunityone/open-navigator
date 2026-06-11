@@ -1,10 +1,13 @@
 // Home-page sections introduced by the new design prototype, all wired to REAL
 // APIs with honest empty states (CLAUDE.md: No Fabricated Data). Three exports:
 //
-//   <MoneyHook>          "How much of your money is on the line?" — real
-//                        money-and-talk theme breakdown (/api/money-and-talk),
-//                        NOT a budget. The prototype's invented household tax
-//                        total + Grandkids slopegraph are intentionally dropped.
+//   <MoneyHook>          "How much of your money is on the line?" — an address
+//                        card that opens the interactive guess-and-reveal money
+//                        game in a popup modal (<MoneyGameModal>), wired to REAL
+//                        government-finance figures (/api/local-finance). With no
+//                        location set the "Show me my money" button instead opens
+//                        the Find-My-Community address modal so the user picks a
+//                        place first (never an empty game).
 //   <CityAtAGlance>      "[City] at a glance" — 4 stat cards from /api/money-flow
 //                        (tracked spending) and /api/lenses (contested / analyzed
 //                        / next-to-watch). Each card shows an empty state when its
@@ -23,28 +26,11 @@ import {
   MapPinIcon,
 } from '@heroicons/react/24/outline'
 import api from '../lib/api'
-import { fetchMoneyAndTalk, type MoneyTalkTheme } from '../api/moneyTalk'
 import { fetchPolicyQuestions } from '../api/policyQuestions'
+import MoneyGameModal from './MoneyGameModal'
 
 const FONT = { fontFamily: "'DM Sans', sans-serif" } as const
 const SERIF = { fontFamily: "'Fraunces', serif" } as const
-
-// Bounded palette for the theme breakdown bars (mirrors MoneyTalk's intent but
-// kept teal-forward for the home page).
-const THEME_PALETTE = [
-  '#1a6b6b',
-  '#2a8576',
-  '#e0723a',
-  '#7a5cd0',
-  '#2f6fb0',
-  '#9a6b12',
-  '#1d6b5f',
-  '#c0432a',
-]
-
-function pct(n: number): string {
-  return `${Math.round(n)}%`
-}
 
 // ---------------------------------------------------------------------------
 // Shared scope props — the home page only knows state (2-letter) + city + county
@@ -54,8 +40,10 @@ function pct(n: number): string {
 export interface HomeScopeProps {
   /** 2-letter state code, or undefined for the national view. */
   stateCode?: string
-  /** City name (money-flow only; money-and-talk has no city param). */
+  /** City name (money-flow + local-finance scope). */
   city?: string
+  /** County name (local-finance scope). */
+  county?: string
   /** Short, human place label for headings, e.g. "Northport" or "Alabama". */
   locationLabel?: string
   /** When true, show the national view (no state/city filter). */
@@ -284,46 +272,14 @@ export function TrendingQuestions({ onOpen }: { onOpen: (questionId: string) => 
 }
 
 // ===========================================================================
-// "How much of your money is on the line?" — real money-and-talk breakdown.
+// "How much of your money is on the line?" — address card that launches the
+// interactive money game in a popup modal (<MoneyGameModal>), scoped to the
+// user's location and wired to REAL /api/local-finance figures.
 // ===========================================================================
-function ThemeBreakdown({ themes }: { themes: MoneyTalkTheme[] }) {
-  // Show the themes with real spending share, biggest first.
-  const sorted = [...themes].filter((t) => t.spend_share > 0).sort((a, b) => b.spend_share - a.spend_share)
-  if (sorted.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-[#f7fafb] p-8 text-center text-sm text-[#6b8a8a]" style={FONT}>
-        No money-flagged decisions for this area yet.
-      </div>
-    )
-  }
-  const top = sorted.slice(0, 7)
-  return (
-    <div className="space-y-2.5">
-      {top.map((t, i) => (
-        <div key={t.cofog_code || t.theme} className="flex items-center gap-3">
-          <span className="w-40 shrink-0 truncate text-sm font-medium text-[#0f2b2b]" style={FONT} title={t.theme}>
-            {t.theme}
-          </span>
-          <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-[#eef4f4]">
-            <div
-              className="absolute inset-y-0 left-0 rounded-full"
-              style={{
-                width: `${Math.min(100, t.spend_share)}%`,
-                backgroundColor: THEME_PALETTE[i % THEME_PALETTE.length],
-              }}
-            />
-          </div>
-          <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-[#1a6b6b]" style={FONT}>
-            {pct(t.spend_share)}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 export function MoneyHook({
   stateCode,
+  city,
+  county,
   national,
   locationLabel,
   onSetLocation,
@@ -332,12 +288,20 @@ export function MoneyHook({
   // "Find My Community" AddressLookup modal (opened via onSetLocation) does the
   // geocoding. We never fabricate a result from this string.
   const [address, setAddress] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
 
-  // Only show the real money breakdown once there's a location to scope it to.
-  const hasLocation = national || !!stateCode
+  // The game needs a real state to scope /api/local-finance. The national view
+  // has no single state, so there it always falls back to the address modal.
+  const canPlay = !national && !!stateCode
 
   const handleSubmit = () => {
-    onSetLocation()
+    // No location/state yet → let the user pick a place first (don't open an
+    // empty game). Otherwise open the real money game modal.
+    if (canPlay) {
+      setModalOpen(true)
+    } else {
+      onSetLocation()
+    }
   }
 
   return (
@@ -402,59 +366,26 @@ export function MoneyHook({
               Takes 15 seconds · No data stored
             </span>
             <span className="text-[#9bb8b8]" style={FONT}>
-              No address? We&apos;ll use the Tuscaloosa median.
+              {canPlay
+                ? 'See your real local tax split.'
+                : 'Set your community to see your real local tax split.'}
             </span>
           </div>
         </div>
-
-        {/* Real money-and-talk breakdown — only once a location scopes it. */}
-        {hasLocation && (
-          <MoneyHookBreakdown stateCode={stateCode} national={national} locationLabel={locationLabel} />
-        )}
       </div>
+
+      {/* The interactive money game — real /api/local-finance figures, scoped to
+          the user's location. Only mounted/opened once a real state is known. */}
+      {canPlay && stateCode && (
+        <MoneyGameModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          stateCode={stateCode}
+          city={city}
+          county={county}
+          requestedLabel={locationLabel}
+        />
+      )}
     </section>
-  )
-}
-
-// Real /api/money-and-talk theme breakdown, rendered below the address card once
-// a location is set. Money = net impact of money-flagged decisions, NOT a budget;
-// the API's `note`/`as_of` caveat is always shown verbatim.
-function MoneyHookBreakdown({ stateCode, national, locationLabel }: HomeScopeProps) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['home-money-and-talk', national, stateCode],
-    queryFn: () => fetchMoneyAndTalk(national ? {} : { state_code: stateCode }),
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const themes = data?.themes ?? []
-  const place = national ? 'the United States' : locationLabel || 'your community'
-
-  return (
-    <div className="mx-auto mt-6 w-full max-w-[640px] rounded-2xl border border-[#e2eaea] bg-white p-5 md:p-6 shadow-[0_8px_30px_rgba(26,107,107,0.08)] text-[#0f2b2b]">
-      <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-[#56635e]" style={FONT}>
-        Spending by area · {place}
-      </h3>
-      {isLoading ? (
-        <div className="space-y-3 py-4" aria-hidden>
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-3 animate-pulse rounded-full bg-[#eef4f4]" />
-          ))}
-        </div>
-      ) : isError ? (
-        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-[#f7fafb] p-8 text-center text-sm text-[#6b8a8a]" style={FONT}>
-          Couldn&apos;t load spending data right now.
-        </div>
-      ) : (
-        <ThemeBreakdown themes={themes} />
-      )}
-      {/* The API's own honest caveat — money = net impact of money-flagged
-          decisions, NOT a budget. Always shown verbatim. */}
-      {data?.note && (
-        <p className="mt-4 border-t border-[#eef4f4] pt-3 text-[12px] leading-relaxed text-[#9bb8b8]" style={FONT}>
-          {data.note}
-          {data.as_of ? ` · As of ${data.as_of}` : ''}
-        </p>
-      )}
-    </div>
   )
 }
