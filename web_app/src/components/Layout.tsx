@@ -73,6 +73,10 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ]
 
+// Routes that render their own prominent search box. On these we drop the app
+// sidebar (full-width) and hide the redundant global search in the header.
+const SEARCH_STYLE_PATHS = ['/search', '/documents']
+
 function pathMatchesNavHref(pathname: string, href: string): boolean {
   if (href === '/data-explorer') {
     return pathname === '/data-explorer' || pathname.startsWith('/data-explorer/')
@@ -85,10 +89,15 @@ export default function Layout() {
   const isExplorePage = location.pathname === '/explore'
   const isDataExplorerSection =
     location.pathname === '/data-explorer' || location.pathname.startsWith('/data-explorer/')
+  // Search-style pages own a prominent search box of their own, so they read
+  // better full-width without the app sidebar AND without the redundant header
+  // search. Add a route here to opt it into both behaviours.
+  const isSearchStylePage = SEARCH_STYLE_PATHS.includes(location.pathname)
   const useExploreQuickNavSidebar = isExplorePage || isDataExplorerSection
-  // Data explorer needs the full width for its map/scorecard layout, so the
-  // app-wide sidebar is collapsed on desktop here (still reachable on mobile).
-  const hideSidebarOnDesktop = isDataExplorerSection
+  // Data explorer also needs the full width (for its map/scorecard layout); the
+  // sidebar is collapsed on desktop here (still reachable on mobile via the
+  // hamburger menu).
+  const hideSidebarOnDesktop = isDataExplorerSection || isSearchStylePage
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -150,8 +159,9 @@ export default function Layout() {
             </Link>
           </div>
 
-          {/* Global Search - Hidden on home page and mobile */}
-          {location.pathname !== '/' && (
+          {/* Global Search - Hidden on home page, on search-style pages that
+              have their own search box (see SEARCH_STYLE_PATHS), and mobile */}
+          {location.pathname !== '/' && !isSearchStylePage && (
             <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-2xl mx-8">
               <div className="relative w-full">
                 <input
