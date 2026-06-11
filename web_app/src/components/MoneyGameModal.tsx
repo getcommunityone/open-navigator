@@ -148,17 +148,10 @@ function buildGameCategories(categories: LocalFinanceCategory[]): GameCategory[]
   return result
 }
 
-// Shared range-slider classes — the prototype's look: an 8px inset track with a
-// colored fill, and an 18px HOLLOW thumb (white center, 3px ring in the
-// category color via --thumb).
-const SLIDER_CLS = [
-  'h-2 w-full cursor-pointer appearance-none rounded-full shadow-[inset_0_0_0_1px_rgba(28,25,23,0.08)]',
-  '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-[18px] [&::-webkit-slider-thumb]:w-[18px]',
-  '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:[border-color:var(--thumb)] [&::-webkit-slider-thumb]:bg-white',
-  '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(28,25,23,0.25)]',
-  '[&::-moz-range-thumb]:h-[15px] [&::-moz-range-thumb]:w-[15px] [&::-moz-range-thumb]:rounded-full',
-  '[&::-moz-range-thumb]:border-[3px] [&::-moz-range-thumb]:[border-color:var(--thumb)] [&::-moz-range-thumb]:bg-white',
-].join(' ')
+// Sliders reuse the design prototype's exact `.range-x` CSS (in index.css) —
+// 8px inset track + 18px hollow thumb whose ring color is set per-slider via
+// the `--tc` CSS variable. Unfilled track color is the prototype's #ddd8d3.
+const SLIDER_UNFILLED = '#ddd8d3'
 
 // One labelled estimate slider. `log` gives an exponential track (fine control
 // in the everyday range) so a $230K home isn't pinned to the far left of a $2M
@@ -192,7 +185,7 @@ function EstRow({
     <div className="mb-3">
       <div className="mb-1 flex items-baseline justify-between gap-2 text-[13px]" style={FONT}>
         <span className="min-w-0 truncate font-medium text-[#0f2b2b]">{label}</span>
-        <span className="shrink-0 font-semibold tabular-nums text-[#1a6b6b]">{display}</span>
+        <span className="shrink-0 font-semibold tabular-nums text-[#0f766e]">{display}</span>
       </div>
       <input
         type="range"
@@ -203,11 +196,11 @@ function EstRow({
         onChange={(e) => onChange(log ? fromT(Number(e.target.value)) : Number(e.target.value))}
         style={
           {
-            background: `linear-gradient(to right, #1a6b6b ${filled}%, #eef4f4 ${filled}%)`,
-            '--thumb': '#1a6b6b',
+            '--tc': '#0d9488',
+            background: `linear-gradient(to right, #0d9488 ${filled}%, ${SLIDER_UNFILLED} ${filled}%)`,
           } as React.CSSProperties
         }
-        className={SLIDER_CLS}
+        className="range-x"
         aria-label={label}
       />
     </div>
@@ -630,11 +623,11 @@ function GuessingGame({
                       onChange={(e) => setOne(i, Number(e.target.value))}
                       style={
                         {
-                          background: `linear-gradient(to right, ${color} ${fill}%, #eef4f4 ${fill}%)`,
-                          '--thumb': color,
+                          '--tc': color,
+                          background: `linear-gradient(to right, ${color} ${fill}%, ${SLIDER_UNFILLED} ${fill}%)`,
                         } as React.CSSProperties
                       }
-                      className={SLIDER_CLS}
+                      className="range-x"
                       aria-label={`Your guess for ${c.category}`}
                     />
                     {/* Read-only drill-down for the "Other" bucket. */}
