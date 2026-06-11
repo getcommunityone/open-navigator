@@ -282,24 +282,29 @@ function YourBill({
 
   const [own, setOwn] = useState(true)
   const [homeValue, setHomeValue] = useState<number | null>(null)
-  const [spend, setSpend] = useState(19_000)
-  const [fees, setFees] = useState(800)
-  const [income, setIncome] = useState(60_000)
+  // The user's own figures — start UNSET (0) so we never show a fabricated
+  // default. Home value is the one seeded default, and it's the REAL local ACS
+  // median (a citeable figure), framed as "the median household — adjust it".
+  const [spend, setSpend] = useState(0)
+  const [fees, setFees] = useState(0)
+  const [income, setIncome] = useState(0)
   useEffect(() => {
     if (median != null) setHomeValue((v) => (v == null ? median : v))
   }, [median])
 
-  const hv = homeValue ?? median ?? 230_000
+  const hv = homeValue ?? median ?? 0
   const homeMax = Math.max(1_000_000, Math.ceil(((median ?? 230_000) * 2.5) / 50_000) * 50_000)
-  const propTax = own && propRate != null ? hv * propRate : null
-  const salesTax = salesFrac != null ? spend * salesFrac : null
+  const propTax = own && propRate != null && hv > 0 ? hv * propRate : null
+  const salesTax = salesFrac != null && spend > 0 ? spend * salesFrac : null
 
+  // Only ever show line items backed by a real figure or the user's own input —
+  // no $0 placeholder rows.
   const parts: { label: string; value: number; color: string }[] = []
-  if (propTax != null) parts.push({ label: 'Property tax', value: propTax, color: '#1a6b6b' })
-  if (salesTax != null) parts.push({ label: 'Sales tax', value: salesTax, color: '#2a8576' })
-  parts.push({ label: 'Fees & other', value: fees, color: '#7fd0c4' })
+  if (propTax != null && propTax > 0) parts.push({ label: 'Property tax', value: propTax, color: '#1a6b6b' })
+  if (salesTax != null && salesTax > 0) parts.push({ label: 'Sales tax', value: salesTax, color: '#2a8576' })
+  if (fees > 0) parts.push({ label: 'Fees & other', value: fees, color: '#7fd0c4' })
   const total = parts.reduce((s, p) => s + p.value, 0)
-  const sharePct = income > 0 ? (total / income) * 100 : null
+  const sharePct = income > 0 && total > 0 ? (total / income) * 100 : null
 
   return (
     <div>
@@ -333,9 +338,9 @@ function YourBill({
               that split, so your visible bill below is local sales tax + fees.
             </p>
           )}
-          <EstRow label="Yearly spending on taxable goods" value={spend} min={4_000} max={100_000} step={500} onChange={setSpend} display={fmtDollars(spend)} log />
-          <EstRow label="Local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fmtDollars(fees)} />
-          <EstRow label="Household income" value={income} min={15_000} max={250_000} step={1_000} onChange={setIncome} display={fmtDollars(income)} log />
+          <EstRow label="Your yearly spending on taxable goods" value={spend} min={0} max={100_000} step={500} onChange={setSpend} display={spend > 0 ? fmtDollars(spend) : 'add yours'} />
+          <EstRow label="Your local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} />
+          <EstRow label="Your household income" value={income} min={0} max={250_000} step={1_000} onChange={setIncome} display={income > 0 ? fmtDollars(income) : 'add yours'} />
         </div>
 
         {/* Live result */}
@@ -346,11 +351,13 @@ function YourBill({
                 You pay approximately
               </p>
               <p className="text-[36px] font-semibold leading-none text-[#0f2b2b]" style={SERIF}>
-                {fmtDollars(total)}
+                {total > 0 ? fmtDollars(total) : '—'}
               </p>
-              <p className="mt-1 text-[13px] text-[#56635e]" style={FONT}>
-                per year · {fmtDollars(total / 12)}/mo
-              </p>
+              {total > 0 && (
+                <p className="mt-1 text-[13px] text-[#56635e]" style={FONT}>
+                  per year · {fmtDollars(total / 12)}/mo
+                </p>
+              )}
             </div>
             <BillDonut parts={parts} />
           </div>
@@ -370,12 +377,19 @@ function YourBill({
             ))}
           </div>
 
+          {(spend === 0 || income === 0) && (
+            <p className="mt-3 rounded-lg bg-[#f0faf8] px-3 py-2 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
+              Starts with {own ? `the real property tax on ${jurisdictionName}'s median home` : 'your inputs'}.
+              Add your spending, fees, and income above to build your full bill — we don&apos;t fill those in for
+              you.
+            </p>
+          )}
           <p className="mt-3 text-[11px] leading-relaxed text-[#9bb8b8]" style={FONT}>
             {propRate != null && (
-              <>Property: {jurisdictionName}&apos;s {(propRate * 100).toFixed(2)}% effective ACS rate. </>
+              <>Property: {jurisdictionName}&apos;s {(propRate * 100).toFixed(2)}% effective ACS rate (Census). </>
             )}
-            {salesPct != null && <>Sales: {salesPct.toFixed(2)}% combined state+local rate. </>}
-            Fees are your own estimate.
+            {salesPct != null && <>Sales: {salesPct.toFixed(2)}% combined state+local rate (Tax Foundation). </>}
+            Spending, fees &amp; income are your own.
           </p>
         </div>
       </div>
