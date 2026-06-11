@@ -1,0 +1,93 @@
+version: 2
+
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - state_sales_tax_rate.PK: state_sales_tax_rate_id (= state_code)
+
+models:
+  - name: state_sales_tax_rate
+    description: >
+      public.state_sales_tax_rate — combined state + average-local general
+      sales-tax rate per state (50 states + DC), from the Tax Foundation report
+      "State and Local Sales Tax Rates, 2026" (as of 2026-01-01). Census has
+      sales-tax revenue but not rates, so this is the rate source. *_pct columns
+      are percentages as published; combined_sales_tax_rate is the same value as
+      a fraction (0.0946) ready to multiply by spending. State + average-local
+      grain (not city-exact).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: state_sales_tax_rate_id
+        description: "PK — state_code."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: state_code
+        description: "2-letter postal code."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - unique
+      - name: state
+        description: "Full state name."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_sales_tax_rate_pct
+        description: "State statutory sales-tax rate, percent."
+        data_type: numeric
+        constraints:
+          - type: not_null
+      - name: avg_local_sales_tax_rate_pct
+        description: "Population-weighted average local rate, percent (can be slightly negative)."
+        data_type: numeric
+        constraints:
+          - type: not_null
+      - name: combined_sales_tax_rate_pct
+        description: "Published combined state + average-local rate, percent."
+        data_type: numeric
+        constraints:
+          - type: not_null
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 15
+                inclusive: true
+      - name: combined_sales_tax_rate
+        description: "Combined rate as a fraction (combined_pct / 100), multiply-ready."
+        data_type: numeric
+        constraints:
+          - type: not_null
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 0.15
+                inclusive: true
+      - name: max_local_sales_tax_rate_pct
+        description: "Highest local rate in the state, percent."
+        data_type: numeric
+      - name: combined_rank
+        description: "Tax Foundation rank by combined rate (1 = highest). NULL for DC."
+        data_type: integer
+      - name: as_of_date
+        description: "Effective date of the published rates."
+        data_type: date
+      - name: vintage_year
+        description: "Report vintage year."
+        data_type: integer
+      - name: source
+        description: "Citation string for the rate source."
+        data_type: text
+      - name: published_at
+        description: "When this mart row was built."
+        data_type: timestamp with time zone
