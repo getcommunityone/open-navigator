@@ -1,0 +1,110 @@
+version: 2
+
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - jurisdiction_property_tax_rate.PK: jurisdiction_property_tax_rate_id
+#   - jurisdiction_property_tax_rate.FK: jurisdiction_id ->
+#     jurisdictions.jurisdiction_id (NULLABLE — unmatched ACS geographies stay
+#     NULL and are served by geoid).
+
+models:
+  - name: jurisdiction_property_tax_rate
+    description: >
+      public.jurisdiction_property_tax_rate — effective property-tax rate per
+      place and county, from ACS B25103 (median real estate taxes paid) ÷ B25077
+      (median home value), 5-year estimates. B25103 is the household's TOTAL
+      real-estate tax bill (county + municipal + school + special levies already
+      combined), so the place-grain rate is the all-in rate for a city resident
+      and the county-grain rate is the all-in rate for an unincorporated
+      resident — these are NOT additive layers. effective_property_tax_rate is a
+      fraction (0.0048 = 0.48%); NULL when home value is missing/zero or taxes
+      suppressed (honest missing, never 0).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: jurisdiction_property_tax_rate_id
+        description: "PK — geography_type:geoid:acs_vintage_year, stable per ACS geography+vintage."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: >
+          FK -> public.jurisdictions.jurisdiction_id. NULLABLE — matched by
+          geoid + type (place -> 'city'); ACS geographies with no jurisdiction
+          row stay NULL and are served by geoid.
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('jurisdictions')
+                field: jurisdiction_id
+      - name: geography_type
+        description: "'place' (city/town) or 'county'."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['place', 'county']
+      - name: geoid
+        description: "Census FIPS geoid: state(2)+place(5) for place, state(2)+county(3) for county."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: state_fips
+        description: "2-digit state/territory FIPS."
+        data_type: text
+      - name: state_code
+        description: "2-letter postal code (state_fips_to_code)."
+        data_type: text
+      - name: state
+        description: "Full state name (state_code_to_name)."
+        data_type: text
+      - name: name
+        description: "ACS geography display name, e.g. 'Tuscaloosa city, Alabama'."
+        data_type: text
+      - name: acs_vintage_year
+        description: "ACS 5-year vintage (integer calendar year)."
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: median_real_estate_taxes_paid
+        description: "B25103_001E — median annual real estate taxes paid (whole dollars). NULL if suppressed."
+        data_type: integer
+      - name: median_home_value
+        description: "B25077_001E — median home value (whole dollars). NULL if suppressed."
+        data_type: integer
+      - name: effective_property_tax_rate
+        description: "taxes / value, a fraction (0.0048 = 0.48%). NULL when value missing/zero."
+        data_type: numeric
+        data_tests:
+          # Sanity bound, not a hard rule: a handful of tiny places have a noisy
+          # ratio-of-two-medians > 10% (e.g. median home value floored near $10k).
+          # These are real ACS values, so warn (surface them) rather than fail.
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 0.1
+                inclusive: true
+              config:
+                severity: warn
+                where: "effective_property_tax_rate is not null"
+      - name: published_at
+        description: "When this mart row was built."
+        data_type: timestamp with time zone
