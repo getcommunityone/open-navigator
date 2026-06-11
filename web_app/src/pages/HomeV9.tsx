@@ -1,0 +1,666 @@
+// Open Navigator — Homepage (v9 prototype design), single-column.
+//
+// This is a faithful port of the "OpenNavigatorHome (9)" design prototype, but
+// EVERY figure is wired to REAL data (CLAUDE.md: No Fabricated Data). The
+// prototype's invented numbers — the ZIP→rate table, the $5.7M/8/18 snapshot,
+// the hard-coded THIS_WEEK / feed stories, the directory counts — are all
+// replaced with live API values, and anything genuinely missing renders an
+// honest empty state instead of a placeholder.
+//
+//   - Money hook + modal  → the real <MoneyHook> (/api/local-finance +
+//                           /api/grandkid-outlook + the real ACS property-tax rate).
+//   - Snapshot strip      → /api/lenses `activity` (tracked spending, contested,
+//                           analyzed, coming-back-for-a-vote).
+//   - This week / signals / Close-to-Home feed → /api/lenses `lenses[].cards`.
+//   - Browse the directory counts → /search type_totals + policy-question registry.
+//   - Trending questions  → real policy-question registry (/api/policy-question/).
+//
+// Editorial UI copy (signal descriptions, topic labels, "why people use it") is
+// kept verbatim from the prototype — that's interface text, not data figures.
+import { useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import api from '../lib/api'
+import { MoneyHook } from '../components/HomeMoneyAndSnapshot'
+import { fetchPolicyQuestions } from '../api/policyQuestions'
+import { useLocation as useLocationContext } from '../contexts/LocationContext'
+
+const TEAL = '#0d9488'
+const TEAL_DARK = '#0f766e'
+const INK = '#1c1917'
+
+const FONTS = `
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+.v9 .font-display { font-family: 'Playfair Display', Georgia, serif; }
+.v9 .font-body { font-family: 'Source Sans 3', system-ui, sans-serif; }
+.v9 .font-mono-x { font-family: 'IBM Plex Mono', monospace; }
+.v9 .hide-scroll::-webkit-scrollbar { display: none; }
+.v9 .hide-scroll { scrollbar-width: none; }
+.v9 .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.v9 .v9-burger { display: none; }
+@media (max-width: 760px) {
+  .v9 .v9-nav { display: none; }
+  .v9 .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
+  .v9 .v9-burger { display: grid; margin-left: auto; }
+  .v9 .v9-brand-sub { display: none; }
+}
+`
+
+// Per-lens editorial styling, keyed by the API's lens id. Labels/descriptions
+// are UI copy; the cards & counts under them are real.
+const SIGNAL_META: Record<
+  string,
+  { name: string; icon: string; color: string; bg: string; desc: string }
+> = {
+  contested: { name: 'Contested', icon: '🔥', color: '#ea580c', bg: '#fff7ed', desc: 'Split votes and heated debate among officials or residents' },
+  money: { name: 'Money Moves', icon: '💵', color: '#059669', bg: '#ecfdf5', desc: 'Contracts, grants, and budget changes pulled from the record' },
+  flags: { name: 'Raised Eyebrows', icon: '🤨', color: '#7c3aed', bg: '#f5f3ff', desc: 'Unusual patterns — sole-source contracts, reversals, late additions' },
+  soon: { name: 'Moving Fast', icon: '⚡', color: '#d97706', bg: '#fffbeb', desc: 'Items moving quicker than the usual process' },
+  next: { name: 'Watch Next', icon: '👀', color: '#2563eb', bg: '#eff6ff', desc: 'Upcoming votes worth keeping on your radar' },
+}
+// Display order for the "Explore by signal" rail.
+const SIGNAL_ORDER = ['contested', 'money', 'flags', 'soon', 'next']
+
+const TOPICS = [
+  '👨‍👩‍👧 Family First',
+  '⛪ Faith & Community',
+  '🏛️ Charitable Impact',
+  '🏘️ Neighborhood Life',
+  '🎓 Education',
+  '💼 Local Economy',
+]
+
+const WHEN: { label: string; window: string }[] = [
+  { label: 'Past month', window: 'month' },
+  { label: 'Past 3 months', window: 'quarter' },
+  { label: 'Past year', window: 'year' },
+  { label: 'All time', window: 'all' },
+]
+
+// ---- /api/lenses response (the subset we render) ----
+interface LensActivity {
+  icon: string
+  value: string
+  label: string
+  query?: string
+}
+interface LensCard {
+  headline: string
+  jurisdiction: string
+  date?: string
+  url?: string
+}
+interface LensBlock {
+  id: string
+  label: string
+  placeholder: boolean
+  cards: LensCard[]
+}
+interface LensesResp {
+  lenses: LensBlock[]
+  activity: LensActivity[]
+  location_label?: string
+}
+
+// ── Small pieces ──────────────────────────────────────────────────────────
+function MonoLabel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <span
+      className="font-mono-x"
+      style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#78716c', fontWeight: 500, ...style }}
+    >
+      {children}
+    </span>
+  )
+}
+
+function Chip({
+  active,
+  children,
+  onClick,
+  style,
+}: {
+  active?: boolean
+  children: React.ReactNode
+  onClick?: () => void
+  style?: React.CSSProperties
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="font-body"
+      style={{
+        padding: '8px 16px',
+        borderRadius: 999,
+        border: `1px solid ${active ? TEAL : '#d6d3d1'}`,
+        background: active ? TEAL : '#fff',
+        color: active ? '#fff' : '#1c1917',
+        boxShadow: active ? 'none' : '0 1px 2px rgba(28,25,23,0.05)',
+        fontSize: 14.5,
+        fontWeight: 600,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        transition: 'all 120ms ease',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+// A single story row (real lens card), prototype-styled.
+function StoryRow({ card, lensId, first }: { card: LensCard; lensId: string; first: boolean }) {
+  const meta = SIGNAL_META[lensId]
+  const navigate = useNavigate()
+  const go = () => card.url && navigate(card.url)
+  return (
+    <article
+      onClick={go}
+      style={{
+        padding: '11px 16px',
+        borderTop: first ? 'none' : '1px solid #f5f5f4',
+        cursor: card.url ? 'pointer' : 'default',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
+        {meta && (
+          <span
+            className="font-mono-x"
+            style={{
+              fontSize: 9.5,
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: meta.color,
+              background: meta.bg,
+              borderRadius: 999,
+              padding: '2px 8px',
+              flexShrink: 0,
+            }}
+          >
+            {meta.icon} {meta.name}
+          </span>
+        )}
+        <h3 className="font-display" style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.25, flex: 1, minWidth: 180 }}>
+          {card.headline}
+        </h3>
+      </div>
+      <div className="font-mono-x" style={{ fontSize: 10.5, color: '#78716c', marginTop: 3 }}>
+        {[card.jurisdiction, card.date].filter(Boolean).join(' · ')}
+      </div>
+    </article>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────
+export default function HomeV9() {
+  const navigate = useNavigate()
+  const { location } = useLocationContext()
+  const stateCode = location?.state || undefined
+  const city = location?.city || undefined
+  const county = location?.county || undefined
+  const national = !stateCode
+  const placeLabel = location?.city || location?.county || (stateCode ? stateCode : 'the U.S.')
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [when, setWhen] = useState(WHEN[0])
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [activeTopics, setActiveTopics] = useState<string[]>([TOPICS[0]])
+  const [activeSignals, setActiveSignals] = useState<string[]>(['contested'])
+  const trendRef = useRef<HTMLDivElement>(null)
+
+  const toggle = (list: string[], setList: (v: string[]) => void, item: string) =>
+    setList(list.includes(item) ? list.filter((x) => x !== item) : [...list, item])
+
+  // ── Real data ──
+  const { data: lensesData } = useQuery<LensesResp>({
+    queryKey: ['home-v9-lenses', national, stateCode, city, when.window],
+    queryFn: () => {
+      const params: Record<string, string> = { window: when.window }
+      if (!national && stateCode) params.state = stateCode
+      if (!national && city) params.city = city
+      return api.get('/lenses', { params }).then((r) => r.data)
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: directoryCounts } = useQuery<{ topics: number | null; causes: number | null; questions: number | null }>({
+    queryKey: ['home-v9-directory-counts', stateCode, national],
+    queryFn: async () => {
+      const params: Record<string, string> = { types: 'topics,causes', limit: '1' }
+      if (!national && stateCode) params.state = stateCode
+      const [searchRes, questions] = await Promise.all([
+        api.get('/search/', { params }).then((r) => r.data).catch(() => null),
+        fetchPolicyQuestions().catch(() => [] as unknown[]),
+      ])
+      const tt = (searchRes?.type_totals ?? {}) as Record<string, number | undefined>
+      return {
+        topics: tt.topics ?? null,
+        causes: tt.causes ?? null,
+        questions: Array.isArray(questions) ? questions.length : null,
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: trending } = useQuery({
+    queryKey: ['home-v9-trending'],
+    queryFn: () => fetchPolicyQuestions({ limit: 10 }),
+    staleTime: 30 * 60 * 1000,
+  })
+  const trendingChips = (trending ?? []).filter((q) => !!q.canonical_text).slice(0, 6)
+
+  // ── Derived (all real) ──
+  const lenses = lensesData?.lenses ?? []
+  const activity = lensesData?.activity ?? []
+  const lensById = useMemo(() => {
+    const m: Record<string, LensBlock> = {}
+    for (const l of lenses) m[l.id] = l
+    return m
+  }, [lenses])
+
+  // "This week": the first real card from each populated headline lens.
+  const thisWeek = useMemo(() => {
+    const out: { lensId: string; card: LensCard }[] = []
+    for (const id of ['contested', 'money', 'flags']) {
+      const l = lensById[id]
+      if (l && !l.placeholder && l.cards.length > 0) out.push({ lensId: id, card: l.cards[0] })
+    }
+    return out
+  }, [lensById])
+
+  // Close-to-Home feed: a flat mix of real cards across lenses, filtered to the
+  // active signal selection when the user picks any.
+  const feed = useMemo(() => {
+    const picked = activeSignals.length > 0 ? activeSignals : SIGNAL_ORDER
+    const out: { lensId: string; card: LensCard }[] = []
+    for (const id of picked) {
+      const l = lensById[id]
+      if (l && !l.placeholder) for (const c of l.cards.slice(0, 2)) out.push({ lensId: id, card: c })
+    }
+    return out.slice(0, 6)
+  }, [lensById, activeSignals])
+
+  const activeCount = activeTopics.length + activeSignals.length
+
+  const runSearch = (q?: string) => {
+    const term = (q ?? query).trim()
+    const params = new URLSearchParams()
+    if (term) params.set('q', term)
+    if (!national && stateCode) params.set('state', stateCode)
+    navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
+  }
+
+  const trendScrollBy = (dx: number) => trendRef.current?.scrollBy({ left: dx, behavior: 'smooth' })
+
+  return (
+    <div className="v9 font-body" style={{ background: '#fafaf9', minHeight: '100vh', color: INK }}>
+      <style>{FONTS}</style>
+
+      {/* ── Header ── */}
+      <header style={{ position: 'sticky', top: 0, zIndex: 50, background: '#fff', borderBottom: '1px solid #e7e5e4' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24, position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <div
+              className="font-mono-x"
+              style={{ width: 38, height: 38, borderRadius: '50%', border: `2.5px solid ${TEAL}`, display: 'grid', placeItems: 'center', fontWeight: 800, color: TEAL, fontSize: 15 }}
+            >
+              C1
+            </div>
+            <div>
+              <div className="font-display" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.1 }}>
+                Open Navigator
+              </div>
+              <div className="v9-brand-sub" style={{ fontSize: 11.5, color: '#78716c' }}>
+                by CommunityOne
+              </div>
+            </div>
+          </div>
+
+          <button
+            className="v9-burger"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setMenuOpen(!menuOpen)}
+            style={{ width: 40, height: 40, border: '1px solid #e7e5e4', borderRadius: 10, background: '#fff', cursor: 'pointer', placeItems: 'center', fontSize: 18, color: INK }}
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
+
+          <nav className={'v9-nav' + (menuOpen ? ' open' : '')} style={{ display: 'flex', gap: 22, marginLeft: 'auto', alignItems: 'center' }}>
+            {[
+              ['Search', () => runSearch('')],
+              ['How It Works', () => navigate('/explore')],
+              ['Impact', () => navigate('/explore')],
+              ['Contact', () => navigate('/support')],
+            ].map(([label, fn]) => (
+              <button
+                key={label as string}
+                onClick={() => {
+                  setMenuOpen(false)
+                  ;(fn as () => void)()
+                }}
+                style={{ background: 'none', border: 'none', fontSize: 14.5, fontWeight: 600, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {label as string}
+              </button>
+            ))}
+            <button
+              onClick={() => navigate('/explore')}
+              style={{ background: INK, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Explore now
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      {/* ── Money hook (REAL: opens the real money game modal) ── */}
+      <MoneyHook
+        national={national}
+        stateCode={stateCode}
+        city={city}
+        county={county}
+        locationLabel={placeLabel}
+        onSetLocation={() => navigate('/feed-setup')}
+      />
+
+      <main style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
+        {/* ── Hero: thesis + search + trending ── */}
+        <section style={{ padding: '24px 0 6px', textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#44403c', maxWidth: 640, margin: '0 auto' }}>
+            Every local decision, in one place — search the meetings, votes, spending, and debates shaping your community.
+          </div>
+
+          <div
+            style={{
+              maxWidth: 760,
+              margin: '14px auto 0',
+              display: 'flex',
+              background: '#fff',
+              border: '1px solid #e7e5e4',
+              borderRadius: 14,
+              boxShadow: '0 4px 16px rgba(28,25,23,0.06)',
+              overflow: 'hidden',
+            }}
+          >
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && runSearch()}
+              placeholder="Search topics, people, organizations, or causes"
+              style={{ flex: 1, border: 'none', outline: 'none', padding: '16px 18px', fontSize: 16, fontFamily: 'inherit', minWidth: 0 }}
+            />
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderLeft: '1px solid #e7e5e4', color: '#44403c', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap' }}
+            >
+              📍 {placeLabel}
+            </div>
+            <button
+              aria-label="Search"
+              onClick={() => runSearch()}
+              style={{ background: TEAL, color: '#fff', border: 'none', padding: '0 24px', fontSize: 18, cursor: 'pointer' }}
+            >
+              🔍
+            </button>
+          </div>
+
+          {/* Trending questions — REAL policy-question registry. */}
+          {trendingChips.length > 0 && (
+            <div style={{ position: 'relative', maxWidth: 860, margin: '10px auto 0' }}>
+              <div
+                ref={trendRef}
+                className="hide-scroll"
+                style={{ display: 'flex', gap: 8, alignItems: 'center', overflowX: 'auto', padding: '2px 34px' }}
+              >
+                <MonoLabel style={{ color: '#57534e', flexShrink: 0 }}>Trending questions</MonoLabel>
+                {trendingChips.map((q) => (
+                  <Chip key={q.question_id} onClick={() => navigate(`/policy-question/${q.question_id}`)} style={{ flexShrink: 0 }}>
+                    {q.canonical_text}
+                  </Chip>
+                ))}
+              </div>
+              <button
+                onClick={() => trendScrollBy(240)}
+                aria-label="Scroll trending questions right"
+                style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', zIndex: 2, width: 28, height: 28, borderRadius: '50%', border: '1px solid #d6d3d1', background: '#fff', boxShadow: '0 2px 8px rgba(28,25,23,0.12)', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 14, color: '#44403c', lineHeight: 1 }}
+              >
+                ›
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* ── City snapshot strip (REAL: /api/lenses activity) ── */}
+        {activity.length > 0 && (
+          <section style={{ marginTop: 26 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+                {placeLabel} at a glance
+              </h2>
+              <span
+                className="font-mono-x"
+                style={{ fontSize: 10, color: TEAL_DARK, background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 999, padding: '2px 9px', fontWeight: 600 }}
+              >
+                ● LIVE
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+              {activity.slice(0, 4).map((a) => (
+                <button
+                  key={a.label}
+                  onClick={() => a.query && runSearch(a.query)}
+                  title={a.label}
+                  style={{ flex: '1 1 200px', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '10px 14px', cursor: a.query ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
+                >
+                  <span style={{ width: 32, height: 32, borderRadius: 9, background: '#f0fdfa', display: 'grid', placeItems: 'center', fontSize: 15, flexShrink: 0 }}>
+                    {a.icon}
+                  </span>
+                  <span>
+                    <span className="font-display" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1, display: 'block' }}>
+                      {a.value}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#57534e' }}>{a.label}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── What's happening this week (REAL lens cards) ── */}
+        {thisWeek.length > 0 && (
+          <section style={{ marginTop: 30 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+                What&apos;s happening this week
+              </h2>
+              <button onClick={() => runSearch('')} style={{ background: 'none', border: 'none', color: TEAL_DARK, fontWeight: 700, fontSize: 14.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                See all →
+              </button>
+            </div>
+            <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, marginTop: 12, overflow: 'hidden' }}>
+              {thisWeek.map((row, i) => (
+                <StoryRow key={row.lensId + i} card={row.card} lensId={row.lensId} first={i === 0} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Explore by signal + Browse the directory ── */}
+        <section style={{ marginTop: 30 }}>
+          <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+            Explore by signal
+          </h2>
+          <p style={{ fontSize: 14, color: '#78716c', margin: '5px 0 0', maxWidth: 640 }}>
+            Every decision we analyze gets tagged with signals — patterns detected in the public record, so you can follow what matters without reading every agenda.
+          </p>
+
+          <div className="hide-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', padding: '14px 2px 6px' }}>
+            {SIGNAL_ORDER.map((id) => {
+              const s = SIGNAL_META[id]
+              const lens = lensById[id]
+              const count = lens && !lens.placeholder ? lens.cards.length : 0
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setActiveSignals([id])
+                    document.getElementById('close-to-home')?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                  style={{ flex: '0 0 215px', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 16, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <div style={{ width: 42, height: 42, borderRadius: 11, background: s.bg, display: 'grid', placeItems: 'center', fontSize: 20 }}>
+                    {s.icon}
+                  </div>
+                  <div style={{ fontSize: 16.5, fontWeight: 700, color: s.color, marginTop: 10 }}>{s.name}</div>
+                  <div style={{ fontSize: 13, color: '#57534e', marginTop: 4, lineHeight: 1.45 }}>{s.desc}</div>
+                  {count > 0 && (
+                    <div className="font-mono-x" style={{ fontSize: 10, color: '#a8a29e', marginTop: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {count} this {when.label.replace('Past ', '')}
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Browse the directory — REAL counts. */}
+          <div style={{ marginTop: 14 }}>
+            <MonoLabel style={{ color: '#57534e' }}>Or browse the directory</MonoLabel>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+              {[
+                { name: 'Topics', count: directoryCounts?.topics, to: '/search?types=topics' },
+                { name: 'Causes', count: directoryCounts?.causes, to: '/search?types=causes' },
+                { name: 'Questions', count: directoryCounts?.questions, to: '/policy-questions' },
+              ].map((b) => (
+                <button
+                  key={b.name}
+                  onClick={() => navigate(b.to, { state: { fromHome: true } })}
+                  style={{ textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 999, padding: '9px 16px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
+                >
+                  <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK }}>
+                    {b.name}
+                  </span>
+                  {b.count != null && b.count > 0 && (
+                    <span
+                      className="font-mono-x"
+                      style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}
+                    >
+                      {b.count.toLocaleString('en-US')}
+                    </span>
+                  )}
+                  <span style={{ color: TEAL_DARK, fontWeight: 700 }}>→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Close to Home feed (REAL lens cards) ── */}
+        <section id="close-to-home" style={{ marginTop: 30, paddingBottom: 44 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f0fdfa', display: 'grid', placeItems: 'center', fontSize: 21 }}>
+              🏠
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+                Close to Home
+              </h2>
+              <div style={{ fontSize: 14, color: '#78716c' }}>Near you, on what you care about · 📍 {placeLabel}</div>
+            </div>
+          </div>
+
+          {/* Control row */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 16 }}>
+            {WHEN.map((w) => (
+              <Chip key={w.label} active={when.label === w.label} onClick={() => setWhen(w)}>
+                {w.label}
+              </Chip>
+            ))}
+            <button
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className="font-body"
+              style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 999, border: `1px solid ${filtersOpen || activeCount ? TEAL : '#e7e5e4'}`, background: '#fff', color: '#44403c', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            >
+              ⚙ Refine feed
+              {activeCount > 0 && (
+                <span className="font-mono-x" style={{ background: TEAL, color: '#fff', borderRadius: 999, fontSize: 11, fontWeight: 600, padding: '1px 7px' }}>
+                  {activeCount}
+                </span>
+              )}
+              <span style={{ fontSize: 11 }}>{filtersOpen ? '▲' : '▼'}</span>
+            </button>
+          </div>
+
+          {/* Expander */}
+          {filtersOpen && (
+            <div style={{ marginTop: 12, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <MonoLabel>Topics — what you care about</MonoLabel>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                  {TOPICS.map((t) => (
+                    <Chip key={t} active={activeTopics.includes(t)} onClick={() => toggle(activeTopics, setActiveTopics, t)}>
+                      {t}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <MonoLabel>Signals — why it matters</MonoLabel>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                  {SIGNAL_ORDER.map((id) => (
+                    <Chip key={id} active={activeSignals.includes(id)} onClick={() => toggle(activeSignals, setActiveSignals, id)}>
+                      {SIGNAL_META[id].icon} {SIGNAL_META[id].name}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+              <div style={{ fontSize: 13, color: '#78716c' }}>
+                These choices follow you across the site. Change them anytime in{' '}
+                <button onClick={() => navigate('/feed-setup')} style={{ background: 'none', border: 'none', padding: 0, color: TEAL_DARK, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  feed settings
+                </button>
+                .
+              </div>
+            </div>
+          )}
+
+          {/* Feed (real) */}
+          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, marginTop: 14, overflow: 'hidden' }}>
+            {feed.length > 0 ? (
+              feed.map((row, i) => <StoryRow key={row.lensId + i} card={row.card} lensId={row.lensId} first={i === 0} />)
+            ) : (
+              <div style={{ padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
+                No matching activity in {placeLabel} for {when.label.toLowerCase()}. Try a wider window or different signals.
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
+
+      {/* ── Why people use it (footer) ── */}
+      <footer style={{ background: '#fff', borderTop: '1px solid #e7e5e4' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '14px 24px', display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'center' }}>
+          {[
+            ['💵', 'Follow local spending'],
+            ['🗳️', 'Understand decisions'],
+            ['🔁', 'Track outcomes'],
+            ['🔭', 'Discover issues early'],
+          ].map(([icon, title]) => (
+            <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ fontSize: 16 }}>{icon}</span>
+              <span className="font-display" style={{ fontSize: 14, fontWeight: 700 }}>
+                {title}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: '1px solid #f5f5f4', maxWidth: 1180, margin: '0 auto', padding: '9px 24px', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12.5, color: '#a8a29e' }}>CommunityOne · a 501(c)(3) nonprofit · Tuscaloosa, Alabama</span>
+        </div>
+      </footer>
+    </div>
+  )
+}

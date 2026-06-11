@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-do
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
 import Home from './pages/Home'
+import HomeV9 from './pages/HomeV9'
 import HomeModern from './pages/HomeModern'
 import PolicyQuestionsPage from './pages/PolicyQuestionsPage'
 import PolicyQuestionPage from './pages/PolicyQuestionPage'
@@ -143,8 +144,10 @@ function App() {
     <>
       <RouteChangeTracer />
       <Routes>
-      {/* Ground News-style homepage without Layout (has its own header) */}
-      <Route path="/" element={<Home />} />
+      {/* v9 prototype homepage (single-column; has its own header) */}
+      <Route path="/" element={<HomeV9 />} />
+      {/* Previous homepage, kept reachable for comparison/rollback */}
+      <Route path="/home-original" element={<Home />} />
       
       {/* Old modern home page (if needed) */}
       <Route path="/classic" element={<Layout />}>
