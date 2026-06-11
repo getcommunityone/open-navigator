@@ -551,18 +551,14 @@ function GuessingGame({
     top && fin.taxes_per_capita != null ? fin.taxes_per_capita * (top.actual / 100) : null
 
   return (
-    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-5 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
+    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-4 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
       <h3 className="text-[15px] font-semibold text-[#0f2b2b]" style={SERIF}>
         The guessing game
       </h3>
-      <p className="mt-1 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-        Drag each slider to guess how {fin.jurisdiction_name} splits its spending, then reveal the
-        real numbers.
-      </p>
 
       {/* Dismissible scoring explainer. */}
       {!hintDismissed ? (
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#cdece7] bg-[#f0faf8] px-3 py-2.5">
+        <div className="mt-2 flex items-start gap-2 rounded-xl border border-[#cdece7] bg-[#f0faf8] px-3 py-2">
           <p className="flex-1 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
             <span className="font-semibold">How scoring works:</span> drag all {game.length} to your gut
             feeling — percentages auto-balance to 100%, so just get the proportions right. On reveal, your
@@ -579,7 +575,7 @@ function GuessingGame({
           </button>
         </div>
       ) : (
-        <p className="mt-3 text-[12px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+        <p className="mt-2 text-[12px] leading-relaxed text-[#9bb8b8]" style={FONT}>
           Slide your gut feeling, then reveal to score against the real budget.
         </p>
       )}
@@ -587,10 +583,10 @@ function GuessingGame({
       {/* Guessing: donut + sliders (hidden once revealed). */}
       {!revealed && (
         <>
-          <div className="mt-4 flex flex-wrap items-start gap-4">
+          <div className="mx-auto mt-4 flex max-w-[640px] flex-wrap items-center justify-center gap-x-5 gap-y-3">
             <GuessDonut game={game} guesses={guesses} touched={touched} />
 
-            <div className="min-w-[180px] flex-1 space-y-3.5">
+            <div className="min-w-[200px] max-w-[440px] flex-1 space-y-2">
               {game.map((c, i) => {
                 const color = CAT_PALETTE[i % CAT_PALETTE.length]
                 const fill = touched[i] ? Math.round(guesses[i]) : 0
@@ -667,7 +663,7 @@ function GuessingGame({
             type="button"
             onClick={() => allGuessed && onReveal()}
             disabled={!allGuessed}
-            className={`mt-5 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
+            className={`mt-4 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
               allGuessed ? 'mgm-pulse bg-[#1a6b6b] text-white hover:bg-[#155757]' : 'cursor-default bg-[#eef4f4] text-[#9bb8b8]'
             }`}
             style={FONT}
