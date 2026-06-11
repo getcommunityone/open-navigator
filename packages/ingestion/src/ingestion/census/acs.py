@@ -323,6 +323,7 @@ class ACSDataIngestion:
         "B25001": "Housing Units",
         "B25003": "Tenure (Owner vs Renter)",
         "B25077": "Median Home Value",
+        "B25103": "Median Real Estate Taxes Paid",
         "B25064": "Median Gross Rent",
         "B01002": "Median Age by Sex",
         "B19301": "Per Capita Income",
