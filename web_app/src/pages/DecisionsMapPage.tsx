@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
+import { expandStateName } from '../utils/formatters'
 import { STATE_CODES } from '../lib/usStates'
 import 'leaflet/dist/leaflet.css'
 
@@ -262,7 +263,7 @@ export default function DecisionsMapPage() {
                   {p.jurisdiction_name && (
                     <p className="text-sm text-gray-700">
                       <strong>Jurisdiction:</strong> {p.jurisdiction_name}
-                      {p.state_code ? `, ${p.state_code}` : ''}
+                      {p.state_code ? `, ${expandStateName(p.state_code)}` : ''}
                     </p>
                   )}
                   {p.event_date && (

@@ -7,6 +7,7 @@ from urllib.parse import quote
 from loguru import logger
 import asyncpg
 import os
+import re
 from datetime import datetime
 from dataclasses import dataclass
 from api.utils.formatters import format_organization_id, format_role_type, format_title
@@ -1298,6 +1299,55 @@ async def search_events_pg(
         return []
 
 
+async def _suggest_corrected_query(conn, raw: str) -> Optional[str]:
+    """Map a misspelled document query to its nearest real corpus spelling.
+
+    Splits the raw query into alphabetic terms and, for each term that is NOT
+    already a known corpus lexeme, finds the closest lexeme in
+    public.event_document_lexicon by trigram similarity (pg_trgm `%` operator +
+    its GIN index, so this is an indexed lookup, not a scan). Returns the
+    rebuilt query string only if at least one term was actually corrected,
+    otherwise None — so the caller knows whether a fuzzy retry is worthwhile.
+
+    Guards: requires the candidate to share the term's first character (kills
+    wild substitutions while still allowing the common transposition/omission
+    typos that keep the leading letter, e.g. "flouride" -> "fluoride"). Any
+    error (e.g. the lexicon table not yet built) yields None — fuzzy fallback
+    is best-effort and never breaks the primary search.
+    """
+    terms = re.findall(r"[a-zA-Z]{3,}", raw or "")
+    if not terms:
+        return None
+
+    corrected: List[str] = []
+    changed = False
+    try:
+        for term in terms:
+            term_l = term.lower()
+            row = await conn.fetchrow(
+                """
+                SELECT word, (word = $1) AS exact
+                FROM event_document_lexicon
+                WHERE word % $1
+                  AND left(word, 1) = left($1, 1)
+                ORDER BY (word = $1) DESC, similarity(word, $1) DESC, document_count DESC
+                LIMIT 1
+                """,
+                term_l,
+            )
+            if row is None or row["exact"]:
+                # Unknown term with no candidate, or already a real word: keep it.
+                corrected.append(term)
+            else:
+                corrected.append(row["word"])
+                changed = True
+    except Exception as e:  # lexicon missing / pg_trgm absent — skip correction
+        logger.debug(f"document query correction skipped: {e}")
+        return None
+
+    return " ".join(corrected) if changed else None
+
+
 async def search_documents_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -1405,6 +1455,24 @@ async def search_documents_pg(
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
 
+            # Fuzzy fallback: a correctly-formed full-text query that matches
+            # nothing is almost always a misspelling ("flouride"). Map each term
+            # to its nearest real corpus spelling and retry once so the user gets
+            # the meetings they meant instead of an empty page. First page only,
+            # and only when there is a text query to correct (q_idx is set then).
+            corrected_query: Optional[str] = None
+            if query and query.strip() and not rows and offset == 0:
+                suggestion = await _suggest_corrected_query(conn, query)
+                if suggestion and suggestion.lower() != query.strip().lower():
+                    params[q_idx - 1] = suggestion
+                    rows = await conn.fetch(sql, *params)
+                    if rows:
+                        corrected_query = suggestion
+                        logger.info(
+                            f"📄 documents fuzzy fallback: {query!r} -> "
+                            f"{suggestion!r} ({len(rows)} rows)"
+                        )
+
             results = []
             for row in rows:
                 location = f"{row['jurisdiction_name']}, {row['state']}" if row['jurisdiction_name'] and row['state'] else ''
@@ -1447,6 +1515,11 @@ async def search_documents_pg(
                         'date': date_str,
                         'video_url': row['video_url'],
                         'word_count': row['word_count'],
+                        # Present only when the original query matched nothing and
+                        # we transparently searched a corrected spelling instead.
+                        # Lets the UI show a "showing results for X" affordance.
+                        'corrected_from': query if corrected_query else None,
+                        'corrected_query': corrected_query,
                     }
                 ))
 

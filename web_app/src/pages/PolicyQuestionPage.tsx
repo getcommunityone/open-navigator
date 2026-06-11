@@ -5,6 +5,7 @@ import {
   type CanonicalArgument,
   type PolicyQuestionDetail,
 } from '../api/policyQuestions'
+import { expandStateName, titleCaseCity } from '../utils/formatters'
 
 const OUTCOME_COLORS: Record<string, string> = {
   approved: 'bg-green-500',
@@ -204,14 +205,14 @@ export default function PolicyQuestionPage() {
                     <td className="px-3 py-2">
                       {i.source_type === 'state_bill' ? (
                         <Link to={`/bills/${i.source_id}`} className="text-blue-600 hover:underline">
-                          {i.jurisdiction_name || i.state_code} (bill)
+                          {i.jurisdiction_name || expandStateName(i.state_code)} (bill)
                         </Link>
                       ) : (
                         <Link
                           to={`/decisions/${i.source_id}`}
                           className="text-blue-600 hover:underline"
                         >
-                          {i.jurisdiction_name || i.city || i.state_code}
+                          {i.jurisdiction_name || titleCaseCity(i.city) || expandStateName(i.state_code)}
                         </Link>
                       )}
                     </td>

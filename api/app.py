@@ -728,10 +728,30 @@ if static_dir.exists():
     # Serve index.html for all non-API routes (SPA routing)
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
-        """Serve React app for all non-API routes."""
+        """Serve a real static file if one exists, else the React app (SPA routing).
+
+        Top-level public assets (e.g. /pdf/*, /communityone_logo.svg,
+        /robots.txt, /wikimedia/*) live in static_dir but are not under the
+        mounted /assets or /data trees. Without this file check they fall through
+        to index.html, so the browser loads the SPA into e.g. an <iframe
+        src="/pdf/..."> and React Router renders the NotFound (404) page instead
+        of the file. Vite's dev server serves these from public/ at the root, so
+        the gap only shows in production.
+        """
         if full_path.startswith("api/"):
             raise HTTPException(status_code=404, detail="API endpoint not found")
-        
+
+        # Serve a concrete static file when the path resolves to one inside
+        # static_dir (path-traversal guarded via relative_to).
+        if full_path:
+            candidate = (static_dir / full_path).resolve()
+            try:
+                candidate.relative_to(static_dir.resolve())
+            except ValueError:
+                candidate = None
+            if candidate is not None and candidate.is_file():
+                return FileResponse(candidate)
+
         index_file = static_dir / "index.html"
         if index_file.exists():
             return FileResponse(index_file)

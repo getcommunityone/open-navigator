@@ -251,6 +251,10 @@ interface StoryLensesProps {
   onSearch?: (query: string) => void
   /** Invoked by "View all" / "See all activity" / Browse topics. */
   onBrowseTopics?: () => void
+  /** Invoked by the "Browse policy questions" button. */
+  onBrowsePolicyQuestions?: () => void
+  /** Invoked by the "Browse causes" button. */
+  onBrowseCauses?: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -673,7 +677,7 @@ function SingleLensBody({
   )
 }
 
-export default function StoryLenses({ locationLabel, stateCode, city, national, query, onSearch, onBrowseTopics }: StoryLensesProps) {
+export default function StoryLenses({ locationLabel, stateCode, city, national, query, onSearch, onBrowseTopics, onBrowsePolicyQuestions, onBrowseCauses }: StoryLensesProps) {
   const navigate = useNavigate()
   const { isAuthenticated, isLoading: authLoading, user, login } = useAuth()
   // Gate: a visitor must be signed in AND have a completed feed profile to use
@@ -1038,6 +1042,36 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
                 </button>
               )}
             </HScroll>
+            {/* Browse affordances — distinct axis from the signal filters: these
+                navigate away to dedicated browse views rather than toggling the
+                Close-to-Home feed. */}
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-[#9bb8b8]">Browse</span>
+              <button
+                type="button"
+                onClick={() => (onBrowseTopics ? onBrowseTopics() : navigate('/search?types=topics'))}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#cfe0dc] bg-[#f3f7f6] px-3 py-1.5 text-[12.5px] font-semibold text-[#1d6b5f] transition-colors hover:border-[#1a6b6b] hover:bg-[#eef5f3]"
+              >
+                <span aria-hidden>{'\u{1F5C2}'}</span>
+                Topics
+              </button>
+              <button
+                type="button"
+                onClick={() => (onBrowseCauses ? onBrowseCauses() : navigate('/search?types=causes'))}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#cfe0dc] bg-[#f3f7f6] px-3 py-1.5 text-[12.5px] font-semibold text-[#1d6b5f] transition-colors hover:border-[#1a6b6b] hover:bg-[#eef5f3]"
+              >
+                <span aria-hidden>{'\u{1F49A}'}</span>
+                Causes
+              </button>
+              <button
+                type="button"
+                onClick={() => (onBrowsePolicyQuestions ? onBrowsePolicyQuestions() : navigate('/policy-questions'))}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#cfe0dc] bg-[#f3f7f6] px-3 py-1.5 text-[12.5px] font-semibold text-[#1d6b5f] transition-colors hover:border-[#1a6b6b] hover:bg-[#eef5f3]"
+              >
+                <span aria-hidden>{'\u{2696}'}</span>
+                Questions
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import { useParams, useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { expandStateName } from '../utils/formatters'
 import MeetingPlayer from '../components/MeetingPlayer'
 import {
   ArrowLeftIcon,
@@ -136,7 +137,7 @@ export default function MeetingDetail() {
               <span className="inline-flex items-center gap-1.5">
                 <MapPinIcon className="h-4 w-4 text-gray-400" />
                 {place}
-                {data.state_code ? `, ${data.state_code}` : ''}
+                {data.state_code ? `, ${expandStateName(data.state_code)}` : ''}
               </span>
             )}
             {data.meeting_date && (

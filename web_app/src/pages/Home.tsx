@@ -42,7 +42,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import AddressLookup from '../components/AddressLookup'
 import StoryLenses from '../components/StoryLenses'
-import HeroStateSilhouetteBadge from '../components/HeroStateSilhouetteBadge'
+import { MoneyHook, CityAtAGlance, TrendingQuestions } from '../components/HomeMoneyAndSnapshot'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
 import { formatCommunityPlaceLine } from '../utils/communityLocationLabel'
 
@@ -755,7 +755,7 @@ export default function Home() {
       params.set('types', heroSearchTypes)
     }
     applyLocationScope(params)
-    navigate(`/search?${params.toString()}`)
+    navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
   }
 
   // Click handler for a preview result row. Prefer the deep-link `url` the
@@ -782,7 +782,7 @@ export default function Home() {
       params.set('q', keyword)
       params.set('types', category)
       applyLocationScope(params)
-      navigate(`/search?${params.toString()}`)
+      navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
     }
   }
 
@@ -821,7 +821,7 @@ export default function Home() {
 
     const searchUrl = `/search?${params.toString()}`
     homeLog('🚀 [Home] Navigating to:', searchUrl)
-    navigate(searchUrl)
+    navigate(searchUrl, { state: { fromHome: true } })
   }
 
   const handleAddressFound = (locationData: LocationData) => {
@@ -1227,6 +1227,16 @@ export default function Home() {
         )}
       </nav>
 
+      {/* Money hook — "How much of your money is on the line?" (real
+          money-and-talk breakdown; the prototype's invented household tax
+          total + Grandkids slopegraph are intentionally dropped). */}
+      <MoneyHook
+        national={searchScope === 'national'}
+        stateCode={location?.state || undefined}
+        locationLabel={location?.city || location?.county || (location?.state ? location.state : undefined)}
+        onSetLocation={() => setSelectedTab(1)}
+      />
+
       {/* Featured Story Hero */}
       <div className="pt-2 pb-4 md:pt-3 md:pb-7 bg-gradient-to-b from-stone-50 via-white to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1239,13 +1249,6 @@ export default function Home() {
                     style={{ overflow: 'visible' }}
                   >
                     <div className="text-center max-w-6xl w-full mx-auto space-y-1 md:space-y-1.5">
-                      <div className="flex justify-center px-2">
-                        <HeroStateSilhouetteBadge
-                          location={location}
-                          onChangeLocation={() => setSelectedTab(1)}
-                          changeLocationLabel="Change your community location"
-                        />
-                      </div>
                       <h1
                         className="px-1 mb-0 font-semibold leading-[1.07] tracking-tight text-[clamp(2rem,5.5vw,4.125rem)]"
                         style={{ fontFamily: "'Fraunces', serif" }}
@@ -1261,6 +1264,9 @@ export default function Home() {
                         Search examples include school board budget, mental health nonprofit, zoning, and transit.
                       </span>
 
+                      {/* Trending questions — real policy-question chips
+                          (/api/policy-question/); hidden when none exist. */}
+                      <TrendingQuestions onOpen={(qid) => navigate(`/policy-question/${qid}`)} />
 
                       {/* Search Box — single unified rounded pill bar */}
                       <div className="w-full max-w-4xl mx-auto px-1" ref={searchContainerRef}>
@@ -1944,9 +1950,11 @@ export default function Home() {
                                     const params = new URLSearchParams()
                                     params.set('q', q)
                                     applyLocationScope(params)
-                                    navigate(`/search?${params.toString()}`)
+                                    navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
                                   }}
-                                  onBrowseTopics={() => navigate('/search?types=topics')}
+                                  onBrowseTopics={() => navigate('/search?types=topics', { state: { fromHome: true } })}
+                                  onBrowsePolicyQuestions={() => navigate('/policy-questions')}
+                                  onBrowseCauses={() => navigate('/search?types=causes', { state: { fromHome: true } })}
                                 />
                               </>
                             )
@@ -2044,6 +2052,16 @@ export default function Home() {
               </div>
         </div>
       </div>
+
+      {/* "[City] at a glance" snapshot — 4 stat cards from /api/money-flow
+          (tracked spending) + /api/lenses (contested / analyzed / on-the-radar).
+          Each card shows an honest empty state when its source is null/zero. */}
+      <CityAtAGlance
+        national={searchScope === 'national'}
+        stateCode={location?.state || undefined}
+        city={location?.city || undefined}
+        locationLabel={location?.city || location?.county || (location?.state ? location.state : undefined)}
+      />
 
       {/* Find My Community Modal */}
       {selectedTab === 1 && (

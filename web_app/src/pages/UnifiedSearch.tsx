@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
-import { 
-  MagnifyingGlassIcon, 
+import {
+  ArrowLeftIcon,
+  MagnifyingGlassIcon,
   UserIcon, 
   CalendarIcon,
   BuildingOfficeIcon,
@@ -24,7 +25,7 @@ import {
   MegaphoneIcon,
   DocumentMagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
-import { formatCurrency, formatCityState } from '../utils/formatters'
+import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from '../utils/formatters'
 
 type SearchResultType =
   | 'leader'
@@ -184,6 +185,16 @@ function formatEin(ein: string): string {
 export default function UnifiedSearch() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const routerLocation = useLocation()
+
+  // Whether the user arrived here from the home page (which has no sidebar/nav
+  // to get back). The Home search navigations tag the route with
+  // `state.fromHome`; we capture it ONCE on mount because subsequent
+  // setSearchParams calls (filters/pagination) drop location.state, which would
+  // otherwise make the back button vanish as soon as the user interacts.
+  const [cameFromHome] = useState<boolean>(
+    () => Boolean((routerLocation.state as { fromHome?: boolean } | null)?.fromHome),
+  )
 
   // Navigate to a result's detail page, but only when it has a url. Results
   // without a stable detail key (url == null) are rendered non-clickable, so
@@ -1079,6 +1090,16 @@ export default function UnifiedSearch() {
       <div className="max-w-6xl mx-auto px-6 pb-6">
         {/* Search Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          {cameFromHome && (
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back to home
+            </button>
+          )}
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Search</h1>
           
           {/* Search Bar + Filters on the same row */}
@@ -2141,8 +2162,8 @@ export default function UnifiedSearch() {
                                     </td>
                                     {/* Jurisdiction */}
                                     <td className="px-4 py-3 align-top">
-                                      {m.city && <div className="text-sm text-gray-900">{m.city}</div>}
-                                      {m.state && <div className="text-xs text-gray-500 mt-0.5">{m.state}</div>}
+                                      {m.city && <div className="text-sm text-gray-900">{titleCaseCity(m.city)}</div>}
+                                      {m.state && <div className="text-xs text-gray-500 mt-0.5">{expandStateName(m.state)}</div>}
                                     </td>
                                     {/* File */}
                                     <td className="px-4 py-3 align-top">

@@ -1,0 +1,164 @@
+version: 2
+
+# public.opportunity_atlas_mobility + public.opportunity_atlas_mobility_national —
+# Opportunity Atlas commuting-zone (CZ) intergenerational-mobility measures
+# (Opportunity Insights; Chetty, Hendren, Jones & Porter 2018, "Race and Economic
+# Opportunity in the United States", cz_outcomes.csv). Powers the home-page
+# "grandkid outlook" slopegraph.
+#
+# NO FABRICATED DATA (CLAUDE.md): every child_income_rank traces to a real source
+# cell; missing cells are NULL, never a stand-in. The national rollup is a
+# transparent sample-count-weighted mean of the per-CZ values (labeled as such).
+#
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - opportunity_atlas_mobility.PK: (cz, race, gender, parent_income_level).
+#   - opportunity_atlas_mobility_national.PK: (race, gender, parent_income_level).
+#   No FKs: CZ is its own geography (commuting zone), not a jurisdictions key.
+
+models:
+  - name: opportunity_atlas_mobility
+    description: >
+      public.opportunity_atlas_mobility — commuting-zone (CZ) intergenerational
+      mobility, long/tidy: one row per (cz, race, gender, parent_income_level).
+      child_income_rank is the child's mean adult household-income rank (0..1)
+      given parents at the parent_percentile national income percentile;
+      child_percentile is the same on a 0..100 display scale. Source: Opportunity
+      Insights "Opportunity Atlas" (Chetty, Hendren, Jones & Porter 2018, "Race
+      and Economic Opportunity in the United States"). child_income_rank /
+      child_percentile are NULL where the source cell is blank (never 0); n is the
+      per-(race,gender) sample count for honest empty states.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [cz, race, gender, parent_income_level]
+    columns:
+      - name: opportunity_atlas_mobility_id
+        description: "Surrogate id = md5(cz||'|'||race||'|'||gender||'|'||parent_income_level). Stable single-column handle."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+          - not_null
+      - name: cz
+        description: "Commuting-zone id (integer). Part of the composite PK."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: czname
+        description: "Commuting-zone display name (e.g. 'Tuscaloosa', 'Boston')."
+        data_type: text
+      - name: race
+        description: "pooled | white | black | hisp | asian | natam | other. Part of the composite PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['pooled', 'white', 'black', 'hisp', 'asian', 'natam', 'other']
+      - name: gender
+        description: "pooled | male | female. Part of the composite PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['pooled', 'male', 'female']
+      - name: parent_income_level
+        description: "low (p25) | middle (p50) | high (p75) parent income percentile. Part of the composite PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['low', 'middle', 'high']
+      - name: parent_percentile
+        description: "Parent national income percentile (25 | 50 | 75)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: child_income_rank
+        description: "Child's mean adult household-income rank (0..1) for this CZ x demographic x parent income level. NULL when source blank (never 0)."
+        data_type: numeric
+      - name: child_percentile
+        description: "round(child_income_rank * 100, 1) — 0..100 display scale. NULL when rank NULL."
+        data_type: numeric
+      - name: n
+        description: "Source sample count for the (race, gender) cell in this CZ. NULL when source blank. Use for honest empty states."
+        data_type: numeric
+
+  - name: opportunity_atlas_mobility_national
+    description: >
+      public.opportunity_atlas_mobility_national — national rollup of the CZ
+      Opportunity Atlas mobility measures: one row per (race, gender,
+      parent_income_level). DERIVED, POPULATION-WEIGHTED-ACROSS-CZs:
+      child_income_rank is the sample-count-weighted mean of the per-CZ
+      child_income_rank (weight = each CZ's (race,gender) sample count n), with
+      NULL-rank / NULL-or-zero-n CZs excluded (never zero-filled). This is NOT an
+      Opportunity Insights published figure — it is our transparent weighted mean
+      of their CZ values. total_n is the summed sample weight behind each row.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [race, gender, parent_income_level]
+    columns:
+      - name: opportunity_atlas_mobility_national_id
+        description: "Surrogate id = md5(race||'|'||gender||'|'||parent_income_level)."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+          - not_null
+      - name: race
+        description: "pooled | white | black | hisp | asian | natam | other. Part of the composite PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['pooled', 'white', 'black', 'hisp', 'asian', 'natam', 'other']
+      - name: gender
+        description: "pooled | male | female. Part of the composite PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['pooled', 'male', 'female']
+      - name: parent_income_level
+        description: "low (p25) | middle (p50) | high (p75). Part of the composite PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['low', 'middle', 'high']
+      - name: parent_percentile
+        description: "Parent national income percentile (25 | 50 | 75)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: child_income_rank
+        description: "Sample-count-weighted mean child_income_rank across CZs (0..1). NULL when no usable (rank, n) pairs exist."
+        data_type: numeric
+      - name: child_percentile
+        description: "round(child_income_rank * 100, 1) — 0..100 display scale. NULL when rank NULL."
+        data_type: numeric
+      - name: total_n
+        description: "Summed sample weight (sum of n over the CZs contributing to the weighted mean). Honest sample size; NULL/0 when no usable data."
+        data_type: numeric
