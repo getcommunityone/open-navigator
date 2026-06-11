@@ -41,13 +41,15 @@ interface FlowLens {
 }
 interface MoneyFlowResp {
   location_label: string
-  lenses: { spending: FlowLens; grants: FlowLens; economy: FlowLens }
+  lenses: { spending: FlowLens; grants: FlowLens; economy: FlowLens; government: FlowLens }
 }
 
 export interface FollowTheMoneyProps {
   embedded?: boolean
   stateCode?: string
   city?: string
+  /** County name — used by the Government-budget lens to stack county + school district. */
+  county?: string
   national?: boolean
   /** Free-text search; filters spending/contract/grant flows server-side. */
   query?: string
@@ -55,8 +57,9 @@ export interface FollowTheMoneyProps {
   window?: string
 }
 
-type LensKey = 'spending' | 'grants' | 'economy'
+type LensKey = 'spending' | 'grants' | 'economy' | 'government'
 const TABS: { key: LensKey; label: string }[] = [
+  { key: 'government', label: 'Government budget' },
   { key: 'spending', label: 'Public spending' },
   { key: 'grants', label: 'Grants' },
   { key: 'economy', label: 'Nonprofit economy' },
@@ -65,6 +68,15 @@ const TABS: { key: LensKey; label: string }[] = [
 // Plain-language explainer shown under the headline for each lens — the 990
 // revenue buckets in the economy lens especially aren't self-explanatory.
 const LENS_BLURB: Record<LensKey, React.ReactNode> = {
+  government: (
+    <>
+      The layers of government you fund — <b className="font-semibold text-gray-700">city</b>,{' '}
+      <b className="font-semibold text-gray-700">county</b>, <b className="font-semibold text-gray-700">state</b>, and your{' '}
+      <b className="font-semibold text-gray-700">school district</b> — flowing into what they spend it on. Each is
+      shown as <b className="font-semibold text-gray-700">your per-resident share</b> (budget ÷ population), so the
+      figures compare honestly and the state doesn&rsquo;t dwarf the city. Real U.S. Census finances.
+    </>
+  ),
   spending: (
     <>Real budget decisions local government made — each flow is one vote, sized by the dollars involved. Click a flow for the decision.</>
   ),
@@ -111,25 +123,31 @@ export default function FollowTheMoney({
   embedded = false,
   stateCode,
   city,
+  county,
   national = false,
   query,
   window,
 }: FollowTheMoneyProps) {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<LensKey>('spending')
+  // Lead with the Government-budget lens (the resident's own tax dollars) when a
+  // location is known; the decision-based lenses are the deeper dive.
+  const [tab, setTab] = useState<LensKey>(stateCode && !national ? 'government' : 'spending')
   const [tip, setTip] = useState<TipState | null>(null)
 
   const scopedState = national ? undefined : stateCode || undefined
   const scopedCity = national ? undefined : city || undefined
+  const scopedCounty = national ? undefined : county || undefined
   const q = query?.trim() || undefined
   // 'auto'/'all' impose no date filter server-side; only send a concrete window.
   const win = window && window !== 'auto' && window !== 'all' ? window : undefined
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['money-flow', national, scopedState, scopedCity, q, win],
+    queryKey: ['money-flow', national, scopedState, scopedCity, scopedCounty, q, win],
     queryFn: () =>
       api
-        .get('/money-flow', { params: { state: scopedState, city: scopedCity, q, window: win } })
+        .get('/money-flow', {
+          params: { state: scopedState, city: scopedCity, county: scopedCounty, q, window: win },
+        })
         .then((r) => r.data as MoneyFlowResp),
     staleTime: 5 * 60 * 1000,
   })

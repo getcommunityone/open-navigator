@@ -25,6 +25,14 @@ from opentelemetry import trace
 from pydantic import BaseModel
 
 from api.routes.search_postgres import get_db_pool, normalize_state_input
+from api.routes.local_finance import (
+    _CATEGORY_SQL,
+    _CITY_SQL,
+    _COUNTY_SQL,
+    _SCHOOL_SQL,
+    _STATE_SQL,
+    _strip_county,
+)
 
 router = APIRouter(prefix="/api/money-flow", tags=["money-flow"])
 tracer = trace.get_tracer(__name__)
@@ -421,10 +429,137 @@ async def _economy(conn, *, state_code: Optional[str], city: Optional[str], scop
     return lens
 
 
+# ---------------------------------------------------------------------------
+# Government-budget lens — the layers of government a resident funds: city +
+# county + state + their school district. Each layer is scaled to the resident's
+# PER-CAPITA share (direct expenditure / population) so the figures are
+# comparable "money on your line" and the huge state budget doesn't visually
+# dwarf the city. School districts carry no population in the Census file, so we
+# borrow the matching city/county population. All REAL U.S. Census figures.
+# Sankey: government layers (left) -> spending categories (right).
+# ---------------------------------------------------------------------------
+_GOV_ACCENT = "#1a6b6b"
+
+
+def _whole_dollars(value: float) -> str:
+    return f"${round(value):,}"
+
+
+async def _government(
+    conn, *, state_code: Optional[str], city: Optional[str], county: Optional[str]
+) -> FlowLens:
+    lens = FlowLens(accent=_GOV_ACCENT)
+    if not state_code:
+        return lens
+
+    try:
+        city_row = await conn.fetchrow(_CITY_SQL, state_code, city) if city else None
+        county_row = (
+            await conn.fetchrow(_COUNTY_SQL, state_code, _strip_county(county))
+            if county
+            else None
+        )
+        state_row = await conn.fetchrow(_STATE_SQL, state_code)
+
+        # School district: the city school district for a city resident, else the
+        # county school district. Borrow the city/county population for per-capita.
+        school_row = None
+        school_pop: Optional[int] = None
+        if city:
+            school_row = await conn.fetchrow(_SCHOOL_SQL, state_code, f"{city} City")
+            school_pop = city_row["population"] if city_row else None
+        if school_row is None and county:
+            school_row = await conn.fetchrow(
+                _SCHOOL_SQL, state_code, f"{_strip_county(county)} County"
+            )
+            school_pop = county_row["population"] if county_row else None
+
+        # (label_key, row, population_override)
+        layers: list[tuple[str, Any, Optional[int]]] = []
+        if city_row is not None:
+            layers.append(("city", city_row, None))
+        if county_row is not None:
+            layers.append(("county", county_row, None))
+        if state_row is not None:
+            layers.append(("state", state_row, None))
+        if school_row is not None:
+            layers.append(("school_district", school_row, school_pop))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("money-flow government failed: {}", exc)
+        return lens
+
+    if not layers:
+        return lens
+
+    nodes: List[FlowNode] = []
+    layer_node: dict[int, int] = {}
+    for li, (key, row, _pop) in enumerate(layers):
+        if key == "city":
+            name = f"{row['jurisdiction_name']} (city)"
+        elif key == "county":
+            name = f"{row['jurisdiction_name']} County"
+        elif key == "state":
+            name = f"{row['state']} (your share)"
+        else:
+            name = f"{row['jurisdiction_name']} schools"
+        layer_node[li] = len(nodes)
+        nodes.append(FlowNode(name=_trunc(name, 26)))
+
+    cat_node: dict[str, int] = {}
+
+    def _cat_index(category: str) -> int:
+        if category not in cat_node:
+            cat_node[category] = len(nodes)
+            nodes.append(FlowNode(name=_trunc(category, 28)))
+        return cat_node[category]
+
+    links: List[FlowLink] = []
+    per_capita_total = 0.0
+    for li, (_key, row, pop_override) in enumerate(layers):
+        pop = pop_override if pop_override else row["population"]
+        direct = row["direct_expenditure"]
+        if not pop or pop <= 0 or not direct or direct <= 0:
+            continue
+        cats = await conn.fetch(_CATEGORY_SQL, row["jurisdiction_finance_id"])
+        for c in cats:
+            amount = c["amount"]
+            if amount is None or amount <= 0:
+                continue
+            per_capita = amount / pop  # the resident's share of this category
+            if per_capita < 1:
+                continue  # drop sub-$1/resident slivers
+            per_capita_total += per_capita
+            links.append(
+                FlowLink(
+                    source=layer_node[li],
+                    target=_cat_index(c["category"]),
+                    value=round(per_capita, 2),
+                    value_label=_whole_dollars(per_capita) + "/yr",
+                    meta=FlowMeta(
+                        title=c["category"],
+                        subtitle=f"{_whole_dollars(per_capita)} per resident, per year",
+                        source_label=nodes[layer_node[li]].name,
+                    ),
+                )
+            )
+
+    if not links:
+        return lens
+
+    lens.nodes = nodes
+    lens.links = links
+    lens.placeholder = False
+    lens.head_amount = _whole_dollars(per_capita_total)
+    lens.head_label = "per resident, per year, across your governments"
+    lens.count_label = f"{len(layers)} layers of government"
+    return lens
+
+
 @router.get("", response_model=MoneyFlowResponse)
 async def get_money_flow(
     state: Optional[str] = Query(None, description="2-letter or full state name"),
     city: Optional[str] = Query(None, description="City name"),
+    county: Optional[str] = Query(None, description="County name (for the government-budget lens)"),
     q: Optional[str] = Query(None, description="Free-text filter on spending/contract/grant descriptions"),
     window: Optional[str] = Query(None, description="Date window: month|quarter|year|fiveyear|all|auto"),
 ) -> MoneyFlowResponse:
@@ -451,8 +586,16 @@ async def get_money_flow(
             )
             grants = await _grants(conn, state_code=state_code, q=q)
             economy = await _economy(conn, state_code=state_code, city=city, scope_label=scope_label)
+            government = await _government(
+                conn, state_code=state_code, city=city, county=county
+            )
 
     return MoneyFlowResponse(
         location_label=location_label,
-        lenses={"spending": spending, "grants": grants, "economy": economy},
+        lenses={
+            "spending": spending,
+            "grants": grants,
+            "economy": economy,
+            "government": government,
+        },
     )
