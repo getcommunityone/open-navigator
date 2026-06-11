@@ -305,6 +305,82 @@ async def get_property_tax_rate(
         )
 
 
+# ---------------------------------------------------------------------------
+# Combined state + average-local sales-tax rate (Tax Foundation), for the money
+# modal's "your bill" sales-tax line. Grain: state. Real percentages, never a
+# hard-coded rate.
+# ---------------------------------------------------------------------------
+_SALESTAX_SQL = """
+    SELECT state_code, state, state_sales_tax_rate_pct,
+           avg_local_sales_tax_rate_pct, combined_sales_tax_rate_pct,
+           as_of_date, source
+    FROM state_sales_tax_rate
+    WHERE state_code = $1
+    ORDER BY as_of_date DESC NULLS LAST
+    LIMIT 1
+"""
+
+
+class SalesTaxRateResponse(BaseModel):
+    state_code: str
+    state: str
+    # Percentages (9.46 = 9.46%), as published.
+    state_sales_tax_rate_pct: Optional[float] = None
+    avg_local_sales_tax_rate_pct: Optional[float] = None
+    combined_sales_tax_rate_pct: Optional[float] = None
+    as_of_date: Optional[str] = None
+    source: str = "Tax Foundation, State & Local Sales Tax Rates"
+
+
+@router.get("/sales-tax-rate", response_model=SalesTaxRateResponse)
+async def get_sales_tax_rate(
+    state: str = Query(..., description="2-letter state code (full names accepted)."),
+) -> SalesTaxRateResponse:
+    """Real combined state + average-local sales-tax rate for a state.
+
+    The combined rate is the state's own rate plus the population-weighted
+    average of local rates (Tax Foundation). Applied to taxable spending in the
+    money modal — a real percentage, not the prototype's invented 4%.
+    """
+    state_code = normalize_state_input(state)
+    if not state_code:
+        raise HTTPException(status_code=400, detail="A valid state code is required.")
+
+    with tracer.start_as_current_span("sales-tax-rate") as span:
+        span.set_attribute("sales_tax_rate.state_code", state_code)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(_SALESTAX_SQL, state_code)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("sales-tax-rate query failed")
+            span.record_exception(exc)
+            raise HTTPException(
+                status_code=500, detail="Failed to load sales-tax rate."
+            ) from exc
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No sales-tax rate available for state '{state_code}'.",
+            )
+
+        as_of = row["as_of_date"]
+        return SalesTaxRateResponse(
+            state_code=row["state_code"],
+            state=row["state"],
+            state_sales_tax_rate_pct=_float_or_none(row["state_sales_tax_rate_pct"]),
+            avg_local_sales_tax_rate_pct=_float_or_none(
+                row["avg_local_sales_tax_rate_pct"]
+            ),
+            combined_sales_tax_rate_pct=_float_or_none(
+                row["combined_sales_tax_rate_pct"]
+            ),
+            as_of_date=as_of.isoformat() if as_of is not None else None,
+            source=row["source"] or "Tax Foundation, State & Local Sales Tax Rates",
+        )
+
+
 def _int_or_none(value: object) -> Optional[int]:
     """bigint -> int, pass NULL through (never fabricate 0)."""
     return None if value is None else int(value)

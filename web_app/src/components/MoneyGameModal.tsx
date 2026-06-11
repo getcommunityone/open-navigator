@@ -21,9 +21,11 @@ import { XMarkIcon } from '@heroicons/react/24/outline'
 import {
   fetchLocalFinance,
   fetchPropertyTaxRate,
+  fetchSalesTaxRate,
   type LocalFinance,
   type LocalFinanceCategory,
   type PropertyTaxRate,
+  type SalesTaxRate,
 } from '../api/localFinance'
 import {
   fetchGrandkidOutlook,
@@ -50,16 +52,6 @@ const CAT_PALETTE = [
 // Whole-dollar currency, no decimals: 1495.81 -> "$1,496", 150505000 -> "$150,505,000".
 function fmtDollars(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return '—'
-  return `$${Math.round(n).toLocaleString('en-US')}`
-}
-
-// Compact currency for big totals: 150_505_000 -> "$150.5M".
-function fmtCompact(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return '—'
-  const abs = Math.abs(n)
-  if (abs >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`
-  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `$${(n / 1_000).toFixed(1)}K`
   return `$${Math.round(n).toLocaleString('en-US')}`
 }
 
@@ -154,228 +146,242 @@ function buildGameCategories(categories: LocalFinanceCategory[]): GameCategory[]
   return result
 }
 
-// ---------------------------------------------------------------------------
-// Small donut split from property/sales/other taxes (real; omit null parts).
-// ---------------------------------------------------------------------------
-function TaxSplitDonut({ fin }: { fin: LocalFinance }) {
-  const parts = [
-    { label: 'Property', value: fin.property_tax, color: '#1a6b6b' },
-    { label: 'Sales', value: fin.sales_tax, color: '#2a8576' },
-    { label: 'Other', value: fin.other_taxes, color: '#e0723a' },
-  ].filter((p) => p.value != null && (p.value as number) > 0) as {
-    label: string
-    value: number
-    color: string
-  }[]
+// Shared range-slider classes (teal filled track + white thumb).
+const SLIDER_CLS = [
+  'h-2 w-full cursor-pointer appearance-none rounded-full',
+  '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4',
+  '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white',
+  '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(15,43,43,0.25)] [&::-webkit-slider-thumb]:[background:var(--thumb)]',
+  '[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full',
+  '[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:[background:var(--thumb)]',
+].join(' ')
 
-  if (parts.length === 0) return null
-  const total = parts.reduce((s, p) => s + p.value, 0)
+// One labelled estimate slider. `log` gives an exponential track (fine control
+// in the everyday range) so a $230K home isn't pinned to the far left of a $2M
+// slider — same trick as the design prototype.
+function EstRow({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  display,
+  log,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  onChange: (v: number) => void
+  display: string
+  log?: boolean
+}) {
+  const toT = (v: number) => Math.round(1000 * (Math.log(v / min) / Math.log(max / min)))
+  const fromT = (t: number) => {
+    const raw = min * Math.pow(max / min, t / 1000)
+    return Math.min(max, Math.max(min, Math.round(raw / step) * step))
+  }
+  const filled = log ? toT(value) / 10 : ((value - min) / (max - min)) * 100
+  return (
+    <div className="mb-3">
+      <div className="mb-1 flex items-baseline justify-between gap-2 text-[13px]" style={FONT}>
+        <span className="min-w-0 truncate font-medium text-[#0f2b2b]">{label}</span>
+        <span className="shrink-0 font-semibold tabular-nums text-[#1a6b6b]">{display}</span>
+      </div>
+      <input
+        type="range"
+        min={log ? 0 : min}
+        max={log ? 1000 : max}
+        step={log ? 1 : step}
+        value={log ? toT(value) : value}
+        onChange={(e) => onChange(log ? fromT(Number(e.target.value)) : Number(e.target.value))}
+        style={
+          {
+            background: `linear-gradient(to right, #1a6b6b ${filled}%, #eef4f4 ${filled}%)`,
+            '--thumb': '#1a6b6b',
+          } as React.CSSProperties
+        }
+        className={SLIDER_CLS}
+        aria-label={label}
+      />
+    </div>
+  )
+}
+
+// Small conic-gradient donut for the bill split.
+function BillDonut({ parts }: { parts: { value: number; color: string }[] }) {
+  const usable = parts.filter((p) => p.value > 0)
+  const total = usable.reduce((s, p) => s + p.value, 0)
   if (total <= 0) return null
-
-  // Conic-gradient donut.
   let acc = 0
-  const stops = parts
+  const stops = usable
     .map((p) => {
       const start = (acc / total) * 100
       acc += p.value
-      const end = (acc / total) * 100
-      return `${p.color} ${start}% ${end}%`
+      return `${p.color} ${start}% ${(acc / total) * 100}%`
     })
     .join(', ')
-
   return (
-    <div className="mt-4 flex items-center gap-4">
-      <div
-        className="relative h-16 w-16 shrink-0 rounded-full"
-        style={{ background: `conic-gradient(${stops})` }}
-        aria-hidden
-      >
-        <div className="absolute inset-[22%] rounded-full bg-white" />
-      </div>
-      <ul className="flex-1 space-y-1">
-        {parts.map((p) => (
-          <li key={p.label} className="flex items-center justify-between text-[12px]" style={FONT}>
-            <span className="flex items-center gap-1.5 text-[#56635e]">
-              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />
-              {p.label}
-            </span>
-            <span className="font-semibold tabular-nums text-[#0f2b2b]">
-              {pct((p.value / total) * 100)}
-            </span>
-          </li>
-        ))}
-      </ul>
+    <div className="relative h-[84px] w-[84px] shrink-0 rounded-full" style={{ background: `conic-gradient(${stops})` }} aria-hidden>
+      <div className="absolute inset-[24%] rounded-full bg-[#fafaf9]" />
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// LEFT (Stage 1): "Your property-tax bill" — a personal estimate from a home
-// value slider × the REAL local effective property-tax rate (ACS B25103/B25077,
-// GET /api/local-finance/property-tax-rate). Property tax ONLY: there's no
-// sales-tax/fee rate mart, so we say so plainly rather than invent the rest
-// (CLAUDE.md: No Fabricated Data). When the location has no place/county rate
-// (404), the card renders nothing instead of a placeholder.
+// STAGE 1: "Your bill" — a personal estimate that mirrors the design prototype,
+// every rate REAL: property tax = your home value × the local effective ACS
+// rate (/property-tax-rate); sales tax = your taxable spending × the real
+// combined state+local rate (/sales-tax-rate, Tax Foundation); fees are your
+// own input. Renters: property tax is embedded in rent and remitted by the
+// landlord, so we don't fabricate a pass-through — we say so and base the
+// visible bill on sales + fees.
 // ---------------------------------------------------------------------------
-function YourTaxBillCard({
+function YourBill({
   open,
   stateCode,
   city,
   county,
+  jurisdictionName,
+  onContinue,
 }: {
   open: boolean
   stateCode: string
   city?: string
   county?: string
+  jurisdictionName: string
+  onContinue: () => void
 }) {
-  const { data } = useQuery<PropertyTaxRate>({
+  const propQ = useQuery<PropertyTaxRate>({
     queryKey: ['property-tax-rate', stateCode, city, county],
     queryFn: () => fetchPropertyTaxRate({ state: stateCode, city, county }),
     enabled: open && !!stateCode,
     staleTime: 10 * 60 * 1000,
-    retry: false, // a 404 (no local rate) is an expected miss — don't retry.
+    retry: false,
+  })
+  const salesQ = useQuery<SalesTaxRate>({
+    queryKey: ['sales-tax-rate', stateCode],
+    queryFn: () => fetchSalesTaxRate(stateCode),
+    enabled: open && !!stateCode,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
   })
 
-  const rate = data?.effective_property_tax_rate ?? null
-  const median = data?.median_home_value ?? null
+  const propRate = propQ.data?.effective_property_tax_rate ?? null
+  const median = propQ.data?.median_home_value ?? null
+  const salesPct = salesQ.data?.combined_sales_tax_rate_pct ?? null
+  const salesFrac = salesPct != null ? salesPct / 100 : null
 
-  // Slider state seeded from the real ACS median once it loads. Hooks run
-  // unconditionally; the conditional return below sits AFTER them.
+  const [own, setOwn] = useState(true)
   const [homeValue, setHomeValue] = useState<number | null>(null)
+  const [spend, setSpend] = useState(19_000)
+  const [fees, setFees] = useState(800)
+  const [income, setIncome] = useState(60_000)
   useEffect(() => {
     if (median != null) setHomeValue((v) => (v == null ? median : v))
   }, [median])
 
-  // No real rate/value for this place → hide entirely, never fabricate.
-  if (data == null || rate == null || median == null) return null
+  const hv = homeValue ?? median ?? 230_000
+  const homeMax = Math.max(1_000_000, Math.ceil(((median ?? 230_000) * 2.5) / 50_000) * 50_000)
+  const propTax = own && propRate != null ? hv * propRate : null
+  const salesTax = salesFrac != null ? spend * salesFrac : null
 
-  const value = homeValue ?? median
-  const annual = value * rate
-  // Cap the slider generously above the local median so it isn't pinned left.
-  const sliderMax = Math.max(1_000_000, Math.ceil((median * 2.5) / 50_000) * 50_000)
-  const sliderMin = 50_000
-  const pctRate = (rate * 100).toFixed(2)
-
-  return (
-    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-5 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
-        Your property-tax bill
-      </p>
-
-      <div className="mt-2 mb-1 flex items-baseline justify-between text-[13px]" style={FONT}>
-        <span className="font-medium text-[#0f2b2b]">Home value</span>
-        <span className="font-semibold tabular-nums text-[#1a6b6b]">{fmtDollars(value)}</span>
-      </div>
-      <input
-        type="range"
-        min={sliderMin}
-        max={sliderMax}
-        step={5_000}
-        value={Math.min(sliderMax, Math.max(sliderMin, value))}
-        onChange={(e) => setHomeValue(Number(e.target.value))}
-        style={
-          {
-            background: `linear-gradient(to right, #1a6b6b ${
-              ((value - sliderMin) / (sliderMax - sliderMin)) * 100
-            }%, #eef4f4 ${((value - sliderMin) / (sliderMax - sliderMin)) * 100}%)`,
-            '--thumb': '#1a6b6b',
-          } as React.CSSProperties
-        }
-        className={[
-          'h-2 w-full cursor-pointer appearance-none rounded-full',
-          '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4',
-          '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white',
-          '[&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(15,43,43,0.25)] [&::-webkit-slider-thumb]:[background:var(--thumb)]',
-          '[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full',
-          '[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:[background:var(--thumb)]',
-        ].join(' ')}
-        aria-label="Home value"
-      />
-
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
-            Estimated property tax
-          </p>
-          <p className="mt-1 text-[36px] font-semibold leading-none text-[#0f2b2b]" style={SERIF}>
-            {fmtDollars(annual)}
-          </p>
-          <p className="mt-1 text-[13px] text-[#56635e]" style={FONT}>
-            per year · {fmtDollars(annual / 12)}/mo
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-[22px] font-semibold leading-none text-[#1a6b6b]" style={SERIF}>
-            {pctRate}%
-          </p>
-          <p className="mt-1 text-[11px] text-[#9bb8b8]" style={FONT}>
-            effective rate
-          </p>
-        </div>
-      </div>
-
-      <p className="mt-3 rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-        {data.jurisdiction_name}&apos;s effective rate, applied to your home value.
-        Property tax only — local sales tax and fees aren&apos;t in this number.
-      </p>
-      <p className="mt-2 text-[11px] text-[#9bb8b8]" style={MONO}>
-        Source: {data.source}
-        {data.acs_vintage_year ? ` · ACS ${data.acs_vintage_year}` : ''}
-      </p>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// LEFT: tax-total card (real per-resident & total taxes + the split donut).
-// ---------------------------------------------------------------------------
-function TaxTotalCard({ fin }: { fin: LocalFinance }) {
-  const perCapita = fin.taxes_per_capita
-  const total = fin.total_taxes
-  const haveAny = perCapita != null || total != null
+  const parts: { label: string; value: number; color: string }[] = []
+  if (propTax != null) parts.push({ label: 'Property tax', value: propTax, color: '#1a6b6b' })
+  if (salesTax != null) parts.push({ label: 'Sales tax', value: salesTax, color: '#2a8576' })
+  parts.push({ label: 'Fees & other', value: fees, color: '#7fd0c4' })
+  const total = parts.reduce((s, p) => s + p.value, 0)
+  const sharePct = income > 0 ? (total / income) * 100 : null
 
   return (
-    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-5 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
-      {!haveAny ? (
-        <p className="py-2 text-sm text-[#6b8a8a]" style={FONT}>
-          Tax detail not available for {fin.jurisdiction_name}.
-        </p>
-      ) : (
-        <>
-          {perCapita != null ? (
-            <>
+    <div>
+      <div className="flex flex-col gap-5 md:flex-row md:items-start">
+        {/* Inputs */}
+        <div className="flex-1">
+          <div className="mb-4 inline-flex rounded-xl border border-[#d4e8e8] bg-[#f7fafb] p-0.5">
+            {[
+              { v: true, label: 'I own' },
+              { v: false, label: 'I rent' },
+            ].map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                onClick={() => setOwn(o.v)}
+                className={`rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors ${
+                  own === o.v ? 'bg-[#1a6b6b] text-white' : 'text-[#56635e] hover:text-[#0f2b2b]'
+                }`}
+                style={FONT}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+
+          {own ? (
+            <EstRow label="Home value" value={hv} min={50_000} max={homeMax} step={5_000} onChange={setHomeValue} display={fmtDollars(hv)} log />
+          ) : (
+            <p className="mb-3 rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+              Renters pay property tax through rent — your landlord remits it. We don&apos;t fabricate
+              that split, so your visible bill below is local sales tax + fees.
+            </p>
+          )}
+          <EstRow label="Yearly spending on taxable goods" value={spend} min={4_000} max={100_000} step={500} onChange={setSpend} display={fmtDollars(spend)} log />
+          <EstRow label="Local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fmtDollars(fees)} />
+          <EstRow label="Household income" value={income} min={15_000} max={250_000} step={1_000} onChange={setIncome} display={fmtDollars(income)} log />
+        </div>
+
+        {/* Live result */}
+        <div className="flex-1 rounded-2xl border border-[#d4e8e8] bg-[#fafaf9] p-4 md:p-5">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
                 You pay approximately
               </p>
-              <p className="mt-1 text-[40px] font-semibold leading-none text-[#0f2b2b]" style={SERIF}>
-                {fmtDollars(perCapita)}
+              <p className="text-[36px] font-semibold leading-none text-[#0f2b2b]" style={SERIF}>
+                {fmtDollars(total)}
               </p>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-[#56635e]" style={FONT}>
-                <span className="font-semibold text-[#1a6b6b]">per resident</span>, per year, in{' '}
-                {fin.jurisdiction_name} local taxes &amp; fees
+              <p className="mt-1 text-[13px] text-[#56635e]" style={FONT}>
+                per year · {fmtDollars(total / 12)}/mo
               </p>
-            </>
-          ) : (
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
-                {fin.jurisdiction_name} collects
-              </p>
-              <p className="mt-1 text-[36px] font-semibold leading-none text-[#0f2b2b]" style={SERIF}>
-                {fmtCompact(total)}
-              </p>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-[#56635e]" style={FONT}>
-                in total local taxes &amp; fees (per-resident figure unavailable)
-              </p>
-            </>
-          )}
-          {perCapita != null && total != null && (
-            <p className="mt-2 text-[12px] text-[#9bb8b8]" style={FONT}>
-              {fin.jurisdiction_name} collects {fmtCompact(total)} total
+            </div>
+            <BillDonut parts={parts} />
+          </div>
+
+          {sharePct != null && (
+            <p className="mt-3 text-[13.5px] font-semibold text-[#0f2b2b]" style={FONT}>
+              That&apos;s {sharePct.toFixed(1)}% of your household income going to local government.
             </p>
           )}
-          <TaxSplitDonut fin={fin} />
-        </>
-      )}
+
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            {parts.map((p) => (
+              <span key={p.label} className="flex items-center gap-1.5 text-[11.5px] text-[#56635e]" style={FONT}>
+                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
+                {p.label} · {fmtDollars(p.value)}
+              </span>
+            ))}
+          </div>
+
+          <p className="mt-3 text-[11px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+            {propRate != null && (
+              <>Property: {jurisdictionName}&apos;s {(propRate * 100).toFixed(2)}% effective ACS rate. </>
+            )}
+            {salesPct != null && <>Sales: {salesPct.toFixed(2)}% combined state+local rate. </>}
+            Fees are your own estimate.
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onContinue}
+        className="mt-5 w-full rounded-xl bg-[#1a6b6b] px-5 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-[#155757]"
+        style={FONT}
+      >
+        Now — can you guess where it goes? →
+      </button>
     </div>
   )
 }
@@ -720,11 +726,8 @@ function GuessingGame({
   )
 }
 
-// ---------------------------------------------------------------------------
-// RIGHT: accuracy panel (locked until reveal). The mobility panel below it is
-// the real "Grandkids forecast" (GrandkidsForecast).
-// ---------------------------------------------------------------------------
-// Prototype grade ladder + score color for the accuracy readout.
+// Prototype grade ladder + score color for the accuracy readout (used by the
+// stage-2 score box after reveal).
 function gradeFor(score: number): string {
   if (score >= 90) return 'Civic genius'
   if (score >= 75) return 'Sharp eye'
@@ -738,51 +741,8 @@ function scoreColor(score: number): string {
   return '#c0432a'
 }
 
-function AccuracyPanel({
-  revealed,
-  scoreInfo,
-}: {
-  revealed: boolean
-  scoreInfo: { score: number; totalError: number } | null
-}) {
-  return (
-    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-5 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
-      <h3 className="text-[15px] font-semibold text-[#0f2b2b]" style={SERIF}>
-        Your guess accuracy
-      </h3>
-      {!revealed || scoreInfo == null ? (
-        <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-[#d4e8e8] bg-[#f7fafb] py-8 text-center">
-          <span className="text-[28px] font-semibold text-[#9bb8b8]" style={SERIF} aria-hidden>
-            🔒
-          </span>
-          <p className="mt-1 text-[13px] text-[#9bb8b8]" style={FONT}>
-            Reveal reality to score your guess.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-4 flex items-center gap-4">
-          <p
-            className="text-[52px] font-semibold leading-none"
-            style={{ ...SERIF, color: scoreColor(scoreInfo.score) }}
-          >
-            {pct(scoreInfo.score)}
-          </p>
-          <div>
-            <p className="text-[15px] font-semibold text-[#0f2b2b]" style={FONT}>
-              {gradeFor(scoreInfo.score)}
-            </p>
-            <p className="mt-0.5 text-[12px] text-[#9bb8b8]" style={FONT}>
-              Off by {Math.round(scoreInfo.totalError)} pts total · score = 100 − error ÷ 2
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------------------
-// RIGHT: "Grandkids forecast" — real Opportunity Atlas intergenerational mobility
+// "Grandkids forecast" — real Opportunity Atlas intergenerational mobility
 // for the modal's location. For kids whose parents sat at the selected income
 // bracket, what adult income percentile did they reach? We compare the local
 // commuting zone to the U.S. on a 0–100 percentile scale. Every number is a real
@@ -1008,12 +968,15 @@ export default function MoneyGameModal({
   const [guesses, setGuesses] = useState<number[]>([])
   const [touched, setTouched] = useState<boolean[]>([])
   const [revealed, setRevealed] = useState(false)
+  // Prototype's 3-stage flow: 1 your bill → 2 the guessing game → 3 the grandkids.
+  const [stage, setStage] = useState<'estimate' | 'game' | 'grandkids'>('estimate')
 
   // Reset the game whenever it (re)opens or the category set changes.
   useEffect(() => {
     setGuesses(game.map(() => 0))
     setTouched(game.map(() => false))
     setRevealed(false)
+    setStage('estimate')
   }, [open, game])
 
   // Score = 100 - totalError/2, where totalError sums |normalizedGuess - actual|
@@ -1076,11 +1039,11 @@ export default function MoneyGameModal({
                   {title}
                 </Dialog.Title>
 
-                {/* Subtitle — sets up the game, prototype-style (all real data). */}
+                {/* Subtitle — prototype-style, all real data. */}
                 {data && (
                   <p className="mt-1 text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-                    Real {data.jurisdiction_name} figures from the U.S. Census — guess how the budget
-                    splits, then reveal how close you got.
+                    Real {data.jurisdiction_name} figures · starts at the median household — adjust the
+                    sliders to make it yours.
                   </p>
                 )}
 
@@ -1092,6 +1055,37 @@ export default function MoneyGameModal({
                     Showing {data.state} statewide figures — we don&apos;t have
                     local finance for {requestedLabel} yet.
                   </p>
+                )}
+
+                {/* Step indicator (1 · Your bill → 2 · The guessing game → 3 · The grandkids). */}
+                {data && (
+                  <div className="mt-3.5 flex flex-wrap gap-2">
+                    {([
+                      ['estimate', '1 · Your bill'],
+                      ['game', '2 · The guessing game'],
+                      ['grandkids', '3 · The grandkids'],
+                    ] as const).map(([key, label]) => {
+                      const unlocked = key !== 'grandkids' || revealed
+                      const active = stage === key
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => unlocked && setStage(key)}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors ${
+                            active
+                              ? 'border-[#1a6b6b] bg-[#f0faf8] text-[#1a6b6b]'
+                              : unlocked
+                                ? 'border-[#e2eaea] bg-white text-[#6b8a8a] hover:text-[#0f2b2b]'
+                                : 'cursor-default border-[#eef4f4] bg-white text-[#cfe0e0]'
+                          }`}
+                          style={MONO}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 )}
                 </div>
 
@@ -1108,19 +1102,21 @@ export default function MoneyGameModal({
                     </div>
                   ) : (
                     <>
-                      <div className="grid gap-5 md:grid-cols-2">
-                        {/* LEFT */}
-                        <div className="space-y-5">
-                          {/* Stage 1: personal property-tax estimate (real local
-                              ACS rate × your home value). Self-hides when the
-                              location has no place/county rate. */}
-                          <YourTaxBillCard
-                            open={open}
-                            stateCode={stateCode}
-                            city={city}
-                            county={county}
-                          />
-                          <TaxTotalCard fin={data} />
+                      {/* ── Stage 1: Your bill ── */}
+                      {stage === 'estimate' && (
+                        <YourBill
+                          open={open}
+                          stateCode={stateCode}
+                          city={city}
+                          county={county}
+                          jurisdictionName={data.jurisdiction_name}
+                          onContinue={() => setStage('game')}
+                        />
+                      )}
+
+                      {/* ── Stage 2: The guessing game ── */}
+                      {stage === 'game' && (
+                        <div>
                           {game.length > 0 ? (
                             <GuessingGame
                               fin={data}
@@ -1139,47 +1135,85 @@ export default function MoneyGameModal({
                               {data.jurisdiction_name} yet.
                             </div>
                           )}
-                        </div>
 
-                        {/* RIGHT */}
-                        <div className="space-y-5">
-                          <AccuracyPanel revealed={revealed} scoreInfo={scoreInfo} />
-                          <GrandkidsForecast open={open} stateCode={stateCode} city={city} />
-                        </div>
-                      </div>
-
-                      {/* "Decisions matter" closing panel after reveal — prototype's
-                          two-column layout (big serif left, score-aware body right). */}
-                      {revealed && (
-                        <div className="mt-5 rounded-2xl bg-[#1a6b6b] p-6 text-white">
-                          <div className="flex flex-wrap items-center gap-5">
-                            <div className="text-[28px] font-semibold leading-[1.05]" style={SERIF}>
-                              Decisions
-                              <br />
-                              matter.
+                          {/* Score + grandkids CTA, lands where the reveal happened. */}
+                          {revealed && scoreInfo != null && (
+                            <div className="mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-[#ccfbf1] bg-gradient-to-r from-[#f0faf8] to-[#f7fee7] px-5 py-4">
+                              <span className="text-[34px] font-semibold leading-none" style={{ ...SERIF, color: scoreColor(scoreInfo.score) }}>
+                                {pct(scoreInfo.score)}
+                              </span>
+                              <span className="min-w-[120px]">
+                                <span className="block text-[14.5px] font-semibold text-[#0f2b2b]" style={FONT}>
+                                  {gradeFor(scoreInfo.score)}
+                                </span>
+                                <span className="text-[9.5px] uppercase tracking-[0.04em] text-[#9bb8b8]" style={MONO}>
+                                  Off by {Math.round(scoreInfo.totalError)} pts
+                                </span>
+                              </span>
+                              <p className="min-w-[220px] flex-1 text-[13px] leading-relaxed text-[#44403c]" style={FONT}>
+                                These dollars shape the schools, streets, and parks your grandkids grow
+                                up with. Want to see how kids who grow up here actually fare?
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setStage('grandkids')}
+                                className="rounded-full bg-[#1a6b6b] px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#155757]"
+                                style={FONT}
+                              >
+                                The grandkids forecast →
+                              </button>
                             </div>
-                            <p className="min-w-[240px] flex-1 text-[14px] leading-relaxed text-white/90" style={FONT}>
-                              {scoreInfo != null && scoreInfo.score >= 75
-                                ? `You scored ${pct(scoreInfo.score)} — better than most. But the split changes one vote at a time, in meetings almost nobody watches. `
-                                : scoreInfo != null
-                                  ? `You scored ${pct(scoreInfo.score)} — and that's typical. Most people can't say where their own money goes, because the decisions happen in meetings almost nobody watches. `
-                                  : ''}
-                              Every one of these dollars is set in a public meeting you can attend,
-                              watch, and weigh in on — and they shape the schools, streets, and parks
-                              your kids and grandkids grow up with. Open Navigator watches them for you.
-                            </p>
-                          </div>
-                          {data.note && (
-                            <p className="mt-4 border-t border-white/20 pt-2 text-[11px] leading-relaxed text-white/70" style={FONT}>
-                              {data.note}
-                            </p>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => setStage('estimate')}
+                            className="mt-3 text-[13px] text-[#6b8a8a] underline transition-colors hover:text-[#0f2b2b]"
+                            style={FONT}
+                          >
+                            ← Back to your bill
+                          </button>
+                        </div>
+                      )}
+
+                      {/* ── Stage 3: The grandkids ── */}
+                      {stage === 'grandkids' && (
+                        <div>
+                          <GrandkidsForecast open={open} stateCode={stateCode} city={city} />
+
+                          <div className="mt-5 rounded-2xl bg-[#1a6b6b] p-6 text-white">
+                            <div className="flex flex-wrap items-center gap-5">
+                              <div className="text-[28px] font-semibold leading-[1.05]" style={SERIF}>
+                                Decisions
+                                <br />
+                                matter.
+                              </div>
+                              <p className="min-w-[240px] flex-1 text-[14px] leading-relaxed text-white/90" style={FONT}>
+                                {scoreInfo != null && scoreInfo.score >= 75
+                                  ? `You scored ${pct(scoreInfo.score)} — better than most. But the split changes one vote at a time, in meetings almost nobody watches. `
+                                  : scoreInfo != null
+                                    ? `You scored ${pct(scoreInfo.score)} — and that's typical. Most people can't say where their own money goes, because the decisions happen in meetings almost nobody watches. `
+                                    : ''}
+                                Every one of these dollars is set in a public meeting you can attend,
+                                watch, and weigh in on. Open Navigator watches them for you.
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setStage('game')}
+                            className="mt-3 text-[13px] text-[#6b8a8a] underline transition-colors hover:text-[#0f2b2b]"
+                            style={FONT}
+                          >
+                            ← Back to the game
+                          </button>
                         </div>
                       )}
 
                       {/* Provenance — always shown. */}
-                      <p className="mt-4 text-center text-[11px] text-[#9bb8b8]" style={MONO}>
-                        Source: {data.source} · FY{data.fiscal_year}
+                      <p className="mt-5 text-center text-[11px] text-[#9bb8b8]" style={MONO}>
+                        Sources: U.S. Census · ACS property-tax rate · Tax Foundation sales tax · Opportunity Atlas
                       </p>
                     </>
                   )}

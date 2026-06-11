@@ -84,3 +84,22 @@ export async function fetchPropertyTaxRate(
   })
   return res.data
 }
+
+// REAL combined state + average-local sales-tax rate (Tax Foundation), per state.
+export interface SalesTaxRate {
+  state_code: string
+  state: string
+  /** Percentages as published (9.46 = 9.46%). */
+  state_sales_tax_rate_pct: number | null
+  avg_local_sales_tax_rate_pct: number | null
+  combined_sales_tax_rate_pct: number | null
+  as_of_date: string | null
+  source: string
+}
+
+export async function fetchSalesTaxRate(state: string): Promise<SalesTaxRate> {
+  const res = await api.get<SalesTaxRate>('/local-finance/sales-tax-rate', {
+    params: { state },
+  })
+  return res.data
+}

@@ -223,6 +223,38 @@ function locationFromGeocode(result: any): LocationData | null {
   }
 }
 
+// Build the disambiguation choices for a ZIP from its geocode results. A ZIP can
+// span cities and/or land inside vs. outside city limits — and city rates STACK
+// on county rates, so the choice changes the real bill. We surface one chip per
+// distinct city ("inside {city}") plus an "outside city limits" (county-only)
+// option per distinct county. Real geography only — no invented ZIP table.
+function buildZipChoices(results: any[]): { label: string; loc: LocationData }[] {
+  const locs = (Array.isArray(results) ? results : [results])
+    .map(locationFromGeocode)
+    .filter(Boolean) as LocationData[]
+  const cities = new Map<string, LocationData>()
+  const counties = new Map<string, LocationData>()
+  for (const l of locs) {
+    if (l.city) {
+      const k = `${l.city}|${l.county}`
+      if (!cities.has(k)) cities.set(k, l)
+    }
+    if (l.county) {
+      if (!counties.has(l.county)) counties.set(l.county, { ...l, city: '', granularity: 'county' })
+    }
+  }
+  const multiCounty = counties.size > 1
+  const choices: { label: string; loc: LocationData }[] = []
+  for (const l of cities.values()) choices.push({ label: `📍 ${l.city}`, loc: l })
+  for (const l of counties.values()) {
+    choices.push({
+      label: multiCounty ? `🌾 Outside city limits (${l.county})` : '🌾 Outside city limits',
+      loc: l,
+    })
+  }
+  return choices
+}
+
 // ── Money hook (ZIP-style, prototype look; REAL geocode + REAL modal) ───────
 // Mirrors the prototype's "How much of your money is on the line?" ZIP card,
 // but the ZIP is resolved to a real place via the /api/geocode proxy and the
@@ -239,11 +271,16 @@ function MoneyHookZip() {
   // The place the modal is scoped to — the just-resolved ZIP, else any
   // already-set community.
   const [resolved, setResolved] = useState<LocationData | null>(location ?? null)
+  // When a ZIP is ambiguous (spans cities / inside-vs-outside city limits), the
+  // user picks here before the modal opens.
+  const [choices, setChoices] = useState<{ label: string; loc: LocationData }[] | null>(null)
 
   const zipValid = /^\d{5}$/.test(zip)
   const scope = resolved ?? location ?? null
+  const needsChoice = !!choices && choices.length > 1
 
   const openFor = (loc: LocationData) => {
+    setChoices(null)
     setResolved(loc)
     setLocation(loc)
     setModalOpen(true)
@@ -251,16 +288,21 @@ function MoneyHookZip() {
 
   const resolveZip = async () => {
     setError(null)
+    setChoices(null)
     setBusy(true)
     try {
-      const res = await api.get(`/geocode/search`, { params: { q: zip, limit: 1 } })
-      const first = Array.isArray(res.data) ? res.data[0] : res.data
-      const loc = locationFromGeocode(first)
-      if (!loc) {
+      const res = await api.get(`/geocode/search`, { params: { q: zip, limit: 10 } })
+      const results = Array.isArray(res.data) ? res.data : [res.data]
+      const opts = buildZipChoices(results)
+      if (opts.length === 0) {
         setError("We couldn't find that ZIP. Try another, or use your location.")
         return
       }
-      openFor(loc)
+      if (opts.length === 1) {
+        openFor(opts[0].loc) // unambiguous → straight to the bill
+      } else {
+        setChoices(opts) // spans cities / city-vs-county → ask first
+      }
     } catch {
       setError("We couldn't look up that ZIP right now. Please try again.")
     } finally {
@@ -269,6 +311,7 @@ function MoneyHookZip() {
   }
 
   const handleShow = () => {
+    if (needsChoice) return // wait for the user to pick a place
     if (zipValid) {
       void resolveZip()
     } else if (scope?.state) {
@@ -367,6 +410,7 @@ function MoneyHookZip() {
             onChange={(e) => {
               setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
               setError(null)
+              setChoices(null)
             }}
             onKeyDown={(e) => e.key === 'Enter' && handleShow()}
             placeholder="e.g. 35401"
@@ -376,12 +420,30 @@ function MoneyHookZip() {
           />
           <button
             onClick={handleShow}
-            disabled={busy}
-            style={{ background: zipValid || scope?.state ? TEAL : '#e7e5e4', color: zipValid || scope?.state ? '#fff' : '#a8a29e', border: 'none', borderRadius: 999, padding: '13px 28px', fontSize: 16.5, fontWeight: 700, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'background 200ms ease, color 200ms ease' }}
+            disabled={busy || needsChoice}
+            style={{ background: (zipValid || scope?.state) && !needsChoice ? TEAL : '#e7e5e4', color: (zipValid || scope?.state) && !needsChoice ? '#fff' : '#a8a29e', border: 'none', borderRadius: 999, padding: '13px 28px', fontSize: 16.5, fontWeight: 700, cursor: busy || needsChoice ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'background 200ms ease, color 200ms ease' }}
           >
-            {busy ? 'Finding…' : 'Show me my money'}
+            {busy ? 'Finding…' : needsChoice ? 'Pick your area first' : 'Show me my money'}
           </button>
         </div>
+
+        {/* ZIP disambiguation — real geography: this ZIP spans places / city
+            limits, and city rates stack on the county's, so the choice changes
+            the bill. Picking one opens the modal scoped to it. */}
+        {needsChoice && choices && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#57534e' }}>
+              {zip} crosses jurisdiction lines — where&apos;s home? (City taxes stack on the county&apos;s.)
+            </span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {choices.map((c, i) => (
+                <Chip key={c.label + i} onClick={() => openFor(c.loc)} style={{ fontSize: 13.5 }}>
+                  {c.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
 
         {error && <div style={{ fontSize: 12.5, color: '#b45309', fontWeight: 600 }}>{error}</div>}
 
