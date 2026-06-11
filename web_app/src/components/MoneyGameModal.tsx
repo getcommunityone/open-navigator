@@ -1043,17 +1043,20 @@ export default function MoneyGameModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
-                {/* Pinned header — stays put while only the body below scrolls. */}
-                <div className="relative shrink-0 px-5 pb-4 pt-5 sm:px-7 sm:pt-7">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="absolute right-4 top-4 z-10 rounded-full bg-white/90 p-1.5 text-[#56635e] shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-[#0f2b2b]"
-                  aria-label="Close"
-                >
-                  <XMarkIcon className="h-5 w-5" />
-                </button>
+              <Dialog.Panel className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
+                {/* The whole panel scrolls; the close button sticks at the top
+                    via a zero-height sticky bar so it stays reachable. */}
+                <div className="pointer-events-none sticky top-0 z-20 flex h-0 justify-end">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="pointer-events-auto mr-3 mt-3 rounded-full bg-white/90 p-1.5 text-[#56635e] shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-[#0f2b2b] sm:mr-4 sm:mt-4"
+                    aria-label="Close"
+                  >
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="px-5 pb-6 pt-4 sm:px-7 sm:pb-7 sm:pt-5">
 
                 <Dialog.Title
                   className="pr-10 text-[26px] font-semibold leading-tight text-[#0f2b2b]"
@@ -1111,11 +1114,8 @@ export default function MoneyGameModal({
                     })}
                   </div>
                 )}
-                </div>
 
-                {/* Scrollable body — the only scroll region, so the bar sits in
-                    the flat middle, not across the panel's rounded corners. */}
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-2 sm:px-7 sm:pb-7">
+                <div className="mt-4">
                   {isLoading ? (
                     <ModalSkeleton />
                   ) : isError || !data ? (
@@ -1240,6 +1240,7 @@ export default function MoneyGameModal({
                       </p>
                     </>
                   )}
+                </div>
                 </div>
               </Dialog.Panel>
             </Transition.Child>
