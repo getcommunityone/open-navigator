@@ -18,7 +18,7 @@
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MoneyGameModal from '../components/MoneyGameModal'
@@ -256,18 +256,19 @@ function buildZipChoices(results: any[]): { label: string; loc: LocationData }[]
   return choices
 }
 
-// ── Money hook (ZIP-style, prototype look; REAL geocode + REAL modal) ───────
-// Mirrors the prototype's "How much of your money is on the line?" ZIP card,
-// but the ZIP is resolved to a real place via the /api/geocode proxy and the
-// "Show me my money" button opens the real <MoneyGameModal> (Census finances +
-// the ACS property-tax estimate + Opportunity Atlas) scoped to that place.
-function MoneyHookZip() {
+// ── Money hook (compact banner; REAL geocode + REAL modal) ──────────────────
+// The "How much of your money is on the line?" teal banner. The CTA opens the
+// real <MoneyGameModal> (Census finances + the ACS property-tax estimate +
+// Opportunity Atlas) scoped to the user's place. When we don't yet know where
+// they are, the banner expands to a ZIP entry resolved via the /api/geocode
+// proxy — we never fabricate a location.
+function MoneyHookBanner() {
   const { location, setLocation } = useLocationContext()
   const [zip, setZip] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [locating, setLocating] = useState(false)
-  const [minimized, setMinimized] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // The place the modal is scoped to — the just-resolved ZIP, else any
   // already-set community.
@@ -364,117 +365,115 @@ function MoneyHookZip() {
     )
   }
 
-  if (minimized) {
-    return (
-      <section style={{ paddingTop: 24 }}>
-        <div
-          style={{ maxWidth: 720, margin: '0 auto', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}
-        >
-          <span className="font-display" style={{ fontSize: 17.5, fontWeight: 800, flex: 1, minWidth: 200 }}>
-            How much of <span style={{ color: TEAL }}>your money</span> is on the line?
-          </span>
-          <button
-            onClick={handleShow}
-            style={{ background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '9px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            Show me my money
-          </button>
-          <button
-            onClick={() => setMinimized(false)}
-            className="font-mono-x"
-            style={{ background: 'none', border: 'none', fontSize: 10.5, letterSpacing: '0.06em', color: '#a8a29e', cursor: 'pointer', textTransform: 'uppercase' }}
-          >
-            See again
-          </button>
-        </div>
-        {scope?.state && (
-          <MoneyGameModal
-            open={modalOpen}
-            onClose={() => setModalOpen(false)}
-            stateCode={scope.state}
-            city={scope.city || undefined}
-            county={scope.county || undefined}
-            requestedLabel={scope.city || scope.county || scope.state}
-          />
-        )}
-      </section>
-    )
+  // Primary CTA: if we already know the user's place, go straight to the real
+  // bill; otherwise reveal the ZIP entry (we never fabricate a location).
+  const handleCta = () => {
+    if (busy || needsChoice) return
+    if (scope?.state) {
+      setModalOpen(true)
+      return
+    }
+    setExpanded(true)
   }
 
   return (
-    <section style={{ paddingTop: 18 }}>
-      <div style={{ textAlign: 'center' }}>
-        <h2 className="font-display" style={{ fontSize: 'clamp(24px, 3.4vw, 34px)', fontWeight: 900, margin: 0, lineHeight: 1.12, letterSpacing: '-0.01em' }}>
-          How much of <span style={{ color: TEAL }}>your money</span> is on the line?
-        </h2>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, marginTop: 12 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 600, color: '#44403c' }}>
-          What&apos;s your ZIP? Every town reaches into your pocket a little differently.
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <input
-            value={zip}
-            onChange={(e) => {
-              setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
-              setError(null)
-              setChoices(null)
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && handleShow()}
-            placeholder="e.g. 35401"
-            inputMode="numeric"
-            className="font-mono-x"
-            style={{ width: 150, padding: '13px 14px', fontSize: 16, borderRadius: 999, border: `1.5px solid ${zipValid ? TEAL : '#d6d3d1'}`, outline: 'none', textAlign: 'center', letterSpacing: '0.12em', transition: 'border-color 150ms ease' }}
-          />
-          <button
-            onClick={handleShow}
-            disabled={busy || needsChoice || !zipValid}
-            title={!zipValid ? 'Enter your 5-digit ZIP first' : undefined}
-            style={{ background: zipValid && !needsChoice ? TEAL : '#e7e5e4', color: zipValid && !needsChoice ? '#fff' : '#a8a29e', border: 'none', borderRadius: 999, padding: '13px 28px', fontSize: 16.5, fontWeight: 700, cursor: zipValid && !needsChoice && !busy ? 'pointer' : 'default', fontFamily: 'inherit', transition: 'background 200ms ease, color 200ms ease' }}
-          >
-            {busy ? 'Finding…' : needsChoice ? 'Pick your area first' : 'Show me my money'}
-          </button>
-        </div>
-
-        {/* ZIP disambiguation — real geography: this ZIP spans places / city
-            limits, and city rates stack on the county's, so the choice changes
-            the bill. Picking one opens the modal scoped to it. */}
-        {needsChoice && choices && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#57534e' }}>
-              {zip} crosses jurisdiction lines — where&apos;s home? (City taxes stack on the county&apos;s.)
-            </span>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {choices.map((c, i) => (
-                <Chip key={c.label + i} onClick={() => openFor(c.loc)} style={{ fontSize: 13.5 }}>
-                  {c.label}
-                </Chip>
-              ))}
-            </div>
+    <section style={{ paddingTop: 22 }}>
+      {/* Compact teal banner — the screenshot's "money on the line" hook. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexWrap: 'wrap',
+          background: '#ecfdf5',
+          border: '1px solid #99f6e4',
+          borderRadius: 16,
+          padding: '16px 22px',
+        }}
+      >
+        <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0 }}>💵</span>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <div className="font-display" style={{ fontSize: 'clamp(19px, 2.4vw, 23px)', fontWeight: 800, lineHeight: 1.15, color: INK }}>
+            How much of <span style={{ color: TEAL }}>your money</span> is on the line?
           </div>
-        )}
-
-        {error && <div style={{ fontSize: 12.5, color: '#b45309', fontWeight: 600 }}>{error}</div>}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button
-            onClick={useMyLocation}
-            style={{ background: 'none', border: 'none', color: TEAL_DARK, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
-          >
-            {locating ? 'Locating…' : '📍 use my location'}
-          </button>
-          <span className="font-mono-x" style={{ fontSize: 10, letterSpacing: '0.05em', color: '#a8a29e', textTransform: 'uppercase' }}>
-            just the ZIP · nothing stored · 15 seconds
-          </span>
-          <button
-            onClick={() => setMinimized(true)}
-            style={{ background: 'none', border: 'none', color: '#a8a29e', fontSize: 11.5, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'inherit' }}
-          >
-            hide
-          </button>
+          <div style={{ fontSize: 14, color: '#57534e', marginTop: 4 }}>
+            Four governments, one wallet. 90 seconds, mildly humbling, grandkids included.
+          </div>
         </div>
+        <button
+          onClick={handleCta}
+          style={{ background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+          {busy ? 'Finding…' : 'Show me my money →'}
+        </button>
       </div>
+
+      {/* ZIP fallback — only when we don't know the user's place yet. Every town
+          reaches into your pocket differently, so we resolve a real ZIP rather
+          than assume one. */}
+      {expanded && !scope?.state && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#44403c' }}>
+            What&apos;s your ZIP?
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <input
+              value={zip}
+              onChange={(e) => {
+                setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
+                setError(null)
+                setChoices(null)
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && handleShow()}
+              placeholder="e.g. 35401"
+              inputMode="numeric"
+              autoFocus
+              className="font-mono-x"
+              style={{ width: 150, padding: '12px 14px', fontSize: 16, borderRadius: 999, border: `1.5px solid ${zipValid ? TEAL : '#d6d3d1'}`, outline: 'none', textAlign: 'center', letterSpacing: '0.12em', transition: 'border-color 150ms ease' }}
+            />
+            <button
+              onClick={handleShow}
+              disabled={busy || needsChoice || !zipValid}
+              title={!zipValid ? 'Enter your 5-digit ZIP first' : undefined}
+              style={{ background: zipValid && !needsChoice ? TEAL : '#e7e5e4', color: zipValid && !needsChoice ? '#fff' : '#a8a29e', border: 'none', borderRadius: 999, padding: '12px 24px', fontSize: 15.5, fontWeight: 700, cursor: zipValid && !needsChoice && !busy ? 'pointer' : 'default', fontFamily: 'inherit', transition: 'background 200ms ease, color 200ms ease' }}
+            >
+              {busy ? 'Finding…' : needsChoice ? 'Pick your area first' : 'Show me my money'}
+            </button>
+          </div>
+
+          {/* ZIP disambiguation — real geography: this ZIP spans places / city
+              limits, and city rates stack on the county's, so the choice changes
+              the bill. Picking one opens the modal scoped to it. */}
+          {needsChoice && choices && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#57534e' }}>
+                {zip} crosses jurisdiction lines — where&apos;s home? (City taxes stack on the county&apos;s.)
+              </span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {choices.map((c, i) => (
+                  <Chip key={c.label + i} onClick={() => openFor(c.loc)} style={{ fontSize: 13.5 }}>
+                    {c.label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && <div style={{ fontSize: 12.5, color: '#b45309', fontWeight: 600 }}>{error}</div>}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              onClick={useMyLocation}
+              style={{ background: 'none', border: 'none', color: TEAL_DARK, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+            >
+              {locating ? 'Locating…' : '📍 use my location'}
+            </button>
+            <span className="font-mono-x" style={{ fontSize: 10, letterSpacing: '0.05em', color: '#a8a29e', textTransform: 'uppercase' }}>
+              just the ZIP · nothing stored · 15 seconds
+            </span>
+          </div>
+        </div>
+      )}
 
       {scope?.state && (
         <MoneyGameModal
@@ -486,6 +485,103 @@ function MoneyHookZip() {
           requestedLabel={scope.city || scope.county || scope.state}
         />
       )}
+    </section>
+  )
+}
+
+// Humanize a primary_theme code (e.g. "public_safety") into display text. UI
+// formatting only — no data is invented.
+function humanizeTheme(theme: string | null | undefined): string {
+  if (!theme || theme === '__unthemed__') return ''
+  return theme
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+// ── Big questions in your community (REAL curated policy-question registry) ──
+// The four featured cross-jurisdiction policy questions. Each links to its real
+// detail page. These curated rows carry no reach rollups (instances/jurisdiction
+// totals are 0), so we deliberately show NO "N jurisdictions" hint — just the
+// question and its theme. Empty/error → render nothing (never a placeholder).
+function BigQuestions() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['home-v9-featured-questions'],
+    queryFn: () => fetchPolicyQuestions({ featured: true }),
+    staleTime: 30 * 60 * 1000,
+  })
+
+  const questions = (data ?? []).filter((q) => !!q.canonical_text)
+  if (isLoading || isError || questions.length === 0) return null
+
+  return (
+    <section style={{ marginTop: 30 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 20 }}>⚖️</span>
+        <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+          Big questions in your community
+        </h2>
+        <span style={{ fontSize: 14, color: '#78716c' }}>
+          The debates playing out in town halls across the country.
+        </span>
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: 12,
+          marginTop: 12,
+        }}
+      >
+        {questions.map((q) => {
+          const theme = humanizeTheme(q.primary_theme)
+          return (
+            <Link
+              key={q.question_id}
+              to={`/policy-question/${q.question_id}`}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                textDecoration: 'none',
+                background: '#fff',
+                border: '1px solid #e7e5e4',
+                borderRadius: 14,
+                padding: '16px 18px',
+                boxShadow: '0 1px 2px rgba(28,25,23,0.05)',
+              }}
+            >
+              {theme && (
+                <span
+                  className="font-mono-x"
+                  style={{
+                    alignSelf: 'flex-start',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: TEAL_DARK,
+                    background: '#f0fdfa',
+                    border: '1px solid #ccfbf1',
+                    borderRadius: 999,
+                    padding: '2px 9px',
+                  }}
+                >
+                  {theme}
+                </span>
+              )}
+              <span
+                className="font-display"
+                style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.3, color: INK }}
+              >
+                {q.canonical_text}
+              </span>
+              <span style={{ color: TEAL_DARK, fontWeight: 700, fontSize: 14, marginTop: 'auto' }}>
+                See both sides →
+              </span>
+            </Link>
+          )
+        })}
+      </div>
     </section>
   )
 }
@@ -586,6 +682,9 @@ export default function HomeV9() {
     const params = new URLSearchParams()
     if (term) params.set('q', term)
     if (!national && stateCode) params.set('state', stateCode)
+    // Carry the city through so a drill-down from e.g. Tuscaloosa reads
+    // "City: Tuscaloosa" rather than just "State: AL" (UnifiedSearch reads ?city=).
+    if (!national && city) params.set('city', city)
     navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
   }
 
@@ -652,19 +751,25 @@ export default function HomeV9() {
         </div>
       </header>
 
-      {/* ── Money hook (ZIP-style prototype look; REAL geocode + REAL modal) ── */}
       <main style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
-        <MoneyHookZip />
         {/* ── Hero: thesis + search + trending ── */}
-        <section style={{ padding: '24px 0 6px', textAlign: 'center' }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#44403c', maxWidth: 640, margin: '0 auto' }}>
-            Every local decision, in one place — search the meetings, votes, spending, and debates shaping your community.
+        <section style={{ padding: '44px 0 6px', textAlign: 'center' }}>
+          <h1
+            className="font-display"
+            style={{ fontSize: 'clamp(38px, 6.4vw, 60px)', fontWeight: 900, margin: 0, lineHeight: 1.05, letterSpacing: '-0.02em', color: INK }}
+          >
+            Every local decision, in one place.
+          </h1>
+          <div style={{ fontSize: 'clamp(16px, 2vw, 19px)', fontWeight: 500, color: '#57534e', maxWidth: 600, margin: '16px auto 0', lineHeight: 1.5 }}>
+            Search the meetings, votes, spending, and debates shaping your community.
+            <br />
+            Free, forever.
           </div>
 
           <div
             style={{
               maxWidth: 760,
-              margin: '14px auto 0',
+              margin: '24px auto 0',
               display: 'flex',
               background: '#fff',
               border: '1px solid #e7e5e4',
@@ -702,7 +807,7 @@ export default function HomeV9() {
                 className="hide-scroll"
                 style={{ display: 'flex', gap: 8, alignItems: 'center', overflowX: 'auto', padding: '2px 34px' }}
               >
-                <MonoLabel style={{ color: '#57534e', flexShrink: 0 }}>Trending questions</MonoLabel>
+                <MonoLabel style={{ color: '#57534e', flexShrink: 0 }}>Trending</MonoLabel>
                 {trendingChips.map((q) => (
                   <Chip key={q.question_id} onClick={() => navigate(`/policy-question/${q.question_id}`)} style={{ flexShrink: 0 }}>
                     {q.canonical_text}
@@ -719,6 +824,12 @@ export default function HomeV9() {
             </div>
           )}
         </section>
+
+        {/* ── Money hook (compact teal banner; REAL geocode + REAL modal) ── */}
+        <MoneyHookBanner />
+
+        {/* ── Big questions in your community (REAL featured policy questions) ── */}
+        <BigQuestions />
 
         {/* ── City snapshot strip (REAL: /api/lenses activity) ── */}
         {activity.length > 0 && (

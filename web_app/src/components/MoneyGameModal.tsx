@@ -16,7 +16,7 @@
 //     figures (matched===false); we surface that with an explicit note.
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import {
   fetchCombinedFinance,
@@ -247,6 +247,85 @@ function BillDonut({ parts }: { parts: { value: number; color: string }[] }) {
 // landlord, so we don't fabricate a pass-through — we say so and base the
 // visible bill on sales + fees.
 // ---------------------------------------------------------------------------
+// "Who collects it" — taxes COLLECTED per resident, by level of government.
+// Each segment is the REAL Census `taxes_per_capita` for that level (total taxes
+// that government collects ÷ its population), fetched from the same /api/local-
+// finance?level=… endpoint the spending drill-down uses. This is the government's
+// collections normalized per head — NOT the user's personalized bill — so it's
+// labelled as such. A level with no data (404 / null taxes_per_capita) is simply
+// omitted; we never fabricate a segment.
+const COLLECT_LEVELS = [
+  { level: 'state', label: 'State', color: '#9ca3af' },
+  { level: 'county', label: 'County', color: '#e0723a' },
+  { level: 'city', label: 'City', color: '#1a6b6b' },
+  { level: 'school_district', label: 'Schools', color: '#2f6fb0' },
+] as const
+
+function WhoCollectsBar({
+  open,
+  stateCode,
+  city,
+  county,
+}: {
+  open: boolean
+  stateCode: string
+  city?: string
+  county?: string
+}) {
+  const results = useQueries({
+    queries: COLLECT_LEVELS.map((l) => ({
+      queryKey: ['who-collects', l.level, stateCode, city, county],
+      queryFn: () => fetchLocalFinance({ state: stateCode, city, county, level: l.level }),
+      enabled: open && !!stateCode,
+      staleTime: 10 * 60 * 1000,
+      retry: false,
+    })),
+  })
+
+  const segments = COLLECT_LEVELS.flatMap((l, i) => {
+    const value = results[i].data?.taxes_per_capita ?? null
+    return value != null && value > 0
+      ? [{ label: l.label as string, color: l.color as string, value }]
+      : []
+  })
+
+  // Honest empty state: nothing to show until at least one level reports real
+  // per-capita taxes. (Don't render a half-bar while still loading.)
+  if (results.some((r) => r.isLoading)) return null
+  if (segments.length === 0) return null
+
+  const total = segments.reduce((s, x) => s + x.value, 0)
+
+  return (
+    <div className="mt-5 rounded-2xl border border-[#d4e8e8] bg-white p-4 md:p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
+        Who collects it
+      </p>
+      <div className="mt-2.5 flex h-3.5 w-full overflow-hidden rounded-full bg-[#eef4f4]">
+        {segments.map((s) => (
+          <div
+            key={s.label}
+            style={{ width: `${(s.value / total) * 100}%`, backgroundColor: s.color }}
+            title={`${s.label} · ${fmtDollars(s.value)} per resident`}
+          />
+        ))}
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
+        {segments.map((s) => (
+          <span key={s.label} className="flex items-center gap-1.5 text-[12px] text-[#56635e]" style={FONT}>
+            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+            <span className="font-semibold text-[#0f2b2b]">{s.label}</span> {fmtDollars(s.value)}
+          </span>
+        ))}
+      </div>
+      <p className="mt-2 text-[10.5px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+        Taxes collected per resident, by level of government — Census Annual Survey of State &amp; Local
+        Government Finances. This is each government&apos;s collections per head, not your personal bill.
+      </p>
+    </div>
+  )
+}
+
 function YourBill({
   open,
   stateCode,
@@ -395,6 +474,9 @@ function YourBill({
           </p>
         </div>
       </div>
+
+      {/* Who collects it — REAL per-resident tax collections by level. */}
+      <WhoCollectsBar open={open} stateCode={stateCode} city={city} county={county} />
 
       <button
         type="button"
@@ -1352,10 +1434,10 @@ export default function MoneyGameModal({
     return { score: Math.max(0, Math.min(100, 100 - totalError / 2)), totalError }
   }, [revealed, game, guesses])
 
-  // Title reflects the user's CHOSEN place (requestedLabel) so it reads e.g.
-  // "Your Tuscaloosa impact" even when the budget data falls back to statewide.
+  // The place the bill is scoped to (the user's CHOSEN place, else the matched
+  // jurisdiction). Drives the subtitle; the title stays place-agnostic.
   const placeName = requestedLabel || data?.jurisdiction_name || null
-  const title = placeName ? `Your ${placeName} impact` : 'Your local money impact'
+  const title = 'Your money, mapped'
 
   return (
     <Transition appear show={open} as={Fragment}>
