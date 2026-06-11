@@ -54,6 +54,7 @@
     'event_place_geocoded', 'event_financial_item', 'event_bill', 'event_topic',
     'contact_official', 'person_government', 'jurisdictions', 'civic_jurisdiction',
     'jurisdiction_document', 'jurisdiction_mapping_analysis',
+    'jurisdiction_property_tax_rate',
     'jurisdiction_state_aggregate', 'jurisdiction_minutes_publish_lag',
     'grant', 'grant_opportunity', 'tag', 'rpt_bill_map_aggregate',
     'bills', 'bill_sponsorship',
