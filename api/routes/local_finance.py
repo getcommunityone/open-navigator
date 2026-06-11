@@ -391,60 +391,149 @@ def _float_or_none(value: object) -> Optional[float]:
     return None if value is None else float(value)
 
 
+def _strip_county(name: str) -> str:
+    """'Tuscaloosa County' -> 'Tuscaloosa'."""
+    return name[: -len(" County")].strip() if name.lower().endswith(" county") else name.strip()
+
+
 @router.get("", response_model=LocalFinanceResponse)
 async def get_local_finance(
     state: str = Query(..., description="2-letter state code (full names accepted)."),
     city: Optional[str] = Query(None, description="City name (Census place)."),
     county: Optional[str] = Query(None, description="County name."),
+    level: Optional[str] = Query(
+        None,
+        description=(
+            "Force a specific level: city|county|state|school_district. "
+            "Omit for the city→county→state cascade."
+        ),
+    ),
 ) -> LocalFinanceResponse:
     """Return real finance figures for the best-matching government.
 
     Resolution: city → county → state. A requested city/county that isn't found
     falls back to the state row with `matched=false`; nothing found even at
     state level is a 404 (no placeholder numbers).
+
+    When `level` is supplied the cascade is skipped and exactly that level is
+    fetched; if it has no row the response is a 404 (no cross-level fallback) so
+    the caller gets an honest "no data for this level".
     """
     state_code = normalize_state_input(state)
     if not state_code:
         raise HTTPException(status_code=400, detail="A valid state code is required.")
 
+    _ALLOWED_LEVELS = {"city", "county", "state", "school_district"}
+    if level is not None and level not in _ALLOWED_LEVELS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "level must be one of: city, county, state, school_district."
+            ),
+        )
+
     with tracer.start_as_current_span("local-finance") as span:
         span.set_attribute("local_finance.state_code", state_code)
         span.set_attribute("local_finance.city", city or "")
         span.set_attribute("local_finance.county", county or "")
+        span.set_attribute("local_finance.requested_level", level or "")
 
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 row = None
-                level = "state"
+                level_out = "state"
                 matched = False
 
-                if city:
+                if level is not None:
+                    # Forced single-level fetch: skip the cascade entirely.
+                    if level == "city":
+                        if not city:
+                            raise HTTPException(
+                                status_code=400,
+                                detail="city is required when level=city.",
+                            )
+                        with tracer.start_as_current_span("local-finance-city"):
+                            row = await conn.fetchrow(_CITY_SQL, state_code, city)
+                    elif level == "county":
+                        if not county:
+                            raise HTTPException(
+                                status_code=400,
+                                detail="county is required when level=county.",
+                            )
+                        with tracer.start_as_current_span("local-finance-county"):
+                            row = await conn.fetchrow(
+                                _COUNTY_SQL, state_code, _strip_county(county)
+                            )
+                    elif level == "state":
+                        with tracer.start_as_current_span("local-finance-state"):
+                            row = await conn.fetchrow(_STATE_SQL, state_code)
+                        if row is None:
+                            # Mirror the cascade's state fallback (e.g. DC).
+                            with tracer.start_as_current_span("local-finance-any"):
+                                row = await conn.fetchrow(_ANY_SQL, state_code)
+                    else:  # school_district
+                        if city:
+                            with tracer.start_as_current_span(
+                                "local-finance-school"
+                            ):
+                                row = await conn.fetchrow(
+                                    _SCHOOL_SQL, state_code, f"{city} City"
+                                )
+                        elif county:
+                            with tracer.start_as_current_span(
+                                "local-finance-school"
+                            ):
+                                row = await conn.fetchrow(
+                                    _SCHOOL_SQL,
+                                    state_code,
+                                    f"{_strip_county(county)} County",
+                                )
+                        else:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=(
+                                    "city or county is required when "
+                                    "level=school_district."
+                                ),
+                            )
+
+                    if row is None:
+                        span.set_attribute("local_finance.found", False)
+                        raise HTTPException(
+                            status_code=404,
+                            detail=(
+                                f"No finance data available for level '{level}'."
+                            ),
+                        )
+                    level_out, matched = level, True
+
+                elif city:
                     with tracer.start_as_current_span("local-finance-city"):
                         row = await conn.fetchrow(_CITY_SQL, state_code, city)
                     if row is not None:
-                        level, matched = "city", True
+                        level_out, matched = "city", True
 
-                if row is None and county:
+                if level is None and row is None and county:
                     with tracer.start_as_current_span("local-finance-county"):
                         row = await conn.fetchrow(_COUNTY_SQL, state_code, county)
                     if row is not None:
-                        level, matched = "county", True
+                        level_out, matched = "county", True
 
-                if row is None:
+                if level is None and row is None:
                     with tracer.start_as_current_span("local-finance-state"):
                         row = await conn.fetchrow(_STATE_SQL, state_code)
                     # matched stays False here: either no city/county was asked
                     # for, or the requested one wasn't found and we fell back.
-                    level = "state"
+                    level_out = "state"
 
-                if row is None:
+                if level is None and row is None:
                     # Catch state-level governments stored under a non-'state'
                     # gov_type (e.g. Washington, DC). matched stays False.
                     with tracer.start_as_current_span("local-finance-any"):
                         row = await conn.fetchrow(_ANY_SQL, state_code)
                     if row is not None:
-                        level = row["gov_type"]
+                        level_out = row["gov_type"]
 
                 if row is None:
                     span.set_attribute("local_finance.found", False)
@@ -486,12 +575,12 @@ async def get_local_finance(
             "Figures are the government's own reported revenue and spending."
         )
 
-        span.set_attribute("local_finance.level", level)
+        span.set_attribute("local_finance.level", level_out)
         span.set_attribute("local_finance.matched", matched)
         span.set_attribute("local_finance.category_count", len(categories))
 
         return LocalFinanceResponse(
-            level=level,
+            level=level_out,
             matched=matched,
             jurisdiction_name=row["jurisdiction_name"],
             gov_type=row["gov_type"],
@@ -550,11 +639,6 @@ class CombinedFinanceResponse(BaseModel):
     governments: List[CombinedGovernment] = []  # what was stacked, for the callout
     source: str = _SOURCE
     note: str = ""
-
-
-def _strip_county(name: str) -> str:
-    """'Tuscaloosa County' -> 'Tuscaloosa'."""
-    return name[: -len(" County")].strip() if name.lower().endswith(" county") else name.strip()
 
 
 @router.get("/combined", response_model=CombinedFinanceResponse)

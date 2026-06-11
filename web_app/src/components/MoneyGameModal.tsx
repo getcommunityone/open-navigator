@@ -14,16 +14,18 @@
 // Honest gaps vs. the design prototype:
 //   - When the requested city/county isn't found the API returns statewide
 //     figures (matched===false); we surface that with an explicit note.
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { useQuery } from '@tanstack/react-query'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import {
   fetchCombinedFinance,
+  fetchLocalFinance,
   fetchPropertyTaxRate,
   fetchSalesTaxRate,
   type CombinedFinance,
   type CombinedGovernment,
+  type LocalFinance,
   type LocalFinanceCategory,
   type PropertyTaxRate,
   type SalesTaxRate,
@@ -512,6 +514,235 @@ function RevealDonut({
           {label}
         </span>
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Spending-level selector. "Combined" (default) keeps the merged donut + the
+// guessing game; the single-level options drill into one government's REAL
+// expenditure-by-function breakdown (GET /api/local-finance?level=…). A level
+// with no data 404s and is surfaced as an explicit empty state — NEVER a
+// fabricated number (CLAUDE.md: No Fabricated Data).
+// ---------------------------------------------------------------------------
+type SpendingLevel = 'combined' | 'city' | 'county' | 'state' | 'school_district'
+
+const SPENDING_LEVELS: { value: SpendingLevel; label: string }[] = [
+  { value: 'combined', label: 'Combined' },
+  { value: 'city', label: 'City' },
+  { value: 'county', label: 'County' },
+  { value: 'state', label: 'State' },
+  { value: 'school_district', label: 'School' },
+]
+
+// The phrase used in empty-state copy ("No City spending data…").
+function levelNoun(level: Exclude<SpendingLevel, 'combined'>): string {
+  if (level === 'school_district') return 'school district'
+  return level
+}
+
+// Segmented pill row of government levels. Accessible: a `tablist` of buttons
+// with `aria-selected`; a level whose query 404'd is greyed + disabled (its
+// `disabled` flag is set once we know there's no data for that level).
+function LevelSelector({
+  value,
+  onChange,
+  disabledLevels,
+}: {
+  value: SpendingLevel
+  onChange: (l: SpendingLevel) => void
+  disabledLevels: Partial<Record<SpendingLevel, boolean>>
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Government level"
+      className="inline-flex flex-wrap gap-1 rounded-xl border border-[#d4e8e8] bg-[#f7fafb] p-0.5"
+    >
+      {SPENDING_LEVELS.map((opt) => {
+        const active = value === opt.value
+        const disabled = !!disabledLevels[opt.value]
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            disabled={disabled}
+            onClick={() => !disabled && onChange(opt.value)}
+            className={`rounded-lg px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
+              active
+                ? 'bg-[#1a6b6b] text-white'
+                : disabled
+                  ? 'cursor-not-allowed text-[#cfe0e0]'
+                  : 'text-[#56635e] hover:text-[#0f2b2b]'
+            }`}
+            style={FONT}
+            title={disabled ? `No ${levelNoun(opt.value as Exclude<SpendingLevel, 'combined'>)} data for this location` : undefined}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// A compact conic donut for a single level's expenditure-by-function split,
+// with a legend list of REAL (category, amount, share) rows. Mirrors the
+// combined reveal's palette/typography.
+function SpendingDonut({ categories }: { categories: LocalFinanceCategory[] }) {
+  const usable = categories.filter((c) => c.amount > 0)
+  const total = usable.reduce((s, c) => s + c.amount, 0)
+  if (total <= 0) return null
+  let acc = 0
+  const stops = usable
+    .map((c, i) => {
+      const start = (acc / total) * 100
+      acc += c.amount
+      return `${CAT_PALETTE[i % CAT_PALETTE.length]} ${start}% ${(acc / total) * 100}%`
+    })
+    .join(', ')
+  return (
+    <div
+      className="relative h-[120px] w-[120px] shrink-0 rounded-full"
+      style={{ background: `conic-gradient(${stops})` }}
+      aria-hidden
+    >
+      <div className="absolute inset-[28%] rounded-full bg-white" />
+    </div>
+  )
+}
+
+// Drill into ONE government level's REAL expenditure-by-function breakdown.
+// 404 (or empty categories) → explicit "no data" state; we never substitute
+// another level's numbers.
+function LevelBreakdown({
+  open,
+  level,
+  stateCode,
+  city,
+  county,
+  onNoData,
+}: {
+  open: boolean
+  level: Exclude<SpendingLevel, 'combined'>
+  stateCode: string
+  city?: string
+  county?: string
+  /** Reported once we learn this level has no data (404), so the parent can
+   *  grey out the tab. */
+  onNoData: (level: Exclude<SpendingLevel, 'combined'>) => void
+}) {
+  const { data, isLoading, isError, error } = useQuery<LocalFinance>({
+    queryKey: ['local-finance-level', level, stateCode, city, county],
+    queryFn: () => fetchLocalFinance({ state: stateCode, city, county, level }),
+    enabled: open && !!stateCode,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  // A 404 from the API means "no data for this level" — surface it, don't retry
+  // forever, and let the parent disable the tab.
+  const status = (error as { response?: { status?: number } } | undefined)?.response?.status
+  const is404 = status === 404
+  useEffect(() => {
+    if (is404) onNoData(level)
+  }, [is404, level, onNoData])
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-[#d4e8e8] bg-white p-5" aria-hidden>
+        <div className="h-4 w-1/3 animate-pulse rounded bg-[#eef4f4]" />
+        <div className="mt-4 space-y-3">
+          {[0, 1, 2, 3].map((r) => (
+            <div key={r} className="h-3 animate-pulse rounded-full bg-[#eef4f4]" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const noData = is404 || !data || data.categories.filter((c) => c.amount > 0).length === 0
+  if (isError && !is404) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[#d4e8e8] bg-white p-8 text-center text-sm text-[#6b8a8a]" style={FONT}>
+        We couldn&apos;t load {levelNoun(level)} spending right now. Please try again in a moment.
+      </div>
+    )
+  }
+  if (noData) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[#d4e8e8] bg-white p-8 text-center" style={FONT}>
+        <p className="text-sm font-semibold text-[#0f2b2b]">
+          No {levelNoun(level)} spending data for this location.
+        </p>
+        <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#9bb8b8]">
+          We only show figures that trace to a real government-finance record — so there&apos;s nothing to
+          display for this level here. Try another level above.
+        </p>
+      </div>
+    )
+  }
+
+  // Sort by amount desc so the donut and list read top-down.
+  const cats = [...data.categories].filter((c) => c.amount > 0).sort((a, b) => b.amount - a.amount)
+
+  return (
+    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-4 shadow-[0_4px_20px_rgba(26,107,107,0.06)] sm:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-[15px] font-semibold text-[#0f2b2b]" style={SERIF}>
+          {data.jurisdiction_name} — where it goes
+        </h3>
+        <span className="text-[11px] uppercase tracking-[0.06em] text-[#9bb8b8]" style={MONO}>
+          FY {data.fiscal_year}
+        </span>
+      </div>
+
+      {/* Statewide-fallback honesty note (matched===false). */}
+      {!data.matched && (
+        <p className="mt-2 rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+          No exact {levelNoun(level)} match for this location — showing the statewide {levelNoun(level)} figures.
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-5">
+        <SpendingDonut categories={cats} />
+        <div className="min-w-[220px] flex-1 space-y-2">
+          {data.direct_expenditure != null && data.direct_expenditure > 0 && (
+            <div className="mb-1 flex items-baseline justify-between border-b border-[#eef4f4] pb-2">
+              <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#9bb8b8]" style={MONO}>
+                Total direct expenditure
+              </span>
+              <span className="text-[15px] font-semibold tabular-nums text-[#0f2b2b]" style={FONT}>
+                {fmtDollars(data.direct_expenditure)}
+              </span>
+            </div>
+          )}
+          {cats.map((c, i) => (
+            <div key={c.category} className="flex items-baseline justify-between text-[13px]" style={FONT}>
+              <span className="flex min-w-0 items-center gap-1.5 font-medium text-[#0f2b2b]">
+                <span
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: CAT_PALETTE[i % CAT_PALETTE.length] }}
+                />
+                <span className="truncate">{c.category}</span>
+              </span>
+              <span className="shrink-0 tabular-nums">
+                {c.share_pct != null && (
+                  <span className="font-semibold text-[#1a6b6b]">{pct(c.share_pct)}</span>
+                )}
+                <span className="ml-2 text-[#56635e]">{fmtDollars(c.amount)}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="mt-4 border-t border-[#eef4f4] pt-2 text-[11px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+        {data.source}
+        {data.note ? ` · ${data.note}` : ''}
+      </p>
     </div>
   )
 }
@@ -1088,6 +1319,15 @@ export default function MoneyGameModal({
   const [revealed, setRevealed] = useState(false)
   // Prototype's 3-stage flow: 1 your bill → 2 the guessing game → 3 the grandkids.
   const [stage, setStage] = useState<'estimate' | 'game' | 'grandkids'>('estimate')
+  // Which government level's "where it goes" breakdown is shown in stage 2.
+  // 'combined' (default) keeps the merged donut + the guessing game; the others
+  // drill into one government via /api/local-finance?level=…
+  const [spendingLevel, setSpendingLevel] = useState<SpendingLevel>('combined')
+  // Levels we've learned have no data (404) — greyed out in the selector.
+  const [disabledLevels, setDisabledLevels] = useState<Partial<Record<SpendingLevel, boolean>>>({})
+  const markLevelNoData = useCallback((l: Exclude<SpendingLevel, 'combined'>) => {
+    setDisabledLevels((prev) => (prev[l] ? prev : { ...prev, [l]: true }))
+  }, [])
 
   // Reset the game whenever it (re)opens or the category set changes.
   useEffect(() => {
@@ -1095,6 +1335,8 @@ export default function MoneyGameModal({
     setTouched(game.map(() => false))
     setRevealed(false)
     setStage('estimate')
+    setSpendingLevel('combined')
+    setDisabledLevels({})
   }, [open, game])
 
   // Score = 100 - totalError/2, where totalError sums |normalizedGuess - actual|
@@ -1240,27 +1482,52 @@ export default function MoneyGameModal({
                       {/* ── Stage 2: The guessing game ── */}
                       {stage === 'game' && (
                         <div>
-                          {game.length > 0 ? (
-                            <GuessingGame
-                              placeName={placeName || data.jurisdiction_name}
-                              governments={data.governments}
-                              game={game}
-                              revealed={revealed}
-                              onReveal={() => setRevealed(true)}
-                              guesses={guesses}
-                              setGuesses={setGuesses}
-                              touched={touched}
-                              setTouched={setTouched}
-                            />
-                          ) : (
-                            <div className="rounded-2xl border border-dashed border-[#d4e8e8] bg-white p-6 text-center text-sm text-[#6b8a8a]" style={FONT}>
-                              Spending-category breakdown isn&apos;t available for{' '}
-                              {data.jurisdiction_name} yet.
+                          {/* Level selector: Combined (the merged donut + game)
+                              vs. a single government's REAL breakdown. */}
+                          <div className="mb-4">
+                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9bb8b8]" style={MONO}>
+                              Where your tax money goes
                             </div>
+                            <LevelSelector
+                              value={spendingLevel}
+                              onChange={setSpendingLevel}
+                              disabledLevels={disabledLevels}
+                            />
+                          </div>
+
+                          {spendingLevel === 'combined' ? (
+                            game.length > 0 ? (
+                              <GuessingGame
+                                placeName={placeName || data.jurisdiction_name}
+                                governments={data.governments}
+                                game={game}
+                                revealed={revealed}
+                                onReveal={() => setRevealed(true)}
+                                guesses={guesses}
+                                setGuesses={setGuesses}
+                                touched={touched}
+                                setTouched={setTouched}
+                              />
+                            ) : (
+                              <div className="rounded-2xl border border-dashed border-[#d4e8e8] bg-white p-6 text-center text-sm text-[#6b8a8a]" style={FONT}>
+                                Spending-category breakdown isn&apos;t available for{' '}
+                                {data.jurisdiction_name} yet.
+                              </div>
+                            )
+                          ) : (
+                            <LevelBreakdown
+                              open={open}
+                              level={spendingLevel}
+                              stateCode={stateCode}
+                              city={city}
+                              county={county}
+                              onNoData={markLevelNoData}
+                            />
                           )}
 
-                          {/* Score + grandkids CTA, lands where the reveal happened. */}
-                          {revealed && scoreInfo != null && (
+                          {/* Score + grandkids CTA, lands where the reveal
+                              happened — only on the Combined (guessing-game) view. */}
+                          {spendingLevel === 'combined' && revealed && scoreInfo != null && (
                             <div className="mgm-fade mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-[#ccfbf1] bg-gradient-to-r from-[#f0faf8] to-[#f7fee7] px-5 py-4">
                               <span className="text-[34px] font-semibold leading-none" style={{ ...SERIF, color: scoreColor(scoreInfo.score) }}>
                                 {pct(scoreInfo.score)}

@@ -14,7 +14,7 @@ export interface LocalFinanceCategory {
 }
 
 export interface LocalFinance {
-  level: 'city' | 'county' | 'state'
+  level: 'city' | 'county' | 'state' | 'school_district'
   /** false = requested city/county fell back to statewide figures. */
   matched: boolean
   jurisdiction_name: string
@@ -44,12 +44,17 @@ export interface LocalFinanceParams {
   state: string
   city?: string
   county?: string
+  /** Drill into a single government level instead of the combined view.
+   *  Omit for the location's default (best-matching) level. A level with no
+   *  data for the location returns 404 — surface it as an explicit empty state. */
+  level?: 'city' | 'county' | 'state' | 'school_district'
 }
 
 export async function fetchLocalFinance(params: LocalFinanceParams): Promise<LocalFinance> {
   const q: Record<string, string> = { state: params.state }
   if (params.city) q.city = params.city
   if (params.county) q.county = params.county
+  if (params.level) q.level = params.level
   const res = await api.get<LocalFinance>('/local-finance', { params: q })
   return res.data
 }
