@@ -2,108 +2,30 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState, Fragment } from 'react'
 import { Menu, Transition } from '@headlessui/react'
 import {
-  HomeIcon,
-  MapIcon,
-  DocumentTextIcon,
-  BellAlertIcon,
-  BuildingLibraryIcon,
   Cog6ToothIcon,
-  ChartBarIcon,
   MagnifyingGlassIcon,
-  BoltIcon,
   BookOpenIcon,
-  UserGroupIcon,
-  AcademicCapIcon,
-  Bars3Icon,
   XMarkIcon,
   UserCircleIcon,
   ArrowRightOnRectangleIcon,
   ChevronDownIcon,
-  MapPinIcon,
-  HeartIcon,
-  CodeBracketIcon,
   XCircleIcon,
-  TagIcon,
-  BanknotesIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
-import { useLocation as useLocationContext } from '../contexts/LocationContext'
-import ExploreQuickNavSidebarPanel from './ExploreQuickNavSidebarPanel'
 
-const navigation = [
-  { name: 'Home', href: '/', icon: HomeIcon },
-  { name: 'Take Action', href: '/explore', icon: BoltIcon },
-  { name: 'Search', href: '/search', icon: MagnifyingGlassIcon },
-  { name: 'Jurisdictions', href: '/jurisdictions', icon: MapPinIcon },
-  { 
-    section: 'Citizens & Residents',
-    items: [
-      { name: 'Community Events', href: '/events', icon: BookOpenIcon },
-      { name: 'Services & Resources', href: '/services', icon: HeartIcon },
-    ]
-  },
-  { 
-    section: 'Policy & Government',
-    items: [
-      { name: 'Policy Decisions', href: '/documents', icon: DocumentTextIcon },
-      { name: 'Browse Topics', href: '/browse-topics', icon: TagIcon },
-      { name: 'Money & Talk', href: '/money-and-talk', icon: BanknotesIcon },
-      { name: 'Budget Analysis', href: '/analytics', icon: ChartBarIcon },
-      { name: 'Elected Officials', href: '/people', icon: UserGroupIcon },
-      { name: 'Public Policies', href: '/public-policies', icon: DocumentTextIcon },
-      { name: 'Policy Map', href: '/policy-map', icon: MapIcon },
-      { name: 'Data explorer', href: '/data-explorer', icon: MapIcon },
-    ]
-  },
-  { 
-    section: 'Community & Advocacy',
-    items: [
-      { name: 'Charities', href: '/nonprofits', icon: BuildingLibraryIcon },
-      { name: 'Advocacy Topics', href: '/advocacy-topics', icon: BellAlertIcon },
-      { name: 'Fact-Checking', href: '/fact-checking', icon: AcademicCapIcon },
-    ]
-  },
-  { 
-    section: 'Developers',
-    items: [
-      { name: 'Open Source', href: '/opensource', icon: CodeBracketIcon },
-      { name: 'Hackathons', href: '/hackathons', icon: AcademicCapIcon },
-    ]
-  },
-  { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
-]
-
-// Routes that render their own prominent search box. On these we drop the app
-// sidebar (full-width) and hide the redundant global search in the header.
+// Pages that render their own prominent search box; on these we hide the
+// redundant global search in the header.
 const SEARCH_STYLE_PATHS = ['/search', '/documents']
-
-function pathMatchesNavHref(pathname: string, href: string): boolean {
-  if (href === '/data-explorer') {
-    return pathname === '/data-explorer' || pathname.startsWith('/data-explorer/')
-  }
-  return pathname === href
-}
 
 export default function Layout() {
   const location = useLocation()
-  const isExplorePage = location.pathname === '/explore'
-  const isDataExplorerSection =
-    location.pathname === '/data-explorer' || location.pathname.startsWith('/data-explorer/')
-  // Search-style pages own a prominent search box of their own, so they read
-  // better full-width without the app sidebar AND without the redundant header
-  // search. Add a route here to opt it into both behaviours.
+  // Search-style pages own a prominent search box of their own, so we hide the
+  // redundant header search there. Add a route here to opt it into that.
   const isSearchStylePage = SEARCH_STYLE_PATHS.includes(location.pathname)
-  const useExploreQuickNavSidebar = isExplorePage || isDataExplorerSection
-  // Data explorer also needs the full width (for its map/scorecard layout); the
-  // sidebar is collapsed on desktop here (still reachable on mobile via the
-  // hamburger menu).
-  const hideSidebarOnDesktop = isDataExplorerSection || isSearchStylePage
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showLoginMenu, setShowLoginMenu] = useState(false)
   const { user, isAuthenticated, login, logout, isLoading, authError, clearAuthError } = useAuth()
-  const { location: userLocation, hasLocation } = useLocationContext()
 
   // Environment-aware URLs
   const docsUrl = import.meta.env.PROD ? 'https://www.communityone.com/docs/intro' : 'http://localhost:3000/docs/intro'
@@ -129,19 +51,6 @@ export default function Layout() {
       <div className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50">
         <div className="flex items-center justify-between px-4 md:px-6 py-3">
           <div className="flex items-center gap-3">
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-700"
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? (
-                <XMarkIcon className="h-6 w-6" />
-              ) : (
-                <Bars3Icon className="h-6 w-6" />
-              )}
-            </button>
-
             <Link to="/" className="flex items-center gap-2 md:gap-3 group">
               <img 
                 src="/communityone_logo.svg" 
@@ -178,26 +87,6 @@ export default function Layout() {
 
           {/* Header Actions */}
           <div className="flex items-center gap-2 md:gap-4">
-            {/* Location Banner - Compact */}
-            {hasLocation && userLocation && (
-              <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-primary-50 border border-primary-200 rounded-lg">
-                <MapPinIcon className="h-4 w-4 text-primary-600 flex-shrink-0" />
-                <div className="text-xs">
-                  <div className="font-semibold text-gray-900">
-                    {userLocation.city}, {userLocation.state}
-                  </div>
-                  {userLocation.county && (
-                    <div className="text-gray-700">{userLocation.county}</div>
-                  )}
-                </div>
-                <button
-                  onClick={() => navigate('/?tab=community')}
-                  className="text-xs text-primary-600 hover:text-primary-700 font-medium underline ml-2 flex-shrink-0"
-                >
-                  Change
-                </button>
-              </div>
-            )}
             {/* Authentication */}
             {isLoading ? (
               <div className="px-3 py-2">
@@ -432,158 +321,8 @@ export default function Layout() {
         </div>
       </div>
 
-      {/* Sidebar — on /explore and Data explorer, match home Quick Navigation (expand/collapse shortcut panels) */}
-      <div
-        className={`
-        fixed top-16 inset-y-0 left-0 border-r border-gray-200 z-40
-        transform transition-transform duration-200 ease-in-out
-        ${useExploreQuickNavSidebar ? 'w-72 bg-slate-300' : 'w-64 bg-white'}
-        ${mobileMenuOpen ? 'translate-x-0' : hideSidebarOnDesktop ? '-translate-x-full' : '-translate-x-full md:translate-x-0'}
-      `}
-      >
-        {useExploreQuickNavSidebar ? (
-          <ExploreQuickNavSidebarPanel
-            onNavigate={() => setMobileMenuOpen(false)}
-            deferSectionNavigationMs={isDataExplorerSection ? 280 : undefined}
-          />
-        ) : (
-          <>
-            <nav className="mt-6 px-4 overflow-y-auto h-[calc(100vh-10rem)]">
-              {navigation.map((item, index) => {
-                // Handle section headers with nested items
-                if ('section' in item && item.section && item.items) {
-                  return (
-                    <div key={index} className="mb-6">
-                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        {item.section}
-                      </div>
-                      {item.items.map((subItem) => {
-                        const isActive = pathMatchesNavHref(location.pathname, subItem.href)
-                        const isExternal = 'external' in subItem && subItem.external
-
-                        const linkClasses = `
-                      flex items-center gap-3 px-4 py-3 mb-1 rounded-lg transition-colors
-                      ${
-                        isActive
-                          ? 'bg-primary-50 text-primary-700 font-medium'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }
-                    `
-
-                        if (isExternal) {
-                          return (
-                            <a
-                              key={subItem.name}
-                              href={subItem.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={linkClasses}
-                            >
-                              <subItem.icon className="h-5 w-5" />
-                              <span className="text-sm">{subItem.name}</span>
-                            </a>
-                          )
-                        }
-
-                        return (
-                          <Link
-                            key={subItem.name}
-                            to={subItem.href}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className={linkClasses}
-                          >
-                            <subItem.icon className="h-5 w-5" />
-                            <span className="text-sm">{subItem.name}</span>
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  )
-                }
-
-                // Handle regular navigation items
-                if ('href' in item && item.href) {
-                  const isActive = pathMatchesNavHref(location.pathname, item.href)
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      onClick={() => {
-                        setMobileMenuOpen(false)
-                        if (item.href === '/search') {
-                          window.requestAnimationFrame(() => {
-                            window.scrollTo({ top: 0, behavior: 'smooth' })
-                          })
-                        }
-                      }}
-                      className={`
-                    flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-colors
-                    ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-700 font-medium'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }
-                  `}
-                    >
-                      <item.icon className="h-6 w-6" />
-                      <span>{item.name}</span>
-                    </Link>
-                  )
-                }
-
-                return null
-              })}
-            </nav>
-
-            {/* Sidebar Footer */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
-              <div className="text-sm text-gray-600">
-                <div className="font-medium mb-1">Open Data Sources</div>
-                <div className="text-xs">
-                  • <Link to="/jurisdictions" className="hover:text-primary-600 hover:underline">925 Jurisdictions</Link>
-                  <br />
-                  • <Link to="/search?types=organizations" className="hover:text-primary-600 hover:underline">
-                    43,726 Nonprofits
-                  </Link>
-                  <br />
-                  • 6,913 Meeting Pages
-                  <br />
-                  • <Link to="/search?types=contacts" className="hover:text-primary-600 hover:underline">
-                    362 Officials
-                  </Link>
-                </div>
-                <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-                  <Link
-                    to="/#contact"
-                    className="block text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
-                  >
-                    📍 Request Jurisdiction Coverage
-                  </Link>
-                  <Link
-                    to="/support"
-                    className="block text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
-                  >
-                    💬 Contact support
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Mobile menu overlay */}
-      {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Main content */}
-      <div
-        className={`flex w-full min-w-0 min-h-[calc(100dvh-5rem)] flex-col bg-slate-300 pt-16 ${hideSidebarOnDesktop ? 'md:pl-0' : useExploreQuickNavSidebar ? 'md:pl-72' : 'md:pl-64'}`}
-      >
+      {/* Main content — full width (global sidebar removed; home page is the nav hub) */}
+      <div className="flex w-full min-w-0 min-h-[calc(100dvh-5rem)] flex-col bg-slate-300 pt-16">
         {/* Auth Error Banner - Mobile Friendly */}
         {authError && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 m-4">

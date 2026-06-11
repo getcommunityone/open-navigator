@@ -23,7 +23,8 @@ import {
   ScaleIcon,
   BanknotesIcon,
   MegaphoneIcon,
-  DocumentMagnifyingGlassIcon
+  DocumentMagnifyingGlassIcon,
+  QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline'
 import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from '../utils/formatters'
 
@@ -39,6 +40,7 @@ type SearchResultType =
   | 'document'
   | 'grant'
   | 'grant_opportunity'
+  | 'question'
 
 interface SearchResult {
   type: SearchResultType
@@ -69,6 +71,7 @@ interface SearchResponse {
     documents?: number
     grants?: number
     grant_opportunities?: number
+    questions?: number
   }
   results: {
     leaders?: SearchResult[]
@@ -83,6 +86,7 @@ interface SearchResponse {
     documents?: SearchResult[]
     grants?: SearchResult[]
     grant_opportunities?: SearchResult[]
+    questions?: SearchResult[]
   }
   pagination: {
     page: number
@@ -129,6 +133,8 @@ const RESULT_TYPES = [
   { type: 'decisions', label: 'Decisions' },
   { type: 'grants', label: 'Grants' },
   { type: 'grant_opportunities', label: 'Grant Opportunities' },
+  // Cross-jurisdiction policy questions (the "big questions" registry).
+  { type: 'questions', label: 'Questions' },
 ] as const
 
 const ALL_RESULT_TYPE_KEYS = RESULT_TYPES.map((t) => t.type) as readonly string[]
@@ -151,6 +157,7 @@ const RESULT_TABS = [
   { key: 'documents', label: 'Transcripts' },
   { key: 'bills', label: 'Bills' },
   { key: 'topics', label: 'Topics' },
+  { key: 'questions', label: 'Questions' },
   { key: 'grants', label: 'Grants' },
   { key: 'grant_opportunities', label: 'Grant Opportunities' },
   { key: 'jurisdictions', label: 'Jurisdictions' },
@@ -385,7 +392,7 @@ export default function UnifiedSearch() {
     }
     if (typesParam) {
       const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
-        ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions'].includes(t)
+        ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions', 'questions'].includes(t)
       )
       if (types.length > 0) {
         setSelectedTypes(types)
@@ -404,7 +411,7 @@ export default function UnifiedSearch() {
       
       const params: any = {
         q: debouncedQuery,
-        types: 'meetings,decisions,causes,leaders,persons,organizations,bills,topics',
+        types: 'meetings,decisions,causes,leaders,persons,organizations,bills,topics,questions',
         limit: 3
       }
       
@@ -672,6 +679,8 @@ export default function UnifiedSearch() {
         return <ChatBubbleBottomCenterTextIcon className="h-5 w-5" />
       case 'decision':
         return <ScaleIcon className="h-5 w-5" />
+      case 'question':
+        return <QuestionMarkCircleIcon className="h-5 w-5" />
       case 'grant':
         return <BanknotesIcon className="h-5 w-5" />
       // 'grant_opportunities' normalizes to 'grant_opportunitie' (trailing 's' stripped);
@@ -709,6 +718,8 @@ export default function UnifiedSearch() {
         return 'bg-teal-100 text-teal-700 border-teal-200'
       case 'decision':
         return 'bg-amber-100 text-amber-700 border-amber-200'
+      case 'question':
+        return 'bg-violet-100 text-violet-700 border-violet-200'
       case 'grant':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200'
       case 'grant_opportunity':
@@ -1432,6 +1443,37 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
+                {/* Questions Section (cross-jurisdiction policy questions) */}
+                {previewResults.results.questions && previewResults.results.questions.length > 0 && (
+                  <div className="border-b border-gray-200">
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <QuestionMarkCircleIcon className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 uppercase">Questions</span>
+                      </div>
+                      <button
+                        onClick={() => handleViewAllCategory('questions')}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        View All
+                      </button>
+                    </div>
+                    {previewResults.results.questions.slice(0, 3).map((result, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => openResult(result.url)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                      >
+                        <QuestionMarkCircleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Footer with total results */}
                 <div className="px-4 py-2 bg-gray-50 text-center border-t border-gray-200">
                   <button
@@ -2002,7 +2044,7 @@ export default function UnifiedSearch() {
                 {/* Result-type Tabs — one per type that returned hits, Decisions
                     first. Only the active tab's section renders below. */}
                 {availableTabs.length > 1 && (
-                  <div className="mb-6 border-b border-gray-200 overflow-x-auto">
+                  <div className="mb-6 border-b border-gray-200 overflow-x-auto scrollbar-hide">
                     <nav className="-mb-px flex gap-x-6" aria-label="Result types">
                       {availableTabs.map(({ key, label }) => {
                         const isActive = effectiveTab === key
@@ -2271,6 +2313,23 @@ export default function UnifiedSearch() {
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
                       {searchResults.results.topics.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Questions — cross-jurisdiction policy questions. Generic
+                    ResultCard handles the title/subtitle/description; result.url
+                    routes to /policy-question/{id} via openResult(). */}
+                {effectiveTab === 'questions' && searchResults.results?.questions && searchResults.results.questions.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <QuestionMarkCircleIcon className="h-6 w-6 text-violet-600" />
+                      Questions ({searchResults.type_totals?.questions?.toLocaleString() || searchResults.results.questions.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.questions.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>
