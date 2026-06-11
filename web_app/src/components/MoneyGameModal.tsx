@@ -739,6 +739,18 @@ function GuessingGame({
               goes to {top.category} alone — every year.
             </p>
           )}
+
+          {/* Why the splits look surprising — this is the local GOVERNMENT's own
+              direct spending (U.S. Census). Cities/counties don't run K-12, so
+              "Education" looks tiny; "Administration" includes general,
+              not-elsewhere-classified spending. Real data, just unintuitive. */}
+          <p className="mt-2 rounded-lg bg-[#f7fafb] px-3 py-2 text-center text-[11.5px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+            These are {fin.jurisdiction_name}&apos;s own direct expenditures (U.S. Census).
+            {(fin.gov_type === 'city' || fin.gov_type === 'county') && (
+              <> K-12 schools are run by a separate school district — so the {fin.gov_type}&apos;s education line is small.</>
+            )}{' '}
+            &ldquo;Administration&rdquo; also includes general spending the Census doesn&apos;t classify elsewhere.
+          </p>
         </div>
       )}
     </div>
