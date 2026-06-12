@@ -8,6 +8,7 @@ import {
   type PolicyQuestionDetail,
   type QuestionTrendPoint,
 } from '../api/policyQuestions'
+import DecisionCardList from '../components/DecisionCardList'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Questions That Keep Coming Up — the policy-question registry with Money & Talk.
@@ -414,6 +415,13 @@ function Drilldown({ questionId }: { questionId: string }) {
           ))}
         </>
       )}
+
+      {/* Meeting-level decisions linked to this question (search + filters).
+          Often empty — question→decision links are sparse — which renders an
+          honest empty state rather than a fabricated list. */}
+      <div className="mt-5 border-t border-stone-100 pt-4">
+        <DecisionCardList questionId={questionId} title="Decisions on this question" />
+      </div>
     </>
   )
 }

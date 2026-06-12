@@ -44,7 +44,7 @@ const TONES: Record<Tone, { bg: string; fg: string }> = {
   purple: { bg: '#efebfb', fg: '#6b5bd2' },
 }
 
-interface Lens {
+export interface Lens {
   id: string
   em: string
   label: string
@@ -54,7 +54,7 @@ interface Lens {
   note?: string
 }
 
-const LENSES: Lens[] = [
+export const LENSES: Lens[] = [
   { id: 'contested', em: '\u{1F525}', label: 'Contested', desc: 'Split votes and heated debates', clr: '#e0603a' },
   { id: 'money', em: '\u{1F4B2}', label: 'Money Moves', desc: 'Contracts, spending, and big budgets', clr: '#2a8576' },
   {
@@ -69,6 +69,11 @@ const LENSES: Lens[] = [
   { id: 'soon', em: '⚡', label: 'Moving Fast', desc: 'Urgent items and rushed decisions', clr: '#d57a1e' },
   { id: 'next', em: '\u{1F4C5}', label: 'Watch Next', desc: 'Upcoming votes to keep on your radar', clr: '#2f6fb0' },
 ]
+
+// The Contested lens descriptor — the editorial angle decision cards render under
+// in the flat browse list (DecisionCardList). Exported so the shared card carries
+// the same flame badge + accent as the homepage Contested carousel.
+export const CONTESTED_LENS: Lens = LENSES[0]
 
 interface Stat {
   v: string
@@ -186,7 +191,7 @@ interface LensesResponse {
 }
 
 // Normalized card the grid renders, from either live API or demo fallback.
-interface RenderCard {
+export interface RenderCard {
   h: string
   stats: Stat[]
   juris: string
@@ -274,7 +279,7 @@ interface StoryCardProps {
   onOpen: () => void
 }
 
-function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryCardProps) {
+export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryCardProps) {
   const clickable = !!c.url
   return (
     <article
@@ -500,7 +505,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
 // ", ST" suffix to the jurisdiction only when the set spans >1 state or the view
 // is unscoped (so a single-state local view stays clean). Computed per-lens so
 // each stacked section disambiguates independently.
-function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCard[] {
+export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCard[] {
   const base = apiCards.map((c) => ({
     h: c.headline,
     stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),

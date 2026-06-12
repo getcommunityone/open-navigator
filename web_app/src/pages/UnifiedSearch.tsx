@@ -464,7 +464,7 @@ export default function UnifiedSearch() {
   // cached — small, fixed lists that back the two Advanced dropdowns.
   const { data: topicOptions } = useQuery<TopicSummary[]>({
     queryKey: ['advanced-filter-topics'],
-    queryFn: fetchTopics,
+    queryFn: () => fetchTopics(),
     staleTime: 10 * 60 * 1000,
   })
   const { data: questionOptions } = useQuery<PolicyQuestionSummary[]>({

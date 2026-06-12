@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { fetchTrendingCauses, type CauseItem } from '../api/trending'
+import DecisionCardList from '../components/DecisionCardList'
 
 // A human label for each EveryOrg category slug. Anything not listed falls back
 // to a title-cased version of the slug itself.
@@ -24,6 +25,10 @@ const labelFor = (slug: string) =>
 
 export default function BrowseCauses() {
   const [query, setQuery] = useState('')
+  // When a cause is picked, drill into the meeting-level decisions that mention
+  // it. The decisions endpoint has no cause filter, so we seed its free-text
+  // search with the cause name.
+  const [selectedCause, setSelectedCause] = useState<CauseItem | null>(null)
   const navigate = useNavigate()
   const routerLocation = useLocation()
 
@@ -83,27 +88,42 @@ export default function BrowseCauses() {
           <ArrowLeftIcon className="h-4 w-4" />
           Back
         </button>
-        <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold">
-          Cause directory
-        </p>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Browse Causes</h1>
-        <p className="text-gray-500 mb-6 text-sm">
-          The causes we track, grouped by category. Pick one to see the local nonprofits, grants, and
-          charitable work behind it.
-        </p>
 
-        {/* Search box */}
-        <div className="relative mb-6 max-w-xl">
-          <MagnifyingGlassIcon className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search causes (e.g. environment, health, education)…"
-            className="w-full rounded-full border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+        {/* Header card — title + search, matching the Search page */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Browse Causes</h1>
+          {!selectedCause && (
+            <div className="relative">
+              <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search causes (e.g. environment, health, education)…"
+                className="w-full px-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900"
+              />
+            </div>
+          )}
         </div>
 
+        {selectedCause ? (
+          /* Drill-down: meeting-level decisions that mention this cause. */
+          <div>
+            <button
+              type="button"
+              onClick={() => setSelectedCause(null)}
+              className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              All causes
+            </button>
+            <DecisionCardList
+              initialQuery={selectedCause.name}
+              title={`Decisions on ${selectedCause.name}`}
+            />
+          </div>
+        ) : (
+          <>
         {isLoading ? (
           <div className="flex justify-center py-16">
             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600" />
@@ -136,11 +156,7 @@ export default function BrowseCauses() {
                       <button
                         key={cause.name}
                         type="button"
-                        onClick={() =>
-                          navigate(`/search?types=causes&q=${encodeURIComponent(cause.name)}`, {
-                            state: { fromHome: true },
-                          })
-                        }
+                        onClick={() => setSelectedCause(cause)}
                         className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow"
                       >
                         <span
@@ -163,6 +179,8 @@ export default function BrowseCauses() {
                 </section>
               ))}
             </div>
+          </>
+        )}
           </>
         )}
       </div>
