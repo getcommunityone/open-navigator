@@ -81,6 +81,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/batch-jobs/launch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Launch Status
+         * @description Per-step running/stalled state for the dashboard's Run buttons.
+         */
+        get: operations["launch_status_api_batch_jobs_launch_get"];
+        put?: never;
+        /**
+         * Launch Pipeline
+         * @description (Re)launch a pipeline step. Refuses if a run is already active.
+         */
+        post: operations["launch_pipeline_api_batch_jobs_launch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batch-jobs/launch/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Launch Log */
+        get: operations["launch_log_api_batch_jobs_launch_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batch-jobs/launch/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Pipeline
+         * @description Stop running pipeline launch(es). Signals the detached process group so the
+         *     whole subtree exits. ``step`` targets one step; omit it to stop everything.
+         */
+        post: operations["stop_pipeline_api_batch_jobs_launch_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/batch-jobs/stream": {
         parameters: {
             query?: never;
@@ -262,6 +324,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/deployments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Deployments */
+        get: operations["list_deployments_api_deployments__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/deployments/launch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Launch Deployment */
+        post: operations["launch_deployment_api_deployments_launch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/deployments/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Deployment */
+        get: operations["get_deployment_api_deployments__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/deployments/{job_id}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Deployment Log */
+        get: operations["deployment_log_api_deployments__job_id__log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/deployments/{job_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop Deployment */
+        post: operations["stop_deployment_api_deployments__job_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents": {
         parameters: {
             query?: never;
@@ -343,6 +490,32 @@ export interface paths {
          *     Example: /api/nonprofits?location=Tuscaloosa,AL&keyword=dental&ntee_code=E
          */
         get: operations["search_nonprofits_api_nonprofits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nonprofits/compensation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Nonprofit Compensation
+         * @description Person-level executive/board compensation from the GivingTuesday 990 datamarts
+         *     (Form 990 Part VII-A + Schedule J detail), joined to organization context.
+         *
+         *     Examples:
+         *       /api/nonprofits/compensation?ein=530196605            (one org's people)
+         *       /api/nonprofits/compensation?state=NY&min_comp=500000 (top earners in NY)
+         *       /api/nonprofits/compensation?person=smith&sort=comp-desc
+         */
+        get: operations["nonprofit_compensation_api_nonprofits_compensation_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -487,7 +660,15 @@ export interface paths {
         };
         /**
          * Serve React App
-         * @description Serve React app for all non-API routes.
+         * @description Serve a real static file if one exists, else the React app (SPA routing).
+         *
+         *     Top-level public assets (e.g. /pdf/*, /communityone_logo.svg,
+         *     /robots.txt, /wikimedia/*) live in static_dir but are not under the
+         *     mounted /assets or /data trees. Without this file check they fall through
+         *     to index.html, so the browser loads the SPA into e.g. an <iframe
+         *     src="/pdf/..."> and React Router renders the NotFound (404) page instead
+         *     of the file. Vite's dev server serves these from public/ at the root, so
+         *     the gap only shows in production.
          */
         get: operations["serve_react_app__full_path__get"];
         put?: never;
@@ -557,6 +738,7 @@ export interface components {
              * @default database
              */
             source: string;
+            stage_report?: components["schemas"]["StageReport"];
             totals: components["schemas"]["BatchJobsTotals"];
         };
         /** BatchJobsTotals */
@@ -582,10 +764,30 @@ export interface components {
              */
             files_analysis: number;
             /**
+             * Files Analysis Errors Recent
+             * @default 0
+             */
+            files_analysis_errors_recent: number;
+            /**
+             * Files Analysis Recent
+             * @default 0
+             */
+            files_analysis_recent: number;
+            /**
              * Files Reports
              * @default 0
              */
             files_reports: number;
+            /**
+             * Files Reports Errors Recent
+             * @default 0
+             */
+            files_reports_errors_recent: number;
+            /**
+             * Files Reports Recent
+             * @default 0
+             */
+            files_reports_recent: number;
             /**
              * Files Transcripts
              * @default 0
@@ -596,6 +798,21 @@ export interface components {
              * @default 0
              */
             files_transcripts_disk: number;
+            /**
+             * Last Analysis At
+             * @default
+             */
+            last_analysis_at: string;
+            /**
+             * Last Report At
+             * @default
+             */
+            last_report_at: string;
+            /**
+             * Last Transcript At
+             * @default
+             */
+            last_transcript_at: string;
             /**
              * Processed Jurisdictions
              * @default 0
@@ -660,6 +877,115 @@ export interface components {
             jurisdictions?: components["schemas"]["JurisdictionRunModel"][];
             /** State Code */
             state_code: string;
+        };
+        /** DeploymentJobModel */
+        DeploymentJobModel: {
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Job Id */
+            job_id: string;
+            /**
+             * Job Type
+             * @default deployment
+             */
+            job_type: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /** Pid */
+            pid?: number | null;
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * Status
+             * @default running
+             */
+            status: string;
+            /** Steps */
+            steps?: components["schemas"]["DeploymentStepModel"][];
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** DeploymentLogResponse */
+        DeploymentLogResponse: {
+            /** Job Id */
+            job_id: string;
+            /** Lines */
+            lines?: string[];
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /** Step */
+            step: string;
+        };
+        /** DeploymentStepModel */
+        DeploymentStepModel: {
+            /**
+             * Cmd
+             * @default
+             */
+            cmd: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Exit Code */
+            exit_code?: number | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Key */
+            key: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Log
+             * @default
+             */
+            log: string;
+            /** Note */
+            note?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * Status
+             * @default pending
+             */
+            status: string;
+            /**
+             * Target
+             * @default
+             */
+            target: string;
+        };
+        /** DeploymentsListResponse */
+        DeploymentsListResponse: {
+            /** Available Steps */
+            available_steps?: components["schemas"]["StepDefModel"][];
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Jobs */
+            jobs?: components["schemas"]["DeploymentJobModel"][];
         };
         /** FailedVideoRowModel */
         FailedVideoRowModel: {
@@ -768,6 +1094,238 @@ export interface components {
             status: string;
             /** Videos */
             videos?: components["schemas"]["VideoResultModel"][];
+        };
+        /** LaunchDeploymentRequest */
+        LaunchDeploymentRequest: {
+            /**
+             * Dry Run
+             * @default true
+             */
+            dry_run: boolean;
+            /** Steps */
+            steps?: string[];
+        };
+        /** LaunchDeploymentResponse */
+        LaunchDeploymentResponse: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /**
+             * Dry Run
+             * @default true
+             */
+            dry_run: boolean;
+            /**
+             * Job Id
+             * @default
+             */
+            job_id: string;
+            /** Launched */
+            launched: boolean;
+            /** Pid */
+            pid?: number | null;
+            /** Steps */
+            steps?: string[];
+        };
+        /** LaunchLogResponse */
+        LaunchLogResponse: {
+            /**
+             * Current
+             * @default
+             */
+            current: string;
+            /**
+             * Current Since
+             * @default
+             */
+            current_since: string;
+            /** Lines */
+            lines?: string[];
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /** Step */
+            step: string;
+        };
+        /** LaunchRequest */
+        LaunchRequest: {
+            /**
+             * N
+             * @default 10
+             */
+            n: number;
+            /**
+             * Parallel
+             * @default 4
+             */
+            parallel: number;
+            /** States */
+            states?: string[];
+            /**
+             * Step
+             * @default analyze
+             */
+            step: string;
+        };
+        /** LaunchResponse */
+        LaunchResponse: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Launched */
+            launched: boolean;
+            /**
+             * Log
+             * @default
+             */
+            log: string;
+            /** Pid */
+            pid?: number | null;
+            /** States */
+            states?: string[];
+            /**
+             * Step
+             * @default
+             */
+            step: string;
+        };
+        /** LaunchStatusResponse */
+        LaunchStatusResponse: {
+            /**
+             * Busy
+             * @default false
+             */
+            busy: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Running
+             * @default 0
+             */
+            running: number;
+            /** Running Steps */
+            running_steps?: string[];
+            /** Stalled Steps */
+            stalled_steps?: string[];
+            /** Steps */
+            steps?: string[];
+        };
+        /** StageBreakdownEntry */
+        StageBreakdownEntry: {
+            /**
+             * Done
+             * @default 0
+             */
+            done: number;
+            /** Entity */
+            entity: string;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /** StageReport */
+        StageReport: {
+            /** Rows */
+            rows?: components["schemas"]["StageReportRow"][];
+            /** States */
+            states?: string[];
+            /** Timing */
+            timing?: {
+                [key: string]: unknown;
+            };
+        };
+        /** StageReportRow */
+        StageReportRow: {
+            /** Breakdown */
+            breakdown?: components["schemas"]["StageBreakdownEntry"][];
+            /**
+             * Done
+             * @default 0
+             */
+            done: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /**
+             * Last At
+             * @default
+             */
+            last_at: string;
+            /** Scope */
+            scope: string;
+            /** Stage */
+            stage: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /** StepDefModel */
+        StepDefModel: {
+            /** Description */
+            description: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Target */
+            target: string;
+        };
+        /** StopDeploymentResponse */
+        StopDeploymentResponse: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /**
+             * Stopped
+             * @default false
+             */
+            stopped: boolean;
+        };
+        /** StopRequest */
+        StopRequest: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+            /** Step */
+            step?: string | null;
+        };
+        /** StopResponse */
+        StopResponse: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Pids */
+            pids?: number[];
+            /** Steps */
+            steps?: string[];
+            /**
+             * Stopped
+             * @default 0
+             */
+            stopped: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -940,6 +1498,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FailedVideosListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    launch_status_api_batch_jobs_launch_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaunchStatusResponse"];
+                };
+            };
+        };
+    };
+    launch_pipeline_api_batch_jobs_launch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LaunchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaunchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    launch_log_api_batch_jobs_launch_log_get: {
+        parameters: {
+            query: {
+                /** @description Pipeline step whose latest log to tail */
+                step: string;
+                lines?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaunchLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_pipeline_api_batch_jobs_launch_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1170,6 +1847,169 @@ export interface operations {
             };
         };
     };
+    list_deployments_api_deployments__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentsListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    launch_deployment_api_deployments_launch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LaunchDeploymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaunchDeploymentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_deployment_api_deployments__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentJobModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deployment_log_api_deployments__job_id__log_get: {
+        parameters: {
+            query: {
+                /** @description Step key whose log to tail. */
+                step: string;
+                lines?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_deployment_api_deployments__job_id__stop_post: {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopDeploymentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_documents_api_documents_get: {
         parameters: {
             query?: {
@@ -1271,6 +2111,48 @@ export interface operations {
                 ntee_code?: string | null;
                 /** @description Data source: 'propublica', 'everyorg', 'all' */
                 source?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    nonprofit_compensation_api_nonprofits_compensation_get: {
+        parameters: {
+            query?: {
+                /** @description Exact EIN — a single org's people */
+                ein?: string | null;
+                /** @description 2-letter state code or full name */
+                state?: string | null;
+                /** @description Case-insensitive person-name search */
+                person?: string | null;
+                /** @description Minimum reportable comp from the org */
+                min_comp?: number | null;
+                limit?: number;
+                offset?: number;
+                /** @description comp-desc | comp-asc | name-asc */
+                sort?: string;
             };
             header?: never;
             path?: never;

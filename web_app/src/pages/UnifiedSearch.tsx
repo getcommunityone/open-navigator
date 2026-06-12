@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
+import { fetchTopics, type TopicSummary } from '../api/topics'
+import { fetchPolicyQuestions, type PolicyQuestionSummary } from '../api/policyQuestions'
 import { withSpan } from '../instrumentation'
 import {
   ArrowLeftIcon,
@@ -52,7 +54,19 @@ interface SearchResult {
   // null person_uid) comes back with no url and renders as non-clickable.
   url?: string | null
   score: number
-  metadata: Record<string, any>
+  // Loosely typed grab-bag, but a few keys are contractually meaningful:
+  //  - analysis_pending (meeting results): true ⇒ an UNANALYZED meeting shown
+  //    because its raw transcript is available. Such results have NO
+  //    event_meeting_id, carry an EXTERNAL YouTube `url`, and put a transcript
+  //    snippet (possibly with <mark>…</mark> highlights) in `description`.
+  //    false/absent ⇒ an AI-analyzed meeting that deep-links to /meetings/{id}.
+  //  - video_id (meeting results): YouTube video id for unanalyzed meetings.
+  metadata: Record<string, any> & {
+    analysis_pending?: boolean
+    video_id?: string
+    event_meeting_id?: number | string
+    meeting_id?: number | string
+  }
 }
 
 interface SearchResponse {
@@ -247,6 +261,10 @@ export default function UnifiedSearch() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort') || 'relevance')
   const [nteeCategory, setNteeCategory] = useState(() => searchParams.get('ntee') || '')
+  // Advanced "Topic" (named civic-topic catalog) + "Question" (policy-question
+  // registry) filters. Held as the raw id string the <select> binds to.
+  const [selectedTopicId, setSelectedTopicId] = useState(() => searchParams.get('topic_id') || '')
+  const [selectedQuestionId, setSelectedQuestionId] = useState(() => searchParams.get('question_id') || '')
   const [includeFullText, setIncludeFullText] = useState(() => searchParams.get('full_text') === 'true')
   const [jurisdictionDetails, setJurisdictionDetails] = useState<any[]>(() => {
     const detailsParam = searchParams.get('jurisdiction_details')
@@ -305,6 +323,8 @@ export default function UnifiedSearch() {
     selectedState,
     sortBy !== 'relevance' ? 'sorted' : null,
     nteeCategory,
+    selectedTopicId,
+    selectedQuestionId,
     includeFullText ? 'full text' : null,
     typesNarrowed ? 'types' : null,
   ].filter(Boolean).length
@@ -349,7 +369,13 @@ export default function UnifiedSearch() {
     searchParams.get('page') // Read but don't store
     searchParams.get('sort') // Read but don't store
     searchParams.get('ntee') // Read but don't store
+    const topicIdParam = searchParams.get('topic_id')
+    const questionIdParam = searchParams.get('question_id')
     const jurisdictionDetailsParam = searchParams.get('jurisdiction_details')
+
+    // Keep the advanced Topic/Question filters in sync with the URL (back/forward).
+    setSelectedTopicId(topicIdParam || '')
+    setSelectedQuestionId(questionIdParam || '')
     
     if (queryParam) {
       setQuery(queryParam)
@@ -432,13 +458,30 @@ export default function UnifiedSearch() {
     staleTime: 5000 // Cache for 5 seconds to avoid excessive requests
   })
 
+  // Advanced-filter dropdown options. Topics = the named civic-topic catalog
+  // (/api/topics, sorted most-discussed first); questions = the policy-question
+  // registry (/api/policy-question/, featured pinned first). Loaded once and
+  // cached — small, fixed lists that back the two Advanced dropdowns.
+  const { data: topicOptions } = useQuery<TopicSummary[]>({
+    queryKey: ['advanced-filter-topics'],
+    queryFn: fetchTopics,
+    staleTime: 10 * 60 * 1000,
+  })
+  const { data: questionOptions } = useQuery<PolicyQuestionSummary[]>({
+    queryKey: ['advanced-filter-questions'],
+    queryFn: () => fetchPolicyQuestions({ limit: 200 }),
+    staleTime: 10 * 60 * 1000,
+  })
+
   // Whether the current inputs constitute a runnable search (query OR a
   // browse-mode filter OR an EIN). Shared by both queries below.
   const searchEnabled =
     (activeQuery && activeQuery.length >= 2) ||
     selectedState !== '' ||
     selectedTypes.length > 0 ||
-    selectedEin !== ''
+    selectedEin !== '' ||
+    selectedTopicId !== '' ||
+    selectedQuestionId !== ''
 
   // Build the shared /search params (everything except per-tab paging). `types`
   // and `limit`/`page` are layered on by each caller.
@@ -450,6 +493,8 @@ export default function UnifiedSearch() {
     if (selectedCity) params.city = selectedCity
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee_code = nteeCategory
+    if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     return params
   }
@@ -460,7 +505,7 @@ export default function UnifiedSearch() {
   // cached counts; only a changed query/filter set refetches. limit=1 keeps the
   // per-type fetch minimal — we only consume `type_totals`, not the rows.
   const { data: tabCountsData, isLoading: isCountsLoading } = useQuery<SearchResponse>({
-    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedEin, includeFullText],
+    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedTopicId, selectedQuestionId, selectedEin, includeFullText],
     queryFn: async () => {
       if (!searchEnabled) return null
       const params = { ...buildSearchParams(), types: selectedTypes.join(','), limit: 1, page: 1 }
@@ -494,7 +539,7 @@ export default function UnifiedSearch() {
   // Active-tab results — fetches ONLY the active tab's type, so `page`/`limit`
   // paginate within that single type instead of across a mixed result set.
   const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedEin, includeFullText],
+    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedTopicId, selectedQuestionId, selectedEin, includeFullText],
     queryFn: async () => {
       if (!effectiveTab) return null
       const params = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
@@ -542,6 +587,8 @@ export default function UnifiedSearch() {
       }
       if (sortBy && sortBy !== 'relevance') params.sort = sortBy
       if (nteeCategory) params.ntee = nteeCategory
+      if (selectedTopicId) params.topic_id = selectedTopicId
+      if (selectedQuestionId) params.question_id = selectedQuestionId
       if (includeFullText) params.full_text = 'true'
       setSearchParams(params)
     }
@@ -560,6 +607,8 @@ export default function UnifiedSearch() {
     }
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     if (effectiveTab) params.tab = effectiveTab
     if (newPage > 1) params.page = newPage.toString()
@@ -595,6 +644,8 @@ export default function UnifiedSearch() {
     params.types = category
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     setSearchParams(params)
   }
@@ -617,6 +668,8 @@ export default function UnifiedSearch() {
     }
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedQuestionId) params.question_id = selectedQuestionId
     setSearchParams(params)
   }
 
@@ -734,6 +787,13 @@ export default function UnifiedSearch() {
 
   const ResultCard = ({ result }: { result: SearchResult }) => {
     const resultType = result.result_type ?? result.type
+    // Unanalyzed meetings (raw transcripts) are surfaced in the Meetings tab
+    // alongside AI-analyzed ones. They carry metadata.analysis_pending === true,
+    // have NO event_meeting_id, an EXTERNAL YouTube `url`, and a transcript
+    // snippet (with <mark> highlights) in `description`. Analyzed meetings keep
+    // their internal /meetings/{id} drilldown and rich summary — unchanged.
+    const isMeetingPending =
+      resultType === 'meeting' && result.metadata?.analysis_pending === true
     // Transcript snippets arrive with the matched passage wrapped in literal
     // <mark>…</mark> markers (ts_headline). Render them as highlighted React
     // nodes WITHOUT dangerouslySetInnerHTML: split on the markers and wrap the
@@ -842,7 +902,13 @@ export default function UnifiedSearch() {
 
           </div>
           
-          {resultType === 'document' ? (
+          {/* Unanalyzed meetings carry a raw transcript snippet in
+              `description` with the matched passage wrapped in literal
+              <mark>…</mark> markers (ts_headline) — same convention as the
+              `document` result type. Reuse renderSnippet so highlights show and
+              the transcript body stays React-escaped (no
+              dangerouslySetInnerHTML). Analyzed meetings keep the plain summary. */}
+          {resultType === 'document' || isMeetingPending ? (
             <p className="text-sm text-gray-500 line-clamp-3 mb-2">{renderSnippet(result.description || '')}</p>
           ) : (
             <p className="text-sm text-gray-500 line-clamp-2 mb-2">{result.description}</p>
@@ -1083,12 +1149,24 @@ export default function UnifiedSearch() {
             </div>
           )}
 
-          {/* Type badge */}
-          <div className="mt-2">
+          {/* Type badge (+ "Analysis pending" for unanalyzed meetings) */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(resultType)}`}>
               {getTypeIcon(resultType)}
               {resultType.charAt(0).toUpperCase() + resultType.slice(1)}
             </span>
+            {/* Muted amber pill: this meeting hasn't been AI-analyzed yet but is
+                shown because its transcript is available. Mirrors the existing
+                rounded-full px-2 py-1 text-xs badge style used across results. */}
+            {isMeetingPending && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                title="This meeting hasn't been analyzed yet — shown because its transcript is available."
+              >
+                <DocumentMagnifyingGlassIcon className="h-3.5 w-3.5" />
+                Analysis pending
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -1520,7 +1598,7 @@ export default function UnifiedSearch() {
           </div>
 
           {/* Active Filters Display */}
-          {(selectedState || selectedCity || sortBy !== 'relevance' || nteeCategory || jurisdictionDetails.length > 0 || includeFullText) && (
+          {(selectedState || selectedCity || sortBy !== 'relevance' || nteeCategory || selectedTopicId || selectedQuestionId || jurisdictionDetails.length > 0 || includeFullText) && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-600">Active filters:</span>
               {selectedState && (
@@ -1599,6 +1677,36 @@ export default function UnifiedSearch() {
                       setTimeout(() => handleSearch(), 0)
                     }}
                     className="hover:bg-green-200 rounded-full p-0.5"
+                  >
+                    <XMarkIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {selectedTopicId && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
+                  Topic: {(topicOptions ?? []).find((t) => String(t.topic_id) === selectedTopicId)?.name ?? selectedTopicId}
+                  <button
+                    onClick={() => {
+                      setSelectedTopicId('')
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="hover:bg-indigo-200 rounded-full p-0.5"
+                  >
+                    <XMarkIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {selectedQuestionId && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-sm max-w-xs">
+                  <span className="truncate">
+                    Question: {(questionOptions ?? []).find((qn) => qn.question_id === selectedQuestionId)?.canonical_text ?? selectedQuestionId}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setSelectedQuestionId('')
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="hover:bg-rose-200 rounded-full p-0.5 shrink-0"
                   >
                     <XMarkIcon className="h-3 w-3" />
                   </button>
@@ -1757,10 +1865,10 @@ export default function UnifiedSearch() {
                   </select>
                 </div>
 
-                {/* NTEE Category (for organizations) */}
+                {/* Cause / NTEE category (for organizations) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category (NTEE)
+                    Cause
                   </label>
                   <select
                     value={nteeCategory}
@@ -1800,6 +1908,62 @@ export default function UnifiedSearch() {
                     <option value="Y" className="text-gray-900">Mutual Benefit</option>
                   </select>
                 </div>
+
+                {/* Topic — named civic-topic catalog (/api/topics). Narrows
+                    decisions / meetings / topics to the chosen topic's keyword set. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Topic
+                  </label>
+                  <select
+                    value={selectedTopicId}
+                    onChange={(e) => {
+                      setSelectedTopicId(e.target.value)
+                      setCurrentPage(1)
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
+                  >
+                    <option value="" className="text-gray-900">All Topics</option>
+                    {(topicOptions ?? []).map((t) => (
+                      <option key={t.topic_id} value={String(t.topic_id)} className="text-gray-900">
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Limits decisions, meetings &amp; topics to this civic topic.
+                  </p>
+                </div>
+
+                {/* Question — policy-question registry (/api/policy-question/).
+                    Narrows decisions to those that instantiate the chosen question. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Question
+                  </label>
+                  <select
+                    value={selectedQuestionId}
+                    onChange={(e) => {
+                      setSelectedQuestionId(e.target.value)
+                      setCurrentPage(1)
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
+                  >
+                    <option value="" className="text-gray-900">All Questions</option>
+                    {(questionOptions ?? []).map((qn) => (
+                      <option key={qn.question_id} value={qn.question_id} className="text-gray-900">
+                        {qn.canonical_text && qn.canonical_text.length > 80
+                          ? `${qn.canonical_text.slice(0, 80)}…`
+                          : (qn.canonical_text ?? qn.question_id)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Limits decisions to those deciding this policy question.
+                  </p>
+                </div>
               </div>
 
                   {/* Full Text Search Checkbox */}
@@ -1834,6 +1998,8 @@ export default function UnifiedSearch() {
                       setSelectedState('')
                       setSortBy('relevance')
                       setNteeCategory('')
+                      setSelectedTopicId('')
+                      setSelectedQuestionId('')
                       setIncludeFullText(false)
                       setSelectedTypes([...DEFAULT_RESULT_TYPES])
                       setTimeout(() => handleSearch(), 0)

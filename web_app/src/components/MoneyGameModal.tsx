@@ -104,6 +104,10 @@ export interface MoneyGameModalProps {
   county?: string
   /** Requested city/county label, for the city→state fallback note. */
   requestedLabel?: string
+  /** Which stage to land on once a place is resolved. Defaults to the bill
+   *  estimator; pass 'grandkids' to open straight on the Opportunity Atlas
+   *  income-mobility trends. */
+  initialStage?: 'estimate' | 'game' | 'grandkids'
 }
 
 // ---------------------------------------------------------------------------
@@ -1584,6 +1588,7 @@ export default function MoneyGameModal({
   // stateCode/city/county are still accepted by callers but intentionally NOT
   // used to seed the scope: the "where's home?" gate always runs first (below).
   requestedLabel,
+  initialStage = 'estimate',
 }: MoneyGameModalProps) {
   const { setLocation } = useLocationContext()
 
@@ -1650,10 +1655,10 @@ export default function MoneyGameModal({
     setGuesses(game.map(() => 0))
     setTouched(game.map(() => false))
     setRevealed(false)
-    setStage('estimate')
+    setStage(initialStage)
     setSpendingLevel('combined')
     setDisabledLevels({})
-  }, [open, game])
+  }, [open, game, initialStage])
 
   // Score = 100 - totalError/2, where totalError sums |normalizedGuess - actual|
   // across the shown set (same formula as the prototype). Only after reveal.

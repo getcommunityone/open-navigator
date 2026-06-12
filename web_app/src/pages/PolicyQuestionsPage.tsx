@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   fetchPolicyQuestions,
@@ -44,15 +45,19 @@ type LevelScope = 'all' | 'local' | 'state'
 const MIN_VOTES = 3 // min jurisdictions before a contested ranking is meaningful
 
 export default function PolicyQuestionsPage() {
+  const navigate = useNavigate()
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [levelScope, setLevelScope] = useState<LevelScope>('all')
   const [sortBy, setSortBy] = useState<SortKey>('contested')
   const [panelOpen, setPanelOpen] = useState(false)
   const [selectedCats, setSelectedCats] = useState<Set<string> | null>(null) // null = all
 
+  // For now we focus the whole site on the curated/pinned "big questions" only,
+  // so this registry page lists the featured set instead of the full clustered
+  // registry. Swap back to { limit: 200 } to restore the full list.
   const { data, isLoading } = useQuery<PolicyQuestionSummary[]>({
-    queryKey: ['policy-questions-registry'],
-    queryFn: () => fetchPolicyQuestions({ limit: 200 }),
+    queryKey: ['policy-questions-registry', 'featured'],
+    queryFn: () => fetchPolicyQuestions({ featured: true }),
   })
   const ALL = useMemo(() => data ?? [], [data])
 
@@ -119,7 +124,14 @@ export default function PolicyQuestionsPage() {
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
 
       <div className="max-w-3xl mx-auto">
-        <div className="text-[10px] uppercase tracking-widest text-stone-400 mb-1" style={{ fontFamily: MONO }}>
+        <button
+          type="button"
+          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-500 hover:text-stone-900 mb-4"
+        >
+          <span aria-hidden="true">←</span> Back
+        </button>
+        <div className="text-[11px] uppercase tracking-widest text-stone-500 mb-1" style={{ fontFamily: MONO }}>
           Policy question registry
         </div>
         <h1 className="text-3xl text-stone-800" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>
@@ -186,7 +198,7 @@ export default function PolicyQuestionsPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-stone-800 leading-snug">{q.canonical_text}</div>
-                        <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[11px]" style={{ fontFamily: MONO }}>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs" style={{ fontFamily: MONO }}>
                           {r != null && (
                             <>
                               <span className="text-teal-700 font-semibold">
@@ -196,13 +208,13 @@ export default function PolicyQuestionsPage() {
                             </>
                           )}
                           {q.primary_theme && q.primary_theme !== '__unthemed__' && (
-                            <span className="text-stone-400 uppercase tracking-wider">{q.primary_theme}</span>
+                            <span className="text-stone-500 uppercase tracking-wide">{q.primary_theme}</span>
                           )}
                           {levelScope === 'all' && q.scope && (
-                            <span className="px-1.5 rounded bg-stone-100 text-stone-500">{q.scope}</span>
+                            <span className="px-1.5 rounded bg-stone-100 text-stone-600">{q.scope}</span>
                           )}
                           <span className="text-stone-300">·</span>
-                          <span className="text-stone-400">{q.instances_total} instances</span>
+                          <span className="text-stone-500">{q.instances_total} instances</span>
                           {tag === 'quiet-money' && (
                             <span className="px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-800 normal-case tracking-normal" style={{ fontFamily: "'Source Sans 3', sans-serif" }}>
                               Big money, little discussion
@@ -224,7 +236,7 @@ export default function PolicyQuestionsPage() {
                       {/* Money & talk — REAL shares of all decisions */}
                       <div className="rounded-md bg-stone-50 border border-stone-100 px-3 py-2.5 mt-3 mb-4">
                         <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                          <span className="text-[10px] uppercase tracking-widest text-stone-400" style={{ fontFamily: MONO }}>
+                          <span className="text-[10px] uppercase tracking-widest text-stone-500" style={{ fontFamily: MONO }}>
                             Money &amp; talk · share of all decisions
                           </span>
                           <span className="text-[11px] text-stone-500" style={{ fontFamily: MONO }}>
@@ -232,12 +244,12 @@ export default function PolicyQuestionsPage() {
                           </span>
                         </div>
                         <div className="grid items-center gap-x-2 gap-y-1" style={{ gridTemplateColumns: '3.5rem minmax(0,1fr) 2.8rem' }}>
-                          <span className="text-[10px] uppercase tracking-wider text-stone-400" style={{ fontFamily: MONO }}>Money</span>
+                          <span className="text-[10px] uppercase tracking-wider text-stone-500" style={{ fontFamily: MONO }}>Money</span>
                           <div className="h-3 bg-stone-200/60 rounded-sm overflow-hidden">
                             <div className="h-full rounded-sm" style={{ width: `${Math.max(1.5, (mShare / maxS) * 100)}%`, background: SPEND_COLOR }} />
                           </div>
                           <span className="text-xs text-stone-500 text-right" style={{ fontFamily: MONO }}>{mShare.toFixed(1)}%</span>
-                          <span className="text-[10px] uppercase tracking-wider text-stone-400" style={{ fontFamily: MONO }}>Talk</span>
+                          <span className="text-[10px] uppercase tracking-wider text-stone-500" style={{ fontFamily: MONO }}>Talk</span>
                           <div className="h-3 bg-stone-200/60 rounded-sm overflow-hidden">
                             <div className="h-full rounded-sm" style={{ width: `${Math.max(1.5, (tShare / maxS) * 100)}%`, background: TALK_COLOR }} />
                           </div>
@@ -265,7 +277,7 @@ export default function PolicyQuestionsPage() {
             <div className="fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-white z-50 shadow-2xl border-l border-stone-200 flex flex-col" style={{ animation: 'slideIn 200ms cubic-bezier(0.4, 0, 0.2, 1)' }}>
               <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200">
                 <div>
-                  <div className="text-[10px] uppercase tracking-widest text-stone-400" style={{ fontFamily: MONO }}>
+                  <div className="text-[10px] uppercase tracking-widest text-stone-500" style={{ fontFamily: MONO }}>
                     {catsActive.size} selected
                   </div>
                   <div className="text-base text-stone-800" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 600 }}>
@@ -365,7 +377,7 @@ function Drilldown({ questionId }: { questionId: string }) {
       {q.trend.length > 0 && (
         <div className="rounded-md bg-stone-50 border border-stone-100 px-3 py-2.5 mb-4">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-            <span className="text-[10px] uppercase tracking-widest text-stone-400" style={{ fontFamily: MONO }}>
+            <span className="text-[10px] uppercase tracking-widest text-stone-500" style={{ fontFamily: MONO }}>
               By quarter
             </span>
             <span className="flex items-center gap-3 text-[11px] text-stone-500">
@@ -380,7 +392,7 @@ function Drilldown({ questionId }: { questionId: string }) {
       {/* Recent instances — real decisions/bills that instantiate the question */}
       {q.sample_instances.length > 0 && (
         <>
-          <div className="text-[10px] uppercase tracking-widest text-stone-400 mb-1.5" style={{ fontFamily: MONO }}>
+          <div className="text-[10px] uppercase tracking-widest text-stone-500 mb-1.5" style={{ fontFamily: MONO }}>
             Recent instances
           </div>
           {q.sample_instances.slice(0, 6).map((ex) => (
