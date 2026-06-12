@@ -97,14 +97,26 @@ _SUMMARY_SQL = """
     WHERE state_code IS NULL OR state_code = $1::text
 """
 
-# Top items in a category by transcript count. For place/topic, filter to the
-# given state when provided; question/cause have no per-state rows, so the state
-# filter is a no-op handled by passing NULL.
+# Top items in a category by transcript count, NATIONAL (no place filter).
+# browse_transcript_count is the national rollup (one row per entity, with a
+# representative state_code), so this is correct only when no state is selected.
 _TOP_ITEMS_SQL = """
     SELECT entity_id, entity_name, transcript_count, state_code
     FROM browse_transcript_count
     WHERE entity_type = $1::text
-      AND ($2::text IS NULL OR state_code = $2::text)
+    ORDER BY transcript_count DESC NULLS LAST, entity_name ASC
+    LIMIT $2::int
+"""
+
+# Top items SCOPED TO A STATE (place/topic). Reads the per-state grain mart so a
+# topic that spans many states is ranked by its count IN THIS state — the
+# national rollup above only carries a representative state and would drop most
+# topics under a state filter.
+_TOP_ITEMS_STATE_SQL = """
+    SELECT entity_id, entity_name, transcript_count, state_code
+    FROM browse_entity_state_transcript_count
+    WHERE entity_type = $1::text
+      AND state_code = $2::text
     ORDER BY transcript_count DESC NULLS LAST, entity_name ASC
     LIMIT $3::int
 """
@@ -299,8 +311,12 @@ async def browse_top_items(
                     if et == "question":
                         # Pinned/featured registry questions only, editorial order.
                         rows = await conn.fetch(_TOP_QUESTIONS_FEATURED_SQL, limit)
+                    elif state_code:
+                        # Place/topic scoped to the selected state — per-state mart.
+                        rows = await conn.fetch(_TOP_ITEMS_STATE_SQL, et, state_code, limit)
                     else:
-                        rows = await conn.fetch(_TOP_ITEMS_SQL, et, state_code, limit)
+                        # National (no place filter) — representative-state rollup.
+                        rows = await conn.fetch(_TOP_ITEMS_SQL, et, limit)
         except Exception as exc:  # noqa: BLE001
             logger.exception("browse top-items failed")
             span.record_exception(exc)
