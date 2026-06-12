@@ -230,8 +230,9 @@ import httpx
 from loguru import logger
 
 _root = Path(__file__).resolve().parents[2]
-if str(_root) not in sys.path:
-    sys.path.insert(0, str(_root))
+for _p in (str(_root), str(_root / "packages" / "core-lib" / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from scripts.discovery.jurisdiction_discovery_pipeline import (
     INT_JURISDICTION_WEBSITES_TABLE,
@@ -240,7 +241,7 @@ from scripts.discovery.jurisdiction_discovery_pipeline import (
     resolve_database_url,
 )
 from core_lib.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
-from scripts.utils.gdrive_paths import (
+from core_lib.gdrive_paths import (
     resolve_scraped_meetings_output_root,
     scraped_meetings_root_resolution_note,
 )

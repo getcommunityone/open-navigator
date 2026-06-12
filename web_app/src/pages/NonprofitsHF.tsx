@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { searchNonprofits } from '../utils/huggingface'
-import { formatCurrency } from '../utils/formatters'
+import { formatCurrency, formatCityState } from '../utils/formatters'
 
 const DATASET_NAME = "CommunityOne/one-nonprofits-organizations"
 
@@ -295,7 +295,7 @@ export default function Nonprofits() {
                       <span className="font-medium">📍 Location:</span>{' '}
                       {org.city && org.state ? (
                         <>
-                          {org.city}, {org.state} {org.zip_code}
+                          {formatCityState(org.city, org.state)} {org.zip_code}
                         </>
                       ) : (
                         org.state || 'N/A'

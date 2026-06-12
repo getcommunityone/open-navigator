@@ -51,10 +51,18 @@ This model:
 - Denormalizes a few event fields (title / date / jurisdiction / state) so the
   API search is a single-table scan and results carry location + a linkable
   meeting_id when an event exists.
+- Backfills those denormalized fields from event_youtube_with_jurisdiction
+  (one row per video_id, junk-gated, jurisdiction-resolved) for the ~90% of
+  transcripts that have NO golden event yet. Without this the orphan rows came
+  through with NULL title/jurisdiction/state -- searchable but rendering blank
+  and silently dropped by any state/city filter in search_documents_pg. The
+  golden event value still wins when it exists (COALESCE order); the YouTube
+  metadata is the fallback. event_id stays NULL for orphans (no fake FK).
 
 Data flow:
   bronze_event_youtube_transcript -> stg_bronze_event_youtube_transcript
     -> events_text_search -> event_documents (this model)
+  bronze_event_youtube -> event_youtube_with_jurisdiction --(orphan backfill)-->
 
 Used by: api/routes/search_postgres.py (search_documents_pg).
 */
@@ -73,9 +81,28 @@ WITH transcripts AS (
     WHERE raw_text IS NOT NULL
 ),
 
+-- One row per video_id with junk-gated, jurisdiction-resolved metadata. Used to
+-- backfill the denormalized fields for orphan transcripts (no golden event).
+youtube AS (
+    SELECT
+        video_id,
+        title              AS event_title,
+        event_date,
+        jurisdiction_name,
+        jurisdiction_type,
+        state_code,
+        state,
+        city,
+        video_url
+    FROM {{ ref('event_youtube_with_jurisdiction') }}
+),
+
 -- LEFT JOIN to the current event build: validates event_id for the FK (only a
 -- real golden event_id survives; otherwise NULL) and denormalizes the fields
--- search needs. Orphan transcripts (no golden event) are kept and searchable.
+-- search needs. Orphan transcripts (no golden event) are kept and searchable,
+-- with their location/title COALESCE-backfilled from the YouTube metadata so
+-- they don't render blank or get dropped by a state/city filter. The golden
+-- event value wins when present; YouTube is the fallback.
 joined AS (
     SELECT
         e.event_id,
@@ -86,16 +113,17 @@ joined AS (
         t.is_auto_generated,
         t.transcript_source,
         t.created_at,
-        e.event_title,
-        e.event_date,
-        e.jurisdiction_name,
-        e.jurisdiction_type,
-        e.state_code,
-        e.state,
-        e.city,
-        e.video_url
+        COALESCE(e.event_title,       y.event_title)              AS event_title,
+        COALESCE(e.event_date,        y.event_date)               AS event_date,
+        COALESCE(e.jurisdiction_name, y.jurisdiction_name)        AS jurisdiction_name,
+        COALESCE(e.jurisdiction_type, y.jurisdiction_type)        AS jurisdiction_type,
+        COALESCE(e.state_code,        y.state_code)               AS state_code,
+        COALESCE(e.state,             y.state)                    AS state,
+        COALESCE(e.city,              y.city::text)               AS city,
+        COALESCE(e.video_url,         y.video_url)                AS video_url
     FROM transcripts t
     LEFT JOIN {{ ref('event') }} e ON e.event_id = t.event_id
+    LEFT JOIN youtube y ON y.video_id = t.video_id
 )
 
 SELECT

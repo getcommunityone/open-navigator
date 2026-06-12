@@ -1,0 +1,9 @@
+question_id,source_id,state_code,jurisdiction_name,city,outcome_raw,occurred_at
+2bcea4e521fd138a9df8c8435dc91910,23ae97520bb3c7b1f8d390a29ffbd032,CA,,,Approved,2026-06-10 07:40:36
+2bcea4e521fd138a9df8c8435dc91910,2d22dd07c7d9f93737005dc05ab51c1f,WA,Auburn,Auburn,Approved,2026-05-22 01:09:45
+2bcea4e521fd138a9df8c8435dc91910,2d3f21df0aafa99bfec86ce9dbcd6d32,WA,Sedro-Woolley city,,Approved,2026-05-29 05:37:07
+2bcea4e521fd138a9df8c8435dc91910,539eec0e4b0127fecf54319dc7573656,GA,Camden County,,Approved,2026-05-29 04:51:09
+2bcea4e521fd138a9df8c8435dc91910,89a01b0938df83a1ce8833713ddfe9f9,NC,,,Information received and discussed,2026-06-10 07:24:41
+2bcea4e521fd138a9df8c8435dc91910,ad107dd0f65e5cc2ee0c97cf2108a84f,IN,Adams County,,Approved,2026-05-28 22:57:10
+2bcea4e521fd138a9df8c8435dc91910,eb2e5bfd3762f8ba8be11a3f01edacbd,WA,Lacey,Lacey,Reported,2026-05-29 03:12:11
+cc6c76b088c72341e19abfda1b6807dd,8429d7134a11da34b186ef27b372e45d,AL,Barbour County,,Approved,2026-05-29 04:54:52

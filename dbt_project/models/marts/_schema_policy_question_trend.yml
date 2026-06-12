@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: policy_question_trend
+    description: >
+      public.policy_question_trend — per-question quarterly history (one row per
+      question_id × quarter). instances = how many times the question came up
+      that quarter; money = real net_dollar_impact of the linked local decisions.
+      question_id FK -> policy_question via a relationships test (repo convention).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'policy-questions']
+      contract:
+        enforced: true
+    columns:
+      - name: trend_id
+        description: "PK — md5(question_id || '|' || quarter_start)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: question_id
+        description: "FK -> policy_question.question_id."
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships:
+              to: ref('policy_question')
+              field: question_id
+      - name: quarter_start
+        description: "First day of the calendar quarter the activity fell in."
+        data_type: date
+        constraints: [{type: not_null}]
+      - name: instances
+        description: "Count of question instances (decisions + bills) that quarter."
+        data_type: integer
+        constraints: [{type: not_null}]
+      - name: money
+        description: "Sum of linked local decisions' net_dollar_impact that quarter."
+        data_type: numeric

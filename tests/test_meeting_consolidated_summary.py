@@ -49,7 +49,11 @@ def test_judge_summary_omits_pipeline_inventory():
     )
     assert "Sources on disk" not in body
     assert "Tuscaloosa County Commission" in body
-    assert "technical manifest" in body.lower()
+    # The judge summary omits the inline pipeline inventory but points readers to
+    # the technical companion file for the detail. build_judge_summary_markdown
+    # now references it by filename ("companion file `_meeting_summary_technical.md`")
+    # rather than the old literal phrase "technical manifest".
+    assert "_meeting_summary_technical.md" in body
     assert "Mobile County" not in body
 
 

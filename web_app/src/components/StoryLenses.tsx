@@ -13,6 +13,7 @@ import {
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
 import FollowTheMoney from './FollowTheMoney'
+import MeetingThumbnail from './MeetingThumbnail'
 import PersonalizeFeedModal from './PersonalizeFeedModal'
 import { useAuth } from '../contexts/AuthContext'
 import { fromSignalSlug } from '../lib/feedSlugs'
@@ -44,7 +45,7 @@ const TONES: Record<Tone, { bg: string; fg: string }> = {
   purple: { bg: '#efebfb', fg: '#6b5bd2' },
 }
 
-interface Lens {
+export interface Lens {
   id: string
   em: string
   label: string
@@ -54,7 +55,7 @@ interface Lens {
   note?: string
 }
 
-const LENSES: Lens[] = [
+export const LENSES: Lens[] = [
   { id: 'contested', em: '\u{1F525}', label: 'Contested', desc: 'Split votes and heated debates', clr: '#e0603a' },
   { id: 'money', em: '\u{1F4B2}', label: 'Money Moves', desc: 'Contracts, spending, and big budgets', clr: '#2a8576' },
   {
@@ -70,6 +71,11 @@ const LENSES: Lens[] = [
   { id: 'next', em: '\u{1F4C5}', label: 'Watch Next', desc: 'Upcoming votes to keep on your radar', clr: '#2f6fb0' },
 ]
 
+// The Contested lens descriptor — the editorial angle decision cards render under
+// in the flat browse list (DecisionCardList). Exported so the shared card carries
+// the same flame badge + accent as the homepage Contested carousel.
+export const CONTESTED_LENS: Lens = LENSES[0]
+
 interface Stat {
   v: string
   l: string
@@ -84,8 +90,10 @@ const TIME_OPTIONS: { d: number; label: string }[] = [
 ]
 
 // "Close to Home" is the cross-lens, personalized landing view; the five signal
-// lenses (LENSES, above) are the editorial angles served by /api/lenses. The
-// strip is just navigation between these views.
+// lenses (LENSES, above) are the editorial angles served by /api/lenses. It is
+// kept as the fallback for `selected`, but is intentionally NOT shown in the
+// strip — the strip lists only the signal lenses and opens on Contested, the way
+// the navigation worked before the personalized "FOR YOU" card was added.
 const HOME_LENS: Lens = {
   id: 'home',
   em: '\u{1F3E0}',
@@ -93,7 +101,7 @@ const HOME_LENS: Lens = {
   desc: 'Near you, on what you care about',
   clr: '#1a6b6b',
 }
-const STRIP_LENSES: Lens[] = [HOME_LENS, ...LENSES]
+const STRIP_LENSES: Lens[] = [...LENSES]
 
 // Value-frame "lenses" — how you READ a decision (Family First, Faith, …), a
 // distinct axis from the signal tiles above. There is no card-level theme/topic
@@ -148,12 +156,12 @@ const DAYS_BY_WINDOW: Record<string, number> = { month: 31, quarter: 92, year: 3
 const ACTIVITY_BG = ['#fdeeeb', '#e7f2ef', '#efebfb', '#fbf3e2']
 
 // ---- /api/lenses response shape ----
-interface ApiStat {
+export interface ApiStat {
   value: string
   label: string
   tone?: Tone
 }
-interface ApiCard {
+export interface ApiCard {
   headline: string
   stats: ApiStat[]
   jurisdiction: string
@@ -162,6 +170,9 @@ interface ApiCard {
   url?: string
   state_code?: string
   state?: string
+  /** Bare YouTube id of the decision's meeting recording; null/absent when
+   *  the decision has no recording. Drives the optional card thumbnail. */
+  video_id?: string | null
 }
 interface ApiLens {
   id: string
@@ -184,13 +195,15 @@ interface LensesResponse {
 }
 
 // Normalized card the grid renders, from either live API or demo fallback.
-interface RenderCard {
+export interface RenderCard {
   h: string
   stats: Stat[]
   juris: string
   when: string
   url?: string
   stateCode?: string
+  /** Bare YouTube id for the optional card thumbnail (undefined when none). */
+  videoId?: string
 }
 
 // Census place names carry a *lowercase* generic type suffix ("Douglas city",
@@ -244,10 +257,21 @@ interface StoryLensesProps {
   city?: string
   /** When true, ignore stateCode/city and show a national view. */
   national?: boolean
+  /** Free-text from the hero search. When set, the lens cards are filtered to
+   *  those matching the query instead of the section being unmounted. */
+  query?: string
   /** Invoked when a card or popular-topic is activated. */
   onSearch?: (query: string) => void
   /** Invoked by "View all" / "See all activity" / Browse topics. */
   onBrowseTopics?: () => void
+  /** Invoked by the "Browse policy questions" button. */
+  onBrowsePolicyQuestions?: () => void
+  /** Invoked by the "Browse causes" button. */
+  onBrowseCauses?: () => void
+  /** Real directory counts for the Browse pills (Topics/Causes/Questions).
+   *  Omitted or non-positive values render the pill without a number — we
+   *  never show a fabricated count. */
+  browseCounts?: { topics?: number | null; causes?: number | null; questions?: number | null }
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +285,7 @@ interface StoryCardProps {
   onOpen: () => void
 }
 
-function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryCardProps) {
+export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryCardProps) {
   const clickable = !!c.url
   return (
     <article
@@ -288,6 +312,12 @@ function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryCardProp
           : ''
       }`}
     >
+      {/* Optional meeting-video still — only when the decision has a recording.
+          Sits above the accent bar at the very top; the article's
+          overflow-hidden + rounded-2xl clips its top corners (no double-round).
+          Renders nothing when there's no video, so cards without a recording
+          look exactly as before. */}
+      {c.videoId && <MeetingThumbnail videoId={c.videoId} alt={c.h} />}
       <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
       <div className="flex flex-1 flex-col p-[18px]">
         <div className="mb-2.5 flex items-center justify-between gap-2">
@@ -487,7 +517,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
 // ", ST" suffix to the jurisdiction only when the set spans >1 state or the view
 // is unscoped (so a single-state local view stays clean). Computed per-lens so
 // each stacked section disambiguates independently.
-function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCard[] {
+export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCard[] {
   const base = apiCards.map((c) => ({
     h: c.headline,
     stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
@@ -495,6 +525,7 @@ function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCard[] {
     when: relFromDate(c.date),
     url: c.url,
     stateCode: c.state_code || undefined,
+    videoId: c.video_id ?? undefined,
   }))
   const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
   const showState = unscoped || distinctStates.size > 1
@@ -600,6 +631,10 @@ interface SingleLensBodyProps {
   onToggleSave: (key: string) => void
   onOpen: (card: RenderCard) => void
   cardKey: (card: RenderCard, i: number) => string
+  /** Active hero free-text filter (trimmed), if any — tailors the empty state. */
+  query?: string
+  /** Run a full search; used by the "Search everything" empty-state fallback. */
+  onSearch?: (query: string) => void
 }
 
 function SingleLensBody({
@@ -611,6 +646,8 @@ function SingleLensBody({
   onToggleSave,
   onOpen,
   cardKey,
+  query,
+  onSearch,
 }: SingleLensBodyProps) {
   if (loading) {
     return (
@@ -631,7 +668,24 @@ function SingleLensBody({
   if (cards.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-8 text-center text-sm text-[#9bb8b8]">
-        Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
+        {query ? (
+          <>
+            No {lens.label.toLowerCase()} stories match{' '}
+            <b className="text-[#56635e]">&ldquo;{query}&rdquo;</b>.{' '}
+            <button
+              type="button"
+              onClick={() => onSearch?.(query)}
+              className="font-semibold text-[#1a6b6b] underline underline-offset-2 hover:text-[#0f2b2b]"
+            >
+              Search everything
+            </button>{' '}
+            instead.
+          </>
+        ) : (
+          <>
+            Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
+          </>
+        )}
       </div>
     )
   }
@@ -647,7 +701,71 @@ function SingleLensBody({
   )
 }
 
-export default function StoryLenses({ locationLabel, stateCode, city, national, onSearch, onBrowseTopics }: StoryLensesProps) {
+// ---------------------------------------------------------------------------
+// LensCarousel — a self-contained, drop-in swipe carousel for ONE lens's real
+// cards. For callers (e.g. HomeV9's stacked lens sections) that want the
+// card-styled carousel — stat chips, accent bar, save bookmark, position dots —
+// without the full StoryLenses strip/feed shell. Owns its own session-local
+// "saved" state and navigates to the card's record on open. Renders nothing when
+// there are no cards, so the caller keeps ownership of the empty/placeholder state.
+// ---------------------------------------------------------------------------
+export interface LensCarouselLens {
+  id: string
+  /** Emoji marker shown on the card badge. */
+  em: string
+  /** Lens name shown on the card badge. */
+  label: string
+  /** Accent colour for the badge + top bar. */
+  clr: string
+  desc?: string
+}
+
+export function LensCarousel({
+  cards,
+  lens,
+  unscoped = false,
+}: {
+  cards: ApiCard[]
+  lens: LensCarouselLens
+  /** Append ", ST" to jurisdictions — for national / multi-state views. */
+  unscoped?: boolean
+}) {
+  const navigate = useNavigate()
+  const [savedKeys, setSavedKeys] = useState<Set<string>>(() => new Set())
+  const toggleSave = (key: string) =>
+    setSavedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  const rendered = useMemo(() => toRenderCards(cards, unscoped), [cards, unscoped])
+  const cardKey = (c: RenderCard, i: number) => c.url || `${lens.id}-${c.h}-${c.juris}-${i}`
+  if (rendered.length === 0) return null
+  return (
+    <StoryCarousel
+      cards={rendered}
+      lens={{ desc: '', ...lens }}
+      savedKeys={savedKeys}
+      onToggleSave={toggleSave}
+      onOpen={(c) => c.url && navigate(c.url)}
+      cardKey={cardKey}
+    />
+  )
+}
+
+// Small real-count badge for the Browse pills. Renders nothing for a missing or
+// non-positive count, so we never show a fabricated/zero directory number.
+function BrowseCount({ n }: { n?: number | null }) {
+  if (n == null || !Number.isFinite(n) || n <= 0) return null
+  return (
+    <span className="rounded-full bg-white/70 px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums text-[#1a6b6b]">
+      {n.toLocaleString('en-US')}
+    </span>
+  )
+}
+
+export default function StoryLenses({ locationLabel, stateCode, city, national, query, onSearch, onBrowseTopics, onBrowsePolicyQuestions, onBrowseCauses, browseCounts }: StoryLensesProps) {
   const navigate = useNavigate()
   const { isAuthenticated, isLoading: authLoading, user, login } = useAuth()
   // Gate: a visitor must be signed in AND have a completed feed profile to use
@@ -657,9 +775,10 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // page load.)
   const needsSetup = !authLoading && !(isAuthenticated && user?.profile_completed)
   const [showSetupModal, setShowSetupModal] = useState(false)
-  // Which strip view is active: 'home' (cross-lens, personalized) or a single
-  // signal lens id. Signals narrow the Close-to-Home feed to the chosen lenses.
-  const [lensId, setLensId] = useState('home')
+  // Which strip view is active: a single signal lens id. Opens on 'contested'
+  // (the strip no longer surfaces the personalized 'home' view). A ?lens=home
+  // deep-link still resolves the home view via the fallback in `selected`.
+  const [lensId, setLensId] = useState('contested')
   const [signals, setSignals] = useState<Set<string>>(() => new Set())
   // Guards the one-time seed from saved feed config so we never clobber a
   // user's manual signal toggles with their stored defaults.
@@ -723,12 +842,19 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // nationwide, so the UI must not claim they're local ("in your area").
   const unscoped = !scopedState && !scopedCity
 
+  // Free-text filter from the hero search. Sent to the API so cards are filtered
+  // server-side across the full warehouse (not just the handful loaded here);
+  // 'auto' window widens automatically to the grain that holds matches.
+  const trimmedQuery = (query ?? '').trim()
+  const apiQuery = trimmedQuery || undefined
+  const hasQuery = !!trimmedQuery
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['lenses', national, scopedState, scopedCity, windowParam],
+    queryKey: ['lenses', national, scopedState, scopedCity, windowParam, apiQuery],
     queryFn: () =>
       api
         .get('/lenses', {
-          params: { state: scopedState, city: scopedCity, window: windowParam, limit_per_lens: 6 },
+          params: { state: scopedState, city: scopedCity, window: windowParam, limit_per_lens: 6, q: apiQuery },
         })
         .then((r) => r.data as LensesResponse),
     staleTime: 5 * 60 * 1000,
@@ -823,11 +949,11 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
         open={showSetupModal}
         onClose={() => setShowSetupModal(false)}
         isAuthenticated={isAuthenticated}
-        onSignIn={() => {
+        onSignIn={(provider) => {
           // Remember the intent across the full-page OAuth redirect so Home can
           // forward the user to /feed-setup once they return signed in.
           localStorage.setItem('feed_setup_intent', '1')
-          login('google')
+          login(provider)
         }}
         onSetUp={() => {
           setShowSetupModal(false)
@@ -1005,12 +1131,48 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
                 </button>
               )}
             </HScroll>
+            {/* Browse affordances — distinct axis from the signal filters: these
+                navigate away to dedicated browse views rather than toggling the
+                Close-to-Home feed. */}
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-[#9bb8b8]">Browse</span>
+              <button
+                type="button"
+                onClick={() => (onBrowseTopics ? onBrowseTopics() : navigate('/search?types=topics'))}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#cfe0dc] bg-[#f3f7f6] px-3 py-1.5 text-[12.5px] font-semibold text-[#1d6b5f] transition-colors hover:border-[#1a6b6b] hover:bg-[#eef5f3]"
+              >
+                <span aria-hidden>{'\u{1F5C2}'}</span>
+                Topics
+                <BrowseCount n={browseCounts?.topics} />
+              </button>
+              <button
+                type="button"
+                onClick={() => (onBrowseCauses ? onBrowseCauses() : navigate('/search?types=causes'))}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#cfe0dc] bg-[#f3f7f6] px-3 py-1.5 text-[12.5px] font-semibold text-[#1d6b5f] transition-colors hover:border-[#1a6b6b] hover:bg-[#eef5f3]"
+              >
+                <span aria-hidden>{'\u{1F49A}'}</span>
+                Causes
+                <BrowseCount n={browseCounts?.causes} />
+              </button>
+              <button
+                type="button"
+                onClick={() => (onBrowsePolicyQuestions ? onBrowsePolicyQuestions() : navigate('/policy-questions'))}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#cfe0dc] bg-[#f3f7f6] px-3 py-1.5 text-[12.5px] font-semibold text-[#1d6b5f] transition-colors hover:border-[#1a6b6b] hover:bg-[#eef5f3]"
+              >
+                <span aria-hidden>{'\u{2696}'}</span>
+                Questions
+                <BrowseCount n={browseCounts?.questions} />
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* What's happening strip — Close to Home only; hidden on a hard failure */}
-      {isHome && !errored && (
+      {/* What's happening strip — Close to Home only; hidden on a hard failure.
+          Also hidden during an active text search: it's an ambient browse cue, and
+          its counts are query-scoped, so a search would otherwise show a row of
+          zero tiles above the filtered cards. */}
+      {isHome && !errored && !hasQuery && (
         <div className="mb-4">
           <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             <h3 className="text-[15px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
@@ -1065,7 +1227,20 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
           </div>
         ) : homeFeed.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
-            {signals.size > 0 ? (
+            {hasQuery ? (
+              <>
+                No nearby stories match{' '}
+                <b className="text-[#56635e]">&ldquo;{query?.trim()}&rdquo;</b>.{' '}
+                <button
+                  type="button"
+                  onClick={() => onSearch?.(query?.trim() || '')}
+                  className="font-semibold text-[#1a6b6b] underline underline-offset-2 hover:text-[#0f2b2b]"
+                >
+                  Search everything
+                </button>{' '}
+                instead.
+              </>
+            ) : signals.size > 0 ? (
               <>
                 No decisions match those signals in this window.{' '}
                 <b className="text-[#56635e]">Clear a filter or widen the time frame.</b>
@@ -1096,14 +1271,16 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       ) : lensId === 'money' ? (
         // Money Moves -> the Follow-the-money Sankey hero (its own /api/money-flow
         // fetch, scoped) so every figure is warehouse-traced.
-        <FollowTheMoney embedded national={national} stateCode={stateCode} city={city} />
+        <FollowTheMoney embedded national={national} stateCode={stateCode} city={city} query={query} window={windowParam} />
       ) : (
         <>
           {selected.note && <LensNote note={selected.note} />}
           <SingleLensBody
             lens={selected}
             cards={sel?.cards ?? []}
-            placeholder={!!sel?.placeholder}
+            placeholder={!!sel?.placeholder && !hasQuery}
+            query={hasQuery ? query?.trim() : undefined}
+            onSearch={onSearch}
             loading={loading}
             savedKeys={savedKeys}
             onToggleSave={toggleSave}

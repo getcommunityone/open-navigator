@@ -1,0 +1,59 @@
+version: 2
+
+# public.civicsearch_topic — CivicSearch policy-topic taxonomy. One row per
+# topic_id (a FLAT topic -> keyword-cluster dictionary, NOT hierarchical).
+#
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - PK: topic_id (single-column, from the bronze source PK).
+#   - No FK: a standalone reference taxonomy with no parent entity.
+
+models:
+  - name: civicsearch_topic
+    description: >
+      public.civicsearch_topic — the CivicSearch policy-topic taxonomy CivicSearch
+      uses to tag meeting transcript snippets. One row per topic_id. A FLAT
+      topic -> keyword-cluster dictionary (NOT hierarchical): keyword_stats holds
+      the cluster's representative keyword strings as a JSONB array. Source:
+      staging.stg_civicsearch__topic (bronze.bronze_events_civicsearch_topic).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'civicsearch', 'topic']
+      contract:
+        enforced: true
+    columns:
+      - name: topic_id
+        description: "Primary key — CivicSearch topic id."
+        data_type: integer
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: name
+        description: "Human-readable topic label."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: query_id
+        description: "CivicSearch query/slug this topic was harvested under."
+        data_type: text
+      - name: keyword_stats
+        description: "JSONB array of representative keyword strings for the topic cluster."
+        data_type: jsonb
+        constraints:
+          - type: not_null
+      - name: transcript_occurrences
+        description: >
+          Count of CivicSearch transcript snippets tagged with this topic_id
+          (from staging.stg_civicsearch__snippet). 0 for topics with no snippet
+          matches (coalesced, never NULL). Lets the API rank topics by how often
+          they occur across meeting transcripts.
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null

@@ -98,15 +98,22 @@ For each contested decision, capture **every quantitative measure spoken in the 
     * `contextual` — framing / scale-setting, no clear side
     * `contested`  — the figure itself is disputed (wrong number, bad methodology, irrelevant)
 - **`reasoning_link`** is the causal claim that connects the number to the position (≤25 words) — the "so what." This is the field that makes the metric meaningful.
+- **Headline KPIs for stat cards.** Flag the **2–4 most decision-shaping figures** with `is_headline: true` — the numbers a resident would remember, that most moved the debate (largest stakes, sharpest contrast between sides, the figure each side leaned on). Everything else stays `is_headline: false`. For each flagged metric write a `display_caption`: one self-contained sentence (≤25 words) that states the figure **and** what it means, readable on its own without the rest of the analysis (e.g. "Removing fluoride would add an estimated $9.8B in health-care costs."). Leave `display_caption` null when `is_headline` is false. The caption restates the number for display; `reasoning_link` stays the argument-graph link — don't make them identical.
 - Tie each metric to a side via **`supports_view`** = the `view_label` from `competing_views` it backs (or `"dominant"` / `"counter"`).
 - **Same figure used by both sides to opposite ends** → two rows, opposite `direction`. **Figure's validity disputed** → one row, `direction: contested`, fill `contested_by_person_id` and `rebuttal`.
 - If the metric is a dollar amount already in `financial_items[]`, set `financial_item_ref` instead of re-describing it.
 - Never invent or extrapolate a figure. If a speaker gestures at a trend without a number ("crime is way up"), do not manufacture one — skip it.
 - Keep `evidence_metrics` **off** `uncontested_items[]`.
+## Timing & Speaking Time (CRITICAL — timestamps only, never invent)
+Capture **how long** the body spent on each item and **how long each speaker held the floor**, but **only from real timestamps in the input.** Many transcripts carry per-segment timestamps (timed captions / agenda hints); when they do, use them. When they do **not**, leave every timing field `null` — **do not estimate, interpolate, or fabricate a duration.** A guessed time is worse than no time (this feeds a public civic platform).
+
+1. **Per-item span — `media_anchor` on `decisions[]`** (the schema already requires it on `uncontested_items[]`; now required on `decisions[]` too). Set `timestamp_start_seconds` to when discussion of the item opened and `timestamp_end_seconds` to when it closed (after the vote). Leave `duration_seconds` `null` — it is derived downstream from start/end; only fill it if the transcript states an explicit elapsed time. Both bounds `null` when the transcript is untimed.
+2. **Per-speaker floor time — `speaker_segments[]` on `decisions[]`.** When the transcript is timestamped, emit one row per **contiguous turn** a person held the floor on this decision: `person_id` (must resolve to a `people[]` entry), `timestamp_start_seconds`, `timestamp_end_seconds`. Leave `speaking_seconds` `null` (derived from the bounds downstream) unless the transcript gives an explicit figure. Use the same person-binding cues as `held_by` ("Councilman Reed said…", a chair recognizing a speaker). If you cannot bind a turn to a specific `person_id`, set `person_id` to `null` rather than guessing. Emit `[]` when the transcript carries no usable timestamps — an empty array means "no timing available," never "no one spoke."
+3. **Coverage, not precision.** Approximate turn boundaries from the surrounding timed segments are fine; do not split a single turn into many micro-segments. Do **not** add `speaker_segments` to `uncontested_items[]` — only the item-level `media_anchor` span there.
 ## Output Instructions
 Output the JSON object matching the schema below and NOTHING ELSE.
  
-**Before you close the root JSON:** Re-scan all votes. Debated **or opposed** → `decisions[]`; truly routine with **no opposition** → `uncontested_items[]` (a unanimous tally alone does not make an item uncontested — if anyone spoke against it, it is a `decision` and needs a `counter_view`). Confirm every quantitative claim used to argue a position is captured in `evidence_metrics` with a `direction` and a `reasoning_link`.
+**Before you close the root JSON:** Re-scan all votes. Debated **or opposed** → `decisions[]`; truly routine with **no opposition** → `uncontested_items[]` (a unanimous tally alone does not make an item uncontested — if anyone spoke against it, it is a `decision` and needs a `counter_view`). Confirm every quantitative claim used to argue a position is captured in `evidence_metrics` with a `direction` and a `reasoning_link`, and that the 2–4 most decision-shaping figures are flagged `is_headline: true` with a `display_caption`.
  
 ## Uncontested item attribution (required when transcript allows)
  
@@ -220,7 +227,9 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
       "event_description": "string — Smart Brevity headline",
       "amount": 0,
       "amount_type": "string",
-      "funding_source": "string or null"
+      "funding_source": "string or null",
+      "item_date": "string or null — ISO YYYY-MM-DD the dollars are dated to (contract award / payment / budget-effective date). null if the transcript doesn't state one — NEVER guess a date.",
+      "item_date_type": "string or null — what item_date represents: e.g. award | contract | payment | due | effective | budget_year. null when item_date is null."
     }
   ],
   "places": [
@@ -291,6 +300,19 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
         "yes": "number or null",
         "no": "number or null"
       },
+      "media_anchor": {
+        "timestamp_start_seconds": "number or null — when discussion of this decision opened; null if transcript is untimed",
+        "timestamp_end_seconds": "number or null — when it closed (after the vote); null if untimed",
+        "duration_seconds": "number or null — leave null (derived from start/end downstream) unless transcript states an explicit elapsed time"
+      },
+      "speaker_segments": [
+        {
+          "person_id": "string or null — people[].person_id holding the floor; null if the turn can't be bound to a person",
+          "timestamp_start_seconds": "number or null",
+          "timestamp_end_seconds": "number or null",
+          "speaking_seconds": "number or null — leave null (derived from bounds downstream) unless transcript states an explicit figure"
+        }
+      ],
       "human_element": {
         "personal_stories": [
           {
@@ -348,6 +370,8 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
           "unit": "string or null — e.g. units/year, percent, dollars, days, trips/day, count",
           "baseline_or_comparison": "string or null — what it's measured against (e.g. 'up from $26M', 'vs prior year', 'national avg')",
           "metric_type": "one of: outcome | cost_input | trend | forecast | benchmark | threshold | other",
+          "is_headline": "boolean — true for the 2–4 most decision-shaping figures to surface as stat cards; false otherwise",
+          "display_caption": "string or null — standalone stat-card caption (≤25 words) stating the figure and what it means, readable on its own; null unless is_headline is true",
           "cited_by_person_id": "string or null — people[].person_id who introduced it",
           "supports_view": "string — competing_views view_label it backs, or 'dominant' / 'counter'",
           "direction": "one of: supports | opposes | contextual | contested",

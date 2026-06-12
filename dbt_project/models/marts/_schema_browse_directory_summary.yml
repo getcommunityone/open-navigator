@@ -1,0 +1,75 @@
+version: 2
+
+# public.browse_directory_summary — category-grain rollup for the homepage
+# "Browse" cards: per entity_type, a national row (state_code NULL) plus
+# per-state rows, with genuine distinct transcript + entity counts.
+#
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - PK: (entity_type, state_code_key). state_code_key = COALESCE(state_code,
+#     '_ALL_') is a NOT-NULL surrogate so the national row (NULL state_code) can
+#     sit in a composite PK (Postgres PK columns may not be NULL). state_code
+#     itself stays NULL for the national rollup.
+#   - No FK: entity_type / state_code are category attributes, not row references.
+
+models:
+  - name: browse_directory_summary
+    description: >
+      public.browse_directory_summary — homepage Browse-card rollup. One row per
+      (entity_type, state_code): state_code NULL = national rollup, non-null =
+      per-state. transcript_count is the GENUINE COUNT(DISTINCT video_id) (a video
+      spanning multiple states is counted once nationally); entity_count is
+      COUNT(DISTINCT entity_id). Built via GROUPING SETS over
+      intermediate.int_browse_entity_transcripts. Causes: a single national row
+      with 0 transcripts (no warehouse linkage) and entity_count = NTEE tag count.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [entity_type, state_code_key]
+    columns:
+      - name: entity_type
+        description: "Entity kind: 'place' | 'topic' | 'question' | 'cause'. Part of the PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['place', 'topic', 'question', 'cause']
+      - name: state_code
+        description: >
+          2-letter state for the per-state rollup, or NULL for the national
+          rollup row. Nullable on purpose — the API filters state_code IS NULL
+          for national totals.
+        data_type: text
+      - name: state_code_key
+        description: >
+          NOT-NULL surrogate key = COALESCE(state_code, '_ALL_'). Exists only so
+          the national (NULL state_code) row can participate in the composite PK.
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: transcript_count
+        description: >
+          COUNT(DISTINCT video_id) at this grain. National rows are genuinely
+          distinct (no cross-state double counting). 0 for causes. Never NULL.
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: entity_count
+        description: "COUNT(DISTINCT entity_id) at this grain (e.g. distinct places in the state). Never NULL."
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: sort_rank
+        description: "Dense-rank of entity_type by national transcript_count desc (default card order)."
+        data_type: integer

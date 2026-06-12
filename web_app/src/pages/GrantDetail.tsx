@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import api from '../lib/api'
-import { formatCurrency } from '../utils/formatters'
+import { formatCurrency, formatCityState } from '../utils/formatters'
 import {
   ArrowLeftIcon,
   MapPinIcon,
@@ -125,12 +125,9 @@ export default function GrantDetail() {
   const grantorName = grant.grantor_name || 'Unknown grantor'
   const granteeName = grant.grantee_name || 'Unknown grantee'
 
-  const grantorLocation = [grant.grantor_city, grant.grantor_state_code]
-    .filter(Boolean)
-    .join(', ')
+  const grantorLocation = formatCityState(grant.grantor_city, grant.grantor_state_code)
   const granteeLocation = [
-    grant.grantee_city,
-    grant.grantee_state_code,
+    formatCityState(grant.grantee_city, grant.grantee_state_code),
     grant.grantee_zip,
   ]
     .filter(Boolean)

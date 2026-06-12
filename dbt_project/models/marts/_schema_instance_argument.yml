@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: instance_argument
+    description: >
+      public.instance_argument — bridge from a question instance to each canonical
+      argument it expressed, with the local verbatim excerpt + cosine match score.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'policy-questions']
+      contract:
+        enforced: true
+    columns:
+      - name: instance_argument_id
+        description: "PK — md5(instance_id || '|' || argument_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: instance_id
+        description: "FK -> question_instance.instance_id."
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships:
+              to: ref('question_instance')
+              field: instance_id
+      - name: argument_id
+        description: "FK -> canonical_argument.argument_id."
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships:
+              to: ref('canonical_argument')
+              field: argument_id
+      - name: verbatim_excerpt
+        data_type: text
+      - name: source_view
+        description: "dominant | counter | sponsor | fiscal_note | testimony."
+        data_type: text
+      - name: match_score
+        data_type: double precision

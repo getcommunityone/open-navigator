@@ -84,6 +84,32 @@ models:
 seeds:
   open_navigator_dbt:
     +schema: seeds
+    cap_topic:
+      +column_types:
+        code: varchar
+        major_code: varchar
+    curated_policy_questions:
+      # Hand-authored "featured" policy questions unioned into public.policy_question.
+      # Pin types: topic_code/cofog_code seed empty (all-null) which dbt would
+      # otherwise infer to boolean/integer and break the text union in the mart.
+      +column_types:
+        canonical_text: text
+        primary_theme: text
+        topic_code: text
+        cofog_code: text
+        display_order: integer
+    curated_question_instance:
+      # Hand-verified real decisions attached to featured questions. Pin text
+      # types so empty cells (library rows have no state/jurisdiction/city) don't
+      # get inferred to a non-text type and break the union in stg_question_instance.
+      +column_types:
+        question_id: text
+        source_id: text
+        state_code: text
+        jurisdiction_name: text
+        city: text
+        outcome_raw: text
+        occurred_at: timestamp
 
 # Snapshots configuration
 snapshots:

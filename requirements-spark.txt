@@ -28,4 +28,6 @@
 #   sudo apt install -y openjdk-17-jre-headless     # Debian/Ubuntu
 #   brew install openjdk@17                          # macOS
 delta-spark==3.0.0
-pyspark==3.5.0
+# 3.5.2 patches CVE GHSA (Spark inadequate encryption strength); stays on the
+# 3.5 line for delta-spark 3.0.0 compatibility.
+pyspark==3.5.2

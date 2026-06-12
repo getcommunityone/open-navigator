@@ -53,6 +53,7 @@ class LensCard(BaseModel):
     date: Optional[str] = None          # occurred_at, ISO yyyy-mm-dd
     badge: Optional[str] = None         # lens label
     url: Optional[str] = None           # /decisions/{event_decision_id}
+    video_id: Optional[str] = None      # YouTube id of the meeting recording, or None
     state_code: Optional[str] = None
     state: Optional[str] = None
 
@@ -121,6 +122,31 @@ _CARD_COLS = """
     competing_views_count,
     net_dollar_impact
 """
+
+
+def video_id_subquery(alias: str) -> str:
+    """
+    Correlated-subquery SQL fragment selecting the meeting's YouTube `video_id`
+    for a decision row, parameterized by the interestingness-table alias.
+
+    item_interestingness is keyed on event_decision_id and carries no video_id;
+    the recording lives on event_meeting, reachable via
+    event_decision.c1_event_id = event_meeting.c1_event_id. This mirrors the join
+    decisions.py already uses (`m.video_id AS meeting_video_id`) but as a
+    query-time correlated subquery so it can be appended to the SELECT list
+    without disturbing existing scope params / ORDER BY / column references.
+
+    Returns NULL (-> None) when the decision has no meeting recording. PUBLIC so
+    decision_browse.py can import and reuse it. `alias` is the table/alias the
+    outer query references item_interestingness by (e.g. "ii" or the literal
+    "item_interestingness").
+    """
+    return (
+        f"(SELECT m.video_id FROM event_decision ed "
+        f"JOIN event_meeting m ON m.c1_event_id = ed.c1_event_id "
+        f"WHERE ed.event_decision_id = {alias}.event_decision_id "
+        f"AND m.video_id IS NOT NULL LIMIT 1) AS video_id"
+    )
 
 
 def _parse_json(value: Any) -> Any:
@@ -196,7 +222,11 @@ def _headline(row: Any) -> str:
 
 
 # --- per-lens stat builders -------------------------------------------------
-def _stats_contested(row: Any) -> List[LensStat]:
+# `stats_contested` (and the card primitives `build_card`, `headline`,
+# `jurisdiction_label`, `iso_date`) are intentionally PUBLIC (no leading
+# underscore) so the flat /api/decisions list endpoint in decisions.py can reuse
+# the EXACT same Contested-lens card shape without duplicating the logic.
+def stats_contested(row: Any) -> List[LensStat]:
     stats: List[LensStat] = []
     if (row["total_votes"] or 0) > 0:
         stats.append(LensStat(value=f"{row['votes_yes']}–{row['votes_no']}", label="Vote"))
@@ -237,9 +267,21 @@ def _build_card(row: Any, label: str, stats: List[LensStat]) -> LensCard:
         date=_iso_date(row["occurred_at"]),
         badge=label,
         url=f"/decisions/{row['event_decision_id']}",
+        # .get() so flag/gap cards (which build LensCard directly and never select
+        # this column) default to None; data-backed lenses select it via
+        # video_id_subquery(). asyncpg Record supports .get().
+        video_id=row.get("video_id"),
         state_code=row["state_code"],
         state=row["state"],
     )
+
+
+# Public aliases so other routes (decisions.py) can build the SAME card shape /
+# headline / jurisdiction label / ISO date without re-implementing the logic.
+build_card = _build_card
+headline = _headline
+jurisdiction_label = _jurisdiction_label
+iso_date = _iso_date
 
 
 def _build_flag_card(row: Any) -> LensCard:
@@ -345,7 +387,7 @@ _LENS_QUERY_DEFS = [
 ]
 
 _STAT_BUILDERS = {
-    "contested": _stats_contested,
+    "contested": stats_contested,
     "money": _stats_money,
     "next": _stats_next,
 }
@@ -355,14 +397,22 @@ def _build_scope(
     state_code: Optional[str],
     city: Optional[str],
     window_days: Optional[int],
+    q: Optional[str] = None,
 ) -> tuple[str, List[Any]]:
     """
-    Build the shared scope predicate (state / city / window) and its params.
+    Build the shared scope predicate (state / city / window / free-text) and its
+    params.
 
     Returns (sql_fragment, params). The fragment always starts with 'AND ...' or
     is empty, ready to splice after a lens-specific WHERE clause. Param order is
     fixed across all queries so callers can reuse the same list with a per-lens
     LIMIT appended.
+
+    `q` is an optional case-insensitive free-text filter matched (ILIKE) across the
+    card's display text — title / summary / jurisdiction / outcome / theme / city.
+    It filters real rows only (never fabricates a match) and lets the homepage hero
+    search narrow the lens cards to genuine matches across the full warehouse rather
+    than just the handful already loaded client-side.
     """
     clauses: List[str] = []
     params: List[Any] = []
@@ -376,6 +426,15 @@ def _build_scope(
     if city and city.strip():
         clauses.append(f"(city ILIKE ${idx} OR jurisdiction_name ILIKE ${idx})")
         params.append(f"%{city.strip()}%")
+        idx += 1
+
+    if q and q.strip():
+        clauses.append(
+            f"(title ILIKE ${idx} OR summary ILIKE ${idx} "
+            f"OR jurisdiction_name ILIKE ${idx} OR outcome ILIKE ${idx} "
+            f"OR primary_theme ILIKE ${idx} OR city ILIKE ${idx})"
+        )
+        params.append(f"%{q.strip()}%")
         idx += 1
 
     if window_days is not None:
@@ -396,6 +455,7 @@ async def _resolve_auto_window(
     state_code: Optional[str],
     city: Optional[str],
     min_items: int,
+    q: Optional[str] = None,
 ) -> str:
     """
     Pick the narrowest window whose total decisions in scope reaches `min_items`.
@@ -405,8 +465,12 @@ async def _resolve_auto_window(
     falling back to "all" when even all-time has fewer than `min_items`. This keeps
     the homepage feed populated for small places without forcing the user to widen
     the grain by hand.
+
+    When a free-text `q` is supplied the counts are q-filtered too, so a search
+    naturally widens to the grain that actually contains matches (a rare term falls
+    through to "all" rather than resolving to an empty recent window).
     """
-    loc_sql, loc_params = _build_scope(state_code, city, None)
+    loc_sql, loc_params = _build_scope(state_code, city, None, q)
     sql = f"""
         SELECT
             COUNT(*) FILTER (WHERE occurred_at >= current_date - 31)   AS w_month,
@@ -451,6 +515,12 @@ async def get_lenses(
     limit_per_lens: int = Query(
         6, ge=1, le=20, description="Max cards per lens (1..20, default 6)",
     ),
+    q: Optional[str] = Query(
+        None,
+        description="Free-text filter (ILIKE) over each card's display text "
+                    "(title / summary / jurisdiction / outcome / theme / city). "
+                    "Filters real rows only — lenses with no match come back empty.",
+    ),
 ) -> LensesResponse:
     """
     Homepage Story-Lenses, scoped by state / city / time window.
@@ -476,25 +546,27 @@ async def get_lenses(
                    f"(got '{requested_window}')",
         )
     state_code = normalize_state_input(state)
+    q = q.strip() if q and q.strip() else None
 
     with tracer.start_as_current_span("lenses") as span:
         span.set_attribute("lenses.state_code", state_code or "")
         span.set_attribute("lenses.city", city or "")
         span.set_attribute("lenses.window_requested", requested_window)
         span.set_attribute("lenses.limit_per_lens", limit_per_lens)
+        span.set_attribute("lenses.q", q or "")
 
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 # Resolve 'auto' to a concrete grain before building any scope.
                 if requested_window == "auto":
-                    window = await _resolve_auto_window(conn, state_code, city, min_items)
+                    window = await _resolve_auto_window(conn, state_code, city, min_items, q)
                 else:
                     window = requested_window
                 window_days = _WINDOW_DAYS[window]
                 span.set_attribute("lenses.window", window)
 
-                scope_sql, scope_params = _build_scope(state_code, city, window_days)
+                scope_sql, scope_params = _build_scope(state_code, city, window_days, q)
                 # The LIMIT placeholder is one past the scope params (same per lens).
                 limit_idx = len(scope_params) + 1
 
@@ -504,7 +576,7 @@ async def get_lenses(
                     # The three data-backed lenses.
                     for lens_id, label, where_tpl, order_by in _LENS_QUERY_DEFS:
                         sql = f"""
-                            SELECT {_CARD_COLS}
+                            SELECT {_CARD_COLS}, {video_id_subquery('item_interestingness')}
                             FROM item_interestingness
                             WHERE {where_tpl}{scope_sql}
                             ORDER BY {order_by}
@@ -555,6 +627,14 @@ async def get_lenses(
                         flag_clauses.append(f"fi.jurisdiction_name ILIKE ${fidx}")
                         flag_params.append(f"%{city.strip()}%")
                         fidx += 1
+                    if q:
+                        flag_clauses.append(
+                            f"(fi.event_description ILIKE ${fidx} "
+                            f"OR fi.jurisdiction_name ILIKE ${fidx} "
+                            f"OR fi.amount_type ILIKE ${fidx})"
+                        )
+                        flag_params.append(f"%{q}%")
+                        fidx += 1
                     flag_where = (" AND " + " AND ".join(flag_clauses)) if flag_clauses else ""
                     # Drill down to the flagged item's real MEETING record
                     # (/meetings/{event_meeting_id}), which lists the meeting's
@@ -600,6 +680,17 @@ async def get_lenses(
                     if city and city.strip():
                         gap_clauses.append(f"m.jurisdiction_name ILIKE ${gidx}")
                         gap_params.append(f"%{city.strip()}%")
+                        gidx += 1
+                    if q:
+                        # The omission text lives in gap_json; cast to text so a topic
+                        # term ("fluoride") matches an omitted line, plus the meeting's
+                        # jurisdiction / body name.
+                        gap_clauses.append(
+                            f"(m.jurisdiction_name ILIKE ${gidx} "
+                            f"OR emd.body_name ILIKE ${gidx} "
+                            f"OR c.gap_json::text ILIKE ${gidx})"
+                        )
+                        gap_params.append(f"%{q}%")
                         gidx += 1
                     gap_where = (" AND " + " AND ".join(gap_clauses)) if gap_clauses else ""
                     gap_sql = f"""

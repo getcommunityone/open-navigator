@@ -1,0 +1,75 @@
+version: 2
+
+# public.meeting_question_link — meeting <-> policy-question linkages.
+# Path: event_meeting -> event_decision (c1_event_id) -> question_instance
+# (source_type='local_decision', source_id=event_decision_id) -> policy_question.
+# Both parents (event_meeting, policy_question) have single-column PKs, so both FKs
+# are REAL enforced constraints.
+
+models:
+  - name: meeting_question_link
+    description: >
+      public.meeting_question_link — one row per (event_meeting_id, question_id).
+      Resolves the meeting -> decision -> question_instance -> policy_question path.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'meeting-browse', 'question']
+      contract:
+        enforced: true
+    columns:
+      - name: meeting_question_link_id
+        description: "Primary key — md5(event_meeting_id || '|' || question_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_meeting_id
+        description: "FK -> event_meeting.event_meeting_id (enforced)."
+        data_type: integer
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('event_meeting')
+            to_columns: [event_meeting_id]
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('event_meeting')
+                field: event_meeting_id
+      - name: question_id
+        description: "FK -> policy_question.question_id (enforced)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('policy_question')
+            to_columns: [question_id]
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('policy_question')
+                field: question_id
+      - name: question_label
+        description: "policy_question.canonical_text — the question's display text."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code (passthrough from event_meeting)."
+        data_type: varchar
+      - name: state
+        description: "Full state name (passthrough from event_meeting)."
+        data_type: text
+      - name: city
+        description: "City (passthrough from event_meeting)."
+        data_type: varchar
+      - name: jurisdiction_name
+        description: "Jurisdiction name (passthrough from event_meeting)."
+        data_type: varchar
+      - name: meeting_date
+        description: "Meeting date as stored on event_meeting (text)."
+        data_type: text

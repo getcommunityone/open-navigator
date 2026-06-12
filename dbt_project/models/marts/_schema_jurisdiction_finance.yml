@@ -1,0 +1,211 @@
+version: 2
+
+# public.jurisdiction_finance + public.jurisdiction_finance_category — government
+# finance (Census Annual Survey of State & Local Government Finances via TPC/Urban
+# Institute). Powers homepage "where your local tax money goes" + per-capita
+# "how much you pay in local taxes". One row per government (latest fiscal year).
+#
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - jurisdiction_finance.PK: jurisdiction_finance_id = md5(gov_type||'|'||id_code)
+#   - jurisdiction_finance.FK: jurisdiction_id -> jurisdictions.jurisdiction_id
+#     (NULLABLE — FIPS-geoid matched; unmatched governments stay NULL, never
+#     mis-joined). jurisdictions has a single-column PK, so this is a real FK.
+#   - jurisdiction_finance_category.PK: jurisdiction_finance_category_id
+#   - jurisdiction_finance_category.FK: jurisdiction_finance_id ->
+#     jurisdiction_finance.jurisdiction_finance_id (NOT NULL).
+
+models:
+  - name: jurisdiction_finance
+    description: >
+      public.jurisdiction_finance — one row per government (latest fiscal year)
+      with headline revenue/expenditure/tax totals and an 8-bucket
+      expenditure-by-function breakdown, from the U.S. Census Annual Survey of
+      State & Local Government Finances (TPC/Urban Institute republication,
+      bronze.bronze_jurisdiction_tpc). All dollar columns are WHOLE DOLLARS
+      (source thousands scaled x1000). The 8 exp_* category columns sum to
+      direct_expenditure; total_expenditure = direct + intergovernmental +
+      insurance_trust. Missing source values are NULL, never 0.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: jurisdiction_finance_id
+        description: "PK — md5(gov_type || '|' || id_code), stable per government."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: >
+          FK -> public.jurisdictions.jurisdiction_id. NULLABLE — matched by FIPS
+          geoid; unmatched governments (some special-district / place-fips gaps)
+          stay NULL rather than mis-join. The API can still serve those by
+          state_code + jurisdiction_name + gov_type.
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('jurisdictions')
+                field: jurisdiction_id
+      - name: geoid
+        description: "Census FIPS geoid used for the jurisdictions match (state_fips[+place|+county])."
+        data_type: text
+      - name: tpc_id_code
+        description: "Source TPC government identifier (natural key)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction_name
+        description: "Cleaned, Title-cased government name (Census gov-type suffix stripped)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: gov_type
+        description: "state | county | city (special_district/township/school_district excluded from this serving mart)."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['state', 'county', 'city']
+      - name: state_code
+        description: "2-letter postal state code."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: state
+        description: "Full state name (state_code_to_name macro)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: fiscal_year
+        description: "Fiscal year of the observation (latest available per government). Integer per CLAUDE.md calendar-year rule."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: population
+        description: "Reported population for the fiscal year; NULL when source omits it. Denominator for taxes_per_capita."
+        data_type: bigint
+      - name: total_revenue
+        description: "Total revenue, whole dollars. NULL if missing."
+        data_type: bigint
+      - name: total_expenditure
+        description: "Total expenditure (direct + intergovernmental + insurance trust), whole dollars."
+        data_type: bigint
+      - name: direct_expenditure
+        description: "Direct expenditure, whole dollars. Denominator of the 8 exp_* categories (they sum to this)."
+        data_type: bigint
+      - name: intergovernmental_expenditure
+        description: "Intergovernmental expenditure (aid paid to other governments), whole dollars."
+        data_type: bigint
+      - name: insurance_trust_expenditure
+        description: "Insurance-trust (retirement/unemployment benefit) expenditure, whole dollars."
+        data_type: bigint
+      - name: total_taxes
+        description: "Total taxes collected, whole dollars."
+        data_type: bigint
+      - name: property_tax
+        description: "Property tax, whole dollars."
+        data_type: bigint
+      - name: sales_tax
+        description: "General + selective sales tax, whole dollars."
+        data_type: bigint
+      - name: other_taxes
+        description: "total_taxes - property_tax - sales_tax (income/license/etc.), clamped >= 0, whole dollars."
+        data_type: bigint
+      - name: taxes_per_capita
+        description: "total_taxes / population, whole dollars/person. NULL when population missing/0."
+        data_type: numeric
+      - name: exp_education
+        description: "Education + libraries expenditure, whole dollars. NULL if no education data."
+        data_type: bigint
+      - name: exp_public_safety
+        description: "Police + fire + correction + protective inspection, whole dollars."
+        data_type: bigint
+      - name: exp_infrastructure_highways
+        description: "Highways + air/water transport + parking, whole dollars."
+        data_type: bigint
+      - name: exp_parks_recreation
+        description: "Parks & recreation, whole dollars."
+        data_type: bigint
+      - name: exp_health_welfare
+        description: "Health + hospitals + public welfare, whole dollars."
+        data_type: bigint
+      - name: exp_utilities
+        description: "Water/electric/gas/transit utilities + sewerage + solid-waste, whole dollars."
+        data_type: bigint
+      - name: exp_administration_government
+        description: "Financial admin + judicial + general public buildings + general gov NEC + central staff + employment-security admin, whole dollars."
+        data_type: bigint
+      - name: exp_other_debt
+        description: "Interest on debt + housing/community dev + natural resources + misc commercial + liquor stores + transit subsidies + uncategorized direct-expenditure residual, whole dollars."
+        data_type: bigint
+
+  - name: jurisdiction_finance_category
+    description: >
+      public.jurisdiction_finance_category — tidy/long companion to
+      jurisdiction_finance: one row per (government x expenditure category) with
+      amount (whole dollars) and share_pct of direct_expenditure. NULL-amount
+      categories are omitted (no zero-fill). Shares per government sum to ~100.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: jurisdiction_finance_category_id
+        description: "PK — md5(jurisdiction_finance_id || '|' || category_code)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: jurisdiction_finance_id
+        description: "FK -> public.jurisdiction_finance.jurisdiction_finance_id. NOT NULL."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('jurisdiction_finance')
+            to_columns: [jurisdiction_finance_id]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('jurisdiction_finance')
+                field: jurisdiction_finance_id
+      - name: category_code
+        description: "Stable machine code for the category."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['education', 'public_safety', 'infrastructure_highways', 'parks_recreation', 'health_welfare', 'utilities', 'administration_government', 'other_debt']
+      - name: category
+        description: "Human-readable category label."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: amount
+        description: "Expenditure for this category, whole dollars (NOT NULL — null categories are omitted)."
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: share_pct
+        description: "amount / direct_expenditure * 100 (0..100). NULL when direct_expenditure NULL/0."
+        data_type: numeric

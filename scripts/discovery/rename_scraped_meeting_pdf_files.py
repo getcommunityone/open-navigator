@@ -29,8 +29,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 _root = Path(__file__).resolve().parents[2]
-if str(_root) not in sys.path:
-    sys.path.insert(0, str(_root))
+for _p in (str(_root), str(_root / "packages" / "core-lib" / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from scrapers.discovery.meeting_document_naming import (
     allocate_unique_pdf_path,
@@ -39,7 +40,7 @@ from scrapers.discovery.meeting_document_naming import (
     pick_meeting_date,
 )
 from scripts.discovery.scraped_meetings_crawl_html_pdfs import build_pdf_rows_from_disk_and_crawl_html
-from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
+from core_lib.gdrive_paths import resolve_scraped_meetings_output_root
 
 
 def _iter_manifests(

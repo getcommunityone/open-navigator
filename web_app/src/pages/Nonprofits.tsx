@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { formatCurrency } from '../utils/formatters'
+import { formatCurrency, formatCityState } from '../utils/formatters'
 
 interface Nonprofit {
   source: string
@@ -221,7 +221,7 @@ export default function Nonprofits() {
                           {org.name}
                         </h3>
                         <p className="text-sm text-gray-500">
-                          EIN: {org.ein} • {org.city}, {org.state}
+                          EIN: {org.ein} • {formatCityState(org.city, org.state)}
                         </p>
                       </div>
                     </div>

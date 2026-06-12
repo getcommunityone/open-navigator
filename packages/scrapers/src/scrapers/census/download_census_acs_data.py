@@ -81,6 +81,7 @@ DEFAULT_DOWNLOAD_TABLES: tuple[str, ...] = (
     "B25064",
     "B25071",
     "B25077",
+    "B25103",
     "B27001",
     "B27010",
     "S0801",

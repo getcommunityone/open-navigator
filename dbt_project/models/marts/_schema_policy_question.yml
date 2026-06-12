@@ -1,0 +1,103 @@
+version: 2
+
+models:
+  - name: policy_question
+    description: >
+      public.policy_question — registry of recurring, jurisdiction-neutral policy
+      questions minted by clustering decisions (Phase 2: + bills) within a coarse
+      theme and labeling each cluster. Rollup counts are denormalized in for the
+      comparative API. PK is contract-enforced; topic_code -> cap_topic is a
+      relationships(warn) test (the seed only carries CAP major topics today).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'policy-questions']
+      contract:
+        enforced: true
+    columns:
+      - name: question_id
+        description: "PK — md5(coarse_theme || '|' || canonical_text)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: canonical_text
+        description: "The policy question phrased neutrally (or a heuristic label pre-LLM)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: topic_code
+        description: "CAP subtopic/major code; null until the LLM labeler assigns it."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('cap_topic')
+              field: code
+              config:
+                severity: warn
+      - name: primary_theme
+        description: "Coarse COFOG theme bucket used as the clustering partition."
+        data_type: text
+      - name: cofog_code
+        data_type: text
+      - name: scope
+        description: "local | state | both."
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: status
+        data_type: text
+      - name: first_seen
+        data_type: timestamp with time zone
+      - name: member_count
+        data_type: integer
+      - name: instances_total
+        data_type: integer
+      - name: decisions_total
+        data_type: integer
+      - name: bills_total
+        data_type: integer
+      - name: jurisdictions_total
+        data_type: integer
+      - name: jurisdictions_approved
+        data_type: integer
+      - name: states_total
+        data_type: integer
+      - name: approved_count
+        data_type: integer
+      - name: denied_count
+        data_type: integer
+      - name: deferred_count
+        data_type: integer
+      - name: other_count
+        data_type: integer
+      - name: model_name
+        data_type: text
+      - name: is_featured
+        description: >
+          true for hand-authored editorial "featured" questions (from the
+          curated_policy_questions seed); false for LLM-clustered questions.
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: display_order
+        description: >
+          1-based sort order for featured questions on the home page / search;
+          null for clustered questions.
+        data_type: integer
+      - name: money_total
+        description: >
+          Real dollars moved by this question's local decisions: sum of
+          item_interestingness.net_dollar_impact (already per-decision, max-not-
+          summed) over the linked event_decisions. Bills carry no dollar impact.
+        data_type: numeric
+      - name: money_share
+        description: >
+          money_total as a percent of ALL decisions' dollar impact (grand
+          denominator over item_interestingness) — "share of all decisions".
+        data_type: double precision
+      - name: talk_share
+        description: >
+          instances_total as a percent of the total count of all civic decisions
+          — the question's slice of how often local government acts.
+        data_type: double precision

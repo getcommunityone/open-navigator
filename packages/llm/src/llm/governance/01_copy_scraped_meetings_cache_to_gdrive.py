@@ -4,7 +4,7 @@ Copy scraped-meetings **inventory** folders from the local cache to Google Drive
 
 **Default (no flags):** hackathon inventory only — four folders under
 ``data/cache/scraped_meetings/`` (see ``HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL`` in
-``scripts/utils/gdrive_paths.py``). Tuscaloosa county/city + Big Timber county/city.
+``core_lib.gdrive_paths``). Tuscaloosa county/city + Big Timber county/city.
 
 Use ``--all-cache`` to copy the **entire** ``scraped_meetings`` tree instead of those four.
 
@@ -14,7 +14,7 @@ Run from repo root::
   python packages/llm/src/llm/governance/01_copy_scraped_meetings_cache_to_gdrive.py
 
 **Destination** defaults to ``<My Drive>/CommunityOne/hackathons/2026_Gemma_4_Good/01_raw_inputs`` via
-``scraped_meetings_gdrive_mirror_root()`` in ``scripts/utils/gdrive_paths.py`` (env:
+``scraped_meetings_gdrive_mirror_root()`` in ``core_lib.gdrive_paths`` (env:
 ``LOG_GDRIVE_MOUNT``, ``SCRAPED_MEETINGS_GDRIVE_MIRROR``).
 
 Configuration (env, optional):
@@ -36,10 +36,14 @@ import sys
 from pathlib import Path
 
 _repo_root = Path(__file__).resolve().parents[5]
-if str(_repo_root) not in sys.path:
-    sys.path.insert(0, str(_repo_root))
+# Allow running this file directly (``python packages/llm/.../01_...py``) without the
+# editable workspace install: add ``packages/core-lib/src`` so ``core_lib`` resolves.
+_core_lib_src = _repo_root / "packages" / "core-lib" / "src"
+for _p in (str(_repo_root), str(_core_lib_src)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-from scripts.utils.gdrive_paths import (  # noqa: E402
+from core_lib.gdrive_paths import (  # noqa: E402
     HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL,
     SCRAPED_MEETINGS_GDRIVE_REL,
     hackathon_scraped_meetings_inventory_dirs,

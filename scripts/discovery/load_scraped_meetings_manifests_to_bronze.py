@@ -39,8 +39,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import parse_qs, unquote_plus, urlparse, urlunparse
 
 _root = Path(__file__).resolve().parents[2]
-if str(_root) not in sys.path:
-    sys.path.insert(0, str(_root))
+for _p in (str(_root), str(_root / "packages" / "core-lib" / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from loguru import logger
 
@@ -58,7 +59,7 @@ from scrapers.discovery.meeting_document_naming import (
     pdf_meeting_title as _pdf_meeting_title,
     pick_meeting_date as _pick_meeting_date,
 )
-from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
+from core_lib.gdrive_paths import resolve_scraped_meetings_output_root
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _norm_http_url
 
 from core_lib.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
