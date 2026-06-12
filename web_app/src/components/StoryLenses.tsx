@@ -84,8 +84,10 @@ const TIME_OPTIONS: { d: number; label: string }[] = [
 ]
 
 // "Close to Home" is the cross-lens, personalized landing view; the five signal
-// lenses (LENSES, above) are the editorial angles served by /api/lenses. The
-// strip is just navigation between these views.
+// lenses (LENSES, above) are the editorial angles served by /api/lenses. It is
+// kept as the fallback for `selected`, but is intentionally NOT shown in the
+// strip — the strip lists only the signal lenses and opens on Contested, the way
+// the navigation worked before the personalized "FOR YOU" card was added.
 const HOME_LENS: Lens = {
   id: 'home',
   em: '\u{1F3E0}',
@@ -93,7 +95,7 @@ const HOME_LENS: Lens = {
   desc: 'Near you, on what you care about',
   clr: '#1a6b6b',
 }
-const STRIP_LENSES: Lens[] = [HOME_LENS, ...LENSES]
+const STRIP_LENSES: Lens[] = [...LENSES]
 
 // Value-frame "lenses" — how you READ a decision (Family First, Faith, …), a
 // distinct axis from the signal tiles above. There is no card-level theme/topic
@@ -702,9 +704,10 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // page load.)
   const needsSetup = !authLoading && !(isAuthenticated && user?.profile_completed)
   const [showSetupModal, setShowSetupModal] = useState(false)
-  // Which strip view is active: 'home' (cross-lens, personalized) or a single
-  // signal lens id. Signals narrow the Close-to-Home feed to the chosen lenses.
-  const [lensId, setLensId] = useState('home')
+  // Which strip view is active: a single signal lens id. Opens on 'contested'
+  // (the strip no longer surfaces the personalized 'home' view). A ?lens=home
+  // deep-link still resolves the home view via the fallback in `selected`.
+  const [lensId, setLensId] = useState('contested')
   const [signals, setSignals] = useState<Set<string>>(() => new Set())
   // Guards the one-time seed from saved feed config so we never clobber a
   // user's manual signal toggles with their stored defaults.

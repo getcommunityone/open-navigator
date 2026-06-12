@@ -18,7 +18,7 @@
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MoneyGameModal from '../components/MoneyGameModal'
@@ -27,6 +27,7 @@ import { fetchPolicyQuestions } from '../api/policyQuestions'
 import { fetchTopics } from '../api/topics'
 import { fetchTrendingCauses } from '../api/trending'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
+import AddressLookup from '../components/AddressLookup'
 import SiteHeader from '../components/SiteHeader'
 
 const TEAL = '#0d9488'
@@ -48,6 +49,7 @@ html { scroll-behavior: smooth; }
 .v9 .v9-navlink:hover { color: ${TEAL_DARK}; }
 .v9 .v9-navlink:hover::after { width: 100%; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 760px) {
   .v9 .v9-nav { display: none; }
   .v9 .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
@@ -68,18 +70,6 @@ const SIGNAL_META: Record<
   soon: { name: 'Moving Fast', icon: '⚡', color: '#d97706', bg: '#fffbeb', desc: 'Items moving quicker than the usual process' },
   next: { name: 'Watch Next', icon: '👀', color: '#2563eb', bg: '#eff6ff', desc: 'Upcoming votes worth keeping on your radar' },
 }
-// Display order for the "Explore by signal" rail.
-const SIGNAL_ORDER = ['contested', 'money', 'flags', 'soon', 'next']
-
-const TOPICS = [
-  '👨‍👩‍👧 Family First',
-  '⛪ Faith & Community',
-  '🏛️ Charitable Impact',
-  '🏘️ Neighborhood Life',
-  '🎓 Education',
-  '💼 Local Economy',
-]
-
 const WHEN: { label: string; window: string }[] = [
   { label: 'Past month', window: 'month' },
   { label: 'Past 3 months', window: 'quarter' },
@@ -151,17 +141,6 @@ const SUGGEST_ICON: Record<string, string> = {
 }
 
 // ── Small pieces ──────────────────────────────────────────────────────────
-function MonoLabel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <span
-      className="font-mono-x"
-      style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#78716c', fontWeight: 500, ...style }}
-    >
-      {children}
-    </span>
-  )
-}
-
 function Chip({
   active,
   children,
@@ -294,107 +273,79 @@ function MoneyHookBanner() {
   )
 }
 
-// Humanize a primary_theme code (e.g. "public_safety") into display text. UI
-// formatting only — no data is invented.
-function humanizeTheme(theme: string | null | undefined): string {
-  if (!theme || theme === '__unthemed__') return ''
-  return theme
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
+// ── Step 0: Why should I care? (Personal Impact Assessment) ─────────────────
+// The "before you do anything, here's why it matters to YOU" framing that opens
+// the How-it-works section. Both CTAs open the REAL <MoneyGameModal>: the cost
+// estimator lands on the bill stage, the income-trends button jumps straight to
+// the Opportunity Atlas (grandkids) mobility view. No figures are shown here —
+// every number lives behind the modal, sourced from the warehouse.
+function StepZeroImpact() {
+  const { location } = useLocationContext()
+  const [modal, setModal] = useState<null | 'estimate' | 'grandkids'>(null)
 
-// ── Big questions in your community (REAL curated policy-question registry) ──
-// The four featured cross-jurisdiction policy questions. Each links to its real
-// detail page. These curated rows carry no reach rollups (instances/jurisdiction
-// totals are 0), so we deliberately show NO "N jurisdictions" hint — just the
-// question and its theme. Empty/error → render nothing (never a placeholder).
-function BigQuestions() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['home-v9-featured-questions'],
-    queryFn: () => fetchPolicyQuestions({ featured: true }),
-    staleTime: 30 * 60 * 1000,
-  })
-
-  const questions = (data ?? []).filter((q) => !!q.canonical_text)
-  if (isLoading || isError || questions.length === 0) return null
+  // Human label for the intro line, derived from the saved place — never faked.
+  const placeLabel =
+    location?.city && location?.county
+      ? `${location.city} and ${location.county}`
+      : location?.city || location?.county || location?.state || 'your community'
 
   return (
-    <section style={{ marginTop: 30 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 20 }}>⚖️</span>
-        <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-          Big questions in your community
-        </h2>
-        <span style={{ fontSize: 14, color: '#78716c' }}>
-          The debates playing out in town halls across the country.
-        </span>
+    <div
+      style={{
+        background: '#f0fdfa',
+        border: '1px solid #99f6e4',
+        borderRadius: 18,
+        padding: 'clamp(20px, 3vw, 30px)',
+        marginBottom: 32,
+        maxWidth: 760,
+        marginLeft: 'auto',
+        marginRight: 'auto',
+        textAlign: 'center',
+      }}
+    >
+      <div className="font-display" style={{ fontSize: 'clamp(18px, 2.3vw, 21px)', fontWeight: 800, color: INK }}>
+        Step 0 · Why should I care? <span style={{ color: TEAL_DARK }}>Personal Impact</span>
       </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: 12,
-          marginTop: 12,
-        }}
-      >
-        {questions.map((q) => {
-          const theme = humanizeTheme(q.primary_theme)
-          return (
-            <Link
-              key={q.question_id}
-              to={`/policy-question/${q.question_id}`}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-                textDecoration: 'none',
-                background: '#fff',
-                border: '1px solid #e7e5e4',
-                borderRadius: 14,
-                padding: '16px 18px',
-                boxShadow: '0 1px 2px rgba(28,25,23,0.05)',
-              }}
-            >
-              {theme && (
-                <span
-                  className="font-mono-x"
-                  style={{
-                    alignSelf: 'flex-start',
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    color: TEAL_DARK,
-                    background: '#f0fdfa',
-                    border: '1px solid #ccfbf1',
-                    borderRadius: 999,
-                    padding: '2px 9px',
-                  }}
-                >
-                  {theme}
-                </span>
-              )}
-              <span
-                className="font-display"
-                style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.3, color: INK }}
-              >
-                {q.canonical_text}
-              </span>
-              <span style={{ color: TEAL_DARK, fontWeight: 700, fontSize: 14, marginTop: 'auto' }}>
-                See both sides →
-              </span>
-            </Link>
-          )
-        })}
+      <p style={{ fontSize: 14.5, color: '#44403c', lineHeight: 1.55, margin: '10px auto 0', maxWidth: 560 }}>
+        Local decisions shape your taxes, schools, safety, and your family&apos;s future — whether you engage or not.
+        Doing nothing is a choice too, with real consequences for you and your children.
+      </p>
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 18 }}>
+        <button
+          onClick={() => setModal('estimate')}
+          style={{ background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '11px 22px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          💵 Try the cost estimator
+        </button>
+        <button
+          onClick={() => setModal('grandkids')}
+          style={{ background: '#fff', color: TEAL_DARK, border: '1px solid #99f6e4', borderRadius: 999, padding: '11px 22px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          📈 View income mobility trends
+        </button>
       </div>
-    </section>
+
+      <MoneyGameModal
+        open={modal !== null}
+        onClose={() => setModal(null)}
+        stateCode={location?.state}
+        city={location?.city || undefined}
+        county={location?.county || undefined}
+        requestedLabel={location?.city || location?.county || location?.state || undefined}
+        initialStage={modal === 'grandkids' ? 'grandkids' : 'estimate'}
+      />
+
+      <p style={{ fontSize: 12.5, color: '#57534e', marginTop: 14 }}>
+        Scoped to {placeLabel} once you confirm where home is.
+      </p>
+    </div>
   )
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────
 export default function HomeV9() {
   const navigate = useNavigate()
-  const { location } = useLocationContext()
+  const { location, setLocation } = useLocationContext()
   const locState = location?.state || undefined
   const locCity = location?.city || undefined
 
@@ -408,6 +359,9 @@ export default function HomeV9() {
   const [level, setLevel] = useState<Level>(naturalLevel)
   const levelPicked = useRef(false)
   const [levelOpen, setLevelOpen] = useState(false)
+  // Inline "change location" picker inside the level menu (restores the ability
+  // to switch to a different city/place, not just City/State/National scope).
+  const [changingLoc, setChangingLoc] = useState(false)
   const levelRef = useRef<HTMLButtonElement>(null)
   const levelMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -420,6 +374,7 @@ export default function HomeV9() {
       const t = e.target as Node
       if (levelRef.current?.contains(t) || levelMenuRef.current?.contains(t)) return
       setLevelOpen(false)
+      setChangingLoc(false)
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
@@ -441,16 +396,6 @@ export default function HomeV9() {
         ? locState
         : locCity || location?.county || locState
 
-  // Next-broader level for the "expand search area" affordance shown when a
-  // scoped feed comes back empty. `null` once already nationwide.
-  const broaderLevel: { value: Level; label: string } | null =
-    level === 'city'
-      ? locState
-        ? { value: 'state', label: `all of ${locState}` }
-        : { value: 'national', label: 'nationwide' }
-      : level === 'state'
-        ? { value: 'national', label: 'nationwide' }
-        : null
   const levelOptions: { value: Level; label: string; disabled: boolean }[] = [
     { value: 'city', label: locCity ? `City · ${locCity}` : 'City', disabled: !locCity },
     { value: 'state', label: locState ? `State · ${locState}` : 'State', disabled: !locState },
@@ -484,9 +429,6 @@ export default function HomeV9() {
     return () => clearTimeout(t)
   }, [query])
   const [when, setWhen] = useState(WHEN[0])
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const [activeTopics, setActiveTopics] = useState<string[]>([TOPICS[0]])
-  const [activeSignals, setActiveSignals] = useState<string[]>(['contested'])
   const [showStrategicPlan, setShowStrategicPlan] = useState(false)
 
   // When arriving from another page via `/#how-it-works` (shared header nav),
@@ -500,9 +442,6 @@ export default function HomeV9() {
     }
   }, [])
 
-  const toggle = (list: string[], setList: (v: string[]) => void, item: string) =>
-    setList(list.includes(item) ? list.filter((x) => x !== item) : [...list, item])
-
   // ── Real data ──
   const { data: lensesData } = useQuery<LensesResp>({
     queryKey: ['home-v9-lenses', national, stateCode, city, when.window],
@@ -515,20 +454,24 @@ export default function HomeV9() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: directoryCounts } = useQuery<{ topics: number | null; causes: number | null; questions: number | null }>({
+  const { data: directoryCounts } = useQuery<{ topics: number | null; causes: number | null; questions: number | null; places: number | null }>({
     queryKey: ['home-v9-directory-counts', stateCode, national],
     queryFn: async () => {
-      const params: Record<string, string> = { types: 'topics,causes', limit: '1' }
+      const params: Record<string, string> = { types: 'topics,causes,jurisdictions', limit: '1' }
       if (!national && stateCode) params.state = stateCode
       const [searchRes, questions] = await Promise.all([
         api.get('/search/', { params }).then((r) => r.data).catch(() => null),
-        fetchPolicyQuestions().catch(() => [] as unknown[]),
+        // For now we surface only the curated/pinned "big questions" everywhere,
+        // so the Browse-questions count reflects the featured set, not the full
+        // clustered registry. Revert to fetchPolicyQuestions() to show all again.
+        fetchPolicyQuestions({ featured: true }).catch(() => [] as unknown[]),
       ])
       const tt = (searchRes?.type_totals ?? {}) as Record<string, number | undefined>
       return {
         topics: tt.topics ?? null,
         causes: tt.causes ?? null,
         questions: Array.isArray(questions) ? questions.length : null,
+        places: tt.jurisdictions ?? null,
       }
     },
     staleTime: 5 * 60 * 1000,
@@ -537,7 +480,7 @@ export default function HomeV9() {
   // ── Browse-pill flyout state + top-item previews (REAL data only) ──
   // Exactly one flyout open at a time. On touch devices the pill toggles on
   // click; on hover-capable devices it opens on mouseenter.
-  const [browseOpen, setBrowseOpen] = useState<'topics' | 'causes' | 'questions' | null>(null)
+  const [browseOpen, setBrowseOpen] = useState<'topics' | 'causes' | 'questions' | 'places' | null>(null)
   const [isTouch] = useState(
     () => typeof window !== 'undefined' && !!window.matchMedia?.('(hover: none)').matches,
   )
@@ -553,6 +496,33 @@ export default function HomeV9() {
   const { data: browseCauses } = useQuery({
     queryKey: ['home-v9-browse-causes'],
     queryFn: () => fetchTrendingCauses({ source: 'everyorg', limit: 8 }),
+    staleTime: 30 * 60 * 1000,
+  })
+
+  // Top ~5 places (jurisdictions) for the flyout preview. Scoped to the
+  // selected state when one is active; otherwise a national sample. Pulls real
+  // rows from /api/search (types=jurisdictions) — no fabricated places.
+  const { data: browsePlaces } = useQuery<
+    { geoid: string; title: string; subtitle: string }[]
+  >({
+    queryKey: ['home-v9-browse-places', stateCode, national],
+    queryFn: async () => {
+      const params: Record<string, string | number> = { types: 'jurisdictions', limit: 8 }
+      if (!national && stateCode) params.state = stateCode
+      const res = await api.get('/search/', { params }).then((r) => r.data).catch(() => null)
+      const rows = (res?.results?.jurisdictions ?? []) as Array<{
+        title?: string
+        subtitle?: string
+        metadata?: { geoid?: string }
+      }>
+      return rows
+        .filter((r) => !!r.metadata?.geoid && !!r.title)
+        .map((r) => ({
+          geoid: r.metadata!.geoid as string,
+          title: r.title as string,
+          subtitle: r.subtitle ?? '',
+        }))
+    },
     staleTime: 30 * 60 * 1000,
   })
 
@@ -641,20 +611,6 @@ export default function HomeV9() {
     return m
   }, [lenses])
 
-  // Close-to-Home feed: a flat mix of real cards across lenses, filtered to the
-  // active signal selection when the user picks any.
-  const feed = useMemo(() => {
-    const picked = activeSignals.length > 0 ? activeSignals : SIGNAL_ORDER
-    const out: { lensId: string; card: LensCard }[] = []
-    for (const id of picked) {
-      const l = lensById[id]
-      if (l && !l.placeholder) for (const c of l.cards.slice(0, 2)) out.push({ lensId: id, card: c })
-    }
-    return out.slice(0, 6)
-  }, [lensById, activeSignals])
-
-  const activeCount = activeTopics.length + activeSignals.length
-
   const runSearch = (q?: string) => {
     const term = (q ?? query).trim()
     setSuggestOpen(false)
@@ -683,6 +639,10 @@ export default function HomeV9() {
       <SiteHeader />
 
       <main style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
+        {/* ── Money hook (compact teal banner; REAL geocode + REAL modal) — sits
+            above the search hero ── */}
+        <MoneyHookBanner />
+
         {/* ── Hero: thesis + search + trending ── */}
         <section style={{ padding: '44px 0 6px', textAlign: 'center' }}>
           <h1
@@ -952,20 +912,66 @@ export default function HomeV9() {
                     </button>
                   )
                 })}
-                {!locState && (
-                  <div style={{ borderTop: '1px solid #f5f5f4', marginTop: 4, paddingTop: 4 }}>
+                <div style={{ borderTop: '1px solid #f5f5f4', marginTop: 4, paddingTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLevelOpen(false)
+                      setChangingLoc(true)
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderRadius: 9, padding: '9px 12px', fontSize: 13.5, fontWeight: 600, color: TEAL_DARK, cursor: 'pointer', fontFamily: 'inherit' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f4')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                  >
+                    📍 {locState ? 'Change location' : 'Set your location'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Change-location popup — the centered modal the home page used to
+                use. Wraps the real geocoder (AddressLookup → api/routes/geocode.py
+                → Nominatim). On a hit we swap the saved location and let `level`
+                recompute to its natural scope for the new place. */}
+            {changingLoc && (
+              <div
+                className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+                onClick={() => setChangingLoc(false)}
+                style={{ animation: 'fadeIn 150ms ease' }}
+              >
+                <div
+                  className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold" style={{ color: TEAL_DARK, fontFamily: 'Playfair Display, Georgia, serif' }}>
+                      {locState ? 'Change your location' : 'Find your community'}
+                    </h2>
                     <button
                       type="button"
-                      onClick={() => {
-                        setLevelOpen(false)
-                        navigate('/feed-setup')
-                      }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderRadius: 9, padding: '9px 12px', fontSize: 13.5, fontWeight: 600, color: TEAL_DARK, cursor: 'pointer', fontFamily: 'inherit' }}
+                      onClick={() => setChangingLoc(false)}
+                      aria-label="Close"
+                      style={{ padding: 8, borderRadius: 10, border: 'none', background: 'none', color: '#78716c', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f4')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                     >
-                      📍 Set your location
+                      ✕
                     </button>
                   </div>
-                )}
+                  <p className="text-gray-600 mb-6">
+                    {locState
+                      ? `Currently set to ${[locCity, locState].filter(Boolean).join(', ')}. Enter a new address to change your location.`
+                      : 'Enter your address to see the meetings, votes, spending, and debates near you.'}
+                  </p>
+                  <AddressLookup
+                    initialAddress={location?.address || ''}
+                    onLocationFound={(loc) => {
+                      setLocation(loc)
+                      levelPicked.current = false
+                      setChangingLoc(false)
+                    }}
+                  />
+                </div>
               </div>
             )}
 
@@ -1102,7 +1108,7 @@ export default function HomeV9() {
                 name: 'Browse causes',
                 icon: '💚',
                 count: directoryCounts?.causes ?? null,
-                to: '/search?types=causes',
+                to: '/browse-causes',
                 seeAllLabel: 'causes',
                 desc: 'Local nonprofits, grants & charitable work.',
                 header: 'Top causes',
@@ -1110,7 +1116,25 @@ export default function HomeV9() {
                   key: `${c.name}-${i}`,
                   label: c.name,
                   icon: c.icon,
-                  onSelect: () => navigate('/search?types=causes', { state: { fromHome: true } }),
+                  onSelect: () => navigate('/browse-causes', { state: { fromHome: true } }),
+                })),
+              },
+              {
+                key: 'places' as const,
+                name: 'Browse places',
+                icon: '📍',
+                count: directoryCounts?.places ?? null,
+                to: '/jurisdictions',
+                seeAllLabel: 'places',
+                desc: 'Cities, counties & districts with public records.',
+                header: 'Top places',
+                items: (browsePlaces ?? []).slice(0, 4).map((p) => ({
+                  key: p.geoid,
+                  label: p.title,
+                  onSelect: () =>
+                    navigate(`/jurisdiction/${encodeURIComponent(p.geoid)}/meetings`, {
+                      state: { fromHome: true },
+                    }),
                 })),
               },
             ]).map((b) => {
@@ -1223,15 +1247,85 @@ export default function HomeV9() {
 
         </section>
 
-        {/* ── Money hook (compact teal banner; REAL geocode + REAL modal) ── */}
-        <MoneyHookBanner />
+        {/* ── Contested — one dedicated lens section (REAL lens cards). Carries
+            the single shared time-window selector, which drives both the lenses
+            query and Money Moves below. ── */}
+        {(() => {
+          const id = 'contested'
+          const meta = SIGNAL_META[id]
+          const lens = lensById[id]
+          const cards = lens && !lens.placeholder ? lens.cards.slice(0, 6) : []
+          return (
+            <section style={{ marginTop: 30 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: meta.bg, display: 'grid', placeItems: 'center', fontSize: 21 }}>
+                  {meta.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: meta.color }}>
+                    {meta.name}
+                  </h2>
+                  <div style={{ fontSize: 14, color: '#78716c' }}>{meta.desc} · 📍 {placeLabel}</div>
+                </div>
+                {/* The single shared time-window selector. */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
+                  {WHEN.map((w) => (
+                    <Chip key={w.label} active={when.label === w.label} onClick={() => setWhen(w)}>
+                      {w.label}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
 
-        {/* ── Big questions in your community (REAL featured policy questions) ── */}
-        <BigQuestions />
+              <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, marginTop: 16, overflow: 'hidden' }}>
+                {cards.length > 0 ? (
+                  cards.map((card, i) => <StoryRow key={i} card={card} lensId={id} first={i === 0} />)
+                ) : (
+                  <div style={{ padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
+                    No {meta.name} activity in {placeLabel} for {when.label.toLowerCase()}.
+                  </div>
+                )}
+              </div>
+            </section>
+          )
+        })()}
+
+        {/* ── Raised Eyebrows — dedicated lens section (REAL lens cards) ── */}
+        {(() => {
+          const id = 'flags'
+          const meta = SIGNAL_META[id]
+          const lens = lensById[id]
+          const cards = lens && !lens.placeholder ? lens.cards.slice(0, 6) : []
+          return (
+            <section style={{ marginTop: 30 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: meta.bg, display: 'grid', placeItems: 'center', fontSize: 21 }}>
+                  {meta.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: meta.color }}>
+                    {meta.name}
+                  </h2>
+                  <div style={{ fontSize: 14, color: '#78716c' }}>{meta.desc} · 📍 {placeLabel}</div>
+                </div>
+              </div>
+
+              <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, marginTop: 16, overflow: 'hidden' }}>
+                {cards.length > 0 ? (
+                  cards.map((card, i) => <StoryRow key={i} card={card} lensId={id} first={i === 0} />)
+                ) : (
+                  <div style={{ padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
+                    No {meta.name} activity in {placeLabel} for {when.label.toLowerCase()}.
+                  </div>
+                )}
+              </div>
+            </section>
+          )
+        })()}
 
         {/* ── Money Moves — the "follow the money" flowing Sankey (REAL
             /api/money-flow: public spending / grants / nonprofit economy) ── */}
-        <section style={{ marginTop: 30 }}>
+        <section style={{ marginTop: 30, paddingBottom: 44 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 20 }}>💵</span>
             <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#059669' }}>
@@ -1252,147 +1346,6 @@ export default function HomeV9() {
             />
           </div>
         </section>
-
-        {/* ── Explore by signal + Browse the directory ── */}
-        <section style={{ marginTop: 30 }}>
-          <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-            Explore by signal
-          </h2>
-          <p style={{ fontSize: 14, color: '#78716c', margin: '5px 0 0', maxWidth: 640 }}>
-            Every decision we analyze gets tagged with signals — patterns detected in the public record, so you can follow what matters without reading every agenda.
-          </p>
-
-          <div className="hide-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', padding: '14px 2px 6px' }}>
-            {SIGNAL_ORDER.map((id) => {
-              const s = SIGNAL_META[id]
-              const lens = lensById[id]
-              // Honest empty marker when this signal has no analyzed activity in
-              // the current window (e.g. "Moving Fast" is a placeholder lens).
-              const empty = !lens || lens.placeholder || lens.cards.length === 0
-              return (
-                <button
-                  key={id}
-                  onClick={() => {
-                    setActiveSignals([id])
-                    document.getElementById('close-to-home')?.scrollIntoView({ behavior: 'smooth' })
-                  }}
-                  style={{ flex: '0 0 215px', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 16, cursor: 'pointer', fontFamily: 'inherit', opacity: empty ? 0.6 : 1 }}
-                >
-                  <div style={{ width: 42, height: 42, borderRadius: 11, background: s.bg, display: 'grid', placeItems: 'center', fontSize: 20 }}>
-                    {s.icon}
-                  </div>
-                  <div style={{ fontSize: 16.5, fontWeight: 700, color: s.color, marginTop: 10 }}>{s.name}</div>
-                  <div style={{ fontSize: 13, color: '#57534e', marginTop: 4, lineHeight: 1.45 }}>{s.desc}</div>
-                  {empty && (
-                    <div className="font-mono-x" style={{ fontSize: 10, color: '#a8a29e', marginTop: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      None flagged yet
-                    </div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-        </section>
-
-        {/* ── Close to Home feed (REAL lens cards) ── */}
-        <section id="close-to-home" style={{ marginTop: 30, paddingBottom: 44 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f0fdfa', display: 'grid', placeItems: 'center', fontSize: 21 }}>
-              🏠
-            </div>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-                Close to Home
-              </h2>
-              <div style={{ fontSize: 14, color: '#78716c' }}>Near you, on what you care about · 📍 {placeLabel}</div>
-            </div>
-          </div>
-
-          {/* Control row */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 16 }}>
-            {WHEN.map((w) => (
-              <Chip key={w.label} active={when.label === w.label} onClick={() => setWhen(w)}>
-                {w.label}
-              </Chip>
-            ))}
-            <button
-              onClick={() => setFiltersOpen(!filtersOpen)}
-              className="font-body"
-              style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 999, border: `1px solid ${filtersOpen || activeCount ? TEAL : '#e7e5e4'}`, background: '#fff', color: '#44403c', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-            >
-              ⚙ Refine feed
-              {activeCount > 0 && (
-                <span className="font-mono-x" style={{ background: TEAL, color: '#fff', borderRadius: 999, fontSize: 11, fontWeight: 600, padding: '1px 7px' }}>
-                  {activeCount}
-                </span>
-              )}
-              <span style={{ fontSize: 11 }}>{filtersOpen ? '▲' : '▼'}</span>
-            </button>
-          </div>
-
-          {/* Expander */}
-          {filtersOpen && (
-            <div style={{ marginTop: 12, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <MonoLabel>Topics — what you care about</MonoLabel>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                  {TOPICS.map((t) => (
-                    <Chip key={t} active={activeTopics.includes(t)} onClick={() => toggle(activeTopics, setActiveTopics, t)}>
-                      {t}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <MonoLabel>Signals — why it matters</MonoLabel>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                  {SIGNAL_ORDER.map((id) => (
-                    <Chip key={id} active={activeSignals.includes(id)} onClick={() => toggle(activeSignals, setActiveSignals, id)}>
-                      {SIGNAL_META[id].icon} {SIGNAL_META[id].name}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-              <div style={{ fontSize: 13, color: '#78716c' }}>
-                These choices follow you across the site. Change them anytime in{' '}
-                <button onClick={() => navigate('/feed-setup')} style={{ background: 'none', border: 'none', padding: 0, color: TEAL_DARK, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  feed settings
-                </button>
-                .
-              </div>
-            </div>
-          )}
-
-          {/* Feed (real) */}
-          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, marginTop: 14, overflow: 'hidden' }}>
-            {feed.length > 0 ? (
-              feed.map((row, i) => <StoryRow key={row.lensId + i} card={row.card} lensId={row.lensId} first={i === 0} />)
-            ) : (
-              <div style={{ padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
-                No matching activity in {placeLabel} for {when.label.toLowerCase()}.
-                {broaderLevel ? (
-                  <>
-                    {' '}Nothing here yet — try a wider area.
-                    <div style={{ marginTop: 14 }}>
-                      <button
-                        type="button"
-                        onClick={() => pickLevel(broaderLevel.value)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '9px 18px', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = TEAL_DARK)}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = TEAL)}
-                      >
-                        📍 Expand to {broaderLevel.label}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  ' Try a wider window or different signals.'
-                )}
-              </div>
-            )}
-          </div>
-        </section>
       </main>
 
       {/* ── How It Works (ported from the original home page, restyled for v9).
@@ -1400,15 +1353,17 @@ export default function HomeV9() {
           the centered <h2>, no mono eyebrow. ── */}
       <section id="how-it-works" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '56px 24px' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 36px' }}>
+          <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 28px' }}>
             <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: INK }}>
               How it works
             </h2>
             <p style={{ fontSize: 16, color: '#57534e', lineHeight: 1.55, marginTop: 12 }}>
-              Start by choosing a cause, make a plan (learn the record, decide who to work with, then show up), find help
-              when someone needs direct support, track the decisions that matter, and build on open data.
+              Take real action on local issues — starting with your personal impact. Choose a cause, make a plan,
+              find help when someone needs direct support, track the decisions that matter, and build on open data.
             </p>
           </div>
+
+          <StepZeroImpact />
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
             {[
@@ -1430,6 +1385,11 @@ export default function HomeV9() {
                 <span style={{ fontSize: 13, color: '#57534e', lineHeight: 1.45, marginTop: 6 }}>{step.blurb}</span>
               </button>
             ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: 28, fontSize: 15, color: '#57534e' }}>
+            <span style={{ fontWeight: 700, color: INK }}>Ready to act?</span>{' '}
+            Show up at meetings · Write letters · Change the process
           </div>
         </div>
       </section>
@@ -1507,22 +1467,7 @@ export default function HomeV9() {
 
       {/* ── Why people use it (footer) ── */}
       <footer style={{ background: '#fff', borderTop: '1px solid #e7e5e4' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '14px 24px', display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'center' }}>
-          {[
-            ['💵', 'Follow local spending'],
-            ['🗳️', 'Understand decisions'],
-            ['🔁', 'Track outcomes'],
-            ['🔭', 'Discover issues early'],
-          ].map(([icon, title]) => (
-            <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ fontSize: 16 }}>{icon}</span>
-              <span className="font-display" style={{ fontSize: 14, fontWeight: 700 }}>
-                {title}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div style={{ borderTop: '1px solid #f5f5f4', maxWidth: 1180, margin: '0 auto', padding: '9px 24px', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '9px 24px', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, color: '#a8a29e' }}>CommunityOne · a 501(c)(3) nonprofit · Tuscaloosa, Alabama</span>
         </div>
       </footer>
