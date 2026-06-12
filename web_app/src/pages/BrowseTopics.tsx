@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { fetchTopics, type TopicSummary } from '../api/topics'
-import DecisionCardList from '../components/DecisionCardList'
+import MeetingCardList from '../components/MeetingCardList'
 
 export default function BrowseTopics() {
   const [query, setQuery] = useState('')
@@ -96,10 +96,10 @@ export default function BrowseTopics() {
                 ))}
               </div>
             )}
-            <DecisionCardList
+            <MeetingCardList
               topicId={selectedTopic.topic_id}
               state={stateCode}
-              title={`Decisions on ${selectedTopic.name}`}
+              title={`Meetings on ${selectedTopic.name}`}
             />
           </div>
         ) : (

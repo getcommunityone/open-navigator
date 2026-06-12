@@ -8,7 +8,7 @@ import {
   type PolicyQuestionDetail,
   type QuestionTrendPoint,
 } from '../api/policyQuestions'
-import DecisionCardList from '../components/DecisionCardList'
+import MeetingCardList from '../components/MeetingCardList'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Questions That Keep Coming Up — the policy-question registry with Money & Talk.
@@ -416,11 +416,11 @@ function Drilldown({ questionId }: { questionId: string }) {
         </>
       )}
 
-      {/* Meeting-level decisions linked to this question (search + filters).
-          Often empty — question→decision links are sparse — which renders an
-          honest empty state rather than a fabricated list. */}
+      {/* Meeting-level cards linked to this question, each drilling into its own
+          decisions (search + filters). Often sparse — question→meeting links are
+          few — which renders an honest empty state, never a fabricated list. */}
       <div className="mt-5 border-t border-stone-100 pt-4">
-        <DecisionCardList questionId={questionId} title="Decisions on this question" />
+        <MeetingCardList questionId={questionId} title="Meetings on this question" />
       </div>
     </>
   )

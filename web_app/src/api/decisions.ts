@@ -11,6 +11,8 @@ export interface DecisionListParams {
   topicId?: number
   /** policy-question id — exact link via question_instance. */
   questionId?: string
+  /** Meeting id — drill into a single meeting's decisions. */
+  meetingId?: number
   /** 2-letter state code or full state name. */
   state?: string
   city?: string
@@ -33,6 +35,7 @@ export async function fetchDecisions(params: DecisionListParams = {}): Promise<D
     params: {
       topic_id: params.topicId,
       question_id: params.questionId,
+      meeting_id: params.meetingId,
       state: params.state,
       city: params.city,
       q: params.q,

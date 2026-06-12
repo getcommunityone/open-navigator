@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import {
+  AdjustmentsHorizontalIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline'
 import { fetchDecisions, type DecisionSort } from '../api/decisions'
 import { StoryCard, toRenderCards, CONTESTED_LENS } from './StoryLenses'
 
@@ -28,6 +32,8 @@ const SORTS: { id: DecisionSort; label: string }[] = [
 interface DecisionCardListProps {
   topicId?: number
   questionId?: string
+  /** Meeting id — drill into a single meeting's decisions. */
+  meetingId?: number
   /** 2-letter state code or full state name. */
   state?: string
   city?: string
@@ -36,15 +42,20 @@ interface DecisionCardListProps {
   /** Seeds the search box / `q` param (used by the causes page, which has no
    *  dedicated cause filter on the decisions endpoint). */
   initialQuery?: string
+  /** Show the "Advanced filters" toggle (state / city) next to the search box.
+   *  Off by default so scoped pages (a single state/city) aren't cluttered. */
+  showAdvancedFilters?: boolean
 }
 
 export default function DecisionCardList({
   topicId,
   questionId,
+  meetingId,
   state,
   city,
   title,
   initialQuery,
+  showAdvancedFilters = false,
 }: DecisionCardListProps) {
   const navigate = useNavigate()
 
@@ -53,6 +64,14 @@ export default function DecisionCardList({
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery ?? '')
   const [sort, setSort] = useState<DecisionSort>('contested')
   const [page, setPage] = useState(0)
+
+  // Advanced filters — only used when this page doesn't already scope to a
+  // fixed state/city via props. Raw inputs are debounced before hitting the API.
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [rawState, setRawState] = useState('')
+  const [rawCity, setRawCity] = useState('')
+  const [debouncedState, setDebouncedState] = useState('')
+  const [debouncedCity, setDebouncedCity] = useState('')
 
   // Session-local "saved" bookmarks, keyed like the homepage carousel.
   const [savedKeys, setSavedKeys] = useState<Set<string>>(() => new Set())
@@ -64,30 +83,49 @@ export default function DecisionCardList({
       return next
     })
 
-  // Debounce the search box (~300ms) and reset to the first page on a new term.
+  // Debounce the search box + advanced filters (~300ms) and reset to the first
+  // page whenever any of them change.
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedQuery(rawQuery.trim())
+      setDebouncedState(rawState.trim())
+      setDebouncedCity(rawCity.trim())
       setPage(0)
     }, 300)
     return () => clearTimeout(t)
-  }, [rawQuery])
+  }, [rawQuery, rawState, rawCity])
 
   // Reset to the first page when the scope or sort changes.
   useEffect(() => {
     setPage(0)
-  }, [topicId, questionId, state, city, sort])
+  }, [topicId, questionId, meetingId, state, city, sort])
 
   const q = debouncedQuery || undefined
+  // Prop scope wins; otherwise fall back to the advanced-filter inputs.
+  const effectiveState = state ?? (debouncedState || undefined)
+  const effectiveCity = city ?? (debouncedCity || undefined)
+  // Count of active advanced filters, for the toggle badge.
+  const advancedCount = (rawState.trim() ? 1 : 0) + (rawCity.trim() ? 1 : 0)
 
   const { data, isLoading, isError, isFetching } = useQuery({
-    queryKey: ['decisions', topicId ?? null, questionId ?? null, state ?? null, city ?? null, q ?? null, sort, page],
+    queryKey: [
+      'decisions',
+      topicId ?? null,
+      questionId ?? null,
+      meetingId ?? null,
+      effectiveState ?? null,
+      effectiveCity ?? null,
+      q ?? null,
+      sort,
+      page,
+    ],
     queryFn: () =>
       fetchDecisions({
         topicId,
         questionId,
-        state,
-        city,
+        meetingId,
+        state: effectiveState,
+        city: effectiveCity,
         q,
         sort,
         limit: PAGE_SIZE,
@@ -154,7 +192,66 @@ export default function DecisionCardList({
             )
           })}
         </div>
+        {showAdvancedFilters && (
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
+              advancedOpen || advancedCount > 0
+                ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                : 'border-gray-200 bg-white text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <AdjustmentsHorizontalIcon className="h-4 w-4" />
+            Advanced
+            {advancedCount > 0 && (
+              <span className="ml-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white">
+                {advancedCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
+
+      {/* Advanced filter panel — extra server-side filters (state / city) that
+          the /decisions endpoint already supports. */}
+      {showAdvancedFilters && advancedOpen && (
+        <div className="mb-5 grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
+            State
+            <input
+              type="text"
+              value={rawState}
+              onChange={(e) => setRawState(e.target.value)}
+              placeholder="e.g. MA or Massachusetts"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
+            City
+            <input
+              type="text"
+              value={rawCity}
+              onChange={(e) => setRawCity(e.target.value)}
+              placeholder="e.g. Sherborn"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </label>
+          {advancedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setRawState('')
+                setRawCity('')
+              }}
+              className="justify-self-start text-xs font-semibold text-indigo-600 hover:text-indigo-800 sm:col-span-2"
+            >
+              Clear advanced filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Body — honest loading / error / empty / grid states */}
       {isLoading ? (
