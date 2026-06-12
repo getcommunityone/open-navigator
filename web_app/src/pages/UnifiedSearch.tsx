@@ -2073,7 +2073,7 @@ export default function UnifiedSearch() {
                               </span>
                               {label}
                               <span
-                                className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                className={`ml-auto rounded-full px-2.5 py-1 text-sm font-bold ${
                                   isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'
                                 }`}
                               >
@@ -2111,7 +2111,7 @@ export default function UnifiedSearch() {
                             </span>
                             {label}
                             <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              className={`rounded-full px-2.5 py-1 text-sm font-bold ${
                                 isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'
                               }`}
                             >

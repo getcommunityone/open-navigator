@@ -93,7 +93,6 @@ const SEARCH_CATEGORIES: { id: string; label: string; types: string }[] = [
   { id: 'transcripts', label: 'Transcripts', types: 'documents' },
   { id: 'decisions', label: 'Decisions', types: 'decisions' },
   { id: 'leaders', label: 'Leaders', types: 'leaders' },
-  { id: 'persons', label: 'People', types: 'persons' },
   { id: 'nonprofits', label: 'Nonprofits', types: 'organizations' },
   { id: 'causes', label: 'Causes', types: 'causes' },
   { id: 'questions', label: 'Questions', types: 'questions' },
@@ -394,21 +393,81 @@ function BigQuestions() {
 export default function HomeV9() {
   const navigate = useNavigate()
   const { location } = useLocationContext()
-  const stateCode = location?.state || undefined
-  const city = location?.city || undefined
-  const national = !stateCode
-  const placeLabel = location?.city || location?.county || (stateCode ? stateCode : 'the U.S.')
+  const locState = location?.state || undefined
+  const locCity = location?.city || undefined
+
+  // ── Location level — City / State / National ──
+  // Restores the geography selector that used to live in the hero. Defaults to
+  // the most specific level the saved location supports, and resets to that
+  // default whenever the saved location changes — unless the user has manually
+  // picked a level (via the dropdown or the "expand" prompt below).
+  type Level = 'city' | 'state' | 'national'
+  const naturalLevel = (): Level => (locCity ? 'city' : locState ? 'state' : 'national')
+  const [level, setLevel] = useState<Level>(naturalLevel)
+  const levelPicked = useRef(false)
+  const [levelOpen, setLevelOpen] = useState(false)
+  const levelRef = useRef<HTMLButtonElement>(null)
+  const levelMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (levelPicked.current) return
+    setLevel(locCity ? 'city' : locState ? 'state' : 'national')
+  }, [locCity, locState])
+  useEffect(() => {
+    if (!levelOpen) return
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (levelRef.current?.contains(t) || levelMenuRef.current?.contains(t)) return
+      setLevelOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [levelOpen])
+  const pickLevel = (v: Level) => {
+    levelPicked.current = true
+    setLevel(v)
+    setLevelOpen(false)
+  }
+
+  // The active scope flows from `level` into every place-scoped query below.
+  const national = level === 'national' || !locState
+  const stateCode = national ? undefined : locState
+  const city = level === 'city' ? locCity : undefined
+  const placeLabel =
+    level === 'national' || !locState
+      ? 'the U.S.'
+      : level === 'state'
+        ? locState
+        : locCity || location?.county || locState
+
+  // Next-broader level for the "expand search area" affordance shown when a
+  // scoped feed comes back empty. `null` once already nationwide.
+  const broaderLevel: { value: Level; label: string } | null =
+    level === 'city'
+      ? locState
+        ? { value: 'state', label: `all of ${locState}` }
+        : { value: 'national', label: 'nationwide' }
+      : level === 'state'
+        ? { value: 'national', label: 'nationwide' }
+        : null
+  const levelOptions: { value: Level; label: string; disabled: boolean }[] = [
+    { value: 'city', label: locCity ? `City · ${locCity}` : 'City', disabled: !locCity },
+    { value: 'state', label: locState ? `State · ${locState}` : 'State', disabled: !locState },
+    { value: 'national', label: 'National · U.S.', disabled: false },
+  ]
 
   const [query, setQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   // Left-side category scope for the hero search box.
   const [cat, setCat] = useState(SEARCH_CATEGORIES[0])
   const [catOpen, setCatOpen] = useState(false)
-  const catRef = useRef<HTMLDivElement>(null)
+  const catRef = useRef<HTMLButtonElement>(null)
+  const catMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!catOpen) return
     const onDoc = (e: MouseEvent) => {
-      if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+      const t = e.target as Node
+      if (catRef.current?.contains(t) || catMenuRef.current?.contains(t)) return
+      setCatOpen(false)
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
@@ -472,6 +531,37 @@ export default function HomeV9() {
     },
     staleTime: 5 * 60 * 1000,
   })
+
+  // ── "Search in" category counts (real /api/search type_totals) ──
+  // Per-category match counts for the category dropdown, DYNAMIC on the search
+  // text: re-runs as the (debounced) query / place changes so each row shows how
+  // many real results that scope would return. Fetched lazily (only while the
+  // menu is open) with limit=1 — we want `type_totals`, not rows — so it never
+  // slows the hero. No fabricated numbers: a type the API doesn't count is blank.
+  const { data: catCountsData } = useQuery<Record<string, number>>({
+    queryKey: ['home-v9-cat-counts', debouncedQuery, national, stateCode, city],
+    queryFn: async () => {
+      const params: Record<string, string> = {
+        types: 'meetings,documents,decisions,leaders,organizations,causes,questions,topics,bills,grants',
+        limit: '1',
+      }
+      if (debouncedQuery.length >= 2) params.q = debouncedQuery
+      if (!national && stateCode) params.state = stateCode
+      if (!national && city) params.city = city
+      const res = await api.get('/search/', { params }).then((r) => r.data).catch(() => null)
+      return (res?.type_totals ?? {}) as Record<string, number>
+    },
+    enabled: catOpen,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev, // keep last counts while the next query loads
+  })
+  const catCounts = catCountsData ?? {}
+  // 'All' sums every counted type; the rest map 1:1 to their type_totals key
+  // (c.types). Returns undefined when the API didn't count that type (→ no badge).
+  const countForCat = (c: { id: string; types: string }): number | undefined =>
+    c.id === 'all'
+      ? Object.values(catCounts).reduce<number>((s, n) => s + (n || 0), 0)
+      : catCounts[c.types]
 
   // ── Search typeahead (real /api/search results) ──
   // Queries only the FAST search types — `documents` (transcript full-text) runs
@@ -581,6 +671,45 @@ export default function HomeV9() {
                 overflow: 'hidden',
               }}
             >
+              {/* Left-side category scope — pick Decisions, Bills, Leaders, etc. */}
+              <button
+                ref={catRef}
+                type="button"
+                onClick={() => setCatOpen((o) => !o)}
+                aria-haspopup="listbox"
+                aria-expanded={catOpen}
+                aria-label="Search category"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flexShrink: 0,
+                  background: 'none',
+                  border: 'none',
+                  borderRight: '1px solid #e7e5e4',
+                  padding: '0 16px',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: INK,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {cat.label}
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: '#78716c',
+                    transform: catOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform .15s ease',
+                  }}
+                  aria-hidden
+                >
+                  ▾
+                </span>
+              </button>
+
               <input
                 value={query}
                 onChange={(e) => {
@@ -604,11 +733,23 @@ export default function HomeV9() {
                 placeholder="Search topics, people, organizations, or causes"
                 style={{ flex: 1, border: 'none', outline: 'none', padding: '18px 20px', fontSize: 17, fontFamily: 'inherit', minWidth: 0 }}
               />
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderLeft: '1px solid #e7e5e4', color: '#44403c', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap' }}
+              <button
+                ref={levelRef}
+                type="button"
+                onClick={() => setLevelOpen((o) => !o)}
+                aria-haspopup="listbox"
+                aria-expanded={levelOpen}
+                aria-label="Location level"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderLeft: '1px solid #e7e5e4', background: 'none', color: '#44403c', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 📍 {placeLabel}
-              </div>
+                <span
+                  style={{ fontSize: 11, color: '#78716c', transform: levelOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }}
+                  aria-hidden
+                >
+                  ▾
+                </span>
+              </button>
               <button
                 aria-label="Search"
                 onClick={() => runSearch()}
@@ -619,6 +760,174 @@ export default function HomeV9() {
                 🔍
               </button>
             </div>
+
+            {/* Category scope menu — anchored to the outer relative wrapper so it
+                escapes the search box's overflow:hidden clipping. */}
+            {catOpen && (
+              <div
+                ref={catMenuRef}
+                role="listbox"
+                aria-label="Search category"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  left: 0,
+                  zIndex: 50,
+                  minWidth: 220,
+                  background: '#fff',
+                  border: '1px solid #e7e5e4',
+                  borderRadius: 14,
+                  boxShadow: '0 16px 38px rgba(13,148,136,0.20)',
+                  padding: 6,
+                  maxHeight: 380,
+                  overflowY: 'auto',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '6px 10px 8px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: '#a8a29e',
+                  }}
+                >
+                  Search in
+                </div>
+                {SEARCH_CATEGORIES.map((c) => {
+                  const selected = c.id === cat.id
+                  const n = countForCat(c)
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => {
+                        setCat(c)
+                        setCatOpen(false)
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: selected ? '#f0fdfa' : 'none',
+                        border: 'none',
+                        borderRadius: 9,
+                        padding: '9px 12px',
+                        fontSize: 14.5,
+                        fontWeight: selected ? 700 : 500,
+                        color: selected ? TEAL_DARK : '#44403c',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!selected) e.currentTarget.style.background = '#f5f5f4'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!selected) e.currentTarget.style.background = 'none'
+                      }}
+                    >
+                      <span>{c.label}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {n != null && (
+                          <span
+                            className="font-mono-x"
+                            style={{ fontSize: 11.5, fontWeight: 600, color: selected ? TEAL : '#a8a29e', fontVariantNumeric: 'tabular-nums' }}
+                          >
+                            {n.toLocaleString('en-US')}
+                          </span>
+                        )}
+                        {selected && <span style={{ color: TEAL }} aria-hidden>✓</span>}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Location-level menu — City / State / National. Anchored to the
+                outer relative wrapper so it escapes the search box clipping. */}
+            {levelOpen && (
+              <div
+                ref={levelMenuRef}
+                role="listbox"
+                aria-label="Location level"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 64,
+                  zIndex: 50,
+                  minWidth: 220,
+                  background: '#fff',
+                  border: '1px solid #e7e5e4',
+                  borderRadius: 14,
+                  boxShadow: '0 16px 38px rgba(13,148,136,0.20)',
+                  padding: 6,
+                }}
+              >
+                <div
+                  style={{ padding: '6px 10px 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#a8a29e' }}
+                >
+                  Show results for
+                </div>
+                {levelOptions.map((opt) => {
+                  const selected = level === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      disabled={opt.disabled}
+                      onClick={() => pickLevel(opt.value)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: selected ? '#f0fdfa' : 'none',
+                        border: 'none',
+                        borderRadius: 9,
+                        padding: '9px 12px',
+                        fontSize: 14.5,
+                        fontWeight: selected ? 700 : 500,
+                        color: opt.disabled ? '#d6d3d1' : selected ? TEAL_DARK : '#44403c',
+                        cursor: opt.disabled ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!selected && !opt.disabled) e.currentTarget.style.background = '#f5f5f4'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!selected && !opt.disabled) e.currentTarget.style.background = 'none'
+                      }}
+                    >
+                      <span>{opt.label}</span>
+                      {selected && <span style={{ color: TEAL }} aria-hidden>✓</span>}
+                    </button>
+                  )
+                })}
+                {!locState && (
+                  <div style={{ borderTop: '1px solid #f5f5f4', marginTop: 4, paddingTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLevelOpen(false)
+                        navigate('/feed-setup')
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderRadius: 9, padding: '9px 12px', fontSize: 13.5, fontWeight: 600, color: TEAL_DARK, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      📍 Set your location
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Live typeahead dropdown — real /api/search results, scoped to the
                 active place. mouseDown-preventDefault keeps focus so onClick wins
@@ -895,21 +1204,39 @@ export default function HomeV9() {
               feed.map((row, i) => <StoryRow key={row.lensId + i} card={row.card} lensId={row.lensId} first={i === 0} />)
             ) : (
               <div style={{ padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
-                No matching activity in {placeLabel} for {when.label.toLowerCase()}. Try a wider window or different signals.
+                No matching activity in {placeLabel} for {when.label.toLowerCase()}.
+                {broaderLevel ? (
+                  <>
+                    {' '}Nothing here yet — try a wider area.
+                    <div style={{ marginTop: 14 }}>
+                      <button
+                        type="button"
+                        onClick={() => pickLevel(broaderLevel.value)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '9px 18px', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = TEAL_DARK)}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = TEAL)}
+                      >
+                        📍 Expand to {broaderLevel.label}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  ' Try a wider window or different signals.'
+                )}
               </div>
             )}
           </div>
         </section>
       </main>
 
-      {/* ── How It Works — "From information to impact" (ported from the
-          original home page, restyled for v9) ── */}
+      {/* ── How It Works (ported from the original home page, restyled for v9).
+          Header format matches the sibling "Our Impact" section: section name as
+          the centered <h2>, no mono eyebrow. ── */}
       <section id="how-it-works" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '56px 24px' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 36px' }}>
-            <MonoLabel style={{ color: TEAL_DARK }}>How it works</MonoLabel>
-            <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: '8px 0 0', color: INK }}>
-              From information to impact
+            <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: INK }}>
+              How it works
             </h2>
             <p style={{ fontSize: 16, color: '#57534e', lineHeight: 1.55, marginTop: 12 }}>
               Start by choosing a cause, make a plan (learn the record, decide who to work with, then show up), find help
