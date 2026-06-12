@@ -56,6 +56,9 @@ class CauseItem(BaseModel):
     description: Optional[str] = None
     image_url: Optional[str] = None
     popularity_rank: Optional[int] = None
+    # Real count of analyzed meetings whose transcript matches this cause's
+    # keyword set (gold.meeting_cause_link). 0 is honest — no fabricated figure.
+    meeting_count: int = 0
 
 
 class TrendingResponse(BaseModel):
@@ -78,20 +81,48 @@ class TrendingTopicsResponse(BaseModel):
     total: int
 
 
+# Causes joined to their real meeting count, ordered most-discussed first. The
+# count comes from gold.meeting_cause_link (a transcript full-text match per
+# cause). NULL meeting_count is coalesced to 0 (honest empty), never fabricated.
+_CAUSES_WITH_COUNT_SQL = """
+    SELECT c.cause_id, c.cause_name, c.description, c.icon, c.category,
+           c.popularity_rank,
+           COALESCE(mc.meeting_count, 0) AS meeting_count
+    FROM bronze.bronze_everyorg_causes c
+    LEFT JOIN (
+        SELECT cause_id, COUNT(DISTINCT event_meeting_id) AS meeting_count
+        FROM gold.meeting_cause_link
+        GROUP BY cause_id
+    ) mc ON mc.cause_id = c.cause_id
+    ORDER BY COALESCE(mc.meeting_count, 0) DESC,
+             c.popularity_rank NULLS LAST, c.cause_name
+    LIMIT %s
+"""
+
+# Fallback when gold.meeting_cause_link is absent (e.g. a serving DB where the
+# linkage mart hasn't been built). Causes still render, just with no count.
+_CAUSES_NO_COUNT_SQL = """
+    SELECT cause_id, cause_name, description, icon, category, popularity_rank, 0 AS meeting_count
+    FROM bronze.bronze_everyorg_causes
+    ORDER BY popularity_rank NULLS LAST, cause_name
+    LIMIT %s
+"""
+
+
 def get_everyorg_causes(limit: int = 20) -> List[CauseItem]:
-    """Load EveryOrg causes from bronze.bronze_everyorg_causes."""
+    """Load EveryOrg causes (with real per-cause meeting counts) from the warehouse."""
+    rows: list = []
     try:
         with _cursor() as cur:
-            cur.execute(
-                """
-                SELECT cause_id, cause_name, description, icon, category, popularity_rank
-                FROM bronze.bronze_everyorg_causes
-                ORDER BY popularity_rank NULLS LAST, cause_name
-                LIMIT %s
-                """,
-                (limit,),
-            )
-            rows = cur.fetchall()
+            try:
+                cur.execute(_CAUSES_WITH_COUNT_SQL, (limit,))
+                rows = cur.fetchall()
+            except psycopg2.Error:
+                # Linkage mart missing/unreadable — fall back to the plain list so
+                # causes never disappear. New cursor: the prior tx is aborted.
+                cur.connection.rollback()
+                cur.execute(_CAUSES_NO_COUNT_SQL, (limit,))
+                rows = cur.fetchall()
     except Exception as exc:
         logger.warning(f"EveryOrg causes query failed (table empty or missing?): {exc}")
         return []
@@ -104,8 +135,9 @@ def get_everyorg_causes(limit: int = 20) -> List[CauseItem]:
             description=description or '',
             image_url=f"/images/causes/everyorg_{cause_id}_square.png",
             popularity_rank=popularity_rank,
+            meeting_count=int(meeting_count or 0),
         )
-        for (cause_id, name, description, icon, category, popularity_rank) in rows
+        for (cause_id, name, description, icon, category, popularity_rank, meeting_count) in rows
     ]
 
 

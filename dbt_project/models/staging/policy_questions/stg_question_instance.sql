@@ -3,7 +3,30 @@
 -- SQL logic). Decision outcomes are hundreds of free-text strings; bills (Phase 2)
 -- get their own branch keyed on source_type.
 with src as (
-    select * from {{ source('pq_bronze', 'bronze_question_instance') }}
+    select
+        instance_id, question_id, source_type, source_id, state_code,
+        jurisdiction_name, city, outcome_raw, occurred_at, session, assign_score
+    from {{ source('pq_bronze', 'bronze_question_instance') }}
+
+    union all
+
+    -- Curated, hand-verified real decisions attached to featured questions
+    -- (curated_question_instance seed). instance_id mirrors the clustered
+    -- convention db.md5(LOCAL_DECISION, source_id, question_id). These survive
+    -- the LLM clustering rebuild, which truncates only the bronze_* tables.
+    select
+        md5('local_decision' || '|' || source_id || '|' || question_id) as instance_id,
+        question_id,
+        'local_decision'                                                as source_type,
+        source_id,
+        nullif(state_code, '')                                          as state_code,
+        nullif(jurisdiction_name, '')                                   as jurisdiction_name,
+        nullif(city, '')                                                as city,
+        nullif(outcome_raw, '')                                         as outcome_raw,
+        occurred_at::timestamptz                                        as occurred_at,
+        null::text                                                      as session,
+        1.0::double precision                                           as assign_score
+    from {{ ref('curated_question_instance') }}
 ),
 normalized as (
     select

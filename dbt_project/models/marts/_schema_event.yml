@@ -196,6 +196,10 @@ models:
       agenda / minutes / caption documents later without a schema change.
       content holds the full searchable body (GIN full-text indexed). FK
       event_id -> event. Consumed by the API (search_documents_pg).
+      Denormalized title/jurisdiction/state/city are sourced from the golden
+      event when one exists, else COALESCE-backfilled from
+      event_youtube_with_jurisdiction (by video_id) so the ~90% orphan
+      transcripts still carry a location and survive state/city filters.
     config:
       materialized: table
       contract:
@@ -300,3 +304,27 @@ models:
       - name: created_at
         data_type: timestamp without time zone
         description: "When the underlying transcript row was created."
+
+  - name: event_document_lexicon
+    description: >
+      public.event_document_lexicon — distinct alphabetic lexemes present in
+      transcript full-text vectors (event_documents.content_tsv), with corpus
+      frequencies. One row per `word`. Backs the fuzzy "did-you-mean" fallback in
+      the API (search_documents_pg): a misspelled query term is mapped to its
+      nearest real lexeme via a pg_trgm GIN index on `word`, so a typo like
+      "flouride" still finds "fluoride" instead of returning nothing. Filtered to
+      length 4–40, alphabetic, appearing in >= 2 transcripts. Empty on the neon
+      target (content_tsv is NULL there).
+    columns:
+      - name: word
+        data_type: text
+        description: "Distinct corpus lexeme (stemmed token). Trigram-indexed (GIN)."
+        tests:
+          - unique
+          - not_null
+      - name: document_count
+        data_type: integer
+        description: "Number of transcripts the lexeme appears in (ts_stat ndoc)."
+      - name: occurrence_count
+        data_type: integer
+        description: "Total occurrences across all transcripts (ts_stat nentry)."

@@ -3,17 +3,22 @@ import { useQuery } from '@tanstack/react-query'
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
+import ScrollToTop from './components/ScrollToTop'
 import Home from './pages/Home'
+import HomeV9 from './pages/HomeV9'
 import PolicyQuestionsPage from './pages/PolicyQuestionsPage'
 import PolicyQuestionPage from './pages/PolicyQuestionPage'
+import BrowseTopics from './pages/BrowseTopics'
+import BrowseCauses from './pages/BrowseCauses'
+import MoneyTalk from './pages/MoneyTalk'
 import Dashboard from './pages/Dashboard'
 import Analytics from './pages/Analytics'
 import Heatmap from './pages/Heatmap'
 import Documents from './pages/Documents'
 import Opportunities from './pages/Opportunities'
 import Nonprofits from './pages/Nonprofits'
-import NonprofitsHF from './pages/NonprofitsHF'
 import Efile990Viewer from './pages/Efile990Viewer'
+import NonprofitsHF from './pages/NonprofitsHF'
 import Settings from './pages/Settings'
 import PeopleFinder from './pages/PeopleFinder'
 import PersonDetail from './pages/PersonDetail'
@@ -138,10 +143,13 @@ function RouteChangeTracer() {
 function App() {
   return (
     <>
+      <ScrollToTop />
       <RouteChangeTracer />
       <Routes>
-      {/* Ground News-style homepage without Layout (has its own header) */}
-      <Route path="/" element={<Home />} />
+      {/* v9 prototype homepage (single-column; has its own header) */}
+      <Route path="/" element={<HomeV9 />} />
+      {/* Previous homepage, kept reachable for comparison/rollback */}
+      <Route path="/home-original" element={<Home />} />
 
       {/* All other pages with sidebar layout */}
       <Route path="/" element={<Layout />}>
@@ -157,6 +165,9 @@ function App() {
         <Route path="decisions-map" element={<DecisionsMapPage />} />
         <Route path="policy-questions" element={<PolicyQuestionsPage />} />
         <Route path="policy-question/:questionId" element={<PolicyQuestionPage />} />
+        <Route path="browse-topics" element={<BrowseTopics />} />
+        <Route path="browse-causes" element={<BrowseCauses />} />
+        <Route path="money-and-talk" element={<MoneyTalk />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
         <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />
         <Route path="data-explorer" element={<DataExplorerLayout />}>

@@ -32,6 +32,36 @@ sources:
           - name: loaded_at
             description: "When the row was upserted."
 
+      - name: bronze_opportunity_atlas_cz
+        description: |
+          Opportunity Atlas commuting-zone (CZ) intergenerational-mobility
+          measures, long/tidy: one row per (cz, race, gender,
+          parent_income_level). Landed by
+          ingestion.opportunity_atlas.load from the Opportunity Insights
+          cz_outcomes.csv (Chetty, Hendren, Jones & Porter 2018, "Race and
+          Economic Opportunity in the United States"). child_income_rank is the
+          child's mean adult household-income rank (0..1) given parents at the
+          parent_income_level percentile; NULL where the source cell was blank
+          (honest missing, never a stand-in). n is the per-(race,gender) sample
+          count. Feeds public.opportunity_atlas_mobility (+ _national rollup).
+        columns:
+          - name: cz
+            description: "Commuting-zone id (integer). Part of the natural key."
+          - name: czname
+            description: "Commuting-zone display name (e.g. 'Tuscaloosa', 'Boston')."
+          - name: race
+            description: "pooled | white | black | hisp | asian | natam | other."
+          - name: gender
+            description: "pooled | male | female."
+          - name: parent_income_level
+            description: "low (p25) | middle (p50) | high (p75) parent income percentile."
+          - name: child_income_rank
+            description: "Child's mean adult household-income rank (0..1). NULL when source blank."
+          - name: n
+            description: "Sample count for the (race, gender) cell. NULL when source blank."
+          - name: loaded_at
+            description: "When the row was upserted."
+
       - name: bronze_ntee_codes
         description: |
           Raw NTEE classification codes — one row per `code`. Landed by
@@ -564,6 +594,28 @@ sources:
           - name: matched_keywords
           - name: snippets
           - name: topic_ids
+          - name: raw_record
+          - name: scraped_at
+          - name: loaded_at
+          - name: last_updated
+
+      - name: bronze_events_civicsearch_topic
+        description: |
+          Raw CivicSearch policy-topic taxonomy — the flat topic -> keyword-cluster
+          dictionary CivicSearch uses to tag meeting snippets. Landed VERBATIM by
+          the CivicSearch harvest loader. One row per topic_id. keyword_stats is a
+          JSONB array of the cluster's representative keywords (~10 strings). NOT
+          hierarchical. Promoted to staging.stg_civicsearch__topic and then to the
+          public mart civicsearch_topic.
+        columns:
+          - name: topic_id
+            description: "CivicSearch topic id — natural key (one row per topic)."
+          - name: name
+            description: "Human-readable topic label."
+          - name: query_id
+            description: "CivicSearch query/slug this topic was harvested under."
+          - name: keyword_stats
+            description: "JSONB array of representative keyword strings for the topic cluster."
           - name: raw_record
           - name: scraped_at
           - name: loaded_at
@@ -2400,3 +2452,71 @@ models:
         description: "ocd_membership_id — same id as source_pk; the stable external handle for the scraped official."
         tests:
           - not_null
+
+  - name: stg_jurisdiction_finance
+    description: >
+      Cleaned, latest-fiscal-year government finance per government from
+      bronze.bronze_jurisdiction_tpc (Census Annual Survey of State & Local
+      Government Finances via TPC/Urban Institute). One row per (gov_type,
+      id_code) at its most recent fiscal_year. Casts the needed raw_record JSONB
+      finance keys to numeric (thousands of dollars; non-numeric/blank -> NULL),
+      maps Census expenditure-by-function variables into 8 display categories
+      that partition direct_expenditure, and carries headline revenue/expenditure
+      /tax totals + FIPS components for the downstream jurisdictions FK match.
+      Feeds public.jurisdiction_finance.
+    columns:
+      - name: id_code
+        description: "TPC government identifier (natural key part)."
+        tests:
+          - not_null
+      - name: gov_type
+        description: "state | county | city | township | school_district | special_district | other."
+        tests:
+          - not_null
+      - name: fiscal_year
+        description: "Latest available fiscal year, integer (CLAUDE.md calendar-year rule)."
+        tests:
+          - not_null
+
+  - name: stg_opportunity_atlas_cz
+    description: >
+      Cleaned, typed Opportunity Atlas commuting-zone (CZ) mobility measures from
+      bronze.bronze_opportunity_atlas_cz (Opportunity Insights / Chetty, Hendren,
+      Jones & Porter 2018). One row per (cz, race, gender, parent_income_level).
+      child_income_rank stays numeric 0..1 (NULL when source blank — honest
+      missing, never 0); child_percentile = round(child_income_rank*100, 1);
+      parent_percentile = low->25 / middle->50 / high->75. Feeds
+      public.opportunity_atlas_mobility (+ _national rollup).
+    columns:
+      - name: cz
+        description: "Commuting-zone id (integer). Part of the natural key."
+        tests:
+          - not_null
+      - name: race
+        description: "pooled | white | black | hisp | asian | natam | other."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['pooled', 'white', 'black', 'hisp', 'asian', 'natam', 'other']
+      - name: gender
+        description: "pooled | male | female."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['pooled', 'male', 'female']
+      - name: parent_income_level
+        description: "low (p25) | middle (p50) | high (p75)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['low', 'middle', 'high']
+      - name: parent_percentile
+        description: "Parent national income percentile (25 | 50 | 75)."
+        tests:
+          - not_null
+      - name: child_income_rank
+        description: "Child's mean adult household-income rank (0..1). NULL when source blank."
+      - name: child_percentile
+        description: "round(child_income_rank * 100, 1). NULL when rank NULL."
+      - name: n
+        description: "Sample count for the (race, gender) cell. NULL when source blank."

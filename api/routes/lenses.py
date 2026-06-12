@@ -53,6 +53,7 @@ class LensCard(BaseModel):
     date: Optional[str] = None          # occurred_at, ISO yyyy-mm-dd
     badge: Optional[str] = None         # lens label
     url: Optional[str] = None           # /decisions/{event_decision_id}
+    video_id: Optional[str] = None      # YouTube id of the meeting recording, or None
     state_code: Optional[str] = None
     state: Optional[str] = None
 
@@ -121,6 +122,31 @@ _CARD_COLS = """
     competing_views_count,
     net_dollar_impact
 """
+
+
+def video_id_subquery(alias: str) -> str:
+    """
+    Correlated-subquery SQL fragment selecting the meeting's YouTube `video_id`
+    for a decision row, parameterized by the interestingness-table alias.
+
+    item_interestingness is keyed on event_decision_id and carries no video_id;
+    the recording lives on event_meeting, reachable via
+    event_decision.c1_event_id = event_meeting.c1_event_id. This mirrors the join
+    decisions.py already uses (`m.video_id AS meeting_video_id`) but as a
+    query-time correlated subquery so it can be appended to the SELECT list
+    without disturbing existing scope params / ORDER BY / column references.
+
+    Returns NULL (-> None) when the decision has no meeting recording. PUBLIC so
+    decision_browse.py can import and reuse it. `alias` is the table/alias the
+    outer query references item_interestingness by (e.g. "ii" or the literal
+    "item_interestingness").
+    """
+    return (
+        f"(SELECT m.video_id FROM event_decision ed "
+        f"JOIN event_meeting m ON m.c1_event_id = ed.c1_event_id "
+        f"WHERE ed.event_decision_id = {alias}.event_decision_id "
+        f"AND m.video_id IS NOT NULL LIMIT 1) AS video_id"
+    )
 
 
 def _parse_json(value: Any) -> Any:
@@ -196,7 +222,11 @@ def _headline(row: Any) -> str:
 
 
 # --- per-lens stat builders -------------------------------------------------
-def _stats_contested(row: Any) -> List[LensStat]:
+# `stats_contested` (and the card primitives `build_card`, `headline`,
+# `jurisdiction_label`, `iso_date`) are intentionally PUBLIC (no leading
+# underscore) so the flat /api/decisions list endpoint in decisions.py can reuse
+# the EXACT same Contested-lens card shape without duplicating the logic.
+def stats_contested(row: Any) -> List[LensStat]:
     stats: List[LensStat] = []
     if (row["total_votes"] or 0) > 0:
         stats.append(LensStat(value=f"{row['votes_yes']}–{row['votes_no']}", label="Vote"))
@@ -237,9 +267,21 @@ def _build_card(row: Any, label: str, stats: List[LensStat]) -> LensCard:
         date=_iso_date(row["occurred_at"]),
         badge=label,
         url=f"/decisions/{row['event_decision_id']}",
+        # .get() so flag/gap cards (which build LensCard directly and never select
+        # this column) default to None; data-backed lenses select it via
+        # video_id_subquery(). asyncpg Record supports .get().
+        video_id=row.get("video_id"),
         state_code=row["state_code"],
         state=row["state"],
     )
+
+
+# Public aliases so other routes (decisions.py) can build the SAME card shape /
+# headline / jurisdiction label / ISO date without re-implementing the logic.
+build_card = _build_card
+headline = _headline
+jurisdiction_label = _jurisdiction_label
+iso_date = _iso_date
 
 
 def _build_flag_card(row: Any) -> LensCard:
@@ -345,7 +387,7 @@ _LENS_QUERY_DEFS = [
 ]
 
 _STAT_BUILDERS = {
-    "contested": _stats_contested,
+    "contested": stats_contested,
     "money": _stats_money,
     "next": _stats_next,
 }
@@ -534,7 +576,7 @@ async def get_lenses(
                     # The three data-backed lenses.
                     for lens_id, label, where_tpl, order_by in _LENS_QUERY_DEFS:
                         sql = f"""
-                            SELECT {_CARD_COLS}
+                            SELECT {_CARD_COLS}, {video_id_subquery('item_interestingness')}
                             FROM item_interestingness
                             WHERE {where_tpl}{scope_sql}
                             ORDER BY {order_by}

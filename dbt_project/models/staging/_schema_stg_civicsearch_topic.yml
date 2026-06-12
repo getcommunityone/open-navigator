@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: stg_civicsearch__topic
+    description: |
+      CivicSearch policy-topic taxonomy — one row per topic_id. 1:1 with
+      bronze.bronze_events_civicsearch_topic (raw landing from the CivicSearch
+      harvest loader), cleaned/typed. A FLAT topic -> keyword-cluster dictionary
+      (NOT hierarchical). keyword_stats is a JSONB array of representative keyword
+      strings. Promoted to the public mart civicsearch_topic.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: topic_id
+        description: "CivicSearch topic id. Natural key (one row per topic)."
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: name
+        description: "Human-readable topic label (trimmed)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: query_id
+        description: "CivicSearch query/slug this topic was harvested under."
+        data_type: text
+      - name: keyword_stats
+        description: "JSONB array of representative keyword strings for the topic cluster."
+        data_type: jsonb
+        constraints:
+          - type: not_null

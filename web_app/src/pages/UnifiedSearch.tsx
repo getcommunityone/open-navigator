@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
+import { fetchTopics, type TopicSummary } from '../api/topics'
+import { fetchPolicyQuestions, type PolicyQuestionSummary } from '../api/policyQuestions'
 import { withSpan } from '../instrumentation'
-import { 
-  MagnifyingGlassIcon, 
+import {
+  ArrowLeftIcon,
+  MagnifyingGlassIcon,
   UserIcon, 
   CalendarIcon,
   BuildingOfficeIcon,
@@ -22,9 +25,12 @@ import {
   ScaleIcon,
   BanknotesIcon,
   MegaphoneIcon,
-  DocumentMagnifyingGlassIcon
+  DocumentMagnifyingGlassIcon,
+  QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline'
-import { formatCurrency } from '../utils/formatters'
+import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from '../utils/formatters'
+import MeetingThumbnail from '../components/MeetingThumbnail'
+import { StoryCard, CONTESTED_LENS, type RenderCard } from '../components/StoryLenses'
 
 type SearchResultType =
   | 'leader'
@@ -38,6 +44,7 @@ type SearchResultType =
   | 'document'
   | 'grant'
   | 'grant_opportunity'
+  | 'question'
 
 interface SearchResult {
   type: SearchResultType
@@ -49,7 +56,19 @@ interface SearchResult {
   // null person_uid) comes back with no url and renders as non-clickable.
   url?: string | null
   score: number
-  metadata: Record<string, any>
+  // Loosely typed grab-bag, but a few keys are contractually meaningful:
+  //  - analysis_pending (meeting results): true ⇒ an UNANALYZED meeting shown
+  //    because its raw transcript is available. Such results have NO
+  //    event_meeting_id, carry an EXTERNAL YouTube `url`, and put a transcript
+  //    snippet (possibly with <mark>…</mark> highlights) in `description`.
+  //    false/absent ⇒ an AI-analyzed meeting that deep-links to /meetings/{id}.
+  //  - video_id (meeting results): YouTube video id for unanalyzed meetings.
+  metadata: Record<string, any> & {
+    analysis_pending?: boolean
+    video_id?: string
+    event_meeting_id?: number | string
+    meeting_id?: number | string
+  }
 }
 
 interface SearchResponse {
@@ -68,6 +87,7 @@ interface SearchResponse {
     documents?: number
     grants?: number
     grant_opportunities?: number
+    questions?: number
   }
   results: {
     leaders?: SearchResult[]
@@ -82,6 +102,7 @@ interface SearchResponse {
     documents?: SearchResult[]
     grants?: SearchResult[]
     grant_opportunities?: SearchResult[]
+    questions?: SearchResult[]
   }
   pagination: {
     page: number
@@ -128,6 +149,8 @@ const RESULT_TYPES = [
   { type: 'decisions', label: 'Decisions' },
   { type: 'grants', label: 'Grants' },
   { type: 'grant_opportunities', label: 'Grant Opportunities' },
+  // Cross-jurisdiction policy questions (the "big questions" registry).
+  { type: 'questions', label: 'Questions' },
 ] as const
 
 const ALL_RESULT_TYPE_KEYS = RESULT_TYPES.map((t) => t.type) as readonly string[]
@@ -150,6 +173,7 @@ const RESULT_TABS = [
   { key: 'documents', label: 'Transcripts' },
   { key: 'bills', label: 'Bills' },
   { key: 'topics', label: 'Topics' },
+  { key: 'questions', label: 'Questions' },
   { key: 'grants', label: 'Grants' },
   { key: 'grant_opportunities', label: 'Grant Opportunities' },
   { key: 'jurisdictions', label: 'Jurisdictions' },
@@ -181,9 +205,145 @@ function formatEin(ein: string): string {
   return digits.length === 9 ? `${digits.slice(0, 2)}-${digits.slice(2)}` : ein
 }
 
+// Searchable Topic picker — replaces a long native <select> over the civic-topic
+// catalog with a type-to-filter combobox. Closed: shows the selected topic name.
+// Open: a search box that narrows the list as you type. Selecting (or clearing)
+// calls back with the topic id string the URL/query binds to ('' = All Topics).
+function TopicTypeahead({
+  topics,
+  selectedId,
+  onSelect,
+}: {
+  topics: TopicSummary[]
+  selectedId: string
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selected = topics.find((t) => String(t.topic_id) === selectedId) ?? null
+
+  // Close + reset the typed query when clicking outside the combobox.
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  const q = query.trim().toLowerCase()
+  const matches = q
+    ? topics.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          (t.keywords ?? []).some((k) => k.toLowerCase().includes(q)),
+      )
+    : topics
+
+  const choose = (id: string) => {
+    onSelect(id)
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {open ? (
+        <div className="relative">
+          <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search topics…"
+            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <span className={selected ? 'text-gray-900' : 'text-gray-500'}>
+            {selected ? selected.name : 'All Topics'}
+          </span>
+          {selectedId ? (
+            <XMarkIcon
+              className="h-4 w-4 text-gray-400 hover:text-gray-600"
+              onClick={(e) => {
+                e.stopPropagation()
+                choose('')
+              }}
+            />
+          ) : (
+            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+          )}
+        </button>
+      )}
+
+      {open && (
+        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+          <li>
+            <button
+              type="button"
+              onClick={() => choose('')}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                selectedId === '' ? 'font-semibold text-primary-700' : 'text-gray-700'
+              }`}
+            >
+              All Topics
+            </button>
+          </li>
+          {matches.map((t) => (
+            <li key={t.topic_id}>
+              <button
+                type="button"
+                onClick={() => choose(String(t.topic_id))}
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                  String(t.topic_id) === selectedId
+                    ? 'font-semibold text-primary-700'
+                    : 'text-gray-700'
+                }`}
+              >
+                <span className="truncate">{t.name}</span>
+                {t.transcript_occurrences > 0 && (
+                  <span className="shrink-0 text-xs text-gray-400">
+                    {t.transcript_occurrences.toLocaleString()}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+          {matches.length === 0 && (
+            <li className="px-3 py-2 text-sm text-gray-500">No topics match “{query}”.</li>
+          )}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function UnifiedSearch() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const routerLocation = useLocation()
+
+  // Whether the user arrived here from the home page (which has no sidebar/nav
+  // to get back). The Home search navigations tag the route with
+  // `state.fromHome`; we capture it ONCE on mount because subsequent
+  // setSearchParams calls (filters/pagination) drop location.state, which would
+  // otherwise make the back button vanish as soon as the user interacts.
+  const [cameFromHome] = useState<boolean>(
+    () => Boolean((routerLocation.state as { fromHome?: boolean } | null)?.fromHome),
+  )
 
   // Navigate to a result's detail page, but only when it has a url. Results
   // without a stable detail key (url == null) are rendered non-clickable, so
@@ -229,6 +389,10 @@ export default function UnifiedSearch() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort') || 'relevance')
   const [nteeCategory, setNteeCategory] = useState(() => searchParams.get('ntee') || '')
+  // Advanced "Topic" (named civic-topic catalog) + "Question" (policy-question
+  // registry) filters. Held as the raw id string the <select> binds to.
+  const [selectedTopicId, setSelectedTopicId] = useState(() => searchParams.get('topic_id') || '')
+  const [selectedQuestionId, setSelectedQuestionId] = useState(() => searchParams.get('question_id') || '')
   const [includeFullText, setIncludeFullText] = useState(() => searchParams.get('full_text') === 'true')
   const [jurisdictionDetails, setJurisdictionDetails] = useState<any[]>(() => {
     const detailsParam = searchParams.get('jurisdiction_details')
@@ -287,6 +451,8 @@ export default function UnifiedSearch() {
     selectedState,
     sortBy !== 'relevance' ? 'sorted' : null,
     nteeCategory,
+    selectedTopicId,
+    selectedQuestionId,
     includeFullText ? 'full text' : null,
     typesNarrowed ? 'types' : null,
   ].filter(Boolean).length
@@ -331,7 +497,13 @@ export default function UnifiedSearch() {
     searchParams.get('page') // Read but don't store
     searchParams.get('sort') // Read but don't store
     searchParams.get('ntee') // Read but don't store
+    const topicIdParam = searchParams.get('topic_id')
+    const questionIdParam = searchParams.get('question_id')
     const jurisdictionDetailsParam = searchParams.get('jurisdiction_details')
+
+    // Keep the advanced Topic/Question filters in sync with the URL (back/forward).
+    setSelectedTopicId(topicIdParam || '')
+    setSelectedQuestionId(questionIdParam || '')
     
     if (queryParam) {
       setQuery(queryParam)
@@ -374,7 +546,7 @@ export default function UnifiedSearch() {
     }
     if (typesParam) {
       const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
-        ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions'].includes(t)
+        ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions', 'questions'].includes(t)
       )
       if (types.length > 0) {
         setSelectedTypes(types)
@@ -393,7 +565,7 @@ export default function UnifiedSearch() {
       
       const params: any = {
         q: debouncedQuery,
-        types: 'meetings,decisions,causes,leaders,persons,organizations,bills,topics',
+        types: 'meetings,decisions,causes,leaders,persons,organizations,bills,topics,questions',
         limit: 3
       }
       
@@ -414,13 +586,38 @@ export default function UnifiedSearch() {
     staleTime: 5000 // Cache for 5 seconds to avoid excessive requests
   })
 
+  // Advanced-filter dropdown options. Topics = the named civic-topic catalog
+  // (/api/topics, sorted most-discussed first); questions = the policy-question
+  // registry (/api/policy-question/, featured pinned first). Loaded once and
+  // cached — small, fixed lists that back the two Advanced dropdowns.
+  const { data: topicOptions } = useQuery<TopicSummary[]>({
+    queryKey: ['advanced-filter-topics'],
+    queryFn: () => fetchTopics(),
+    staleTime: 10 * 60 * 1000,
+  })
+  const { data: questionOptions } = useQuery<PolicyQuestionSummary[]>({
+    queryKey: ['advanced-filter-questions'],
+    queryFn: () => fetchPolicyQuestions({ limit: 200 }),
+    staleTime: 10 * 60 * 1000,
+  })
+
   // Whether the current inputs constitute a runnable search (query OR a
   // browse-mode filter OR an EIN). Shared by both queries below.
+  //
+  // NOTE: we deliberately do NOT enable on `selectedTypes.length > 0` —
+  // `selectedTypes` defaults to ALL types, so that would auto-run a
+  // browse-everything search on a bare `/search` (e.g. when the nav "Search"
+  // link is clicked after visiting Home), surfacing stale-looking results with
+  // an empty box. Type-only browse modes (Browse Topics/Causes, the Home
+  // quick-nav tiles, etc.) always arrive with an explicit `?types=` param, so
+  // we gate that mode on the URL param instead of the always-populated state.
   const searchEnabled =
     (activeQuery && activeQuery.length >= 2) ||
     selectedState !== '' ||
-    selectedTypes.length > 0 ||
-    selectedEin !== ''
+    !!searchParams.get('types') ||
+    selectedEin !== '' ||
+    selectedTopicId !== '' ||
+    selectedQuestionId !== ''
 
   // Build the shared /search params (everything except per-tab paging). `types`
   // and `limit`/`page` are layered on by each caller.
@@ -432,6 +629,8 @@ export default function UnifiedSearch() {
     if (selectedCity) params.city = selectedCity
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee_code = nteeCategory
+    if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     return params
   }
@@ -442,7 +641,7 @@ export default function UnifiedSearch() {
   // cached counts; only a changed query/filter set refetches. limit=1 keeps the
   // per-type fetch minimal — we only consume `type_totals`, not the rows.
   const { data: tabCountsData, isLoading: isCountsLoading } = useQuery<SearchResponse>({
-    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedEin, includeFullText],
+    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedTopicId, selectedQuestionId, selectedEin, includeFullText],
     queryFn: async () => {
       if (!searchEnabled) return null
       const params = { ...buildSearchParams(), types: selectedTypes.join(','), limit: 1, page: 1 }
@@ -471,12 +670,19 @@ export default function UnifiedSearch() {
       })
     : []
   const availableTabKeys: string[] = availableTabs.map((t) => t.key)
-  const effectiveTab = availableTabKeys.includes(activeTab) ? activeTab : (availableTabKeys[0] ?? '')
+  // Default to the tab with the MOST results so the grand-total headline and the
+  // tab actually shown line up — otherwise "license plates" lands on Meetings (1)
+  // while the headline reads 82 (mostly Bills). Ties keep RESULT_TABS order.
+  const largestTabKey = availableTabs.reduce<string>(
+    (best, t) => (tabCounts[t.key] > (tabCounts[best] ?? -1) ? t.key : best),
+    availableTabKeys[0] ?? '',
+  )
+  const effectiveTab = availableTabKeys.includes(activeTab) ? activeTab : largestTabKey
 
   // Active-tab results — fetches ONLY the active tab's type, so `page`/`limit`
   // paginate within that single type instead of across a mixed result set.
   const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedEin, includeFullText],
+    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedTopicId, selectedQuestionId, selectedEin, includeFullText],
     queryFn: async () => {
       if (!effectiveTab) return null
       const params = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
@@ -524,6 +730,8 @@ export default function UnifiedSearch() {
       }
       if (sortBy && sortBy !== 'relevance') params.sort = sortBy
       if (nteeCategory) params.ntee = nteeCategory
+      if (selectedTopicId) params.topic_id = selectedTopicId
+      if (selectedQuestionId) params.question_id = selectedQuestionId
       if (includeFullText) params.full_text = 'true'
       setSearchParams(params)
     }
@@ -542,6 +750,8 @@ export default function UnifiedSearch() {
     }
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     if (effectiveTab) params.tab = effectiveTab
     if (newPage > 1) params.page = newPage.toString()
@@ -577,6 +787,8 @@ export default function UnifiedSearch() {
     params.types = category
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     setSearchParams(params)
   }
@@ -599,6 +811,8 @@ export default function UnifiedSearch() {
     }
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedQuestionId) params.question_id = selectedQuestionId
     setSearchParams(params)
   }
 
@@ -661,6 +875,8 @@ export default function UnifiedSearch() {
         return <ChatBubbleBottomCenterTextIcon className="h-5 w-5" />
       case 'decision':
         return <ScaleIcon className="h-5 w-5" />
+      case 'question':
+        return <QuestionMarkCircleIcon className="h-5 w-5" />
       case 'grant':
         return <BanknotesIcon className="h-5 w-5" />
       // 'grant_opportunities' normalizes to 'grant_opportunitie' (trailing 's' stripped);
@@ -698,6 +914,8 @@ export default function UnifiedSearch() {
         return 'bg-teal-100 text-teal-700 border-teal-200'
       case 'decision':
         return 'bg-amber-100 text-amber-700 border-amber-200'
+      case 'question':
+        return 'bg-violet-100 text-violet-700 border-violet-200'
       case 'grant':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200'
       case 'grant_opportunity':
@@ -710,8 +928,75 @@ export default function UnifiedSearch() {
     }
   }
 
+  // Map a decision/meeting search result into the shared Browse-Topics StoryCard
+  // shape, so search renders the SAME rich card (YouTube preview + stat chips)
+  // used on Browse Topics. Every value is real metadata — no fabricated stats.
+  const toStoryCard = (result: SearchResult): RenderCard => {
+    const md = (result.metadata ?? {}) as Record<string, unknown>
+    const num = (v: unknown) => (v == null || v === 'null' ? NaN : Number(v))
+    const stats: RenderCard['stats'] = []
+    const cv = num(md.competing_views_count)
+    if (Number.isFinite(cv) && cv > 0) {
+      stats.push({ v: String(cv), l: 'Opposing views', tone: 'amber' })
+    }
+    const vy = num(md.votes_yes)
+    const vn = num(md.votes_no)
+    if ((Number.isFinite(vy) || Number.isFinite(vn)) && !(vy === 0 && vn === 0)) {
+      stats.push({ v: `${Number.isFinite(vy) ? vy : 0}–${Number.isFinite(vn) ? vn : 0}`, l: 'Vote' })
+    }
+    if (stats.length === 0 && md.outcome && String(md.outcome) !== 'null') {
+      stats.push({ v: String(md.outcome), l: 'Outcome' })
+    }
+    const dateStr = (md.meeting_date ?? md.date ?? md.event_date) as string | undefined
+    let when = ''
+    if (dateStr) {
+      const d = new Date(`${dateStr}T00:00:00`)
+      if (!Number.isNaN(d.getTime())) when = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    }
+    return {
+      h: result.title,
+      stats,
+      juris: (md.jurisdiction as string) || (md.meeting_name as string) || result.subtitle || '',
+      when,
+      url: result.url || undefined,
+      stateCode: (md.state_code as string) || undefined,
+      videoId: (md.video_id as string) || (md.meeting_video_id as string) || undefined,
+    }
+  }
+
+  // 3-column StoryCard grid (matches Browse Topics) for decision/meeting results.
+  const StoryResultGrid = ({ results }: { results: SearchResult[] }) => (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {results.map((result, idx) => (
+        <StoryCard
+          key={result.url || idx}
+          card={toStoryCard(result)}
+          lens={CONTESTED_LENS}
+          saved={false}
+          onToggleSave={() => {}}
+          onOpen={() => openResult(result.url)}
+        />
+      ))}
+    </div>
+  )
+
   const ResultCard = ({ result }: { result: SearchResult }) => {
     const resultType = result.result_type ?? result.type
+    // Unanalyzed meetings (raw transcripts) are surfaced in the Meetings tab
+    // alongside AI-analyzed ones. They carry metadata.analysis_pending === true,
+    // have NO event_meeting_id, an EXTERNAL YouTube `url`, and a transcript
+    // snippet (with <mark> highlights) in `description`. Analyzed meetings keep
+    // their internal /meetings/{id} drilldown and rich summary — unchanged.
+    const isMeetingPending =
+      resultType === 'meeting' && result.metadata?.analysis_pending === true
+    // Decision and meeting results may carry a YouTube id for their meeting
+    // recording; when present we render a compact still in the right rail.
+    // MeetingThumbnail itself returns nothing on a falsy/404 id, so no-recording
+    // results render exactly as before.
+    const meetingVideoId =
+      (resultType === 'decision' || resultType === 'meeting')
+        ? (result.metadata?.video_id as string | undefined)
+        : undefined
     // Transcript snippets arrive with the matched passage wrapped in literal
     // <mark>…</mark> markers (ts_headline). Render them as highlighted React
     // nodes WITHOUT dangerouslySetInnerHTML: split on the markers and wrap the
@@ -820,7 +1105,13 @@ export default function UnifiedSearch() {
 
           </div>
           
-          {resultType === 'document' ? (
+          {/* Unanalyzed meetings carry a raw transcript snippet in
+              `description` with the matched passage wrapped in literal
+              <mark>…</mark> markers (ts_headline) — same convention as the
+              `document` result type. Reuse renderSnippet so highlights show and
+              the transcript body stays React-escaped (no
+              dangerouslySetInnerHTML). Analyzed meetings keep the plain summary. */}
+          {resultType === 'document' || isMeetingPending ? (
             <p className="text-sm text-gray-500 line-clamp-3 mb-2">{renderSnippet(result.description || '')}</p>
           ) : (
             <p className="text-sm text-gray-500 line-clamp-2 mb-2">{result.description}</p>
@@ -990,7 +1281,7 @@ export default function UnifiedSearch() {
               )}
               {(result.metadata.city || result.metadata.state_code) && (
                 <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                  📍 {[result.metadata.city, result.metadata.state_code].filter(Boolean).join(', ')}
+                  📍 {formatCityState(result.metadata.city, result.metadata.state_code)}
                 </span>
               )}
               {result.metadata.tax_year && (
@@ -1061,14 +1352,38 @@ export default function UnifiedSearch() {
             </div>
           )}
 
-          {/* Type badge */}
-          <div className="mt-2">
+          {/* Type badge (+ "Analysis pending" for unanalyzed meetings) */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(resultType)}`}>
               {getTypeIcon(resultType)}
               {resultType.charAt(0).toUpperCase() + resultType.slice(1)}
             </span>
+            {/* Muted amber pill: this meeting hasn't been AI-analyzed yet but is
+                shown because its transcript is available. Mirrors the existing
+                rounded-full px-2 py-1 text-xs badge style used across results. */}
+            {isMeetingPending && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                title="This meeting hasn't been analyzed yet — shown because its transcript is available."
+              >
+                <DocumentMagnifyingGlassIcon className="h-3.5 w-3.5" />
+                Analysis pending
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Meeting-video still — decision/meeting results with a recording.
+            Fixed-width 16:9 in the right rail of the row; rounded + clipped.
+            Renders nothing when there's no recording (MeetingThumbnail → null),
+            so non-recording results keep their current layout. */}
+        {meetingVideoId && (
+          <MeetingThumbnail
+            videoId={meetingVideoId}
+            alt={result.title}
+            className="hidden w-40 shrink-0 self-start rounded-md sm:block"
+          />
+        )}
       </div>
     </div>
     )
@@ -1079,6 +1394,16 @@ export default function UnifiedSearch() {
       <div className="max-w-6xl mx-auto px-6 pb-6">
         {/* Search Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          {cameFromHome && (
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back to home
+            </button>
+          )}
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Search</h1>
           
           {/* Search Bar + Filters on the same row */}
@@ -1411,6 +1736,37 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
+                {/* Questions Section (cross-jurisdiction policy questions) */}
+                {previewResults.results.questions && previewResults.results.questions.length > 0 && (
+                  <div className="border-b border-gray-200">
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <QuestionMarkCircleIcon className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 uppercase">Questions</span>
+                      </div>
+                      <button
+                        onClick={() => handleViewAllCategory('questions')}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        View All
+                      </button>
+                    </div>
+                    {previewResults.results.questions.slice(0, 3).map((result, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => openResult(result.url)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                      >
+                        <QuestionMarkCircleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Footer with total results */}
                 <div className="px-4 py-2 bg-gray-50 text-center border-t border-gray-200">
                   <button
@@ -1457,7 +1813,7 @@ export default function UnifiedSearch() {
           </div>
 
           {/* Active Filters Display */}
-          {(selectedState || selectedCity || sortBy !== 'relevance' || nteeCategory || jurisdictionDetails.length > 0 || includeFullText) && (
+          {(selectedState || selectedCity || sortBy !== 'relevance' || nteeCategory || selectedTopicId || selectedQuestionId || jurisdictionDetails.length > 0 || includeFullText) && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-600">Active filters:</span>
               {selectedState && (
@@ -1536,6 +1892,36 @@ export default function UnifiedSearch() {
                       setTimeout(() => handleSearch(), 0)
                     }}
                     className="hover:bg-green-200 rounded-full p-0.5"
+                  >
+                    <XMarkIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {selectedTopicId && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
+                  Topic: {(topicOptions ?? []).find((t) => String(t.topic_id) === selectedTopicId)?.name ?? selectedTopicId}
+                  <button
+                    onClick={() => {
+                      setSelectedTopicId('')
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="hover:bg-indigo-200 rounded-full p-0.5"
+                  >
+                    <XMarkIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {selectedQuestionId && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-sm max-w-xs">
+                  <span className="truncate">
+                    Question: {(questionOptions ?? []).find((qn) => qn.question_id === selectedQuestionId)?.canonical_text ?? selectedQuestionId}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setSelectedQuestionId('')
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="hover:bg-rose-200 rounded-full p-0.5 shrink-0"
                   >
                     <XMarkIcon className="h-3 w-3" />
                   </button>
@@ -1694,10 +2080,10 @@ export default function UnifiedSearch() {
                   </select>
                 </div>
 
-                {/* NTEE Category (for organizations) */}
+                {/* Cause / NTEE category (for organizations) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category (NTEE)
+                    Cause
                   </label>
                   <select
                     value={nteeCategory}
@@ -1737,6 +2123,55 @@ export default function UnifiedSearch() {
                     <option value="Y" className="text-gray-900">Mutual Benefit</option>
                   </select>
                 </div>
+
+                {/* Topic — named civic-topic catalog (/api/topics). Narrows
+                    decisions / meetings / topics to the chosen topic's keyword set. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Topic
+                  </label>
+                  <TopicTypeahead
+                    topics={topicOptions ?? []}
+                    selectedId={selectedTopicId}
+                    onSelect={(id) => {
+                      setSelectedTopicId(id)
+                      setCurrentPage(1)
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Limits decisions, meetings &amp; topics to this civic topic.
+                  </p>
+                </div>
+
+                {/* Question — policy-question registry (/api/policy-question/).
+                    Narrows decisions to those that instantiate the chosen question. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Question
+                  </label>
+                  <select
+                    value={selectedQuestionId}
+                    onChange={(e) => {
+                      setSelectedQuestionId(e.target.value)
+                      setCurrentPage(1)
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
+                  >
+                    <option value="" className="text-gray-900">All Questions</option>
+                    {(questionOptions ?? []).map((qn) => (
+                      <option key={qn.question_id} value={qn.question_id} className="text-gray-900">
+                        {qn.canonical_text && qn.canonical_text.length > 80
+                          ? `${qn.canonical_text.slice(0, 80)}…`
+                          : (qn.canonical_text ?? qn.question_id)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Limits decisions to those deciding this policy question.
+                  </p>
+                </div>
               </div>
 
                   {/* Full Text Search Checkbox */}
@@ -1771,6 +2206,8 @@ export default function UnifiedSearch() {
                       setSelectedState('')
                       setSortBy('relevance')
                       setNteeCategory('')
+                      setSelectedTopicId('')
+                      setSelectedQuestionId('')
                       setIncludeFullText(false)
                       setSelectedTypes([...DEFAULT_RESULT_TYPES])
                       setTimeout(() => handleSearch(), 0)
@@ -1978,10 +2415,57 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
+                {/* Two-column results layout: a left filter sidebar (lg+) that
+                    lists each content type with its real result count, and the
+                    right column with the active type's results. On small screens
+                    the sidebar is hidden and the horizontal tab bar is shown. */}
+                <div className="flex gap-6 lg:gap-8 items-start">
+                  {/* Left filter sidebar — type list with counts (lg+ only).
+                      Counts come straight from tabCounts (type_totals); no
+                      fabricated numbers. */}
+                  {availableTabs.length > 0 && (
+                    <aside className="hidden lg:block w-60 shrink-0 lg:sticky lg:top-20">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 px-3">
+                        Filter by type
+                      </div>
+                      <nav className="space-y-1" aria-label="Filter by result type">
+                        {availableTabs.map(({ key, label }) => {
+                          const isActive = effectiveTab === key
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => selectTab(key)}
+                              aria-current={isActive ? 'page' : undefined}
+                              className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+                                isActive
+                                  ? 'bg-primary-50 text-primary-700'
+                                  : 'text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              <span className={isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}>
+                                {getTypeIcon(key)}
+                              </span>
+                              {label}
+                              <span
+                                className={`ml-auto rounded-full px-2.5 py-1 text-sm font-bold ${
+                                  isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'
+                                }`}
+                              >
+                                {tabCounts[key]?.toLocaleString() ?? 0}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </nav>
+                    </aside>
+                  )}
+
+                  {/* Right column — active type's results + pagination. */}
+                  <div className="min-w-0 flex-1">
                 {/* Result-type Tabs — one per type that returned hits, Decisions
-                    first. Only the active tab's section renders below. */}
+                    first. Shown below lg only; the sidebar replaces this on lg+. */}
                 {availableTabs.length > 1 && (
-                  <div className="mb-6 border-b border-gray-200 overflow-x-auto">
+                  <div className="lg:hidden mb-6 border-b border-gray-200 overflow-x-auto scrollbar-hide">
                     <nav className="-mb-px flex gap-x-6" aria-label="Result types">
                       {availableTabs.map(({ key, label }) => {
                         const isActive = effectiveTab === key
@@ -2001,7 +2485,7 @@ export default function UnifiedSearch() {
                             </span>
                             {label}
                             <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              className={`rounded-full px-2.5 py-1 text-sm font-bold ${
                                 isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'
                               }`}
                             >
@@ -2141,8 +2625,8 @@ export default function UnifiedSearch() {
                                     </td>
                                     {/* Jurisdiction */}
                                     <td className="px-4 py-3 align-top">
-                                      {m.city && <div className="text-sm text-gray-900">{m.city}</div>}
-                                      {m.state && <div className="text-xs text-gray-500 mt-0.5">{m.state}</div>}
+                                      {m.city && <div className="text-sm text-gray-900">{titleCaseCity(m.city)}</div>}
+                                      {m.state && <div className="text-xs text-gray-500 mt-0.5">{expandStateName(m.state)}</div>}
                                     </td>
                                     {/* File */}
                                     <td className="px-4 py-3 align-top">
@@ -2175,8 +2659,21 @@ export default function UnifiedSearch() {
                       <CalendarIcon className="h-6 w-6 text-green-600" />
                       Meetings ({searchResults.type_totals?.meetings?.toLocaleString() || searchResults.results.meetings.length})
                     </h3>
+                    <StoryResultGrid results={searchResults.results.meetings} />
+                  </div>
+                )}
+
+                {effectiveTab === 'documents' && searchResults.results?.documents && searchResults.results.documents.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <DocumentMagnifyingGlassIcon className="h-6 w-6 text-cyan-600" />
+                      Transcripts ({searchResults.type_totals?.documents?.toLocaleString() || searchResults.results.documents.length})
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4 -mt-2">
+                      Passages from meeting transcripts that mention your search term — the discussion itself, even when it never became a titled agenda item or a recorded decision.
+                    </p>
                     <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.meetings.map((result, idx) => (
+                      {searchResults.results.documents.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>
@@ -2256,17 +2753,30 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
+                {/* Questions — cross-jurisdiction policy questions. Generic
+                    ResultCard handles the title/subtitle/description; result.url
+                    routes to /policy-question/{id} via openResult(). */}
+                {effectiveTab === 'questions' && searchResults.results?.questions && searchResults.results.questions.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <QuestionMarkCircleIcon className="h-6 w-6 text-violet-600" />
+                      Questions ({searchResults.type_totals?.questions?.toLocaleString() || searchResults.results.questions.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.questions.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {effectiveTab === 'decisions' && searchResults.results?.decisions && searchResults.results.decisions.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <ScaleIcon className="h-6 w-6 text-amber-600" />
                       Decisions ({searchResults.type_totals?.decisions?.toLocaleString() || searchResults.results.decisions.length})
                     </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.decisions.map((result, idx) => (
-                        <ResultCard key={idx} result={result} />
-                      ))}
-                    </div>
+                    <StoryResultGrid results={searchResults.results.decisions} />
                   </div>
                 )}
 
@@ -2390,6 +2900,8 @@ export default function UnifiedSearch() {
                     </div>
                   </div>
                 )}
+                  </div>{/* /right column */}
+                </div>{/* /two-column results layout */}
               </>
             )}
           </div>

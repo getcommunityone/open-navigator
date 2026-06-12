@@ -18,6 +18,7 @@ import {
   BuildingOffice2Icon,
 } from '@heroicons/react/24/outline'
 import { withSpan } from '../instrumentation'
+import { expandStateName } from '../utils/formatters'
 
 // Agenda / minutes (and any future) document attached to the meeting. `url` is an
 // absolute external PDF link that opens in a new tab. `body_name` is a terse
@@ -1116,7 +1117,7 @@ function RelatedDecisions({ id }: { id: string }) {
                 {it.headline || 'Decision'}
               </div>
               <div className="mt-1 text-[12px] text-gray-400">
-                {[it.jurisdiction_name, it.state_code].filter(Boolean).join(', ')}
+                {[it.jurisdiction_name, expandStateName(it.state_code)].filter(Boolean).join(', ')}
                 {it.outcome ? ` · ${it.outcome}` : ''}
               </div>
               {tags.length > 0 && (

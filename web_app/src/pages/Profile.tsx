@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Tab } from '@headlessui/react'
 import api from '../lib/api'
+import { formatCityState } from '../utils/formatters'
 import { 
   UserIcon, 
   BuildingLibraryIcon,
@@ -248,7 +249,7 @@ export default function Profile() {
                           {leader.office && <p className="text-sm text-gray-500">{leader.office}</p>}
                           {leader.city && leader.state && (
                             <p className="text-xs text-gray-400 mt-1">
-                              {leader.city}, {leader.state}
+                              {formatCityState(leader.city, leader.state)}
                             </p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">
@@ -318,7 +319,7 @@ export default function Profile() {
                           )}
                           {org.city && org.state && (
                             <p className="text-xs text-gray-400 mt-1">
-                              {org.city}, {org.state}
+                              {formatCityState(org.city, org.state)}
                             </p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import api from '../lib/api'
+import { formatCityState, titleCaseCity } from '../utils/formatters'
 import {
   ArrowLeftIcon,
   MapPinIcon,
@@ -141,7 +142,7 @@ export default function PersonDetail() {
     )
   }
 
-  const location = [person.city, person.state_code].filter(Boolean).join(', ')
+  const location = formatCityState(person.city, person.state_code)
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -290,7 +291,7 @@ export default function PersonDetail() {
           <div className="bg-white rounded-lg shadow-sm p-6 mt-6">
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <UserGroupIcon className="h-5 w-5" />
-              Other officials{person.city ? ` in ${person.city}` : ''}
+              Other officials{person.city ? ` in ${titleCaseCity(person.city)}` : ''}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {person.colleagues.map((c) => (

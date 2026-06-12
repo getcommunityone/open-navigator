@@ -53,17 +53,23 @@
     'meeting_document', 'event_decision', 'event_decision_place',
     'event_place_geocoded', 'event_financial_item', 'event_bill', 'event_topic',
     'contact_official', 'person_government', 'jurisdictions', 'civic_jurisdiction',
-    'jurisdiction_document', 'jurisdiction_mapping_analysis',
+    'jurisdiction_document', 'jurisdiction_finance', 'jurisdiction_finance_category',
     'jurisdiction_property_tax_rate', 'state_sales_tax_rate',
+    'opportunity_atlas_mobility', 'opportunity_atlas_mobility_national',
+    'jurisdiction_mapping_analysis',
     'jurisdiction_state_aggregate', 'jurisdiction_minutes_publish_lag',
     'grant', 'grant_opportunity', 'tag', 'rpt_bill_map_aggregate',
     'bills', 'bill_sponsorship',
     'cpi_annual',
     'item_interestingness', 'item_flags', 'nonprofit_sector_revenue',
+    'topic_money_and_talk', 'civicsearch_topic',
+    'browse_transcript_count', 'browse_directory_summary',
+    'browse_entity_state_transcript_count',
     'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction',
     'mdm_bridge_event_analysis',
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
-    'policy_question_relation'
+    'policy_question_relation', 'policy_question_trend',
+    'meeting_browse', 'meeting_topic_link', 'meeting_question_link'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

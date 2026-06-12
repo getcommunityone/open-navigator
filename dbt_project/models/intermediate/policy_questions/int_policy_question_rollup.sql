@@ -11,6 +11,24 @@
 with inst as (
     select * from {{ ref('stg_question_instance') }}
 ),
+-- Real money per instance: a local_decision instance's source_id is the
+-- event_decision_id, which carries the (already per-decision, max-not-summed)
+-- net_dollar_impact in item_interestingness. Bills carry no dollar impact, so
+-- money is a local-decision signal; talk/instances span both sources.
+decision_money as (
+    select
+        i.question_id,
+        coalesce(ii.net_dollar_impact, 0)::numeric as net_dollar_impact
+    from inst i
+    join {{ ref('item_interestingness') }} ii
+      on ii.event_decision_id = i.source_id
+     and i.source_type = 'local_decision'
+),
+money as (
+    select question_id, sum(net_dollar_impact)::numeric as money_total
+    from decision_money
+    group by question_id
+),
 juris as (
     select
         question_id,
@@ -26,7 +44,7 @@ juris as (
     from inst
 )
 select
-    question_id,
+    j.question_id,
     count(*)                                                             as instances_total,
     count(*) filter (where source_type = 'local_decision')              as decisions_total,
     count(*) filter (where source_type = 'state_bill')                  as bills_total,
@@ -36,6 +54,8 @@ select
     count(*) filter (where outcome_family = 'approved')                 as approved_count,
     count(*) filter (where outcome_family = 'denied')                   as denied_count,
     count(*) filter (where outcome_family = 'deferred')                 as deferred_count,
-    count(*) filter (where outcome_family = 'other')                    as other_count
-from juris
-group by question_id
+    count(*) filter (where outcome_family = 'other')                    as other_count,
+    coalesce(m.money_total, 0)::numeric                                 as money_total
+from juris j
+left join money m using (question_id)
+group by j.question_id, m.money_total

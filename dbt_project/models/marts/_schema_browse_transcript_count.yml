@@ -1,0 +1,67 @@
+version: 2
+
+# public.browse_transcript_count — item-grain count of distinct transcripts
+# linked to each browseable homepage entity (place | topic | question | cause).
+#
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - PK: (entity_type, entity_id) — composite. One row per entity. state_code is
+#     a denormalized representative attribute, NOT part of the key.
+#   - No FK: entity_id is polymorphic (geoid | topic_id | question_id | tag_id),
+#     so it cannot reference a single parent table — relationships are validated
+#     upstream in the bridge int_browse_entity_transcripts.
+
+models:
+  - name: browse_transcript_count
+    description: >
+      public.browse_transcript_count — per-entity count of DISTINCT transcript
+      videos (public.event_documents, document_type='transcript') linked to each
+      browseable homepage entity. entity_type is one of place | topic | question
+      | cause; entity_id is the matching geoid | topic_id | question_id | tag_id.
+      Causes have transcript_count=0 (no cause->transcript linkage exists in the
+      warehouse — honest zero, not fabricated). Source:
+      intermediate.int_browse_entity_transcripts + public.tag (ntee).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [entity_type, entity_id]
+    columns:
+      - name: entity_type
+        description: "Entity kind: 'place' | 'topic' | 'question' | 'cause'. Part of the PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['place', 'topic', 'question', 'cause']
+      - name: entity_id
+        description: >
+          Polymorphic entity id (part of the PK): geoid for place, topic_id for
+          topic, question_id for question, tag_id for cause.
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: entity_name
+        description: "Human-readable entity label (place name / topic name / question text / tag label)."
+        data_type: text
+      - name: state_code
+        description: >
+          Representative 2-letter state for the entity (NULL for causes; the
+          place's state for places; a representative state for topic/question
+          which may span states). Not part of the key.
+        data_type: text
+      - name: transcript_count
+        description: >
+          COUNT(DISTINCT video_id) of transcripts linked to this entity. 0 for
+          causes (no linkage). Never NULL.
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null

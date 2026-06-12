@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 import asyncio
+import json
 from loguru import logger
 import re
 import os
@@ -591,28 +592,89 @@ async def count_persons(
             return 0
 
 
+async def resolve_topic_tsquery(topic_id: int) -> Optional[str]:
+    """Build an OR-tsquery from a named civic topic's label + keyword set.
+
+    The named civic-topic catalog (public.civicsearch_topic) is a keyword cluster,
+    not an FK to events, so the Advanced "Topic" filter narrows results by matching
+    the topic's defining keywords. Returns a to_tsquery-safe ``'kw1 | kw2 | ...'``
+    string (lowercase alphabetic lexemes, deduped), or None if the topic is unknown
+    or has no usable terms. keyword_stats arrives as TEXT (the pool has no JSONB
+    codec), so it is json.loads()'d like topics.py does.
+    """
+    try:
+        pool = await search_postgres.get_db_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT name, keyword_stats FROM civicsearch_topic WHERE topic_id = $1",
+                topic_id,
+            )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"resolve_topic_tsquery error: {e}")
+        return None
+    if not row:
+        return None
+
+    raw_kw = row["keyword_stats"]
+    keywords: List[str] = []
+    if isinstance(raw_kw, list):
+        keywords = [str(k) for k in raw_kw]
+    elif isinstance(raw_kw, str):
+        try:
+            parsed = json.loads(raw_kw)
+            if isinstance(parsed, list):
+                keywords = [str(k) for k in parsed]
+        except (TypeError, ValueError):
+            keywords = []
+
+    terms: List[str] = []
+    seen: set[str] = set()
+    for blob in [row["name"], *keywords]:
+        if not blob:
+            continue
+        # Split phrases into alphabetic word lexemes so the result is a clean,
+        # injection-safe to_tsquery; len>=3 drops noise tokens ("of", "to").
+        for tok in re.findall(r"[a-z]+", str(blob).lower()):
+            if len(tok) >= 3 and tok not in seen:
+                seen.add(tok)
+                terms.append(tok)
+    if not terms:
+        return None
+    return " | ".join(terms)
+
+
 async def count_events(
     query: Optional[str] = None,
     state: Optional[str] = None,
     city: Optional[str] = None,
+    topic_tsquery: Optional[str] = None,
 ) -> int:
     """Count meetings matching the events search filters.
 
-    Mirrors the WHERE predicates of search_postgres.search_events_pg over
-    public.event_meeting: the same state_code filter, the same exact-name city
-    scope (jurisdiction_name OR city), and the same body/jurisdiction/summary/city
-    ILIKE for a query. Used to report an HONEST type_total for "meetings" so the
-    count is independent of the caller's limit — the lightweight tab-counts call
-    sends limit=1, which would otherwise cap the fetched-length estimate at 1.
+    Mirrors the WHERE predicates of search_postgres.search_events_pg over BOTH
+    legs of the merged Meetings feed, so the type_total matches the results:
 
-    event_meeting is small (~6k rows) so this uncapped count(*) is sub-millisecond.
-    Result cached for 1 hour.
+    1. ANALYZED — public.event_meeting: the same state_code filter, the same
+       exact-name city scope (jurisdiction_name OR city), and the same
+       body/jurisdiction/summary/city ILIKE (+ child-decision FTS) for a query.
+    2. UNANALYZED — DISTINCT video_id from public.event_documents where
+       event_id IS NULL, same state/city scope, query = event_title ILIKE OR
+       content_tsv @@ plainto_tsquery, EXCLUDING video_ids already present in
+       event_meeting (NOT EXISTS), so the dedup matches search_events_pg.
+
+    Without the unanalyzed leg the tab would read 0 for transcript-only cities
+    (e.g. Atlanta) while results still appear. Used to report an HONEST
+    type_total — the lightweight tab-counts call sends limit=1, which would
+    otherwise cap the fetched-length estimate at 1.
+
+    event_meeting is small (~6k rows); the unanalyzed DISTINCT-video_id count is
+    bounded by the state/city filters + content_tsv GIN index. Cached for 1 hour.
     """
     norm_state = search_postgres.normalize_state_input(state)
     has_query = bool(query and query.strip())
     q = query.strip() if has_query else ""
 
-    cache_key = f"count_events_{norm_state}_{city}_{query}"
+    cache_key = f"count_events_{norm_state}_{city}_{query}_{topic_tsquery}"
     now = datetime.now()
     if cache_key in _count_cache:
         cached_time = _count_cache_ttl.get(cache_key)
@@ -624,40 +686,92 @@ async def count_events(
         span.set_attribute("search.has_city", bool(city and city.strip()))
         span.set_attribute("search.has_query", has_query)
         try:
-            where_clauses: List[str] = []
+            # Shared parameter bag for the two-leg count. asyncpg uses positional
+            # $n, so each value is registered once and its index reused.
             params: List[Any] = []
-            idx = 1
 
+            q_like_idx = q_fts_idx = None
+            if has_query:
+                params.append(f"%{q}%")
+                q_like_idx = len(params)
+                params.append(q)
+                q_fts_idx = len(params)
+
+            state_idx = None
+            if norm_state:
+                params.append(norm_state.upper())
+                state_idx = len(params)
+
+            city_idx = None
+            if city and city.strip():
+                params.append(city.strip())
+                city_idx = len(params)
+
+            # Civic-topic filter (mirrors search_events_pg topic narrowing).
+            topic_idx = None
+            if topic_tsquery:
+                params.append(topic_tsquery)
+                topic_idx = len(params)
+
+            # ---- Analyzed leg (event_meeting) ----
+            em_where: List[str] = []
             if has_query:
                 # Mirror search_events_pg: a meeting counts when its own text
                 # matches OR when a child decision (linked by c1_event_id) matches
-                # the same English-FTS used by count_decisions. Keeps the meetings
-                # type_total honest about inherited-from-decisions matches.
-                where_clauses.append(
-                    f"(body_name ILIKE ${idx} OR jurisdiction_name ILIKE ${idx} "
-                    f"OR meeting_summary ILIKE ${idx} OR city ILIKE ${idx} "
+                # the same English-FTS used by count_decisions.
+                em_where.append(
+                    f"(em.body_name ILIKE ${q_like_idx} OR em.jurisdiction_name ILIKE ${q_like_idx} "
+                    f"OR em.meeting_summary ILIKE ${q_like_idx} OR em.city ILIKE ${q_like_idx} "
                     f"OR EXISTS (SELECT 1 FROM event_decision d "
-                    f"WHERE d.c1_event_id = event_meeting.c1_event_id "
-                    f"AND d.search_tsv @@ plainto_tsquery('english', ${idx + 1})))"
+                    f"WHERE d.c1_event_id = em.c1_event_id "
+                    f"AND d.search_tsv @@ plainto_tsquery('english', ${q_fts_idx})))"
                 )
-                params.append(f"%{q}%")
-                params.append(q)
-                idx += 2
-
-            if norm_state:
-                where_clauses.append(f"state_code = ${idx}")
-                params.append(norm_state.upper())
-                idx += 1
-
-            if city and city.strip():
-                where_clauses.append(
-                    f"(lower(jurisdiction_name) = lower(${idx}) OR lower(city) = lower(${idx}))"
+            if state_idx:
+                em_where.append(f"em.state_code = ${state_idx}")
+            if city_idx:
+                em_where.append(
+                    f"(lower(em.jurisdiction_name) = lower(${city_idx}) "
+                    f"OR lower(em.city) = lower(${city_idx}))"
                 )
-                params.append(city.strip())
-                idx += 1
+            if topic_idx:
+                em_where.append(
+                    f"(to_tsvector('english', COALESCE(em.body_name, '') || ' ' "
+                    f"|| COALESCE(em.meeting_summary, '') || ' ' || COALESCE(em.jurisdiction_name, '')) "
+                    f"@@ to_tsquery('english', ${topic_idx}) "
+                    f"OR EXISTS (SELECT 1 FROM event_decision d "
+                    f"WHERE d.c1_event_id = em.c1_event_id "
+                    f"AND d.search_tsv @@ to_tsquery('english', ${topic_idx})))"
+                )
+            em_where_sql = " AND ".join(em_where) if em_where else "TRUE"
 
-            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
-            sql = f"SELECT count(*) FROM event_meeting WHERE {where_sql}"
+            # ---- Unanalyzed leg (event_documents, event_id IS NULL) ----
+            ed_where: List[str] = ["ed.event_id IS NULL"]
+            if has_query:
+                ed_where.append(
+                    f"(ed.event_title ILIKE ${q_like_idx} "
+                    f"OR ed.content_tsv @@ plainto_tsquery('english', ${q_fts_idx}))"
+                )
+            if state_idx:
+                ed_where.append(f"ed.state_code = ${state_idx}")
+            if city_idx:
+                ed_where.append(
+                    f"(lower(ed.jurisdiction_name) = lower(${city_idx}) "
+                    f"OR lower(ed.city) = lower(${city_idx}))"
+                )
+            if topic_idx:
+                ed_where.append(f"ed.content_tsv @@ to_tsquery('english', ${topic_idx})")
+            # Same dedup as search_events_pg: exclude videos already analyzed.
+            ed_where.append(
+                "NOT EXISTS (SELECT 1 FROM event_meeting em2 WHERE em2.video_id = ed.video_id)"
+            )
+            ed_where_sql = " AND ".join(ed_where)
+
+            sql = f"""
+                SELECT
+                    (SELECT count(*) FROM event_meeting em WHERE {em_where_sql})
+                  + (SELECT count(DISTINCT ed.video_id)
+                       FROM event_documents ed WHERE {ed_where_sql})
+            """
 
             pool = await search_postgres.get_db_pool()
             async with pool.acquire() as conn:
@@ -678,6 +792,8 @@ async def count_decisions(
     query: Optional[str] = None,
     state: Optional[str] = None,
     city: Optional[str] = None,
+    question_id: Optional[str] = None,
+    topic_tsquery: Optional[str] = None,
 ) -> int:
     """Count governance decisions matching the decisions search filters.
 
@@ -696,7 +812,7 @@ async def count_decisions(
     has_query = bool(query and query.strip())
     q = query.strip() if has_query else ""
 
-    cache_key = f"count_decisions_{norm_state}_{city}_{query}"
+    cache_key = f"count_decisions_{norm_state}_{city}_{query}_{question_id}_{topic_tsquery}"
     now = datetime.now()
     if cache_key in _count_cache:
         cached_time = _count_cache_ttl.get(cache_key)
@@ -733,6 +849,23 @@ async def count_decisions(
                     f"(d.search_tsv @@ plainto_tsquery('english', ${idx}))"
                 )
                 params.append(q)
+                idx += 1
+
+            if question_id:
+                # Mirror search_decisions_pg: only decisions instantiating the question.
+                where_clauses.append(
+                    f"EXISTS (SELECT 1 FROM question_instance qi "
+                    f"WHERE qi.source_type = 'local_decision' "
+                    f"AND qi.source_id = d.event_decision_id "
+                    f"AND qi.question_id = ${idx})"
+                )
+                params.append(question_id)
+                idx += 1
+
+            if topic_tsquery:
+                # Mirror search_decisions_pg civic-topic narrowing.
+                where_clauses.append(f"d.search_tsv @@ to_tsquery('english', ${idx})")
+                params.append(topic_tsquery)
                 idx += 1
 
             where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
@@ -932,6 +1065,7 @@ async def count_topics(
     query: Optional[str] = None,
     state: Optional[str] = None,
     city: Optional[str] = None,
+    topic_tsquery: Optional[str] = None,
 ) -> int:
     """Count meeting topics matching the topics search filters.
 
@@ -945,7 +1079,7 @@ async def count_topics(
     has_query = bool(query and query.strip())
     q = query.strip() if has_query else ""
 
-    cache_key = f"count_topics_{norm_state}_{city}_{query}"
+    cache_key = f"count_topics_{norm_state}_{city}_{query}_{topic_tsquery}"
     now = datetime.now()
     if cache_key in _count_cache:
         cached_time = _count_cache_ttl.get(cache_key)
@@ -982,6 +1116,15 @@ async def count_topics(
                 params.append(q)
                 params.append(f"%{q}%")
                 idx += 2
+
+            if topic_tsquery:
+                # Mirror search_topics_pg civic-topic narrowing.
+                where_clauses.append(
+                    f"to_tsvector('english', COALESCE(headline, '') || ' ' || "
+                    f"COALESCE(primary_theme, '')) @@ to_tsquery('english', ${idx})"
+                )
+                params.append(topic_tsquery)
+                idx += 1
 
             where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
             sql = f"SELECT count(*) FROM event_topic WHERE {where_sql}"
@@ -1050,6 +1193,67 @@ async def count_causes(query: Optional[str] = None) -> int:
             return count
         except Exception as e:
             logger.error(f"Causes count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
+async def count_questions(query: Optional[str] = None, question_id: Optional[str] = None) -> int:
+    """Count policy questions matching the questions search filter.
+
+    Mirrors the WHERE predicate of search_postgres.search_questions_pg over
+    public.policy_question: the canonical_text ILIKE for a query (browse counts the
+    whole registry). The policy-question registry is a small curated/clustered set
+    (no FTS index needed) and carries no geography, so there is no state/city
+    filter. Result cached for 1 hour.
+    """
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_questions_{query}_{question_id}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_questions") as span:
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if question_id:
+                # Question filter (Advanced): pin to the single chosen question
+                # (mirrors search_questions_pg's question_id predicate). The exact
+                # question may not be featured, so this is NOT gated on is_featured.
+                where_clauses.append(f"question_id = ${idx}")
+                params.append(question_id)
+                idx += 1
+            else:
+                # For now the whole site focuses on the curated/pinned "big questions"
+                # only — mirror search_questions_pg and count just the featured set.
+                where_clauses.append("is_featured = true")
+
+                if has_query:
+                    where_clauses.append(f"canonical_text ILIKE ${idx}")
+                    params.append(f"%{q}%")
+                    idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM policy_question WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Questions count error: {e}")
             span.record_exception(e)
             return 0
 
@@ -1258,7 +1462,7 @@ async def _traced_subsearch(
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants,grant_opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,questions,documents,grants,grant_opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_id: Optional[str] = Query(None, description="Filter by exact jurisdiction_id (city, county, or state) — scopes orgs/persons/grants through the MDM jurisdiction bridges"),
@@ -1266,6 +1470,8 @@ async def unified_search(
     ntee_code: Optional[str] = Query(None, description="Filter organizations by NTEE code"),
     ein: Optional[str] = Query(None, description="Filter organizations by exact EIN (for direct organization links)"),
     session: Optional[str] = Query(None, description="Filter bills by legislative session"),
+    topic_id: Optional[int] = Query(None, description="Filter by a named civic topic (public.civicsearch_topic.topic_id) — narrows decisions/meetings/topics to that topic's keyword set"),
+    question_id: Optional[str] = Query(None, description="Filter by a policy question (public.policy_question.question_id) — narrows decisions to those instantiating it, plus the question itself"),
     limit: int = Query(20, ge=1, le=100, description="Maximum results per type"),
     offset: int = Query(0, ge=0, description="Number of results to skip (for pagination)"),
     page: int = Query(1, ge=1, description="Page number (alternative to offset)"),
@@ -1294,7 +1500,7 @@ async def unified_search(
     - `/api/search?q=healthcare&types=bills&state=MA` - Search bills in Massachusetts
     """
     # 🔍 DEBUG LOGGING - Log all incoming request parameters
-    logger.info(f"🔍 SEARCH REQUEST: q={q!r}, types={types!r}, state={state!r}, city={city!r}, jurisdiction_id={jurisdiction_id!r}, jurisdiction_levels={jurisdiction_levels!r}, ntee_code={ntee_code!r}, ein={ein!r}, session={session!r}, limit={limit}, offset={offset}, page={page}, enrich={enrich}, sort={sort!r}")
+    logger.info(f"🔍 SEARCH REQUEST: q={q!r}, types={types!r}, state={state!r}, city={city!r}, jurisdiction_id={jurisdiction_id!r}, jurisdiction_levels={jurisdiction_levels!r}, ntee_code={ntee_code!r}, ein={ein!r}, session={session!r}, topic_id={topic_id!r}, question_id={question_id!r}, limit={limit}, offset={offset}, page={page}, enrich={enrich}, sort={sort!r}")
     
     try:
         # Calculate offset from page if offset not explicitly provided
@@ -1323,7 +1529,7 @@ async def unified_search(
                 if t.strip()
             ]
         else:
-            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants', 'grant_opportunities']
+            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'questions', 'documents', 'grants', 'grant_opportunities']
 
         # Scope cut: drop the non-government "persons" category (mdm_person) unless
         # explicitly re-enabled. Stripping it here (rather than per-task) means
@@ -1332,6 +1538,24 @@ async def unified_search(
         # 'persons' above, so they're covered too. See PERSONS_SEARCH_ENABLED.
         if not PERSONS_SEARCH_ENABLED:
             requested_types = [t for t in requested_types if t != 'persons']
+
+        # Advanced "Topic" / "Question" filters. Each narrows the result set to the
+        # types it can honor, dropping the rest so the filter genuinely constrains
+        # what is shown (mirrors how the org-only Cause filter scopes its effect):
+        #   - topic_id  -> a named civic topic (civicsearch_topic): keyword-narrows
+        #     decisions / meetings / topics. Resolved to an OR-tsquery once here.
+        #   - question_id -> a policy question (policy_question): narrows decisions
+        #     that instantiate it (via question_instance) + pins the questions tab.
+        # When both are set the supported sets intersect to {decisions}.
+        topic_tsquery = None
+        if topic_id is not None:
+            topic_tsquery = await resolve_topic_tsquery(topic_id)
+            if topic_tsquery:
+                _topic_types = {'decisions', 'meetings', 'topics'}
+                requested_types = [t for t in requested_types if t in _topic_types] or list(_topic_types)
+        if question_id:
+            _question_types = {'decisions', 'questions'}
+            requested_types = [t for t in requested_types if t in _question_types] or list(_question_types)
 
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
@@ -1380,7 +1604,7 @@ async def unified_search(
             search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, city=city, limit=search_limit)))
 
         if 'meetings' in requested_types:
-            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset)))
+            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery)))
 
         if 'organizations' in requested_types:
             search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort)))
@@ -1403,10 +1627,16 @@ async def unified_search(
             search_tasks.append(('grant_opportunities', search_postgres.search_grant_opportunities_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset)))
 
         if 'topics' in requested_types:
-            search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, city=city, limit=search_limit, offset=search_offset)))
+            search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery)))
 
         if 'decisions' in requested_types:
-            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, city=city, sort=sort, limit=search_limit, offset=search_offset)))
+            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, city=city, sort=sort, limit=search_limit, offset=search_offset, question_id=question_id, topic_tsquery=topic_tsquery)))
+
+        if 'questions' in requested_types:
+            # Cross-jurisdiction policy-question registry (public.policy_question):
+            # canonical_text ILIKE on a query, curated featured rows first on browse.
+            # National registry (no geography), so state/city filters don't apply.
+            search_tasks.append(('questions', search_postgres.search_questions_pg(q, limit=search_limit, offset=search_offset, question_id=question_id)))
 
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)
@@ -1480,6 +1710,7 @@ async def unified_search(
             'bills': [r.to_dict() for r in paginated_results if r.result_type == 'bill'],
             'topics': [r.to_dict() for r in paginated_results if r.result_type == 'topic'],
             'decisions': [r.to_dict() for r in paginated_results if r.result_type == 'decision'],
+            'questions': [r.to_dict() for r in paginated_results if r.result_type == 'question'],
             'causes': [r.to_dict() for r in paginated_results if r.result_type == 'cause'],
             'jurisdictions': [r.to_dict() for r in paginated_results if r.result_type == 'jurisdiction'],
             'documents': [r.to_dict() for r in paginated_results if r.result_type == 'document'],
@@ -1499,6 +1730,7 @@ async def unified_search(
             'bills': len([r for r in all_results if r.result_type == 'bill']),
             'topics': len([r for r in all_results if r.result_type == 'topic']),
             'decisions': len([r for r in all_results if r.result_type == 'decision']),
+            'questions': len([r for r in all_results if r.result_type == 'question']),
             'causes': len([r for r in all_results if r.result_type == 'cause']),
             'jurisdictions': len([r for r in all_results if r.result_type == 'jurisdiction']),
             'documents': len([r for r in all_results if r.result_type == 'document']),
@@ -1529,22 +1761,112 @@ async def unified_search(
         # leaders + persons (+ existing organizations) path.
         is_filtered = bool(q) or bool(state) or bool(city) or bool(jurisdiction_id)
 
+        # The per-type COUNT helpers below are each cached (1h), but on a COLD
+        # cache they used to run back-to-back with `await`, so their latencies
+        # COMPOUNDED: a fresh broad search ("affordable housing" with no scope)
+        # paid sum(counts) over ~11 types (~10s), even though every count is an
+        # independent indexed query. Dispatch them CONCURRENTLY — exactly like the
+        # subsearch fan-out above — so the count phase is as slow as its single
+        # slowest count, not their sum. Each (key, coro) carries the SAME guard as
+        # before, so the set of counts run is unchanged; only the scheduling
+        # differs. return_exceptions keeps one slow/failing count from sinking the
+        # whole search: that type silently falls back to its fetched-length
+        # estimate (the pre-existing type_totals value).
+        count_tasks: List[tuple] = []
+
         if not q and len(requested_types) == 1 and 'organizations' in requested_types:
             # Single-type org browse: accurate count (unchanged behavior).
-            type_totals['organizations'] = await count_organizations(
+            count_tasks.append(('organizations', count_organizations(
                 state=state, ntee_code=ntee_code, query=q
-            )
+            )))
 
         # Accurate per-type counts for the paginated people categories whenever
         # the result set is filtered (query and/or location scope).
         if is_filtered and 'leaders' in requested_types:
-            type_totals['leaders'] = await count_leaders(
-                query=q, state=state, city=city
-            )
+            count_tasks.append(('leaders', count_leaders(query=q, state=state, city=city)))
         if is_filtered and 'persons' in requested_types:
-            type_totals['persons'] = await count_persons(
+            count_tasks.append(('persons', count_persons(
                 query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
-            )
+            )))
+
+        # Meetings: event_meeting is tiny (~6k rows) so a real COUNT is sub-ms.
+        # Always use it (not the fetched-length estimate) so the count is
+        # independent of the caller's limit — the lightweight tab-counts call
+        # sends limit=1, which would otherwise cap the meetings total at 1 in
+        # single-type browse mode (header said "1 results" over a 20-row page).
+        if 'meetings' in requested_types:
+            count_tasks.append(('meetings', count_events(
+                query=q, state=state, city=city, topic_tsquery=topic_tsquery
+            )))
+
+        # Decisions: event_decision is small (~9k rows) so a real COUNT is sub-ms.
+        # Always use it (like meetings) so the count is independent of the caller's
+        # limit — the tab-counts call sends limit=1, which would otherwise cap the
+        # decisions total and leave the homepage "Search in" badge blank in browse.
+        if 'decisions' in requested_types:
+            count_tasks.append(('decisions', count_decisions(
+                query=q, state=state, city=city, question_id=question_id, topic_tsquery=topic_tsquery
+            )))
+
+        # Bills & transcripts: the other small meeting-derived civic marts. Real
+        # COUNTs (event_bill ~14k ILIKE/title-FTS; event_documents via the GIN
+        # content_tsv) so their tab badges and pagers don't collapse to the
+        # fetched-length estimate under the limit=1 tab-counts call.
+        if 'bills' in requested_types:
+            count_tasks.append(('bills', count_bills(query=q, state=state, city=city)))
+        if 'documents' in requested_types:
+            count_tasks.append(('documents', count_documents(query=q, state=state, city=city)))
+
+        # Topics: city-scoped meeting-derived mart (event_topic, ~12k), same shape
+        # as bills/decisions — honest count so the badge/pager don't collapse.
+        if 'topics' in requested_types:
+            count_tasks.append(('topics', count_topics(
+                query=q, state=state, city=city, topic_tsquery=topic_tsquery
+            )))
+
+        # Causes: tiny national NTEE vocabulary (public.tag, ~200 rows), no
+        # geography — honest count over the matched taxonomy.
+        if 'causes' in requested_types:
+            count_tasks.append(('causes', count_causes(query=q)))
+
+        # Questions: small curated/clustered policy-question registry
+        # (public.policy_question), no geography — honest canonical_text count so
+        # the tab badge/pager don't collapse under the limit=1 tab-counts call.
+        if 'questions' in requested_types:
+            count_tasks.append(('questions', count_questions(query=q, question_id=question_id)))
+
+        # Grant opportunities: small national feed (~1.9k) — cheap honest count.
+        if 'grant_opportunities' in requested_types:
+            count_tasks.append(('grant_opportunities', count_grant_opportunities(query=q)))
+
+        # Grants: public.grant is ~6.7M rows with NO full-text index, so an
+        # UNSCOPED count is a ~10s seq-scan (over the sub-search timeout). Only run
+        # the (capped) honest count when the search is LOCATION-SCOPED — those use
+        # the indexed grantor columns / org bridge and count in <0.5s. Otherwise
+        # leave the fetched-length estimate rather than risk the slow path.
+        if 'grants' in requested_types and (state or city or jurisdiction_id):
+            count_tasks.append(('grants', count_grants(
+                query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
+            )))
+
+        if count_tasks:
+            count_keys = [key for key, _ in count_tasks]
+            with tracer.start_as_current_span(
+                "search.counts", kind=SpanKind.INTERNAL
+            ) as count_span:
+                count_span.set_attribute("search.count_types", ",".join(count_keys))
+                count_span.set_attribute("search.count_type_count", len(count_keys))
+                counted = await asyncio.gather(
+                    *(coro for _, coro in count_tasks),
+                    return_exceptions=True,
+                )
+            for key, outcome in zip(count_keys, counted):
+                if isinstance(outcome, Exception):
+                    # Degrade gracefully: keep the fetched-length estimate already
+                    # in type_totals rather than failing the whole search.
+                    logger.error(f"❌ {key} count failed: {outcome}")
+                    continue
+                type_totals[key] = outcome
 
         # Meetings: event_meeting is tiny (~6k rows) so a real COUNT is sub-ms.
         # Always use it (not the fetched-length estimate) so the count is
@@ -1629,6 +1951,8 @@ async def unified_search(
                 "city": city,
                 "jurisdiction_id": jurisdiction_id,
                 "ntee_code": ntee_code,
+                "topic_id": topic_id,
+                "question_id": question_id,
                 "types": requested_types,
                 "sort": sort
             }

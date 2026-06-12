@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -7,8 +8,10 @@ import {
   GlobeAltIcon,
   VideoCameraIcon,
   DocumentTextIcon,
+  ClipboardDocumentListIcon,
   ShareIcon
 } from '@heroicons/react/24/outline'
+import api from '../lib/api'
 
 interface JurisdictionDiscoveryProps {
   jurisdiction: {
@@ -24,6 +27,142 @@ interface JurisdictionDiscoveryProps {
     meeting_platform?: string
     completeness: number
   }
+}
+
+/** Shape of GET /api/jurisdiction/{id}/meeting-documents (see MeetingDocuments.tsx). */
+interface MeetingDocument {
+  document_type: string
+  document_url: string
+  source: string
+}
+interface MeetingDocumentGroup {
+  doc_date: string
+  body_name: string | null
+  event_meeting_id: string | null
+  documents: MeetingDocument[]
+}
+interface MeetingDocumentsResponse {
+  jurisdiction_id: string
+  jurisdiction_name?: string | null
+  meeting_count: number
+  document_count: number
+  meetings: MeetingDocumentGroup[]
+}
+
+/** How many recent meetings to preview inline before linking out to the full page. */
+const PREVIEW_MEETING_LIMIT = 3
+
+function typeLabel(documentType: string): string {
+  if (!documentType) return 'Document'
+  return documentType.charAt(0).toUpperCase() + documentType.slice(1)
+}
+
+function formatDate(docDate: string): string {
+  const d = new Date(docDate)
+  if (Number.isNaN(d.getTime())) return docDate
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+/**
+ * Inline meeting-documents preview shown by default in each jurisdiction card.
+ *
+ * Fetches the jurisdiction's scraped agenda/minutes from
+ *   GET /api/jurisdiction/{jurisdiction_id}/meeting-documents
+ * and shows the most recent few meetings with their document chips, plus a link
+ * to the full meeting-documents browser. Renders an explicit empty state (never
+ * fabricated rows) when the jurisdiction has no scraped documents.
+ */
+function MeetingDocumentsPreview({ jurisdictionId }: { jurisdictionId: string }) {
+  const { data, isLoading, isError } = useQuery<MeetingDocumentsResponse>({
+    queryKey: ['meeting-documents-preview', jurisdictionId],
+    queryFn: async () => {
+      const response = await api.get<MeetingDocumentsResponse>(
+        `/jurisdiction/${encodeURIComponent(jurisdictionId)}/meeting-documents`,
+      )
+      return response.data
+    },
+    enabled: Boolean(jurisdictionId),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="border-t border-gray-200 px-4 py-4 text-sm text-gray-500">
+        Loading meeting documents…
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="border-t border-gray-200 px-4 py-4 text-sm text-gray-500">
+        Couldn’t load meeting documents.
+      </div>
+    )
+  }
+
+  const meetings = data?.meetings ?? []
+
+  if (meetings.length === 0) {
+    return (
+      <div className="border-t border-gray-200 px-4 py-4 text-sm text-gray-500">
+        No meeting documents available yet.
+      </div>
+    )
+  }
+
+  const preview = meetings.slice(0, PREVIEW_MEETING_LIMIT)
+
+  return (
+    <div className="border-t border-gray-200 px-4 py-3">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <ClipboardDocumentListIcon className="h-4 w-4" />
+        Recent meeting documents
+      </p>
+      <div className="divide-y divide-gray-100">
+        {preview.map((group, idx) => (
+          <div
+            key={group.event_meeting_id ?? `${group.doc_date}-${idx}`}
+            className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-gray-900">
+                {group.body_name || 'Meeting'}
+              </p>
+              <p className="text-xs text-gray-500">{formatDate(group.doc_date)}</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {group.documents.map((doc, docIdx) => (
+                <a
+                  key={`${doc.document_type}-${docIdx}`}
+                  href={doc.document_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-[#1d6b5f]/30 px-2.5 py-1 text-xs font-medium text-[#1d6b5f] transition-colors hover:bg-[#1d6b5f]/5"
+                >
+                  <DocumentTextIcon className="h-3.5 w-3.5" />
+                  {typeLabel(doc.document_type)}
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <Link
+        to={`/jurisdiction/${encodeURIComponent(jurisdictionId)}/meetings`}
+        className="mt-2 inline-block text-sm font-medium text-[#1d6b5f] hover:underline"
+      >
+        View all {data!.document_count.toLocaleString()} document
+        {data!.document_count === 1 ? '' : 's'} across{' '}
+        {data!.meeting_count.toLocaleString()} meeting
+        {data!.meeting_count === 1 ? '' : 's'} →
+      </Link>
+    </div>
+  )
 }
 
 export default function JurisdictionDiscovery({ jurisdiction }: JurisdictionDiscoveryProps) {
@@ -273,11 +412,9 @@ export default function JurisdictionDiscovery({ jurisdiction }: JurisdictionDisc
         </div>
       )}
 
-      {/* No Data Message */}
-      {!hasData && (
-        <div className="border-t border-gray-200 p-4 bg-gray-50 text-center text-gray-500">
-          <p>No discovery data available yet. Run discovery pipeline to populate.</p>
-        </div>
+      {/* Default body: meeting documents for this jurisdiction. */}
+      {jurisdiction.jurisdiction_id && (
+        <MeetingDocumentsPreview jurisdictionId={jurisdiction.jurisdiction_id} />
       )}
     </div>
   )

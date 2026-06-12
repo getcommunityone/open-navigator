@@ -144,6 +144,15 @@ CIVIC_SERVING = frozenset(
         "item_interestingness",
         "item_flags",
         "tag",
+        # policy-question registry — the curated "Big questions" homepage section
+        # reads the featured rows from policy_question; the detail page + related
+        # endpoints read the other three (empty for curated rows, but the queries
+        # still target the tables, so they must exist on Neon). Served via
+        # /api/policy-question/*.
+        "policy_question",
+        "policy_question_relation",
+        "canonical_argument",
+        "question_instance",
         # reference series — annual CPI for the real-dollar / inflation toggle
         # (tiny: ~15 rows/series). Served via /api/cpi/annual.
         "cpi_annual",

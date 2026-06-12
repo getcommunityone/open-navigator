@@ -13,6 +13,23 @@ export interface PolicyQuestionSummary {
   instances_total: number
   jurisdictions_total: number
   jurisdictions_approved: number
+  // Curated "featured" questions (homepage "big questions"). `display_order`
+  // controls their sequence; both may be absent on older API responses.
+  is_featured?: boolean
+  display_order?: number | null
+  // Real money & talk (dbt policy_question mart). money_total = dollars moved by
+  // this question's local decisions; *_share = its slice of ALL civic decisions.
+  money_total?: number
+  money_share?: number
+  talk_share?: number
+}
+
+// One quarter of a question's history (real). instances = how often it came up;
+// money = net_dollar_impact of that quarter's linked local decisions.
+export interface QuestionTrendPoint {
+  quarter_start: string
+  instances: number
+  money: number
 }
 
 export interface CanonicalArgument {
@@ -67,17 +84,22 @@ export interface PolicyQuestionDetail extends PolicyQuestionSummary {
   arguments: CanonicalArgument[]
   sample_instances: QuestionInstance[]
   relations: QuestionRelation[]
+  trend: QuestionTrendPoint[]
 }
 
 export async function fetchPolicyQuestions(params?: {
   theme?: string
   scope?: string
   limit?: number
+  // When true, request only the curated/featured questions (homepage
+  // "big questions" rail), ordered by display_order server-side.
+  featured?: boolean
 }): Promise<PolicyQuestionSummary[]> {
   const q = new URLSearchParams()
   if (params?.theme) q.set('theme', params.theme)
   if (params?.scope) q.set('scope', params.scope)
   if (params?.limit) q.set('limit', String(params.limit))
+  if (params?.featured) q.set('featured', 'true')
   const res = await api.get(`/policy-question/?${q.toString()}`)
   return res.data
 }
