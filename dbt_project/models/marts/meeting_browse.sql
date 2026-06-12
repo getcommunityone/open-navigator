@@ -49,14 +49,18 @@ transcript as (
     where m.video_id is not null
 ),
 
+-- DRILLABLE decisions only. The meeting->decisions drill (/api/decisions?meeting_id=)
+-- serves ONLY public.item_interestingness (the scored subset). Count exactly those
+-- rows, keyed on the same meeting_id the drill uses, so the card never promises a
+-- decision the drill can't return. Unscored decisions are intentionally excluded:
+-- a meeting with only unscored decisions correctly becomes non-expandable.
 decision_counts as (
     select
-        m.event_meeting_id,
+        meeting_id as event_meeting_id,
         count(*) as decision_count
-    from meeting m
-    join {{ ref('event_decision') }} ed
-        on ed.c1_event_id = m.c1_event_id
-    group by m.event_meeting_id
+    from {{ ref('item_interestingness') }}
+    where meeting_id is not null
+    group by meeting_id
 ),
 
 question_counts as (
@@ -107,6 +111,6 @@ left join topic_counts    tc on tc.event_meeting_id = m.event_meeting_id
 left join interest        i  on i.event_meeting_id  = m.event_meeting_id
 -- INCLUSION: keep only meetings with something to show.
 where t.event_meeting_id is not null            -- has a transcript
-   or dc.event_meeting_id is not null           -- has >=1 decision
+   or dc.event_meeting_id is not null           -- has >=1 drillable (scored) decision
    or tc.event_meeting_id is not null           -- has >=1 topic link
    or qc.event_meeting_id is not null           -- has >=1 question link
