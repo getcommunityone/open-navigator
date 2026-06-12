@@ -43,6 +43,14 @@ ORG_CANDIDATE_CAP = 2000
 # rows we rank+snippet to a page's worth: turns a ~5s document search into <1s.
 DOCUMENT_RESULT_CAP = 25
 
+# A common 2-word query (e.g. "school board") matches ~half of the 119k
+# transcripts; ts_rank-sorting that whole set detoasts every large content_tsv
+# and stalls ~12s. Instead we pull a bounded, GIN-indexed pool of the most
+# RECENT matches and rank only that pool — turning the 12s into <200ms. The pool
+# is sized to cover the requested page; results are still ordered by ts_rank
+# (relevance) within it, with recency as the tie-break.
+DOCUMENT_CANDIDATE_POOL = 400
+
 # Connection pools (created on first request)
 _db_pool = None  # Production database pool (Neon)
 
@@ -1593,48 +1601,74 @@ async def search_documents_pg(
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
-        sql = f"""
-            SELECT
-                event_document_id,
-                event_id,
-                document_type,
-                document_source,
-                video_id,
-                event_title,
-                event_date,
-                jurisdiction_name,
-                jurisdiction_type,
-                state_code,
-                state,
-                city,
-                video_url,
-                word_count,
-                {snippet_sql} AS snippet
-            FROM event_documents
-            WHERE {where_sql}
-            ORDER BY {order_by}, event_document_id DESC
-            LIMIT ${param_idx} OFFSET ${param_idx + 1}
-        """
+        capped_limit = min(limit, DOCUMENT_RESULT_CAP)
+        safe_offset = max(offset, 0)
+
+        # Columns every result row needs, shared by both query shapes below.
+        select_cols = (
+            "event_document_id, event_id, document_type, document_source, "
+            "video_id, event_title, event_date, jurisdiction_name, "
+            "jurisdiction_type, state_code, state, city, video_url, word_count"
+        )
+
+        if query and query.strip():
+            # Two-phase: a GIN-indexed pool of the most RECENT matches (cheap —
+            # the index alone, no per-row detoast), then ts_rank + ts_headline
+            # only that bounded pool. Avoids ranking/detoasting ~64k rows for a
+            # common term. Pool covers the requested page.
+            pool_size = max(DOCUMENT_CANDIDATE_POOL, safe_offset + capped_limit)
+            sql = f"""
+                WITH candidates AS (
+                    SELECT {select_cols}, content, content_tsv
+                    FROM event_documents
+                    WHERE {where_sql}
+                    ORDER BY event_date DESC NULLS LAST, event_document_id DESC
+                    LIMIT {pool_size}
+                )
+                SELECT {select_cols}, {snippet_sql} AS snippet
+                FROM candidates
+                ORDER BY {order_by}, event_document_id DESC
+                LIMIT ${param_idx} OFFSET ${param_idx + 1}
+            """
+        else:
+            # No text query → just the most recent transcripts (optionally scoped
+            # to a place). event_date is btree-indexed, so this is already cheap.
+            sql = f"""
+                SELECT {select_cols}, {snippet_sql} AS snippet
+                FROM event_documents
+                WHERE {where_sql}
+                ORDER BY {order_by}, event_document_id DESC
+                LIMIT ${param_idx} OFFSET ${param_idx + 1}
+            """
         # Bound the snippet/detoast work regardless of the caller's over-fetch.
-        params.append(min(limit, DOCUMENT_RESULT_CAP))
-        params.append(max(offset, 0))
+        params.append(capped_limit)
+        params.append(safe_offset)
 
         async with pool.acquire() as conn:
-            rows = await conn.fetch(sql, *params)
+            # The planner under-costs the content_tsv detoast and prefers a seq
+            # scan over the GIN index; for the bounded candidate pool the index
+            # is ~60x faster, so force it for this single-table query only
+            # (transaction-scoped via SET LOCAL — never leaks to the pooled
+            # connection). Both the initial fetch AND the fuzzy retry run inside,
+            # so the corrected-spelling pass stays fast too.
+            async with conn.transaction():
+                if query and query.strip():
+                    await conn.execute("SET LOCAL enable_seqscan = off")
+                rows = await conn.fetch(sql, *params)
 
-            # Fuzzy fallback: a correctly-formed full-text query that matches
-            # nothing is almost always a misspelling ("flouride"). Map each term
-            # to its nearest real corpus spelling and retry once so the user gets
-            # the meetings they meant instead of an empty page. First page only,
-            # and only when there is a text query to correct (q_idx is set then).
-            corrected_query: Optional[str] = None
-            if query and query.strip() and not rows and offset == 0:
-                suggestion = await _suggest_corrected_query(conn, query)
-                if suggestion and suggestion.lower() != query.strip().lower():
-                    params[q_idx - 1] = suggestion
-                    rows = await conn.fetch(sql, *params)
-                    if rows:
-                        corrected_query = suggestion
+                # Fuzzy fallback: a correctly-formed full-text query that matches
+                # nothing is almost always a misspelling ("flouride"). Map each
+                # term to its nearest real corpus spelling and retry once so the
+                # user gets the meetings they meant instead of an empty page.
+                # First page only, and only when there is a text query (q_idx set).
+                corrected_query: Optional[str] = None
+                if query and query.strip() and not rows and offset == 0:
+                    suggestion = await _suggest_corrected_query(conn, query)
+                    if suggestion and suggestion.lower() != query.strip().lower():
+                        params[q_idx - 1] = suggestion
+                        rows = await conn.fetch(sql, *params)
+                        if rows:
+                            corrected_query = suggestion
                         logger.info(
                             f"📄 documents fuzzy fallback: {query!r} -> "
                             f"{suggestion!r} ({len(rows)} rows)"

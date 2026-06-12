@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { fetchMeetings, type MeetingSort, type MeetingCard } from '../api/meetings'
 import DecisionCardList from './DecisionCardList'
+import MeetingThumbnail from './MeetingThumbnail'
 
 /**
  * MeetingCardList — a reusable, meeting-grain browser.
@@ -78,6 +79,17 @@ function MeetingRow({ meeting }: { meeting: MeetingCard }) {
           )
         ) : (
           <span className="mt-0.5 h-5 w-5 flex-shrink-0" aria-hidden />
+        )}
+        {/* YouTube meeting preview — addressed by video id off the ytimg CDN.
+            Renders nothing when the meeting has no recording. */}
+        {meeting.video_id && (
+          <div className="w-32 shrink-0 self-start sm:w-48">
+            <MeetingThumbnail
+              videoId={meeting.video_id}
+              alt={meeting.title ?? undefined}
+              className="rounded-lg"
+            />
+          </div>
         )}
         <div className="min-w-0 flex-1">
           <h3 className="font-semibold text-gray-900">{meeting.title || 'Untitled meeting'}</h3>

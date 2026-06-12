@@ -10,6 +10,8 @@ export interface CauseItem {
   description?: string | null
   image_url?: string | null
   popularity_rank?: number | null
+  /** Real count of analyzed meetings whose transcript matches this cause. */
+  meeting_count?: number
 }
 
 export interface TrendingResponse {

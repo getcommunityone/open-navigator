@@ -27,6 +27,8 @@ import { useLocation as useLocationContext } from '../contexts/LocationContext'
 import AddressLookup from '../components/AddressLookup'
 import SiteHeader from '../components/SiteHeader'
 import { LensCarousel } from '../components/StoryLenses'
+import MeetingThumbnail from '../components/MeetingThumbnail'
+import { fetchMeetings, type MeetingCard } from '../api/meetings'
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -456,6 +458,26 @@ export default function HomeV9() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // ── Recent meetings (REAL /api/meetings, sort=recent) ──
+  // Fallback content for the Contested / Raised Eyebrows lenses: when this place
+  // has analyzed transcripts but no lens activity yet (no contested votes or
+  // flagged patterns surfaced), we'd otherwise show two empty "No activity"
+  // cards. Instead we show the most recent meetings here — a real, useful
+  // signal — and hide the empty lens sections. Always a small page; only
+  // actually rendered when both lenses come back empty.
+  const { data: recentMeetingsData } = useQuery<MeetingCard[]>({
+    queryKey: ['home-v9-recent-meetings', national, stateCode, city],
+    queryFn: () =>
+      fetchMeetings({
+        state: national ? undefined : stateCode || undefined,
+        city: national ? undefined : city || undefined,
+        sort: 'recent',
+        limit: 6,
+      }).then((r) => r.items),
+    staleTime: 5 * 60 * 1000,
+  })
+  const recentMeetings = recentMeetingsData ?? []
+
   // Browse-card badges are a genuine distinct-transcript count per category,
   // served pre-sorted (transcript_count desc, place pinned far right) by /api/browse/summary.
   // We index by entity_type so each card can read its real count + ordering and
@@ -527,7 +549,7 @@ export default function HomeV9() {
   // many real results that scope would return. Fetched lazily (only while the
   // menu is open) with limit=1 — we want `type_totals`, not rows — so it never
   // slows the hero. No fabricated numbers: a type the API doesn't count is blank.
-  const { data: catCountsData } = useQuery<Record<string, number>>({
+  const { data: catCountsData, isFetching: catCountsFetching } = useQuery<Record<string, number>>({
     queryKey: ['home-v9-cat-counts', debouncedQuery, national, stateCode, city],
     queryFn: async () => {
       const params: Record<string, string> = {
@@ -632,7 +654,7 @@ export default function HomeV9() {
           >
             Every local decision, in one place.
           </h1>
-          <div style={{ fontSize: 'clamp(16px, 2vw, 19px)', fontWeight: 500, color: '#57534e', maxWidth: 600, margin: '16px auto 0', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 'clamp(16px, 2vw, 19px)', fontWeight: 500, color: '#57534e', maxWidth: 760, margin: '16px auto 0', lineHeight: 1.5 }}>
             Search the meetings, votes, spending, and debates shaping your community.
             <br />
             Free, forever.
@@ -779,6 +801,11 @@ export default function HomeV9() {
                 {SEARCH_CATEGORIES.map((c) => {
                   const selected = c.id === cat.id
                   const n = countForCat(c)
+                  // While the (lazy, ~2s) count query is in flight and we don't yet
+                  // have a number for this row, show a skeleton instead of a blank
+                  // so the counts read as "loading", not "missing". 'All' never
+                  // shows a count, so it never shows a skeleton.
+                  const showCountSkeleton = c.id !== 'all' && n == null && catCountsFetching
                   return (
                     <button
                       key={c.id}
@@ -814,14 +841,20 @@ export default function HomeV9() {
                     >
                       <span>{c.label}</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {n != null && (
+                        {n != null ? (
                           <span
                             className="font-mono-x"
                             style={{ fontSize: 11.5, fontWeight: 600, color: selected ? TEAL : '#a8a29e', fontVariantNumeric: 'tabular-nums' }}
                           >
                             {n.toLocaleString('en-US')}
                           </span>
-                        )}
+                        ) : showCountSkeleton ? (
+                          <span
+                            aria-hidden
+                            className="animate-pulse"
+                            style={{ width: 22, height: 9, borderRadius: 4, background: '#e7e5e4' }}
+                          />
+                        ) : null}
                         {selected && <span style={{ color: TEAL }} aria-hidden>✓</span>}
                       </span>
                     </button>
@@ -1076,11 +1109,14 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location's state into the Topics browse so it
-                // lands scoped to topics actually discussed there (topic data is
-                // state-grain). No location set → the full national catalog.
+                // Carry the saved location into the Topics browse so it lands
+                // scoped to that place — the city when we have one (so e.g.
+                // Atlanta filters to Atlanta, not all of GA), else the state.
+                // No location set → the full national catalog.
                 to: locState
-                  ? `/browse-topics?state=${encodeURIComponent(locState)}`
+                  ? `/browse-topics?state=${encodeURIComponent(locState)}${
+                      locCity ? `&city=${encodeURIComponent(locCity)}` : ''
+                    }`
                   : '/browse-topics',
                 seeAllLabel: 'topics',
                 desc: 'Everything discussed in public meetings.',
@@ -1092,7 +1128,9 @@ export default function HomeV9() {
                   onSelect: () =>
                     navigate(
                       locState
-                        ? `/browse-topics?state=${encodeURIComponent(locState)}`
+                        ? `/browse-topics?state=${encodeURIComponent(locState)}${
+                            locCity ? `&city=${encodeURIComponent(locCity)}` : ''
+                          }`
                         : '/browse-topics',
                       { state: { fromHome: true } },
                     ),
@@ -1318,87 +1356,139 @@ export default function HomeV9() {
 
         </section>
 
-        {/* ── Contested — one dedicated lens section (REAL lens cards). Carries
-            the single shared time-window selector, which drives both the lenses
-            query and Money Moves below. ── */}
-        {(() => {
-          const id = 'contested'
-          const meta = SIGNAL_META[id]
-          const lens = lensById[id]
-          const cards = lens && !lens.placeholder ? lens.cards.slice(0, 6) : []
-          return (
-            <section style={{ marginTop: 30 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: meta.bg, display: 'grid', placeItems: 'center', fontSize: 21 }}>
-                  {meta.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: meta.color }}>
-                    {meta.name}
-                  </h2>
-                  <div style={{ fontSize: 14, color: '#78716c' }}>{meta.desc} · 📍 {placeLabel}</div>
-                </div>
-                {/* The single shared time-window selector. */}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
-                  {WHEN.map((w) => (
-                    <Chip key={w.label} active={when.label === w.label} onClick={() => setWhen(w)}>
-                      {w.label}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
+        {/* ── Contested + Raised Eyebrows — two dedicated lens sections (REAL
+            lens cards). The Contested header carries the single shared
+            time-window selector, which drives both the lenses query and Money
+            Moves below.
 
-              <div style={{ marginTop: 16 }}>
-                {cards.length > 0 ? (
-                  <LensCarousel
-                    cards={cards}
-                    lens={{ id, em: meta.icon, label: meta.name, clr: meta.color }}
-                    unscoped={national}
-                  />
-                ) : (
-                  <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
-                    No {meta.name} activity in {placeLabel} for {when.label.toLowerCase()}.
-                  </div>
-                )}
-              </div>
-            </section>
+            Fallback: when this place HAS recent (analyzed) meetings but BOTH
+            lenses come back empty — i.e. no analysis has surfaced a contested
+            vote or a flagged pattern yet — we hide the two "No activity" cards
+            and instead show the most recent meetings. That's a real, useful
+            signal for the user rather than a pair of dead-end empty states.
+            The shared time-window selector moves into that fallback header so
+            Money Moves below always keeps its control. ── */}
+        {(() => {
+          const contestedLens = lensById['contested']
+          const flagsLens = lensById['flags']
+          const contestedCards =
+            contestedLens && !contestedLens.placeholder ? contestedLens.cards.slice(0, 6) : []
+          const flagsCards = flagsLens && !flagsLens.placeholder ? flagsLens.cards.slice(0, 6) : []
+          // Only treat "empty" as real once the lenses query has resolved, so we
+          // don't flash the meetings fallback while the lenses are still loading.
+          const lensesEmpty = !!lensesData && contestedCards.length === 0 && flagsCards.length === 0
+          const showRecentFallback = lensesEmpty && recentMeetings.length > 0
+
+          // The single shared time-window selector — rendered in whichever
+          // section heads the block so Money Moves below always has its control.
+          const whenSelector = (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
+              {WHEN.map((w) => (
+                <Chip key={w.label} active={when.label === w.label} onClick={() => setWhen(w)}>
+                  {w.label}
+                </Chip>
+              ))}
+            </div>
           )
-        })()}
 
-        {/* ── Raised Eyebrows — dedicated lens section (REAL lens cards) ── */}
-        {(() => {
-          const id = 'flags'
-          const meta = SIGNAL_META[id]
-          const lens = lensById[id]
-          const cards = lens && !lens.placeholder ? lens.cards.slice(0, 6) : []
-          return (
-            <section style={{ marginTop: 30 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: meta.bg, display: 'grid', placeItems: 'center', fontSize: 21 }}>
-                  {meta.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: meta.color }}>
-                    {meta.name}
-                  </h2>
-                  <div style={{ fontSize: 14, color: '#78716c' }}>{meta.desc} · 📍 {placeLabel}</div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 16 }}>
-                {cards.length > 0 ? (
-                  <LensCarousel
-                    cards={cards}
-                    lens={{ id, em: meta.icon, label: meta.name, clr: meta.color }}
-                    unscoped={national}
-                  />
-                ) : (
-                  <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
-                    No {meta.name} activity in {placeLabel} for {when.label.toLowerCase()}.
+          if (showRecentFallback) {
+            const fmtMeetingDate = (iso: string | null): string => {
+              if (!iso) return ''
+              const d = new Date(`${iso}T00:00:00`)
+              return Number.isNaN(d.getTime())
+                ? ''
+                : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            }
+            return (
+              <section style={{ marginTop: 30 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: '#eff6ff', display: 'grid', placeItems: 'center', fontSize: 21 }}>
+                    🗓️
                   </div>
-                )}
-              </div>
-            </section>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#2563eb' }}>
+                      Recent meetings
+                    </h2>
+                    <div style={{ fontSize: 14, color: '#78716c' }}>The latest analyzed meetings · 📍 {placeLabel}</div>
+                  </div>
+                  {whenSelector}
+                </div>
+
+                <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+                  {recentMeetings.map((m) => {
+                    const place = [m.city || m.jurisdiction || '', m.state_code].filter(Boolean).join(', ')
+                    const date = fmtMeetingDate(m.date)
+                    return (
+                      <button
+                        key={m.meeting_id}
+                        onClick={() => navigate(`/meetings/${m.meeting_id}`, { state: { fromHome: true } })}
+                        style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 0, overflow: 'hidden', cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        {m.video_id && <MeetingThumbnail videoId={m.video_id} alt={m.title ?? undefined} />}
+                        <div style={{ padding: '14px 16px' }}>
+                          <div className="clamp2" style={{ fontSize: 15, fontWeight: 700, color: INK, lineHeight: 1.3 }}>
+                            {m.title || 'Untitled meeting'}
+                          </div>
+                          <div style={{ marginTop: 6, fontSize: 12.5, color: '#78716c', display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+                            {place && <span>📍 {place}</span>}
+                            {date && <span>{date}</span>}
+                          </div>
+                          {m.decision_count > 0 && (
+                            <div style={{ marginTop: 8 }}>
+                              <span style={{ display: 'inline-block', fontSize: 11.5, fontWeight: 600, color: TEAL_DARK, background: '#ecfdf5', borderRadius: 999, padding: '2px 9px' }}>
+                                {m.decision_count} {m.decision_count === 1 ? 'decision' : 'decisions'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )
+          }
+
+          const renderLens = (id: 'contested' | 'flags', withSelector: boolean) => {
+            const meta = SIGNAL_META[id]
+            const cards = id === 'contested' ? contestedCards : flagsCards
+            return (
+              <section style={{ marginTop: 30 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: meta.bg, display: 'grid', placeItems: 'center', fontSize: 21 }}>
+                    {meta.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: meta.color }}>
+                      {meta.name}
+                    </h2>
+                    <div style={{ fontSize: 14, color: '#78716c' }}>{meta.desc} · 📍 {placeLabel}</div>
+                  </div>
+                  {withSelector && whenSelector}
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  {cards.length > 0 ? (
+                    <LensCarousel
+                      cards={cards}
+                      lens={{ id, em: meta.icon, label: meta.name, clr: meta.color }}
+                      unscoped={national}
+                    />
+                  ) : (
+                    <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
+                      No {meta.name} activity in {placeLabel} for {when.label.toLowerCase()}.
+                    </div>
+                  )}
+                </div>
+              </section>
+            )
+          }
+
+          return (
+            <>
+              {renderLens('contested', true)}
+              {renderLens('flags', false)}
+            </>
           )
         })()}
 

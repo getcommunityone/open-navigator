@@ -84,6 +84,33 @@ export async function resolveZipToChoices(zip: string): Promise<{ label: string;
   return buildZipChoices([...revResults, ...fwdResults])
 }
 
+// Resolve a free-text query (a city/county name, or a full street address) to
+// its distinct real place choices via the same /geocode/search proxy. Used by
+// the modal's "search by city or county" / "search by full address" modes. Real
+// geocoder results only — never a fabricated place.
+export async function resolveQueryToChoices(
+  query: string,
+): Promise<{ label: string; loc: LocationData }[]> {
+  const q = query.trim()
+  if (!q) return []
+  const res = await api.get(`/geocode/search`, { params: { q, limit: 5 } })
+  const results = Array.isArray(res.data) ? res.data : [res.data]
+  const choices: { label: string; loc: LocationData }[] = []
+  const seen = new Set<string>()
+  for (const r of results) {
+    const loc = locationFromGeocode(r)
+    if (!loc) continue
+    // One chip per distinct place — what matters for the tax bill is the
+    // city/county/state, not the exact street address.
+    const key = `${loc.city}|${loc.county}|${loc.state}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const place = loc.city || (loc.county ? `${loc.county} County` : '')
+    choices.push({ label: `📍 ${[place, loc.state].filter(Boolean).join(', ')}`, loc })
+  }
+  return choices
+}
+
 // Reverse-geocode a lat/lon (e.g. the browser's geolocation) to a real place.
 // Returns null when no US state resolves — we never fabricate a location.
 export async function resolveCoordsToLocation(

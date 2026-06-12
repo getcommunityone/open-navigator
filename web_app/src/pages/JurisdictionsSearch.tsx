@@ -104,7 +104,6 @@ export default function JurisdictionsSearch() {
   const [selectedCounty, setSelectedCounty] = useState(() => searchParams.get('county') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
   const [showFilters, setShowFilters] = useState(false)
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [hasWebsite, setHasWebsite] = useState(false)
   const [hasYouTube, setHasYouTube] = useState(false)
   const [hasMeetingPlatform, setHasMeetingPlatform] = useState(false)
@@ -310,6 +309,15 @@ export default function JurisdictionsSearch() {
     return colors[level] || 'bg-gray-100 text-gray-700 border-gray-200'
   }
 
+  // Badge count on the single "Filters" button — how many filters are engaged.
+  const activeFilterCount = [
+    selectedState,
+    selectedLevels.length > 0 ? 'levels' : null,
+    hasWebsite ? 'website' : null,
+    hasYouTube ? 'youtube' : null,
+    hasMeetingPlatform ? 'platform' : null,
+  ].filter(Boolean).length
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-6 pb-6">
@@ -322,20 +330,19 @@ export default function JurisdictionsSearch() {
           Back
         </button>
 
-        {/* Places hero — brand teal gradient band with search */}
-        <div className="bg-gradient-to-br from-primary-600 to-primary-500 rounded-2xl shadow-sm p-6 sm:p-8 mb-6 text-white">
-          <div className="max-w-2xl">
-            <div className="flex items-center gap-2 mb-3">
-              <MapPinIcon className="h-9 w-9 text-white/90" />
-              <h1 className="text-4xl font-bold tracking-tight">Places</h1>
-            </div>
-            <p className="text-white/90 mb-5 max-w-xl">
-              Every city, county, and place we index — search above, or explore them
-              on the map and list below to open a home page.
-            </p>
+        {/* Header card — title + search, matching Browse Topics/Causes style. */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Places</h1>
+          <p className="mt-2 text-gray-600 max-w-xl">
+            Every city, county, and place we index — search above, or explore them
+            on the map and list below to open a home page.
+          </p>
 
-            {/* Search Bar (functionality unchanged) */}
-            <form onSubmit={handleSearch} className="relative">
+          {/* Search Bar + single Filters button on one row (matches the main
+              Search page). All filter controls — levels, state, and the advanced
+              data-availability toggles — live in the flyout below. */}
+          <div className="flex items-stretch gap-3 mt-4">
+            <form onSubmit={handleSearch} className="relative flex-1">
               <div className="relative">
                 <input
                   ref={searchInputRef}
@@ -343,7 +350,7 @@ export default function JurisdictionsSearch() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search for cities, counties, states, school districts..."
-                  className="w-full px-12 py-3 rounded-lg border-2 border-white/30 bg-white/95 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent text-lg text-gray-900 shadow-sm"
+                  className="w-full px-12 py-3 rounded-lg border-2 border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900 shadow-sm"
                 />
                 <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
 
@@ -362,65 +369,23 @@ export default function JurisdictionsSearch() {
                 )}
               </div>
             </form>
-          </div>
-        </div>
 
-        {/* Filters card (search/levels/advanced) — kept at the very top, next to
-            the level pills, so Basic/Advanced filters are reachable before the
-            map and stay visible in both browse and search modes. */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          {/* Filter Bar */}
-          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
-                showFilters 
+              className={`flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-3 rounded-lg border-2 transition-colors text-sm ${
+                showFilters
                   ? 'border-primary-500 bg-primary-50 text-primary-700'
                   : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
               }`}
             >
-              <AdjustmentsHorizontalIcon className="h-5 w-5" />
-              Basic Filters
-            </button>
-
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
-                showAdvancedFilters
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
-              }`}
-            >
-              <AdjustmentsHorizontalIcon className="h-5 w-5" />
-              Advanced Filters
-              {(hasWebsite || hasYouTube || hasMeetingPlatform) && (
+              <AdjustmentsHorizontalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
                 <span className="ml-1 px-2 py-0.5 bg-primary-600 text-white text-xs rounded-full">
-                  {[hasWebsite, hasYouTube, hasMeetingPlatform].filter(Boolean).length}
+                  {activeFilterCount}
                 </span>
               )}
             </button>
-
-            {/* Jurisdiction Level Pills */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-gray-600 font-medium">Levels:</span>
-              {JURISDICTION_LEVELS.map((level) => (
-                <button
-                  key={level.id}
-                  onClick={() => toggleLevel(level.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all ${
-                    selectedLevels.includes(level.id)
-                      ? `${getLevelColor(level.id)} border-current font-medium shadow-sm`
-                      : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50'
-                  }`}
-                >
-                  {selectedLevels.includes(level.id) && (
-                    <CheckIcon className="h-4 w-4 flex-shrink-0" />
-                  )}
-                  <span>{level.icon}</span>
-                  <span>{level.label}</span>
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Active Filters Display */}
@@ -486,112 +451,25 @@ export default function JurisdictionsSearch() {
             </div>
           )}
 
-          {/* Advanced Filters Panel */}
+          {/* Filters Flyout — levels, state, and advanced data-availability
+              filters consolidated into a single right-hand panel, matching the
+              main Search page. */}
           {showFilters && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* State Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    State
-                  </label>
-                  <select
-                    value={selectedState}
-                    onChange={(e) => {
-                      setSelectedState(e.target.value)
-                      setCurrentPage(1)
-                      setTimeout(() => handleSearch(), 0)
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
-                  >
-                    <option value="" className="text-gray-900">All States</option>
-                    <option value="AL" className="text-gray-900">Alabama</option>
-                    <option value="AK" className="text-gray-900">Alaska</option>
-                    <option value="AZ" className="text-gray-900">Arizona</option>
-                    <option value="AR" className="text-gray-900">Arkansas</option>
-                    <option value="CA" className="text-gray-900">California</option>
-                    <option value="CO" className="text-gray-900">Colorado</option>
-                    <option value="CT" className="text-gray-900">Connecticut</option>
-                    <option value="DE" className="text-gray-900">Delaware</option>
-                    <option value="FL" className="text-gray-900">Florida</option>
-                    <option value="GA" className="text-gray-900">Georgia</option>
-                    <option value="HI" className="text-gray-900">Hawaii</option>
-                    <option value="ID" className="text-gray-900">Idaho</option>
-                    <option value="IL" className="text-gray-900">Illinois</option>
-                    <option value="IN" className="text-gray-900">Indiana</option>
-                    <option value="IA" className="text-gray-900">Iowa</option>
-                    <option value="KS" className="text-gray-900">Kansas</option>
-                    <option value="KY" className="text-gray-900">Kentucky</option>
-                    <option value="LA" className="text-gray-900">Louisiana</option>
-                    <option value="ME" className="text-gray-900">Maine</option>
-                    <option value="MD" className="text-gray-900">Maryland</option>
-                    <option value="MA" className="text-gray-900">Massachusetts</option>
-                    <option value="MI" className="text-gray-900">Michigan</option>
-                    <option value="MN" className="text-gray-900">Minnesota</option>
-                    <option value="MS" className="text-gray-900">Mississippi</option>
-                    <option value="MO" className="text-gray-900">Missouri</option>
-                    <option value="MT" className="text-gray-900">Montana</option>
-                    <option value="NE" className="text-gray-900">Nebraska</option>
-                    <option value="NV" className="text-gray-900">Nevada</option>
-                    <option value="NH" className="text-gray-900">New Hampshire</option>
-                    <option value="NJ" className="text-gray-900">New Jersey</option>
-                    <option value="NM" className="text-gray-900">New Mexico</option>
-                    <option value="NY" className="text-gray-900">New York</option>
-                    <option value="NC" className="text-gray-900">North Carolina</option>
-                    <option value="ND" className="text-gray-900">North Dakota</option>
-                    <option value="OH" className="text-gray-900">Ohio</option>
-                    <option value="OK" className="text-gray-900">Oklahoma</option>
-                    <option value="OR" className="text-gray-900">Oregon</option>
-                    <option value="PA" className="text-gray-900">Pennsylvania</option>
-                    <option value="RI" className="text-gray-900">Rhode Island</option>
-                    <option value="SC" className="text-gray-900">South Carolina</option>
-                    <option value="SD" className="text-gray-900">South Dakota</option>
-                    <option value="TN" className="text-gray-900">Tennessee</option>
-                    <option value="TX" className="text-gray-900">Texas</option>
-                    <option value="UT" className="text-gray-900">Utah</option>
-                    <option value="VT" className="text-gray-900">Vermont</option>
-                    <option value="VA" className="text-gray-900">Virginia</option>
-                    <option value="WA" className="text-gray-900">Washington</option>
-                    <option value="WV" className="text-gray-900">West Virginia</option>
-                    <option value="WI" className="text-gray-900">Wisconsin</option>
-                    <option value="WY" className="text-gray-900">Wyoming</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Clear All Button */}
-              <div className="mt-4">
-                <button
-                  onClick={() => {
-                    setSelectedState('')
-                    setSelectedLevels([])
-                    setTimeout(() => handleSearch(), 0)
-                  }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Clear All Filters
-                </button>
-              </div>
-            </div>
-          )}
-          
-          {/* Advanced Filters Sidebar */}
-          {showAdvancedFilters && (
             <>
               {/* Backdrop */}
-              <div 
+              <div
                 className="fixed inset-0 bg-black bg-opacity-50 z-40"
-                onClick={() => setShowAdvancedFilters(false)}
+                onClick={() => setShowFilters(false)}
               />
-              
+
               {/* Sidebar */}
               <div className="fixed right-0 top-0 h-full w-full md:w-96 bg-white shadow-2xl z-50 overflow-y-auto">
                 <div className="p-6">
                   {/* Header */}
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold text-gray-900">Advanced Jurisdiction Filters</h3>
+                    <h3 className="text-xl font-bold text-gray-900">Filters</h3>
                     <button
-                      onClick={() => setShowAdvancedFilters(false)}
+                      onClick={() => setShowFilters(false)}
                       className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
                     >
                       <XMarkIcon className="h-6 w-6" />
@@ -600,6 +478,100 @@ export default function JurisdictionsSearch() {
 
                   {/* Filters */}
                   <div className="space-y-6">
+                    {/* Jurisdiction Levels */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Levels
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {JURISDICTION_LEVELS.map((level) => (
+                          <button
+                            key={level.id}
+                            onClick={() => toggleLevel(level.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 transition-all text-sm ${
+                              selectedLevels.includes(level.id)
+                                ? `${getLevelColor(level.id)} border-current font-medium shadow-sm`
+                                : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50'
+                            }`}
+                          >
+                            {selectedLevels.includes(level.id) && (
+                              <CheckIcon className="h-4 w-4 flex-shrink-0" />
+                            )}
+                            <span>{level.icon}</span>
+                            <span>{level.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* State Filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        State
+                      </label>
+                      <select
+                        value={selectedState}
+                        onChange={(e) => {
+                          setSelectedState(e.target.value)
+                          setCurrentPage(1)
+                          setTimeout(() => handleSearch(), 0)
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
+                      >
+                        <option value="" className="text-gray-900">All States</option>
+                        <option value="AL" className="text-gray-900">Alabama</option>
+                        <option value="AK" className="text-gray-900">Alaska</option>
+                        <option value="AZ" className="text-gray-900">Arizona</option>
+                        <option value="AR" className="text-gray-900">Arkansas</option>
+                        <option value="CA" className="text-gray-900">California</option>
+                        <option value="CO" className="text-gray-900">Colorado</option>
+                        <option value="CT" className="text-gray-900">Connecticut</option>
+                        <option value="DE" className="text-gray-900">Delaware</option>
+                        <option value="FL" className="text-gray-900">Florida</option>
+                        <option value="GA" className="text-gray-900">Georgia</option>
+                        <option value="HI" className="text-gray-900">Hawaii</option>
+                        <option value="ID" className="text-gray-900">Idaho</option>
+                        <option value="IL" className="text-gray-900">Illinois</option>
+                        <option value="IN" className="text-gray-900">Indiana</option>
+                        <option value="IA" className="text-gray-900">Iowa</option>
+                        <option value="KS" className="text-gray-900">Kansas</option>
+                        <option value="KY" className="text-gray-900">Kentucky</option>
+                        <option value="LA" className="text-gray-900">Louisiana</option>
+                        <option value="ME" className="text-gray-900">Maine</option>
+                        <option value="MD" className="text-gray-900">Maryland</option>
+                        <option value="MA" className="text-gray-900">Massachusetts</option>
+                        <option value="MI" className="text-gray-900">Michigan</option>
+                        <option value="MN" className="text-gray-900">Minnesota</option>
+                        <option value="MS" className="text-gray-900">Mississippi</option>
+                        <option value="MO" className="text-gray-900">Missouri</option>
+                        <option value="MT" className="text-gray-900">Montana</option>
+                        <option value="NE" className="text-gray-900">Nebraska</option>
+                        <option value="NV" className="text-gray-900">Nevada</option>
+                        <option value="NH" className="text-gray-900">New Hampshire</option>
+                        <option value="NJ" className="text-gray-900">New Jersey</option>
+                        <option value="NM" className="text-gray-900">New Mexico</option>
+                        <option value="NY" className="text-gray-900">New York</option>
+                        <option value="NC" className="text-gray-900">North Carolina</option>
+                        <option value="ND" className="text-gray-900">North Dakota</option>
+                        <option value="OH" className="text-gray-900">Ohio</option>
+                        <option value="OK" className="text-gray-900">Oklahoma</option>
+                        <option value="OR" className="text-gray-900">Oregon</option>
+                        <option value="PA" className="text-gray-900">Pennsylvania</option>
+                        <option value="RI" className="text-gray-900">Rhode Island</option>
+                        <option value="SC" className="text-gray-900">South Carolina</option>
+                        <option value="SD" className="text-gray-900">South Dakota</option>
+                        <option value="TN" className="text-gray-900">Tennessee</option>
+                        <option value="TX" className="text-gray-900">Texas</option>
+                        <option value="UT" className="text-gray-900">Utah</option>
+                        <option value="VT" className="text-gray-900">Vermont</option>
+                        <option value="VA" className="text-gray-900">Virginia</option>
+                        <option value="WA" className="text-gray-900">Washington</option>
+                        <option value="WV" className="text-gray-900">West Virginia</option>
+                        <option value="WI" className="text-gray-900">Wisconsin</option>
+                        <option value="WY" className="text-gray-900">Wyoming</option>
+                      </select>
+                    </div>
+
                     {/* Data Availability Filters */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -697,18 +669,21 @@ export default function JurisdictionsSearch() {
                   <div className="mt-8 pt-6 border-t border-gray-200 space-y-3">
                     <button
                       onClick={() => {
+                        setSelectedState('')
+                        setSelectedLevels([])
                         setHasWebsite(false)
                         setHasYouTube(false)
                         setHasMeetingPlatform(false)
                         setCurrentPage(1)
+                        setTimeout(() => handleSearch(), 0)
                       }}
                       className="w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium"
                     >
-                      Clear Advanced Filters
+                      Clear All Filters
                     </button>
                     <button
                       onClick={() => {
-                        setShowAdvancedFilters(false)
+                        setShowFilters(false)
                         handleSearch()
                       }}
                       className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors font-medium"

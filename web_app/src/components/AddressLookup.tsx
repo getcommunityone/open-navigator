@@ -13,8 +13,12 @@ interface AddressLookupProps {
 export default function AddressLookup({ onLocationFound, initialAddress = '', compact = false }: AddressLookupProps) {
   const { clearLocation } = useLocationContext()
   // Default lookup mode is ZIP/postal code (mirrors the MoneyGameModal "where's
-  // home?" gate); full-address search is an optional secondary mode.
-  const [mode, setMode] = useState<'zip' | 'address'>('zip')
+  // home?" gate). For people who don't know their ZIP, 'place' searches by city
+  // or county name, and 'address' is the optional full-address search. The
+  // 'place' and 'address' modes share the same autocomplete + processResult
+  // machinery (Nominatim resolves both to a real LocationData) — they differ
+  // only in the copy that frames what to type.
+  const [mode, setMode] = useState<'zip' | 'place' | 'address'>('zip')
   const [zip, setZip] = useState('')
   // When a ZIP spans cities / inside-vs-outside city limits, the user picks which
   // real place is home. Built from real geocode results (resolvePlace.buildZipChoices).
@@ -76,7 +80,7 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
     void resolveZip()
   }
 
-  const switchMode = (next: 'zip' | 'address') => {
+  const switchMode = (next: 'zip' | 'place' | 'address') => {
     setMode(next)
     setError(null)
     setChoices(null)
@@ -526,13 +530,15 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
           </button>
         </form>
       ) : (
-        /* OPTIONAL: full-address search with autocomplete. */
+        /* For people who don't know their ZIP: 'place' searches by city or
+           county name, 'address' is full-address search. Both use the same
+           autocomplete + processResult path — only the framing copy differs. */
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
               <span className="flex items-center gap-2">
                 <MapPinIcon className="h-5 w-5" />
-                Enter Your Address
+                {mode === 'place' ? 'Enter Your City or County' : 'Enter Your Address'}
               </span>
             </label>
             <div className="relative">
@@ -545,7 +551,11 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
                 value={address}
                 onChange={(e) => handleAddressChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="123 Main St, Los Angeles, CA 90001"
+                placeholder={
+                  mode === 'place'
+                    ? 'e.g. Tuscaloosa, or Tuscaloosa County, AL'
+                    : '123 Main St, Los Angeles, CA 90001'
+                }
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-base text-gray-900"
                 disabled={isLoading}
                 autoComplete="off"
@@ -579,7 +589,9 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
               )}
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              We'll find your local organizations based on your address
+              {mode === 'place'
+                ? "Don't know your ZIP? Type a city or county — we'll find your community. Nothing stored."
+                : "We'll find your local organizations based on your address"}
             </p>
           </div>
 
@@ -622,22 +634,32 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
         </button>
       </div>
 
-      <div className="mt-3 text-center">
-        {mode === 'zip' ? (
-          <button
-            type="button"
-            onClick={() => switchMode('address')}
-            className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
-          >
-            Search by full address instead
-          </button>
-        ) : (
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center">
+        {mode !== 'zip' && (
           <button
             type="button"
             onClick={() => switchMode('zip')}
             className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
           >
             ← Use ZIP code instead
+          </button>
+        )}
+        {mode !== 'place' && (
+          <button
+            type="button"
+            onClick={() => switchMode('place')}
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
+          >
+            Don't know your ZIP? Search by city or county
+          </button>
+        )}
+        {mode !== 'address' && (
+          <button
+            type="button"
+            onClick={() => switchMode('address')}
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
+          >
+            Search by full address instead
           </button>
         )}
       </div>

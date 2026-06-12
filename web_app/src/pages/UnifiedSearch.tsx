@@ -30,6 +30,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from '../utils/formatters'
 import MeetingThumbnail from '../components/MeetingThumbnail'
+import { StoryCard, CONTESTED_LENS, type RenderCard } from '../components/StoryLenses'
 
 type SearchResultType =
   | 'leader'
@@ -202,6 +203,132 @@ function causeDotColor(key: string): string {
 function formatEin(ein: string): string {
   const digits = ein.replace(/\D/g, '')
   return digits.length === 9 ? `${digits.slice(0, 2)}-${digits.slice(2)}` : ein
+}
+
+// Searchable Topic picker — replaces a long native <select> over the civic-topic
+// catalog with a type-to-filter combobox. Closed: shows the selected topic name.
+// Open: a search box that narrows the list as you type. Selecting (or clearing)
+// calls back with the topic id string the URL/query binds to ('' = All Topics).
+function TopicTypeahead({
+  topics,
+  selectedId,
+  onSelect,
+}: {
+  topics: TopicSummary[]
+  selectedId: string
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selected = topics.find((t) => String(t.topic_id) === selectedId) ?? null
+
+  // Close + reset the typed query when clicking outside the combobox.
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  const q = query.trim().toLowerCase()
+  const matches = q
+    ? topics.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          (t.keywords ?? []).some((k) => k.toLowerCase().includes(q)),
+      )
+    : topics
+
+  const choose = (id: string) => {
+    onSelect(id)
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {open ? (
+        <div className="relative">
+          <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search topics…"
+            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <span className={selected ? 'text-gray-900' : 'text-gray-500'}>
+            {selected ? selected.name : 'All Topics'}
+          </span>
+          {selectedId ? (
+            <XMarkIcon
+              className="h-4 w-4 text-gray-400 hover:text-gray-600"
+              onClick={(e) => {
+                e.stopPropagation()
+                choose('')
+              }}
+            />
+          ) : (
+            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+          )}
+        </button>
+      )}
+
+      {open && (
+        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+          <li>
+            <button
+              type="button"
+              onClick={() => choose('')}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                selectedId === '' ? 'font-semibold text-primary-700' : 'text-gray-700'
+              }`}
+            >
+              All Topics
+            </button>
+          </li>
+          {matches.map((t) => (
+            <li key={t.topic_id}>
+              <button
+                type="button"
+                onClick={() => choose(String(t.topic_id))}
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                  String(t.topic_id) === selectedId
+                    ? 'font-semibold text-primary-700'
+                    : 'text-gray-700'
+                }`}
+              >
+                <span className="truncate">{t.name}</span>
+                {t.transcript_occurrences > 0 && (
+                  <span className="shrink-0 text-xs text-gray-400">
+                    {t.transcript_occurrences.toLocaleString()}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+          {matches.length === 0 && (
+            <li className="px-3 py-2 text-sm text-gray-500">No topics match “{query}”.</li>
+          )}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 export default function UnifiedSearch() {
@@ -543,7 +670,14 @@ export default function UnifiedSearch() {
       })
     : []
   const availableTabKeys: string[] = availableTabs.map((t) => t.key)
-  const effectiveTab = availableTabKeys.includes(activeTab) ? activeTab : (availableTabKeys[0] ?? '')
+  // Default to the tab with the MOST results so the grand-total headline and the
+  // tab actually shown line up — otherwise "license plates" lands on Meetings (1)
+  // while the headline reads 82 (mostly Bills). Ties keep RESULT_TABS order.
+  const largestTabKey = availableTabs.reduce<string>(
+    (best, t) => (tabCounts[t.key] > (tabCounts[best] ?? -1) ? t.key : best),
+    availableTabKeys[0] ?? '',
+  )
+  const effectiveTab = availableTabKeys.includes(activeTab) ? activeTab : largestTabKey
 
   // Active-tab results — fetches ONLY the active tab's type, so `page`/`limit`
   // paginate within that single type instead of across a mixed result set.
@@ -793,6 +927,58 @@ export default function UnifiedSearch() {
         return 'bg-gray-100 text-gray-700 border-gray-200'
     }
   }
+
+  // Map a decision/meeting search result into the shared Browse-Topics StoryCard
+  // shape, so search renders the SAME rich card (YouTube preview + stat chips)
+  // used on Browse Topics. Every value is real metadata — no fabricated stats.
+  const toStoryCard = (result: SearchResult): RenderCard => {
+    const md = (result.metadata ?? {}) as Record<string, unknown>
+    const num = (v: unknown) => (v == null || v === 'null' ? NaN : Number(v))
+    const stats: RenderCard['stats'] = []
+    const cv = num(md.competing_views_count)
+    if (Number.isFinite(cv) && cv > 0) {
+      stats.push({ v: String(cv), l: 'Opposing views', tone: 'amber' })
+    }
+    const vy = num(md.votes_yes)
+    const vn = num(md.votes_no)
+    if ((Number.isFinite(vy) || Number.isFinite(vn)) && !(vy === 0 && vn === 0)) {
+      stats.push({ v: `${Number.isFinite(vy) ? vy : 0}–${Number.isFinite(vn) ? vn : 0}`, l: 'Vote' })
+    }
+    if (stats.length === 0 && md.outcome && String(md.outcome) !== 'null') {
+      stats.push({ v: String(md.outcome), l: 'Outcome' })
+    }
+    const dateStr = (md.meeting_date ?? md.date ?? md.event_date) as string | undefined
+    let when = ''
+    if (dateStr) {
+      const d = new Date(`${dateStr}T00:00:00`)
+      if (!Number.isNaN(d.getTime())) when = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    }
+    return {
+      h: result.title,
+      stats,
+      juris: (md.jurisdiction as string) || (md.meeting_name as string) || result.subtitle || '',
+      when,
+      url: result.url || undefined,
+      stateCode: (md.state_code as string) || undefined,
+      videoId: (md.video_id as string) || (md.meeting_video_id as string) || undefined,
+    }
+  }
+
+  // 3-column StoryCard grid (matches Browse Topics) for decision/meeting results.
+  const StoryResultGrid = ({ results }: { results: SearchResult[] }) => (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {results.map((result, idx) => (
+        <StoryCard
+          key={result.url || idx}
+          card={toStoryCard(result)}
+          lens={CONTESTED_LENS}
+          saved={false}
+          onToggleSave={() => {}}
+          onOpen={() => openResult(result.url)}
+        />
+      ))}
+    </div>
+  )
 
   const ResultCard = ({ result }: { result: SearchResult }) => {
     const resultType = result.result_type ?? result.type
@@ -1944,22 +2130,15 @@ export default function UnifiedSearch() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Topic
                   </label>
-                  <select
-                    value={selectedTopicId}
-                    onChange={(e) => {
-                      setSelectedTopicId(e.target.value)
+                  <TopicTypeahead
+                    topics={topicOptions ?? []}
+                    selectedId={selectedTopicId}
+                    onSelect={(id) => {
+                      setSelectedTopicId(id)
                       setCurrentPage(1)
                       setTimeout(() => handleSearch(), 0)
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
-                  >
-                    <option value="" className="text-gray-900">All Topics</option>
-                    {(topicOptions ?? []).map((t) => (
-                      <option key={t.topic_id} value={String(t.topic_id)} className="text-gray-900">
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   <p className="mt-1 text-xs text-gray-500">
                     Limits decisions, meetings &amp; topics to this civic topic.
                   </p>
@@ -2480,11 +2659,7 @@ export default function UnifiedSearch() {
                       <CalendarIcon className="h-6 w-6 text-green-600" />
                       Meetings ({searchResults.type_totals?.meetings?.toLocaleString() || searchResults.results.meetings.length})
                     </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.meetings.map((result, idx) => (
-                        <ResultCard key={idx} result={result} />
-                      ))}
-                    </div>
+                    <StoryResultGrid results={searchResults.results.meetings} />
                   </div>
                 )}
 
@@ -2584,11 +2759,7 @@ export default function UnifiedSearch() {
                       <ScaleIcon className="h-6 w-6 text-amber-600" />
                       Decisions ({searchResults.type_totals?.decisions?.toLocaleString() || searchResults.results.decisions.length})
                     </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.decisions.map((result, idx) => (
-                        <ResultCard key={idx} result={result} />
-                      ))}
-                    </div>
+                    <StoryResultGrid results={searchResults.results.decisions} />
                   </div>
                 )}
 

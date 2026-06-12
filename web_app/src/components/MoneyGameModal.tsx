@@ -35,7 +35,7 @@ import {
   type GrandkidOutlook as GrandkidOutlookData,
 } from '../api/grandkidOutlook'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
-import { resolveCoordsToLocation, resolveZipToChoices } from '../utils/resolvePlace'
+import { resolveCoordsToLocation, resolveQueryToChoices, resolveZipToChoices } from '../utils/resolvePlace'
 
 // Match the design prototype's typography (loaded globally by HomeV9): Playfair
 // Display for headlines, Source Sans for body, IBM Plex Mono for mono labels.
@@ -941,39 +941,40 @@ function GuessingGame({
   const schoolGov = governments.find((g) => g.level === 'school_district')
 
   return (
-    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-4 shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
-      <h3 className="text-[15px] font-semibold text-[#0f2b2b]" style={SERIF}>
-        The guessing game
-      </h3>
+    <div className="rounded-2xl border border-[#d4e8e8] bg-white p-3.5 shadow-[0_4px_20px_rgba(26,107,107,0.06)] sm:p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[15px] font-semibold text-[#0f2b2b]" style={SERIF}>
+          The guessing game
+        </h3>
+        {hintDismissed && (
+          <span className="text-[11px] text-[#5d7d7d]" style={FONT}>
+            Slide your gut feeling, then reveal.
+          </span>
+        )}
+      </div>
 
-      {/* Dismissible scoring explainer. */}
-      {!hintDismissed ? (
-        <div className="mt-2 flex items-start gap-2 rounded-xl border border-[#cdece7] bg-[#f0faf8] px-3 py-2">
-          <p className="flex-1 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
+      {/* Dismissible scoring explainer — compact one-liner so the sliders stay above the fold. */}
+      {!hintDismissed && (
+        <div className="mt-1.5 flex items-start gap-2 rounded-lg border border-[#cdece7] bg-[#f0faf8] px-2.5 py-1.5">
+          <p className="flex-1 text-[11.5px] leading-snug text-[#2a5a52]" style={FONT}>
             <span className="font-semibold">How scoring works:</span> drag all {game.length} to your gut
-            feeling — percentages auto-balance to 100%, so just get the proportions right. On reveal, your
-            score is 100 minus a point for every two percentage points you&apos;re off versus the real
-            adopted budget.
+            feeling — they auto-balance to 100%. On reveal you score against the real adopted budget.
           </p>
           <button
             type="button"
             onClick={() => setHintDismissed(true)}
             aria-label="Dismiss"
-            className="-mr-1 shrink-0 rounded text-[14px] leading-none text-[#1a6b6b] transition-colors hover:text-[#0f2b2b]"
+            className="-mr-0.5 shrink-0 rounded text-[13px] leading-none text-[#1a6b6b] transition-colors hover:text-[#0f2b2b]"
           >
             ✕
           </button>
         </div>
-      ) : (
-        <p className="mt-2 text-[12px] leading-relaxed text-[#5d7d7d]" style={FONT}>
-          Slide your gut feeling, then reveal to score against the real budget.
-        </p>
       )}
 
       {/* Guessing: donut + sliders (hidden once revealed). */}
       {!revealed && (
         <>
-          <div className="mx-auto mt-4 flex max-w-[640px] flex-wrap items-center justify-center gap-x-5 gap-y-3">
+          <div className="mx-auto mt-3 flex max-w-[640px] flex-wrap items-center justify-center gap-x-5 gap-y-3">
             <GuessDonut game={game} guesses={guesses} touched={touched} />
 
             <div className="min-w-[200px] max-w-[440px] flex-1 space-y-2">
@@ -1231,6 +1232,24 @@ function DotColumn({
   )
 }
 
+// English ordinal for a percentile rank, so a bare "31" reads as "31st" (a
+// position on the 0–100 ladder) and never as a dollar amount.
+function ordinal(n: number): string {
+  const v = Math.round(n)
+  const rem100 = v % 100
+  if (rem100 >= 11 && rem100 <= 13) return `${v}th`
+  switch (v % 10) {
+    case 1:
+      return `${v}st`
+    case 2:
+      return `${v}nd`
+    case 3:
+      return `${v}rd`
+    default:
+      return `${v}th`
+  }
+}
+
 // REAL local-vs-U.S. slope on a 0–100 child-income-rank scale. (The Atlas is a
 // single cohort, so we compare place-vs-nation — not the prototype's invented
 // 1978-vs-1992 cohorts.)
@@ -1252,7 +1271,9 @@ function SlopeChart({
   const xLoc = 232
   const short = localLabel.length > 14 ? localLabel.slice(0, 13) + '…' : localLabel
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Child income rank: your area vs the U.S.">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Child income rank (percentile, 0–100): your area vs the U.S.">
+      {/* Y-axis unit so the bare 25/50/75 ticks read as a rank, not dollars. */}
+      <text x="52" y={topY - 6} fontSize="7" fill="#9bb8b8" textAnchor="end" fontFamily="'IBM Plex Mono', monospace">PCTILE</text>
       {[25, 50, 75].map((g) => (
         <g key={g}>
           <line x1="58" x2="250" y1={y(g)} y2={y(g)} stroke="#f1f5f5" strokeWidth="1" />
@@ -1265,17 +1286,17 @@ function SlopeChart({
           <circle cx={xUS} cy={y(natPct)} r="4.5" fill="#9bb8b8" />
           <circle cx={xLoc} cy={y(localPct)} r="5" fill="#1a6b6b" />
           <text x={xLoc + 9} y={y(localPct) + 1} fontSize="11" fontWeight="800" fill="#1a6b6b" fontFamily="'Source Sans 3', sans-serif">
-            {localPct.toFixed(0)} {short}
+            {ordinal(localPct)} · {short}
           </text>
           <text x={xUS - 9} y={y(natPct) - 6} fontSize="10" fontWeight="700" fill="#9bb8b8" textAnchor="end" fontFamily="'Source Sans 3', sans-serif">
-            {natPct.toFixed(0)} U.S.
+            {ordinal(natPct)} · U.S.
           </text>
         </>
       ) : (
         <>
           <line x1="58" x2="250" y1={y(natPct)} y2={y(natPct)} stroke="#9bb8b8" strokeWidth="2.5" strokeDasharray="4 3" />
           <text x="250" y={y(natPct) - 6} fontSize="10.5" fontWeight="700" fill="#9bb8b8" textAnchor="end" fontFamily="'Source Sans 3', sans-serif">
-            U.S. avg {natPct.toFixed(0)}
+            U.S. avg {ordinal(natPct)}
           </text>
         </>
       )}
@@ -1437,15 +1458,30 @@ function ModalSkeleton() {
 // modal opens without a known place. The ZIP/coords resolve to a REAL place via
 // the shared /api/geocode helpers (never fabricated); a ZIP that spans cities /
 // city-vs-county offers the real choices, since city taxes stack on the county's.
+// The location-entry mode in the gate: a 5-digit ZIP, a city/county name, or a
+// full street address. All three resolve to a REAL place via /api/geocode.
+type GateMode = 'zip' | 'place' | 'address'
+
 function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }) {
+  const [mode, setMode] = useState<GateMode>('zip')
   const [zip, setZip] = useState('')
+  // Free-text query for the 'place' (city/county) and 'address' modes.
+  const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [locating, setLocating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [choices, setChoices] = useState<{ label: string; loc: LocationData }[] | null>(null)
 
   const zipValid = /^\d{5}$/.test(zip)
+  const textValid = text.trim().length >= 2
+  const inputValid = mode === 'zip' ? zipValid : textValid
   const needsChoice = !!choices && choices.length > 1
+
+  const switchMode = (next: GateMode) => {
+    setMode(next)
+    setError(null)
+    setChoices(null)
+  }
 
   const resolveZip = async () => {
     setError(null)
@@ -1454,7 +1490,7 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
     try {
       const opts = await resolveZipToChoices(zip)
       if (opts.length === 0) {
-        setError("We couldn't find that ZIP. Try another, or use your location.")
+        setError("We couldn't find that ZIP. Try a city/county, an address, or your location.")
       } else if (opts.length === 1) {
         onResolved(opts[0].loc)
       } else {
@@ -1467,9 +1503,35 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
     }
   }
 
+  // City/county name OR full address — both go through the same geocoder.
+  const resolveText = async () => {
+    setError(null)
+    setChoices(null)
+    setBusy(true)
+    try {
+      const opts = await resolveQueryToChoices(text)
+      if (opts.length === 0) {
+        setError(
+          mode === 'address'
+            ? "We couldn't find that address. Try adding the city and state, or use a ZIP."
+            : "We couldn't find that place. Try \"City, ST\" or a county name.",
+        )
+      } else if (opts.length === 1) {
+        onResolved(opts[0].loc)
+      } else {
+        setChoices(opts)
+      }
+    } catch {
+      setError("We couldn't look that up right now. Please try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const handleShow = () => {
-    if (busy || needsChoice) return
-    if (zipValid) void resolveZip()
+    if (busy || needsChoice || !inputValid) return
+    if (mode === 'zip') void resolveZip()
+    else void resolveText()
   }
 
   const useMyLocation = () => {
@@ -1508,33 +1570,53 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
         First — where&apos;s home?
       </h3>
       <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-        Every town reaches into your pocket a little differently. Just the ZIP — nothing stored.
+        {mode === 'zip'
+          ? 'Every town reaches into your pocket a little differently. Just the ZIP — nothing stored.'
+          : mode === 'place'
+            ? 'Type your city or county — we’ll find your community. Nothing stored.'
+            : 'Type your full address — we only use it to find your community. Nothing stored.'}
       </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-        <input
-          value={zip}
-          onChange={(e) => {
-            setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
-            setError(null)
-            setChoices(null)
-          }}
-          onKeyDown={(e) => e.key === 'Enter' && handleShow()}
-          placeholder="e.g. 35401"
-          inputMode="numeric"
-          autoFocus
-          className="w-40 rounded-full border-[1.5px] px-4 py-3 text-center text-[16px] tracking-[0.12em] outline-none transition-colors"
-          style={{ ...MONO, borderColor: zipValid ? '#1a6b6b' : '#d4e8e8' }}
-        />
+        {mode === 'zip' ? (
+          <input
+            value={zip}
+            onChange={(e) => {
+              setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
+              setError(null)
+              setChoices(null)
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && handleShow()}
+            placeholder="e.g. 35401"
+            inputMode="numeric"
+            autoFocus
+            className="w-40 rounded-full border-[1.5px] px-4 py-3 text-center text-[16px] tracking-[0.12em] outline-none transition-colors"
+            style={{ ...MONO, borderColor: zipValid ? '#1a6b6b' : '#d4e8e8' }}
+          />
+        ) : (
+          <input
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value)
+              setError(null)
+              setChoices(null)
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && handleShow()}
+            placeholder={mode === 'place' ? 'e.g. Tuscaloosa, AL' : 'e.g. 123 Main St, Tuscaloosa, AL'}
+            autoFocus
+            className="w-72 max-w-full rounded-full border-[1.5px] px-4 py-3 text-center text-[15px] outline-none transition-colors"
+            style={{ ...FONT, borderColor: textValid ? '#1a6b6b' : '#d4e8e8' }}
+          />
+        )}
         <button
           type="button"
           onClick={handleShow}
-          disabled={busy || needsChoice || !zipValid}
+          disabled={busy || needsChoice || !inputValid}
           className="rounded-full px-6 py-3 text-[15px] font-semibold text-white transition-colors"
           style={{
             ...FONT,
-            backgroundColor: zipValid && !needsChoice ? '#1a6b6b' : '#cfe0e0',
-            cursor: zipValid && !needsChoice && !busy ? 'pointer' : 'default',
+            backgroundColor: inputValid && !needsChoice ? '#1a6b6b' : '#cfe0e0',
+            cursor: inputValid && !needsChoice && !busy ? 'pointer' : 'default',
           }}
         >
           {busy ? 'Finding…' : needsChoice ? 'Pick your area' : 'Show me my money'}
@@ -1546,7 +1628,9 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
       {needsChoice && choices && (
         <div className="mt-4">
           <p className="text-[13px] font-semibold text-[#56635e]" style={FONT}>
-            {zip} crosses jurisdiction lines — where&apos;s home? (City taxes stack on the county&apos;s.)
+            {mode === 'zip'
+              ? `${zip} crosses jurisdiction lines — where's home? (City taxes stack on the county's.)`
+              : 'We found a few matches — which is home?'}
           </p>
           <div className="mt-2 flex flex-wrap justify-center gap-2">
             {choices.map((c, i) => (
@@ -1578,6 +1662,41 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
       >
         {locating ? 'Locating…' : '📍 or use my location'}
       </button>
+
+      {/* Other ways to find home — city/county or full address, both resolved by
+          the same real geocoder. */}
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
+        {mode !== 'zip' && (
+          <button
+            type="button"
+            onClick={() => switchMode('zip')}
+            className="text-[12.5px] font-semibold text-[#0f766e] transition-colors hover:underline"
+            style={FONT}
+          >
+            ← Use ZIP code instead
+          </button>
+        )}
+        {mode !== 'place' && (
+          <button
+            type="button"
+            onClick={() => switchMode('place')}
+            className="text-[12.5px] font-semibold text-[#0f766e] transition-colors hover:underline"
+            style={FONT}
+          >
+            Don&apos;t know your ZIP? Search by city or county
+          </button>
+        )}
+        {mode !== 'address' && (
+          <button
+            type="button"
+            onClick={() => switchMode('address')}
+            className="text-[12.5px] font-semibold text-[#0f766e] transition-colors hover:underline"
+            style={FONT}
+          >
+            Search by full address instead
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -1699,25 +1818,6 @@ export default function MoneyGameModal({
     <div>
       <GrandkidsForecast open={open} stateCode={scopeState as string} city={scopeCity} />
 
-      <div className="mt-5 rounded-2xl bg-[#1a6b6b] p-6 text-white">
-        <div className="flex flex-wrap items-center gap-5">
-          <div className="text-[28px] font-semibold leading-[1.05]" style={SERIF}>
-            Decisions
-            <br />
-            matter.
-          </div>
-          <p className="min-w-[240px] flex-1 text-[14px] leading-relaxed text-white/90" style={FONT}>
-            {scoreInfo != null && scoreInfo.score >= 75
-              ? `You scored ${pct(scoreInfo.score)} — better than most. But the split changes one vote at a time, in meetings almost nobody watches. `
-              : scoreInfo != null
-                ? `You scored ${pct(scoreInfo.score)} — and that's typical. Most people can't say where their own money goes, because the decisions happen in meetings almost nobody watches. `
-                : ''}
-            Every one of these dollars is set in a public meeting you can attend,
-            watch, and weigh in on. Open Navigator watches them for you.
-          </p>
-        </div>
-      </div>
-
       <button
         type="button"
         onClick={() => setStage('game')}
@@ -1770,14 +1870,14 @@ export default function MoneyGameModal({
                 <div className="shrink-0 px-5 pt-4 sm:px-7 sm:pt-5">
 
                 <Dialog.Title
-                  className="pr-10 text-[26px] font-semibold leading-tight text-[#0f2b2b]"
+                  className="pr-10 text-[22px] font-semibold leading-tight text-[#0f2b2b] sm:text-[24px]"
                   style={SERIF}
                 >
                   {title}
                 </Dialog.Title>
 
                 {/* Subtitle — prototype-style, all real data. */}
-                <p className="mt-1 text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+                <p className="mt-0.5 text-[13px] leading-snug text-[#6b8a8a]" style={FONT}>
                   {hasPlace ? (
                     <>
                       {placeName || data?.jurisdiction_name}
@@ -1801,20 +1901,18 @@ export default function MoneyGameModal({
                     resident funds (city + county + their school district), so
                     K-12 spending is included rather than hidden. */}
                 {data && data.governments.length > 0 && (
-                  <div className="mt-2 rounded-lg bg-[#f0faf8] px-3 py-2 text-[#2a5a52]" style={FONT}>
-                    <p className="text-[15px] font-bold leading-snug">
+                  <p className="mt-2 rounded-lg bg-[#f0faf8] px-3 py-1.5 text-[12.5px] leading-snug text-[#2a5a52]" style={FONT}>
+                    <span className="font-bold">
                       {data.governments.map((g) => labelGovernment(g)).join(' + ')}
-                    </p>
-                    <p className="mt-0.5 text-[12px] leading-relaxed text-[#3f6f67]">
-                      Stacked, because you fund all of them.
-                    </p>
-                  </div>
+                    </span>
+                    <span className="text-[#3f6f67]"> — stacked, because you fund all of them.</span>
+                  </p>
                 )}
 
                 {/* Step indicator (1 · Your bill → 2 · The guessing game → 3 · The grandkids).
                     Tab 1 is always available (it hosts the "where's home?" gate); the
                     others unlock once a place is chosen and its data has loaded. */}
-                <div className="mt-3.5 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   {([
                     ['estimate', '1 · Your bill'],
                     ['game', '2 · The guessing game'],
@@ -1846,7 +1944,7 @@ export default function MoneyGameModal({
                 {/* Scrollable body — only this region scrolls vertically, so the
                     title and step tabs above stay fixed in view. */}
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7 sm:pb-7">
-                <div className="mt-4">
+                <div className="mt-3">
                   {!hasPlace ? (
                     /* ── Tab 1 gate: resolve a real place before any bill ── */
                     <WhereIsHome onResolved={onResolvePlace} />
@@ -1886,7 +1984,7 @@ export default function MoneyGameModal({
                         <div>
                           {/* Level selector: Combined (the merged donut + game)
                               vs. a single government's REAL breakdown. */}
-                          <div className="mb-4">
+                          <div className="mb-3">
                             <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#5d7d7d]" style={MONO}>
                               Where your tax money goes
                             </div>

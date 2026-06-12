@@ -104,8 +104,10 @@ export default function DecisionCardList({
   // Prop scope wins; otherwise fall back to the advanced-filter inputs.
   const effectiveState = state ?? (debouncedState || undefined)
   const effectiveCity = city ?? (debouncedCity || undefined)
-  // Count of active advanced filters, for the toggle badge.
+  // Count of active filters, for the Filters button badge: non-default sort
+  // plus any state/city narrowing.
   const advancedCount = (rawState.trim() ? 1 : 0) + (rawCity.trim() ? 1 : 0)
+  const activeFilterCount = advancedCount + (sort !== 'contested' ? 1 : 0)
 
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: [
@@ -153,16 +155,18 @@ export default function DecisionCardList({
         )}
       </div>
 
-      {/* Search bar + sort filters */}
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+      {/* Search bar + a single Filters button on the same row — matches the
+          Search page. Sort and the optional state/city filters live inside the
+          flyout panel, so the row stays clean. */}
+      <div className="mb-5 flex items-stretch gap-3">
         <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <MagnifyingGlassIcon className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={rawQuery}
             onChange={(e) => setRawQuery(e.target.value)}
             placeholder="Search these decisions…"
-            className="w-full rounded-full border border-gray-300 bg-white py-2.5 pl-10 pr-10 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-lg border-2 border-gray-300 bg-white py-3 pl-12 pr-10 text-base text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           {rawQuery && (
             <button
@@ -175,82 +179,116 @@ export default function DecisionCardList({
             </button>
           )}
         </div>
-        <div className="inline-flex shrink-0 rounded-full border border-gray-200 bg-white p-1">
-          {SORTS.map((s) => {
-            const on = sort === s.id
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setSort(s.id)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  on ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {s.label}
-              </button>
-            )
-          })}
-        </div>
-        {showAdvancedFilters && (
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            aria-expanded={advancedOpen}
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
-              advancedOpen || advancedCount > 0
-                ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                : 'border-gray-200 bg-white text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <AdjustmentsHorizontalIcon className="h-4 w-4" />
-            Advanced
-            {advancedCount > 0 && (
-              <span className="ml-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white">
-                {advancedCount}
-              </span>
-            )}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          aria-expanded={advancedOpen}
+          className={`flex shrink-0 items-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-medium transition-colors sm:px-4 ${
+            advancedOpen
+              ? 'border-primary-500 bg-primary-50 text-primary-700'
+              : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+          }`}
+        >
+          <AdjustmentsHorizontalIcon className="h-5 w-5" />
+          <span>Filters</span>
+          {activeFilterCount > 0 && (
+            <span className="ml-0.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary-600 px-1 text-xs font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Advanced filter panel — extra server-side filters (state / city) that
-          the /decisions endpoint already supports. */}
-      {showAdvancedFilters && advancedOpen && (
-        <div className="mb-5 grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
-            State
-            <input
-              type="text"
-              value={rawState}
-              onChange={(e) => setRawState(e.target.value)}
-              placeholder="e.g. MA or Massachusetts"
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
-            City
-            <input
-              type="text"
-              value={rawCity}
-              onChange={(e) => setRawCity(e.target.value)}
-              placeholder="e.g. Sherborn"
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </label>
-          {advancedCount > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setRawState('')
-                setRawCity('')
-              }}
-              className="justify-self-start text-xs font-semibold text-indigo-600 hover:text-indigo-800 sm:col-span-2"
-            >
-              Clear advanced filters
-            </button>
-          )}
-        </div>
+      {/* Filter panel — a right-side flyout (matches the Search & Jurisdictions
+          pages): backdrop + fixed drawer. Sort (always) + optional state/city
+          server-side filters live inside. */}
+      {advancedOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black bg-opacity-50"
+            onClick={() => setAdvancedOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="fixed right-0 top-0 z-50 h-full w-full overflow-y-auto bg-white shadow-2xl md:w-96"
+            role="dialog"
+            aria-label="Filters"
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 p-4">
+              <h3 className="text-lg font-bold text-gray-900">Filters</h3>
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen(false)}
+                aria-label="Close filters"
+                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6 p-6">
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Sort by</div>
+                <div className="inline-flex flex-wrap rounded-full border border-gray-200 bg-white p-1">
+                  {SORTS.map((s) => {
+                    const on = sort === s.id
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSort(s.id)}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          on ? 'bg-primary-500 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {showAdvancedFilters && (
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
+                    State
+                    <input
+                      type="text"
+                      value={rawState}
+                      onChange={(e) => setRawState(e.target.value)}
+                      placeholder="e.g. MA or Massachusetts"
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
+                    City
+                    <input
+                      type="text"
+                      value={rawCity}
+                      onChange={(e) => setRawCity(e.target.value)}
+                      placeholder="e.g. Sherborn"
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRawState('')
+                    setRawCity('')
+                    setSort('contested')
+                  }}
+                  className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+                >
+                  Reset filters
+                </button>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {/* Body — honest loading / error / empty / grid states */}
