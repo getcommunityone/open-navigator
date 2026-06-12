@@ -29,6 +29,7 @@ import {
   QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline'
 import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from '../utils/formatters'
+import MeetingThumbnail from '../components/MeetingThumbnail'
 
 type SearchResultType =
   | 'leader'
@@ -802,6 +803,14 @@ export default function UnifiedSearch() {
     // their internal /meetings/{id} drilldown and rich summary — unchanged.
     const isMeetingPending =
       resultType === 'meeting' && result.metadata?.analysis_pending === true
+    // Decision and meeting results may carry a YouTube id for their meeting
+    // recording; when present we render a compact still in the right rail.
+    // MeetingThumbnail itself returns nothing on a falsy/404 id, so no-recording
+    // results render exactly as before.
+    const meetingVideoId =
+      (resultType === 'decision' || resultType === 'meeting')
+        ? (result.metadata?.video_id as string | undefined)
+        : undefined
     // Transcript snippets arrive with the matched passage wrapped in literal
     // <mark>…</mark> markers (ts_headline). Render them as highlighted React
     // nodes WITHOUT dangerouslySetInnerHTML: split on the markers and wrap the
@@ -1177,6 +1186,18 @@ export default function UnifiedSearch() {
             )}
           </div>
         </div>
+
+        {/* Meeting-video still — decision/meeting results with a recording.
+            Fixed-width 16:9 in the right rail of the row; rounded + clipped.
+            Renders nothing when there's no recording (MeetingThumbnail → null),
+            so non-recording results keep their current layout. */}
+        {meetingVideoId && (
+          <MeetingThumbnail
+            videoId={meetingVideoId}
+            alt={result.title}
+            className="hidden w-40 shrink-0 self-start rounded-md sm:block"
+          />
+        )}
       </div>
     </div>
     )

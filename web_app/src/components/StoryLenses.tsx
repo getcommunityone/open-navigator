@@ -13,6 +13,7 @@ import {
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
 import FollowTheMoney from './FollowTheMoney'
+import MeetingThumbnail from './MeetingThumbnail'
 import PersonalizeFeedModal from './PersonalizeFeedModal'
 import { useAuth } from '../contexts/AuthContext'
 import { fromSignalSlug } from '../lib/feedSlugs'
@@ -169,6 +170,9 @@ export interface ApiCard {
   url?: string
   state_code?: string
   state?: string
+  /** Bare YouTube id of the decision's meeting recording; null/absent when
+   *  the decision has no recording. Drives the optional card thumbnail. */
+  video_id?: string | null
 }
 interface ApiLens {
   id: string
@@ -198,6 +202,8 @@ export interface RenderCard {
   when: string
   url?: string
   stateCode?: string
+  /** Bare YouTube id for the optional card thumbnail (undefined when none). */
+  videoId?: string
 }
 
 // Census place names carry a *lowercase* generic type suffix ("Douglas city",
@@ -306,6 +312,12 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
           : ''
       }`}
     >
+      {/* Optional meeting-video still — only when the decision has a recording.
+          Sits above the accent bar at the very top; the article's
+          overflow-hidden + rounded-2xl clips its top corners (no double-round).
+          Renders nothing when there's no video, so cards without a recording
+          look exactly as before. */}
+      {c.videoId && <MeetingThumbnail videoId={c.videoId} alt={c.h} />}
       <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
       <div className="flex flex-1 flex-col p-[18px]">
         <div className="mb-2.5 flex items-center justify-between gap-2">
@@ -513,6 +525,7 @@ export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCar
     when: relFromDate(c.date),
     url: c.url,
     stateCode: c.state_code || undefined,
+    videoId: c.video_id ?? undefined,
   }))
   const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
   const showState = unscoped || distinctStates.size > 1

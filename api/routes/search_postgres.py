@@ -2298,6 +2298,10 @@ async def search_decisions_pg(
                         'meeting_name': meeting_name,
                         'meeting_date': meeting_date,
                         'meeting_video_id': row['meeting_video_id'],
+                        # Canonical thumbnail key the frontend reads
+                        # (result.metadata.video_id); from the meeting recording
+                        # joined on c1_event_id. None when there's no recording.
+                        'video_id': row['meeting_video_id'],
                         'outcome': row['outcome'],
                         'primary_theme': row['primary_theme'],
                         'vote_tally': row['vote_tally'],
