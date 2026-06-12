@@ -2680,6 +2680,23 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
+                {effectiveTab === 'documents' && searchResults.results?.documents && searchResults.results.documents.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <DocumentMagnifyingGlassIcon className="h-6 w-6 text-cyan-600" />
+                      Transcripts ({searchResults.type_totals?.documents?.toLocaleString() || searchResults.results.documents.length})
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4 -mt-2">
+                      Passages from meeting transcripts that mention your search term — the discussion itself, even when it never became a titled agenda item or a recorded decision.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.documents.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {effectiveTab === 'organizations' && searchResults.results?.organizations && searchResults.results.organizations.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">

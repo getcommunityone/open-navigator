@@ -6,7 +6,6 @@ import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import Home from './pages/Home'
 import HomeV9 from './pages/HomeV9'
-import HomeModern from './pages/HomeModern'
 import PolicyQuestionsPage from './pages/PolicyQuestionsPage'
 import PolicyQuestionPage from './pages/PolicyQuestionPage'
 import BrowseTopics from './pages/BrowseTopics'
@@ -151,12 +150,7 @@ function App() {
       <Route path="/" element={<HomeV9 />} />
       {/* Previous homepage, kept reachable for comparison/rollback */}
       <Route path="/home-original" element={<Home />} />
-      
-      {/* Old modern home page (if needed) */}
-      <Route path="/classic" element={<Layout />}>
-        <Route index element={<HomeModern />} />
-      </Route>
-      
+
       {/* All other pages with sidebar layout */}
       <Route path="/" element={<Layout />}>
         <Route path="explore" element={<Explore />} />

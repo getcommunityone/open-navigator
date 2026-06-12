@@ -1,6 +1,55 @@
 version: 2
 
 seeds:
+  - name: tax_foundation_sales_tax_rates
+    config:
+      column_types:
+        state_code: text
+        state: text
+        state_sales_tax_rate: numeric
+        avg_local_sales_tax_rate: numeric
+        combined_sales_tax_rate: numeric
+        combined_rank: integer
+        max_local_sales_tax_rate: numeric
+        as_of_date: date
+        vintage_year: integer
+    description: >
+      Combined state + average-local general sales-tax rates by state (50 states +
+      DC), from the Tax Foundation report "State and Local Sales Tax Rates, 2026"
+      (https://taxfoundation.org/data/all/state/sales-tax-rates/), as of
+      2026-01-01. Rates are PERCENTAGES exactly as published (e.g. 9.46 = 9.46%);
+      avg_local is population-weighted and can be slightly negative where the
+      state mandates reduced-rate zones (e.g. New Jersey UEZ). Census publishes
+      sales-tax revenue but NOT rates, so this is the standard free rate source.
+      Feeds public.state_sales_tax_rate. Refresh annually: re-pull the report's
+      table, replace this CSV, then `dbt seed --select tax_foundation_sales_tax_rates`.
+    columns:
+      - name: state_code
+        description: "2-letter postal code (PK)."
+        tests:
+          - unique
+          - not_null
+      - name: state
+        description: "Full state name."
+        tests: [not_null]
+      - name: state_sales_tax_rate
+        description: "State-level statutory sales-tax rate, percent."
+        tests: [not_null]
+      - name: avg_local_sales_tax_rate
+        description: "Population-weighted average local sales-tax rate, percent."
+        tests: [not_null]
+      - name: combined_sales_tax_rate
+        description: "Published combined state + average-local rate, percent."
+        tests: [not_null]
+      - name: combined_rank
+        description: "Tax Foundation rank by combined rate (1 = highest). NULL for DC."
+      - name: max_local_sales_tax_rate
+        description: "Highest local rate found in the state, percent."
+      - name: as_of_date
+        description: "Effective date of the published rates."
+      - name: vintage_year
+        description: "Report vintage year."
+
   - name: jurisdiction_website_domain_denylist
     description: >
       Lowercase hostname only (no scheme). Rows are removed from int_jurisdiction_websites for every

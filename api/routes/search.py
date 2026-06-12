@@ -1868,6 +1868,64 @@ async def unified_search(
                     continue
                 type_totals[key] = outcome
 
+        # Meetings: event_meeting is tiny (~6k rows) so a real COUNT is sub-ms.
+        # Always use it (not the fetched-length estimate) so the count is
+        # independent of the caller's limit — the lightweight tab-counts call
+        # sends limit=1, which would otherwise cap the meetings total at 1 in
+        # single-type browse mode (header said "1 results" over a 20-row page).
+        if 'meetings' in requested_types:
+            type_totals['meetings'] = await count_events(
+                query=q, state=state, city=city
+            )
+
+        # Decisions: event_decision is small (~9k rows) so a real COUNT is sub-ms.
+        # Always use it (like meetings) so the count is independent of the caller's
+        # limit — the tab-counts call sends limit=1, which would otherwise cap the
+        # decisions total and leave the homepage "Search in" badge blank in browse.
+        if 'decisions' in requested_types:
+            type_totals['decisions'] = await count_decisions(
+                query=q, state=state, city=city
+            )
+
+        # Bills & transcripts: the other small meeting-derived civic marts. Real
+        # COUNTs (event_bill ~14k ILIKE/title-FTS; event_documents via the GIN
+        # content_tsv) so their tab badges and pagers don't collapse to the
+        # fetched-length estimate under the limit=1 tab-counts call.
+        if 'bills' in requested_types:
+            type_totals['bills'] = await count_bills(
+                query=q, state=state, city=city
+            )
+        if 'documents' in requested_types:
+            type_totals['documents'] = await count_documents(
+                query=q, state=state, city=city
+            )
+
+        # Topics: city-scoped meeting-derived mart (event_topic, ~12k), same shape
+        # as bills/decisions — honest count so the badge/pager don't collapse.
+        if 'topics' in requested_types:
+            type_totals['topics'] = await count_topics(
+                query=q, state=state, city=city
+            )
+
+        # Causes: tiny national NTEE vocabulary (public.tag, ~200 rows), no
+        # geography — honest count over the matched taxonomy.
+        if 'causes' in requested_types:
+            type_totals['causes'] = await count_causes(query=q)
+
+        # Grant opportunities: small national feed (~1.9k) — cheap honest count.
+        if 'grant_opportunities' in requested_types:
+            type_totals['grant_opportunities'] = await count_grant_opportunities(query=q)
+
+        # Grants: public.grant is ~6.7M rows with NO full-text index, so an
+        # UNSCOPED count is a ~10s seq-scan (over the sub-search timeout). Only run
+        # the (capped) honest count when the search is LOCATION-SCOPED — those use
+        # the indexed grantor columns / org bridge and count in <0.5s. Otherwise
+        # leave the fetched-length estimate rather than risk the slow path.
+        if 'grants' in requested_types and (state or city or jurisdiction_id):
+            type_totals['grants'] = await count_grants(
+                query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
+            )
+
         # Derive the grand total from the (now partly-accurate) per-type totals
         # rather than the fetched-list length, so total_pages/has_next reflect
         # the real match count for leaders/persons/organizations.

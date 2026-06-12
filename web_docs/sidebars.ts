@@ -111,6 +111,7 @@ const sidebars: SidebarsConfig = {
         'development/state-field-naming-standard',
         'development/migration-v2',
         'development/cleanup-roadmap',
+        'development/python-packaging',
         'development/scripts-reconciliation',
       ],
     },
