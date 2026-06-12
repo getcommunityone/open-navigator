@@ -1,10 +1,23 @@
 import { useMemo, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { fetchTopics, type TopicSummary } from '../api/topics'
 
 export default function BrowseTopics() {
   const [query, setQuery] = useState('')
+  const navigate = useNavigate()
+  const routerLocation = useLocation()
+
+  // Go back to wherever the user came from; fall back to the home page when
+  // this is the first in-app view (direct link / refresh).
+  const handleBack = () => {
+    if (routerLocation.key !== 'default') {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
 
   const { data, isLoading, isError, error } = useQuery<TopicSummary[]>({
     queryKey: ['topics'],
@@ -25,6 +38,14 @@ export default function BrowseTopics() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="inline-flex items-center gap-2 mb-4 text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          Back
+        </button>
         <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold">
           Policy topic taxonomy
         </p>

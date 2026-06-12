@@ -42,7 +42,8 @@ clustered as (
         coalesce(r.other_count, 0)::integer            as other_count,
         q.model_name,
         false                                          as is_featured,
-        cast(null as integer)                          as display_order
+        cast(null as integer)                          as display_order,
+        coalesce(r.money_total, 0)::numeric            as money_total
     from q
     left join rollup r using (question_id)
 ),
@@ -79,7 +80,8 @@ curated as (
         coalesce(r.other_count, 0)::integer            as other_count,
         'curated'                                      as model_name,
         true                                           as is_featured,
-        b.display_order
+        b.display_order,
+        coalesce(r.money_total, 0)::numeric            as money_total
     from curated_base b
     left join rollup r using (question_id)
 ),
@@ -93,7 +95,25 @@ clustered_deduped as (
     where not exists (
         select 1 from curated cur where cur.question_id = c.question_id
     )
+),
+-- Money & talk SHARES are "of all decisions, not just listed questions": the
+-- denominators are the grand totals across every civic decision (item_
+-- interestingness), so a question's bars read as its slice of all the dollars
+-- moved / all the decisions made. A 1-row grand-totals CTE is cross-joined in.
+unioned as (
+    select * from clustered_deduped
+    union all
+    select * from curated
+),
+grand as (
+    select
+        nullif(sum(net_dollar_impact), 0)::numeric as g_money,
+        nullif(count(*), 0)::numeric               as g_decisions
+    from {{ ref('item_interestingness') }}
 )
-select * from clustered_deduped
-union all
-select * from curated
+select
+    u.*,
+    coalesce(u.money_total / g.g_money * 100, 0)::double precision               as money_share,
+    coalesce(u.instances_total::numeric / g.g_decisions * 100, 0)::double precision as talk_share
+from unioned u
+cross join grand g

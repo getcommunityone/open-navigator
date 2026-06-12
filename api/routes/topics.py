@@ -31,15 +31,19 @@ class TopicSummary(BaseModel):
     name: str
     query_id: Optional[str] = None
     keywords: List[str] = []
+    # How many CivicSearch transcript snippets are tagged with this topic — the
+    # "how often it comes up" signal the catalog is sorted by (desc).
+    transcript_occurrences: int = 0
 
 
-# Sorted by name so the frontend list is stable/alphabetical without a client
-# sort. keyword_stats is JSONB (returned as TEXT by this pool) — parsed below.
+# Sorted by transcript occurrences (most-discussed first) so the browse flyout's
+# top-N is the topics that actually come up most in the record; name breaks ties.
+# keyword_stats is JSONB (returned as TEXT by this pool) — parsed below.
 _TOPICS_SQL = """
-    SELECT topic_id, name, query_id, keyword_stats
+    SELECT topic_id, name, query_id, keyword_stats, transcript_occurrences
     FROM civicsearch_topic
     WHERE ($1::text IS NULL OR name ILIKE $1)
-    ORDER BY name ASC
+    ORDER BY transcript_occurrences DESC NULLS LAST, name ASC
 """
 
 
@@ -89,6 +93,7 @@ async def list_topics(
                 name=r["name"],
                 query_id=r["query_id"],
                 keywords=_parse_keywords(r["keyword_stats"]),
+                transcript_occurrences=r["transcript_occurrences"] or 0,
             )
             for r in rows
         ]

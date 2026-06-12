@@ -7,6 +7,8 @@ export interface TopicSummary {
   name: string
   query_id: string | null
   keywords: string[]
+  /** Transcript snippets tagged with this topic — the API sorts by this desc. */
+  transcript_occurrences: number
 }
 
 export async function fetchTopics(): Promise<TopicSummary[]> {

@@ -17,6 +17,19 @@ export interface PolicyQuestionSummary {
   // controls their sequence; both may be absent on older API responses.
   is_featured?: boolean
   display_order?: number | null
+  // Real money & talk (dbt policy_question mart). money_total = dollars moved by
+  // this question's local decisions; *_share = its slice of ALL civic decisions.
+  money_total?: number
+  money_share?: number
+  talk_share?: number
+}
+
+// One quarter of a question's history (real). instances = how often it came up;
+// money = net_dollar_impact of that quarter's linked local decisions.
+export interface QuestionTrendPoint {
+  quarter_start: string
+  instances: number
+  money: number
 }
 
 export interface CanonicalArgument {
@@ -71,6 +84,7 @@ export interface PolicyQuestionDetail extends PolicyQuestionSummary {
   arguments: CanonicalArgument[]
   sample_instances: QuestionInstance[]
   relations: QuestionRelation[]
+  trend: QuestionTrendPoint[]
 }
 
 export async function fetchPolicyQuestions(params?: {

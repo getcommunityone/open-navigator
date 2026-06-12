@@ -24,6 +24,8 @@ import api from '../lib/api'
 import MoneyGameModal from '../components/MoneyGameModal'
 import FollowTheMoney from '../components/FollowTheMoney'
 import { fetchPolicyQuestions } from '../api/policyQuestions'
+import { fetchTopics } from '../api/topics'
+import { fetchTrendingCauses } from '../api/trending'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
 import SiteHeader from '../components/SiteHeader'
 
@@ -532,6 +534,42 @@ export default function HomeV9() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // ── Browse-pill flyout state + top-item previews (REAL data only) ──
+  // Exactly one flyout open at a time. On touch devices the pill toggles on
+  // click; on hover-capable devices it opens on mouseenter.
+  const [browseOpen, setBrowseOpen] = useState<'topics' | 'causes' | 'questions' | null>(null)
+  const [isTouch] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(hover: none)').matches,
+  )
+
+  // Top ~5 topics for the flyout preview (/api/topics → TopicSummary[]).
+  const { data: browseTopics } = useQuery({
+    queryKey: ['home-v9-browse-topics'],
+    queryFn: fetchTopics,
+    staleTime: 30 * 60 * 1000,
+  })
+
+  // Top ~5 causes for the flyout preview (/api/trending → CauseItem[]).
+  const { data: browseCauses } = useQuery({
+    queryKey: ['home-v9-browse-causes'],
+    queryFn: () => fetchTrendingCauses({ source: 'everyorg', limit: 8 }),
+    staleTime: 30 * 60 * 1000,
+  })
+
+  // Top ~5 questions for the flyout preview. Prefer the curated/featured set;
+  // fall back to the full list when no featured questions exist.
+  const { data: browseQuestionsFeatured } = useQuery({
+    queryKey: ['home-v9-browse-questions-featured'],
+    queryFn: () => fetchPolicyQuestions({ featured: true }),
+    staleTime: 30 * 60 * 1000,
+  })
+  const { data: browseQuestionsAll } = useQuery({
+    queryKey: ['home-v9-browse-questions-all'],
+    queryFn: () => fetchPolicyQuestions({ limit: 8 }),
+    staleTime: 30 * 60 * 1000,
+    enabled: browseQuestionsFeatured != null && browseQuestionsFeatured.length === 0,
+  })
+
   // ── "Search in" category counts (real /api/search type_totals) ──
   // Per-category match counts for the category dropdown, DYNAMIC on the search
   // text: re-runs as the (debounced) query / place changes so each row shows how
@@ -556,12 +594,14 @@ export default function HomeV9() {
     placeholderData: (prev) => prev, // keep last counts while the next query loads
   })
   const catCounts = catCountsData ?? {}
-  // 'All' sums every counted type; the rest map 1:1 to their type_totals key
-  // (c.types). Returns undefined when the API didn't count that type (→ no badge).
+  // Each row maps 1:1 to its type_totals key (c.types); undefined when the API
+  // didn't count that type (→ no badge). 'All' intentionally shows NO count: its
+  // only honest value would be the sum across every type, but those catalogs sit
+  // at different geographic grains (local meetings/decisions vs. state bills,
+  // grants, and national questions/topics), so a single total reads as nonsense
+  // next to the local rows. The per-category numbers are the coherent signal.
   const countForCat = (c: { id: string; types: string }): number | undefined =>
-    c.id === 'all'
-      ? Object.values(catCounts).reduce<number>((s, n) => s + (n || 0), 0)
-      : catCounts[c.types]
+    c.id === 'all' ? undefined : catCounts[c.types]
 
   // ── Search typeahead (real /api/search results) ──
   // Queries only the FAST search types — `documents` (transcript full-text) runs
@@ -1016,6 +1056,171 @@ export default function HomeV9() {
             )}
           </div>
 
+          {/* ── Browse pills: dropdown flyout previews, right under the search.
+              Each pill previews its top ~5 items (questions/topics/causes) from
+              the warehouse — no fabricated rows. ── */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16, justifyContent: 'center' }}>
+            {([
+              {
+                key: 'questions' as const,
+                name: 'Browse questions',
+                icon: '⚖️',
+                count: directoryCounts?.questions ?? null,
+                to: '/policy-questions',
+                seeAllLabel: 'questions',
+                desc: 'Open policy questions across jurisdictions.',
+                header: '🔥 Trending questions',
+                items: ((browseQuestionsFeatured && browseQuestionsFeatured.length > 0
+                  ? browseQuestionsFeatured
+                  : browseQuestionsAll) ?? [])
+                  .filter((q) => !!q.canonical_text)
+                  .slice(0, 4)
+                  .map((q) => ({
+                    key: q.question_id,
+                    label: q.canonical_text as string,
+                    onSelect: () =>
+                      navigate(`/policy-question/${q.question_id}`, { state: { fromHome: true } }),
+                  })),
+              },
+              {
+                key: 'topics' as const,
+                name: 'Browse topics',
+                icon: '🗂️',
+                count: directoryCounts?.topics ?? null,
+                to: '/browse-topics',
+                seeAllLabel: 'topics',
+                desc: 'Everything discussed in public meetings.',
+                header: 'Top topics',
+                items: (browseTopics ?? []).slice(0, 4).map((t) => ({
+                  key: String(t.topic_id),
+                  label: t.name,
+                  onSelect: () => navigate('/browse-topics', { state: { fromHome: true } }),
+                })),
+              },
+              {
+                key: 'causes' as const,
+                name: 'Browse causes',
+                icon: '💚',
+                count: directoryCounts?.causes ?? null,
+                to: '/search?types=causes',
+                seeAllLabel: 'causes',
+                desc: 'Local nonprofits, grants & charitable work.',
+                header: 'Top causes',
+                items: (browseCauses?.causes ?? []).slice(0, 4).map((c, i) => ({
+                  key: `${c.name}-${i}`,
+                  label: c.name,
+                  icon: c.icon,
+                  onSelect: () => navigate('/search?types=causes', { state: { fromHome: true } }),
+                })),
+              },
+            ]).map((b) => {
+              const open = browseOpen === b.key
+              return (
+                <div
+                  key={b.key}
+                  style={{ position: 'relative' }}
+                  onMouseEnter={isTouch ? undefined : () => setBrowseOpen(b.key)}
+                  onMouseLeave={isTouch ? undefined : () => setBrowseOpen((p) => (p === b.key ? null : p))}
+                >
+                  {/* One visual pill, two actions: the main area drills down to
+                      the full page; the chevron toggles the preview combo. Hover
+                      also opens the combo on desktop (handlers on the wrapper). */}
+                  <div
+                    style={{ display: 'flex', alignItems: 'stretch', background: '#fff', border: `1px solid ${open ? TEAL : '#e7e5e4'}`, boxShadow: open ? '0 4px 12px rgba(28,25,23,0.07)' : 'none', borderRadius: 999, overflow: 'hidden', transition: 'border-color 120ms ease, box-shadow 120ms ease' }}
+                  >
+                    <button
+                      title={b.desc}
+                      onClick={() => navigate(b.to, { state: { fromHome: true } })}
+                      style={{ background: 'none', border: 'none', padding: '9px 6px 9px 10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
+                    >
+                      <span style={{ width: 30, height: 30, borderRadius: 8, background: '#f0fdfa', border: '1px solid #ccfbf1', display: 'grid', placeItems: 'center', fontSize: 15, flexShrink: 0 }}>
+                        {b.icon}
+                      </span>
+                      <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>
+                        {b.name}
+                      </span>
+                      {b.count != null && b.count > 0 && (
+                        <span className="font-mono-x" style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}>
+                          {b.count.toLocaleString('en-US')}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      aria-label={open ? `Hide top ${b.seeAllLabel}` : `Show top ${b.seeAllLabel}`}
+                      aria-expanded={open}
+                      aria-haspopup="true"
+                      onClick={() => setBrowseOpen((p) => (p === b.key ? null : b.key))}
+                      style={{ background: open ? '#f0fdfa' : 'none', border: 'none', borderLeft: '1px solid #f0efed', padding: '0 12px', cursor: 'pointer', fontFamily: 'inherit', color: TEAL_DARK, fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center' }}
+                    >
+                      {open ? '▴' : '▾'}
+                    </button>
+                  </div>
+
+                  {open && b.items.length > 0 && (
+                    <div
+                      role="menu"
+                      aria-label={b.name}
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 55,
+                        width: b.key === 'questions' ? 330 : 280,
+                        maxWidth: 'calc(100vw - 32px)',
+                        // Transparent bridge over the gap so the cursor can travel
+                        // from the pill into the menu without tripping mouseleave.
+                        paddingTop: 6,
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: '#fff',
+                          border: '1px solid #e7e5e4',
+                          borderRadius: 12,
+                          boxShadow: '0 10px 30px rgba(28,25,23,0.14)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div className="font-mono-x" style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: b.key === 'questions' ? '#ea580c' : '#a8a29e', padding: '11px 16px 7px' }}>
+                          {b.header}
+                        </div>
+                        {b.items.map((it) => (
+                          <button
+                            key={it.key}
+                            role="menuitem"
+                            onClick={() => {
+                              setBrowseOpen(null)
+                              it.onSelect()
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid #f5f5f4', padding: '9px 16px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: INK }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#fafaf9')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                          >
+                            {'icon' in it && it.icon && <span style={{ fontSize: 15, flexShrink: 0 }}>{it.icon}</span>}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.35 }}>
+                              {it.label}
+                            </span>
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => {
+                            setBrowseOpen(null)
+                            navigate(b.to, { state: { fromHome: true } })
+                          }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', padding: '10px 16px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, color: TEAL_DARK }}
+                        >
+                          Browse all{b.count != null && b.count > 0 ? ` ${b.count.toLocaleString('en-US')}` : ''} {b.seeAllLabel} →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
         </section>
 
         {/* ── Money hook (compact teal banner; REAL geocode + REAL modal) ── */}
@@ -1088,45 +1293,6 @@ export default function HomeV9() {
             })}
           </div>
 
-          {/* Browse the directory — REAL counts. */}
-          <div style={{ marginTop: 14 }}>
-            <MonoLabel style={{ color: '#57534e' }}>Or browse the directory</MonoLabel>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
-              {[
-                { name: 'Topics', icon: '🗂️', count: directoryCounts?.topics, to: '/browse-topics', desc: 'Everything discussed in public meetings.' },
-                { name: 'Causes', icon: '💚', count: directoryCounts?.causes, to: '/search?types=causes', desc: 'Local nonprofits, grants & charitable work.' },
-                { name: 'Questions', icon: '⚖️', count: directoryCounts?.questions, to: '/policy-questions', desc: 'Open policy questions across jurisdictions.' },
-              ].map((b) => (
-                <button
-                  key={b.name}
-                  title={b.desc}
-                  onClick={() => navigate(b.to, { state: { fromHome: true } })}
-                  style={{ textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '10px 16px 10px 12px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
-                >
-                  <span style={{ width: 30, height: 30, borderRadius: 8, background: '#f0fdfa', border: '1px solid #ccfbf1', display: 'grid', placeItems: 'center', fontSize: 15, flexShrink: 0 }}>
-                    {b.icon}
-                  </span>
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK }}>
-                        {b.name}
-                      </span>
-                      {b.count != null && b.count > 0 && (
-                        <span
-                          className="font-mono-x"
-                          style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}
-                        >
-                          {b.count.toLocaleString('en-US')}
-                        </span>
-                      )}
-                    </span>
-                    <span style={{ display: 'block', fontSize: 11.5, color: '#78716c', marginTop: 1 }}>{b.desc}</span>
-                  </span>
-                  <span style={{ color: TEAL_DARK, fontWeight: 700, marginLeft: 'auto', paddingLeft: 8 }}>→</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </section>
 
         {/* ── Close to Home feed (REAL lens cards) ── */}

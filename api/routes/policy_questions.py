@@ -76,6 +76,11 @@ class PolicyQuestionSummary(BaseModel):
     jurisdictions_approved: int = 0
     is_featured: bool = False
     display_order: Optional[int] = None
+    # Real money & talk (see dbt policy_question mart). money_total = dollars moved
+    # by this question's local decisions; *_share = its slice of ALL decisions.
+    money_total: float = 0
+    money_share: float = 0
+    talk_share: float = 0
 
 
 class RelationOut(BaseModel):
@@ -87,12 +92,20 @@ class RelationOut(BaseModel):
     scope: Optional[str] = None
 
 
+class TrendPoint(BaseModel):
+    quarter_start: Any  # date — ISO-serialized
+    instances: int = 0
+    money: float = 0
+
+
 class PolicyQuestionDetail(PolicyQuestionSummary):
     first_seen: Optional[Any] = None
     rollup: RollupOut
     arguments: List[ArgumentOut] = []
     sample_instances: List[InstanceOut] = []
     relations: List[RelationOut] = []
+    # Per-quarter history (real): how often the question came up + dollars moved.
+    trend: List[TrendPoint] = []
 
 
 _RELATIONS_SQL = """
@@ -116,7 +129,8 @@ _RELATIONS_SQL = """
 _LIST_COLS = """
     question_id, canonical_text, topic_code, primary_theme, cofog_code,
     scope, status, instances_total, jurisdictions_total, jurisdictions_approved,
-    is_featured, display_order
+    is_featured, display_order,
+    money_total, money_share, talk_share
 """
 
 # Default list: theme/scope filters. Curated featured questions are PINNED to the
@@ -161,6 +175,14 @@ _INSTANCES_SQL = """
     limit $2 offset $3
 """
 
+# Quarterly history (oldest → newest) for the registry drill-down trend chart.
+_TREND_SQL = """
+    select quarter_start, instances, coalesce(money, 0) as money
+    from public.policy_question_trend
+    where question_id = $1
+    order by quarter_start asc
+"""
+
 
 @router.get("/", response_model=List[PolicyQuestionSummary])
 async def list_policy_questions(
@@ -201,6 +223,7 @@ async def get_policy_question(
                     raise HTTPException(status_code=404, detail=f"No policy question '{question_id}'")
                 args = await conn.fetch(_ARGS_SQL, question_id)
                 insts = await conn.fetch(_INSTANCES_SQL, question_id, sample, 0)
+                trend = await conn.fetch(_TREND_SQL, question_id)
                 try:
                     rels = await conn.fetch(_RELATIONS_SQL, question_id)
                 except Exception:  # noqa: BLE001 — relations are best-effort (Phase 3 mart optional)
@@ -226,10 +249,16 @@ async def get_policy_question(
             instances_total=d.get("instances_total", 0),
             jurisdictions_total=d.get("jurisdictions_total", 0),
             jurisdictions_approved=d.get("jurisdictions_approved", 0),
+            is_featured=d.get("is_featured", False),
+            display_order=d.get("display_order"),
+            money_total=float(d.get("money_total") or 0),
+            money_share=float(d.get("money_share") or 0),
+            talk_share=float(d.get("talk_share") or 0),
             rollup=rollup,
             arguments=[ArgumentOut(**dict(a)) for a in args],
             sample_instances=[InstanceOut(**dict(i)) for i in insts],
             relations=[RelationOut(**dict(r)) for r in rels],
+            trend=[TrendPoint(**dict(t)) for t in trend],
         )
 
 

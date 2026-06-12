@@ -46,3 +46,14 @@ models:
         data_type: jsonb
         constraints:
           - type: not_null
+      - name: transcript_occurrences
+        description: >
+          Count of CivicSearch transcript snippets tagged with this topic_id
+          (from staging.stg_civicsearch__snippet). 0 for topics with no snippet
+          matches (coalesced, never NULL). Lets the API rank topics by how often
+          they occur across meeting transcripts.
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null

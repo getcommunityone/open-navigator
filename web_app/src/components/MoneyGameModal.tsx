@@ -62,6 +62,17 @@ function fmtDollars(n: number | null | undefined): string {
   return `$${Math.round(n).toLocaleString('en-US')}`
 }
 
+// Compact dollars for tight tabular rows: 150505000 -> "$150.5M", 9300000 -> "$9.3M",
+// 4200 -> "$4.2K". Falls back to whole dollars under $1K.
+function fmtDollarsCompact(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return '—'
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`
+  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `$${(n / 1_000).toFixed(1)}K`
+  return `$${Math.round(n).toLocaleString('en-US')}`
+}
+
 // Human label for a stacked government: "City of Tuscaloosa", "Tuscaloosa
 // County", "Tuscaloosa City Schools".
 function labelGovernment(g: CombinedGovernment): string {
@@ -113,6 +124,9 @@ interface GameCategory {
   category: string
   /** real renormalized share across the shown set, percent. */
   actual: number
+  /** real combined dollars for this category (Census `amount`), so the reveal
+   *  can show what the share is worth. null when the source amount is missing. */
+  amount: number | null
   /** Present only on the "Other" bucket: its real constituents, for the
    *  drill-down. Display-only — never guessed, so it has no slider. */
   breakdown?: CategoryPart[]
@@ -137,13 +151,14 @@ function buildGameCategories(categories: LocalFinanceCategory[]): GameCategory[]
   if (eligible.length === 0) return []
 
   // Pull the named service categories out in prototype order; everything left
-  // over becomes the single "Other" bucket.
-  const named: { label: string; share: number }[] = []
+  // over becomes the single "Other" bucket. We carry each category's REAL dollar
+  // `amount` alongside its share so the reveal can show both.
+  const named: { label: string; share: number; amount: number }[] = []
   const usedRaw = new Set<string>()
   for (const { match, label } of NAMED_CATEGORIES) {
     const hit = eligible.find((c) => c.category === match)
     if (hit) {
-      named.push({ label, share: hit.share_pct as number })
+      named.push({ label, share: hit.share_pct as number, amount: hit.amount })
       usedRaw.add(match)
     }
   }
@@ -154,18 +169,25 @@ function buildGameCategories(categories: LocalFinanceCategory[]): GameCategory[]
     rest.reduce((s, c) => s + (c.share_pct as number), 0)
   if (total <= 0) return []
 
-  // Renormalize so the shown shares sum to exactly 100.
+  // Renormalize so the shown shares sum to exactly 100; dollar amounts stay REAL.
   const result: GameCategory[] = named.map((n) => ({
     category: n.label,
     actual: (n.share / total) * 100,
+    amount: n.amount > 0 ? n.amount : null,
   }))
 
   if (rest.length > 0) {
     const otherShare = rest.reduce((s, c) => s + (c.share_pct as number), 0)
+    const otherAmount = rest.reduce((s, c) => s + (c.amount || 0), 0)
     const breakdown: CategoryPart[] = rest
       .map((c) => ({ label: c.category, share: ((c.share_pct as number) / total) * 100 }))
       .sort((a, b) => b.share - a.share)
-    result.push({ category: 'Other', actual: (otherShare / total) * 100, breakdown })
+    result.push({
+      category: 'Other',
+      actual: (otherShare / total) * 100,
+      amount: otherAmount > 0 ? otherAmount : null,
+      breakdown,
+    })
   }
 
   return result
@@ -1067,7 +1089,12 @@ function GuessingGame({
                       </span>
                       <span>
                         <span className="font-semibold tabular-nums text-[#0f2b2b]">{pct(c.actual)}</span>
-                        <span className="ml-1.5 text-[11px]" style={{ color: Math.abs(d) >= 8 ? '#9a6b12' : '#9bb8b8' }}>
+                        {c.amount != null && (
+                          <span className="ml-1.5 tabular-nums text-[11.5px] text-[#56635e]" title={fmtDollars(c.amount)}>
+                            {fmtDollarsCompact(c.amount)}/yr
+                          </span>
+                        )}
+                        <span className="ml-1.5 text-[11px]" style={{ color: Math.abs(d) >= 8 ? '#9a6b12' : '#5d7d7d' }}>
                           {Math.abs(d) <= 3 ? '✓ close' : d > 0 ? `${Math.abs(d)} high` : `${Math.abs(d)} low`}
                         </span>
                       </span>
@@ -1554,26 +1581,22 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
 export default function MoneyGameModal({
   open,
   onClose,
-  stateCode,
-  city,
-  county,
+  // stateCode/city/county are still accepted by callers but intentionally NOT
+  // used to seed the scope: the "where's home?" gate always runs first (below).
   requestedLabel,
 }: MoneyGameModalProps) {
-  const { location, setLocation } = useLocationContext()
+  const { setLocation } = useLocationContext()
 
-  // The place the bill is scoped to. Seeded from props (the banner passes the
-  // known location), else the resolved context location; when neither exists,
-  // tab 1 shows the "where's home?" gate and `place` is filled from it.
+  // The place the bill is scoped to, filled by the "where's home?" gate (tab 1).
+  // Every time the modal opens we reset this to null so the gate ALWAYS shows
+  // first — even when a place is already known from props or saved context. The
+  // taxes are intensely local ("every town reaches into your pocket a little
+  // differently"), so we make the user confirm home before showing a bill.
   const [place, setPlace] = useState<LocationData | null>(null)
   useEffect(() => {
     if (!open) return
-    if (stateCode) {
-      setPlace({ state: stateCode, city: city || '', county: county || '', address: requestedLabel || '' })
-    } else if (location?.state) {
-      setPlace(location)
-    }
-    // else: leave null → the gate is shown.
-  }, [open, stateCode, city, county]) // eslint-disable-line react-hooks/exhaustive-deps
+    setPlace(null) // always start at the gate
+  }, [open])
 
   const scopeState = place?.state
   const scopeCity = place?.city || undefined
@@ -1676,20 +1699,19 @@ export default function MoneyGameModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
-                {/* The whole panel scrolls; the close button sticks at the top
-                    via a zero-height sticky bar so it stays reachable. */}
-                <div className="pointer-events-none sticky top-0 z-20 flex h-0 justify-end">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="pointer-events-auto mr-3 mt-3 rounded-full bg-white/90 p-1.5 text-[#56635e] shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-[#0f2b2b] sm:mr-4 sm:mt-4"
-                    aria-label="Close"
-                  >
-                    <XMarkIcon className="h-5 w-5" />
-                  </button>
-                </div>
-                <div className="px-5 pb-6 pt-4 sm:px-7 sm:pb-7 sm:pt-5">
+              <Dialog.Panel className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
+                {/* Close button — pinned to the panel, outside the scroll area. */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="absolute right-3 top-3 z-20 rounded-full bg-white/90 p-1.5 text-[#56635e] shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-[#0f2b2b] sm:right-4 sm:top-4"
+                  aria-label="Close"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+                {/* Header — title, subtitle, stacked-governments, step tabs.
+                    Stays put; only the tab body below scrolls. */}
+                <div className="shrink-0 px-5 pt-4 sm:px-7 sm:pt-5">
 
                 <Dialog.Title
                   className="pr-10 text-[26px] font-semibold leading-tight text-[#0f2b2b]"
@@ -1763,7 +1785,11 @@ export default function MoneyGameModal({
                       )
                     })}
                   </div>
+                </div>
 
+                {/* Scrollable body — only this region scrolls vertically, so the
+                    title and step tabs above stay fixed in view. */}
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7 sm:pb-7">
                 <div className="mt-4">
                   {!hasPlace ? (
                     /* ── Tab 1 gate: resolve a real place before any bill ── */
