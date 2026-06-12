@@ -1,15 +1,48 @@
-import { useState, useRef, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+// @ts-ignore - react-simple-maps ships without bundled types in this project
+import { ComposableMap, Geographies, Geography } from 'react-simple-maps'
 import api from '../lib/api'
-import { 
-  MagnifyingGlassIcon, 
+import {
+  MagnifyingGlassIcon,
   XMarkIcon,
   AdjustmentsHorizontalIcon,
   CheckIcon,
-  MapPinIcon
+  MapPinIcon,
+  ArrowLeftIcon
 } from '@heroicons/react/24/outline'
 import JurisdictionDiscovery from '../components/JurisdictionDiscovery'
+import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
+
+const geoUrl = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'
+
+/** State code → FIPS for matching map geographies to our place data. */
+const STATE_FIPS: Record<string, string> = {
+  'AL': '01', 'AK': '02', 'AZ': '04', 'AR': '05', 'CA': '06',
+  'CO': '08', 'CT': '09', 'DE': '10', 'FL': '12', 'GA': '13',
+  'HI': '15', 'ID': '16', 'IL': '17', 'IN': '18', 'IA': '19',
+  'KS': '20', 'KY': '21', 'LA': '22', 'ME': '23', 'MD': '24',
+  'MA': '25', 'MI': '26', 'MN': '27', 'MS': '28', 'MO': '29',
+  'MT': '30', 'NE': '31', 'NV': '32', 'NH': '33', 'NJ': '34',
+  'NM': '35', 'NY': '36', 'NC': '37', 'ND': '38', 'OH': '39',
+  'OK': '40', 'OR': '41', 'PA': '42', 'RI': '44', 'SC': '45',
+  'SD': '46', 'TN': '47', 'TX': '48', 'UT': '49', 'VT': '50',
+  'VA': '51', 'WA': '53', 'WV': '54', 'WI': '55', 'WY': '56',
+  'DC': '11', 'PR': '72'
+}
+const FIPS_STATE: Record<string, string> = Object.fromEntries(
+  Object.entries(STATE_FIPS).map(([k, v]) => [v, k])
+)
+
+/** A single state group of real indexed places for the browse list. */
+interface PlaceGroup {
+  stateCode: string
+  stateName: string
+  places: JurisdictionResult[]
+}
+
+const MAX_CITIES_PER_STATE = 12
 
 interface JurisdictionResult {
   type: 'jurisdiction'
@@ -69,7 +102,12 @@ const JURISDICTION_LEVELS = [
 
 export default function JurisdictionsSearch() {
   const [searchParams, setSearchParams] = useSearchParams()
-  
+  const navigate = useNavigate()
+
+  // "Find a state" filter for the browse chip list (client-side only).
+  const [stateFilter, setStateFilter] = useState('')
+  const browseRef = useRef<HTMLDivElement>(null)
+
   // Initialize state from URL params
   const [query, setQuery] = useState(() => searchParams.get('q') || '')
   const [activeQuery, setActiveQuery] = useState(() => searchParams.get('q') || '')
@@ -172,6 +210,74 @@ export default function JurisdictionsSearch() {
     enabled: (activeQuery && activeQuery.length >= 2) || selectedState !== '' || selectedCity !== '' || selectedCounty !== '' || selectedLevels.length > 0
   })
 
+  // BROWSE MODE: shown only when there is no active query and no active filters.
+  // Pulls a real (capped) sample of indexed places from the same search API the
+  // homepage "Browse places" uses, grouped by state.
+  const isBrowseMode =
+    !activeQuery && !selectedState && !selectedCity && !selectedCounty && selectedLevels.length === 0
+
+  const { data: browseData, isLoading: isBrowseLoading } = useQuery<SearchResponse>({
+    queryKey: ['jurisdictions-browse-places'],
+    queryFn: async () => {
+      // limit is capped at 100 by the /search API; this is the browse sample
+      // (real indexed places), grouped by state below — not an exhaustive list.
+      const response = await api.get('/search/', {
+        params: { types: 'jurisdictions', limit: 100 }
+      })
+      return response.data
+    },
+    enabled: isBrowseMode,
+    staleTime: 1000 * 60 * 30 // 30 min — this is a slow-moving index
+  })
+
+  // Group the real places by state_code, preserving API order within each state.
+  const placeGroups = useMemo<PlaceGroup[]>(() => {
+    const rows = browseData?.results?.jurisdictions ?? []
+    const byState = new Map<string, JurisdictionResult[]>()
+    for (const row of rows) {
+      const code = row.metadata?.state_code
+      // Need both a state and a geoid: the chips link to /jurisdiction/{geoid}/
+      // meetings, so a place without a geoid isn't linkable — skip it (no
+      // fabricated links).
+      if (!code || !row.metadata?.geoid) continue
+      if (!byState.has(code)) byState.set(code, [])
+      byState.get(code)!.push(row)
+    }
+    const groups: PlaceGroup[] = []
+    for (const [stateCode, places] of byState.entries()) {
+      groups.push({
+        stateCode,
+        stateName: STATE_CODE_TO_NAME[stateCode] || stateCode,
+        places: places.slice(0, MAX_CITIES_PER_STATE)
+      })
+    }
+    // Sort alphabetically by full state name.
+    groups.sort((a, b) => a.stateName.localeCompare(b.stateName))
+    return groups
+  }, [browseData])
+
+  // Set of state codes that have at least one indexed place (for map coloring).
+  const presentStateCodes = useMemo(
+    () => new Set(placeGroups.map((g) => g.stateCode)),
+    [placeGroups]
+  )
+
+  // Apply the client-side "find a state" substring filter (on full state name).
+  const visibleGroups = useMemo(() => {
+    const q = stateFilter.trim().toLowerCase()
+    if (!q) return placeGroups
+    return placeGroups.filter((g) => g.stateName.toLowerCase().includes(q))
+  }, [placeGroups, stateFilter])
+
+  // Map click → set the "find a state" filter to that state, then scroll to it.
+  const handleStateMapClick = (stateCode: string) => {
+    if (!presentStateCodes.has(stateCode)) return
+    setStateFilter(STATE_CODE_TO_NAME[stateCode] || stateCode)
+    setTimeout(() => {
+      browseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+  }
+
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault()
     // Allow search with query OR just filters (browse mode)
@@ -243,47 +349,109 @@ export default function JurisdictionsSearch() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-6 pb-6">
-        {/* Search Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <MapPinIcon className="h-8 w-8 text-primary-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Jurisdiction Search</h1>
-          </div>
-          <p className="text-gray-600 mb-4">
-            Search across 90,000+ cities, counties, states, and school districts
-          </p>
-          
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="relative">
-            <div className="relative">
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search for cities, counties, states, school districts..."
-                className="w-full px-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900"
-              />
-              <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
-              
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuery('')
-                    setActiveQuery('')
-                    searchInputRef.current?.focus()
-                  }}
-                  className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600"
-                >
-                  <XMarkIcon className="h-6 w-6" />
-                </button>
-              )}
-            </div>
-          </form>
+        {/* Back button — very first element on the page */}
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors pt-4 pb-3"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          Back
+        </button>
 
+        {/* Places hero — warm gradient band with search + map */}
+        <div className="bg-gradient-to-r from-rose-500 to-orange-400 rounded-2xl shadow-sm p-6 sm:p-8 mb-6 text-white">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            {/* Left: title, subtitle, search */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <MapPinIcon className="h-9 w-9 text-white/90" />
+                <h1 className="text-4xl font-bold tracking-tight">Places</h1>
+              </div>
+              <p className="text-white/90 mb-5 max-w-xl">
+                Every city, county, and place we index — search above, or pick one from
+                the map and list below to open its home page.
+              </p>
+
+              {/* Search Bar (functionality unchanged) */}
+              <form onSubmit={handleSearch} className="relative">
+                <div className="relative">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search for cities, counties, states, school districts..."
+                    className="w-full px-12 py-3 rounded-lg border-2 border-white/30 bg-white/95 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent text-lg text-gray-900 shadow-sm"
+                  />
+                  <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
+
+                  {query && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery('')
+                        setActiveQuery('')
+                        searchInputRef.current?.focus()
+                      }}
+                      className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600"
+                    >
+                      <XMarkIcon className="h-6 w-6" />
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* Right: US map (navigation aid). Stacks below on mobile. */}
+            <div className="hidden lg:block">
+              <div className="bg-white/10 rounded-xl p-3">
+                <ComposableMap
+                  projection="geoAlbersUsa"
+                  projectionConfig={{ scale: 800 }}
+                  className="w-full h-auto"
+                >
+                  <Geographies geography={geoUrl}>
+                    {({ geographies }: { geographies: any[] }) =>
+                      geographies.map((geo: any) => {
+                        const stateCode = FIPS_STATE[geo.id] || geo.id
+                        const present = presentStateCodes.has(stateCode)
+                        return (
+                          <Geography
+                            key={geo.rsmKey}
+                            geography={geo}
+                            stroke="#FFFFFF"
+                            strokeWidth={0.5}
+                            style={{
+                              default: {
+                                fill: present ? '#ffffff' : 'rgba(255,255,255,0.25)',
+                                outline: 'none'
+                              },
+                              hover: {
+                                fill: present ? '#fde68a' : 'rgba(255,255,255,0.35)',
+                                outline: 'none',
+                                cursor: present ? 'pointer' : 'default'
+                              },
+                              pressed: { fill: '#fbbf24', outline: 'none' }
+                            }}
+                            onClick={() => handleStateMapClick(stateCode)}
+                          />
+                        )
+                      })
+                    }
+                  </Geographies>
+                </ComposableMap>
+                <p className="text-xs text-white/80 mt-2 text-center">
+                  Highlighted states have indexed places — click one to filter the list.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters card (search/levels/advanced — functionality unchanged) */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           {/* Filter Bar */}
-          <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
@@ -634,6 +802,70 @@ export default function JurisdictionsSearch() {
             </>
           )}
         </div>
+
+        {/* Places browse — state-grouped chips of real indexed places. Shown
+            only in browse mode (no active query/filters). Every city is a real
+            row from the jurisdictions search API, linked to its place home. */}
+        {isBrowseMode && (
+          <div ref={browseRef} className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            {/* "Find a state" filter */}
+            <div className="relative mb-6 max-w-md">
+              <MapPinIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                value={stateFilter}
+                onChange={(e) => setStateFilter(e.target.value)}
+                placeholder="Type to find a state…"
+                className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-400 focus:border-rose-400 focus:outline-none"
+              />
+              {stateFilter && (
+                <button
+                  onClick={() => setStateFilter('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Clear state filter"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+
+            {isBrowseLoading && (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-rose-500"></div>
+                <p className="mt-4 text-gray-600">Loading places…</p>
+              </div>
+            )}
+
+            {!isBrowseLoading && visibleGroups.length === 0 && (
+              <p className="text-center py-12 text-gray-500">
+                {placeGroups.length === 0
+                  ? 'No places indexed yet.'
+                  : `No states match "${stateFilter}".`}
+              </p>
+            )}
+
+            {!isBrowseLoading && visibleGroups.length > 0 && (
+              <div className="space-y-6">
+                {visibleGroups.map((group) => (
+                  <div key={group.stateCode}>
+                    <h2 className="text-lg font-bold text-gray-900 mb-3">{group.stateName}</h2>
+                    <div className="flex flex-wrap gap-2">
+                      {group.places.map((place) => (
+                        <Link
+                          key={place.metadata!.geoid as string}
+                          to={`/jurisdiction/${encodeURIComponent(place.metadata!.geoid as string)}/meetings`}
+                          className="inline-flex items-center px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 text-sm font-medium border border-rose-100 hover:bg-rose-100 hover:border-rose-200 transition-colors"
+                        >
+                          {place.title}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Search Results */}
         {(activeQuery || selectedState || selectedLevels.length > 0 || searchResults) && (
