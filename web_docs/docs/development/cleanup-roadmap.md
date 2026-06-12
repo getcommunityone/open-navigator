@@ -13,6 +13,10 @@ keep all three in sync, don't duplicate:
   detailed refactor recipe + progress lives in `project_core_lib_refactor.md`.
 - **This file** — the living backlog + routing table for the cleanup.
 
+> Broader, whole-repo view (duplicated assets, stray entry points, orphaned stacks,
+> packaging sprawl, usability) lives in the [Refactor & Tech-Debt Plan](./refactor-plan.md).
+> This file stays focused on the `scripts/ → packages/` port (that plan's Theme 6).
+
 ## Goal
 
 Eliminate the top-level `scripts/` tree. Move everything into `packages/` refactored

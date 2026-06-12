@@ -11,15 +11,9 @@ from loguru import logger
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from agents.orchestrator import OrchestratorAgent
-from agents.scraper import ScraperAgent
-from agents.parser import ParserAgent
-from agents.classifier import ClassifierAgent
-from agents.sentiment import SentimentAnalyzerAgent
-from agents.advocacy import AdvocacyWriterAgent
-from ingestion.delta_lake import DeltaLakePipeline
-# Lazy import for visualization to avoid requiring folium in local mode
-# from visualization.heatmap import AdvocacyHeatmap
+# NOTE: agent/ingestion imports are intentionally lazy (inside the commands that use
+# them) so the common `serve` path stays lightweight and does not drag in the entire
+# agent + Delta-Lake stack. Only `config.settings` is needed at module init (logging).
 from config import settings
 
 
@@ -79,6 +73,10 @@ def scrape(state: str, municipality: str, url: str, platform: str, max_events: i
     """Scrape meeting minutes from a single source."""
     import json
     from datetime import datetime
+
+    from agents.scraper import ScraperAgent
+    from ingestion.delta_lake import DeltaLakePipeline
+
     logger.info(f"Scraping {url} for {municipality}, {state}")
     
     async def run_scrape():
@@ -140,7 +138,14 @@ def scrape(state: str, municipality: str, url: str, platform: str, max_events: i
 def analyze(targets_file: str):
     """Run full analysis pipeline on targets."""
     import json
-    
+
+    from agents.advocacy import AdvocacyWriterAgent
+    from agents.classifier import ClassifierAgent
+    from agents.orchestrator import OrchestratorAgent
+    from agents.parser import ParserAgent
+    from agents.scraper import ScraperAgent
+    from agents.sentiment import SentimentAnalyzerAgent
+
     logger.info(f"Starting analysis pipeline with targets from {targets_file}")
     
     # Load targets
@@ -170,7 +175,7 @@ def analyze(targets_file: str):
 def generate_heatmap(output: str, urgency: Optional[str]):
     """Generate advocacy heatmap visualization."""
     logger.info(f"Generating heatmap (urgency={urgency})")
-    
+
     # Lazy import - only load when generating heatmap
     try:
         from scripts.visualization.heatmap import AdvocacyHeatmap
@@ -178,7 +183,9 @@ def generate_heatmap(output: str, urgency: Optional[str]):
         click.echo("❌ Visualization dependencies not installed!")
         click.echo("   Install with: pip install folium plotly")
         return
-    
+
+    from ingestion.delta_lake import DeltaLakePipeline
+
     # Query opportunities
     pipeline = DeltaLakePipeline()
     opportunities = pipeline.query_opportunities_by_state(None, urgency)
@@ -197,7 +204,9 @@ def generate_heatmap(output: str, urgency: Optional[str]):
 def init():
     """Initialize the system (create database tables, etc.)."""
     logger.info("Initializing CommunityOne Open Navigator system")
-    
+
+    from ingestion.delta_lake import DeltaLakePipeline
+
     try:
         pipeline = DeltaLakePipeline()
         pipeline.initialize_tables()
@@ -323,7 +332,10 @@ def scrape_batch(source: str, limit: int, priority: int):
     async def run_batch_scrape():
         from pyspark.sql import SparkSession
         from pyspark.sql.functions import col
-        
+
+        from agents.scraper import ScraperAgent
+        from ingestion.delta_lake import DeltaLakePipeline
+
         spark = SparkSession.builder.getOrCreate()
         
         if source == 'discovered':
