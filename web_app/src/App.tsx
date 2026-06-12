@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
+import ScrollToTop from './components/ScrollToTop'
 import Home from './pages/Home'
 import HomeV9 from './pages/HomeV9'
 import HomeModern from './pages/HomeModern'
@@ -143,6 +144,7 @@ function RouteChangeTracer() {
 function App() {
   return (
     <>
+      <ScrollToTop />
       <RouteChangeTracer />
       <Routes>
       {/* v9 prototype homepage (single-column; has its own header) */}

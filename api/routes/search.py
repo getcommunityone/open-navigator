@@ -1761,22 +1761,33 @@ async def unified_search(
         # leaders + persons (+ existing organizations) path.
         is_filtered = bool(q) or bool(state) or bool(city) or bool(jurisdiction_id)
 
+        # The per-type COUNT helpers below are each cached (1h), but on a COLD
+        # cache they used to run back-to-back with `await`, so their latencies
+        # COMPOUNDED: a fresh broad search ("affordable housing" with no scope)
+        # paid sum(counts) over ~11 types (~10s), even though every count is an
+        # independent indexed query. Dispatch them CONCURRENTLY — exactly like the
+        # subsearch fan-out above — so the count phase is as slow as its single
+        # slowest count, not their sum. Each (key, coro) carries the SAME guard as
+        # before, so the set of counts run is unchanged; only the scheduling
+        # differs. return_exceptions keeps one slow/failing count from sinking the
+        # whole search: that type silently falls back to its fetched-length
+        # estimate (the pre-existing type_totals value).
+        count_tasks: List[tuple] = []
+
         if not q and len(requested_types) == 1 and 'organizations' in requested_types:
             # Single-type org browse: accurate count (unchanged behavior).
-            type_totals['organizations'] = await count_organizations(
+            count_tasks.append(('organizations', count_organizations(
                 state=state, ntee_code=ntee_code, query=q
-            )
+            )))
 
         # Accurate per-type counts for the paginated people categories whenever
         # the result set is filtered (query and/or location scope).
         if is_filtered and 'leaders' in requested_types:
-            type_totals['leaders'] = await count_leaders(
-                query=q, state=state, city=city
-            )
+            count_tasks.append(('leaders', count_leaders(query=q, state=state, city=city)))
         if is_filtered and 'persons' in requested_types:
-            type_totals['persons'] = await count_persons(
+            count_tasks.append(('persons', count_persons(
                 query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
-            )
+            )))
 
         # Meetings: event_meeting is tiny (~6k rows) so a real COUNT is sub-ms.
         # Always use it (not the fetched-length estimate) so the count is
@@ -1784,53 +1795,49 @@ async def unified_search(
         # sends limit=1, which would otherwise cap the meetings total at 1 in
         # single-type browse mode (header said "1 results" over a 20-row page).
         if 'meetings' in requested_types:
-            type_totals['meetings'] = await count_events(
+            count_tasks.append(('meetings', count_events(
                 query=q, state=state, city=city, topic_tsquery=topic_tsquery
-            )
+            )))
 
         # Decisions: event_decision is small (~9k rows) so a real COUNT is sub-ms.
         # Always use it (like meetings) so the count is independent of the caller's
         # limit — the tab-counts call sends limit=1, which would otherwise cap the
         # decisions total and leave the homepage "Search in" badge blank in browse.
         if 'decisions' in requested_types:
-            type_totals['decisions'] = await count_decisions(
+            count_tasks.append(('decisions', count_decisions(
                 query=q, state=state, city=city, question_id=question_id, topic_tsquery=topic_tsquery
-            )
+            )))
 
         # Bills & transcripts: the other small meeting-derived civic marts. Real
         # COUNTs (event_bill ~14k ILIKE/title-FTS; event_documents via the GIN
         # content_tsv) so their tab badges and pagers don't collapse to the
         # fetched-length estimate under the limit=1 tab-counts call.
         if 'bills' in requested_types:
-            type_totals['bills'] = await count_bills(
-                query=q, state=state, city=city
-            )
+            count_tasks.append(('bills', count_bills(query=q, state=state, city=city)))
         if 'documents' in requested_types:
-            type_totals['documents'] = await count_documents(
-                query=q, state=state, city=city
-            )
+            count_tasks.append(('documents', count_documents(query=q, state=state, city=city)))
 
         # Topics: city-scoped meeting-derived mart (event_topic, ~12k), same shape
         # as bills/decisions — honest count so the badge/pager don't collapse.
         if 'topics' in requested_types:
-            type_totals['topics'] = await count_topics(
+            count_tasks.append(('topics', count_topics(
                 query=q, state=state, city=city, topic_tsquery=topic_tsquery
-            )
+            )))
 
         # Causes: tiny national NTEE vocabulary (public.tag, ~200 rows), no
         # geography — honest count over the matched taxonomy.
         if 'causes' in requested_types:
-            type_totals['causes'] = await count_causes(query=q)
+            count_tasks.append(('causes', count_causes(query=q)))
 
         # Questions: small curated/clustered policy-question registry
         # (public.policy_question), no geography — honest canonical_text count so
         # the tab badge/pager don't collapse under the limit=1 tab-counts call.
         if 'questions' in requested_types:
-            type_totals['questions'] = await count_questions(query=q, question_id=question_id)
+            count_tasks.append(('questions', count_questions(query=q, question_id=question_id)))
 
         # Grant opportunities: small national feed (~1.9k) — cheap honest count.
         if 'grant_opportunities' in requested_types:
-            type_totals['grant_opportunities'] = await count_grant_opportunities(query=q)
+            count_tasks.append(('grant_opportunities', count_grant_opportunities(query=q)))
 
         # Grants: public.grant is ~6.7M rows with NO full-text index, so an
         # UNSCOPED count is a ~10s seq-scan (over the sub-search timeout). Only run
@@ -1838,9 +1845,28 @@ async def unified_search(
         # the indexed grantor columns / org bridge and count in <0.5s. Otherwise
         # leave the fetched-length estimate rather than risk the slow path.
         if 'grants' in requested_types and (state or city or jurisdiction_id):
-            type_totals['grants'] = await count_grants(
+            count_tasks.append(('grants', count_grants(
                 query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
-            )
+            )))
+
+        if count_tasks:
+            count_keys = [key for key, _ in count_tasks]
+            with tracer.start_as_current_span(
+                "search.counts", kind=SpanKind.INTERNAL
+            ) as count_span:
+                count_span.set_attribute("search.count_types", ",".join(count_keys))
+                count_span.set_attribute("search.count_type_count", len(count_keys))
+                counted = await asyncio.gather(
+                    *(coro for _, coro in count_tasks),
+                    return_exceptions=True,
+                )
+            for key, outcome in zip(count_keys, counted):
+                if isinstance(outcome, Exception):
+                    # Degrade gracefully: keep the fetched-length estimate already
+                    # in type_totals rather than failing the whole search.
+                    logger.error(f"❌ {key} count failed: {outcome}")
+                    continue
+                type_totals[key] = outcome
 
         # Derive the grand total from the (now partly-accurate) per-type totals
         # rather than the fetched-list length, so total_pages/has_next reflect

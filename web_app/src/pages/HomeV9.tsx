@@ -1430,7 +1430,7 @@ export default function HomeV9() {
       {/* ── How It Works (ported from the original home page, restyled for v9).
           Header format matches the sibling "Our Impact" section: section name as
           the centered <h2>, no mono eyebrow. ── */}
-      <section id="how-it-works" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '40px 24px' }}>
+      <section id="how-it-works" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '40px 24px', scrollMarginTop: 72 }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 18px' }}>
             <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: INK }}>
@@ -1535,7 +1535,7 @@ export default function HomeV9() {
       </section>
 
       {/* ── Our Impact / Our Mission (ported from the original home page) ── */}
-      <section id="impact" style={{ background: '#fafaf9', borderTop: '1px solid #e7e5e4', padding: '56px 24px' }}>
+      <section id="impact" style={{ background: '#fafaf9', borderTop: '1px solid #e7e5e4', padding: '56px 24px', scrollMarginTop: 72 }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
             <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: INK }}>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -19,6 +19,8 @@ const HEADER_CSS = `
 .site-header .v9-navlink::after { content: ''; position: absolute; left: 0; bottom: -3px; height: 2px; width: 0; background: ${TEAL}; transition: width .25s ease; }
 .site-header .v9-navlink:hover { color: ${TEAL_DARK}; }
 .site-header .v9-navlink:hover::after { width: 100%; }
+.site-header .v9-navlink.active { color: ${TEAL_DARK}; }
+.site-header .v9-navlink.active::after { width: 100%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
   .site-header .v9-nav { display: none; }
@@ -38,12 +40,46 @@ export default function SiteHeader() {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [showLoginMenu, setShowLoginMenu] = useState(false)
+  // Which in-page section is currently active, so its nav link stays highlighted
+  // after a click and as the user scrolls through it.
+  const [activeSection, setActiveSection] = useState('')
   const { user, isAuthenticated, login, logout, isLoading: authLoading } = useAuth()
+
+  // Scroll-spy: highlight the nav link for whichever section sits in the middle
+  // of the viewport. Only the home page hosts these sections, so clear the
+  // active section on every other route.
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setActiveSection('')
+      return
+    }
+    const ids = ['how-it-works', 'impact']
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) setActiveSection(e.target.id)
+        })
+      },
+      { rootMargin: '-50% 0px -50% 0px' },
+    )
+    // Sections may mount a frame after the header; defer the lookup so we attach.
+    const raf = requestAnimationFrame(() => {
+      ids.forEach((id) => {
+        const el = document.getElementById(id)
+        if (el) observer.observe(el)
+      })
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
+  }, [location.pathname])
 
   // "How It Works" / "Impact" are in-page sections that only exist on the home
   // page. On home we smooth-scroll to them; elsewhere we route home with a hash
   // so HomeV9's hash-scroll effect lands on the right section.
   const goSection = (id: string) => {
+    setActiveSection(id) // keep the clicked link highlighted immediately
     if (location.pathname === '/') {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } else {
@@ -51,18 +87,28 @@ export default function SiteHeader() {
     }
   }
 
-  const navItems: [string, () => void][] = [
-    ['Search', () => navigate('/search')],
-    ['How It Works', () => goSection('how-it-works')],
-    ['Impact', () => goSection('impact')],
-    ['Contact', () => navigate('/support')],
+  const navItems: { label: string; onClick: () => void; active: boolean }[] = [
+    { label: 'Search', onClick: () => navigate('/search'), active: location.pathname === '/search' },
+    { label: 'How It Works', onClick: () => goSection('how-it-works'), active: location.pathname === '/' && activeSection === 'how-it-works' },
+    { label: 'Impact', onClick: () => goSection('impact'), active: location.pathname === '/' && activeSection === 'impact' },
+    { label: 'Contact', onClick: () => navigate('/support'), active: location.pathname === '/support' },
   ]
 
   return (
     <header className="site-header" style={{ position: 'sticky', top: 0, zIndex: 50, background: '#fff', borderBottom: '1px solid #e7e5e4' }}>
       <style>{HEADER_CSS}</style>
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24, position: 'relative' }}>
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, textDecoration: 'none', color: INK }}>
+        <Link
+          to="/"
+          onClick={() => {
+            // The logo always returns home and starts at the top. When already
+            // on '/', the pathname doesn't change so the global ScrollToTop
+            // effect won't fire — reset scroll here to cover that case too.
+            setMenuOpen(false)
+            window.scrollTo(0, 0)
+          }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, textDecoration: 'none', color: INK }}
+        >
           <div
             className="font-mono-x"
             style={{ width: 38, height: 38, borderRadius: '50%', border: `2.5px solid ${TEAL}`, display: 'grid', placeItems: 'center', fontWeight: 800, color: TEAL, fontSize: 15 }}
@@ -89,13 +135,13 @@ export default function SiteHeader() {
         </button>
 
         <nav className={'v9-nav' + (menuOpen ? ' open' : '')} style={{ display: 'flex', gap: 22, marginLeft: 'auto', alignItems: 'center' }}>
-          {navItems.map(([label, fn]) => (
+          {navItems.map(({ label, onClick, active }) => (
             <button
               key={label}
-              className="v9-navlink"
+              className={'v9-navlink' + (active ? ' active' : '')}
               onClick={() => {
                 setMenuOpen(false)
-                fn()
+                onClick()
               }}
             >
               {label}
