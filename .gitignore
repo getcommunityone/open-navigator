@@ -148,6 +148,14 @@ cookies.txt
 analyze_backlog.out
 analyze_backlog_shard*.out
 
+# Parallel shard / harvest / one-off run logs (process stdout, never source)
+shard*.out
+*_harvest.out
+*_run.out
+
+# Stray empty file accidentally created by a mistyped `git` command
+/git
+
 # VS Code "VSCode Counter" extension output (local code-stats dumps)
 .VSCodeCounter/
 

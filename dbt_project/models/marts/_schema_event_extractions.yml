@@ -80,6 +80,15 @@ models:
           - relationships:
               arguments: {to: "source('civic_core', 'civic_event')", field: id}
               config: {severity: warn}
+      - name: search_tsv
+        description: >-
+          Persisted full-text-search vector (STORED generated column) over
+          to_tsvector('english', headline || decision_statement || primary_theme).
+          Defined on the partitioned parent in bootstrap_event_decision and backed
+          by the GIN index ix_event_decision_search_tsv so decisions search uses a
+          Bitmap Index Scan instead of a per-row tsvector recompute. Not emitted by
+          the model SELECT (generated columns reject supplied values). Query as
+          `search_tsv @@ plainto_tsquery('english', :q)`.
       - name: extracted_at
         description: "Partition key — when the AI extraction was produced."
         data_tests: [not_null]

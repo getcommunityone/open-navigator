@@ -298,3 +298,40 @@ def test_wallclock_passes_through_result_and_worker_exception(monkeypatch):
         call_with_genai_quota_retry(
             lambda: (_ for _ in ()).throw(Boom("x")), label="t"
         )
+
+
+def _patch_probe_client(monkeypatch, exc):
+    """Make ``check_gemini_api_key``'s probe ``generate_content`` raise ``exc``."""
+    import google.genai as genai
+
+    class _FakeModels:
+        def generate_content(self, *a, **k):
+            raise exc
+
+    class _FakeClient:
+        def __init__(self, *a, **k):
+            self.models = _FakeModels()
+
+    monkeypatch.setattr(genai, "Client", _FakeClient)
+
+
+def test_check_gemini_api_key_survives_transient_503(monkeypatch):
+    # Regression: a Gemini demand-spike 503 on the startup key-validation probe must
+    # NOT crash the run. A 503 says the server is busy, not that the key is bad — the
+    # real analysis calls retry/rotate on overload. Previously this raised the raw
+    # ServerError and killed the whole analyze shard at startup.
+    _patch_probe_client(
+        monkeypatch,
+        RuntimeError("503 UNAVAILABLE: model is currently experiencing high demand"),
+    )
+    assert m.check_gemini_api_key("AIzaFAKEKEY", model="gemini-2.5-flash-lite") is None
+
+
+def test_check_gemini_api_key_still_rejects_invalid_key(monkeypatch):
+    # The overload carve-out must not swallow a genuine bad key — that still fails fast.
+    _patch_probe_client(
+        monkeypatch,
+        RuntimeError("API key not valid. INVALID_ARGUMENT: API_KEY_INVALID"),
+    )
+    with pytest.raises(SystemExit):
+        m.check_gemini_api_key("AIzaBADKEY", model="gemini-2.5-flash-lite")

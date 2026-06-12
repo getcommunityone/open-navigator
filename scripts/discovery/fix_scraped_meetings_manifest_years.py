@@ -24,11 +24,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 _root = Path(__file__).resolve().parents[2]
-if str(_root) not in sys.path:
-    sys.path.insert(0, str(_root))
+for _p in (str(_root), str(_root / "packages" / "core-lib" / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 try:
-    from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
+    from core_lib.gdrive_paths import resolve_scraped_meetings_output_root
 except Exception:  # pragma: no cover
     resolve_scraped_meetings_output_root = None  # type: ignore[misc,assignment]
 

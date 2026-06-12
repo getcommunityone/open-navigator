@@ -37,6 +37,8 @@ services running locally. Pick the path for your OS:
 
 ### Code Contributions
 
+> **Developing on Windows?** The `Makefile` / `install.sh` flow is Unix-oriented — see [Developing on Windows](web_docs/docs/development/developing-on-windows.md) for `uv`-workspace setup and test-running notes.
+
 1. **Fork the repository**
 2. **Create a feature branch**
    ```bash

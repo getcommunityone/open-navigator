@@ -13,6 +13,10 @@ keep all three in sync, don't duplicate:
   detailed refactor recipe + progress lives in `project_core_lib_refactor.md`.
 - **This file** — the living backlog + routing table for the cleanup.
 
+> Broader, whole-repo view (duplicated assets, stray entry points, orphaned stacks,
+> packaging sprawl, usability) lives in the [Refactor & Tech-Debt Plan](./refactor-plan.md).
+> This file stays focused on the `scripts/ → packages/` port (that plan's Theme 6).
+
 ## Goal
 
 Eliminate the top-level `scripts/` tree. Move everything into `packages/` refactored
@@ -72,9 +76,16 @@ flat Colab imports rewritten to package-relative (`from .x import …`); dead `c
 + `colab_notebook_ui.py` (+ its test) deleted. Notebook bootstrap now adds `packages/llm/src` to
 `sys.path` and imports `llm.governance.*`; CLIs run via `python -m llm.governance.<cli>`. Tests
 (`test_colab_bootstrap`, `test_colab_runtime_phases`, `test_meeting_consolidated_summary`,
-`test_pipeline_media_scope`) repointed. **Residual cross-dep:** governance modules still import
-`scripts.utils.gdrive_paths` (shared with `scripts/discovery/*`) — port that util next so the
-package stops reaching into `scripts/`.
+`test_pipeline_media_scope`) repointed.
+
+**`scripts/utils/gdrive_paths.py` → `core_lib.gdrive_paths`** (2026-06-10): the residual
+governance cross-dep is gone. `git mv`-d into `packages/core-lib/src/core_lib/` (blame
+preserved), chosen over `packages/llm` because it's a pure-stdlib path util shared by **both**
+`llm.governance.*` and `scrapers.wikidata.export_bronze_to_json` (and several `scripts/`) —
+`core-lib` is already a dependency of both, so no package gains a heavy `llm` dep. All importers
+repointed to `core_lib.gdrive_paths`; `colab_bootstrap` + the notebook §1 bootstrap now add
+`packages/core-lib/src` to `sys.path`; legacy `scripts/discovery/*` + `scripts/utils/log_sync.py`
+bootstraps add the same. Unit tests under `packages/core-lib/tests/test_gdrive_paths.py`.
 
 **In flight:** `feat/llm-enrichment-extraction` (current branch) — enrichment subpackage port.
 

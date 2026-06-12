@@ -72,6 +72,13 @@ METRICS: list[dict[str, Any]] = [
         "format": "currency",
     },
     {
+        "slug": "median_real_estate_taxes_paid",
+        "label": "Median real estate taxes paid",
+        "table": "B25103",
+        "estimate_col": "B25103_001E",
+        "format": "currency",
+    },
+    {
         "slug": "median_gross_rent",
         "label": "Median gross rent",
         "table": "B25064",

@@ -30,8 +30,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import httpx
 
 _root = Path(__file__).resolve().parents[2]
-if str(_root) not in sys.path:
-    sys.path.insert(0, str(_root))
+for _p in (str(_root), str(_root / "packages" / "core-lib" / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from scripts.discovery.civicclerk_public_api import (
     civicclerk_doc_type,
@@ -51,7 +52,7 @@ from scripts.discovery.meeting_document_naming import (
     parse_iso_calendar_date_prefix,
 )
 from scripts.discovery.meetings_platform_heuristics import classify_document
-from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
+from core_lib.gdrive_paths import resolve_scraped_meetings_output_root
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _normalize_http_url_path_encoding
 
 _DEFAULT_UA = (

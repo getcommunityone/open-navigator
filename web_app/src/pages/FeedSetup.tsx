@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Dialog, Transition } from '@headlessui/react'
 import { MapPinIcon, CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -10,8 +11,11 @@ import { toLensSlug, fromLensSlug, toSignalSlug, fromSignalSlug } from '../lib/f
  * Home" profile: where you live, the value-frames you care about, and the
  * signals to surface. Doubles as an editor (pre-fills from GET /api/feed/config).
  *
- * Saving PUTs the full config (which marks profile_completed=true server-side),
- * then returns to '/' where Close-to-Home is now unlocked.
+ * Presented as a centered modal popup over a dimmed backdrop (not an inline
+ * page in the content column). Dismissing it — close button, Esc, or backdrop
+ * click — returns to '/'. Saving PUTs the full config (which marks
+ * profile_completed=true server-side), then returns to '/' where Close-to-Home
+ * is now unlocked.
  *
  * No fabricated data: location suggestions come ONLY from the real geocoder
  * (GET /api/feed/places); an empty/short query shows nothing.
@@ -275,30 +279,70 @@ export default function FeedSetup() {
     }
   }
 
-  if (authLoading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-500" style={FONT}>
-        Loading…
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return <SignInPanel login={login} />
+  // Dismiss the modal (close button, Esc, backdrop) — never trap the user on a
+  // bare route; send them back to the homepage. Ignored mid-save.
+  const close = () => {
+    if (saving) return
+    navigate('/')
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={FONT}>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold" style={{ color: '#354F52' }}>
-          Personalize your feed
-        </h1>
-        <p className="mt-1 text-gray-600">
-          Set up Close to Home — civic activity near you, on the issues you care about.
-        </p>
-      </div>
+    <Transition appear show as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={close} style={FONT}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/40" />
+        </Transition.Child>
 
-      {/* 1) Where do you live? */}
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-start justify-center p-4 sm:items-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all">
+                <button
+                  type="button"
+                  onClick={close}
+                  aria-label="Close"
+                  className="absolute right-4 top-4 z-10 text-gray-400 transition-colors hover:text-gray-600"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+
+                <div className="overflow-y-auto px-6 py-8 sm:px-8">
+                  {authLoading ? (
+                    <div className="px-4 py-16 text-center text-gray-500">Loading…</div>
+                  ) : !isAuthenticated ? (
+                    <SignInPanel login={login} />
+                  ) : (
+                    <>
+                      <div className="mb-8 pr-8">
+                        <Dialog.Title
+                          as="h1"
+                          className="text-3xl font-bold"
+                          style={{ color: '#354F52' }}
+                        >
+                          Personalize your feed
+                        </Dialog.Title>
+                        <p className="mt-1 text-gray-600">
+                          Set up Close to Home — civic activity near you, on the issues you care about.
+                        </p>
+                      </div>
+
+                      {/* 1) Where do you live? */}
       <section className="bg-white rounded-lg shadow mb-6">
         <div className="border-b border-gray-200 px-6 py-4">
           <div className="flex items-center gap-2">
@@ -464,6 +508,14 @@ export default function FeedSetup() {
           <span className="text-sm text-gray-500">Add at least one location to save.</span>
         )}
       </div>
-    </div>
+                    </>
+                  )}
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
   )
 }

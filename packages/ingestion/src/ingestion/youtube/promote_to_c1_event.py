@@ -72,6 +72,12 @@ _UUID_NS_EVENT_RESOURCE = uuid.UUID("9c8a5d2b-1f4e-4a6b-a8c1-3e7f9b2c4d5a")
 _DEFAULT_CLASSIFICATION = "committee-meeting"
 _SOURCE = "bronze_youtube_promotion"
 
+# The full warehouse lives in `gold` post the gold/public split; civic_event and
+# civic_eventmedia are gold base tables (public holds only thin serving views).
+# The SQL below is schema-unqualified and resolves via this search_path, so the
+# writer can't silently break if the base tables move again.
+_WAREHOUSE_SCHEMA = "gold"
+
 
 @dataclass
 class YouTubeEvent:
@@ -164,7 +170,7 @@ def upsert_events(conn, events: list[YouTubeEvent], *, dry_run: bool) -> int:
         return len(events)
     n = 0
     insert_sql = """
-        INSERT INTO public.civic_event (
+        INSERT INTO civic_event (
             id, name, description, start_date, event_time,
             jurisdiction_id, jurisdiction_name, jurisdiction_type, city, state,
             location, location_description, classification, status, source,
@@ -236,7 +242,7 @@ def insert_media(conn, events: list[YouTubeEvent], *, dry_run: bool) -> int:
             links = json.dumps([{"url": e.video_url, "media_type": "video/youtube"}])
             cur.execute(
                 """
-                INSERT INTO public.civic_eventmedia
+                INSERT INTO civic_eventmedia
                     (id, note, date, event_id, classification, links)
                 VALUES (%s::uuid, %s, %s, %s, 'recording', %s::jsonb)
                 ON CONFLICT (id) DO NOTHING
@@ -261,6 +267,9 @@ def run(*, states: tuple[str, ...] | None = None, all_dated: bool = False,
 
     conn = psycopg2.connect(db_url)
     try:
+        with conn.cursor() as cur:
+            cur.execute(f"SET search_path TO {_WAREHOUSE_SCHEMA}, public")
+        conn.commit()
         events = load_youtube_rows(conn, states, all_dated)
         if limit:
             events = events[:limit]

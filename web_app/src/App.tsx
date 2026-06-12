@@ -4,7 +4,8 @@ import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-do
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
 import Home from './pages/Home'
-import HomeModern from './pages/HomeModern'
+import PolicyQuestionsPage from './pages/PolicyQuestionsPage'
+import PolicyQuestionPage from './pages/PolicyQuestionPage'
 import Dashboard from './pages/Dashboard'
 import Analytics from './pages/Analytics'
 import Heatmap from './pages/Heatmap'
@@ -12,6 +13,7 @@ import Documents from './pages/Documents'
 import Opportunities from './pages/Opportunities'
 import Nonprofits from './pages/Nonprofits'
 import NonprofitsHF from './pages/NonprofitsHF'
+import Efile990Viewer from './pages/Efile990Viewer'
 import Settings from './pages/Settings'
 import PeopleFinder from './pages/PeopleFinder'
 import PersonDetail from './pages/PersonDetail'
@@ -140,12 +142,7 @@ function App() {
       <Routes>
       {/* Ground News-style homepage without Layout (has its own header) */}
       <Route path="/" element={<Home />} />
-      
-      {/* Old modern home page (if needed) */}
-      <Route path="/classic" element={<Layout />}>
-        <Route index element={<HomeModern />} />
-      </Route>
-      
+
       {/* All other pages with sidebar layout */}
       <Route path="/" element={<Layout />}>
         <Route path="explore" element={<Explore />} />
@@ -158,6 +155,8 @@ function App() {
         <Route path="heatmap" element={<Heatmap />} />
         <Route path="policy-map" element={<PolicyMap />} />
         <Route path="decisions-map" element={<DecisionsMapPage />} />
+        <Route path="policy-questions" element={<PolicyQuestionsPage />} />
+        <Route path="policy-question/:questionId" element={<PolicyQuestionPage />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
         <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />
         <Route path="data-explorer" element={<DataExplorerLayout />}>
@@ -180,6 +179,8 @@ function App() {
         </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="grants/:id" element={<GrantDetail />} />
+        <Route path="efile990" element={<Efile990Viewer />} />
+        <Route path="efile990/:objectId" element={<Efile990Viewer />} />
         <Route path="decisions/:id" element={<DecisionDetail />} />
         <Route path="meetings/:id" element={<MeetingDetail />} />
         <Route path="jurisdiction/:jurisdictionId/meetings" element={<MeetingDocuments />} />

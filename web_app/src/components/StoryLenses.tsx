@@ -244,6 +244,9 @@ interface StoryLensesProps {
   city?: string
   /** When true, ignore stateCode/city and show a national view. */
   national?: boolean
+  /** Free-text from the hero search. When set, the lens cards are filtered to
+   *  those matching the query instead of the section being unmounted. */
+  query?: string
   /** Invoked when a card or popular-topic is activated. */
   onSearch?: (query: string) => void
   /** Invoked by "View all" / "See all activity" / Browse topics. */
@@ -600,6 +603,10 @@ interface SingleLensBodyProps {
   onToggleSave: (key: string) => void
   onOpen: (card: RenderCard) => void
   cardKey: (card: RenderCard, i: number) => string
+  /** Active hero free-text filter (trimmed), if any — tailors the empty state. */
+  query?: string
+  /** Run a full search; used by the "Search everything" empty-state fallback. */
+  onSearch?: (query: string) => void
 }
 
 function SingleLensBody({
@@ -611,6 +618,8 @@ function SingleLensBody({
   onToggleSave,
   onOpen,
   cardKey,
+  query,
+  onSearch,
 }: SingleLensBodyProps) {
   if (loading) {
     return (
@@ -631,7 +640,24 @@ function SingleLensBody({
   if (cards.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-8 text-center text-sm text-[#9bb8b8]">
-        Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
+        {query ? (
+          <>
+            No {lens.label.toLowerCase()} stories match{' '}
+            <b className="text-[#56635e]">&ldquo;{query}&rdquo;</b>.{' '}
+            <button
+              type="button"
+              onClick={() => onSearch?.(query)}
+              className="font-semibold text-[#1a6b6b] underline underline-offset-2 hover:text-[#0f2b2b]"
+            >
+              Search everything
+            </button>{' '}
+            instead.
+          </>
+        ) : (
+          <>
+            Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
+          </>
+        )}
       </div>
     )
   }
@@ -647,7 +673,7 @@ function SingleLensBody({
   )
 }
 
-export default function StoryLenses({ locationLabel, stateCode, city, national, onSearch, onBrowseTopics }: StoryLensesProps) {
+export default function StoryLenses({ locationLabel, stateCode, city, national, query, onSearch, onBrowseTopics }: StoryLensesProps) {
   const navigate = useNavigate()
   const { isAuthenticated, isLoading: authLoading, user, login } = useAuth()
   // Gate: a visitor must be signed in AND have a completed feed profile to use
@@ -723,12 +749,19 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // nationwide, so the UI must not claim they're local ("in your area").
   const unscoped = !scopedState && !scopedCity
 
+  // Free-text filter from the hero search. Sent to the API so cards are filtered
+  // server-side across the full warehouse (not just the handful loaded here);
+  // 'auto' window widens automatically to the grain that holds matches.
+  const trimmedQuery = (query ?? '').trim()
+  const apiQuery = trimmedQuery || undefined
+  const hasQuery = !!trimmedQuery
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['lenses', national, scopedState, scopedCity, windowParam],
+    queryKey: ['lenses', national, scopedState, scopedCity, windowParam, apiQuery],
     queryFn: () =>
       api
         .get('/lenses', {
-          params: { state: scopedState, city: scopedCity, window: windowParam, limit_per_lens: 6 },
+          params: { state: scopedState, city: scopedCity, window: windowParam, limit_per_lens: 6, q: apiQuery },
         })
         .then((r) => r.data as LensesResponse),
     staleTime: 5 * 60 * 1000,
@@ -823,11 +856,11 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
         open={showSetupModal}
         onClose={() => setShowSetupModal(false)}
         isAuthenticated={isAuthenticated}
-        onSignIn={() => {
+        onSignIn={(provider) => {
           // Remember the intent across the full-page OAuth redirect so Home can
           // forward the user to /feed-setup once they return signed in.
           localStorage.setItem('feed_setup_intent', '1')
-          login('google')
+          login(provider)
         }}
         onSetUp={() => {
           setShowSetupModal(false)
@@ -1065,7 +1098,20 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
           </div>
         ) : homeFeed.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
-            {signals.size > 0 ? (
+            {hasQuery ? (
+              <>
+                No nearby stories match{' '}
+                <b className="text-[#56635e]">&ldquo;{query?.trim()}&rdquo;</b>.{' '}
+                <button
+                  type="button"
+                  onClick={() => onSearch?.(query?.trim() || '')}
+                  className="font-semibold text-[#1a6b6b] underline underline-offset-2 hover:text-[#0f2b2b]"
+                >
+                  Search everything
+                </button>{' '}
+                instead.
+              </>
+            ) : signals.size > 0 ? (
               <>
                 No decisions match those signals in this window.{' '}
                 <b className="text-[#56635e]">Clear a filter or widen the time frame.</b>
@@ -1096,14 +1142,16 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       ) : lensId === 'money' ? (
         // Money Moves -> the Follow-the-money Sankey hero (its own /api/money-flow
         // fetch, scoped) so every figure is warehouse-traced.
-        <FollowTheMoney embedded national={national} stateCode={stateCode} city={city} />
+        <FollowTheMoney embedded national={national} stateCode={stateCode} city={city} query={query} window={windowParam} />
       ) : (
         <>
           {selected.note && <LensNote note={selected.note} />}
           <SingleLensBody
             lens={selected}
             cards={sel?.cards ?? []}
-            placeholder={!!sel?.placeholder}
+            placeholder={!!sel?.placeholder && !hasQuery}
+            query={hasQuery ? query?.trim() : undefined}
+            onSearch={onSearch}
             loading={loading}
             savedKeys={savedKeys}
             onToggleSave={toggleSave}

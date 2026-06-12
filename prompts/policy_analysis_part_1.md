@@ -220,7 +220,9 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
       "event_description": "string — Smart Brevity headline",
       "amount": 0,
       "amount_type": "string",
-      "funding_source": "string or null"
+      "funding_source": "string or null",
+      "item_date": "string or null — ISO YYYY-MM-DD the dollars are dated to (contract award / payment / budget-effective date). null if the transcript doesn't state one — NEVER guess a date.",
+      "item_date_type": "string or null — what item_date represents: e.g. award | contract | payment | due | effective | budget_year. null when item_date is null."
     }
   ],
   "places": [

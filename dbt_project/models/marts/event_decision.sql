@@ -65,6 +65,15 @@ events as (
         jurisdiction_type,
         city
     from {{ source('civic_core', 'civic_event') }}
+),
+
+-- Parent guard: the analysis_id FK targets event_meeting(event_meeting_id). A
+-- handful of analysis runs land child extractions in bronze without a matching
+-- meeting-level row in bronze_meetings_from_ai (analysis-cache -> bronze promotion
+-- gap). Inner-join to the parent so we never emit a child whose parent is absent,
+-- which both satisfies the enforced FK and pins build order after event_meeting.
+meeting_keys as (
+    select event_meeting_id from {{ ref('event_meeting') }}
 )
 
 select
@@ -110,8 +119,21 @@ select
 
     -- extraction provenance
     dd.source_ai_model,
-    dd.extracted_at
+    dd.extracted_at,
+
+    -- Persisted full-text-search vector (PLAIN tsvector column, backed by the GIN
+    -- index ix_event_decision_search_tsv from bootstrap_event_decision). Computed
+    -- here in the SELECT so dbt's append insert (whose column list is derived from
+    -- the target table) gets a matching value — a STORED generated column can't be
+    -- used because that same append insert would try to write to it. Must stay in
+    -- sync with the to_tsvector(...) expression in bootstrap_event_decision's
+    -- back-fill UPDATE.
+    to_tsvector('english',
+        coalesce(dd.headline, '') || ' ' ||
+        coalesce(dd.decision_statement, '') || ' ' ||
+        coalesce(dd.primary_theme, ''))          as search_tsv
 
 from decisions dd
+join meeting_keys mk on mk.event_meeting_id = dd.source_event_id
 left join analysis a on a.analysis_id = dd.source_event_id
 left join events   e on e.legacy_id   = a.legacy_event_id
