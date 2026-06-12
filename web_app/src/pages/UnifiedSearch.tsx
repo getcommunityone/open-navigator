@@ -475,10 +475,18 @@ export default function UnifiedSearch() {
 
   // Whether the current inputs constitute a runnable search (query OR a
   // browse-mode filter OR an EIN). Shared by both queries below.
+  //
+  // NOTE: we deliberately do NOT enable on `selectedTypes.length > 0` —
+  // `selectedTypes` defaults to ALL types, so that would auto-run a
+  // browse-everything search on a bare `/search` (e.g. when the nav "Search"
+  // link is clicked after visiting Home), surfacing stale-looking results with
+  // an empty box. Type-only browse modes (Browse Topics/Causes, the Home
+  // quick-nav tiles, etc.) always arrive with an explicit `?types=` param, so
+  // we gate that mode on the URL param instead of the always-populated state.
   const searchEnabled =
     (activeQuery && activeQuery.length >= 2) ||
     selectedState !== '' ||
-    selectedTypes.length > 0 ||
+    !!searchParams.get('types') ||
     selectedEin !== '' ||
     selectedTopicId !== '' ||
     selectedQuestionId !== ''

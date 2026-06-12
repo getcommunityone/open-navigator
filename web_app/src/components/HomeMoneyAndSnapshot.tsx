@@ -243,8 +243,8 @@ export function CityAtAGlance(props: HomeScopeProps) {
 // ===========================================================================
 export function TrendingQuestions({ onOpen }: { onOpen: (questionId: string) => void }) {
   const { data } = useQuery({
-    queryKey: ['home-trending-questions'],
-    queryFn: () => fetchPolicyQuestions({ limit: 12 }),
+    queryKey: ['home-pinned-questions'],
+    queryFn: () => fetchPolicyQuestions({ featured: true }),
     staleTime: 30 * 60 * 1000,
   })
 
@@ -254,7 +254,7 @@ export function TrendingQuestions({ onOpen }: { onOpen: (questionId: string) => 
   return (
     <div className="mt-4 flex flex-nowrap items-center gap-2 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <span className="shrink-0 whitespace-nowrap text-[13px] font-medium text-[#9bb8b8]" style={FONT}>
-        Trending questions:
+        Pinned questions:
       </span>
       {chips.map((q) => (
         <button

@@ -109,6 +109,26 @@ _TOP_ITEMS_SQL = """
     LIMIT $3::int
 """
 
+# Questions are special: they surface from the curated/pinned registry, NOT by
+# transcript count. The homepage "Browse questions" dropdown (and any other
+# top-items question consumer) shows ONLY the featured policy questions, in
+# editorial order (display_order), matching the /policy-questions page. Real
+# distinct-transcript counts are LEFT-joined so a pinned question with no linked
+# transcripts honestly shows 0 rather than being dropped.
+_TOP_QUESTIONS_FEATURED_SQL = """
+    SELECT q.question_id                     AS entity_id,
+           q.canonical_text                  AS entity_name,
+           COALESCE(b.transcript_count, 0)   AS transcript_count,
+           NULL::text                        AS state_code
+    FROM public.policy_question q
+    LEFT JOIN browse_transcript_count b
+      ON b.entity_type = 'question'
+     AND b.entity_id = q.question_id
+    WHERE q.is_featured = true
+    ORDER BY q.display_order ASC NULLS LAST, q.instances_total DESC NULLS LAST
+    LIMIT $1::int
+"""
+
 
 # --- Place map (clustered pins of the places we index) ------------------------
 #
@@ -276,7 +296,11 @@ async def browse_top_items(
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("browse-top-items-query"):
-                    rows = await conn.fetch(_TOP_ITEMS_SQL, et, state_code, limit)
+                    if et == "question":
+                        # Pinned/featured registry questions only, editorial order.
+                        rows = await conn.fetch(_TOP_QUESTIONS_FEATURED_SQL, limit)
+                    else:
+                        rows = await conn.fetch(_TOP_ITEMS_SQL, et, state_code, limit)
         except Exception as exc:  # noqa: BLE001
             logger.exception("browse top-items failed")
             span.record_exception(exc)

@@ -11,7 +11,11 @@ export interface TopicSummary {
   transcript_occurrences: number
 }
 
-export async function fetchTopics(): Promise<TopicSummary[]> {
-  const res = await api.get<TopicSummary[]>('/topics')
+/** Fetch the topic catalog. Pass a 2-letter `state` to restrict to topics
+ *  actually discussed in that state (used when arriving from a place filter). */
+export async function fetchTopics(state?: string): Promise<TopicSummary[]> {
+  const res = await api.get<TopicSummary[]>('/topics', {
+    params: state ? { state } : undefined,
+  })
   return res.data
 }

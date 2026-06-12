@@ -365,12 +365,9 @@ export default function JurisdictionsSearch() {
           </div>
         </div>
 
-        {/* Clustered pin map of every indexed place (state/county/city/school
-            district levels, each independently filterable). Shown in browse
-            mode only — when searching/filtering, the results list takes over. */}
-        {isBrowseMode && <PlaceClusterMap />}
-
-        {/* Filters card (search/levels/advanced — functionality unchanged) */}
+        {/* Filters card (search/levels/advanced) — kept at the very top, next to
+            the level pills, so Basic/Advanced filters are reachable before the
+            map and stay visible in both browse and search modes. */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           {/* Filter Bar */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -724,6 +721,11 @@ export default function JurisdictionsSearch() {
             </>
           )}
         </div>
+
+        {/* Clustered pin map of every indexed place (state/county/city/school
+            district levels, each independently filterable). Shown in browse
+            mode only — when searching/filtering, the results list takes over. */}
+        {isBrowseMode && <PlaceClusterMap />}
 
         {/* Places browse — state-grouped chips of real indexed places. Shown
             only in browse mode (no active query/filters). Every city is a real

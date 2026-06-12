@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { fetchTopics, type TopicSummary } from '../api/topics'
@@ -8,6 +8,10 @@ export default function BrowseTopics() {
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
   const routerLocation = useLocation()
+  // Place filter carried over from the homepage (e.g. ?state=GA). When present,
+  // the catalog is scoped to topics actually discussed in that state.
+  const [searchParams] = useSearchParams()
+  const stateCode = (searchParams.get('state') || '').trim().toUpperCase() || undefined
 
   // Go back to wherever the user came from; fall back to the home page when
   // this is the first in-app view (direct link / refresh).
@@ -20,8 +24,8 @@ export default function BrowseTopics() {
   }
 
   const { data, isLoading, isError, error } = useQuery<TopicSummary[]>({
-    queryKey: ['topics'],
-    queryFn: fetchTopics,
+    queryKey: ['topics', stateCode ?? null],
+    queryFn: () => fetchTopics(stateCode),
   })
 
   const topics = data ?? []
@@ -49,10 +53,13 @@ export default function BrowseTopics() {
         <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold">
           Policy topic taxonomy
         </p>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Browse Topics</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">
+          Browse Topics{stateCode ? ` · ${stateCode}` : ''}
+        </h1>
         <p className="text-gray-500 mb-6 text-sm">
-          The policy topics we track, each with the keywords that map discussion and decisions onto
-          it.
+          {stateCode
+            ? `The policy topics discussed in ${stateCode}, each with the keywords that map discussion and decisions onto it.`
+            : 'The policy topics we track, each with the keywords that map discussion and decisions onto it.'}
         </p>
 
         {/* Search box */}

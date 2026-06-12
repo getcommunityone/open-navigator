@@ -39,10 +39,21 @@ class TopicSummary(BaseModel):
 # Sorted by transcript occurrences (most-discussed first) so the browse flyout's
 # top-N is the topics that actually come up most in the record; name breaks ties.
 # keyword_stats is JSONB (returned as TEXT by this pool) — parsed below.
+#
+# $2 = optional 2-letter state code. When given, restrict to topics actually
+# discussed in that state via browse_entity_state_transcript_count (the per-state
+# bridge) — this is what lets the homepage "Browse topics" land pre-filtered to
+# the user's selected place. NULL state = the full national catalog.
 _TOPICS_SQL = """
     SELECT topic_id, name, query_id, keyword_stats, transcript_occurrences
-    FROM civicsearch_topic
+    FROM civicsearch_topic t
     WHERE ($1::text IS NULL OR name ILIKE $1)
+      AND ($2::text IS NULL OR EXISTS (
+            SELECT 1 FROM browse_entity_state_transcript_count b
+            WHERE b.entity_type = 'topic'
+              AND b.entity_id = t.topic_id::text
+              AND b.state_code = $2::text
+      ))
     ORDER BY transcript_occurrences DESC NULLS LAST, name ASC
 """
 
@@ -70,16 +81,21 @@ def _parse_keywords(raw) -> List[str]:
 @router.get("", response_model=List[TopicSummary])
 async def list_topics(
     q: Optional[str] = Query(None, description="Optional case-insensitive substring filter on topic name."),
+    state: Optional[str] = Query(None, description="Optional 2-letter state code; restricts to topics discussed in that state."),
 ) -> List[TopicSummary]:
-    """All civic topics (alphabetical), optionally narrowed by a name substring."""
+    """Civic topics (most-discussed first), optionally narrowed by a name
+    substring and/or restricted to a single state."""
     with tracer.start_as_current_span("topics-list") as span:
         span.set_attribute("topics.q", (q or "").strip())
         like = f"%{q.strip()}%" if q and q.strip() else None
+        # Normalize to the 2-letter upper-case form the bridge stores; blank -> None.
+        state_code = state.strip().upper() if state and state.strip() else None
+        span.set_attribute("topics.state", state_code or "")
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("topics-query"):
-                    rows = await conn.fetch(_TOPICS_SQL, like)
+                    rows = await conn.fetch(_TOPICS_SQL, like, state_code)
         except Exception as exc:  # noqa: BLE001
             logger.exception("topics list failed")
             span.record_exception(exc)

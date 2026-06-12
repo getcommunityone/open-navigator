@@ -1058,7 +1058,7 @@ export default function HomeV9() {
                 to: '/policy-questions',
                 seeAllLabel: 'questions',
                 desc: 'Open policy questions across jurisdictions.',
-                header: '🔥 Trending questions',
+                header: '📌 Pinned questions',
                 items: (browseTopItems?.question ?? [])
                   .filter((q) => !!q.entity_name)
                   .map((q) => ({
@@ -1076,7 +1076,12 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.order ?? Number.MAX_SAFE_INTEGER,
-                to: '/browse-topics',
+                // Carry the saved location's state into the Topics browse so it
+                // lands scoped to topics actually discussed there (topic data is
+                // state-grain). No location set → the full national catalog.
+                to: locState
+                  ? `/browse-topics?state=${encodeURIComponent(locState)}`
+                  : '/browse-topics',
                 seeAllLabel: 'topics',
                 desc: 'Everything discussed in public meetings.',
                 header: 'Top topics',
@@ -1084,7 +1089,13 @@ export default function HomeV9() {
                   key: t.entity_id,
                   label: t.entity_name,
                   transcripts: t.transcript_count,
-                  onSelect: () => navigate('/browse-topics', { state: { fromHome: true } }),
+                  onSelect: () =>
+                    navigate(
+                      locState
+                        ? `/browse-topics?state=${encodeURIComponent(locState)}`
+                        : '/browse-topics',
+                      { state: { fromHome: true } },
+                    ),
                 })),
               },
               {
@@ -1112,7 +1123,18 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.order ?? Number.MAX_SAFE_INTEGER,
-                to: '/jurisdictions',
+                // Carry the saved location into the Places browse so it lands
+                // pre-filtered (e.g. "Atlanta" → ?state=GA&city=Atlanta). City
+                // takes precedence over county; state is included to disambiguate.
+                // No location set → plain /jurisdictions browse.
+                to: (() => {
+                  const p = new URLSearchParams()
+                  if (locState) p.set('state', locState)
+                  if (locCity) p.set('city', locCity)
+                  else if (location?.county) p.set('county', location.county)
+                  const qs = p.toString()
+                  return qs ? `/jurisdictions?${qs}` : '/jurisdictions'
+                })(),
                 seeAllLabel: 'places',
                 desc: 'Cities, counties & districts with public records.',
                 header: 'Top places',
