@@ -23,9 +23,6 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MoneyGameModal from '../components/MoneyGameModal'
 import FollowTheMoney from '../components/FollowTheMoney'
-import { fetchPolicyQuestions } from '../api/policyQuestions'
-import { fetchTopics } from '../api/topics'
-import { fetchTrendingCauses } from '../api/trending'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
 import AddressLookup from '../components/AddressLookup'
 import SiteHeader from '../components/SiteHeader'
@@ -135,7 +132,7 @@ interface SearchSuggestion {
 }
 
 // One row from GET /api/browse/summary (categories[], pre-sorted by
-// transcript_count desc with `cause` always last). transcript_count is a real
+// transcript_count desc with `place` always last — far right). transcript_count is a real
 // distinct-transcript count; has_transcripts is false only for cause (no
 // transcript linkage exists in the data).
 interface BrowseSummaryCategory {
@@ -156,6 +153,15 @@ interface DirectorySummaryEntry {
 
 interface DirectorySummary {
   byType: Record<string, DirectorySummaryEntry>
+}
+
+// One row from GET /api/browse/top-items — a single browseable item with its
+// genuine distinct-transcript count. Drives the flyout previews so every
+// dropdown row (including causes) shows a real transcript count.
+interface BrowseTopItem {
+  entity_id: string
+  entity_name: string
+  transcript_count: number
 }
 
 // Maps each browse card's stable `key` to the API's entity_type so cards can
@@ -451,7 +457,7 @@ export default function HomeV9() {
   })
 
   // Browse-card badges are a genuine distinct-transcript count per category,
-  // served pre-sorted (transcript_count desc, cause last) by /api/browse/summary.
+  // served pre-sorted (transcript_count desc, place pinned far right) by /api/browse/summary.
   // We index by entity_type so each card can read its real count + ordering and
   // honor has_transcripts (cause has no transcript linkage → honest em-dash).
   const { data: directoryCounts } = useQuery<DirectorySummary>({
@@ -485,59 +491,34 @@ export default function HomeV9() {
     () => typeof window !== 'undefined' && !!window.matchMedia?.('(hover: none)').matches,
   )
 
-  // Top ~5 topics for the flyout preview (/api/topics → TopicSummary[]).
-  const { data: browseTopics } = useQuery({
-    queryKey: ['home-v9-browse-topics'],
-    queryFn: fetchTopics,
-    staleTime: 30 * 60 * 1000,
-  })
-
-  // Top ~5 causes for the flyout preview (/api/trending → CauseItem[]).
-  const { data: browseCauses } = useQuery({
-    queryKey: ['home-v9-browse-causes'],
-    queryFn: () => fetchTrendingCauses({ source: 'everyorg', limit: 8 }),
-    staleTime: 30 * 60 * 1000,
-  })
-
-  // Top ~5 places (jurisdictions) for the flyout preview. Scoped to the
-  // selected state when one is active; otherwise a national sample. Pulls real
-  // rows from /api/search (types=jurisdictions) — no fabricated places.
-  const { data: browsePlaces } = useQuery<
-    { geoid: string; title: string; subtitle: string }[]
-  >({
-    queryKey: ['home-v9-browse-places', stateCode, national],
+  // Flyout previews: the top ~5 items per browse category, each carrying its
+  // REAL distinct-transcript count, from the canonical /api/browse/top-items
+  // endpoint (ordered transcript_count desc). Sourcing all four categories —
+  // including causes — from this one endpoint guarantees every dropdown row
+  // shows a genuine transcript count. Causes are honestly 0: no cause↔transcript
+  // linkage exists in the warehouse, so that 0 is real, not fabricated.
+  // State-scoped (place/topic) when a state is selected.
+  const { data: browseTopItems } = useQuery<Record<string, BrowseTopItem[]>>({
+    queryKey: ['home-v9-browse-top-items', stateCode, national],
     queryFn: async () => {
-      const params: Record<string, string | number> = { types: 'jurisdictions', limit: 8 }
-      if (!national && stateCode) params.state = stateCode
-      const res = await api.get('/search/', { params }).then((r) => r.data).catch(() => null)
-      const rows = (res?.results?.jurisdictions ?? []) as Array<{
-        title?: string
-        subtitle?: string
-        metadata?: { geoid?: string }
-      }>
-      return rows
-        .filter((r) => !!r.metadata?.geoid && !!r.title)
-        .map((r) => ({
-          geoid: r.metadata!.geoid as string,
-          title: r.title as string,
-          subtitle: r.subtitle ?? '',
-        }))
+      const fetchType = async (entityType: string): Promise<BrowseTopItem[]> => {
+        const params: Record<string, string | number> = { entity_type: entityType, limit: 5 }
+        if (!national && stateCode) params.state = stateCode
+        const res = await api
+          .get('/browse/top-items', { params })
+          .then((r) => r.data as { items?: BrowseTopItem[] })
+          .catch(() => null)
+        return res?.items ?? []
+      }
+      const [topic, question, place, cause] = await Promise.all([
+        fetchType('topic'),
+        fetchType('question'),
+        fetchType('place'),
+        fetchType('cause'),
+      ])
+      return { topic, question, place, cause }
     },
     staleTime: 30 * 60 * 1000,
-  })
-
-  // Top ~5 questions for the flyout preview. Prefer the curated/featured set;
-  // fall back to the full list when no featured questions exist.
-  const { data: browseQuestionsFeatured } = useQuery({
-    queryKey: ['home-v9-browse-questions-featured'],
-    queryFn: () => fetchPolicyQuestions({ featured: true }),
-    staleTime: 30 * 60 * 1000,
-  })
-  const { data: browseQuestionsAll } = useQuery({
-    queryKey: ['home-v9-browse-questions-all'],
-    queryFn: () => fetchPolicyQuestions({ limit: 8 }),
-    staleTime: 30 * 60 * 1000,
-    enabled: browseQuestionsFeatured != null && browseQuestionsFeatured.length === 0,
   })
 
   // ── "Search in" category counts (real /api/search type_totals) ──
@@ -1078,16 +1059,14 @@ export default function HomeV9() {
                 seeAllLabel: 'questions',
                 desc: 'Open policy questions across jurisdictions.',
                 header: '🔥 Trending questions',
-                items: ((browseQuestionsFeatured && browseQuestionsFeatured.length > 0
-                  ? browseQuestionsFeatured
-                  : browseQuestionsAll) ?? [])
-                  .filter((q) => !!q.canonical_text)
-                  .slice(0, 4)
+                items: (browseTopItems?.question ?? [])
+                  .filter((q) => !!q.entity_name)
                   .map((q) => ({
-                    key: q.question_id,
-                    label: q.canonical_text as string,
+                    key: q.entity_id,
+                    label: q.entity_name,
+                    transcripts: q.transcript_count,
                     onSelect: () =>
-                      navigate(`/policy-question/${q.question_id}`, { state: { fromHome: true } }),
+                      navigate(`/policy-question/${q.entity_id}`, { state: { fromHome: true } }),
                   })),
               },
               {
@@ -1101,9 +1080,10 @@ export default function HomeV9() {
                 seeAllLabel: 'topics',
                 desc: 'Everything discussed in public meetings.',
                 header: 'Top topics',
-                items: (browseTopics ?? []).slice(0, 4).map((t) => ({
-                  key: String(t.topic_id),
-                  label: t.name,
+                items: (browseTopItems?.topic ?? []).map((t) => ({
+                  key: t.entity_id,
+                  label: t.entity_name,
+                  transcripts: t.transcript_count,
                   onSelect: () => navigate('/browse-topics', { state: { fromHome: true } }),
                 })),
               },
@@ -1118,10 +1098,10 @@ export default function HomeV9() {
                 seeAllLabel: 'causes',
                 desc: 'Local nonprofits, grants & charitable work.',
                 header: 'Top causes',
-                items: (browseCauses?.causes ?? []).slice(0, 4).map((c, i) => ({
-                  key: `${c.name}-${i}`,
-                  label: c.name,
-                  icon: c.icon,
+                items: (browseTopItems?.cause ?? []).map((c) => ({
+                  key: c.entity_id,
+                  label: c.entity_name,
+                  transcripts: c.transcript_count,
                   onSelect: () => navigate('/browse-causes', { state: { fromHome: true } }),
                 })),
               },
@@ -1136,18 +1116,19 @@ export default function HomeV9() {
                 seeAllLabel: 'places',
                 desc: 'Cities, counties & districts with public records.',
                 header: 'Top places',
-                items: (browsePlaces ?? []).slice(0, 4).map((p) => ({
-                  key: p.geoid,
-                  label: p.title,
+                items: (browseTopItems?.place ?? []).map((p) => ({
+                  key: p.entity_id,
+                  label: p.entity_name,
+                  transcripts: p.transcript_count,
                   onSelect: () =>
-                    navigate(`/jurisdiction/${encodeURIComponent(p.geoid)}/meetings`, {
+                    navigate(`/jurisdiction/${encodeURIComponent(p.entity_id)}/meetings`, {
                       state: { fromHome: true },
                     }),
                 })),
               },
             ]
               // Order the cards to match the API's category ordering
-              // (transcript_count desc, cause always last). Unknown/missing
+              // (transcript_count desc, `place` pinned far right). Unknown/missing
               // entity types fall to the end via Number.MAX_SAFE_INTEGER.
               .slice()
               .sort((a, b) => a.order - b.order)
@@ -1260,9 +1241,35 @@ export default function HomeV9() {
                             onMouseEnter={(e) => (e.currentTarget.style.background = '#fafaf9')}
                             onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                           >
-                            {'icon' in it && it.icon && <span style={{ fontSize: 15, flexShrink: 0 }}>{it.icon}</span>}
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.35 }}>
+                            {/* Wrap to at most two lines (then ellipsize) rather
+                                than single-line truncation — question prompts are
+                                full sentences and were getting cut mid-word.
+                                minWidth:0 lets the flex child actually wrap. */}
+                            <span
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                lineHeight: 1.35,
+                              }}
+                            >
                               {it.label}
+                            </span>
+                            {/* Real distinct-transcript count for this item
+                                (from /api/browse/top-items). Shown for every
+                                category including causes — causes are genuinely
+                                0 (no transcript linkage), an honest real value. */}
+                            <span
+                              className="font-mono-x"
+                              title={`${it.transcripts.toLocaleString('en-US')} transcripts`}
+                              style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'baseline', gap: 3, fontSize: 11, fontWeight: 600, color: '#a8a29e' }}
+                            >
+                              {it.transcripts.toLocaleString('en-US')}
+                              <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>tx</span>
                             </span>
                           </button>
                         ))}

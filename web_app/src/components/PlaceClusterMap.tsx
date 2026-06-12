@@ -235,7 +235,7 @@ export default function PlaceClusterMap() {
           Map unavailable right now.
         </div>
       ) : (
-        <div className="h-[440px] rounded-lg overflow-hidden border border-gray-200">
+        <div className="relative z-0 isolate h-[440px] rounded-lg overflow-hidden border border-gray-200">
           <MapContainer
             center={[39.5, -98.35]}
             zoom={4}

@@ -235,10 +235,13 @@ async def browse_summary(
             for et, row in chosen.items()
         ]
 
-        # Sort by transcript_count desc, but always force `cause` to the very end
-        # (it is genuinely 0 transcripts and is the catch-all card).
+        # Sort by transcript_count desc, but always pin `place` to the very end so
+        # the "Browse places" card sits at the far right of the homepage row (a
+        # product choice — places dwarfs the others on transcript count, but we
+        # want it last). `cause` (genuinely 0 transcripts) then naturally falls
+        # just before place via the descending count.
         categories.sort(
-            key=lambda c: (c.entity_type == "cause", -c.transcript_count)
+            key=lambda c: (c.entity_type == "place", -c.transcript_count)
         )
 
         span.set_attribute("browse.categories", len(categories))
