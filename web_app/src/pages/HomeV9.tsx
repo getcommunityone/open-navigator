@@ -22,7 +22,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MoneyGameModal from '../components/MoneyGameModal'
-import FollowTheMoney from '../components/FollowTheMoney'
+import MoneyMovesTeaser from '../components/MoneyMovesTeaser'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
 import AddressLookup from '../components/AddressLookup'
 import SiteHeader from '../components/SiteHeader'
@@ -1402,28 +1402,18 @@ export default function HomeV9() {
           )
         })()}
 
-        {/* ── Money Moves — the "follow the money" flowing Sankey (REAL
-            /api/money-flow: public spending / grants / nonprofit economy) ── */}
+        {/* ── Money Moves — compact one-line summary (REAL /api/money-flow
+            headline figure) that drills down into the full tabbed Sankey in a
+            modal, so it no longer dominates the page. ── */}
         <section style={{ marginTop: 30, paddingBottom: 44 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 20 }}>💵</span>
-            <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#059669' }}>
-              Money Moves
-            </h2>
-            <span style={{ fontSize: 14, color: '#78716c' }}>
-              Follow the dollars — every flow traced to the record · 📍 {placeLabel}
-            </span>
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <FollowTheMoney
-              embedded
-              national={national}
-              stateCode={stateCode}
-              city={city}
-              county={location?.county || undefined}
-              window={when.window}
-            />
-          </div>
+          <MoneyMovesTeaser
+            national={national}
+            stateCode={stateCode}
+            city={city}
+            county={location?.county || undefined}
+            window={when.window}
+            placeLabel={placeLabel}
+          />
         </section>
       </main>
 
