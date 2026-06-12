@@ -74,6 +74,15 @@ function pct(n: number): string {
   return `${Math.round(n)}%`
 }
 
+// Pull a 4-digit year out of a number or a date-ish string ("2025-01-01" -> "2025")
+// for the wire/string form (CLAUDE.md: serialize a bare year as a string). null
+// when there's no usable year — we never fabricate one.
+function yearOf(v: string | number | null | undefined): string | null {
+  if (v == null) return null
+  const m = /(\d{4})/.exec(String(v))
+  return m ? m[1] : null
+}
+
 export interface MoneyGameModalProps {
   open: boolean
   onClose: () => void
@@ -301,7 +310,7 @@ function WhoCollectsBar({
 
   return (
     <div className="mt-5 rounded-2xl border border-[#d4e8e8] bg-white p-4 md:p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5d7d7d]" style={MONO}>
         Who collects it
       </p>
       <div className="mt-2.5 flex h-3.5 w-full overflow-hidden rounded-full bg-[#eef4f4]">
@@ -321,7 +330,7 @@ function WhoCollectsBar({
           </span>
         ))}
       </div>
-      <p className="mt-2 text-[10.5px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+      <p className="mt-2 text-[10.5px] leading-relaxed text-[#5d7d7d]" style={FONT}>
         Taxes collected per resident, by level of government — Census Annual Survey of State &amp; Local
         Government Finances. This is each government&apos;s collections per head, not your personal bill.
       </p>
@@ -363,6 +372,10 @@ function YourBill({
   const median = propQ.data?.median_home_value ?? null
   const salesPct = salesQ.data?.combined_sales_tax_rate_pct ?? null
   const salesFrac = salesPct != null ? salesPct / 100 : null
+  // The data vintage for each rate — REAL years from the API, shown so the bill
+  // is honest about how current it is (no fabricated "current year").
+  const acsYear = yearOf(propQ.data?.acs_vintage_year)
+  const salesYear = yearOf(salesQ.data?.as_of_date)
 
   const [own, setOwn] = useState(true)
   const [homeValue, setHomeValue] = useState<number | null>(null)
@@ -431,7 +444,7 @@ function YourBill({
         <div className="flex-1 rounded-2xl border border-[#d4e8e8] bg-[#fafaf9] p-4 md:p-5">
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9bb8b8]" style={MONO}>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5d7d7d]" style={MONO}>
                 You pay approximately
               </p>
               <p className="text-[36px] font-semibold leading-none text-[#0f2b2b]" style={SERIF}>
@@ -440,6 +453,13 @@ function YourBill({
               {total > 0 && (
                 <p className="mt-1 text-[13px] text-[#56635e]" style={FONT}>
                   per year · {fmtDollars(total / 12)}/mo
+                </p>
+              )}
+              {(acsYear || salesYear) && (
+                <p className="mt-1 text-[10.5px] uppercase tracking-[0.08em] text-[#5d7d7d]" style={MONO}>
+                  {acsYear ? `Property ${acsYear} ACS` : ''}
+                  {acsYear && salesYear ? ' · ' : ''}
+                  {salesYear ? `Sales ${salesYear}` : ''}
                 </p>
               )}
             </div>
@@ -468,11 +488,15 @@ function YourBill({
               you.
             </p>
           )}
-          <p className="mt-3 text-[11px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+          <p className="mt-3 text-[11px] leading-relaxed text-[#5d7d7d]" style={FONT}>
             {propRate != null && (
-              <>Property: {jurisdictionName}&apos;s {(propRate * 100).toFixed(2)}% effective ACS rate (Census). </>
+              <>Property: {jurisdictionName}&apos;s {(propRate * 100).toFixed(2)}% effective ACS rate
+                {acsYear ? ` (${acsYear} Census ACS)` : ' (Census)'}. </>
             )}
-            {salesPct != null && <>Sales: {salesPct.toFixed(2)}% combined state+local rate (Tax Foundation). </>}
+            {salesPct != null && (
+              <>Sales: {salesPct.toFixed(2)}% combined state+local rate (Tax Foundation
+                {salesYear ? `, ${salesYear}` : ''}). </>
+            )}
             Spending, fees &amp; income are your own.
           </p>
         </div>
@@ -554,7 +578,7 @@ function GuessDonut({
     >
       <div className="absolute inset-[30%] flex items-center justify-center rounded-full bg-white text-center">
         <span
-          className="text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-[#9bb8b8]"
+          className="text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-[#5d7d7d]"
           style={MONO}
         >
           Your
@@ -593,7 +617,7 @@ function RevealDonut({
     >
       <div className="absolute inset-[28%] flex items-center justify-center rounded-full bg-white text-center">
         <span
-          className={`text-[8.5px] font-semibold uppercase leading-tight tracking-[0.06em] ${accent ? 'text-[#1a6b6b]' : 'text-[#9bb8b8]'}`}
+          className={`text-[8.5px] font-semibold uppercase leading-tight tracking-[0.06em] ${accent ? 'text-[#1a6b6b]' : 'text-[#5d7d7d]'}`}
           style={MONO}
         >
           {label}
@@ -762,7 +786,7 @@ function LevelBreakdown({
         <p className="text-sm font-semibold text-[#0f2b2b]">
           No {levelNoun(level)} spending data for this location.
         </p>
-        <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#9bb8b8]">
+        <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#5d7d7d]">
           We only show figures that trace to a real government-finance record — so there&apos;s nothing to
           display for this level here. Try another level above.
         </p>
@@ -779,7 +803,7 @@ function LevelBreakdown({
         <h3 className="text-[15px] font-semibold text-[#0f2b2b]" style={SERIF}>
           {data.jurisdiction_name} — where it goes
         </h3>
-        <span className="text-[11px] uppercase tracking-[0.06em] text-[#9bb8b8]" style={MONO}>
+        <span className="text-[11px] uppercase tracking-[0.06em] text-[#5d7d7d]" style={MONO}>
           FY {data.fiscal_year}
         </span>
       </div>
@@ -796,7 +820,7 @@ function LevelBreakdown({
         <div className="min-w-[220px] flex-1 space-y-2">
           {data.direct_expenditure != null && data.direct_expenditure > 0 && (
             <div className="mb-1 flex items-baseline justify-between border-b border-[#eef4f4] pb-2">
-              <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#9bb8b8]" style={MONO}>
+              <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#5d7d7d]" style={MONO}>
                 Total direct expenditure
               </span>
               <span className="text-[15px] font-semibold tabular-nums text-[#0f2b2b]" style={FONT}>
@@ -824,7 +848,7 @@ function LevelBreakdown({
         </div>
       </div>
 
-      <p className="mt-4 border-t border-[#eef4f4] pt-2 text-[11px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+      <p className="mt-4 border-t border-[#eef4f4] pt-2 text-[11px] leading-relaxed text-[#5d7d7d]" style={FONT}>
         {data.source}
         {data.note ? ` · ${data.note}` : ''}
       </p>
@@ -915,7 +939,7 @@ function GuessingGame({
           </button>
         </div>
       ) : (
-        <p className="mt-2 text-[12px] leading-relaxed text-[#9bb8b8]" style={FONT}>
+        <p className="mt-2 text-[12px] leading-relaxed text-[#5d7d7d]" style={FONT}>
           Slide your gut feeling, then reveal to score against the real budget.
         </p>
       )}
@@ -986,7 +1010,7 @@ function GuessingGame({
                             {c.breakdown.map((part) => (
                               <li key={part.label} className="flex items-center justify-between text-[11px]" style={FONT}>
                                 <span className="text-[#56635e]">{part.label}</span>
-                                <span className="text-[#9bb8b8]">included</span>
+                                <span className="text-[#5d7d7d]">included</span>
                               </li>
                             ))}
                           </ul>
@@ -1004,7 +1028,7 @@ function GuessingGame({
             onClick={() => allGuessed && onReveal()}
             disabled={!allGuessed}
             className={`mt-4 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
-              allGuessed ? 'mgm-pulse bg-[#1a6b6b] text-white hover:bg-[#155757]' : 'cursor-default bg-[#eef4f4] text-[#9bb8b8]'
+              allGuessed ? 'mgm-pulse bg-[#1a6b6b] text-white hover:bg-[#155757]' : 'cursor-default bg-[#eef4f4] text-[#5d7d7d]'
             }`}
             style={FONT}
           >
@@ -1059,7 +1083,7 @@ function GuessingGame({
                   </div>
                 )
               })}
-              <p className="text-[9.5px] uppercase tracking-[0.05em] text-[#9bb8b8]" style={MONO}>
+              <p className="text-[9.5px] uppercase tracking-[0.05em] text-[#5d7d7d]" style={MONO}>
                 Bar = real budget · | = your guess
               </p>
             </div>
@@ -1142,7 +1166,7 @@ function DotColumn({
   return (
     <div>
       <div
-        className="mb-2 whitespace-pre-line text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-[#9bb8b8]"
+        className="mb-2 whitespace-pre-line text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-[#5d7d7d]"
         style={MONO}
       >
         {title}
@@ -1307,7 +1331,7 @@ function GrandkidsForecast({
           ) : (
             <>
               <SlopeChart localPct={hasLocal ? (localPct as number) : null} natPct={natPct as number} localLabel={localLabel} />
-              <p className="mt-1 text-[9.5px] uppercase tracking-[0.08em] text-[#9bb8b8]" style={MONO}>
+              <p className="mt-1 text-[9.5px] uppercase tracking-[0.08em] text-[#5d7d7d]" style={MONO}>
                 0 = bottom · 100 = top of the U.S. income ladder
               </p>
             </>
@@ -1318,7 +1342,7 @@ function GrandkidsForecast({
       {/* Notes — honest about missing local cells + provenance. */}
       <div className="px-5 pb-4">
         {isError && (
-          <p className="text-[12px] text-[#9bb8b8]" style={FONT}>
+          <p className="text-[12px] text-[#5d7d7d]" style={FONT}>
             We couldn&apos;t load mobility data right now. Try again, or change a filter.
           </p>
         )}
@@ -1335,7 +1359,7 @@ function GrandkidsForecast({
           </p>
         )}
         {!blank && data?.source && (
-          <p className="mt-2 border-t border-[#eef4f4] pt-2 text-[11px] text-[#9bb8b8]" style={FONT}>
+          <p className="mt-2 border-t border-[#eef4f4] pt-2 text-[11px] text-[#5d7d7d]" style={FONT}>
             Source:{' '}
             {data.source_url ? (
               <a href={data.source_url} target="_blank" rel="noopener noreferrer" className="underline decoration-[#d4e8e8] underline-offset-2 hover:text-[#1a6b6b]">
@@ -1699,11 +1723,14 @@ export default function MoneyGameModal({
                     resident funds (city + county + their school district), so
                     K-12 spending is included rather than hidden. */}
                 {data && data.governments.length > 0 && (
-                  <p className="mt-2 rounded-lg bg-[#f0faf8] px-3 py-2 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
-                    <span className="font-semibold">Your full local government:</span>{' '}
-                    {data.governments.map((g) => labelGovernment(g)).join(' + ')} — stacked, because you
-                    fund all of them.
-                  </p>
+                  <div className="mt-2 rounded-lg bg-[#f0faf8] px-3 py-2 text-[#2a5a52]" style={FONT}>
+                    <p className="text-[15px] font-bold leading-snug">
+                      {data.governments.map((g) => labelGovernment(g)).join(' + ')}
+                    </p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-[#3f6f67]">
+                      Stacked, because you fund all of them.
+                    </p>
+                  </div>
                 )}
 
                 {/* Step indicator (1 · Your bill → 2 · The guessing game → 3 · The grandkids).
@@ -1769,7 +1796,7 @@ export default function MoneyGameModal({
                           {/* Level selector: Combined (the merged donut + game)
                               vs. a single government's REAL breakdown. */}
                           <div className="mb-4">
-                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9bb8b8]" style={MONO}>
+                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#5d7d7d]" style={MONO}>
                               Where your tax money goes
                             </div>
                             <LevelSelector
@@ -1820,7 +1847,7 @@ export default function MoneyGameModal({
                                 <span className="block text-[14.5px] font-semibold text-[#0f2b2b]" style={FONT}>
                                   {gradeFor(scoreInfo.score)}
                                 </span>
-                                <span className="text-[9.5px] uppercase tracking-[0.04em] text-[#9bb8b8]" style={MONO}>
+                                <span className="text-[9.5px] uppercase tracking-[0.04em] text-[#5d7d7d]" style={MONO}>
                                   Off by {Math.round(scoreInfo.totalError)} pts
                                 </span>
                               </span>
@@ -1886,7 +1913,7 @@ export default function MoneyGameModal({
                       )}
 
                       {/* Provenance — always shown. */}
-                      <p className="mt-5 text-center text-[11px] text-[#9bb8b8]" style={MONO}>
+                      <p className="mt-5 text-center text-[11px] text-[#5d7d7d]" style={MONO}>
                         Sources: U.S. Census · ACS property-tax rate · Tax Foundation sales tax · Opportunity Atlas
                       </p>
                     </>

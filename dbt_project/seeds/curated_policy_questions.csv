@@ -1,5 +1,6 @@
 canonical_text,primary_theme,topic_code,cofog_code,display_order
-Should fluoride stay in water?,health,,,1
-Should police track license plates?,public_safety,,,2
-Should the city use no-bid contracts?,government_operations,,,3
-Should those books leave the library?,education,,,4
+Should the jurisdiction adjust its water fluoridation policy?,health,,,1
+Should police use automated license plate readers?,public_safety,,,2
+Should the jurisdiction award no-bid contracts?,government_operations,,,3
+Should Airbnb and Vrbo be restricted or taxed?,housing,,,4
+Should the jurisdiction cooperate with federal immigration enforcement?,public_safety,,,5

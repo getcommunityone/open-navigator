@@ -5,7 +5,7 @@ import { fetchPolicyQuestions, type PolicyQuestionSummary } from '../api/policyQ
 export default function PolicyQuestionsPage() {
   const { data, isLoading } = useQuery<PolicyQuestionSummary[]>({
     queryKey: ['policy-questions'],
-    queryFn: () => fetchPolicyQuestions({ limit: 100 }),
+    queryFn: () => fetchPolicyQuestions({ featured: true }),
   })
 
   return (
@@ -33,19 +33,10 @@ export default function PolicyQuestionsPage() {
                 <Link
                   key={q.question_id}
                   to={`/policy-question/${q.question_id}`}
-                  className={`block rounded-lg border bg-white p-4 hover:shadow-sm transition ${
-                    q.is_featured
-                      ? 'border-indigo-200 ring-1 ring-indigo-100 hover:border-indigo-300'
-                      : 'border-gray-200 hover:border-blue-300'
-                  }`}
+                  className="block rounded-lg border border-indigo-200 ring-1 ring-indigo-100 bg-white p-4 hover:shadow-sm hover:border-indigo-300 transition"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span className="font-medium text-gray-900">
-                      {q.is_featured && (
-                        <span className="mr-2 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-600 align-middle">
-                          📌 Featured
-                        </span>
-                      )}
                       {q.canonical_text}
                     </span>
                     {q.jurisdictions_total > 0 && (

@@ -185,6 +185,8 @@ type HeroSearchCategoryTab =
   | 'bills'
   | 'grants'
   | 'transcripts'
+  | 'questions'
+  | 'topics'
   | 'donors'
 
 const HERO_SEARCH_TAB_DEFS: {
@@ -196,7 +198,7 @@ const HERO_SEARCH_TAB_DEFS: {
   /* Shown in the input when this category is active (the box narrows a browsable list). */
   filterPlaceholder?: string
 }[] = [
-  { id: 'all', label: 'All', types: 'meetings,decisions,causes,leaders,organizations,bills,topics,documents' },
+  { id: 'all', label: 'All', types: 'meetings,decisions,causes,leaders,organizations,bills,topics,questions,documents' },
   { id: 'meetings', label: 'Meetings', types: 'meetings', activity: true, filterPlaceholder: 'Filter meetings by body or topic…' },
   // Meeting transcripts (full-text). Most policy terms (e.g. "fluoride") are
   // discussed in the transcript body, not in meeting titles or extracted
@@ -210,6 +212,10 @@ const HERO_SEARCH_TAB_DEFS: {
   { id: 'persons', label: 'Persons', types: 'persons', filterPlaceholder: 'Filter people by name…' },
   { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', filterPlaceholder: 'Filter nonprofits by name or cause…' },
   { id: 'causes', label: 'Causes', types: 'causes', filterPlaceholder: 'Filter causes by name…' },
+  // Cross-jurisdiction policy questions (the "big questions" registry) and the
+  // civic meeting-topic index — both have dedicated search types + server COUNTs.
+  { id: 'questions', label: 'Questions', types: 'questions', filterPlaceholder: 'Filter questions by policy topic…' },
+  { id: 'topics', label: 'Topics', types: 'topics', filterPlaceholder: 'Filter topics by theme…' },
   { id: 'bills', label: 'Bills', types: 'bills', filterPlaceholder: 'Filter bills by number or topic…' },
   { id: 'grants', label: 'Grants', types: 'grants', filterPlaceholder: 'Filter grants by organization or purpose…' },
   {
@@ -409,7 +415,7 @@ export default function Home() {
       // /stats rollup in browse.
       const params: any = {
         types: hasKw
-          ? 'meetings,decisions,leaders,organizations,causes,bills,grants,documents'
+          ? 'meetings,decisions,leaders,organizations,causes,questions,topics,bills,grants,documents'
           : 'meetings,decisions,documents',
         limit: HERO_COUNT_QUERY_LIMIT,
       }
@@ -436,7 +442,7 @@ export default function Home() {
       if (location?.state && searchScope !== 'national') params.state = location.state
       const [searchRes, questions] = await Promise.all([
         api.get('/search/', { params }).then((r) => r.data).catch(() => null),
-        fetchPolicyQuestions().catch(() => [] as unknown[]),
+        fetchPolicyQuestions({ featured: true }).catch(() => [] as unknown[]),
       ])
       const tt = (searchRes?.type_totals ?? {}) as Record<string, number | undefined>
       return {
@@ -464,6 +470,8 @@ export default function Home() {
     leaders: 'leaders',
     nonprofits: 'organizations',
     causes: 'causes',
+    questions: 'questions',
+    topics: 'topics',
     bills: 'bills',
     grants: 'grants',
     transcripts: 'documents',
@@ -2155,7 +2163,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12 max-w-3xl mx-auto">
             <p className="text-xs font-semibold uppercase tracking-widest text-teal-800/90 mb-2">How it works</p>
-            <h2 className="text-3xl md:text-4xl font-bold mb-3 text-gray-900">From information to impact</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-3" style={{ color: '#354F52' }}>From information to impact</h2>
             <div className="w-24 h-1 bg-gradient-to-r from-[#52796F] to-[#84A98C] mx-auto rounded mb-4"></div>
             <p className="text-lg text-gray-600 leading-relaxed">
               Start by choosing a cause, make a plan (learn the record, decide who to work with, then show up), find help

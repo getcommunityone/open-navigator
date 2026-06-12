@@ -17,7 +17,7 @@
 //
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -83,6 +83,23 @@ const WHEN: { label: string; window: string }[] = [
   { label: 'Past 3 months', window: 'quarter' },
   { label: 'Past year', window: 'year' },
   { label: 'All time', window: 'all' },
+]
+
+// Left-side search scope. `types` is the comma list handed to /search (UnifiedSearch
+// reads ?types=); 'all' sends no types param so the search spans everything.
+const SEARCH_CATEGORIES: { id: string; label: string; types: string }[] = [
+  { id: 'all', label: 'All', types: '' },
+  { id: 'meetings', label: 'Meetings', types: 'meetings' },
+  { id: 'transcripts', label: 'Transcripts', types: 'documents' },
+  { id: 'decisions', label: 'Decisions', types: 'decisions' },
+  { id: 'leaders', label: 'Leaders', types: 'leaders' },
+  { id: 'persons', label: 'People', types: 'persons' },
+  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations' },
+  { id: 'causes', label: 'Causes', types: 'causes' },
+  { id: 'questions', label: 'Questions', types: 'questions' },
+  { id: 'topics', label: 'Topics', types: 'topics' },
+  { id: 'bills', label: 'Bills', types: 'bills' },
+  { id: 'grants', label: 'Grants', types: 'grants' },
 ]
 
 // ---- /api/lenses response (the subset we render) ----
@@ -384,6 +401,18 @@ export default function HomeV9() {
 
   const [query, setQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
+  // Left-side category scope for the hero search box.
+  const [cat, setCat] = useState(SEARCH_CATEGORIES[0])
+  const [catOpen, setCatOpen] = useState(false)
+  const catRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!catOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [catOpen])
   // Live typeahead: a debounced copy of `query` drives the suggestions query so
   // we don't fire a request per keystroke. `suggestOpen` lets a click on a
   // suggestion win the race against the input's blur (cleared on select/enter).
@@ -501,6 +530,7 @@ export default function HomeV9() {
     setSuggestOpen(false)
     const params = new URLSearchParams()
     if (term) params.set('q', term)
+    if (cat.types) params.set('types', cat.types)
     if (!national && stateCode) params.set('state', stateCode)
     // Carry the city through so a drill-down from e.g. Tuscaloosa reads
     // "City: Tuscaloosa" rather than just "State: AL" (UnifiedSearch reads ?city=).
