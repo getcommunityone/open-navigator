@@ -723,9 +723,10 @@ export default function JurisdictionsSearch() {
         </div>
 
         {/* Clustered pin map of every indexed place (state/county/city/school
-            district levels, each independently filterable). Shown in browse
-            mode only — when searching/filtering, the results list takes over. */}
-        {isBrowseMode && <PlaceClusterMap />}
+            district levels, each independently filterable). Always shown — it's
+            a global explore tool independent of the list filters below, so a
+            filtered deep-link (e.g. ?state=AL&city=Tuscaloosa) keeps the map. */}
+        <PlaceClusterMap />
 
         {/* Places browse — state-grouped chips of real indexed places. Shown
             only in browse mode (no active query/filters). Every city is a real
