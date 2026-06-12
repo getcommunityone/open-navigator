@@ -68,7 +68,8 @@
     'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction',
     'mdm_bridge_event_analysis',
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
-    'policy_question_relation', 'policy_question_trend'
+    'policy_question_relation', 'policy_question_trend',
+    'meeting_browse', 'meeting_topic_link', 'meeting_question_link'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
