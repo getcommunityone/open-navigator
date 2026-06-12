@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { MapPinIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { nominatimUsStateCode } from '../utils/stateMapping'
+import { resolveZipToChoices } from '../utils/resolvePlace'
 import { useLocation as useLocationContext, type LocationData, type LocationGranularity } from '../contexts/LocationContext'
 
 interface AddressLookupProps {
@@ -11,6 +12,13 @@ interface AddressLookupProps {
 
 export default function AddressLookup({ onLocationFound, initialAddress = '', compact = false }: AddressLookupProps) {
   const { clearLocation } = useLocationContext()
+  // Default lookup mode is ZIP/postal code (mirrors the MoneyGameModal "where's
+  // home?" gate); full-address search is an optional secondary mode.
+  const [mode, setMode] = useState<'zip' | 'address'>('zip')
+  const [zip, setZip] = useState('')
+  // When a ZIP spans cities / inside-vs-outside city limits, the user picks which
+  // real place is home. Built from real geocode results (resolvePlace.buildZipChoices).
+  const [choices, setChoices] = useState<{ label: string; loc: LocationData }[] | null>(null)
   const [address, setAddress] = useState(initialAddress)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -20,6 +28,61 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const debounceTimer = useRef<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const zipValid = /^\d{5}$/.test(zip)
+  const needsChoice = !!choices && choices.length > 1
+
+  // Single commit point: record the resolved place and notify the parent. Used by
+  // the ZIP path, the address path, and "use my location" so they stay consistent.
+  const commitLocation = (locationData: LocationData) => {
+    setSuggestions([])
+    setShowSuggestions(false)
+    setChoices(null)
+    setError(null)
+    setFoundLocation(locationData)
+    onLocationFound(locationData)
+  }
+
+  // Resolve the entered ZIP to its real place choices. 0 → error; 1 → commit;
+  // >1 (ZIP crosses jurisdictions / city limits) → let the user specify.
+  const resolveZip = async () => {
+    if (!zipValid) {
+      setError('Please enter a 5-digit ZIP code.')
+      return
+    }
+    setIsLoading(true)
+    setError(null)
+    setChoices(null)
+    try {
+      const opts = await resolveZipToChoices(zip)
+      if (opts.length === 0) {
+        setError("We couldn't find that ZIP. Try another, or search by address.")
+      } else if (opts.length === 1) {
+        commitLocation(opts[0].loc)
+      } else {
+        setChoices(opts)
+      }
+    } catch (err) {
+      console.error('ZIP lookup error:', err)
+      setError("We couldn't look up that ZIP right now. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleZipSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isLoading || needsChoice) return
+    void resolveZip()
+  }
+
+  const switchMode = (next: 'zip' | 'address') => {
+    setMode(next)
+    setError(null)
+    setChoices(null)
+    setSuggestions([])
+    setShowSuggestions(false)
+  }
 
   // Fetch suggestions as user types
   const fetchSuggestions = async (query: string) => {
@@ -211,10 +274,7 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
     }
 
     console.log('📍 [AddressLookup] Location found:', locationData)
-    setSuggestions([])
-    setShowSuggestions(false)
-    setFoundLocation(locationData)
-    onLocationFound(locationData)
+    commitLocation(locationData)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -388,109 +448,199 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
 
   return (
     <div className="w-full">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
-            <span className="flex items-center gap-2">
-              <MapPinIcon className="h-5 w-5" />
-              Enter Your Address
-            </span>
-          </label>
-          <div className="relative">
+      {mode === 'zip' ? (
+        /* DEFAULT: ZIP / postal-code prompt (mirrors the money game's "where's
+           home?" gate). Just the ZIP — we resolve the real city/county/school
+           district from it, and let the user specify when a ZIP spans places. */
+        <form onSubmit={handleZipSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="zip" className="block text-sm font-medium text-gray-700 mb-2">
+              <span className="flex items-center gap-2">
+                <MapPinIcon className="h-5 w-5" />
+                Enter Your ZIP Code
+              </span>
+            </label>
             <input
-              key="address-input"
-              ref={inputRef}
+              key="zip-input"
               type="text"
-              id="address"
-              name="addresslookup"
-              value={address}
-              onChange={(e) => handleAddressChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="123 Main St, Los Angeles, CA 90001"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-base text-gray-900"
+              id="zip"
+              name="zip"
+              value={zip}
+              onChange={(e) => {
+                setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
+                setError(null)
+                setChoices(null)
+              }}
+              placeholder="e.g. 90001"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-base text-gray-900 tracking-[0.12em]"
               disabled={isLoading}
-              autoComplete="off"
             />
-            
-            {/* Autocomplete suggestions dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                {suggestions.map((suggestion, index) => {
-                  const addr = suggestion.address
-                  const locationName = addr.city || addr.town || addr.village || addr.county || 'Unknown'
-                  return (
-                    <button
-                      key={`${suggestion.osm_type}_${suggestion.osm_id}`}
-                      type="button"
-                      onClick={() => handleSuggestionClick(suggestion)}
-                      className={`w-full px-4 py-3 text-left hover:bg-gray-100 transition-colors border-b border-gray-100 last:border-b-0 ${
-                        index === selectedIndex ? 'bg-gray-100' : ''
-                      }`}
-                    >
-                      <p className="text-sm font-medium text-gray-900">
-                        {suggestion.display_name}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {locationName}, {addr.state}
-                      </p>
-                    </button>
-                  )
-                })}
+            <p className="mt-1 text-xs text-gray-500">
+              Just your ZIP — we'll find the city, county, and school district. Nothing stored.
+            </p>
+          </div>
+
+          {/* This ZIP spans cities / city limits — let the user say where home is.
+              City taxes & boards stack on the county's, so the choice matters. */}
+          {needsChoice && choices && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-medium text-amber-900">
+                {zip} crosses jurisdiction lines — which is home?
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {choices.map((c, i) => (
+                  <button
+                    key={c.label + i}
+                    type="button"
+                    onClick={() => commitLocation(c.loc)}
+                    className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 transition-colors hover:border-primary-500 hover:bg-primary-50"
+                  >
+                    {c.label}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-gray-500">
-            We'll find your local organizations based on your address
-          </p>
-          
-          {/* Use My Location Button */}
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={useMyLocation}
-              disabled={isLoading}
-              className="w-full px-4 py-2 bg-white border-2 border-primary-300 text-primary-700 rounded-lg hover:bg-primary-50 hover:border-primary-500 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span>{foundLocation ? 'Change My Location' : 'Use My Current Location'}</span>
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
             </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-2 bg-white text-gray-500">or enter manually</span>
-            </div>
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full px-6 py-3 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          style={{ backgroundColor: '#354F52' }}
-          onMouseEnter={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#2e4346')}
-          onMouseLeave={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#354F52')}
-        >
-          {isLoading ? (
-            <>
-              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-              <span>Looking up address...</span>
-            </>
-          ) : (
-            <>
-              <MagnifyingGlassIcon className="h-5 w-5" />
-              <span>Find My Community</span>
-            </>
           )}
+
+          <button
+            type="submit"
+            disabled={isLoading || needsChoice || !zipValid}
+            className="w-full px-6 py-3 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{ backgroundColor: '#354F52' }}
+            onMouseEnter={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#2e4346')}
+            onMouseLeave={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#354F52')}
+          >
+            {isLoading ? (
+              <>
+                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                <span>Finding…</span>
+              </>
+            ) : (
+              <>
+                <MagnifyingGlassIcon className="h-5 w-5" />
+                <span>Find My Community</span>
+              </>
+            )}
+          </button>
+        </form>
+      ) : (
+        /* OPTIONAL: full-address search with autocomplete. */
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+              <span className="flex items-center gap-2">
+                <MapPinIcon className="h-5 w-5" />
+                Enter Your Address
+              </span>
+            </label>
+            <div className="relative">
+              <input
+                key="address-input"
+                ref={inputRef}
+                type="text"
+                id="address"
+                name="addresslookup"
+                value={address}
+                onChange={(e) => handleAddressChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="123 Main St, Los Angeles, CA 90001"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-base text-gray-900"
+                disabled={isLoading}
+                autoComplete="off"
+              />
+
+              {/* Autocomplete suggestions dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {suggestions.map((suggestion, index) => {
+                    const addr = suggestion.address
+                    const locationName = addr.city || addr.town || addr.village || addr.county || 'Unknown'
+                    return (
+                      <button
+                        key={`${suggestion.osm_type}_${suggestion.osm_id}`}
+                        type="button"
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className={`w-full px-4 py-3 text-left hover:bg-gray-100 transition-colors border-b border-gray-100 last:border-b-0 ${
+                          index === selectedIndex ? 'bg-gray-100' : ''
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-gray-900">
+                          {suggestion.display_name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {locationName}, {addr.state}
+                        </p>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              We'll find your local organizations based on your address
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full px-6 py-3 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{ backgroundColor: '#354F52' }}
+            onMouseEnter={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#2e4346')}
+            onMouseLeave={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#354F52')}
+          >
+            {isLoading ? (
+              <>
+                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                <span>Looking up address...</span>
+              </>
+            ) : (
+              <>
+                <MagnifyingGlassIcon className="h-5 w-5" />
+                <span>Find My Community</span>
+              </>
+            )}
+          </button>
+        </form>
+      )}
+
+      {/* Shared: use my current location + switch between ZIP and address. */}
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={useMyLocation}
+          disabled={isLoading}
+          className="w-full px-4 py-2 bg-white border-2 border-primary-300 text-primary-700 rounded-lg hover:bg-primary-50 hover:border-primary-500 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>{foundLocation ? 'Change My Location' : 'Use My Current Location'}</span>
         </button>
-      </form>
+      </div>
+
+      <div className="mt-3 text-center">
+        {mode === 'zip' ? (
+          <button
+            type="button"
+            onClick={() => switchMode('address')}
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
+          >
+            Search by full address instead
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => switchMode('zip')}
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
+          >
+            ← Use ZIP code instead
+          </button>
+        )}
+      </div>
 
       {/* Error Message */}
       {error && (
@@ -661,12 +811,15 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
                 onClick={() => {
                   setFoundLocation(null)
                   setAddress('')
+                  setZip('')
+                  setChoices(null)
+                  setMode('zip')
                   setError(null)
                   clearLocation() // Clear the global location context
                 }}
                 className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
               >
-                Search Different Address
+                Search Different Location
               </button>
             </div>
           </div>
