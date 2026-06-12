@@ -150,12 +150,12 @@ const DAYS_BY_WINDOW: Record<string, number> = { month: 31, quarter: 92, year: 3
 const ACTIVITY_BG = ['#fdeeeb', '#e7f2ef', '#efebfb', '#fbf3e2']
 
 // ---- /api/lenses response shape ----
-interface ApiStat {
+export interface ApiStat {
   value: string
   label: string
   tone?: Tone
 }
-interface ApiCard {
+export interface ApiCard {
   headline: string
   stats: ApiStat[]
   jurisdiction: string
@@ -678,6 +678,59 @@ function SingleLensBody({
       savedKeys={savedKeys}
       onToggleSave={onToggleSave}
       onOpen={onOpen}
+      cardKey={cardKey}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// LensCarousel — a self-contained, drop-in swipe carousel for ONE lens's real
+// cards. For callers (e.g. HomeV9's stacked lens sections) that want the
+// card-styled carousel — stat chips, accent bar, save bookmark, position dots —
+// without the full StoryLenses strip/feed shell. Owns its own session-local
+// "saved" state and navigates to the card's record on open. Renders nothing when
+// there are no cards, so the caller keeps ownership of the empty/placeholder state.
+// ---------------------------------------------------------------------------
+export interface LensCarouselLens {
+  id: string
+  /** Emoji marker shown on the card badge. */
+  em: string
+  /** Lens name shown on the card badge. */
+  label: string
+  /** Accent colour for the badge + top bar. */
+  clr: string
+  desc?: string
+}
+
+export function LensCarousel({
+  cards,
+  lens,
+  unscoped = false,
+}: {
+  cards: ApiCard[]
+  lens: LensCarouselLens
+  /** Append ", ST" to jurisdictions — for national / multi-state views. */
+  unscoped?: boolean
+}) {
+  const navigate = useNavigate()
+  const [savedKeys, setSavedKeys] = useState<Set<string>>(() => new Set())
+  const toggleSave = (key: string) =>
+    setSavedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  const rendered = useMemo(() => toRenderCards(cards, unscoped), [cards, unscoped])
+  const cardKey = (c: RenderCard, i: number) => c.url || `${lens.id}-${c.h}-${c.juris}-${i}`
+  if (rendered.length === 0) return null
+  return (
+    <StoryCarousel
+      cards={rendered}
+      lens={{ desc: '', ...lens }}
+      savedKeys={savedKeys}
+      onToggleSave={toggleSave}
+      onOpen={(c) => c.url && navigate(c.url)}
       cardKey={cardKey}
     />
   )

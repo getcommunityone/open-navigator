@@ -1585,23 +1585,35 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
 export default function MoneyGameModal({
   open,
   onClose,
-  // stateCode/city/county are still accepted by callers but intentionally NOT
-  // used to seed the scope: the "where's home?" gate always runs first (below).
+  // For the BILL/GAME entries these are accepted but NOT used to seed the scope —
+  // the "where's home?" gate always runs first (below). For the 'grandkids' entry
+  // they DO seed the scope so we open straight on the Opportunity Atlas forecast.
+  stateCode,
+  city,
+  county,
   requestedLabel,
   initialStage = 'estimate',
 }: MoneyGameModalProps) {
   const { setLocation } = useLocationContext()
 
-  // The place the bill is scoped to, filled by the "where's home?" gate (tab 1).
-  // Every time the modal opens we reset this to null so the gate ALWAYS shows
-  // first — even when a place is already known from props or saved context. The
-  // taxes are intensely local ("every town reaches into your pocket a little
-  // differently"), so we make the user confirm home before showing a bill.
+  // The place the modal is scoped to, filled by the "where's home?" gate (tab 1).
+  // For the BILL estimator we reset this to null on every open so the gate ALWAYS
+  // shows first — taxes are intensely local ("every town reaches into your pocket
+  // a little differently"), so we make the user confirm home before showing a bill.
+  // For the income-mobility entry ("View income mobility trends" → initialStage
+  // 'grandkids'), the user asked specifically for the Opportunity Atlas and we
+  // already know enough to scope it (state + optional city). So when a place is
+  // known via props we seed it and skip the gate, opening straight on the
+  // forecast for that place instead of a redundant "where's home?" prompt.
   const [place, setPlace] = useState<LocationData | null>(null)
   useEffect(() => {
     if (!open) return
-    setPlace(null) // always start at the gate
-  }, [open])
+    if (initialStage === 'grandkids' && stateCode) {
+      setPlace({ state: stateCode, city: city ?? '', county: county ?? '' })
+    } else {
+      setPlace(null) // bill / game: always start at the gate
+    }
+  }, [open, initialStage, stateCode, city, county])
 
   const scopeState = place?.state
   const scopeCity = place?.city || undefined
@@ -1677,6 +1689,45 @@ export default function MoneyGameModal({
   // jurisdiction). Drives the subtitle; the title stays place-agnostic.
   const placeName = scopeCity || scopeCounty || requestedLabel || data?.jurisdiction_name || null
   const title = 'Your money, mapped'
+
+  // ── Stage 3: The grandkids (Opportunity Atlas income-mobility forecast) ──
+  // Extracted so it can render independently of the combined-finance query:
+  // GrandkidsForecast owns its own data/loading/error states, so the income-
+  // mobility entry point ("View income mobility trends") must NOT be gated behind
+  // — or blocked by a failure of — the tax-bill finance fetch.
+  const grandkidsStage = (
+    <div>
+      <GrandkidsForecast open={open} stateCode={scopeState as string} city={scopeCity} />
+
+      <div className="mt-5 rounded-2xl bg-[#1a6b6b] p-6 text-white">
+        <div className="flex flex-wrap items-center gap-5">
+          <div className="text-[28px] font-semibold leading-[1.05]" style={SERIF}>
+            Decisions
+            <br />
+            matter.
+          </div>
+          <p className="min-w-[240px] flex-1 text-[14px] leading-relaxed text-white/90" style={FONT}>
+            {scoreInfo != null && scoreInfo.score >= 75
+              ? `You scored ${pct(scoreInfo.score)} — better than most. But the split changes one vote at a time, in meetings almost nobody watches. `
+              : scoreInfo != null
+                ? `You scored ${pct(scoreInfo.score)} — and that's typical. Most people can't say where their own money goes, because the decisions happen in meetings almost nobody watches. `
+                : ''}
+            Every one of these dollars is set in a public meeting you can attend,
+            watch, and weigh in on. Open Navigator watches them for you.
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setStage('game')}
+        className="mt-3 text-[13px] text-[#6b8a8a] underline transition-colors hover:text-[#0f2b2b]"
+        style={FONT}
+      >
+        ← Back to the game
+      </button>
+    </div>
+  )
 
   return (
     <Transition appear show={open} as={Fragment}>
@@ -1799,6 +1850,15 @@ export default function MoneyGameModal({
                   {!hasPlace ? (
                     /* ── Tab 1 gate: resolve a real place before any bill ── */
                     <WhereIsHome onResolved={onResolvePlace} />
+                  ) : stage === 'grandkids' ? (
+                    /* Income-mobility forecast — independent of the finance fetch,
+                       so it loads even when this place has no tax-bill data. */
+                    <>
+                      {grandkidsStage}
+                      <p className="mt-5 text-center text-[11px] text-[#5d7d7d]" style={MONO}>
+                        Sources: U.S. Census · ACS property-tax rate · Tax Foundation sales tax · Opportunity Atlas
+                      </p>
+                    </>
                   ) : isLoading ? (
                     <ModalSkeleton />
                   ) : isError || !data ? (
@@ -1904,41 +1964,6 @@ export default function MoneyGameModal({
                             style={FONT}
                           >
                             ← Back to your bill
-                          </button>
-                        </div>
-                      )}
-
-                      {/* ── Stage 3: The grandkids ── */}
-                      {stage === 'grandkids' && (
-                        <div>
-                          <GrandkidsForecast open={open} stateCode={scopeState as string} city={scopeCity} />
-
-                          <div className="mt-5 rounded-2xl bg-[#1a6b6b] p-6 text-white">
-                            <div className="flex flex-wrap items-center gap-5">
-                              <div className="text-[28px] font-semibold leading-[1.05]" style={SERIF}>
-                                Decisions
-                                <br />
-                                matter.
-                              </div>
-                              <p className="min-w-[240px] flex-1 text-[14px] leading-relaxed text-white/90" style={FONT}>
-                                {scoreInfo != null && scoreInfo.score >= 75
-                                  ? `You scored ${pct(scoreInfo.score)} — better than most. But the split changes one vote at a time, in meetings almost nobody watches. `
-                                  : scoreInfo != null
-                                    ? `You scored ${pct(scoreInfo.score)} — and that's typical. Most people can't say where their own money goes, because the decisions happen in meetings almost nobody watches. `
-                                    : ''}
-                                Every one of these dollars is set in a public meeting you can attend,
-                                watch, and weigh in on. Open Navigator watches them for you.
-                              </p>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setStage('game')}
-                            className="mt-3 text-[13px] text-[#6b8a8a] underline transition-colors hover:text-[#0f2b2b]"
-                            style={FONT}
-                          >
-                            ← Back to the game
                           </button>
                         </div>
                       )}

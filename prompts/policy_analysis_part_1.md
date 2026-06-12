@@ -98,6 +98,7 @@ For each contested decision, capture **every quantitative measure spoken in the 
     * `contextual` — framing / scale-setting, no clear side
     * `contested`  — the figure itself is disputed (wrong number, bad methodology, irrelevant)
 - **`reasoning_link`** is the causal claim that connects the number to the position (≤25 words) — the "so what." This is the field that makes the metric meaningful.
+- **Headline KPIs for stat cards.** Flag the **2–4 most decision-shaping figures** with `is_headline: true` — the numbers a resident would remember, that most moved the debate (largest stakes, sharpest contrast between sides, the figure each side leaned on). Everything else stays `is_headline: false`. For each flagged metric write a `display_caption`: one self-contained sentence (≤25 words) that states the figure **and** what it means, readable on its own without the rest of the analysis (e.g. "Removing fluoride would add an estimated $9.8B in health-care costs."). Leave `display_caption` null when `is_headline` is false. The caption restates the number for display; `reasoning_link` stays the argument-graph link — don't make them identical.
 - Tie each metric to a side via **`supports_view`** = the `view_label` from `competing_views` it backs (or `"dominant"` / `"counter"`).
 - **Same figure used by both sides to opposite ends** → two rows, opposite `direction`. **Figure's validity disputed** → one row, `direction: contested`, fill `contested_by_person_id` and `rebuttal`.
 - If the metric is a dollar amount already in `financial_items[]`, set `financial_item_ref` instead of re-describing it.
@@ -112,7 +113,7 @@ Capture **how long** the body spent on each item and **how long each speaker hel
 ## Output Instructions
 Output the JSON object matching the schema below and NOTHING ELSE.
  
-**Before you close the root JSON:** Re-scan all votes. Debated **or opposed** → `decisions[]`; truly routine with **no opposition** → `uncontested_items[]` (a unanimous tally alone does not make an item uncontested — if anyone spoke against it, it is a `decision` and needs a `counter_view`). Confirm every quantitative claim used to argue a position is captured in `evidence_metrics` with a `direction` and a `reasoning_link`.
+**Before you close the root JSON:** Re-scan all votes. Debated **or opposed** → `decisions[]`; truly routine with **no opposition** → `uncontested_items[]` (a unanimous tally alone does not make an item uncontested — if anyone spoke against it, it is a `decision` and needs a `counter_view`). Confirm every quantitative claim used to argue a position is captured in `evidence_metrics` with a `direction` and a `reasoning_link`, and that the 2–4 most decision-shaping figures are flagged `is_headline: true` with a `display_caption`.
  
 ## Uncontested item attribution (required when transcript allows)
  
@@ -369,6 +370,8 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
           "unit": "string or null — e.g. units/year, percent, dollars, days, trips/day, count",
           "baseline_or_comparison": "string or null — what it's measured against (e.g. 'up from $26M', 'vs prior year', 'national avg')",
           "metric_type": "one of: outcome | cost_input | trend | forecast | benchmark | threshold | other",
+          "is_headline": "boolean — true for the 2–4 most decision-shaping figures to surface as stat cards; false otherwise",
+          "display_caption": "string or null — standalone stat-card caption (≤25 words) stating the figure and what it means, readable on its own; null unless is_headline is true",
           "cited_by_person_id": "string or null — people[].person_id who introduced it",
           "supports_view": "string — competing_views view_label it backs, or 'dominant' / 'counter'",
           "direction": "one of: supports | opposes | contextual | contested",

@@ -29,6 +29,7 @@ import { fetchTrendingCauses } from '../api/trending'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
 import AddressLookup from '../components/AddressLookup'
 import SiteHeader from '../components/SiteHeader'
+import { LensCarousel } from '../components/StoryLenses'
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -105,6 +106,12 @@ interface LensCard {
   jurisdiction: string
   date?: string
   url?: string
+  // The same /api/lenses cards also carry per-card stat chips ("5–4 Vote",
+  // "1 Opposing views") and a state code — rendered by the LensCarousel.
+  stats: { value: string; label: string; tone?: 'plain' | 'green' | 'amber' | 'red' | 'blue' | 'purple' }[]
+  badge?: string
+  state_code?: string
+  state?: string
 }
 interface LensBlock {
   id: string
@@ -125,6 +132,39 @@ interface SearchSuggestion {
   subtitle?: string | null
   url: string
   score?: number
+}
+
+// One row from GET /api/browse/summary (categories[], pre-sorted by
+// transcript_count desc with `cause` always last). transcript_count is a real
+// distinct-transcript count; has_transcripts is false only for cause (no
+// transcript linkage exists in the data).
+interface BrowseSummaryCategory {
+  entity_type: string
+  label: string
+  transcript_count: number
+  entity_count: number
+  has_transcripts: boolean
+}
+
+// Per-category lookup the browse cards read: the real transcript count, whether
+// any transcripts are linked, and the API's ordering index (for card sort).
+interface DirectorySummaryEntry {
+  transcript_count: number
+  has_transcripts: boolean
+  order: number
+}
+
+interface DirectorySummary {
+  byType: Record<string, DirectorySummaryEntry>
+}
+
+// Maps each browse card's stable `key` to the API's entity_type so cards can
+// pull their real count + ordering from the /browse/summary lookup.
+const BROWSE_CARD_ENTITY_TYPE: Record<'questions' | 'topics' | 'causes' | 'places', string> = {
+  questions: 'question',
+  topics: 'topic',
+  causes: 'cause',
+  places: 'place',
 }
 
 // Emoji marker per result type for the typeahead rows (visual scent only).
@@ -173,50 +213,6 @@ function Chip({
     >
       {children}
     </button>
-  )
-}
-
-// A single story row (real lens card), prototype-styled.
-function StoryRow({ card, lensId, first }: { card: LensCard; lensId: string; first: boolean }) {
-  const meta = SIGNAL_META[lensId]
-  const navigate = useNavigate()
-  const go = () => card.url && navigate(card.url)
-  return (
-    <article
-      onClick={go}
-      style={{
-        padding: '11px 16px',
-        borderTop: first ? 'none' : '1px solid #f5f5f4',
-        cursor: card.url ? 'pointer' : 'default',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
-        {meta && (
-          <span
-            className="font-mono-x"
-            style={{
-              fontSize: 9.5,
-              fontWeight: 600,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: meta.color,
-              background: meta.bg,
-              borderRadius: 999,
-              padding: '2px 8px',
-              flexShrink: 0,
-            }}
-          >
-            {meta.icon} {meta.name}
-          </span>
-        )}
-        <h3 className="font-display" style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.25, flex: 1, minWidth: 180 }}>
-          {card.headline}
-        </h3>
-      </div>
-      <div className="font-mono-x" style={{ fontSize: 10.5, color: '#78716c', marginTop: 3 }}>
-        {[card.jurisdiction, card.date].filter(Boolean).join(' · ')}
-      </div>
-    </article>
   )
 }
 
@@ -295,8 +291,8 @@ function StepZeroImpact() {
         background: '#f0fdfa',
         border: '1px solid #99f6e4',
         borderRadius: 18,
-        padding: 'clamp(20px, 3vw, 30px)',
-        marginBottom: 32,
+        padding: 'clamp(16px, 2.2vw, 22px)',
+        marginBottom: 22,
         maxWidth: 760,
         marginLeft: 'auto',
         marginRight: 'auto',
@@ -306,11 +302,11 @@ function StepZeroImpact() {
       <div className="font-display" style={{ fontSize: 'clamp(18px, 2.3vw, 21px)', fontWeight: 800, color: INK }}>
         Step 0 · Why should I care? <span style={{ color: TEAL_DARK }}>Personal Impact</span>
       </div>
-      <p style={{ fontSize: 14.5, color: '#44403c', lineHeight: 1.55, margin: '10px auto 0', maxWidth: 560 }}>
+      <p style={{ fontSize: 14, color: '#44403c', lineHeight: 1.45, margin: '6px auto 0', maxWidth: 560 }}>
         Local decisions shape your taxes, schools, safety, and your family&apos;s future — whether you engage or not.
         Doing nothing is a choice too, with real consequences for you and your children.
       </p>
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 18 }}>
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>
         <button
           onClick={() => setModal('estimate')}
           style={{ background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '11px 22px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -335,7 +331,7 @@ function StepZeroImpact() {
         initialStage={modal === 'grandkids' ? 'grandkids' : 'estimate'}
       />
 
-      <p style={{ fontSize: 12.5, color: '#57534e', marginTop: 14 }}>
+      <p style={{ fontSize: 12.5, color: '#57534e', marginTop: 10 }}>
         Scoped to {placeLabel} once you confirm where home is.
       </p>
     </div>
@@ -454,25 +450,29 @@ export default function HomeV9() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: directoryCounts } = useQuery<{ topics: number | null; causes: number | null; questions: number | null; places: number | null }>({
+  // Browse-card badges are a genuine distinct-transcript count per category,
+  // served pre-sorted (transcript_count desc, cause last) by /api/browse/summary.
+  // We index by entity_type so each card can read its real count + ordering and
+  // honor has_transcripts (cause has no transcript linkage → honest em-dash).
+  const { data: directoryCounts } = useQuery<DirectorySummary>({
     queryKey: ['home-v9-directory-counts', stateCode, national],
     queryFn: async () => {
-      const params: Record<string, string> = { types: 'topics,causes,jurisdictions', limit: '1' }
+      const params: Record<string, string> = {}
       if (!national && stateCode) params.state = stateCode
-      const [searchRes, questions] = await Promise.all([
-        api.get('/search/', { params }).then((r) => r.data).catch(() => null),
-        // For now we surface only the curated/pinned "big questions" everywhere,
-        // so the Browse-questions count reflects the featured set, not the full
-        // clustered registry. Revert to fetchPolicyQuestions() to show all again.
-        fetchPolicyQuestions({ featured: true }).catch(() => [] as unknown[]),
-      ])
-      const tt = (searchRes?.type_totals ?? {}) as Record<string, number | undefined>
-      return {
-        topics: tt.topics ?? null,
-        causes: tt.causes ?? null,
-        questions: Array.isArray(questions) ? questions.length : null,
-        places: tt.jurisdictions ?? null,
-      }
+      const res = await api
+        .get('/browse/summary', { params })
+        .then((r) => r.data as { categories?: BrowseSummaryCategory[] })
+        .catch(() => null)
+      const categories = res?.categories ?? []
+      const byType: Record<string, DirectorySummaryEntry> = {}
+      categories.forEach((c, index) => {
+        byType[c.entity_type] = {
+          transcript_count: c.transcript_count,
+          has_transcripts: c.has_transcripts,
+          order: index,
+        }
+      })
+      return { byType }
     },
     staleTime: 5 * 60 * 1000,
   })
@@ -1065,13 +1065,15 @@ export default function HomeV9() {
           {/* ── Browse pills: dropdown flyout previews, right under the search.
               Each pill previews its top ~5 items (questions/topics/causes) from
               the warehouse — no fabricated rows. ── */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16, justifyContent: 'center' }}>
-            {([
+          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 10, marginTop: 16, justifyContent: 'center' }}>
+            {[
               {
                 key: 'questions' as const,
                 name: 'Browse questions',
                 icon: '⚖️',
-                count: directoryCounts?.questions ?? null,
+                count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.questions]?.transcript_count ?? null,
+                hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.questions]?.has_transcripts ?? true,
+                order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.questions]?.order ?? Number.MAX_SAFE_INTEGER,
                 to: '/policy-questions',
                 seeAllLabel: 'questions',
                 desc: 'Open policy questions across jurisdictions.',
@@ -1092,7 +1094,9 @@ export default function HomeV9() {
                 key: 'topics' as const,
                 name: 'Browse topics',
                 icon: '🗂️',
-                count: directoryCounts?.topics ?? null,
+                count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.transcript_count ?? null,
+                hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.has_transcripts ?? true,
+                order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.order ?? Number.MAX_SAFE_INTEGER,
                 to: '/browse-topics',
                 seeAllLabel: 'topics',
                 desc: 'Everything discussed in public meetings.',
@@ -1107,7 +1111,9 @@ export default function HomeV9() {
                 key: 'causes' as const,
                 name: 'Browse causes',
                 icon: '💚',
-                count: directoryCounts?.causes ?? null,
+                count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.transcript_count ?? null,
+                hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.has_transcripts ?? true,
+                order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.order ?? Number.MAX_SAFE_INTEGER,
                 to: '/browse-causes',
                 seeAllLabel: 'causes',
                 desc: 'Local nonprofits, grants & charitable work.',
@@ -1123,7 +1129,9 @@ export default function HomeV9() {
                 key: 'places' as const,
                 name: 'Browse places',
                 icon: '📍',
-                count: directoryCounts?.places ?? null,
+                count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.transcript_count ?? null,
+                hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.has_transcripts ?? true,
+                order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.order ?? Number.MAX_SAFE_INTEGER,
                 to: '/jurisdictions',
                 seeAllLabel: 'places',
                 desc: 'Cities, counties & districts with public records.',
@@ -1137,7 +1145,13 @@ export default function HomeV9() {
                     }),
                 })),
               },
-            ]).map((b) => {
+            ]
+              // Order the cards to match the API's category ordering
+              // (transcript_count desc, cause always last). Unknown/missing
+              // entity types fall to the end via Number.MAX_SAFE_INTEGER.
+              .slice()
+              .sort((a, b) => a.order - b.order)
+              .map((b) => {
               const open = browseOpen === b.key
               return (
                 <div
@@ -1163,10 +1177,34 @@ export default function HomeV9() {
                       <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>
                         {b.name}
                       </span>
-                      {b.count != null && b.count > 0 && (
-                        <span className="font-mono-x" style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}>
+                      {/* Badge = real distinct-transcript count for this
+                          category (from /api/browse/summary). The unit is made
+                          explicit so the number reads as transcripts, not an
+                          ambiguous tally. Causes have no transcript linkage in
+                          the data → honest em-dash, never a fabricated "0". */}
+                      {b.hasTranscripts && b.count != null && b.count > 0 ? (
+                        <span
+                          className="font-mono-x"
+                          title={`${b.count.toLocaleString('en-US')} transcripts`}
+                          aria-label={`${b.count.toLocaleString('en-US')} transcripts`}
+                          style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}
+                        >
                           {b.count.toLocaleString('en-US')}
+                          <span style={{ fontSize: 9.5, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            transcripts
+                          </span>
                         </span>
+                      ) : (
+                        !b.hasTranscripts && (
+                          <span
+                            className="font-mono-x"
+                            title="No linked transcripts yet"
+                            aria-label="No linked transcripts yet"
+                            style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#a8a29e' }}
+                          >
+                            —
+                          </span>
+                        )
                       )}
                     </button>
                     <button
@@ -1235,7 +1273,11 @@ export default function HomeV9() {
                           }}
                           style={{ display: 'block', width: '100%', textAlign: 'left', background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', padding: '10px 16px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, color: TEAL_DARK }}
                         >
-                          Browse all{b.count != null && b.count > 0 ? ` ${b.count.toLocaleString('en-US')}` : ''} {b.seeAllLabel} →
+                          {/* The badge count is a transcript count, not an
+                              entity count, so it is intentionally omitted from
+                              this "Browse all {entity}" label to avoid
+                              mislabeling transcripts as the entity. */}
+                          Browse all {b.seeAllLabel} →
                         </button>
                       </div>
                     </div>
@@ -1277,11 +1319,15 @@ export default function HomeV9() {
                 </div>
               </div>
 
-              <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, marginTop: 16, overflow: 'hidden' }}>
+              <div style={{ marginTop: 16 }}>
                 {cards.length > 0 ? (
-                  cards.map((card, i) => <StoryRow key={i} card={card} lensId={id} first={i === 0} />)
+                  <LensCarousel
+                    cards={cards}
+                    lens={{ id, em: meta.icon, label: meta.name, clr: meta.color }}
+                    unscoped={national}
+                  />
                 ) : (
-                  <div style={{ padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
+                  <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
                     No {meta.name} activity in {placeLabel} for {when.label.toLowerCase()}.
                   </div>
                 )}
@@ -1310,11 +1356,15 @@ export default function HomeV9() {
                 </div>
               </div>
 
-              <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, marginTop: 16, overflow: 'hidden' }}>
+              <div style={{ marginTop: 16 }}>
                 {cards.length > 0 ? (
-                  cards.map((card, i) => <StoryRow key={i} card={card} lensId={id} first={i === 0} />)
+                  <LensCarousel
+                    cards={cards}
+                    lens={{ id, em: meta.icon, label: meta.name, clr: meta.color }}
+                    unscoped={national}
+                  />
                 ) : (
-                  <div style={{ padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
+                  <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: '28px 16px', textAlign: 'center', color: '#78716c', fontSize: 14 }}>
                     No {meta.name} activity in {placeLabel} for {when.label.toLowerCase()}.
                   </div>
                 )}
@@ -1351,13 +1401,13 @@ export default function HomeV9() {
       {/* ── How It Works (ported from the original home page, restyled for v9).
           Header format matches the sibling "Our Impact" section: section name as
           the centered <h2>, no mono eyebrow. ── */}
-      <section id="how-it-works" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '56px 24px' }}>
+      <section id="how-it-works" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '40px 24px' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 28px' }}>
+          <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 18px' }}>
             <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: INK }}>
               How it works
             </h2>
-            <p style={{ fontSize: 16, color: '#57534e', lineHeight: 1.55, marginTop: 12 }}>
+            <p style={{ fontSize: 15, color: '#57534e', lineHeight: 1.45, marginTop: 8 }}>
               Take real action on local issues — starting with your personal impact. Choose a cause, make a plan,
               find help when someone needs direct support, track the decisions that matter, and build on open data.
             </p>
@@ -1417,13 +1467,13 @@ export default function HomeV9() {
               <button
                 key={step.title}
                 onClick={() => navigate(`/explore#${step.hash}`)}
-                style={{ textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 18, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 0, boxShadow: '0 1px 2px rgba(28,25,23,0.04)' }}
+                style={{ textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 15, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 0, boxShadow: '0 1px 2px rgba(28,25,23,0.04)' }}
               >
-                <span style={{ width: 42, height: 42, borderRadius: 11, background: '#f0fdfa', display: 'grid', placeItems: 'center', fontSize: 20, marginBottom: 12 }}>
+                <span style={{ width: 36, height: 36, borderRadius: 10, background: '#f0fdfa', display: 'grid', placeItems: 'center', fontSize: 18, marginBottom: 9 }}>
                   {step.icon}
                 </span>
-                <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK, lineHeight: 1.25 }}>{step.title}</span>
-                <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <span className="font-display" style={{ fontSize: 16, fontWeight: 700, color: INK, lineHeight: 1.25 }}>{step.title}</span>
+                <ul style={{ listStyle: 'none', margin: '9px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {step.items.map((it) => (
                     <li
                       key={it.label}
@@ -1448,7 +1498,7 @@ export default function HomeV9() {
             ))}
           </div>
 
-          <div style={{ textAlign: 'center', marginTop: 28, fontSize: 15, color: '#57534e' }}>
+          <div style={{ textAlign: 'center', marginTop: 18, fontSize: 15, color: '#57534e' }}>
             <span style={{ fontWeight: 700, color: INK }}>Ready to act?</span>{' '}
             Show up at meetings · Write letters · Change the process
           </div>
