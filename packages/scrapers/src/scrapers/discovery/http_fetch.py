@@ -67,7 +67,7 @@ def fetch_page_html(
         return status, html, None
 
     if try_playwright:
-        from scripts.discovery.meetings_playwright_fetch import (
+        from scrapers.discovery.meetings_playwright_fetch import (
             fetch_html_via_playwright,
             httpx_status_should_try_playwright,
             playwright_fallback_enabled,

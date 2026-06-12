@@ -87,7 +87,35 @@ repointed to `core_lib.gdrive_paths`; `colab_bootstrap` + the notebook §1 boots
 `packages/core-lib/src` to `sys.path`; legacy `scripts/discovery/*` + `scripts/utils/log_sync.py`
 bootstraps add the same. Unit tests under `packages/core-lib/tests/test_gdrive_paths.py`.
 
-**In flight:** `feat/llm-enrichment-extraction` (current branch) — enrichment subpackage port.
+**`scripts/` dead-code sweep + 5 ports** (2026-06-10, branch `feat/scripts-refactor-cleanup`):
+- **Deleted provably-dead/archived code** (16 files, zero importers): `datasources/localview/archive/*`,
+  `discovery/archive/*`, `datasources/osf/load_osf_rds_to_bronze.R`, `datasources/hifld/download_and_load_hifld.sh`,
+  `datasources/voter_data/*`, the one-off state-naming migrations (`migrations/migrate_state_naming.py`,
+  `fix_persons_scraped_jurisdiction_ids.sql`, top-level `migrate_all_*state_naming.py`), and personal-machine
+  Cursor scripts.
+- **Ported (git mv + all importers re-pointed + tests):**
+  - nonprofit-990 enrichers → `scrapers.irs.{enrich_nonprofits_gt990,enrich_nonprofits_bigquery}` (heavy deps
+    boto3/bigquery/xmltodict made lazy; fixed broken subprocess paths in `manage_nonprofits.py`).
+  - `jurisdiction_id.py` → `core_lib.jurisdictions.jurisdiction_id` (foundational, ~20 importers incl.
+    `api/batch_jobs`); resolved an upward layering bug by relocating `slug_snake_case` down to `core_lib.text`.
+  - jurisdiction-mapping analysis → `ingestion.jurisdictions.mapping.*` (5 modules + CLI).
+  - reusable discovery modules → `scrapers.discovery.*` (8 from `discovery/` + `crawl_llm_sidecar` from
+    `scraping/`; ~70 importers re-pointed).
+  - clean leaf scrapers → `scrapers.discovery.social_media_discovery`, `scrapers.youtube.{scrape_youtube_channels,
+    youtube_channel_enrich}` (removed real packages→scripts violations).
+  - `jurisdiction_pilot` leaf sub-web → `scrapers.discovery.{http_fetch,mayor_url_discovery,
+    county_municipality_websites,website_youtube_search}` (clean of the hub).
+- **Deferred (complex, needs scoping):** the `jurisdiction_pilot` hub — `scrape_priority_states` (~3500L) top-level
+  imports ~10 `scripts/discovery` persist/orchestrator KEEP modules (`bronze_*_persist`, `contact_directory_heuristics`,
+  `contact_profile_images`, `jurisdiction_contact_seed_urls`, …) plus `ma_pilot.mayor_boost`, and is itself a CLI
+  pipeline (`run_scrape_priority_states_*.sh`). Porting it cleanly requires first porting those `scripts/discovery`
+  persist modules (DB-writing — route via the data/ingestion lens); `website_elections` is deferred too (→ needs
+  `election_extract_from_html`). The two big orchestrators (`jurisdiction_discovery_pipeline`,
+  `comprehensive_discovery_pipeline_jurisdiction`) stay in `scripts/` for now. The remaining `jurisdiction_pilot`
+  internal helpers (`vendor_detection`, `legistar_scraper`, `google_civic_youtube`, `website_civicplus_meetings`,
+  `load_ocd_jurisdictions`, `debug_youtube_discovery`) are used only by the hub — port them together with it.
+
+**In flight:** `feat/llm-enrichment-extraction` — enrichment subpackage port.
 
 **Backlog (prioritized):**
 - _Small/clean ports:_ nccs, naco, ballotpedia (measures), nces.

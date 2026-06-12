@@ -6,11 +6,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from scripts.discovery.youtube_channel_purpose import is_meeting_primary_purpose
 from scrapers.youtube.pattern_match_gate import (
     PATTERN_MATCH_PRIMARY_MIN_OFFICIAL_CONFIDENCE,
     is_pattern_match_discovery,
 )
+
+# NOTE: ``scripts.discovery.youtube_channel_purpose`` is a KEEP-in-scripts discovery
+# util (not part of this port round). Imported lazily inside the consuming function
+# to avoid a top-level ``import scripts.*`` in a packages/ module. FOLLOW-UP: port
+# youtube_channel_purpose into ``scrapers.discovery`` and switch to a relative import.
 
 
 def _channel_url(ch: Dict[str, Any]) -> str:
@@ -47,6 +51,10 @@ def youtube_channel_selection_confidence(ch: Dict[str, Any]) -> Optional[float]:
 
 def _promotable_for_primary(ch: Dict[str, Any]) -> bool:
     """Exclude weak ``pattern_match`` rows and non-meeting channel purposes."""
+    from scripts.discovery.youtube_channel_purpose import (  # noqa: E402
+        is_meeting_primary_purpose,
+    )
+
     purpose = str(ch.get("channel_purpose") or "").strip().lower()
     if purpose and not is_meeting_primary_purpose(purpose):
         return False

@@ -48,7 +48,7 @@ from scripts.discovery.champds_client import (
     vod_stream_url,
 )
 from scripts.discovery.gomeet_mp4_to_opus import post_ytdlp_transcode_output
-from scripts.discovery.meeting_document_naming import (
+from scrapers.discovery.meeting_document_naming import (
     build_meeting_pdf_disk_filename,
     clean_anchor_text,
     infer_calendar_folder_year,

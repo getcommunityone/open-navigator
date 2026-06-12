@@ -195,7 +195,7 @@ def fetch_transcript_via_playwright(
     """
     from playwright.sync_api import sync_playwright
 
-    from scripts.discovery.meetings_playwright_fetch import _chromium_launch_options
+    from scrapers.discovery.meetings_playwright_fetch import _chromium_launch_options
 
     video_id = _video_id_from_arg(video_id)
     url = _watch_url(video_id)

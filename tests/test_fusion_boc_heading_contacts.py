@@ -1,6 +1,6 @@
 """Fusion / Avada board-of-commissioners h3 + p roster extraction."""
 
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_fusion_boc_heading_roster_contacts_from_html,
     extract_structured_contacts_from_html,
 )

@@ -348,7 +348,7 @@ class ContactsGoldTableCreator:
             if not nonprofits_file.exists():
                 logger.warning(f"⚠️  Nonprofits file not found: {nonprofits_file}")
                 logger.warning("   Run Form 990 enrichment first:")
-                logger.warning("   python scripts/enrich_nonprofits_gt990.py --input ... --output ...")
+                logger.warning("   python -m scrapers.irs.enrich_nonprofits_gt990 --input ... --output ...")
                 return pd.DataFrame()
             
             logger.info(f"Loading nonprofits from: {nonprofits_file}")
@@ -365,7 +365,7 @@ class ContactsGoldTableCreator:
         else:
             logger.warning("⚠️  No officer data found (form_990_officers or bigquery_officers)")
             logger.warning("   Enrich with Form 990 data first:")
-            logger.warning("   python scripts/enrich_nonprofits_gt990.py --input ... --output ...")
+            logger.warning("   python -m scrapers.irs.enrich_nonprofits_gt990 --input ... --output ...")
             return pd.DataFrame()
         
         # Parse officer data from JSON

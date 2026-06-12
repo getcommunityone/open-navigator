@@ -22,18 +22,18 @@ Data enriched:
 Usage:
     # Install dependencies first
     pip install boto3 xmltodict pandas pyarrow
-    
+
     # Download index (one-time setup)
-    python scripts/enrich_nonprofits_gt990.py --download-index
-    
+    python -m scrapers.irs.enrich_nonprofits_gt990 --download-index
+
     # Enrich all Tuscaloosa nonprofits
-    python scripts/enrich_nonprofits_gt990.py \\
+    python -m scrapers.irs.enrich_nonprofits_gt990 \\
         --input data/gold/nonprofits_tuscaloosa.parquet \\
         --output data/gold/nonprofits_tuscaloosa_form990.parquet \\
         --concurrent 20
-    
+
     # Enrich specific states
-    python scripts/enrich_nonprofits_gt990.py \\
+    python -m scrapers.irs.enrich_nonprofits_gt990 \\
         --input data/gold/nonprofits_organizations.parquet \\
         --output data/gold/nonprofits_990_enriched.parquet \\
         --states AL MI \\
@@ -44,27 +44,35 @@ Attribution:
 - Open Navigator: https://github.com/getcommunityone/open-navigator
 """
 
-import asyncio
-import boto3
-from botocore import UNSIGNED
-from botocore.config import Config
-import pandas as pd
-import xmltodict
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, List, Optional
-import argparse
-from loguru import logger
-from tqdm import tqdm
-import json
+from __future__ import annotations
 
-# Configure logger
-logger.remove()
-logger.add(
-    lambda msg: tqdm.write(msg, end=""),
-    colorize=True,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
-)
+import argparse
+import asyncio
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Optional
+
+from loguru import logger
+
+# Repo root: packages/scrapers/src/scrapers/irs/<this file> -> parents[5]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+
+
+def _configure_logging() -> None:
+    """Configure loguru to cooperate with tqdm progress bars.
+
+    Kept out of module import so importing this module as a library does not
+    mutate global loguru handlers.
+    """
+    from tqdm import tqdm
+
+    logger.remove()
+    logger.add(
+        lambda msg: tqdm.write(msg, end=""),
+        colorize=True,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    )
 
 
 class GivingTuesday990Enricher:
@@ -95,13 +103,18 @@ class GivingTuesday990Enricher:
             use_local_xmls: If True, use locally extracted XMLs instead of downloading
             local_index_path: Path to local XML index (created by build_990_local_index.py)
         """
+        import boto3
+        import pandas as pd
+        from botocore import UNSIGNED
+        from botocore.config import Config
+
         self.index_path = Path(index_path)
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.use_local_xmls = use_local_xmls
         self.local_index_path = Path(local_index_path)
-        
+
         # S3 client for GivingTuesday Data Lake (no credentials needed)
         self.s3 = boto3.client(
             's3',
@@ -150,12 +163,14 @@ class GivingTuesday990Enricher:
         - FILING_TYPE (990, 990EZ, 990PF)
         - and more...
         """
+        import pandas as pd
+
         logger.info("=" * 60)
         logger.info("DOWNLOADING GIVINGTUESDAY DATA LAKE INDEX")
         logger.info("=" * 60)
         logger.info(f"Bucket: s3://{self.bucket}")
         logger.info(f"Key: {index_key}")
-        
+
         try:
             # Download index
             response = self.s3.get_object(Bucket=self.bucket, Key=index_key)
@@ -271,9 +286,8 @@ class GivingTuesday990Enricher:
             # Use local XML if available
             if self.use_local_xmls and 'file_path' in filing_info:
                 try:
-                    from pathlib import Path
-                    project_root = Path(__file__).parent.parent
-                    xml_path = project_root / filing_info['file_path']
+                    # file_path in the local index is repo-root-relative.
+                    xml_path = _REPO_ROOT / filing_info['file_path']
                     
                     with open(xml_path, 'rb') as f:
                         xml_content = f.read()
@@ -349,6 +363,8 @@ class GivingTuesday990Enricher:
         
         Uses simplified xmltodict parsing (not full Giving Tuesday parser)
         """
+        import xmltodict
+
         try:
             doc = xmltodict.parse(xml_content)
             
@@ -530,6 +546,9 @@ class GivingTuesday990Enricher:
         Returns:
             DataFrame with added form_990_* columns
         """
+        import pandas as pd
+        from tqdm import tqdm
+
         logger.info("=" * 60)
         logger.info("FORM 990 ENRICHMENT (GIVINGTUESDAY DATA LAKE)")
         logger.info("=" * 60)
@@ -651,22 +670,23 @@ class GivingTuesday990Enricher:
         return enriched_df
 
 
-async def main():
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser (pure; safe to call without heavy deps)."""
     parser = argparse.ArgumentParser(
         description="Enrich nonprofit data with Form 990 XML from GivingTuesday Data Lake",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Download index (one-time setup)
-  python scripts/enrich_nonprofits_gt990.py --download-index
-  
+  python -m scrapers.irs.enrich_nonprofits_gt990 --download-index
+
   # Enrich Tuscaloosa nonprofits
-  python scripts/enrich_nonprofits_gt990.py \\
+  python -m scrapers.irs.enrich_nonprofits_gt990 \\
       --input data/gold/nonprofits_tuscaloosa.parquet \\
       --output data/gold/nonprofits_tuscaloosa_form990.parquet
-  
+
   # Enrich Alabama + Michigan nonprofits
-  python scripts/enrich_nonprofits_gt990.py \\
+  python -m scrapers.irs.enrich_nonprofits_gt990 \\
       --input data/gold/nonprofits_organizations.parquet \\
       --output data/gold/nonprofits_990_enriched.parquet \\
       --states AL MI \\
@@ -675,7 +695,7 @@ Examples:
 Data Lake: https://990data.givingtuesday.org/
         """
     )
-    
+
     parser.add_argument('--download-index', action='store_true',
                         help='Download GivingTuesday Data Lake index (one-time setup)')
     parser.add_argument('--input', type=str,
@@ -702,9 +722,18 @@ Data Lake: https://990data.givingtuesday.org/
     parser.add_argument('--local-index', type=str,
                         default='data/cache/form990/local_index_dev_states.parquet',
                         help='Path to local XML index (default: data/cache/form990/local_index_dev_states.parquet)')
-    
+
+    return parser
+
+
+async def main():
+    import pandas as pd
+
+    _configure_logging()
+
+    parser = build_parser()
     args = parser.parse_args()
-    
+
     # Initialize enricher
     enricher = GivingTuesday990Enricher(
         max_concurrent=args.concurrent,

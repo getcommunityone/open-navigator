@@ -15,7 +15,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scrapers.ballotpedia.ballotpedia_integration import BallotpediaDiscovery
-from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
+from scrapers.discovery.http_fetch import BROWSER_USER_AGENT
 
 logger = logging.getLogger(__name__)
 

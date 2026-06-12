@@ -1,4 +1,4 @@
-from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+from ingestion.jurisdictions.mapping.youtube_channel_diagnostics import (
     build_youtube_coverage_where_asyncpg,
     build_youtube_diagnostics_where_asyncpg,
     compute_youtube_gap_reason,

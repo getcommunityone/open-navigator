@@ -4,7 +4,7 @@ from scripts.discovery.jurisdiction_meeting_seed_urls import (
     _BUILTIN,
     merged_meeting_seed_urls,
 )
-from scripts.jurisdictions.jurisdiction_id import builtin_seed_urls_for_jurisdiction
+from core_lib.jurisdictions.jurisdiction_id import builtin_seed_urls_for_jurisdiction
 
 
 def test_ben_hill_meeting_seed_legacy_and_canonical_ids():

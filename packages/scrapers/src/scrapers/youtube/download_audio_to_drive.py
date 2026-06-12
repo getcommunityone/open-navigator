@@ -105,14 +105,10 @@ DEFAULT_YOUTUBE_AUDIO_OUTPUT_DIR = project_root / "data" / "cache" / "youtube_au
 DEFAULT_YOUTUBE_COOKIES_FILE = project_root / "youtube_cookies.txt"
 
 
-def slug_snake_case(text: str, *, max_length: int = 64) -> str:
-    """Lowercase snake_case for cache directory names (non-alphanumeric → single ``_``)."""
-    if not text:
-        return "unknown"
-    s = str(text).strip().lower()
-    s = re.sub(r"[^a-z0-9]+", "_", s)
-    s = re.sub(r"_+", "_", s).strip("_")
-    return (s[:max_length].rstrip("_") or "unknown")
+# ``slug_snake_case`` now lives in the low-level ``core_lib.text`` so that
+# ``core_lib.jurisdictions`` can use it without depending up into ``scrapers``.
+# Re-exported here for backward compatibility with existing call sites.
+from core_lib.text import slug_snake_case  # noqa: E402
 
 
 def channel_cache_dir_name(channel_title: str, channel_id: str, *, title_max: int = 56) -> str:

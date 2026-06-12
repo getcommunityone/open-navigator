@@ -94,14 +94,14 @@ _ROOT = Path(__file__).resolve().parents[3]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
+from core_lib.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
 from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import (  # noqa: E402
     find_ocd_match,
 )
-from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (  # noqa: E402
+from scrapers.discovery.mayor_url_discovery import (  # noqa: E402
     discover_seed_urls,
 )
-from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (  # noqa: E402
+from scrapers.youtube.youtube_channel_enrich import (  # noqa: E402
     enrich_channel,
 )
 from scripts.datasources.jurisdiction_pilot.vendor_detection import (  # noqa: E402
@@ -113,7 +113,7 @@ from scripts.datasources.jurisdiction_pilot.legistar_scraper import (  # noqa: E
 from scripts.datasources.jurisdiction_pilot.google_civic_youtube import (  # noqa: E402
     get_youtube_from_civic_api,
 )
-from scripts.datasources.jurisdiction_pilot.website_youtube_search import (  # noqa: E402
+from scrapers.discovery.website_youtube_search import (  # noqa: E402
     search_multiple_queries,
 )
 from scrapers.youtube.youtube_channel_discovery import (  # noqa: E402
@@ -126,14 +126,14 @@ from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E40
     insert_bronze_jurisdiction_youtube_candidates,
     upsert_bronze_jurisdiction_youtube_verified,
 )
-from scripts.discovery.youtube_channel_verification import (  # noqa: E402
+from scrapers.discovery.youtube_channel_verification import (  # noqa: E402
     DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,
     rejection_reason_for_channel,
 )
 from scripts.discovery.sync_youtube_primary_from_jurisdiction_youtube import (  # noqa: E402
     sync_primary_youtube_to_scraped,
 )
-from scripts.discovery.youtube_primary_channel import (  # noqa: E402
+from scrapers.discovery.youtube_primary_channel import (  # noqa: E402
     _channel_url,
     pick_primary_youtube_channel,
 )
@@ -141,7 +141,7 @@ from scrapers.youtube.youtube_channel_page import canonical_channel_url  # noqa:
 from scripts.discovery.contact_directory_heuristics import (  # noqa: E402
     classify_contact_directory_page,
 )
-from scripts.discovery.contact_extract_from_html import (  # noqa: E402
+from scrapers.discovery.contact_extract_from_html import (  # noqa: E402
     extract_civicplus_commission_profile_urls_from_html,
     extract_structured_contacts_from_html,
 )
@@ -149,7 +149,7 @@ from scripts.datasources.jurisdiction_pilot.website_civicplus_meetings import ( 
     scrape_civicplus_meetings,
     write_meetings_snapshot,
 )
-from scripts.datasources.jurisdiction_pilot.county_municipality_websites import (  # noqa: E402
+from scrapers.discovery.county_municipality_websites import (  # noqa: E402
     scrape_county_municipality_websites,
 )
 from scripts.discovery.bronze_websites_ballotpedia_persist import (  # noqa: E402
@@ -190,10 +190,10 @@ def _quiet_http_loggers() -> None:
 
 # Submodule DEBUG (probe errors, Civic/YouTube lookups, OCD misses) drowns progress lines.
 _QUIET_HELPER_LOGGER_NAMES = (
-    "scripts.datasources.jurisdiction_pilot.mayor_url_discovery",
+    "scrapers.discovery.mayor_url_discovery",
     "scripts.datasources.jurisdiction_pilot.google_civic_youtube",
-    "scripts.datasources.jurisdiction_pilot.website_youtube_search",
-    "scripts.datasources.jurisdiction_pilot.youtube_channel_enrich",
+    "scrapers.discovery.website_youtube_search",
+    "scrapers.youtube.youtube_channel_enrich",
     "scripts.datasources.jurisdiction_pilot.website_elections",
     "scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions",
 )
@@ -219,7 +219,7 @@ MIN_CHANNEL_CONFIDENCE = float(
 # Stricter bar for the single primary on ``*_scraped`` (counties-scraped loader reads this).
 SCRAPED_PRIMARY_MIN_CONFIDENCE = float(os.getenv("SCRAPED_PRIMARY_MIN_CONFIDENCE", "0.7"))
 
-from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
+from scrapers.discovery.http_fetch import BROWSER_USER_AGENT
 
 _USER_AGENT = BROWSER_USER_AGENT
 _REQUEST_TIMEOUT_S = 20
@@ -518,7 +518,7 @@ def _resolve_seed_urls(j: Jurisdiction) -> list[tuple[str, str]]:
 
 
 def _fetch(url: str, session: requests.Session) -> tuple[int, str]:
-    from scripts.datasources.jurisdiction_pilot.http_fetch import fetch_page_html
+    from scrapers.discovery.http_fetch import fetch_page_html
 
     status, html, block = fetch_page_html(
         url, session, timeout_s=_REQUEST_TIMEOUT_S, try_playwright=True
@@ -612,7 +612,7 @@ def _enrich_contact_rows_from_profile_pages(
 ) -> list[dict[str, Any]]:
     profile_urls: list[str] = []
     seen_profile: set[str] = set()
-    from scripts.discovery.contact_extract_from_html import _COUNTY_COMMISSION_PAGE_RE
+    from scrapers.discovery.contact_extract_from_html import _COUNTY_COMMISSION_PAGE_RE
 
     for page_url, html in html_by_url.items():
         if not _COUNTY_COMMISSION_PAGE_RE.search(page_url):

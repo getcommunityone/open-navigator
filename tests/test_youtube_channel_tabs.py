@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from scripts.datasources.localview.scrape_youtube_channels import dedupe_videos_by_id
+from scrapers.youtube.scrape_youtube_channels import dedupe_videos_by_id
 
 
 def test_dedupe_videos_by_id_keeps_newest_and_caps():

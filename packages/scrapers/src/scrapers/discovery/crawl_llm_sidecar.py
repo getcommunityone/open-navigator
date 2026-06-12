@@ -15,8 +15,11 @@ from typing import Optional
 
 from loguru import logger
 
-from scripts.scraping.html_to_markdown import readable_txt_to_markdown
-from scripts.scraping.ollama_extract import extract_structured_ollama, ollama_model
+# NOTE: ``scripts.scraping.html_to_markdown`` and ``scripts.scraping.ollama_extract``
+# are KEEP-in-scripts utilities (not part of this port round) and pull in the optional
+# ``ollama`` dependency. Imported lazily inside the consuming function to keep this
+# package import-clean and avoid a top-level ``import scripts.*``. FOLLOW-UP: port the
+# scripts.scraping ollama/markdown helpers into ``scrapers`` and switch to relative imports.
 
 
 def ollama_extract_enabled() -> bool:
@@ -59,6 +62,12 @@ def maybe_extract_after_readable_txt(
         n = 0
     if n >= max_pages:
         return None
+
+    from scripts.scraping.html_to_markdown import readable_txt_to_markdown  # noqa: E402
+    from scripts.scraping.ollama_extract import (  # noqa: E402
+        extract_structured_ollama,
+        ollama_model,
+    )
 
     out_path = readable_path.with_suffix(".ollama.json")
     try:

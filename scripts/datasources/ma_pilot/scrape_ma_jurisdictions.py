@@ -53,7 +53,7 @@ from scrapers.youtube.youtube_channel_discovery import (  # noqa: E402
 from scripts.discovery.contact_directory_heuristics import (  # noqa: E402
     classify_contact_directory_page,
 )
-from scripts.discovery.contact_extract_from_html import (  # noqa: E402
+from scrapers.discovery.contact_extract_from_html import (  # noqa: E402
     extract_structured_contacts_from_html,
 )
 

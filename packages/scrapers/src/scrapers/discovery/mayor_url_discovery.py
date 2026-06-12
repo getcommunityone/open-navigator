@@ -29,7 +29,7 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
+from scrapers.discovery.http_fetch import BROWSER_USER_AGENT
 
 _USER_AGENT = BROWSER_USER_AGENT
 _TIMEOUT_S = 12

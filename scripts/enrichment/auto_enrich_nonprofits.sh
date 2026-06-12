@@ -9,7 +9,7 @@ set +a
 # Run enrichment for all states
 for state in MA AL GA WA WI; do
     echo "🔄 Enriching $state nonprofits..."
-    python scripts/enrich_nonprofits_bigquery.py \
+    python -m scrapers.irs.enrich_nonprofits_bigquery \
         --input data/gold/states/$state/nonprofits_organizations.parquet \
         --update-in-place \
         --project ${GCP_PROJECT_ID:-998485965463}

@@ -43,7 +43,7 @@ class BatchDownloader:
         if not index_path.exists():
             raise FileNotFoundError(
                 f"GT990 index not found at {index_path}\n"
-                "Download it first: python scripts/enrich_nonprofits_gt990.py --download-index"
+                "Download it first: python -m scrapers.irs.enrich_nonprofits_gt990 --download-index"
             )
         
         logger.info("Loading GT990 index...")

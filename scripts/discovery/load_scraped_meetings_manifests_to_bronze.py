@@ -54,7 +54,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc,assignment]
 
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
-from scripts.discovery.meeting_document_naming import (
+from scrapers.discovery.meeting_document_naming import (
     date_from_url_query,
     pdf_meeting_title as _pdf_meeting_title,
     pick_meeting_date as _pick_meeting_date,
@@ -62,7 +62,7 @@ from scripts.discovery.meeting_document_naming import (
 from core_lib.gdrive_paths import resolve_scraped_meetings_output_root
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _norm_http_url
 
-from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
+from core_lib.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
 
 MIGRATION_PATH = _root / "scripts" / "deployment" / "neon" / "migrations" / "020_recreate_bronze_events_meetings_scraped_link_document.sql"
 

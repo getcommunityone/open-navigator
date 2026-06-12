@@ -44,7 +44,7 @@ DEFAULT_STATES = ["AL", "GA", "IN", "MA", "WA", "WI"]
 
 
 # --- pure helpers (canonical jurisdiction_id slug logic, preserved from
-# scripts/jurisdictions/jurisdiction_id.py so the loader is self-contained) ---
+# core_lib.jurisdictions.jurisdiction_id so the loader is self-contained) ---
 
 _UNICODE_SPACE_RE = re.compile(r"[\u00a0\u2000-\u200a\u202f\u205f\u3000]+")
 _PLACE_OF_PREFIX_RE = re.compile(

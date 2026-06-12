@@ -79,7 +79,7 @@ def plan_for_segment(
     geoid_width: int,
 ) -> List[Dict[str, Any]]:
     from llm.gemini.transcript_cache_paths import jurisdiction_cache_folder_name
-    from scripts.jurisdictions.jurisdiction_id import lookup_canonical_jurisdiction_id_from_bronze
+    from core_lib.jurisdictions.jurisdiction_id import lookup_canonical_jurisdiction_id_from_bronze
 
     type_dir = root / state_code.upper() / segment
     if not type_dir.is_dir():

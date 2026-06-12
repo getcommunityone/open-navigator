@@ -1,6 +1,6 @@
 """Centreville Tech (bibbal.com) big-box-profiles contact extraction."""
 
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_centreville_big_box_profile_contacts_from_html,
     extract_structured_contacts_from_html,
 )

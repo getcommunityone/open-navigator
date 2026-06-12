@@ -6,7 +6,7 @@ from scripts.discovery.youtube_channel_purpose import (
     is_tv_public_channel,
     looks_like_community_promo_channel,
 )
-from scripts.discovery.youtube_channel_verification import (
+from scrapers.discovery.youtube_channel_verification import (
     qualifies_for_bronze_jurisdiction_youtube,
     rejection_reason_for_channel,
 )

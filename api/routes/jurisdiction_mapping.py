@@ -13,7 +13,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from api.routes.stats_neon import get_db_pool
-from scripts.datasources.jurisdictions.jurisdiction_mapping_queries import (
+from ingestion.jurisdictions.mapping.queries import (
     MISSING_YOUTUBE_ROW_SELECT,
     UNMAPPED_ROW_SELECT,
     VALID_ENTITIES,
@@ -394,7 +394,7 @@ class YoutubeChannelDiagnosticsResponse(BaseModel):
 
 
 def _diag_row_to_model(row: Any) -> YoutubeChannelDiagnosticsRow:
-    from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+    from ingestion.jurisdictions.mapping.youtube_channel_diagnostics import (
         compute_youtube_gap_reason,
     )
 
@@ -451,7 +451,7 @@ async def youtube_channel_coverage(
     Live golden-channel coverage from ``intermediate.int_events_channels`` (GEOID-aware match).
     Use when ``jurisdiction_mapping_quality.json`` lacks ``with_youtube_channel`` (dbt not rebuilt).
     """
-    from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+    from ingestion.jurisdictions.mapping.youtube_channel_diagnostics import (
         YOUTUBE_COVERAGE_SUMMARY_SQL,
         build_youtube_coverage_where_asyncpg,
     )
@@ -512,7 +512,7 @@ async def youtube_state_rollup(
     static ``youtube_entity_state_rollup`` block in ``jurisdiction_mapping_quality.json``,
     which goes stale whenever ``intermediate.int_events_channels`` is reloaded.
     """
-    from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+    from ingestion.jurisdictions.mapping.youtube_channel_diagnostics import (
         YOUTUBE_STATE_ROLLUP_SQL,
         build_youtube_coverage_where_asyncpg,
     )
@@ -582,7 +582,7 @@ async def list_youtube_channel_diagnostics(
   Per-jurisdiction YouTube pipeline status: golden ``int_events_channels``, candidates,
   and ``bronze_event_youtube`` video counts — explains missing videos vs missing URLs.
     """
-    from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+    from ingestion.jurisdictions.mapping.youtube_channel_diagnostics import (
         YOUTUBE_DIAGNOSTICS_ROW_SQL,
         build_youtube_diagnostics_where_asyncpg,
     )

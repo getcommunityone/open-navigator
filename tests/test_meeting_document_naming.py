@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from scripts.discovery.meeting_document_naming import (
+from scrapers.discovery.meeting_document_naming import (
     build_meeting_pdf_disk_filename,
     dedupe_consecutive_slug_tokens,
     dedupe_meeting_disk_basename,

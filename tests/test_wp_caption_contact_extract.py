@@ -1,6 +1,6 @@
 """WordPress figure.wp-caption commissioner roster extraction."""
 
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_structured_contacts_from_html,
     extract_wp_caption_figure_contacts_from_html,
 )

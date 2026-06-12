@@ -10,7 +10,7 @@ import asyncio
 from pathlib import Path
 
 # Imports from your project
-from scripts.discovery.platform_detector import detect_platform_async, get_platform_capabilities
+from scrapers.discovery.platform_detector import detect_platform_async, get_platform_capabilities
 from models.meeting_event import MeetingEvent, Classification
 from config.settings import settings
 

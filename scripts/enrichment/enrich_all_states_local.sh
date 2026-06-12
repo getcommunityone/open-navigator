@@ -41,7 +41,7 @@ for state in "${STATES[@]}"; do
             --use-local \
             --concurrent $CONCURRENT
     else
-        python scripts/enrich_nonprofits_gt990.py \
+        python -m scrapers.irs.enrich_nonprofits_gt990 \
             --use-local \
             --input "$INPUT" \
             --output "$OUTPUT" \

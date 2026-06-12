@@ -6,11 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from scripts.datasources.jurisdictions.state_acs_mapping_quality import US_STATES
-from scripts.discovery.state_youtube_category_classifier import (
-    STATE_YOUTUBE_CATEGORIES,
-    pick_best_channel_for_category,
-)
+from .state_acs_quality import US_STATES
 
 _STATE_NAME_BY_CODE = {code: name for code, name, _fips in US_STATES}
 
@@ -86,6 +82,14 @@ def _fetch_registry_channels(cur) -> list[dict[str, Any]]:
 
 
 def build_state_youtube_category_rollup(cur) -> dict[str, Any]:
+    # Imported lazily: the state-YouTube category classifier still lives in the
+    # legacy ``scripts.discovery`` tree (not yet ported), so keep it off the
+    # package import path until it is needed at call time.
+    from scripts.discovery.state_youtube_category_classifier import (
+        STATE_YOUTUBE_CATEGORIES,
+        pick_best_channel_for_category,
+    )
+
     channels = _fetch_registry_channels(cur)
     by_state: dict[str, list[dict[str, Any]]] = {}
     for ch in channels:

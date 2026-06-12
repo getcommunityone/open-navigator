@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 from loguru import logger
 import os
 
-from scripts.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+from scrapers.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
 
 
 class YouTubeChannelDiscovery:
@@ -228,7 +228,7 @@ class YouTubeChannelDiscovery:
                 await asyncio.sleep(0.3)
                 continue
 
-            from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (
+            from scrapers.youtube.youtube_channel_enrich import (
                 enrich_channel,
             )
             from scrapers.youtube.pattern_match_gate import (
@@ -964,7 +964,7 @@ class YouTubeChannelDiscovery:
         JavaScript so the link list is invisible without a browser.
         """
         try:
-            from scripts.discovery.meetings_playwright_fetch import (
+            from scrapers.discovery.meetings_playwright_fetch import (
                 fetch_html_via_playwright,
                 playwright_fallback_enabled,
             )

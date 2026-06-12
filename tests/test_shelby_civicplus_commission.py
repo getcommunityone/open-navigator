@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 import requests
 
-from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
-from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (
+from scrapers.discovery.http_fetch import BROWSER_USER_AGENT
+from scrapers.discovery.mayor_url_discovery import (
     discover_county_commission_page_url,
     discover_seed_urls,
 )
@@ -14,7 +14,7 @@ from scripts.datasources.jurisdiction_pilot.website_civicplus_meetings import (
     extract_civicplus_agenda_center_items,
     scrape_civicplus_meetings,
 )
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_civicplus_commission_member_list_contacts_from_html,
     extract_structured_contacts_from_html,
 )
@@ -34,7 +34,7 @@ def test_discover_county_commission_via_government_hub():
     )
     if r.status_code != 200:
         pytest.skip(f"Shelby government hub unavailable ({r.status_code})")
-    from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (
+    from scrapers.discovery.mayor_url_discovery import (
         _commission_url_from_html,
     )
 

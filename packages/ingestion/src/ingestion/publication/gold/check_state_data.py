@@ -41,7 +41,7 @@ def analyze_state_data(state_code: str):
                 print(f"      - {field}: {non_null:,} ({pct:.1f}%)")
         else:
             print(f"   ❌ No contact fields found")
-            print(f"   💡 Run: scripts/enrich_nonprofits_gt990.py")
+            print(f"   💡 Run: python -m scrapers.irs.enrich_nonprofits_gt990")
         
         # Check for grant/financial fields
         grant_fields = [c for c in df.columns if 'grant' in c.lower()]
@@ -114,7 +114,7 @@ def compare_states():
 2. To add grant data (requires BigQuery setup):
    source .venv/bin/activate
    export GOOGLE_APPLICATION_CREDENTIALS=~/.gcp/bigquery-credentials.json
-   python scripts/enrich_nonprofits_bigquery.py --state AL
+   python -m scrapers.irs.enrich_nonprofits_bigquery --state AL
    
 3. To regenerate from IRS BMF:
    python -c "from scripts.discovery.irs_bmf_ingestion import IRSBMFIngestion; \\

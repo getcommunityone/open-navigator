@@ -8,10 +8,11 @@ States remain 2-letter USPS (``AL``). Legacy typed ids (``municipality_0101852``
 from __future__ import annotations
 
 import functools
+import os
 import re
 from typing import Optional, Tuple
 
-from scrapers.youtube.download_audio_to_drive import slug_snake_case
+from core_lib.text import slug_snake_case
 
 # Legacy: municipality_0101852, county_01097, school_district_0103360
 _TYPED_JURISDICTION_ID_RE = re.compile(
@@ -160,8 +161,6 @@ def _lookup_canonical_jurisdiction_id_from_bronze_uncached(
     database_url: Optional[str],
 ) -> str:
     """Resolve ``{slug}_{geoid}`` from bronze when only GEOID + type are known."""
-    import os
-
     raw = str(geoid or "").strip().replace("-", "")
     if not raw or not raw.isdigit():
         return ""

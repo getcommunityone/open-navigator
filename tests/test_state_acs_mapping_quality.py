@@ -1,6 +1,6 @@
 """State population tier buckets for jurisdiction mapping quality dashboard."""
 
-from scripts.datasources.jurisdictions.state_acs_mapping_quality import (
+from ingestion.jurisdictions.mapping.state_acs_quality import (
     state_income_tier,
     state_population_tier,
 )

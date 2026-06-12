@@ -252,7 +252,7 @@ def fetch_batch_plan_jurisdictions(
     Canonical jurisdictions for the batch plan (``pending``), aligned with
     ``intermediate.int_jurisdictions`` — not legacy ``c-AL-*`` ids on bronze video rows.
     """
-    from scripts.jurisdictions.jurisdiction_id import (
+    from core_lib.jurisdictions.jurisdiction_id import (
         _PREFIXED_USPS_GEOID_RE,
         _SLUG_GEOID_RE,
         _TYPED_JURISDICTION_ID_RE,
@@ -439,7 +439,7 @@ _STATUS_RANK = {
 
 def _plan_jurisdiction_key(jurisdiction_id: str) -> str:
     """Match plan rows to batch rows even when id format differs (``municipality_*`` vs ``slug_geoid``)."""
-    from scripts.jurisdictions.jurisdiction_id import (
+    from core_lib.jurisdictions.jurisdiction_id import (
         parse_jurisdiction_id,
         resolve_canonical_jurisdiction_id,
     )
@@ -456,7 +456,7 @@ def _plan_jurisdiction_key(jurisdiction_id: str) -> str:
 
 def _looks_like_jurisdiction_id_label(text: str) -> bool:
     """True when ``text`` is an id string, not a place name (e.g. ``c-AL-01021``)."""
-    from scripts.jurisdictions.jurisdiction_id import (
+    from core_lib.jurisdictions.jurisdiction_id import (
         _PREFIXED_USPS_GEOID_RE,
         _SLUG_GEOID_RE,
         _TYPED_JURISDICTION_ID_RE,
@@ -480,7 +480,7 @@ def _lookup_jurisdiction_name_from_db(
     database_url: Optional[str] = None,
 ) -> str:
     """Place name from ``int_jurisdictions`` for a canonical or legacy id."""
-    from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id
+    from core_lib.jurisdictions.jurisdiction_id import parse_jurisdiction_id
 
     jid = (jurisdiction_id or "").strip()
     if not jid:
@@ -530,7 +530,7 @@ def normalize_jurisdiction_run(
     database_url: Optional[str] = None,
 ) -> JurisdictionRun:
     """Canonical ``jurisdiction_id`` and human ``jurisdiction_name`` for dashboard rows."""
-    from scripts.jurisdictions.jurisdiction_id import (
+    from core_lib.jurisdictions.jurisdiction_id import (
         _PREFIXED_USPS_GEOID_RE,
         _SLUG_GEOID_RE,
         _TYPED_JURISDICTION_ID_RE,
@@ -578,7 +578,7 @@ def _upgrade_jurisdiction_from_plan(
     existing: JurisdictionRun, placeholder: JurisdictionRun
 ) -> None:
     """Apply canonical id and display name from the fresh plan row."""
-    from scripts.jurisdictions.jurisdiction_id import (
+    from core_lib.jurisdictions.jurisdiction_id import (
         _SLUG_GEOID_RE,
         _TYPED_JURISDICTION_ID_RE,
     )
@@ -603,7 +603,7 @@ def normalize_batch_job_jurisdictions(
     database_url: Optional[str] = None,
 ) -> bool:
     """Normalize all jurisdiction rows in place. True when ids/names need a DB persist."""
-    from scripts.jurisdictions.jurisdiction_id import _PREFIXED_USPS_GEOID_RE
+    from core_lib.jurisdictions.jurisdiction_id import _PREFIXED_USPS_GEOID_RE
 
     changed = False
     url = database_url
@@ -713,7 +713,7 @@ def expand_batch_job_plan(
     for key, j in by_key.items():
         if key in matched:
             continue
-        from scripts.jurisdictions.jurisdiction_id import _PREFIXED_USPS_GEOID_RE
+        from core_lib.jurisdictions.jurisdiction_id import _PREFIXED_USPS_GEOID_RE
 
         if _PREFIXED_USPS_GEOID_RE.match((j.jurisdiction_id or "").strip()):
             continue
@@ -1142,7 +1142,7 @@ class BatchJobStore:
         jurisdiction_name: str = "",
         pending_videos: int = 0,
     ) -> JurisdictionRun:
-        from scripts.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
+        from core_lib.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
 
         jurisdiction_id = resolve_canonical_jurisdiction_id(
             jurisdiction_id.strip(),
@@ -1171,7 +1171,7 @@ class BatchJobStore:
         return run
 
     def _find_jurisdiction(self, job: BatchJob, jurisdiction_id: str) -> JurisdictionRun:
-        from scripts.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
+        from core_lib.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
 
         jid = resolve_canonical_jurisdiction_id((jurisdiction_id or "").strip()) or (
             jurisdiction_id or ""

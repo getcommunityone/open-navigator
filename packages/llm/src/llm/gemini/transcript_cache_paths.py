@@ -60,7 +60,7 @@ _BRONZE_JURISDICTION_TYPE_TO_CACHE = {
     "township": "township",
 }
 
-from scripts.jurisdictions.jurisdiction_id import (
+from core_lib.jurisdictions.jurisdiction_id import (
     _SLUG_GEOID_RE,
     _TYPED_JURISDICTION_ID_RE,
     infer_jurisdiction_type_from_geoid,
@@ -289,7 +289,7 @@ def lookup_jurisdiction_place_name(jurisdiction_id: str) -> Optional[str]:
 
 
 def _place_slug_for_folder(name: str) -> str:
-    from scrapers.youtube.download_audio_to_drive import slug_snake_case
+    from core_lib.text import slug_snake_case
 
     label = _normalize_place_name_for_match(name) or _collapse_unicode_spaces(name)
     return slug_snake_case(label, max_length=56)
@@ -301,7 +301,7 @@ def _legacy_place_slug_for_folder(name: str) -> str:
 
     Kept only for ``jurisdiction_cache_folder_aliases`` so older cache dirs resolve.
     """
-    from scrapers.youtube.download_audio_to_drive import slug_snake_case
+    from core_lib.text import slug_snake_case
 
     collapsed = _collapse_unicode_spaces(name).lower()
     return slug_snake_case(collapsed, max_length=56)

@@ -1,6 +1,6 @@
 """CivicPlus staff directory h-card contact extraction."""
 
-from scripts.discovery.contact_extract_from_html import (
+from scrapers.discovery.contact_extract_from_html import (
     extract_civicplus_staff_directory_hcard_contacts_from_html,
 )
 

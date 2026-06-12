@@ -46,7 +46,7 @@ from scripts.discovery.civicclerk_public_api import (
     iter_all_events,
     published_files_from_event,
 )
-from scripts.discovery.meeting_document_naming import (
+from scrapers.discovery.meeting_document_naming import (
     allocate_unique_pdf_path,
     infer_calendar_folder_year,
     parse_iso_calendar_date_prefix,
