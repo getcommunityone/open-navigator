@@ -1365,14 +1365,55 @@ export default function HomeV9() {
 
           <StepZeroImpact />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
-            {[
-              { icon: '📍', title: 'Choose a cause', blurb: 'Roads, schools, safety, family, health, or something else.', hash: 'explore-causes' },
-              { icon: '🗺️', title: 'Make a plan', blurb: 'Personal and community paths, allies, and outcomes.', hash: 'explore-plan' },
-              { icon: '💚', title: 'Find help', blurb: 'Nonprofits, programs, and family supports.', hash: 'explore-find-help' },
-              { icon: '📊', title: 'Track decisions', blurb: 'Meetings, budgets, maps, and verification.', hash: 'explore-track-decisions' },
-              { icon: '🧩', title: 'Build with data', blurb: 'Open datasets, APIs, and civic tooling.', hash: 'explore-build' },
-            ].map((step) => (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, alignItems: 'stretch' }}>
+            {([
+              {
+                icon: '📍', title: 'Choose a cause, topic, place or question', hash: 'explore-causes',
+                items: [
+                  { kind: 'check', label: 'School Quality' },
+                  { kind: 'check', label: 'Property Taxes' },
+                  { kind: 'check', label: 'Northport Schools' },
+                  { kind: 'check', label: 'Traffic & Roads' },
+                  { kind: 'arrow', label: 'Why are my taxes rising?' },
+                ],
+              },
+              {
+                icon: '📖', title: 'Make a plan', hash: 'explore-plan',
+                items: [
+                  { kind: 'check', label: 'Near You' },
+                  { kind: 'check', label: 'Upcoming Meetings' },
+                  { kind: 'check', label: 'Find Allies' },
+                  { kind: 'note', label: 'Goal: Fix dangerous potholes' },
+                ],
+              },
+              {
+                icon: '💚', title: 'Find help & allies', hash: 'explore-find-help',
+                items: [
+                  { kind: 'check', label: 'Find Allies on Issues' },
+                  { kind: 'check', label: 'Neighborhood Groups' },
+                  { kind: 'check', label: 'Advocacy Support' },
+                  { kind: 'check', label: 'Local Networks' },
+                  { kind: 'arrow', label: 'Family Resources' },
+                ],
+              },
+              {
+                icon: '📊', title: 'Track decisions', hash: 'explore-track-decisions',
+                items: [
+                  { kind: 'check', label: 'School Board Votes' },
+                  { kind: 'check', label: 'Neighborhood Changes' },
+                  { kind: 'check', label: 'Public Safety' },
+                  { kind: 'check', label: 'New Developments Near Me' },
+                ],
+              },
+              {
+                icon: '🧩', title: 'Build with data', hash: 'explore-build',
+                items: [
+                  { kind: 'check', label: 'Local Trends' },
+                  { kind: 'check', label: 'Impact Maps' },
+                  { kind: 'arrow', label: 'Easy Tools' },
+                ],
+              },
+            ] as const).map((step) => (
               <button
                 key={step.title}
                 onClick={() => navigate(`/explore#${step.hash}`)}
@@ -1381,8 +1422,28 @@ export default function HomeV9() {
                 <span style={{ width: 42, height: 42, borderRadius: 11, background: '#f0fdfa', display: 'grid', placeItems: 'center', fontSize: 20, marginBottom: 12 }}>
                   {step.icon}
                 </span>
-                <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK }}>{step.title}</span>
-                <span style={{ fontSize: 13, color: '#57534e', lineHeight: 1.45, marginTop: 6 }}>{step.blurb}</span>
+                <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK, lineHeight: 1.25 }}>{step.title}</span>
+                <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {step.items.map((it) => (
+                    <li
+                      key={it.label}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 7,
+                        fontSize: 13,
+                        lineHeight: 1.4,
+                        color: it.kind === 'arrow' ? TEAL_DARK : it.kind === 'note' ? '#78716c' : '#44403c',
+                        fontWeight: it.kind === 'arrow' ? 700 : it.kind === 'note' ? 600 : 400,
+                      }}
+                    >
+                      <span aria-hidden style={{ flexShrink: 0, color: it.kind === 'arrow' ? TEAL_DARK : it.kind === 'note' ? '#a8a29e' : '#059669', fontWeight: 700 }}>
+                        {it.kind === 'arrow' ? '→' : it.kind === 'note' ? '•' : '✓'}
+                      </span>
+                      <span>{it.label}</span>
+                    </li>
+                  ))}
+                </ul>
               </button>
             ))}
           </div>
