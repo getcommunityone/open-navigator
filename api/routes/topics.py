@@ -40,21 +40,51 @@ class TopicSummary(BaseModel):
 # top-N is the topics that actually come up most in the record; name breaks ties.
 # keyword_stats is JSONB (returned as TEXT by this pool) — parsed below.
 #
-# $2 = optional 2-letter state code. When given, restrict to topics actually
-# discussed in that state via browse_entity_state_transcript_count (the per-state
-# bridge) — this is what lets the homepage "Browse topics" land pre-filtered to
-# the user's selected place. NULL state = the full national catalog.
+# Bind params:
+#   $1 = optional name substring (ILIKE pattern, %…%) — applied in every mode.
+#   $2 = optional 2-letter state code (upper-cased to the bridge's storage form).
+#   $3 = optional city/place name (original case; matched ILIKE against
+#        jurisdiction_name in the per-place bridge).
+#
+# Per-scope occurrence semantics — `effective_occurrences` is HONEST to the
+# active scope so a place-scoped list never shows national numbers:
+#   * city given ($3 not null): restrict to topics with a row in
+#     browse_entity_place_transcript_count for (entity_type='topic',
+#     entity_id=topic_id, jurisdiction_name ILIKE $3 [AND state_code=$2 when
+#     state is also given]); count = that place row's transcript_count.
+#   * state given, no city ($2 not null, $3 null): restrict via
+#     browse_entity_state_transcript_count (per-state bridge); count = that
+#     state row's transcript_count (NOT the national column — fixes the latent
+#     national-count-on-state-scoped-list inconsistency).
+#   * no place filter: count = the national civicsearch_topic.transcript_occurrences.
+# LEFT JOINs keep the no-filter case from dropping rows; the WHERE only requires
+# a bridge match when the corresponding place param is supplied. ORDER BY uses
+# the effective (scope-correct) count so ordering matches the displayed numbers.
 _TOPICS_SQL = """
-    SELECT topic_id, name, query_id, keyword_stats, transcript_occurrences
+    SELECT
+        t.topic_id,
+        t.name,
+        t.query_id,
+        t.keyword_stats,
+        CASE
+            WHEN $3::text IS NOT NULL THEN p.transcript_count
+            WHEN $2::text IS NOT NULL THEN s.transcript_count
+            ELSE t.transcript_occurrences
+        END AS effective_occurrences
     FROM civicsearch_topic t
-    WHERE ($1::text IS NULL OR name ILIKE $1)
-      AND ($2::text IS NULL OR EXISTS (
-            SELECT 1 FROM browse_entity_state_transcript_count b
-            WHERE b.entity_type = 'topic'
-              AND b.entity_id = t.topic_id::text
-              AND b.state_code = $2::text
-      ))
-    ORDER BY transcript_occurrences DESC NULLS LAST, name ASC
+    LEFT JOIN browse_entity_state_transcript_count s
+           ON s.entity_type = 'topic'
+          AND s.entity_id = t.topic_id::text
+          AND s.state_code = $2::text
+    LEFT JOIN browse_entity_place_transcript_count p
+           ON p.entity_type = 'topic'
+          AND p.entity_id = t.topic_id::text
+          AND p.jurisdiction_name ILIKE $3::text
+          AND ($2::text IS NULL OR p.state_code = $2::text)
+    WHERE ($1::text IS NULL OR t.name ILIKE $1)
+      AND ($3::text IS NULL OR p.entity_id IS NOT NULL)
+      AND ($3::text IS NOT NULL OR $2::text IS NULL OR s.entity_id IS NOT NULL)
+    ORDER BY effective_occurrences DESC NULLS LAST, t.name ASC
 """
 
 
@@ -82,20 +112,26 @@ def _parse_keywords(raw) -> List[str]:
 async def list_topics(
     q: Optional[str] = Query(None, description="Optional case-insensitive substring filter on topic name."),
     state: Optional[str] = Query(None, description="Optional 2-letter state code; restricts to topics discussed in that state."),
+    city: Optional[str] = Query(None, description="Optional city/place name; restricts to topics discussed in that place and scopes the count to it."),
 ) -> List[TopicSummary]:
     """Civic topics (most-discussed first), optionally narrowed by a name
-    substring and/or restricted to a single state."""
+    substring and/or restricted to a single state and/or a single city/place.
+    The returned `transcript_occurrences` is scoped to whichever place filter is
+    active (city > state > national)."""
     with tracer.start_as_current_span("topics-list") as span:
         span.set_attribute("topics.q", (q or "").strip())
         like = f"%{q.strip()}%" if q and q.strip() else None
         # Normalize to the 2-letter upper-case form the bridge stores; blank -> None.
         state_code = state.strip().upper() if state and state.strip() else None
+        # Keep original case for the place name (matched with ILIKE); blank -> None.
+        city_name = city.strip() if city and city.strip() else None
         span.set_attribute("topics.state", state_code or "")
+        span.set_attribute("topics.city", city_name or "")
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("topics-query"):
-                    rows = await conn.fetch(_TOPICS_SQL, like, state_code)
+                    rows = await conn.fetch(_TOPICS_SQL, like, state_code, city_name)
         except Exception as exc:  # noqa: BLE001
             logger.exception("topics list failed")
             span.record_exception(exc)
@@ -109,7 +145,7 @@ async def list_topics(
                 name=r["name"],
                 query_id=r["query_id"],
                 keywords=_parse_keywords(r["keyword_stats"]),
-                transcript_occurrences=r["transcript_occurrences"] or 0,
+                transcript_occurrences=r["effective_occurrences"] or 0,
             )
             for r in rows
         ]

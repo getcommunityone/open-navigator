@@ -1076,12 +1076,17 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location's state into the Topics browse so it
-                // lands scoped to topics actually discussed there (topic data is
-                // state-grain). No location set → the full national catalog.
-                to: locState
-                  ? `/browse-topics?state=${encodeURIComponent(locState)}`
-                  : '/browse-topics',
+                // Carry the saved location into the Topics browse so it lands
+                // scoped to the chosen place (e.g. "Tuscaloosa" → ?state=AL&
+                // city=Tuscaloosa). City takes precedence; state disambiguates.
+                // No location set → the full national catalog.
+                to: (() => {
+                  const p = new URLSearchParams()
+                  if (locState) p.set('state', locState)
+                  if (locCity) p.set('city', locCity)
+                  const qs = p.toString()
+                  return qs ? `/browse-topics?${qs}` : '/browse-topics'
+                })(),
                 seeAllLabel: 'topics',
                 desc: 'Everything discussed in public meetings.',
                 header: 'Top topics',
@@ -1089,13 +1094,15 @@ export default function HomeV9() {
                   key: t.entity_id,
                   label: t.entity_name,
                   transcripts: t.transcript_count,
-                  onSelect: () =>
-                    navigate(
-                      locState
-                        ? `/browse-topics?state=${encodeURIComponent(locState)}`
-                        : '/browse-topics',
-                      { state: { fromHome: true } },
-                    ),
+                  onSelect: () => {
+                    const p = new URLSearchParams()
+                    if (locState) p.set('state', locState)
+                    if (locCity) p.set('city', locCity)
+                    const qs = p.toString()
+                    navigate(qs ? `/browse-topics?${qs}` : '/browse-topics', {
+                      state: { fromHome: true },
+                    })
+                  },
                 })),
               },
               {

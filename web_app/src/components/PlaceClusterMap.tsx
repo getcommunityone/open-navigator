@@ -98,6 +98,27 @@ function popupHtml(pin: PlaceMapPin, level: string): string {
   )
 }
 
+/** Zooms the map to fit the (filtered) pins, or resets to the national view
+ *  when no filter is active. */
+function FitBounds({
+  pins,
+  isFiltered,
+}: {
+  pins: PlaceMapPin[]
+  isFiltered: boolean
+}) {
+  const map = useMap()
+  useEffect(() => {
+    if (isFiltered && pins.length) {
+      const bounds = L.latLngBounds(pins.map((p) => [p.latitude, p.longitude]))
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 })
+    } else if (!isFiltered) {
+      map.setView([39.5, -98.35], 4)
+    }
+  }, [map, pins, isFiltered])
+  return null
+}
+
 /** Builds one marker-cluster group per level and toggles each on/off the map. */
 function ClusterLayers({
   levels,
@@ -157,7 +178,20 @@ function ClusterLayers({
   return null
 }
 
-export default function PlaceClusterMap() {
+interface PlaceClusterMapProps {
+  /** When set, the map narrows to and zooms into this state (2-letter code). */
+  filterStateCode?: string
+  /** When set, the map narrows to the named city within the state. */
+  filterCity?: string
+  /** When set, the map narrows to the named county within the state. */
+  filterCounty?: string
+}
+
+export default function PlaceClusterMap({
+  filterStateCode,
+  filterCity,
+  filterCounty,
+}: PlaceClusterMapProps = {}) {
   const { data, isLoading, error } = useQuery<PlaceMapResponse>({
     queryKey: ['browse-place-map'],
     queryFn: async () => {
@@ -167,13 +201,50 @@ export default function PlaceClusterMap() {
     staleTime: 1000 * 60 * 30, // slow-moving index
   })
 
-  const levels = useMemo(() => data?.levels ?? [], [data])
+  const allLevels = useMemo(() => data?.levels ?? [], [data])
+
+  const isFiltered = Boolean(filterStateCode || filterCity || filterCounty)
+
+  // Narrow the pins to the active list filters (state / city / county) so the
+  // map mirrors the deep-link instead of always showing the whole country.
+  const levels = useMemo(() => {
+    if (!isFiltered) return allLevels
+    const sc = filterStateCode?.trim().toUpperCase()
+    const place = (filterCity || filterCounty)?.trim().toLowerCase()
+    return allLevels
+      .map((lvl) => {
+        let pins = lvl.pins
+        if (sc) pins = pins.filter((p) => (p.state_code ?? '').toUpperCase() === sc)
+        if (place) {
+          // A specific city/county is selected — keep only pins whose name
+          // matches it (case-insensitive), so the map zooms to that place.
+          pins = pins.filter((p) => {
+            const name = p.name.trim().toLowerCase()
+            return name === place || name.startsWith(`${place} `)
+          })
+        }
+        return { ...lvl, pins, count: pins.length }
+      })
+      .filter((lvl) => lvl.pins.length > 0)
+  }, [allLevels, isFiltered, filterStateCode, filterCity, filterCounty])
 
   // All levels enabled by default; toggled by the filter chips.
   const [enabled, setEnabled] = useState<Set<string>>(new Set())
   useEffect(() => {
-    if (levels.length) setEnabled(new Set(levels.map((l) => l.level)))
-  }, [levels])
+    if (allLevels.length) setEnabled(new Set(allLevels.map((l) => l.level)))
+  }, [allLevels])
+
+  // Pins (enabled levels only) that the map should zoom to when filtered.
+  const fitPins = useMemo(() => {
+    if (!isFiltered) return []
+    return levels.filter((l) => enabled.has(l.level)).flatMap((l) => l.pins)
+  }, [isFiltered, levels, enabled])
+
+  const scopeLabel = useMemo(() => {
+    const place = filterCity || filterCounty
+    if (place) return `${place}${filterStateCode ? `, ${filterStateCode}` : ''}`
+    return filterStateCode ?? ''
+  }, [filterCity, filterCounty, filterStateCode])
 
   const toggle = (level: string) => {
     setEnabled((prev) => {
@@ -197,7 +268,9 @@ export default function PlaceClusterMap() {
           <p className="text-sm text-gray-500">
             {isLoading
               ? 'Loading map…'
-              : `${totalPins.toLocaleString()} indexed places — pan, zoom, and click a pin to open it.`}
+              : isFiltered
+                ? `${totalPins.toLocaleString()} indexed place${totalPins === 1 ? '' : 's'} in ${scopeLabel} — click a pin to open it.`
+                : `${totalPins.toLocaleString()} indexed places — pan, zoom, and click a pin to open it.`}
           </p>
         </div>
 
@@ -247,6 +320,7 @@ export default function PlaceClusterMap() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <ClusterLayers levels={levels} enabled={enabled} />
+            <FitBounds pins={fitPins} isFiltered={isFiltered} />
           </MapContainer>
         </div>
       )}

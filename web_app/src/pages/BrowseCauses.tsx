@@ -5,24 +5,6 @@ import { ArrowLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { fetchTrendingCauses, type CauseItem } from '../api/trending'
 import DecisionCardList from '../components/DecisionCardList'
 
-// A human label for each EveryOrg category slug. Anything not listed falls back
-// to a title-cased version of the slug itself.
-const CATEGORY_LABELS: Record<string, string> = {
-  communities: 'Communities & People',
-  environment: 'Environment',
-  humanitarian: 'Humanitarian',
-  health: 'Health',
-  justice: 'Justice',
-  arts: 'Arts & Culture',
-  animals: 'Animals',
-  education: 'Education',
-  religion: 'Religion',
-  general: 'General',
-}
-
-const labelFor = (slug: string) =>
-  CATEGORY_LABELS[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1)
-
 export default function BrowseCauses() {
   const [query, setQuery] = useState('')
   // When a cause is picked, drill into the meeting-level decisions that mention
@@ -59,23 +41,13 @@ export default function BrowseCauses() {
     })
   }, [causes, query])
 
-  // Group the (filtered) causes by category so the directory reads like the
-  // topic taxonomy — a labelled section per category rather than one flat list.
-  const grouped = useMemo(() => {
-    const byCat = new Map<string, CauseItem[]>()
-    for (const c of filtered) {
-      const cat = c.category || 'general'
-      if (!byCat.has(cat)) byCat.set(cat, [])
-      byCat.get(cat)!.push(c)
-    }
-    return [...byCat.entries()]
-      .map(([cat, items]) => ({
-        cat,
-        label: labelFor(cat),
-        items: items.sort((a, b) => a.name.localeCompare(b.name)),
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-  }, [filtered])
+  // Pill styling for the cause filter row — solid indigo when active.
+  const chipClass = (on: boolean) =>
+    `inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+      on
+        ? 'border-indigo-600 bg-indigo-600 text-white'
+        : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700'
+    }`
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -92,97 +64,57 @@ export default function BrowseCauses() {
         {/* Header card — title + search, matching the Search page */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Browse Causes</h1>
-          {!selectedCause && (
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search causes (e.g. environment, health, education)…"
-                className="w-full px-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900"
-              />
-            </div>
-          )}
-        </div>
-
-        {selectedCause ? (
-          /* Drill-down: meeting-level decisions that mention this cause. */
-          <div>
-            <button
-              type="button"
-              onClick={() => setSelectedCause(null)}
-              className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-            >
-              <ArrowLeftIcon className="h-4 w-4" />
-              All causes
-            </button>
-            <DecisionCardList
-              initialQuery={selectedCause.name}
-              title={`Decisions on ${selectedCause.name}`}
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter causes (e.g. environment, health, education)…"
+              className="w-full px-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900"
             />
           </div>
-        ) : (
-          <>
-        {isLoading ? (
-          <div className="flex justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600" />
-          </div>
-        ) : isError ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        </div>
+
+        {/* Cause filter chips — pick one to scope the decisions below. The big
+            grouped cause grid was replaced by these compact pills so the
+            decision cards show immediately (no click needed). */}
+        {isError ? (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             Couldn&apos;t load causes.{' '}
             {(error as { message?: string } | undefined)?.message ?? 'Please try again.'}
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-10 text-center text-gray-500">
-            No causes found{query ? ` for “${query}”` : ''}.
-          </div>
         ) : (
-          <>
-            <p className="mb-4 text-xs text-gray-400">
-              {filtered.length} {filtered.length === 1 ? 'cause' : 'causes'} in {grouped.length}{' '}
-              {grouped.length === 1 ? 'category' : 'categories'}
-              {query ? ` matching “${query}”` : ''}
-            </p>
-            <div className="space-y-8">
-              {grouped.map((group) => (
-                <section key={group.cat}>
-                  <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    {group.label}
-                    <span className="ml-2 font-normal text-gray-400">{group.items.length}</span>
-                  </h2>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {group.items.map((cause) => (
-                      <button
-                        key={cause.name}
-                        type="button"
-                        onClick={() => setSelectedCause(cause)}
-                        className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg bg-indigo-50 text-xl"
-                        >
-                          {cause.icon}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block font-semibold text-gray-900">{cause.name}</span>
-                          {cause.description ? (
-                            <span className="mt-0.5 block text-xs text-gray-500 line-clamp-2">
-                              {cause.description}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </>
+          <div className="mb-6 flex flex-wrap gap-2">
+            <button type="button" onClick={() => setSelectedCause(null)} className={chipClass(selectedCause === null)}>
+              All causes
+            </button>
+            {isLoading ? (
+              <span className="px-2 py-1.5 text-sm text-gray-400">Loading causes…</span>
+            ) : (
+              filtered.map((cause) => (
+                <button
+                  key={cause.name}
+                  type="button"
+                  onClick={() => setSelectedCause(cause)}
+                  className={chipClass(selectedCause?.name === cause.name)}
+                >
+                  <span aria-hidden="true">{cause.icon}</span>
+                  {cause.name}
+                </button>
+              ))
+            )}
+          </div>
         )}
-          </>
-        )}
+
+        {/* Decision cards — the shared Contested StoryCard, shown immediately.
+            The decisions endpoint has no cause filter, so a picked cause seeds
+            the free-text search; `key` remounts the list so that seed applies. */}
+        <DecisionCardList
+          key={selectedCause?.name ?? 'all-causes'}
+          initialQuery={selectedCause?.name}
+          title={selectedCause ? `Decisions on ${selectedCause.name}` : 'Most contested decisions'}
+        />
       </div>
     </div>
   )

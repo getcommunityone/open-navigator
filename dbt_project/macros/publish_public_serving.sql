@@ -65,10 +65,12 @@
     'topic_money_and_talk', 'civicsearch_topic',
     'browse_transcript_count', 'browse_directory_summary',
     'browse_entity_state_transcript_count',
+    'browse_entity_place_transcript_count',
     'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction',
     'mdm_bridge_event_analysis',
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
-    'policy_question_relation', 'policy_question_trend'
+    'policy_question_relation', 'policy_question_trend',
+    'meeting_topic_link', 'meeting_question_link', 'meeting_browse'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

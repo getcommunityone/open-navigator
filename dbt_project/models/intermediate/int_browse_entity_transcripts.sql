@@ -78,6 +78,7 @@ place as (
         j.geoid::text                       as entity_id,
         j.name::text                        as entity_name,
         j.state_code::text                  as state_code,
+        j.name::text                        as jurisdiction_name,
         t.video_id::text                    as video_id
     from transcripts t
     join jurisdictions_canonical j
@@ -101,6 +102,7 @@ topic as (
         tp.topic_id::text                   as entity_id,
         tp.name::text                       as entity_name,
         ed.state_code::text                 as state_code,
+        ed.jurisdiction_name::text          as jurisdiction_name,
         ed.video_id::text                   as video_id
     from {{ ref('civicsearch_topic') }} tp
     join snippets s
@@ -116,6 +118,11 @@ question as (
         q.question_id::text                 as entity_id,
         q.canonical_text::text              as entity_name,
         m.state_code::text                  as state_code,
+        -- No clean per-question jurisdiction name is available on this join path
+        -- (event_meeting carries state but not a normalized place name), so the
+        -- question leg has NO city-grain attribution — null keeps the UNION
+        -- column-aligned and the place mart honestly drops these rows.
+        null::text                          as jurisdiction_name,
         m.video_id::text                    as video_id
     from {{ ref('policy_question') }} q
     join {{ ref('question_instance') }} qi

@@ -100,6 +100,7 @@ def _build_filters(
     state_code: Optional[str],
     city: Optional[str],
     q: Optional[str],
+    meeting_id: Optional[int] = None,
 ) -> tuple[str, str, List[Any]]:
     """
     Build the shared FROM/JOIN clause + WHERE predicate + ordered params.
@@ -138,6 +139,13 @@ def _build_filters(
         params.append(question_id)
         idx += 1
 
+    if meeting_id is not None:
+        # Drill into a single meeting's decisions (meeting card -> decisions).
+        # item_interestingness.meeting_id == event_meeting.event_meeting_id.
+        clauses.append(f"ii.meeting_id = ${idx}")
+        params.append(meeting_id)
+        idx += 1
+
     if state_code:
         clauses.append(f"ii.state_code = ${idx}")
         params.append(state_code)
@@ -171,6 +179,10 @@ async def list_decisions(
     question_id: Optional[str] = Query(
         None, description="Policy-question id — keep only decisions that "
                           "instantiate it (public.question_instance).",
+    ),
+    meeting_id: Optional[int] = Query(
+        None, description="Meeting id — keep only decisions from this meeting "
+                          "(item_interestingness.meeting_id = event_meeting_id).",
     ),
     state: Optional[str] = Query(
         None, description="2-letter code or full state name (normalized).",
@@ -219,6 +231,7 @@ async def list_decisions(
         span.set_attribute("decisions.q", q or "")
         span.set_attribute("decisions.topic_id", topic_id or 0)
         span.set_attribute("decisions.question_id", question_id or "")
+        span.set_attribute("decisions.meeting_id", meeting_id or 0)
         span.set_attribute("decisions.limit", limit)
         span.set_attribute("decisions.offset", offset)
 
@@ -238,7 +251,7 @@ async def list_decisions(
                 )
 
         from_sql, where_sql, params = _build_filters(
-            topic_tsquery, question_id, state_code, city, q
+            topic_tsquery, question_id, state_code, city, q, meeting_id
         )
 
         try:

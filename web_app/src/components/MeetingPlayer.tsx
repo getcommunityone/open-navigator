@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../lib/api'
 import { extractKeywords, findBestMatch } from '../lib/transcriptMatch'
+import { youtubeThumbnail } from '../lib/youtubeThumbnail'
 
 /**
  * Embedded meeting recording (react-player) plus a timed, clickable transcript.
@@ -64,6 +65,12 @@ export default function MeetingPlayer({ videoId, caption, targetText }: MeetingP
   const [playedSeconds, setPlayedSeconds] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [query, setQuery] = useState('')
+  // The player starts as a lightweight poster (static thumbnail, no iframe) and
+  // only mounts the real YouTube embed once the user activates it — via the play
+  // button or by clicking a transcript cue / "jump to moment". A seek requested
+  // before the iframe exists is stashed here and applied in onReady.
+  const [activated, setActivated] = useState(false)
+  const pendingSeekRef = useRef<number | null>(null)
 
   const { data, isLoading } = useQuery<MeetingTranscript>({
     queryKey: ['meeting-transcript', videoId],
@@ -126,6 +133,14 @@ export default function MeetingPlayer({ videoId, caption, targetText }: MeetingP
   }, [activeIndex, playing, query])
 
   const seekTo = (seconds: number) => {
+    if (!activated) {
+      // Iframe isn't mounted yet — remember the target and let onReady seek once
+      // the player is live.
+      pendingSeekRef.current = seconds
+      setActivated(true)
+      setPlaying(true)
+      return
+    }
     playerRef.current?.seekTo(seconds, 'seconds')
     setPlaying(true)
   }
@@ -145,6 +160,16 @@ export default function MeetingPlayer({ videoId, caption, targetText }: MeetingP
           width="100%"
           height="100%"
           controls
+          // Static i.ytimg.com thumbnail as the poster — no YouTube Data API, no
+          // quota. Until clicked, only this image loads (not the iframe).
+          light={activated ? false : (youtubeThumbnail(videoId) ?? true)}
+          onClickPreview={() => setActivated(true)}
+          onReady={() => {
+            if (pendingSeekRef.current != null) {
+              playerRef.current?.seekTo(pendingSeekRef.current, 'seconds')
+              pendingSeekRef.current = null
+            }
+          }}
           playing={playing}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
