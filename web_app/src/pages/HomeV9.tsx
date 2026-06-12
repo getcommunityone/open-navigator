@@ -110,6 +110,28 @@ interface LensesResp {
   location_label?: string
 }
 
+// One row of the hero search typeahead — a real /api/search result.
+interface SearchSuggestion {
+  type: string
+  title: string
+  subtitle?: string | null
+  url: string
+  score?: number
+}
+
+// Emoji marker per result type for the typeahead rows (visual scent only).
+const SUGGEST_ICON: Record<string, string> = {
+  topic: '🏷️',
+  organization: '🏢',
+  person: '👤',
+  leader: '🎖️',
+  decision: '⚖️',
+  bill: '📜',
+  cause: '💚',
+  question: '⚖️',
+  meeting: '🗓️',
+}
+
 // ── Small pieces ──────────────────────────────────────────────────────────
 function MonoLabel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
@@ -361,6 +383,16 @@ export default function HomeV9() {
   const placeLabel = location?.city || location?.county || (stateCode ? stateCode : 'the U.S.')
 
   const [query, setQuery] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
+  // Live typeahead: a debounced copy of `query` drives the suggestions query so
+  // we don't fire a request per keystroke. `suggestOpen` lets a click on a
+  // suggestion win the race against the input's blur (cleared on select/enter).
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 220)
+    return () => clearTimeout(t)
+  }, [query])
   const [when, setWhen] = useState(WHEN[0])
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [activeTopics, setActiveTopics] = useState<string[]>([TOPICS[0]])
@@ -412,24 +444,43 @@ export default function HomeV9() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // ── Search typeahead (real /api/search results) ──
+  // Queries only the FAST search types — `documents` (transcript full-text) runs
+  // a ~2-3s COUNT and is deliberately excluded so per-keystroke suggestions stay
+  // snappy. Results are scoped to the active place. No fabricated rows: an empty
+  // response renders nothing.
+  const { data: suggestData, isFetching: suggestFetching } = useQuery<SearchSuggestion[]>({
+    queryKey: ['home-v9-suggest', debouncedQuery, stateCode, city],
+    queryFn: async () => {
+      const params: Record<string, string> = {
+        q: debouncedQuery,
+        limit: '4',
+        types: 'topics,organizations,people,leaders,decisions,bills,causes,questions',
+      }
+      if (!national && stateCode) params.state = stateCode
+      if (!national && city) params.city = city
+      const res = await api.get('/search/', { params }).then((r) => r.data)
+      const groups = (res?.results ?? {}) as Record<string, SearchSuggestion[]>
+      return Object.values(groups)
+        .flat()
+        .filter((r) => r && r.title && r.url)
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+        .slice(0, 7)
+    },
+    enabled: debouncedQuery.length >= 2,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
+  })
+  const suggestions = suggestData ?? []
+  const showSuggest = suggestOpen && query.trim().length >= 2
+
   // ── Derived (all real) ──
   const lenses = lensesData?.lenses ?? []
-  const activity = lensesData?.activity ?? []
   const lensById = useMemo(() => {
     const m: Record<string, LensBlock> = {}
     for (const l of lenses) m[l.id] = l
     return m
   }, [lenses])
-
-  // "This week": the first real card from each populated headline lens.
-  const thisWeek = useMemo(() => {
-    const out: { lensId: string; card: LensCard }[] = []
-    for (const id of ['contested', 'money', 'flags']) {
-      const l = lensById[id]
-      if (l && !l.placeholder && l.cards.length > 0) out.push({ lensId: id, card: l.cards[0] })
-    }
-    return out
-  }, [lensById])
 
   // Close-to-Home feed: a flat mix of real cards across lenses, filtered to the
   // active signal selection when the user picks any.
@@ -447,6 +498,7 @@ export default function HomeV9() {
 
   const runSearch = (q?: string) => {
     const term = (q ?? query).trim()
+    setSuggestOpen(false)
     const params = new URLSearchParams()
     if (term) params.set('q', term)
     if (!national && stateCode) params.set('state', stateCode)
@@ -456,114 +508,19 @@ export default function HomeV9() {
     navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
   }
 
+  // Jump straight to a suggested entity's real detail/search URL.
+  const selectSuggestion = (s: SearchSuggestion) => {
+    setSuggestOpen(false)
+    setQuery(s.title)
+    navigate(s.url, { state: { fromHome: true } })
+  }
+
   return (
     <div className="v9 font-body" style={{ background: '#fafaf9', minHeight: '100vh', color: INK }}>
       <style>{FONTS}</style>
 
-      {/* ── Header ── */}
-      <header style={{ position: 'sticky', top: 0, zIndex: 50, background: '#fff', borderBottom: '1px solid #e7e5e4' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24, position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <div
-              className="font-mono-x"
-              style={{ width: 38, height: 38, borderRadius: '50%', border: `2.5px solid ${TEAL}`, display: 'grid', placeItems: 'center', fontWeight: 800, color: TEAL, fontSize: 15 }}
-            >
-              C1
-            </div>
-            <div>
-              <div className="font-display" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.1 }}>
-                Open Navigator
-              </div>
-              <div className="v9-brand-sub" style={{ fontSize: 11.5, color: '#78716c' }}>
-                by CommunityOne
-              </div>
-            </div>
-          </div>
-
-          <button
-            className="v9-burger"
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            onClick={() => setMenuOpen(!menuOpen)}
-            style={{ width: 40, height: 40, border: '1px solid #e7e5e4', borderRadius: 10, background: '#fff', cursor: 'pointer', placeItems: 'center', fontSize: 18, color: INK }}
-          >
-            {menuOpen ? '✕' : '☰'}
-          </button>
-
-          <nav className={'v9-nav' + (menuOpen ? ' open' : '')} style={{ display: 'flex', gap: 22, marginLeft: 'auto', alignItems: 'center' }}>
-            {[
-              ['Search', () => runSearch('')],
-              ['How It Works', () => scrollToId('how-it-works')],
-              ['Impact', () => scrollToId('impact')],
-              ['Contact', () => navigate('/support')],
-            ].map(([label, fn]) => (
-              <button
-                key={label as string}
-                className="v9-navlink"
-                onClick={() => {
-                  setMenuOpen(false)
-                  ;(fn as () => void)()
-                }}
-              >
-                {label as string}
-              </button>
-            ))}
-
-            {/* Register / Login — auth-aware (mirrors the global header) */}
-            {authLoading ? (
-              <div style={{ width: 34, height: 34, borderRadius: '50%', border: `3px solid #e7e5e4`, borderTopColor: TEAL, animation: 'spin 0.8s linear infinite' }} />
-            ) : isAuthenticated && user ? (
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setShowLoginMenu(!showLoginMenu)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '4px 6px' }}
-                >
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.full_name || user.email} referrerPolicy="no-referrer" style={{ width: 34, height: 34, borderRadius: '50%', border: `2px solid ${TEAL}`, objectFit: 'cover' }} />
-                  ) : (
-                    <span style={{ width: 34, height: 34, borderRadius: '50%', background: TEAL, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 14 }}>
-                      {(user.full_name || user.username || user.email).charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#44403c' }}>
-                    {user.full_name || user.username || user.email.split('@')[0]}
-                  </span>
-                </button>
-                {showLoginMenu && (
-                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 200, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
-                    <button onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>My Profile</button>
-                    <button onClick={() => { setShowLoginMenu(false); navigate('/settings') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Settings</button>
-                    <button onClick={() => { setShowLoginMenu(false); logout() }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#dc2626', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', borderTop: '1px solid #f5f5f4', marginTop: 4, borderRadius: 8 }}>Sign out</button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setShowLoginMenu(!showLoginMenu)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: INK, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  <span>Register/Login</span>
-                  <span style={{ fontSize: 11 }}>▾</span>
-                </button>
-                {showLoginMenu && (
-                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 8, zIndex: 60 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#78716c', padding: '4px 8px 8px' }}>Sign in with:</div>
-                    {(['google', 'facebook', 'github', 'huggingface'] as const).map((provider) => (
-                      <button
-                        key={provider}
-                        onClick={() => { setShowLoginMenu(false); login(provider) }}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, fontWeight: 600, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8, textTransform: 'capitalize' }}
-                      >
-                        {provider === 'huggingface' ? 'HuggingFace' : provider}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </nav>
-        </div>
-      </header>
+      {/* ── Shared header (identical to the search page) ── */}
+      <SiteHeader />
 
       <main style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
         {/* ── Hero: thesis + search + trending ── */}
@@ -580,37 +537,144 @@ export default function HomeV9() {
             Free, forever.
           </div>
 
-          <div
-            style={{
-              maxWidth: 760,
-              margin: '24px auto 0',
-              display: 'flex',
-              background: '#fff',
-              border: '1px solid #e7e5e4',
-              borderRadius: 14,
-              boxShadow: '0 4px 16px rgba(28,25,23,0.06)',
-              overflow: 'hidden',
-            }}
-          >
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && runSearch()}
-              placeholder="Search topics, people, organizations, or causes"
-              style={{ flex: 1, border: 'none', outline: 'none', padding: '16px 18px', fontSize: 16, fontFamily: 'inherit', minWidth: 0 }}
-            />
+          <div style={{ position: 'relative', maxWidth: 760, margin: '28px auto 0', textAlign: 'left' }}>
             <div
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderLeft: '1px solid #e7e5e4', color: '#44403c', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap' }}
+              style={{
+                display: 'flex',
+                background: '#fff',
+                border: `2px solid ${TEAL}`,
+                borderRadius: showSuggest ? '16px 16px 0 0' : 16,
+                boxShadow: searchFocused
+                  ? `0 0 0 4px rgba(13,148,136,0.18), 0 14px 36px rgba(13,148,136,0.22)`
+                  : `0 10px 30px rgba(13,148,136,0.15)`,
+                transition: 'box-shadow .2s ease',
+                overflow: 'hidden',
+              }}
             >
-              📍 {placeLabel}
+              <input
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  setSuggestOpen(true)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') runSearch()
+                  else if (e.key === 'Escape') setSuggestOpen(false)
+                }}
+                onFocus={() => {
+                  setSearchFocused(true)
+                  setSuggestOpen(true)
+                }}
+                // Delay the close so a mousedown on a suggestion row still fires
+                // its onClick before the dropdown unmounts.
+                onBlur={() => {
+                  setSearchFocused(false)
+                  setTimeout(() => setSuggestOpen(false), 140)
+                }}
+                placeholder="Search topics, people, organizations, or causes"
+                style={{ flex: 1, border: 'none', outline: 'none', padding: '18px 20px', fontSize: 17, fontFamily: 'inherit', minWidth: 0 }}
+              />
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderLeft: '1px solid #e7e5e4', color: '#44403c', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap' }}
+              >
+                📍 {placeLabel}
+              </div>
+              <button
+                aria-label="Search"
+                onClick={() => runSearch()}
+                style={{ background: TEAL, color: '#fff', border: 'none', padding: '0 28px', fontSize: 20, cursor: 'pointer' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = TEAL_DARK)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = TEAL)}
+              >
+                🔍
+              </button>
             </div>
-            <button
-              aria-label="Search"
-              onClick={() => runSearch()}
-              style={{ background: TEAL, color: '#fff', border: 'none', padding: '0 24px', fontSize: 18, cursor: 'pointer' }}
-            >
-              🔍
-            </button>
+
+            {/* Live typeahead dropdown — real /api/search results, scoped to the
+                active place. mouseDown-preventDefault keeps focus so onClick wins
+                the blur race. */}
+            {showSuggest && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 40,
+                  background: '#fff',
+                  border: `2px solid ${TEAL}`,
+                  borderTop: 'none',
+                  borderRadius: '0 0 16px 16px',
+                  boxShadow: '0 18px 40px rgba(13,148,136,0.18)',
+                  overflow: 'hidden',
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                {suggestions.length > 0 ? (
+                  suggestions.map((s, i) => (
+                    <button
+                      key={`${s.type}-${s.url}-${i}`}
+                      onClick={() => selectSuggestion(s)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        borderTop: i === 0 ? 'none' : '1px solid #f5f5f4',
+                        padding: '11px 18px',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f0fdfa')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span style={{ fontSize: 17, flexShrink: 0 }}>{SUGGEST_ICON[s.type] ?? '🔎'}</span>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {s.title}
+                        </span>
+                        {s.subtitle && (
+                          <span style={{ display: 'block', fontSize: 12.5, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {s.subtitle}
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-mono-x" style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#a8a29e', flexShrink: 0 }}>
+                        {s.type}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div style={{ padding: '12px 18px', fontSize: 13.5, color: '#78716c' }}>
+                    {suggestFetching ? 'Searching…' : `No quick matches — press Enter to search everything.`}
+                  </div>
+                )}
+                <button
+                  onClick={() => runSearch()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    textAlign: 'left',
+                    background: '#fafaf9',
+                    border: 'none',
+                    borderTop: '1px solid #e7e5e4',
+                    padding: '11px 18px',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    color: TEAL_DARK,
+                  }}
+                >
+                  🔍 Search everything for “{query.trim()}” →
+                </button>
+              </div>
+            )}
           </div>
 
         </section>
@@ -620,62 +684,6 @@ export default function HomeV9() {
 
         {/* ── Big questions in your community (REAL featured policy questions) ── */}
         <BigQuestions />
-
-        {/* ── City snapshot strip (REAL: /api/lenses activity) ── */}
-        {activity.length > 0 && (
-          <section style={{ marginTop: 26 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-                {placeLabel} at a glance
-              </h2>
-              <span
-                className="font-mono-x"
-                style={{ fontSize: 10, color: TEAL_DARK, background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 999, padding: '2px 9px', fontWeight: 600 }}
-              >
-                ● LIVE
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-              {activity.slice(0, 4).map((a) => (
-                <button
-                  key={a.label}
-                  onClick={() => a.query && runSearch(a.query)}
-                  title={a.label}
-                  style={{ flex: '1 1 200px', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '10px 14px', cursor: a.query ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
-                >
-                  <span style={{ width: 32, height: 32, borderRadius: 9, background: '#f0fdfa', display: 'grid', placeItems: 'center', fontSize: 15, flexShrink: 0 }}>
-                    {a.icon}
-                  </span>
-                  <span>
-                    <span className="font-display" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1, display: 'block' }}>
-                      {a.value}
-                    </span>
-                    <span style={{ fontSize: 12, color: '#57534e' }}>{a.label}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ── What's happening this week (REAL lens cards) ── */}
-        {thisWeek.length > 0 && (
-          <section style={{ marginTop: 30 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-                What&apos;s happening this week
-              </h2>
-              <button onClick={() => runSearch('')} style={{ background: 'none', border: 'none', color: TEAL_DARK, fontWeight: 700, fontSize: 14.5, cursor: 'pointer', fontFamily: 'inherit' }}>
-                See all →
-              </button>
-            </div>
-            <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, marginTop: 12, overflow: 'hidden' }}>
-              {thisWeek.map((row, i) => (
-                <StoryRow key={row.lensId + i} card={row.card} lensId={row.lensId} first={i === 0} />
-              ))}
-            </div>
-          </section>
-        )}
 
         {/* ── Money Moves — the "follow the money" flowing Sankey (REAL
             /api/money-flow: public spending / grants / nonprofit economy) ── */}
