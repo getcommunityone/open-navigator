@@ -2041,10 +2041,57 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
+                {/* Two-column results layout: a left filter sidebar (lg+) that
+                    lists each content type with its real result count, and the
+                    right column with the active type's results. On small screens
+                    the sidebar is hidden and the horizontal tab bar is shown. */}
+                <div className="flex gap-6 lg:gap-8 items-start">
+                  {/* Left filter sidebar — type list with counts (lg+ only).
+                      Counts come straight from tabCounts (type_totals); no
+                      fabricated numbers. */}
+                  {availableTabs.length > 0 && (
+                    <aside className="hidden lg:block w-60 shrink-0 lg:sticky lg:top-20">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 px-3">
+                        Filter by type
+                      </div>
+                      <nav className="space-y-1" aria-label="Filter by result type">
+                        {availableTabs.map(({ key, label }) => {
+                          const isActive = effectiveTab === key
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => selectTab(key)}
+                              aria-current={isActive ? 'page' : undefined}
+                              className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+                                isActive
+                                  ? 'bg-primary-50 text-primary-700'
+                                  : 'text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              <span className={isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}>
+                                {getTypeIcon(key)}
+                              </span>
+                              {label}
+                              <span
+                                className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                  isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'
+                                }`}
+                              >
+                                {tabCounts[key]?.toLocaleString() ?? 0}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </nav>
+                    </aside>
+                  )}
+
+                  {/* Right column — active type's results + pagination. */}
+                  <div className="min-w-0 flex-1">
                 {/* Result-type Tabs — one per type that returned hits, Decisions
-                    first. Only the active tab's section renders below. */}
+                    first. Shown below lg only; the sidebar replaces this on lg+. */}
                 {availableTabs.length > 1 && (
-                  <div className="mb-6 border-b border-gray-200 overflow-x-auto scrollbar-hide">
+                  <div className="lg:hidden mb-6 border-b border-gray-200 overflow-x-auto scrollbar-hide">
                     <nav className="-mb-px flex gap-x-6" aria-label="Result types">
                       {availableTabs.map(({ key, label }) => {
                         const isActive = effectiveTab === key
@@ -2470,6 +2517,8 @@ export default function UnifiedSearch() {
                     </div>
                   </div>
                 )}
+                  </div>{/* /right column */}
+                </div>{/* /two-column results layout */}
               </>
             )}
           </div>
