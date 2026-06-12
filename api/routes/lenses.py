@@ -196,7 +196,11 @@ def _headline(row: Any) -> str:
 
 
 # --- per-lens stat builders -------------------------------------------------
-def _stats_contested(row: Any) -> List[LensStat]:
+# `stats_contested` (and the card primitives `build_card`, `headline`,
+# `jurisdiction_label`, `iso_date`) are intentionally PUBLIC (no leading
+# underscore) so the flat /api/decisions list endpoint in decisions.py can reuse
+# the EXACT same Contested-lens card shape without duplicating the logic.
+def stats_contested(row: Any) -> List[LensStat]:
     stats: List[LensStat] = []
     if (row["total_votes"] or 0) > 0:
         stats.append(LensStat(value=f"{row['votes_yes']}–{row['votes_no']}", label="Vote"))
@@ -240,6 +244,14 @@ def _build_card(row: Any, label: str, stats: List[LensStat]) -> LensCard:
         state_code=row["state_code"],
         state=row["state"],
     )
+
+
+# Public aliases so other routes (decisions.py) can build the SAME card shape /
+# headline / jurisdiction label / ISO date without re-implementing the logic.
+build_card = _build_card
+headline = _headline
+jurisdiction_label = _jurisdiction_label
+iso_date = _iso_date
 
 
 def _build_flag_card(row: Any) -> LensCard:
@@ -345,7 +357,7 @@ _LENS_QUERY_DEFS = [
 ]
 
 _STAT_BUILDERS = {
-    "contested": _stats_contested,
+    "contested": stats_contested,
     "money": _stats_money,
     "next": _stats_next,
 }

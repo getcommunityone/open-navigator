@@ -351,6 +351,7 @@ from api.routes import money_and_talk as money_and_talk_routes
 from api.routes import grandkid_outlook as grandkid_outlook_routes
 from api.routes import local_finance as local_finance_routes
 from api.routes import browse as browse_routes
+from api.routes import decision_browse as decision_browse_routes
 from api.routes import feed as feed_routes
 from api.database import init_db
 
@@ -396,6 +397,9 @@ app.include_router(grandkid_outlook_routes.router)
 app.include_router(local_finance_routes.router)
 # Prefix ("/api/browse") baked into the router — include with NO extra prefix.
 app.include_router(browse_routes.router)
+# Flat decision-browse list. Router prefix is "/decisions"; add the shared "/api"
+# prefix the other routers use (distinct from decisions_routes' "/decision" detail).
+app.include_router(decision_browse_routes.router, prefix="/api")
 
 # Custom Swagger UI with logo
 @app.get("/docs", include_in_schema=False)

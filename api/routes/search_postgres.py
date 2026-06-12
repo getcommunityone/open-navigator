@@ -2228,9 +2228,13 @@ async def search_decisions_pg(
                 d.extracted_at,
                 m.body_name AS meeting_name,
                 {meeting_date_expr} AS meeting_date,
-                m.video_id AS meeting_video_id
+                m.video_id AS meeting_video_id,
+                ii.competing_views_count AS competing_views_count,
+                ii.votes_yes AS ii_votes_yes,
+                ii.votes_no AS ii_votes_no
             FROM event_decision d
             LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
+            LEFT JOIN item_interestingness ii ON ii.event_decision_id = d.event_decision_id
             WHERE {where_sql}
             ORDER BY {order_by}, d.event_decision_id DESC
             LIMIT ${param_idx} OFFSET ${param_idx + 1}
@@ -2297,6 +2301,11 @@ async def search_decisions_pg(
                         'outcome': row['outcome'],
                         'primary_theme': row['primary_theme'],
                         'vote_tally': row['vote_tally'],
+                        # Contestedness signals from public.item_interestingness
+                        # (LEFT JOIN — None when the decision has no scored row).
+                        'competing_views_count': row['competing_views_count'],
+                        'votes_yes': row['ii_votes_yes'],
+                        'votes_no': row['ii_votes_no'],
                         'jurisdiction': row['jurisdiction_name'],
                         'jurisdiction_type': row['jurisdiction_type'],
                         'state': row['state'],
