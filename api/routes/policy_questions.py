@@ -119,13 +119,14 @@ _LIST_COLS = """
     is_featured, display_order
 """
 
-# Default list: theme/scope filters, ranked by reach.
+# Default list: theme/scope filters. Curated featured questions are PINNED to the
+# top in editorial order (display_order); everything else follows, ranked by reach.
 _LIST_SQL = f"""
     select {_LIST_COLS}
     from public.policy_question
     where ($1::text is null or primary_theme = $1)
       and ($2::text is null or scope = $2)
-    order by instances_total desc
+    order by is_featured desc, display_order asc nulls last, instances_total desc
     limit $3 offset $4
 """
 

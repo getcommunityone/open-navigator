@@ -6,11 +6,13 @@
 -- Two row provenances are unioned here:
 --   * clustered  — LLM-minted from stg_policy_question (is_featured=false).
 --   * curated    — hand-authored editorial "featured" questions from the
---                  curated_policy_questions seed (is_featured=true). These have
---                  no linked decisions, so EVERY rollup/comparative count is 0
---                  (honest empty state — no fabricated numbers; this repo forbids
---                  fabricated data). first_seen is a fixed literal, not now(), so
---                  builds stay deterministic.
+--                  curated_policy_questions seed (is_featured=true). Comparative
+--                  counts come from int_policy_question_rollup over hand-verified
+--                  real decisions attached via the curated_question_instance seed;
+--                  a curated question with no attached instances shows an honest
+--                  zero rollup (no fabricated numbers; this repo forbids fabricated
+--                  data). first_seen is a fixed literal, not now(), so builds stay
+--                  deterministic.
 with q as (
     select * from {{ ref('stg_policy_question') }}
 ),
@@ -44,31 +46,42 @@ clustered as (
     from q
     left join rollup r using (question_id)
 ),
-curated as (
+curated_base as (
     select
         md5(primary_theme || '|' || canonical_text)    as question_id,
         canonical_text,
         nullif(topic_code, '')                         as topic_code,
         primary_theme,
         nullif(cofog_code, '')                         as cofog_code,
+        display_order::integer                         as display_order
+    from {{ ref('curated_policy_questions') }}
+),
+curated as (
+    select
+        b.question_id,
+        b.canonical_text,
+        b.topic_code,
+        b.primary_theme,
+        b.cofog_code,
         'local'                                        as scope,
         'active'                                       as status,
         timestamptz '2026-06-11 00:00:00+00'           as first_seen,
-        0                                              as member_count,
-        0::integer                                     as instances_total,
-        0::integer                                     as decisions_total,
-        0::integer                                     as bills_total,
-        0::integer                                     as jurisdictions_total,
-        0::integer                                     as jurisdictions_approved,
-        0::integer                                     as states_total,
-        0::integer                                     as approved_count,
-        0::integer                                     as denied_count,
-        0::integer                                     as deferred_count,
-        0::integer                                     as other_count,
+        coalesce(r.instances_total, 0)::integer        as member_count,
+        coalesce(r.instances_total, 0)::integer        as instances_total,
+        coalesce(r.decisions_total, 0)::integer        as decisions_total,
+        coalesce(r.bills_total, 0)::integer            as bills_total,
+        coalesce(r.jurisdictions_total, 0)::integer    as jurisdictions_total,
+        coalesce(r.jurisdictions_approved, 0)::integer as jurisdictions_approved,
+        coalesce(r.states_total, 0)::integer           as states_total,
+        coalesce(r.approved_count, 0)::integer         as approved_count,
+        coalesce(r.denied_count, 0)::integer           as denied_count,
+        coalesce(r.deferred_count, 0)::integer         as deferred_count,
+        coalesce(r.other_count, 0)::integer            as other_count,
         'curated'                                      as model_name,
         true                                           as is_featured,
-        display_order::integer                         as display_order
-    from {{ ref('curated_policy_questions') }}
+        b.display_order
+    from curated_base b
+    left join rollup r using (question_id)
 ),
 -- Collision guard: a curated question's md5 id could theoretically already exist
 -- as a clustered row (same primary_theme + canonical_text). The curated/featured

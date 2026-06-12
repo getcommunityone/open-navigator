@@ -12,11 +12,13 @@ seeds:
   - name: curated_policy_questions
     description: >
       Hand-authored, editorial "featured" policy questions unioned into
-      public.policy_question as is_featured=true rows. NOT LLM-clustered: they
-      carry no linked decisions, so every rollup/comparative count in the mart is
-      0 (honest empty state — no fabricated numbers). question_id is derived in the
-      mart as md5(primary_theme || '|' || canonical_text), matching the clustered
-      PK convention. topic_code/cofog_code are intentionally empty until curated.
+      public.policy_question as is_featured=true rows. NOT LLM-clustered. Real,
+      hand-verified decisions can be attached via the curated_question_instance
+      seed; rollup/comparative counts then reflect ONLY those verified instances
+      (a featured question with no curated instances shows an honest empty rollup —
+      never fabricated numbers). question_id is derived in the mart as
+      md5(primary_theme || '|' || canonical_text), matching the clustered PK
+      convention. topic_code/cofog_code are intentionally empty until curated.
       After editing: dbt seed --select curated_policy_questions && dbt run --select policy_question.
     columns:
       - name: canonical_text
@@ -37,6 +39,39 @@ seeds:
         tests:
           - unique
           - not_null
+
+  - name: curated_question_instance
+    description: >
+      Hand-verified, genuinely on-topic real local decisions attached to a curated
+      featured question (curated_policy_questions). Each row is a REAL event_decision
+      (source_id = event_decision_id) whose denormalized fields (state/jurisdiction/
+      city/outcome/occurred_at) were captured verbatim from public.event_decision —
+      no fabricated instances. Unioned into stg_question_instance as
+      source_type='local_decision'; the existing outcome normalization + rollup then
+      produce the comparative counts for the featured question. A featured question
+      with no rows here stays honestly empty. Survives the LLM clustering rebuild,
+      which only truncates the bronze_* tables, not seeds.
+      After editing: dbt seed --select curated_question_instance &&
+      dbt run --select stg_question_instance int_policy_question_rollup policy_question question_instance.
+    columns:
+      - name: question_id
+        description: "Curated featured question this decision instantiates (md5 PK from curated_policy_questions)."
+        tests:
+          - not_null
+      - name: source_id
+        description: "Real public.event_decision.event_decision_id. Together with question_id forms the instance PK."
+        tests:
+          - not_null
+      - name: state_code
+        description: "2-letter state of the decision (verbatim from event_decision; may be empty when source is null)."
+      - name: jurisdiction_name
+        description: "Jurisdiction of the decision (verbatim from event_decision; may be empty)."
+      - name: city
+        description: "City of the decision (verbatim from event_decision; may be empty)."
+      - name: outcome_raw
+        description: "Free-text decision outcome (verbatim); normalized in stg_question_instance."
+      - name: occurred_at
+        description: "When the decision was recorded (event_decision.extracted_at)."
 
   - name: policy_theme_cofog
     description: >

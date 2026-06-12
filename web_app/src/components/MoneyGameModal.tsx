@@ -1564,6 +1564,12 @@ export default function MoneyGameModal({
     [setLocation],
   )
 
+  // Re-open the "where's home?" gate so a user with an already-known place (e.g.
+  // a previously cached location) can switch to a different ZIP. Only clears the
+  // modal's scope — the site-wide saved location is left untouched until they
+  // resolve a new one via the gate (which calls onResolvePlace).
+  const changePlace = useCallback(() => setPlace(null), [])
+
   // Combined city + county + school-district budget — the full local government
   // a resident funds, so the guessing game's "Education" reflects real K-12.
   const { data, isLoading, isError } = useQuery<CombinedFinance>({
@@ -1673,8 +1679,16 @@ export default function MoneyGameModal({
                   {hasPlace ? (
                     <>
                       {placeName || data?.jurisdiction_name}
-                      {data?.state_code ? `, ${data.state_code}` : ''} · starts at the median household —
-                      adjust the sliders to make it yours.
+                      {data?.state_code ? `, ${data.state_code}` : ''}{' '}
+                      <button
+                        type="button"
+                        onClick={changePlace}
+                        className="font-semibold text-[#0f766e] underline-offset-2 hover:underline"
+                        style={FONT}
+                      >
+                        (change)
+                      </button>{' '}
+                      · starts at the median household — adjust the sliders to make it yours.
                     </>
                   ) : (
                     <>First, tell us where home is — every town reaches into your pocket a little differently.</>

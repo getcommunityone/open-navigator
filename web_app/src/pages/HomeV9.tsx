@@ -17,7 +17,7 @@
 //
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -25,6 +25,7 @@ import MoneyGameModal from '../components/MoneyGameModal'
 import FollowTheMoney from '../components/FollowTheMoney'
 import { fetchPolicyQuestions } from '../api/policyQuestions'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
+import SiteHeader from '../components/SiteHeader'
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -39,6 +40,12 @@ const FONTS = `
 .v9 .hide-scroll { scrollbar-width: none; }
 .v9 .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .v9 .v9-burger { display: none; }
+html { scroll-behavior: smooth; }
+.v9 .v9-navlink { position: relative; background: none; border: none; padding: 4px 0; font-size: 14.5px; font-weight: 600; color: #44403c; cursor: pointer; font-family: inherit; transition: color .2s ease; }
+.v9 .v9-navlink::after { content: ''; position: absolute; left: 0; bottom: -3px; height: 2px; width: 0; background: ${TEAL}; transition: width .25s ease; }
+.v9 .v9-navlink:hover { color: ${TEAL_DARK}; }
+.v9 .v9-navlink:hover::after { width: 100%; }
+@keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
   .v9 .v9-nav { display: none; }
   .v9 .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
@@ -353,13 +360,23 @@ export default function HomeV9() {
   const national = !stateCode
   const placeLabel = location?.city || location?.county || (stateCode ? stateCode : 'the U.S.')
 
-  const [menuOpen, setMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [when, setWhen] = useState(WHEN[0])
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [activeTopics, setActiveTopics] = useState<string[]>([TOPICS[0]])
   const [activeSignals, setActiveSignals] = useState<string[]>(['contested'])
-  const trendRef = useRef<HTMLDivElement>(null)
+  const [showStrategicPlan, setShowStrategicPlan] = useState(false)
+
+  // When arriving from another page via `/#how-it-works` (shared header nav),
+  // scroll to the requested in-page section once it has rendered.
+  useEffect(() => {
+    const id = window.location.hash.replace('#', '')
+    if (id) {
+      requestAnimationFrame(() =>
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      )
+    }
+  }, [])
 
   const toggle = (list: string[], setList: (v: string[]) => void, item: string) =>
     setList(list.includes(item) ? list.filter((x) => x !== item) : [...list, item])
@@ -394,13 +411,6 @@ export default function HomeV9() {
     },
     staleTime: 5 * 60 * 1000,
   })
-
-  const { data: trending } = useQuery({
-    queryKey: ['home-v9-trending'],
-    queryFn: () => fetchPolicyQuestions({ limit: 10 }),
-    staleTime: 30 * 60 * 1000,
-  })
-  const trendingChips = (trending ?? []).filter((q) => !!q.canonical_text).slice(0, 6)
 
   // ── Derived (all real) ──
   const lenses = lensesData?.lenses ?? []
@@ -446,8 +456,6 @@ export default function HomeV9() {
     navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
   }
 
-  const trendScrollBy = (dx: number) => trendRef.current?.scrollBy({ left: dx, behavior: 'smooth' })
-
   return (
     <div className="v9 font-body" style={{ background: '#fafaf9', minHeight: '100vh', color: INK }}>
       <style>{FONTS}</style>
@@ -484,27 +492,75 @@ export default function HomeV9() {
           <nav className={'v9-nav' + (menuOpen ? ' open' : '')} style={{ display: 'flex', gap: 22, marginLeft: 'auto', alignItems: 'center' }}>
             {[
               ['Search', () => runSearch('')],
-              ['How It Works', () => navigate('/explore')],
-              ['Impact', () => navigate('/explore')],
+              ['How It Works', () => scrollToId('how-it-works')],
+              ['Impact', () => scrollToId('impact')],
               ['Contact', () => navigate('/support')],
             ].map(([label, fn]) => (
               <button
                 key={label as string}
+                className="v9-navlink"
                 onClick={() => {
                   setMenuOpen(false)
                   ;(fn as () => void)()
                 }}
-                style={{ background: 'none', border: 'none', fontSize: 14.5, fontWeight: 600, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 {label as string}
               </button>
             ))}
-            <button
-              onClick={() => navigate('/explore')}
-              style={{ background: INK, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              Explore now
-            </button>
+
+            {/* Register / Login — auth-aware (mirrors the global header) */}
+            {authLoading ? (
+              <div style={{ width: 34, height: 34, borderRadius: '50%', border: `3px solid #e7e5e4`, borderTopColor: TEAL, animation: 'spin 0.8s linear infinite' }} />
+            ) : isAuthenticated && user ? (
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowLoginMenu(!showLoginMenu)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '4px 6px' }}
+                >
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.full_name || user.email} referrerPolicy="no-referrer" style={{ width: 34, height: 34, borderRadius: '50%', border: `2px solid ${TEAL}`, objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ width: 34, height: 34, borderRadius: '50%', background: TEAL, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 14 }}>
+                      {(user.full_name || user.username || user.email).charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#44403c' }}>
+                    {user.full_name || user.username || user.email.split('@')[0]}
+                  </span>
+                </button>
+                {showLoginMenu && (
+                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 200, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
+                    <button onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>My Profile</button>
+                    <button onClick={() => { setShowLoginMenu(false); navigate('/settings') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Settings</button>
+                    <button onClick={() => { setShowLoginMenu(false); logout() }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#dc2626', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', borderTop: '1px solid #f5f5f4', marginTop: 4, borderRadius: 8 }}>Sign out</button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowLoginMenu(!showLoginMenu)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: INK, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <span>Register/Login</span>
+                  <span style={{ fontSize: 11 }}>▾</span>
+                </button>
+                {showLoginMenu && (
+                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 8, zIndex: 60 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#78716c', padding: '4px 8px 8px' }}>Sign in with:</div>
+                    {(['google', 'facebook', 'github', 'huggingface'] as const).map((provider) => (
+                      <button
+                        key={provider}
+                        onClick={() => { setShowLoginMenu(false); login(provider) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, fontWeight: 600, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8, textTransform: 'capitalize' }}
+                      >
+                        {provider === 'huggingface' ? 'HuggingFace' : provider}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </nav>
         </div>
       </header>
@@ -557,30 +613,6 @@ export default function HomeV9() {
             </button>
           </div>
 
-          {/* Trending questions — REAL policy-question registry. */}
-          {trendingChips.length > 0 && (
-            <div style={{ position: 'relative', maxWidth: 860, margin: '10px auto 0' }}>
-              <div
-                ref={trendRef}
-                className="hide-scroll"
-                style={{ display: 'flex', gap: 8, alignItems: 'center', overflowX: 'auto', padding: '2px 34px' }}
-              >
-                <MonoLabel style={{ color: '#57534e', flexShrink: 0 }}>Trending</MonoLabel>
-                {trendingChips.map((q) => (
-                  <Chip key={q.question_id} onClick={() => navigate(`/policy-question/${q.question_id}`)} style={{ flexShrink: 0 }}>
-                    {q.canonical_text}
-                  </Chip>
-                ))}
-              </div>
-              <button
-                onClick={() => trendScrollBy(240)}
-                aria-label="Scroll trending questions right"
-                style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', zIndex: 2, width: 28, height: 28, borderRadius: '50%', border: '1px solid #d6d3d1', background: '#fff', boxShadow: '0 2px 8px rgba(28,25,23,0.12)', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 14, color: '#44403c', lineHeight: 1 }}
-              >
-                ›
-              </button>
-            </div>
-          )}
         </section>
 
         {/* ── Money hook (compact teal banner; REAL geocode + REAL modal) ── */}
@@ -831,6 +863,116 @@ export default function HomeV9() {
           </div>
         </section>
       </main>
+
+      {/* ── How It Works — "From information to impact" (ported from the
+          original home page, restyled for v9) ── */}
+      <section id="how-it-works" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '56px 24px' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 36px' }}>
+            <MonoLabel style={{ color: TEAL_DARK }}>How it works</MonoLabel>
+            <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: '8px 0 0', color: INK }}>
+              From information to impact
+            </h2>
+            <p style={{ fontSize: 16, color: '#57534e', lineHeight: 1.55, marginTop: 12 }}>
+              Start by choosing a cause, make a plan (learn the record, decide who to work with, then show up), find help
+              when someone needs direct support, track the decisions that matter, and build on open data.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+            {[
+              { icon: '📍', title: 'Choose a cause', blurb: 'Roads, schools, safety, family, health, or something else.', hash: 'explore-causes' },
+              { icon: '🗺️', title: 'Make a plan', blurb: 'Personal and community paths, allies, and outcomes.', hash: 'explore-plan' },
+              { icon: '💚', title: 'Find help', blurb: 'Nonprofits, programs, and family supports.', hash: 'explore-find-help' },
+              { icon: '📊', title: 'Track decisions', blurb: 'Meetings, budgets, maps, and verification.', hash: 'explore-track-decisions' },
+              { icon: '🧩', title: 'Build with data', blurb: 'Open datasets, APIs, and civic tooling.', hash: 'explore-build' },
+            ].map((step) => (
+              <button
+                key={step.title}
+                onClick={() => navigate(`/explore#${step.hash}`)}
+                style={{ textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 18, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 0, boxShadow: '0 1px 2px rgba(28,25,23,0.04)' }}
+              >
+                <span style={{ width: 42, height: 42, borderRadius: 11, background: '#f0fdfa', display: 'grid', placeItems: 'center', fontSize: 20, marginBottom: 12 }}>
+                  {step.icon}
+                </span>
+                <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK }}>{step.title}</span>
+                <span style={{ fontSize: 13, color: '#57534e', lineHeight: 1.45, marginTop: 6 }}>{step.blurb}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Our Impact / Our Mission (ported from the original home page) ── */}
+      <section id="impact" style={{ background: '#fafaf9', borderTop: '1px solid #e7e5e4', padding: '56px 24px' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: INK }}>
+              Our Impact
+            </h2>
+            <p style={{ fontSize: 16, color: '#57534e', margin: '12px auto 18px', maxWidth: 640 }}>
+              One platform connecting residents, leaders, and funders to what&apos;s really happening on the ground.
+            </p>
+            <button
+              onClick={() => setShowStrategicPlan(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '11px 22px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              📄 View Our Strategic Plan
+            </button>
+          </div>
+
+          <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 18, padding: '36px 28px' }}>
+            <h3 className="font-display" style={{ fontSize: 'clamp(22px, 3vw, 28px)', fontWeight: 800, margin: 0, color: INK }}>
+              Our Mission
+            </h3>
+            <p style={{ fontSize: 15, color: '#57534e', margin: '10px 0 14px', fontWeight: 600 }}>
+              CommunityOne: One Map for Every Community
+            </p>
+            <p style={{ fontSize: 15.5, color: '#44403c', lineHeight: 1.6, marginBottom: 12 }}>
+              Every person deserves to find the help they need and have a voice in the decisions that shape their lives.
+              But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+            </p>
+            <p style={{ fontSize: 15.5, color: '#44403c', lineHeight: 1.6, marginBottom: 22 }}>
+              CommunityOne changes that. One platform connects residents, leaders, and funders to what&apos;s really
+              happening on the ground — so no community has to fight just to be seen.
+            </p>
+            <button
+              onClick={() => navigate('/explore')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: INK, color: '#fff', border: 'none', borderRadius: 10, padding: '11px 20px', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Start Exploring →
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Strategic Plan PDF — lightweight modal (real PDF in public/pdf). */}
+      {showStrategicPlan && (
+        <div
+          onClick={() => setShowStrategicPlan(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(15,43,43,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 980, height: '85vh', background: '#fff', borderRadius: 18, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #e7e5e4' }}>
+              <span className="font-display" style={{ fontSize: 16, fontWeight: 700, color: INK }}>
+                📄 CommunityOne Strategic Plan
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <a href="/pdf/c1_strategic_plan.PDF" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: TEAL_DARK }}>
+                  Open in new tab
+                </a>
+                <button onClick={() => setShowStrategicPlan(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#78716c', lineHeight: 1 }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+            <iframe src="/pdf/c1_strategic_plan.PDF" title="CommunityOne Strategic Plan" style={{ flex: 1, width: '100%', border: 'none' }} />
+          </div>
+        </div>
+      )}
 
       {/* ── Why people use it (footer) ── */}
       <footer style={{ background: '#fff', borderTop: '1px solid #e7e5e4' }}>

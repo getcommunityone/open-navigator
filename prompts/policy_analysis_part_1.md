@@ -103,6 +103,12 @@ For each contested decision, capture **every quantitative measure spoken in the 
 - If the metric is a dollar amount already in `financial_items[]`, set `financial_item_ref` instead of re-describing it.
 - Never invent or extrapolate a figure. If a speaker gestures at a trend without a number ("crime is way up"), do not manufacture one — skip it.
 - Keep `evidence_metrics` **off** `uncontested_items[]`.
+## Timing & Speaking Time (CRITICAL — timestamps only, never invent)
+Capture **how long** the body spent on each item and **how long each speaker held the floor**, but **only from real timestamps in the input.** Many transcripts carry per-segment timestamps (timed captions / agenda hints); when they do, use them. When they do **not**, leave every timing field `null` — **do not estimate, interpolate, or fabricate a duration.** A guessed time is worse than no time (this feeds a public civic platform).
+
+1. **Per-item span — `media_anchor` on `decisions[]`** (the schema already requires it on `uncontested_items[]`; now required on `decisions[]` too). Set `timestamp_start_seconds` to when discussion of the item opened and `timestamp_end_seconds` to when it closed (after the vote). Leave `duration_seconds` `null` — it is derived downstream from start/end; only fill it if the transcript states an explicit elapsed time. Both bounds `null` when the transcript is untimed.
+2. **Per-speaker floor time — `speaker_segments[]` on `decisions[]`.** When the transcript is timestamped, emit one row per **contiguous turn** a person held the floor on this decision: `person_id` (must resolve to a `people[]` entry), `timestamp_start_seconds`, `timestamp_end_seconds`. Leave `speaking_seconds` `null` (derived from the bounds downstream) unless the transcript gives an explicit figure. Use the same person-binding cues as `held_by` ("Councilman Reed said…", a chair recognizing a speaker). If you cannot bind a turn to a specific `person_id`, set `person_id` to `null` rather than guessing. Emit `[]` when the transcript carries no usable timestamps — an empty array means "no timing available," never "no one spoke."
+3. **Coverage, not precision.** Approximate turn boundaries from the surrounding timed segments are fine; do not split a single turn into many micro-segments. Do **not** add `speaker_segments` to `uncontested_items[]` — only the item-level `media_anchor` span there.
 ## Output Instructions
 Output the JSON object matching the schema below and NOTHING ELSE.
  
@@ -293,6 +299,19 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
         "yes": "number or null",
         "no": "number or null"
       },
+      "media_anchor": {
+        "timestamp_start_seconds": "number or null — when discussion of this decision opened; null if transcript is untimed",
+        "timestamp_end_seconds": "number or null — when it closed (after the vote); null if untimed",
+        "duration_seconds": "number or null — leave null (derived from start/end downstream) unless transcript states an explicit elapsed time"
+      },
+      "speaker_segments": [
+        {
+          "person_id": "string or null — people[].person_id holding the floor; null if the turn can't be bound to a person",
+          "timestamp_start_seconds": "number or null",
+          "timestamp_end_seconds": "number or null",
+          "speaking_seconds": "number or null — leave null (derived from bounds downstream) unless transcript states an explicit figure"
+        }
+      ],
       "human_element": {
         "personal_stories": [
           {

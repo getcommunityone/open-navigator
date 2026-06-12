@@ -33,13 +33,26 @@ export default function PolicyQuestionsPage() {
                 <Link
                   key={q.question_id}
                   to={`/policy-question/${q.question_id}`}
-                  className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-blue-300 hover:shadow-sm transition"
+                  className={`block rounded-lg border bg-white p-4 hover:shadow-sm transition ${
+                    q.is_featured
+                      ? 'border-indigo-200 ring-1 ring-indigo-100 hover:border-indigo-300'
+                      : 'border-gray-200 hover:border-blue-300'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <span className="font-medium text-gray-900">{q.canonical_text}</span>
-                    <span className="shrink-0 text-sm text-gray-500">
-                      {q.jurisdictions_approved}/{q.jurisdictions_total} approved ({pct}%)
+                    <span className="font-medium text-gray-900">
+                      {q.is_featured && (
+                        <span className="mr-2 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-600 align-middle">
+                          📌 Featured
+                        </span>
+                      )}
+                      {q.canonical_text}
                     </span>
+                    {q.jurisdictions_total > 0 && (
+                      <span className="shrink-0 text-sm text-gray-500">
+                        {q.jurisdictions_approved}/{q.jurisdictions_total} approved ({pct}%)
+                      </span>
+                    )}
                   </div>
                   <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-400">
                     {q.primary_theme && q.primary_theme !== '__unthemed__' && (
