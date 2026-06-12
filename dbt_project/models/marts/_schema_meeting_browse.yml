@@ -1,0 +1,88 @@
+version: 2
+
+# public.meeting_browse — one row per meeting; the serving rollup the meeting-level
+# browse cards read. Included only when a meeting has something to show (transcript
+# OR >=1 decision/topic/question link). Counts are real (0 when honestly empty).
+
+models:
+  - name: meeting_browse
+    description: >
+      public.meeting_browse — meeting-grain browse/serving rollup. One row per
+      event_meeting_id with has_transcript and real decision/question/topic counts
+      plus top_interestingness_score for ranking. Excludes bare meetings with
+      nothing to show.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'meeting-browse']
+      contract:
+        enforced: true
+    columns:
+      - name: event_meeting_id
+        description: "Primary key; FK -> event_meeting.event_meeting_id (enforced)."
+        data_type: integer
+        constraints:
+          - type: not_null
+          - type: primary_key
+          - type: foreign_key
+            to: ref('event_meeting')
+            to_columns: [event_meeting_id]
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('event_meeting')
+                field: event_meeting_id
+      - name: c1_event_id
+        description: "civic_event bridge key (passthrough)."
+        data_type: varchar
+      - name: video_id
+        description: "Transcript/video key (passthrough)."
+        data_type: varchar
+      - name: meeting_title
+        description: >
+          Human meeting label — event_meeting.body_name, falling back to
+          meeting_summary only when body_name is null. Both are real source values
+          (event_meeting has no dedicated title column).
+        data_type: text
+      - name: meeting_date
+        description: "Meeting date as stored on event_meeting (text)."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code (passthrough)."
+        data_type: varchar
+      - name: state
+        description: "Full state name (passthrough)."
+        data_type: text
+      - name: city
+        description: "City (passthrough)."
+        data_type: varchar
+      - name: jurisdiction_name
+        description: "Jurisdiction name (passthrough)."
+        data_type: varchar
+      - name: has_transcript
+        description: "True when the meeting has a transcript document."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: decision_count
+        description: "Count of event_decision rows for the meeting (via c1_event_id). 0 if none."
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: question_count
+        description: "Distinct policy_question count for the meeting. 0 if none."
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: topic_link_count
+        description: "Count of meeting_topic_link rows (both link types) for the meeting. 0 if none."
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: top_interestingness_score
+        description: >
+          Max item_interestingness.interestingness_score across the meeting's
+          decisions, for ranking. NULL when the meeting has no scored item.
+        data_type: double precision

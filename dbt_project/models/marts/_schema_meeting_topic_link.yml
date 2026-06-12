@@ -1,0 +1,98 @@
+version: 2
+
+# public.meeting_topic_link — meeting <-> topic linkages (two link types).
+# Data foundation for the meeting-level browse feature.
+#
+# event_meeting is a plain table with a single-column PK (event_meeting_id), so the
+# FK into it is a REAL enforced constraint (not a relationships-only test). The
+# 'civicsearch_topic' rows reference civicsearch_topic.topic_id via link_id but
+# link_id is polymorphic (text; topic_id for civicsearch, theme slug for theme), so
+# topic membership is asserted with a (scoped) relationships test rather than a
+# cross-table enforced FK.
+
+models:
+  - name: meeting_topic_link
+    description: >
+      public.meeting_topic_link — one row per (event_meeting_id, link_type,
+      link_id). link_type 'civicsearch_topic' is a transcript full-text match
+      against each CivicSearch topic's keyword set (PRIMARY); 'canonical_theme' is
+      the AI primary_theme normalized to a canonical COFOG theme (FALLBACK). Causes
+      are intentionally not modeled (no warehouse linkage exists).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'meeting-browse', 'topic']
+      contract:
+        enforced: true
+    columns:
+      - name: meeting_topic_link_id
+        description: "Primary key — md5(event_meeting_id || '|' || link_type || '|' || link_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_meeting_id
+        description: "FK -> event_meeting.event_meeting_id (enforced)."
+        data_type: integer
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('event_meeting')
+            to_columns: [event_meeting_id]
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('event_meeting')
+                field: event_meeting_id
+      - name: link_type
+        description: "'civicsearch_topic' (full-text) or 'canonical_theme' (AI theme)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['civicsearch_topic', 'canonical_theme']
+      - name: link_id
+        description: >
+          Polymorphic link target as text: civicsearch_topic.topic_id for
+          link_type='civicsearch_topic', the canonical theme slug for
+          'canonical_theme'.
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: link_label
+        description: "Human label — topic name or canonical theme label."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code (passthrough from event_meeting)."
+        data_type: varchar
+      - name: state
+        description: "Full state name (passthrough from event_meeting)."
+        data_type: text
+      - name: city
+        description: "City (passthrough from event_meeting)."
+        data_type: varchar
+      - name: jurisdiction_name
+        description: "Jurisdiction name (passthrough from event_meeting)."
+        data_type: varchar
+      - name: meeting_date
+        description: "Meeting date as stored on event_meeting (text)."
+        data_type: text
+      - name: video_id
+        description: "Transcript/video key (passthrough from event_meeting)."
+        data_type: varchar
+      - name: has_transcript
+        description: "True when the meeting has a transcript document."
+        data_type: boolean
+        constraints:
+          - type: not_null
