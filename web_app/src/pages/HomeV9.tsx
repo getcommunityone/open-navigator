@@ -24,8 +24,7 @@ import api from '../lib/api'
 import MoneyGameModal from '../components/MoneyGameModal'
 import FollowTheMoney from '../components/FollowTheMoney'
 import { fetchPolicyQuestions } from '../api/policyQuestions'
-import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
-import { nominatimUsStateCode } from '../utils/stateMapping'
+import { useLocation as useLocationContext } from '../contexts/LocationContext'
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -195,186 +194,14 @@ function StoryRow({ card, lensId, first }: { card: LensCard; lensId: string; fir
   )
 }
 
-// Build a real LocationData from a Nominatim geocode result (same parsing as
-// AddressLookup.processResult). Returns null when no US state resolves — we
-// never fabricate a location.
-function locationFromGeocode(result: any): LocationData | null {
-  if (!result) return null
-  const addr = result.address || {}
-  const stateCode = nominatimUsStateCode(addr) || ''
-  if (!stateCode) return null
-  const county = (addr.county as string) || ''
-  const city =
-    (addr.city as string) ||
-    (addr.town as string) ||
-    (addr.village as string) ||
-    (addr.municipality as string) ||
-    (addr.hamlet as string) ||
-    (addr.suburb as string) ||
-    ''
-  if (!city && !county) return null
-  return {
-    address: result.display_name,
-    state: stateCode,
-    county,
-    city,
-    granularity: !city ? 'county' : undefined,
-    latitude: parseFloat(result.lat),
-    longitude: parseFloat(result.lon),
-  }
-}
-
-// Build the disambiguation choices for a ZIP from its geocode results. A ZIP can
-// span cities and/or land inside vs. outside city limits — and city rates STACK
-// on county rates, so the choice changes the real bill. We surface one chip per
-// distinct city ("inside {city}") plus an "outside city limits" (county-only)
-// option per distinct county. Real geography only — no invented ZIP table.
-function buildZipChoices(results: any[]): { label: string; loc: LocationData }[] {
-  const locs = (Array.isArray(results) ? results : [results])
-    .map(locationFromGeocode)
-    .filter(Boolean) as LocationData[]
-  const cities = new Map<string, LocationData>()
-  const counties = new Map<string, LocationData>()
-  for (const l of locs) {
-    if (l.city) {
-      const k = `${l.city}|${l.county}`
-      if (!cities.has(k)) cities.set(k, l)
-    }
-    if (l.county) {
-      if (!counties.has(l.county)) counties.set(l.county, { ...l, city: '', granularity: 'county' })
-    }
-  }
-  const multiCounty = counties.size > 1
-  const choices: { label: string; loc: LocationData }[] = []
-  for (const l of cities.values()) choices.push({ label: `📍 ${l.city}`, loc: l })
-  for (const l of counties.values()) {
-    choices.push({
-      label: multiCounty ? `🌾 Outside city limits (${l.county})` : '🌾 Outside city limits',
-      loc: l,
-    })
-  }
-  return choices
-}
-
-// ── Money hook (compact banner; REAL geocode + REAL modal) ──────────────────
-// The "How much of your money is on the line?" teal banner. The CTA opens the
-// real <MoneyGameModal> (Census finances + the ACS property-tax estimate +
-// Opportunity Atlas) scoped to the user's place. When we don't yet know where
-// they are, the banner expands to a ZIP entry resolved via the /api/geocode
-// proxy — we never fabricate a location.
+// ── Money hook (compact banner; opens the REAL modal) ───────────────────────
+// The "How much of your money is on the line?" teal banner. The CTA simply opens
+// the real <MoneyGameModal>; the modal itself owns location — if we already know
+// the user's place it loads the bill, otherwise tab 1 shows the "where's home?"
+// ZIP gate. No location is ever fabricated.
 function MoneyHookBanner() {
-  const { location, setLocation } = useLocationContext()
-  const [zip, setZip] = useState('')
+  const { location } = useLocationContext()
   const [modalOpen, setModalOpen] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [locating, setLocating] = useState(false)
-  const [expanded, setExpanded] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  // The place the modal is scoped to — the just-resolved ZIP, else any
-  // already-set community.
-  const [resolved, setResolved] = useState<LocationData | null>(location ?? null)
-  // When a ZIP is ambiguous (spans cities / inside-vs-outside city limits), the
-  // user picks here before the modal opens.
-  const [choices, setChoices] = useState<{ label: string; loc: LocationData }[] | null>(null)
-
-  const zipValid = /^\d{5}$/.test(zip)
-  const scope = resolved ?? location ?? null
-  const needsChoice = !!choices && choices.length > 1
-
-  const openFor = (loc: LocationData) => {
-    setChoices(null)
-    setResolved(loc)
-    setLocation(loc)
-    setModalOpen(true)
-  }
-
-  const resolveZip = async () => {
-    setError(null)
-    setChoices(null)
-    setBusy(true)
-    try {
-      const fwd = await api.get(`/geocode/search`, { params: { q: zip, limit: 10 } })
-      const fwdResults = Array.isArray(fwd.data) ? fwd.data : [fwd.data]
-      // Nominatim's forward ZIP lookup often omits the city — but reverse-geocoding
-      // the ZIP centroid reliably returns it. Merge both so we recover every real
-      // city the ZIP touches (e.g. 35406 → Tuscaloosa), then dedupe in buildZipChoices.
-      let revResults: any[] = []
-      const first = fwdResults.find((r) => r?.lat && r?.lon)
-      if (first) {
-        try {
-          const rev = await api.get(`/geocode/reverse`, { params: { lat: first.lat, lon: first.lon } })
-          revResults = Array.isArray(rev.data) ? rev.data : [rev.data]
-        } catch {
-          /* reverse is best-effort */
-        }
-      }
-      const opts = buildZipChoices([...revResults, ...fwdResults])
-      if (opts.length === 0) {
-        setError("We couldn't find that ZIP. Try another, or use your location.")
-        return
-      }
-      if (opts.length === 1) {
-        openFor(opts[0].loc) // unambiguous → straight to the bill
-      } else {
-        setChoices(opts) // spans cities / city-vs-county → ask first
-      }
-    } catch {
-      setError("We couldn't look up that ZIP right now. Please try again.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  // The button only works with a valid 5-digit ZIP (or "use my location").
-  const handleShow = () => {
-    if (needsChoice || busy) return // waiting on a pick or a lookup
-    if (zipValid) void resolveZip()
-  }
-
-  const useMyLocation = () => {
-    setError(null)
-    if (!navigator.geolocation) {
-      setError('Location services are unavailable. Enter your ZIP instead.')
-      return
-    }
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const res = await api.get(`/geocode/reverse`, {
-            params: { lat: coords.latitude, lon: coords.longitude },
-          })
-          const first = Array.isArray(res.data) ? res.data[0] : res.data
-          const loc = locationFromGeocode(first)
-          if (!loc) {
-            setError("We couldn't pin your location. Enter your ZIP instead.")
-            return
-          }
-          openFor(loc)
-        } catch {
-          setError("We couldn't pin your location. Enter your ZIP instead.")
-        } finally {
-          setLocating(false)
-        }
-      },
-      () => {
-        setLocating(false)
-        setError("We couldn't access your location. Enter your ZIP instead.")
-      },
-      { timeout: 8000 },
-    )
-  }
-
-  // Primary CTA: if we already know the user's place, go straight to the real
-  // bill; otherwise reveal the ZIP entry (we never fabricate a location).
-  const handleCta = () => {
-    if (busy || needsChoice) return
-    if (scope?.state) {
-      setModalOpen(true)
-      return
-    }
-    setExpanded(true)
-  }
 
   return (
     <section style={{ paddingTop: 22 }}>
@@ -401,90 +228,21 @@ function MoneyHookBanner() {
           </div>
         </div>
         <button
-          onClick={handleCta}
+          onClick={() => setModalOpen(true)}
           style={{ background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
         >
-          {busy ? 'Finding…' : 'Show me my money →'}
+          Show me my money →
         </button>
       </div>
 
-      {/* ZIP fallback — only when we don't know the user's place yet. Every town
-          reaches into your pocket differently, so we resolve a real ZIP rather
-          than assume one. */}
-      {expanded && !scope?.state && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 12 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#44403c' }}>
-            What&apos;s your ZIP?
-          </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <input
-              value={zip}
-              onChange={(e) => {
-                setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
-                setError(null)
-                setChoices(null)
-              }}
-              onKeyDown={(e) => e.key === 'Enter' && handleShow()}
-              placeholder="e.g. 35401"
-              inputMode="numeric"
-              autoFocus
-              className="font-mono-x"
-              style={{ width: 150, padding: '12px 14px', fontSize: 16, borderRadius: 999, border: `1.5px solid ${zipValid ? TEAL : '#d6d3d1'}`, outline: 'none', textAlign: 'center', letterSpacing: '0.12em', transition: 'border-color 150ms ease' }}
-            />
-            <button
-              onClick={handleShow}
-              disabled={busy || needsChoice || !zipValid}
-              title={!zipValid ? 'Enter your 5-digit ZIP first' : undefined}
-              style={{ background: zipValid && !needsChoice ? TEAL : '#e7e5e4', color: zipValid && !needsChoice ? '#fff' : '#a8a29e', border: 'none', borderRadius: 999, padding: '12px 24px', fontSize: 15.5, fontWeight: 700, cursor: zipValid && !needsChoice && !busy ? 'pointer' : 'default', fontFamily: 'inherit', transition: 'background 200ms ease, color 200ms ease' }}
-            >
-              {busy ? 'Finding…' : needsChoice ? 'Pick your area first' : 'Show me my money'}
-            </button>
-          </div>
-
-          {/* ZIP disambiguation — real geography: this ZIP spans places / city
-              limits, and city rates stack on the county's, so the choice changes
-              the bill. Picking one opens the modal scoped to it. */}
-          {needsChoice && choices && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#57534e' }}>
-                {zip} crosses jurisdiction lines — where&apos;s home? (City taxes stack on the county&apos;s.)
-              </span>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {choices.map((c, i) => (
-                  <Chip key={c.label + i} onClick={() => openFor(c.loc)} style={{ fontSize: 13.5 }}>
-                    {c.label}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {error && <div style={{ fontSize: 12.5, color: '#b45309', fontWeight: 600 }}>{error}</div>}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button
-              onClick={useMyLocation}
-              style={{ background: 'none', border: 'none', color: TEAL_DARK, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
-            >
-              {locating ? 'Locating…' : '📍 use my location'}
-            </button>
-            <span className="font-mono-x" style={{ fontSize: 10, letterSpacing: '0.05em', color: '#a8a29e', textTransform: 'uppercase' }}>
-              just the ZIP · nothing stored · 15 seconds
-            </span>
-          </div>
-        </div>
-      )}
-
-      {scope?.state && (
-        <MoneyGameModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          stateCode={scope.state}
-          city={scope.city || undefined}
-          county={scope.county || undefined}
-          requestedLabel={scope.city || scope.county || scope.state}
-        />
-      )}
+      <MoneyGameModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        stateCode={location?.state}
+        city={location?.city || undefined}
+        county={location?.county || undefined}
+        requestedLabel={location?.city || location?.county || location?.state || undefined}
+      />
     </section>
   )
 }

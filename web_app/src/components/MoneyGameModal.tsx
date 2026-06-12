@@ -34,6 +34,8 @@ import {
   fetchGrandkidOutlook,
   type GrandkidOutlook as GrandkidOutlookData,
 } from '../api/grandkidOutlook'
+import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
+import { resolveCoordsToLocation, resolveZipToChoices } from '../utils/resolvePlace'
 
 // Match the design prototype's typography (loaded globally by HomeV9): Playfair
 // Display for headlines, Source Sans for body, IBM Plex Mono for mono labels.
@@ -75,8 +77,9 @@ function pct(n: number): string {
 export interface MoneyGameModalProps {
   open: boolean
   onClose: () => void
-  /** 2-letter state code — required to fetch (modal only opens with one). */
-  stateCode: string
+  /** 2-letter state code. Optional: when absent (no known location), the modal's
+   *  first tab shows a "where's home?" ZIP gate instead of the bill. */
+  stateCode?: string
   city?: string
   county?: string
   /** Requested city/county label, for the city→state fallback note. */
@@ -1375,6 +1378,155 @@ function ModalSkeleton() {
 // ===========================================================================
 // The modal.
 // ===========================================================================
+// "First — where's home?" — the in-modal location gate (tab 1) shown when the
+// modal opens without a known place. The ZIP/coords resolve to a REAL place via
+// the shared /api/geocode helpers (never fabricated); a ZIP that spans cities /
+// city-vs-county offers the real choices, since city taxes stack on the county's.
+function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }) {
+  const [zip, setZip] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [choices, setChoices] = useState<{ label: string; loc: LocationData }[] | null>(null)
+
+  const zipValid = /^\d{5}$/.test(zip)
+  const needsChoice = !!choices && choices.length > 1
+
+  const resolveZip = async () => {
+    setError(null)
+    setChoices(null)
+    setBusy(true)
+    try {
+      const opts = await resolveZipToChoices(zip)
+      if (opts.length === 0) {
+        setError("We couldn't find that ZIP. Try another, or use your location.")
+      } else if (opts.length === 1) {
+        onResolved(opts[0].loc)
+      } else {
+        setChoices(opts)
+      }
+    } catch {
+      setError("We couldn't look up that ZIP right now. Please try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleShow = () => {
+    if (busy || needsChoice) return
+    if (zipValid) void resolveZip()
+  }
+
+  const useMyLocation = () => {
+    setError(null)
+    if (!navigator.geolocation) {
+      setError('Location services are unavailable. Enter your ZIP instead.')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const loc = await resolveCoordsToLocation(coords.latitude, coords.longitude)
+          if (!loc) {
+            setError("We couldn't pin your location. Enter your ZIP instead.")
+            return
+          }
+          onResolved(loc)
+        } catch {
+          setError("We couldn't pin your location. Enter your ZIP instead.")
+        } finally {
+          setLocating(false)
+        }
+      },
+      () => {
+        setLocating(false)
+        setError("We couldn't access your location. Enter your ZIP instead.")
+      },
+      { timeout: 8000 },
+    )
+  }
+
+  return (
+    <div className="rounded-2xl border border-[#d4e8e8] bg-white px-5 py-8 text-center sm:py-10">
+      <h3 className="text-[22px] font-semibold text-[#0f2b2b]" style={SERIF}>
+        First — where&apos;s home?
+      </h3>
+      <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+        Every town reaches into your pocket a little differently. Just the ZIP — nothing stored.
+      </p>
+
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+        <input
+          value={zip}
+          onChange={(e) => {
+            setZip(e.target.value.replace(/\D/g, '').slice(0, 5))
+            setError(null)
+            setChoices(null)
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && handleShow()}
+          placeholder="e.g. 35401"
+          inputMode="numeric"
+          autoFocus
+          className="w-40 rounded-full border-[1.5px] px-4 py-3 text-center text-[16px] tracking-[0.12em] outline-none transition-colors"
+          style={{ ...MONO, borderColor: zipValid ? '#1a6b6b' : '#d4e8e8' }}
+        />
+        <button
+          type="button"
+          onClick={handleShow}
+          disabled={busy || needsChoice || !zipValid}
+          className="rounded-full px-6 py-3 text-[15px] font-semibold text-white transition-colors"
+          style={{
+            ...FONT,
+            backgroundColor: zipValid && !needsChoice ? '#1a6b6b' : '#cfe0e0',
+            cursor: zipValid && !needsChoice && !busy ? 'pointer' : 'default',
+          }}
+        >
+          {busy ? 'Finding…' : needsChoice ? 'Pick your area' : 'Show me my money'}
+        </button>
+      </div>
+
+      {/* Real geography: this ZIP spans places / city limits, and city rates stack
+          on the county's, so the choice changes the bill. */}
+      {needsChoice && choices && (
+        <div className="mt-4">
+          <p className="text-[13px] font-semibold text-[#56635e]" style={FONT}>
+            {zip} crosses jurisdiction lines — where&apos;s home? (City taxes stack on the county&apos;s.)
+          </p>
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            {choices.map((c, i) => (
+              <button
+                key={c.label + i}
+                type="button"
+                onClick={() => onResolved(c.loc)}
+                className="rounded-full border border-[#d4e8e8] bg-white px-4 py-2 text-[13.5px] font-semibold text-[#0f2b2b] transition-colors hover:border-[#1a6b6b]"
+                style={FONT}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-3 text-[12.5px] font-semibold text-[#b45309]" style={FONT}>
+          {error}
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={useMyLocation}
+        className="mt-4 block w-full text-[13px] font-semibold text-[#0f766e] transition-colors hover:underline"
+        style={FONT}
+      >
+        {locating ? 'Locating…' : '📍 or use my location'}
+      </button>
+    </div>
+  )
+}
+
 export default function MoneyGameModal({
   open,
   onClose,
@@ -1383,12 +1535,41 @@ export default function MoneyGameModal({
   county,
   requestedLabel,
 }: MoneyGameModalProps) {
+  const { location, setLocation } = useLocationContext()
+
+  // The place the bill is scoped to. Seeded from props (the banner passes the
+  // known location), else the resolved context location; when neither exists,
+  // tab 1 shows the "where's home?" gate and `place` is filled from it.
+  const [place, setPlace] = useState<LocationData | null>(null)
+  useEffect(() => {
+    if (!open) return
+    if (stateCode) {
+      setPlace({ state: stateCode, city: city || '', county: county || '', address: requestedLabel || '' })
+    } else if (location?.state) {
+      setPlace(location)
+    }
+    // else: leave null → the gate is shown.
+  }, [open, stateCode, city, county]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scopeState = place?.state
+  const scopeCity = place?.city || undefined
+  const scopeCounty = place?.county || undefined
+  const hasPlace = !!scopeState
+
+  const onResolvePlace = useCallback(
+    (loc: LocationData) => {
+      setPlace(loc)
+      setLocation(loc) // persist the choice site-wide, like the home banner
+    },
+    [setLocation],
+  )
+
   // Combined city + county + school-district budget — the full local government
   // a resident funds, so the guessing game's "Education" reflects real K-12.
   const { data, isLoading, isError } = useQuery<CombinedFinance>({
-    queryKey: ['combined-finance', stateCode, city, county],
-    queryFn: () => fetchCombinedFinance({ state: stateCode, city, county }),
-    enabled: open && !!stateCode,
+    queryKey: ['combined-finance', scopeState, scopeCity, scopeCounty],
+    queryFn: () => fetchCombinedFinance({ state: scopeState as string, city: scopeCity, county: scopeCounty }),
+    enabled: open && hasPlace,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -1434,9 +1615,9 @@ export default function MoneyGameModal({
     return { score: Math.max(0, Math.min(100, 100 - totalError / 2)), totalError }
   }, [revealed, game, guesses])
 
-  // The place the bill is scoped to (the user's CHOSEN place, else the matched
+  // Human label for the scoped place (the user's CHOSEN place, else the matched
   // jurisdiction). Drives the subtitle; the title stays place-agnostic.
-  const placeName = requestedLabel || data?.jurisdiction_name || null
+  const placeName = scopeCity || scopeCounty || requestedLabel || data?.jurisdiction_name || null
   const title = 'Your money, mapped'
 
   return (
@@ -1488,13 +1669,17 @@ export default function MoneyGameModal({
                 </Dialog.Title>
 
                 {/* Subtitle — prototype-style, all real data. */}
-                {data && (
-                  <p className="mt-1 text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-                    {placeName || data.jurisdiction_name}
-                    {data.state_code ? `, ${data.state_code}` : ''} · starts at the median household —
-                    adjust the sliders to make it yours.
-                  </p>
-                )}
+                <p className="mt-1 text-[13px] leading-relaxed text-[#6b8a8a]" style={FONT}>
+                  {hasPlace ? (
+                    <>
+                      {placeName || data?.jurisdiction_name}
+                      {data?.state_code ? `, ${data.state_code}` : ''} · starts at the median household —
+                      adjust the sliders to make it yours.
+                    </>
+                  ) : (
+                    <>First, tell us where home is — every town reaches into your pocket a little differently.</>
+                  )}
+                </p>
 
                 {/* Stacked-governments callout — the FULL local government a
                     resident funds (city + county + their school district), so
@@ -1507,15 +1692,16 @@ export default function MoneyGameModal({
                   </p>
                 )}
 
-                {/* Step indicator (1 · Your bill → 2 · The guessing game → 3 · The grandkids). */}
-                {data && (
-                  <div className="mt-3.5 flex flex-wrap gap-2">
-                    {([
-                      ['estimate', '1 · Your bill'],
-                      ['game', '2 · The guessing game'],
-                      ['grandkids', '3 · The grandkids'],
-                    ] as const).map(([key, label]) => {
-                      const unlocked = key !== 'grandkids' || revealed
+                {/* Step indicator (1 · Your bill → 2 · The guessing game → 3 · The grandkids).
+                    Tab 1 is always available (it hosts the "where's home?" gate); the
+                    others unlock once a place is chosen and its data has loaded. */}
+                <div className="mt-3.5 flex flex-wrap gap-2">
+                  {([
+                    ['estimate', '1 · Your bill'],
+                    ['game', '2 · The guessing game'],
+                    ['grandkids', '3 · The grandkids'],
+                  ] as const).map(([key, label]) => {
+                      const unlocked = key === 'estimate' ? true : key === 'game' ? !!data : revealed
                       const active = stage === key
                       return (
                         <button
@@ -1536,10 +1722,12 @@ export default function MoneyGameModal({
                       )
                     })}
                   </div>
-                )}
 
                 <div className="mt-4">
-                  {isLoading ? (
+                  {!hasPlace ? (
+                    /* ── Tab 1 gate: resolve a real place before any bill ── */
+                    <WhereIsHome onResolved={onResolvePlace} />
+                  ) : isLoading ? (
                     <ModalSkeleton />
                   ) : isError || !data ? (
                     <div className="rounded-2xl border border-dashed border-[#d4e8e8] bg-white p-10 text-center">
@@ -1553,9 +1741,9 @@ export default function MoneyGameModal({
                       {stage === 'estimate' && (
                         <YourBill
                           open={open}
-                          stateCode={stateCode}
-                          city={city}
-                          county={county}
+                          stateCode={scopeState as string}
+                          city={scopeCity}
+                          county={scopeCounty}
                           jurisdictionName={data.jurisdiction_name}
                           onContinue={() => setStage('game')}
                         />
@@ -1600,9 +1788,9 @@ export default function MoneyGameModal({
                             <LevelBreakdown
                               open={open}
                               level={spendingLevel}
-                              stateCode={stateCode}
-                              city={city}
-                              county={county}
+                              stateCode={scopeState as string}
+                              city={scopeCity}
+                              county={scopeCounty}
                               onNoData={markLevelNoData}
                             />
                           )}
@@ -1651,7 +1839,7 @@ export default function MoneyGameModal({
                       {/* ── Stage 3: The grandkids ── */}
                       {stage === 'grandkids' && (
                         <div>
-                          <GrandkidsForecast open={open} stateCode={stateCode} city={city} />
+                          <GrandkidsForecast open={open} stateCode={scopeState as string} city={scopeCity} />
 
                           <div className="mt-5 rounded-2xl bg-[#1a6b6b] p-6 text-white">
                             <div className="flex flex-wrap items-center gap-5">

@@ -83,3 +83,14 @@ export async function resolveZipToChoices(zip: string): Promise<{ label: string;
   }
   return buildZipChoices([...revResults, ...fwdResults])
 }
+
+// Reverse-geocode a lat/lon (e.g. the browser's geolocation) to a real place.
+// Returns null when no US state resolves — we never fabricate a location.
+export async function resolveCoordsToLocation(
+  lat: number,
+  lon: number,
+): Promise<LocationData | null> {
+  const res = await api.get(`/geocode/reverse`, { params: { lat, lon } })
+  const first = Array.isArray(res.data) ? res.data[0] : res.data
+  return locationFromGeocode(first)
+}
