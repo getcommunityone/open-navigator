@@ -83,8 +83,16 @@ create table if not exists bronze.bronze_policy_question (
     first_seen    timestamptz,
     member_count  integer,
     model_name    text,
+    -- Optional alternate search terms (brand/colloquial names not in the neutral
+    -- canonical_text). Promoted to public.policy_question.aliases (text[]) and
+    -- matched alongside canonical_text by /search.
+    aliases       text[],
     built_at      timestamptz default now()
 );
+
+-- Idempotent add for warehouses where the table predates the aliases column
+-- (create-if-not-exists above won't alter an existing table).
+alter table bronze.bronze_policy_question add column if not exists aliases text[];
 
 create table if not exists bronze.bronze_canonical_argument (
     argument_id  text primary key,

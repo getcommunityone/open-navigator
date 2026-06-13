@@ -101,3 +101,10 @@ models:
           instances_total as a percent of the total count of all civic decisions
           — the question's slice of how often local government acts.
         data_type: double precision
+      - name: aliases
+        description: >
+          Alternate search terms for the question (brand/colloquial names not in
+          the neutral canonical_text, e.g. {airbnb,vrbo} for short-term rentals).
+          Matched alongside canonical_text by /search so a query for an alias
+          still finds the renamed question. Empty array when none.
+        data_type: text[]

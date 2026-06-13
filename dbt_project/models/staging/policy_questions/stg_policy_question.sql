@@ -11,6 +11,7 @@ select
     coalesce(status, 'active')  as status,
     first_seen,
     coalesce(member_count, 0)   as member_count,
+    coalesce(aliases, array[]::text[]) as aliases,
     model_name
 from src
 where question_id is not null

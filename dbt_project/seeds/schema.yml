@@ -88,6 +88,13 @@ seeds:
         tests:
           - unique
           - not_null
+      - name: aliases
+        description: >
+          Optional pipe-delimited ('|') list of alternate search terms for the
+          question (e.g. brand/colloquial names that no longer appear in the
+          neutral canonical_text). Split into a text[] in the policy_question
+          mart and matched alongside canonical_text by /search. Empty for most
+          rows; e.g. the short-term-rental question carries 'airbnb|vrbo'.
 
   - name: curated_question_instance
     description: >
