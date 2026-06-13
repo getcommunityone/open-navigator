@@ -98,6 +98,7 @@ seeds:
         topic_code: text
         cofog_code: text
         display_order: integer
+        aliases: text
     curated_question_instance:
       # Hand-verified real decisions attached to featured questions. Pin text
       # types so empty cells (library rows have no state/jurisdiction/city) don't

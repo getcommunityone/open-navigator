@@ -1236,7 +1236,13 @@ async def count_questions(query: Optional[str] = None, question_id: Optional[str
                 where_clauses.append("is_featured = true")
 
                 if has_query:
-                    where_clauses.append(f"canonical_text ILIKE ${idx}")
+                    # Mirror search_questions_pg: match canonical_text OR any alias
+                    # (e.g. 'airbnb'/'vrbo' -> short-term-rental question) so the
+                    # tab count agrees with the returned results.
+                    where_clauses.append(
+                        f"(canonical_text ILIKE ${idx} "
+                        f"OR EXISTS (SELECT 1 FROM unnest(aliases) a WHERE a ILIKE ${idx}))"
+                    )
                     params.append(f"%{q}%")
                     idx += 1
 
