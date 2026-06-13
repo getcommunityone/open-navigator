@@ -516,6 +516,7 @@ def build_pipeline_namespace(
     model: str,
     database_url: str,
     limit: Optional[int],
+    prompt_file: str = "",
 ) -> argparse.Namespace:
     """Mirror the working CLI invocation as a fully-populated Namespace.
 
@@ -538,6 +539,8 @@ def build_pipeline_namespace(
     ns.state = plan.state_code or "AL"
     ns.database_url = database_url
     ns.limit = limit
+    if prompt_file:
+        ns.prompt_file = prompt_file
     return ns
 
 
@@ -618,6 +621,7 @@ def run_backlog(args: argparse.Namespace) -> None:
                 model=live_model,
                 database_url=database_url,
                 limit=args.limit_per_jurisdiction,
+                prompt_file=getattr(args, "prompt_file", "") or "",
             )
             model = ns.model
             logger.info(
@@ -776,6 +780,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Max videos per jurisdiction per pass (passthrough to args.limit; default: all)",
+    )
+    parser.add_argument(
+        "--prompt-file",
+        default="",
+        help="Part-1 prompt passed through to run_pipeline (default: pipeline default). "
+        "Use prompts/policy_analysis_lite.md for the cheap decisions+classification pass.",
     )
     parser.add_argument(
         "--max-jurisdictions",

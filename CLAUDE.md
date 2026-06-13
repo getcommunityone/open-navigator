@@ -68,6 +68,30 @@
 - **Formatting:** kebab-case filenames, YAML frontmatter included, lowercase only.
 - **Root:** No `.md` files in root except `README`, `LICENSE`, and `CONTRIBUTING`.
 
+## Frontend UX — Scope Label Must Match the Active Filter (MANDATORY, SITE-WIDE)
+This rule governs every scoped/browse/list/search surface in `web_app/` — not just Browse Causes.
+
+- **The visible scope label is the single source of truth for what the data is filtered to, and it MUST match the active filter exactly.** Whatever filter is in effect, the label next to the page/section title states it precisely:
+  - National / no geo filter → show **`National`** (or no place qualifier), never a stale city/state.
+  - State filter → show the **state** (e.g. `Browse Causes · Alabama` / `All of AL`).
+  - City / jurisdiction filter → show the **city/jurisdiction** (e.g. `Browse Causes · Tuscaloosa`).
+  - Same idea for non-geo dimensions (topic, cause, date range, entity type, source): the label names the actual scope in effect.
+- **Label and data move together — atomically.** Changing the filter must update the label, the underlying query, and the rendered results in lockstep. A label that says one scope while the data reflects another (or vice-versa) is a bug. The label is never decorative: it always corresponds to a real, applied filter (see No Fabricated Data — don't show a "Tuscaloosa" chip over national data).
+- **Filters carry over across navigation.** A scope the user picks travels to every page where it applies (Browse Topics/Causes/Questions, Search, decision/meeting lists, maps…). Never silently drop or reset a filter on navigation; if a destination genuinely can't honor it (data isn't at that grain), surface that explicitly rather than pretending it applied.
+- **Carry scope via the URL** (e.g. `?state=AL&city=Tuscaloosa`, `?scope=national`) so it survives refresh / deep-link / back-button and is the authority both the label and the API query read from. The entry point appends the params; the destination reads them (`useSearchParams`) and renders the matching label.
+- **Let the user see and change the active scope in place** — e.g. the `📍 Tuscaloosa` / `All of AL` toggle — and broaden up the hierarchy (city → state → national) without losing context.
+- **Canonical reference:** `web_app/src/pages/BrowseTopics.tsx` and `BrowseCauses.tsx` — read `?state=&city=`, render the scope label + a one-click broaden control, and forward the scope into `DecisionCardList` and the API. New scoped surfaces must follow this pattern.
+
+## Frontend UX — Show the Match Evidence on Filtered Tiles (MANDATORY, SITE-WIDE)
+When a result tile/card is shown **because of a topic, keyword, cause, question, or any other content filter**, the tile MUST show the evidence for *why it matched* — a real quote/passage from the underlying record — not just a title, badge, and date. A user looking at "36 results for 'fluoride'" must be able to see *where* fluoride appears in each result without clicking in.
+
+- **Show the matched passage, quoted.** Surface the actual text from the transcript, decision statement, summary, agenda/minutes, or bill that contains the filter term. It must be a verbatim excerpt of the real record — never paraphrased, summarized, or fabricated (see No Fabricated Data).
+- **Highlight the matched terms.** The matched keyword(s) within the excerpt are visibly marked so the association is unmistakable (the convention here is server-side `ts_headline(... StartSel=<mark>, StopSel=</mark>)` → the `highlightSnippet()` helper renders `<mark>` segments React-escaped, never `dangerouslySetInnerHTML`).
+- **Backend produces the evidence; the tile renders it.** The search/filter SQL emits the highlighted snippet (e.g. `ts_headline` over the searchable text), returned in the result's `description`. The card component renders it under the title (e.g. `StoryCard`'s `excerpt`, clamped so it can't blow out tile height). Every result *type* the filter can return (meetings, transcripts/documents, decisions, bills, …) carries its own snippet.
+- **No filter term in the record ⇒ it should not be a result.** If you cannot produce a real matched passage for a tile under an active content filter, that is a signal the match is spurious (or matched only on metadata) — surface *that* honestly; do not invent a quote to justify the tile.
+- **Plain browse (no content filter) is exempt.** With no topic/keyword filter in effect there's nothing to "highlight"; a contextual lead-in (e.g. the start of the decision statement) is fine. The requirement applies whenever a content filter is what produced the result set.
+- **Canonical reference:** `api/routes/search_postgres.py` (`ts_headline` snippet → `SearchResult.description` for the meeting, document, and decision legs) feeding `web_app/src/pages/UnifiedSearch.tsx` (`toStoryCard` / `toTranscriptCard` → `StoryCard.excerpt` via `highlightSnippet`). New filtered surfaces must follow this pattern.
+
 ## Code Style
 - **Python:** Type hints, PEP 8, `pathlib`.
 - **React:** Functional components, TypeScript interfaces, Tailwind CSS.
