@@ -43,7 +43,8 @@ clustered as (
         q.model_name,
         false                                          as is_featured,
         cast(null as integer)                          as display_order,
-        coalesce(r.money_total, 0)::numeric            as money_total
+        coalesce(r.money_total, 0)::numeric            as money_total,
+        coalesce(q.aliases, array[]::text[])           as aliases
     from q
     left join rollup r using (question_id)
 ),
@@ -54,7 +55,17 @@ curated_base as (
         nullif(topic_code, '')                         as topic_code,
         primary_theme,
         nullif(cofog_code, '')                         as cofog_code,
-        display_order::integer                         as display_order
+        display_order::integer                         as display_order,
+        -- Seed stores aliases pipe-delimited ('airbnb|vrbo'); split to a text[]
+        -- and trim blanks so an empty cell yields an empty array, not [''].
+        coalesce(
+            array(
+                select trim(a)
+                from unnest(string_to_array(aliases, '|')) as a
+                where trim(coalesce(a, '')) <> ''
+            ),
+            array[]::text[]
+        )                                              as aliases
     from {{ ref('curated_policy_questions') }}
 ),
 curated as (
@@ -81,7 +92,8 @@ curated as (
         'curated'                                      as model_name,
         true                                           as is_featured,
         b.display_order,
-        coalesce(r.money_total, 0)::numeric            as money_total
+        coalesce(r.money_total, 0)::numeric            as money_total,
+        b.aliases
     from curated_base b
     left join rollup r using (question_id)
 ),

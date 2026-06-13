@@ -1,6 +1,6 @@
-canonical_text,primary_theme,topic_code,cofog_code,display_order
-Should the jurisdiction adjust its water fluoridation policy?,health,,,1
-Should police use automated license plate readers?,public_safety,,,2
-Should the jurisdiction award no-bid contracts?,government_operations,,,3
-Should Airbnb and Vrbo be restricted or taxed?,housing,,,4
-Should the jurisdiction cooperate with federal immigration enforcement?,public_safety,,,5
+canonical_text,primary_theme,topic_code,cofog_code,display_order,aliases
+Should the jurisdiction adjust its water fluoridation policy?,health,,,1,
+Should police use automated license plate readers?,public_safety,,,2,
+Should the jurisdiction award no-bid contracts?,government_operations,,,3,
+Should short term rentals be restricted or taxed?,housing,,,4,airbnb|vrbo
+Should the jurisdiction cooperate with federal immigration enforcement?,public_safety,,,5,

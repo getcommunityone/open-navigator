@@ -2401,7 +2401,14 @@ async def search_questions_pg(
 
         has_query = bool(query and query.strip())
         if has_query:
-            where_conditions.append(f"canonical_text ILIKE ${param_idx}")
+            # Match the neutral canonical_text OR any registered alias (brand/
+            # colloquial terms not in the canonical phrasing, e.g. 'airbnb'/'vrbo'
+            # for the short-term-rental question). EXISTS over unnest(aliases) so a
+            # substring query still hits a single alias element.
+            where_conditions.append(
+                f"(canonical_text ILIKE ${param_idx} "
+                f"OR EXISTS (SELECT 1 FROM unnest(aliases) a WHERE a ILIKE ${param_idx}))"
+            )
             params.append(f"%{query.strip()}%")
             param_idx += 1
             # Shorter (more specific) canonical_text first, then by reach.
