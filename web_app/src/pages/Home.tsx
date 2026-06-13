@@ -32,13 +32,6 @@ import {
   CodeBracketIcon,
   BanknotesIcon,
 } from '@heroicons/react/24/outline'
-import {
-  EXPLORE_BUILD_ID,
-  EXPLORE_CAUSES_ID,
-  EXPLORE_FIND_HELP_ID,
-  EXPLORE_PLAN_ID,
-  EXPLORE_TRACK_DECISIONS_ID,
-} from '../data/exploreActionPhases'
 import { useAuth } from '../contexts/AuthContext'
 import AddressLookup from '../components/AddressLookup'
 import StoryLenses from '../components/StoryLenses'
@@ -203,7 +196,7 @@ const HERO_SEARCH_TAB_DEFS: {
   // Meeting transcripts (full-text). Most policy terms (e.g. "fluoride") are
   // discussed in the transcript body, not in meeting titles or extracted
   // decisions — so this is often the only category that surfaces them.
-  { id: 'transcripts', label: 'Transcripts', types: 'documents', activity: true, filterPlaceholder: 'Filter meeting transcripts by topic…' },
+  { id: 'transcripts', label: 'Videos', types: 'documents', activity: true, filterPlaceholder: 'Filter meeting transcripts by topic…' },
   { id: 'decisions', label: 'Decisions', types: 'decisions', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
   { id: 'leaders', label: 'Leaders', types: 'leaders', filterPlaceholder: 'Filter leaders by name or office…' },
   // Nonprofit board members / officers — distinct from civic `leaders`. No
@@ -2175,31 +2168,31 @@ export default function Home() {
             {(
               [
                 {
-                  href: `/explore#${EXPLORE_CAUSES_ID}`,
+                  href: '/browse-causes',
                   Icon: MapPinIcon,
                   title: 'Choose a cause',
                   blurb: 'Roads, schools, safety, family, health, or something else.',
                 },
                 {
-                  href: `/explore#${EXPLORE_PLAN_ID}`,
+                  href: '/browse-topics',
                   Icon: ClipboardDocumentListIcon,
                   title: 'Make a plan',
                   blurb: 'Personal and community paths, allies, and outcomes.',
                 },
                 {
-                  href: `/explore#${EXPLORE_FIND_HELP_ID}`,
+                  href: '/nonprofits',
                   Icon: HeartIcon,
                   title: 'Find help',
                   blurb: 'Nonprofits, programs, and family supports.',
                 },
                 {
-                  href: `/explore#${EXPLORE_TRACK_DECISIONS_ID}`,
+                  href: '/documents',
                   Icon: ChartBarIcon,
                   title: 'Track decisions',
                   blurb: 'Meetings, budgets, maps, and verification.',
                 },
                 {
-                  href: `/explore#${EXPLORE_BUILD_ID}`,
+                  href: '/data-explorer',
                   Icon: CodeBracketIcon,
                   title: 'Build with data',
                   blurb: 'Open datasets, APIs, and civic tooling.',

@@ -8,6 +8,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { fetchDecisions, type DecisionSort } from '../api/decisions'
 import { StoryCard, toRenderCards, CONTESTED_LENS } from './StoryLenses'
+import StateSelect from './StateSelect'
 
 /**
  * DecisionCardList — a reusable, meeting-level decision browser.
@@ -30,7 +31,11 @@ const SORTS: { id: DecisionSort; label: string }[] = [
 ]
 
 interface DecisionCardListProps {
-  topicId?: number
+  /** One or more civicsearch topic ids — decisions matching ANY are shown. */
+  topicIds?: number[]
+  /** EveryOrg cause slug — scopes decisions to that cause via the decision-text
+   *  keyword path (cause -> decision -> meeting, transcript fallback). */
+  causeId?: string
   questionId?: string
   /** Meeting id — drill into a single meeting's decisions. */
   meetingId?: number
@@ -48,7 +53,8 @@ interface DecisionCardListProps {
 }
 
 export default function DecisionCardList({
-  topicId,
+  topicIds,
+  causeId,
   questionId,
   meetingId,
   state,
@@ -65,13 +71,17 @@ export default function DecisionCardList({
   const [sort, setSort] = useState<DecisionSort>('contested')
   const [page, setPage] = useState(0)
 
-  // Advanced filters — only used when this page doesn't already scope to a
-  // fixed state/city via props. Raw inputs are debounced before hitting the API.
+  // State / city filters live in the flyout and are the single source of truth.
+  // They SEED from the `state`/`city` props (e.g. a place carried in from the
+  // homepage URL) but stay user-editable — so the flyout works on every page,
+  // not just the unscoped ones. The parent remounts us (via `key`) when its own
+  // scope changes, which re-seeds these. City stays free-text; state is a
+  // canonical dropdown. Raw inputs are debounced before hitting the API.
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [rawState, setRawState] = useState('')
-  const [rawCity, setRawCity] = useState('')
-  const [debouncedState, setDebouncedState] = useState('')
-  const [debouncedCity, setDebouncedCity] = useState('')
+  const [rawState, setRawState] = useState(state ?? '')
+  const [rawCity, setRawCity] = useState(city ?? '')
+  const [debouncedState, setDebouncedState] = useState(state ?? '')
+  const [debouncedCity, setDebouncedCity] = useState(city ?? '')
 
   // Session-local "saved" bookmarks, keyed like the homepage carousel.
   const [savedKeys, setSavedKeys] = useState<Set<string>>(() => new Set())
@@ -95,15 +105,19 @@ export default function DecisionCardList({
     return () => clearTimeout(t)
   }, [rawQuery, rawState, rawCity])
 
+  // Stable key/value for the topic-id set (order-independent) used in the
+  // query cache key and effect deps.
+  const topicKey = (topicIds ?? []).join(',')
+
   // Reset to the first page when the scope or sort changes.
   useEffect(() => {
     setPage(0)
-  }, [topicId, questionId, meetingId, state, city, sort])
+  }, [topicKey, causeId, questionId, meetingId, sort])
 
   const q = debouncedQuery || undefined
-  // Prop scope wins; otherwise fall back to the advanced-filter inputs.
-  const effectiveState = state ?? (debouncedState || undefined)
-  const effectiveCity = city ?? (debouncedCity || undefined)
+  // The flyout inputs (seeded from props) are authoritative for state/city.
+  const effectiveState = debouncedState || undefined
+  const effectiveCity = debouncedCity || undefined
   // Count of active filters, for the Filters button badge: non-default sort
   // plus any state/city narrowing.
   const advancedCount = (rawState.trim() ? 1 : 0) + (rawCity.trim() ? 1 : 0)
@@ -112,7 +126,8 @@ export default function DecisionCardList({
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: [
       'decisions',
-      topicId ?? null,
+      topicKey || null,
+      causeId ?? null,
       questionId ?? null,
       meetingId ?? null,
       effectiveState ?? null,
@@ -123,7 +138,8 @@ export default function DecisionCardList({
     ],
     queryFn: () =>
       fetchDecisions({
-        topicId,
+        topicIds: topicIds && topicIds.length ? topicIds : undefined,
+        causeId,
         questionId,
         meetingId,
         state: effectiveState,
@@ -136,7 +152,7 @@ export default function DecisionCardList({
     placeholderData: keepPreviousData,
   })
 
-  const unscoped = !state && !city
+  const unscoped = !effectiveState && !effectiveCity
   const cards = useMemo(() => toRenderCards(data?.items ?? [], unscoped), [data, unscoped])
 
   const total = data?.pagination.total ?? 0
@@ -252,11 +268,9 @@ export default function DecisionCardList({
                 <div className="grid grid-cols-1 gap-3">
                   <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
                     State
-                    <input
-                      type="text"
+                    <StateSelect
                       value={rawState}
-                      onChange={(e) => setRawState(e.target.value)}
-                      placeholder="e.g. MA or Massachusetts"
+                      onChange={setRawState}
                       className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </label>

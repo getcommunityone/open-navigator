@@ -30,7 +30,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from '../utils/formatters'
 import MeetingThumbnail from '../components/MeetingThumbnail'
-import { StoryCard, CONTESTED_LENS, type RenderCard } from '../components/StoryLenses'
+import { StoryCard, CONTESTED_LENS, TRANSCRIPT_LENS, type RenderCard } from '../components/StoryLenses'
 
 type SearchResultType =
   | 'leader'
@@ -143,7 +143,7 @@ const RESULT_TYPES = [
   // 'documents' = meeting transcripts (full-text searched). Most fluoride/
   // policy-term hits live in the transcript body, not in meeting titles or
   // extracted decisions, so this is often the only category that surfaces them.
-  { type: 'documents', label: 'Transcripts' },
+  { type: 'documents', label: 'Videos' },
   { type: 'bills', label: 'Bills' },
   { type: 'topics', label: 'Topics' },
   { type: 'decisions', label: 'Decisions' },
@@ -170,7 +170,7 @@ const RESULT_TABS = [
   { key: 'organizations', label: 'Organizations' },
   { key: 'causes', label: 'Causes' },
   { key: 'meetings', label: 'Meetings' },
-  { key: 'documents', label: 'Transcripts' },
+  { key: 'documents', label: 'Videos' },
   { key: 'bills', label: 'Bills' },
   { key: 'topics', label: 'Topics' },
   { key: 'questions', label: 'Questions' },
@@ -178,6 +178,30 @@ const RESULT_TABS = [
   { key: 'grant_opportunities', label: 'Grant Opportunities' },
   { key: 'jurisdictions', label: 'Jurisdictions' },
 ] as const
+
+// Advanced "Cause" filter options — the EveryOrg cause taxonomy. The `id` is the
+// cause slug the API's CAUSE_KEYWORDS map / ?cause_id= expects; KEEP IN SYNC with
+// api/routes/search.py CAUSE_KEYWORDS. A cause narrows decisions/meetings/topics
+// to its keyword set, matched through child decisions then transcript content.
+const CAUSE_OPTIONS: { id: string; label: string }[] = [
+  { id: 'animals', label: 'Animals' },
+  { id: 'arts', label: 'Arts & Culture' },
+  { id: 'climate', label: 'Climate' },
+  { id: 'disasters', label: 'Disaster Relief' },
+  { id: 'education', label: 'Education' },
+  { id: 'environment', label: 'Environment' },
+  { id: 'foodbanks', label: 'Food & Hunger' },
+  { id: 'health', label: 'Health' },
+  { id: 'humanitarian', label: 'Humanitarian' },
+  { id: 'justice', label: 'Justice & Equity' },
+  { id: 'lgbt', label: 'LGBTQ' },
+  { id: 'mental-health', label: 'Mental Health' },
+  { id: 'religion', label: 'Religion' },
+  { id: 'seniors', label: 'Seniors' },
+  { id: 'water', label: 'Water' },
+  { id: 'women', label: 'Women' },
+  { id: 'youth', label: 'Youth' },
+]
 
 // Stable dot color for a cause/NTEE string (small palette, hashed by key).
 const CAUSE_DOT_PALETTE = [
@@ -331,6 +355,23 @@ function TopicTypeahead({
   )
 }
 
+// Render a ts_headline snippet (matched passage wrapped in literal
+// <mark>…</mark> markers) as highlighted React nodes WITHOUT
+// dangerouslySetInnerHTML: split on the markers and wrap the odd segments in
+// <mark>, so every text segment is React-escaped and the raw transcript body
+// can never inject markup. Shared by the transcript tiles + the list card.
+function highlightSnippet(text: string) {
+  return text.split(/<\/?mark>/).map((seg, i) =>
+    i % 2 === 1 ? (
+      <mark key={i} className="bg-yellow-200 text-gray-900 rounded px-0.5">
+        {seg}
+      </mark>
+    ) : (
+      <span key={i}>{seg}</span>
+    ),
+  )
+}
+
 export default function UnifiedSearch() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -392,6 +433,7 @@ export default function UnifiedSearch() {
   // Advanced "Topic" (named civic-topic catalog) + "Question" (policy-question
   // registry) filters. Held as the raw id string the <select> binds to.
   const [selectedTopicId, setSelectedTopicId] = useState(() => searchParams.get('topic_id') || '')
+  const [selectedCauseId, setSelectedCauseId] = useState(() => searchParams.get('cause_id') || '')
   const [selectedQuestionId, setSelectedQuestionId] = useState(() => searchParams.get('question_id') || '')
   const [includeFullText, setIncludeFullText] = useState(() => searchParams.get('full_text') === 'true')
   const [jurisdictionDetails, setJurisdictionDetails] = useState<any[]>(() => {
@@ -452,6 +494,7 @@ export default function UnifiedSearch() {
     sortBy !== 'relevance' ? 'sorted' : null,
     nteeCategory,
     selectedTopicId,
+    selectedCauseId,
     selectedQuestionId,
     includeFullText ? 'full text' : null,
     typesNarrowed ? 'types' : null,
@@ -498,11 +541,13 @@ export default function UnifiedSearch() {
     searchParams.get('sort') // Read but don't store
     searchParams.get('ntee') // Read but don't store
     const topicIdParam = searchParams.get('topic_id')
+    const causeIdParam = searchParams.get('cause_id')
     const questionIdParam = searchParams.get('question_id')
     const jurisdictionDetailsParam = searchParams.get('jurisdiction_details')
 
-    // Keep the advanced Topic/Question filters in sync with the URL (back/forward).
+    // Keep the advanced Topic/Cause/Question filters in sync with the URL (back/forward).
     setSelectedTopicId(topicIdParam || '')
+    setSelectedCauseId(causeIdParam || '')
     setSelectedQuestionId(questionIdParam || '')
     
     if (queryParam) {
@@ -617,6 +662,7 @@ export default function UnifiedSearch() {
     !!searchParams.get('types') ||
     selectedEin !== '' ||
     selectedTopicId !== '' ||
+    selectedCauseId !== '' ||
     selectedQuestionId !== ''
 
   // Build the shared /search params (everything except per-tab paging). `types`
@@ -630,6 +676,7 @@ export default function UnifiedSearch() {
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee_code = nteeCategory
     if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     return params
@@ -641,7 +688,7 @@ export default function UnifiedSearch() {
   // cached counts; only a changed query/filter set refetches. limit=1 keeps the
   // per-type fetch minimal — we only consume `type_totals`, not the rows.
   const { data: tabCountsData, isLoading: isCountsLoading } = useQuery<SearchResponse>({
-    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedTopicId, selectedQuestionId, selectedEin, includeFullText],
+    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedEin, includeFullText],
     queryFn: async () => {
       if (!searchEnabled) return null
       const params = { ...buildSearchParams(), types: selectedTypes.join(','), limit: 1, page: 1 }
@@ -682,7 +729,7 @@ export default function UnifiedSearch() {
   // Active-tab results — fetches ONLY the active tab's type, so `page`/`limit`
   // paginate within that single type instead of across a mixed result set.
   const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedTopicId, selectedQuestionId, selectedEin, includeFullText],
+    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedEin, includeFullText],
     queryFn: async () => {
       if (!effectiveTab) return null
       const params = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
@@ -731,6 +778,7 @@ export default function UnifiedSearch() {
       if (sortBy && sortBy !== 'relevance') params.sort = sortBy
       if (nteeCategory) params.ntee = nteeCategory
       if (selectedTopicId) params.topic_id = selectedTopicId
+      if (selectedCauseId) params.cause_id = selectedCauseId
       if (selectedQuestionId) params.question_id = selectedQuestionId
       if (includeFullText) params.full_text = 'true'
       setSearchParams(params)
@@ -751,6 +799,7 @@ export default function UnifiedSearch() {
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
     if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     if (effectiveTab) params.tab = effectiveTab
@@ -788,6 +837,7 @@ export default function UnifiedSearch() {
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
     if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
     if (includeFullText) params.full_text = 'true'
     setSearchParams(params)
@@ -812,6 +862,7 @@ export default function UnifiedSearch() {
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
     if (selectedTopicId) params.topic_id = selectedTopicId
+    if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
     setSearchParams(params)
   }
@@ -961,6 +1012,12 @@ export default function UnifiedSearch() {
       url: result.url || undefined,
       stateCode: (md.state_code as string) || undefined,
       videoId: (md.video_id as string) || (md.meeting_video_id as string) || undefined,
+      // Matched-passage excerpt so a decision/meeting tile shows *why* it surfaced
+      // for the active query/filter. The backend wraps the matched terms in literal
+      // <mark>…</mark> markers (ts_headline) which highlightSnippet renders as
+      // highlighted, React-escaped segments. In plain browse mode the description
+      // carries no markers, so it renders as a normal context line.
+      excerpt: result.description ? highlightSnippet(result.description) : undefined,
     }
   }
 
@@ -972,6 +1029,46 @@ export default function UnifiedSearch() {
           key={result.url || idx}
           card={toStoryCard(result)}
           lens={CONTESTED_LENS}
+          saved={false}
+          onToggleSave={() => {}}
+          onOpen={() => openResult(result.url)}
+        />
+      ))}
+    </div>
+  )
+
+  // Map a transcript (document) search result into a StoryCard, carrying the
+  // highlighted matched passage as the card excerpt so the tile still shows
+  // *why* it matched (the discussion itself), not just the meeting title.
+  const toTranscriptCard = (result: SearchResult): RenderCard => {
+    const md = (result.metadata ?? {}) as Record<string, unknown>
+    const dateStr = (md.date ?? md.event_date ?? md.meeting_date) as string | undefined
+    let when = ''
+    if (dateStr) {
+      const d = new Date(`${dateStr}T00:00:00`)
+      if (!Number.isNaN(d.getTime())) when = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    }
+    return {
+      h: result.title,
+      stats: [],
+      juris: (md.jurisdiction as string) || result.subtitle || '',
+      when,
+      url: result.url || undefined,
+      stateCode: (md.state_code as string) || undefined,
+      videoId: (md.video_id as string) || undefined,
+      excerpt: result.description ? highlightSnippet(result.description) : undefined,
+    }
+  }
+
+  // 3-column preview-tile grid (matches Browse Topics) for transcript results —
+  // YouTube still + cyan "Transcript" badge + the highlighted passage.
+  const TranscriptResultGrid = ({ results }: { results: SearchResult[] }) => (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {results.map((result, idx) => (
+        <StoryCard
+          key={result.url || idx}
+          card={toTranscriptCard(result)}
+          lens={TRANSCRIPT_LENS}
           saved={false}
           onToggleSave={() => {}}
           onOpen={() => openResult(result.url)}
@@ -997,17 +1094,8 @@ export default function UnifiedSearch() {
       (resultType === 'decision' || resultType === 'meeting')
         ? (result.metadata?.video_id as string | undefined)
         : undefined
-    // Transcript snippets arrive with the matched passage wrapped in literal
-    // <mark>…</mark> markers (ts_headline). Render them as highlighted React
-    // nodes WITHOUT dangerouslySetInnerHTML: split on the markers and wrap the
-    // odd segments in <mark>, so every text segment is React-escaped and the
-    // raw transcript body can never inject markup.
-    const renderSnippet = (text: string) =>
-      text.split(/<\/?mark>/).map((seg, i) =>
-        i % 2 === 1
-          ? <mark key={i} className="bg-yellow-200 text-gray-900 rounded px-0.5">{seg}</mark>
-          : <span key={i}>{seg}</span>
-      )
+    // Highlighted matched-passage snippet (shared module helper).
+    const renderSnippet = highlightSnippet
     return (
     <div
       className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
@@ -1111,11 +1199,13 @@ export default function UnifiedSearch() {
               `document` result type. Reuse renderSnippet so highlights show and
               the transcript body stays React-escaped (no
               dangerouslySetInnerHTML). Analyzed meetings keep the plain summary. */}
-          {resultType === 'document' || isMeetingPending ? (
-            <p className="text-sm text-gray-500 line-clamp-3 mb-2">{renderSnippet(result.description || '')}</p>
-          ) : (
-            <p className="text-sm text-gray-500 line-clamp-2 mb-2">{result.description}</p>
-          )}
+          {/* Both transcript snippets (ts_headline over the body) AND analyzed
+              meeting summaries (ts_headline over the AI summary) carry the matched
+              passage wrapped in literal <mark>…</mark> markers, so the card shows
+              WHY the result matched. renderSnippet splits on the markers and React-
+              escapes every segment (no dangerouslySetInnerHTML); it's a no-op for
+              descriptions without markers, so all other result types are unchanged. */}
+          <p className="text-sm text-gray-500 line-clamp-3 mb-2">{renderSnippet(result.description || '')}</p>
           
           {/* Mission statement for organizations */}
           {result.type === 'organization' && result.metadata?.mission && (
@@ -1911,6 +2001,20 @@ export default function UnifiedSearch() {
                   </button>
                 </span>
               )}
+              {selectedCauseId && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-sm">
+                  Cause: {CAUSE_OPTIONS.find((c) => c.id === selectedCauseId)?.label ?? selectedCauseId}
+                  <button
+                    onClick={() => {
+                      setSelectedCauseId('')
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="hover:bg-emerald-200 rounded-full p-0.5"
+                  >
+                    <XMarkIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
               {selectedQuestionId && (
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-sm max-w-xs">
                   <span className="truncate">
@@ -2144,6 +2248,35 @@ export default function UnifiedSearch() {
                   </p>
                 </div>
 
+                {/* Cause — EveryOrg cause taxonomy. Narrows decisions/meetings/
+                    topics to the cause's keyword set, matched through child
+                    decisions then transcript content (cause -> decision -> meeting,
+                    transcript fallback). ?cause_id= the slug. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cause
+                  </label>
+                  <select
+                    value={selectedCauseId}
+                    onChange={(e) => {
+                      setSelectedCauseId(e.target.value)
+                      setCurrentPage(1)
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
+                  >
+                    <option value="" className="text-gray-900">All Causes</option>
+                    {CAUSE_OPTIONS.map((c) => (
+                      <option key={c.id} value={c.id} className="text-gray-900">
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Limits decisions, meetings &amp; topics to this cause.
+                  </p>
+                </div>
+
                 {/* Question — policy-question registry (/api/policy-question/).
                     Narrows decisions to those that instantiate the chosen question. */}
                 <div>
@@ -2207,6 +2340,7 @@ export default function UnifiedSearch() {
                       setSortBy('relevance')
                       setNteeCategory('')
                       setSelectedTopicId('')
+                      setSelectedCauseId('')
                       setSelectedQuestionId('')
                       setIncludeFullText(false)
                       setSelectedTypes([...DEFAULT_RESULT_TYPES])
@@ -2672,28 +2806,7 @@ export default function UnifiedSearch() {
                     <p className="text-sm text-gray-500 mb-4 -mt-2">
                       Passages from meeting transcripts that mention your search term — the discussion itself, even when it never became a titled agenda item or a recorded decision.
                     </p>
-                    <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.documents.map((result, idx) => (
-                        <ResultCard key={idx} result={result} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {effectiveTab === 'documents' && searchResults.results?.documents && searchResults.results.documents.length > 0 && (
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                      <DocumentMagnifyingGlassIcon className="h-6 w-6 text-cyan-600" />
-                      Transcripts ({searchResults.type_totals?.documents?.toLocaleString() || searchResults.results.documents.length})
-                    </h3>
-                    <p className="text-sm text-gray-500 mb-4 -mt-2">
-                      Passages from meeting transcripts that mention your search term — the discussion itself, even when it never became a titled agenda item or a recorded decision.
-                    </p>
-                    <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.documents.map((result, idx) => (
-                        <ResultCard key={idx} result={result} />
-                      ))}
-                    </div>
+                    <TranscriptResultGrid results={searchResults.results.documents} />
                   </div>
                 )}
 
