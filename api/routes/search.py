@@ -643,6 +643,60 @@ async def resolve_topic_tsquery(topic_id: int) -> Optional[str]:
     return " | ".join(terms)
 
 
+# EveryOrg cause -> keyword vocabulary. KEEP IN SYNC with the dbt models
+# int_meeting_cause / int_transcript_keyword_cause / int_decision_cause (same
+# editorial civic vocabulary, NOT fabricated data). Multi-word entries are matched
+# as ordered phrases (<->) so e.g. "mental health" doesn't fire on bare "health".
+CAUSE_KEYWORDS: Dict[str, List[str]] = {
+    'animals': ['animal', 'animals', 'pet', 'pets', 'animal shelter', 'wildlife', 'veterinary', 'leash'],
+    'arts': ['arts', 'culture', 'cultural', 'museum', 'theater', 'theatre', 'mural', 'gallery', 'public art'],
+    'climate': ['climate', 'emissions', 'greenhouse gas', 'carbon', 'sustainability', 'resilience', 'renewable energy', 'solar'],
+    'disasters': ['disaster', 'emergency', 'hurricane', 'tornado', 'flood', 'fema', 'evacuation', 'disaster relief'],
+    'education': ['education', 'school', 'schools', 'student', 'students', 'teacher', 'classroom', 'curriculum', 'literacy'],
+    'environment': ['environment', 'environmental', 'pollution', 'conservation', 'recycling', 'wetland', 'watershed', 'habitat'],
+    'foodbanks': ['food bank', 'hunger', 'food insecurity', 'food pantry', 'nutrition', 'meals'],
+    'health': ['health', 'healthcare', 'hospital', 'clinic', 'medical', 'public health', 'vaccine'],
+    'humanitarian': ['humanitarian', 'refugee', 'humanitarian aid', 'displaced'],
+    'justice': ['justice', 'civil rights', 'equity', 'discrimination', 'police reform', 'reentry'],
+    'lgbt': ['lgbtq', 'lgbt', 'transgender', 'pride'],
+    'mental-health': ['mental health', 'suicide', 'counseling', 'behavioral health', 'addiction', 'substance abuse'],
+    'religion': ['church', 'faith', 'religious', 'congregation', 'ministry', 'worship'],
+    'seniors': ['senior', 'seniors', 'elderly', 'aging', 'retirement', 'medicare'],
+    'water': ['drinking water', 'wastewater', 'sewer', 'watershed', 'stormwater', 'clean water'],
+    'women': ['women', 'gender', 'maternal', 'domestic violence'],
+    'youth': ['youth', 'children', 'juvenile', 'after-school', 'childcare', 'recreation'],
+}
+
+
+def resolve_cause_tsquery(cause_id: str) -> Optional[str]:
+    """Build an OR-tsquery from an EveryOrg cause's curated keyword set.
+
+    The Advanced "Cause" filter is the cause counterpart to resolve_topic_tsquery:
+    it narrows decisions/meetings/topics by the cause's defining keywords. Each
+    keyword becomes an injection-safe term — single word as a lexeme, multi-word as
+    an ordered phrase (``word1<->word2``) so generic heads ("health") don't fire on
+    every mention. Returns a ``to_tsquery``-safe ``'t1 | t2 | ...'`` string, or None
+    for an unknown cause / no usable terms. Synchronous: reads an in-process dict,
+    no DB round-trip (unlike resolve_topic_tsquery).
+    """
+    keywords = CAUSE_KEYWORDS.get((cause_id or "").strip().lower())
+    if not keywords:
+        return None
+    terms: List[str] = []
+    seen: set[str] = set()
+    for kw in keywords:
+        toks = [t for t in re.findall(r"[a-z]+", kw.lower()) if len(t) >= 3]
+        if not toks:
+            continue
+        term = "<->".join(toks) if len(toks) > 1 else toks[0]
+        if term not in seen:
+            seen.add(term)
+            terms.append(term)
+    if not terms:
+        return None
+    return " | ".join(terms)
+
+
 async def count_events(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -744,8 +798,14 @@ async def count_events(
                 )
             em_where_sql = " AND ".join(em_where) if em_where else "TRUE"
 
-            # ---- Unanalyzed leg (event_documents, event_id IS NULL) ----
-            ed_where: List[str] = ["ed.event_id IS NULL"]
+            # ---- Unanalyzed leg (every meeting-video not already analyzed) ----
+            # Each event_documents row is a transcribed meeting video. We count
+            # every distinct video that isn't already an analyzed event_meeting
+            # (the NOT EXISTS dedup below), so the Meetings total reflects all
+            # meeting sessions, not only the AI-analyzed slice. (Previously gated
+            # on event_id IS NULL, which dropped ~99k videos linked to an event
+            # but not analyzed.)
+            ed_where: List[str] = []
             if has_query:
                 ed_where.append(
                     f"(ed.event_title ILIKE ${q_like_idx} "
@@ -1477,6 +1537,7 @@ async def unified_search(
     ein: Optional[str] = Query(None, description="Filter organizations by exact EIN (for direct organization links)"),
     session: Optional[str] = Query(None, description="Filter bills by legislative session"),
     topic_id: Optional[int] = Query(None, description="Filter by a named civic topic (public.civicsearch_topic.topic_id) — narrows decisions/meetings/topics to that topic's keyword set"),
+    cause_id: Optional[str] = Query(None, description="Filter by an EveryOrg cause slug (e.g. 'housing','education','mental-health') — narrows decisions/meetings/topics to that cause's keyword set, matched through child decisions then transcript content"),
     question_id: Optional[str] = Query(None, description="Filter by a policy question (public.policy_question.question_id) — narrows decisions to those instantiating it, plus the question itself"),
     limit: int = Query(20, ge=1, le=100, description="Maximum results per type"),
     offset: int = Query(0, ge=0, description="Number of results to skip (for pagination)"),
@@ -1553,12 +1614,26 @@ async def unified_search(
         #   - question_id -> a policy question (policy_question): narrows decisions
         #     that instantiate it (via question_instance) + pins the questions tab.
         # When both are set the supported sets intersect to {decisions}.
+        #   - cause_id  -> an EveryOrg cause (CAUSE_KEYWORDS): keyword-narrows the
+        #     same decisions/meetings/topics set. A cause is just another keyword
+        #     cluster, so it resolves to the SAME kind of OR-tsquery and rides the
+        #     identical decision-FTS + transcript-content path (cause -> decision ->
+        #     meeting, transcript fallback). topic & cause AND together when both set.
         topic_tsquery = None
+        _facet_parts: List[str] = []
         if topic_id is not None:
-            topic_tsquery = await resolve_topic_tsquery(topic_id)
-            if topic_tsquery:
-                _topic_types = {'decisions', 'meetings', 'topics'}
-                requested_types = [t for t in requested_types if t in _topic_types] or list(_topic_types)
+            _tq = await resolve_topic_tsquery(topic_id)
+            if _tq:
+                _facet_parts.append(_tq)
+        if cause_id:
+            _cq = resolve_cause_tsquery(cause_id)
+            if _cq:
+                _facet_parts.append(_cq)
+        if _facet_parts:
+            # Each facet is an OR-cluster; AND the facets so both narrow the result.
+            topic_tsquery = " & ".join(f"({p})" for p in _facet_parts)
+            _topic_types = {'decisions', 'meetings', 'topics'}
+            requested_types = [t for t in requested_types if t in _topic_types] or list(_topic_types)
         if question_id:
             _question_types = {'decisions', 'questions'}
             requested_types = [t for t in requested_types if t in _question_types] or list(_question_types)
@@ -1862,8 +1937,18 @@ async def unified_search(
             ) as count_span:
                 count_span.set_attribute("search.count_types", ",".join(count_keys))
                 count_span.set_attribute("search.count_type_count", len(count_keys))
+                # Bound each count the same way the subsearch fan-out is bounded
+                # (asyncio.wait_for at SUBSEARCH_TIMEOUT_S). A pathological count —
+                # e.g. an event_documents FTS leg that runs long under pool
+                # contention — must not be able to drag the whole response past
+                # the frontend's fetch-abort window. On timeout the count raises,
+                # the return_exceptions=True path below logs it, and that type
+                # silently keeps its fetched-length estimate.
                 counted = await asyncio.gather(
-                    *(coro for _, coro in count_tasks),
+                    *(
+                        asyncio.wait_for(coro, timeout=SUBSEARCH_TIMEOUT_S)
+                        for _, coro in count_tasks
+                    ),
                     return_exceptions=True,
                 )
             for key, outcome in zip(count_keys, counted):
@@ -1874,63 +1959,14 @@ async def unified_search(
                     continue
                 type_totals[key] = outcome
 
-        # Meetings: event_meeting is tiny (~6k rows) so a real COUNT is sub-ms.
-        # Always use it (not the fetched-length estimate) so the count is
-        # independent of the caller's limit — the lightweight tab-counts call
-        # sends limit=1, which would otherwise cap the meetings total at 1 in
-        # single-type browse mode (header said "1 results" over a 20-row page).
-        if 'meetings' in requested_types:
-            type_totals['meetings'] = await count_events(
-                query=q, state=state, city=city
-            )
-
-        # Decisions: event_decision is small (~9k rows) so a real COUNT is sub-ms.
-        # Always use it (like meetings) so the count is independent of the caller's
-        # limit — the tab-counts call sends limit=1, which would otherwise cap the
-        # decisions total and leave the homepage "Search in" badge blank in browse.
-        if 'decisions' in requested_types:
-            type_totals['decisions'] = await count_decisions(
-                query=q, state=state, city=city
-            )
-
-        # Bills & transcripts: the other small meeting-derived civic marts. Real
-        # COUNTs (event_bill ~14k ILIKE/title-FTS; event_documents via the GIN
-        # content_tsv) so their tab badges and pagers don't collapse to the
-        # fetched-length estimate under the limit=1 tab-counts call.
-        if 'bills' in requested_types:
-            type_totals['bills'] = await count_bills(
-                query=q, state=state, city=city
-            )
-        if 'documents' in requested_types:
-            type_totals['documents'] = await count_documents(
-                query=q, state=state, city=city
-            )
-
-        # Topics: city-scoped meeting-derived mart (event_topic, ~12k), same shape
-        # as bills/decisions — honest count so the badge/pager don't collapse.
-        if 'topics' in requested_types:
-            type_totals['topics'] = await count_topics(
-                query=q, state=state, city=city
-            )
-
-        # Causes: tiny national NTEE vocabulary (public.tag, ~200 rows), no
-        # geography — honest count over the matched taxonomy.
-        if 'causes' in requested_types:
-            type_totals['causes'] = await count_causes(query=q)
-
-        # Grant opportunities: small national feed (~1.9k) — cheap honest count.
-        if 'grant_opportunities' in requested_types:
-            type_totals['grant_opportunities'] = await count_grant_opportunities(query=q)
-
-        # Grants: public.grant is ~6.7M rows with NO full-text index, so an
-        # UNSCOPED count is a ~10s seq-scan (over the sub-search timeout). Only run
-        # the (capped) honest count when the search is LOCATION-SCOPED — those use
-        # the indexed grantor columns / org bridge and count in <0.5s. Otherwise
-        # leave the fetched-length estimate rather than risk the slow path.
-        if 'grants' in requested_types and (state or city or jurisdiction_id):
-            type_totals['grants'] = await count_grants(
-                query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
-            )
+        # NOTE: the per-type counts are dispatched once, concurrently, in the
+        # count_tasks gather above. There is intentionally NO sequential per-type
+        # `await count_*()` block here: an earlier refactor (#154) moved these
+        # counts into the concurrent gather but left a duplicate sequential block
+        # behind, so every count ran twice — and the sequential copies dropped the
+        # topic_tsquery / question_id filters, silently overwriting the correct
+        # concurrent results with unfiltered ones. Add any new count to
+        # count_tasks above, not here.
 
         # Derive the grand total from the (now partly-accurate) per-type totals
         # rather than the fetched-list length, so total_pages/has_next reflect
@@ -1958,6 +1994,7 @@ async def unified_search(
                 "jurisdiction_id": jurisdiction_id,
                 "ntee_code": ntee_code,
                 "topic_id": topic_id,
+                "cause_id": cause_id,
                 "question_id": question_id,
                 "types": requested_types,
                 "sort": sort
