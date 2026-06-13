@@ -50,6 +50,9 @@ _NTEE_ICON_MAP = {
 
 class CauseItem(BaseModel):
     """A trending cause/topic"""
+    # Stable slug (EveryOrg cause id, e.g. 'education') / NTEE code. The frontend
+    # passes this as ?cause_id= to scope decisions/meetings to the cause.
+    cause_id: Optional[str] = None
     name: str
     icon: str
     category: str
@@ -92,11 +95,17 @@ _CAUSES_WITH_COUNT_SQL = """
     LEFT JOIN (
         SELECT cause_id, COUNT(DISTINCT event_meeting_id) AS meeting_count
         FROM gold.meeting_cause_link
+        WHERE (%(state)s IS NULL OR state_code = %(state)s)
+          AND (%(city)s  IS NULL OR lower(jurisdiction_name) = lower(%(city)s)
+                                 OR lower(city) = lower(%(city)s))
         GROUP BY cause_id
     ) mc ON mc.cause_id = c.cause_id
+    -- When a place is in scope, keep only causes actually discussed there so the
+    -- pills reflect that place (no global causes with a 0 local count).
+    WHERE (%(state)s IS NULL AND %(city)s IS NULL) OR mc.meeting_count > 0
     ORDER BY COALESCE(mc.meeting_count, 0) DESC,
              c.popularity_rank NULLS LAST, c.cause_name
-    LIMIT %s
+    LIMIT %(limit)s
 """
 
 # Fallback when gold.meeting_cause_link is absent (e.g. a serving DB where the
@@ -105,23 +114,36 @@ _CAUSES_NO_COUNT_SQL = """
     SELECT cause_id, cause_name, description, icon, category, popularity_rank, 0 AS meeting_count
     FROM bronze.bronze_everyorg_causes
     ORDER BY popularity_rank NULLS LAST, cause_name
-    LIMIT %s
+    LIMIT %(limit)s
 """
 
 
-def get_everyorg_causes(limit: int = 20) -> List[CauseItem]:
-    """Load EveryOrg causes (with real per-cause meeting counts) from the warehouse."""
+def get_everyorg_causes(
+    limit: int = 20,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+) -> List[CauseItem]:
+    """Load EveryOrg causes (with real per-cause meeting counts) from the warehouse.
+
+    When ``state``/``city`` are given, the per-cause meeting_count is scoped to
+    that place (gold.meeting_cause_link carries state_code/jurisdiction_name/city)
+    and only causes actually discussed there are returned — so Browse Causes shows
+    a place-specific pill set, mirroring the Topics flow.
+    """
+    norm_state = normalize_state_input(state) if state else None
+    norm_city = (city or "").strip() or None
+    params = {"state": norm_state, "city": norm_city, "limit": limit}
     rows: list = []
     try:
         with _cursor() as cur:
             try:
-                cur.execute(_CAUSES_WITH_COUNT_SQL, (limit,))
+                cur.execute(_CAUSES_WITH_COUNT_SQL, params)
                 rows = cur.fetchall()
             except psycopg2.Error:
                 # Linkage mart missing/unreadable — fall back to the plain list so
                 # causes never disappear. New cursor: the prior tx is aborted.
                 cur.connection.rollback()
-                cur.execute(_CAUSES_NO_COUNT_SQL, (limit,))
+                cur.execute(_CAUSES_NO_COUNT_SQL, {"limit": limit})
                 rows = cur.fetchall()
     except Exception as exc:
         logger.warning(f"EveryOrg causes query failed (table empty or missing?): {exc}")
@@ -129,6 +151,7 @@ def get_everyorg_causes(limit: int = 20) -> List[CauseItem]:
 
     return [
         CauseItem(
+            cause_id=cause_id,
             name=name,
             icon=icon or '📌',
             category=category or 'general',
@@ -228,7 +251,9 @@ def _query_with_legacy_fallback(primary_sql: str, legacy_sql: str, params):
 async def get_trending_causes(
     source: str = Query("everyorg", description="Source: 'everyorg', 'ntee', or 'mixed'"),
     limit: int = Query(12, ge=1, le=100, description="Max number of causes to return"),
-    level: Optional[int] = Query(None, description="NTEE level filter (1 or 2)")
+    level: Optional[int] = Query(None, description="NTEE level filter (1 or 2)"),
+    state: Optional[str] = Query(None, description="2-letter code or full state name; scopes EveryOrg cause meeting counts to that state (omit for national)"),
+    city: Optional[str] = Query(None, description="City/jurisdiction name; further scopes EveryOrg cause meeting counts to that place"),
 ) -> TrendingResponse:
     """
     Get trending causes for homepage.
@@ -245,7 +270,7 @@ async def get_trending_causes(
         causes = get_ntee_causes(limit=limit, level=level)
     elif source == "mixed":
         half = limit // 2
-        everyorg = get_everyorg_causes(limit=half)
+        everyorg = get_everyorg_causes(limit=half, state=state, city=city)
         ntee = get_ntee_causes(limit=half, level=1)
         causes = []
         for i in range(max(len(everyorg), len(ntee))):
@@ -254,7 +279,7 @@ async def get_trending_causes(
             if i < len(ntee):
                 causes.append(ntee[i])
     else:
-        causes = get_everyorg_causes(limit=limit)
+        causes = get_everyorg_causes(limit=limit, state=state, city=city)
 
     return TrendingResponse(causes=causes, total=len(causes))
 

@@ -73,6 +73,21 @@ models:
         data_type: text
         constraints:
           - type: not_null
+      - name: link_source
+        description: >
+          'decision' for rows derived from the meeting's decisions/event analysis
+          via c1_event_id (the decision-keyword civicsearch_topic leg AND the
+          canonical_theme leg — PRIMARY); 'transcript' for transcript-keyword
+          fallback civicsearch_topic rows used only for meetings with no
+          decision-derived topic rows.
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['decision', 'transcript']
       - name: state_code
         description: "2-letter state code (passthrough from event_meeting)."
         data_type: varchar

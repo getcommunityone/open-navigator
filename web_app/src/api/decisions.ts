@@ -7,8 +7,11 @@ import type { ApiCard } from '../components/StoryLenses'
 export type DecisionSort = 'contested' | 'recent' | 'interesting'
 
 export interface DecisionListParams {
-  /** civicsearch topic id — fuzzy text match against decision search_tsv. */
-  topicId?: number
+  /** civicsearch topic id(s) — fuzzy text match against decision search_tsv.
+   *  Multiple ids are OR'd server-side (decisions matching ANY topic). */
+  topicIds?: number[]
+  /** EveryOrg cause slug — keyword match against decision text (cause -> decision). */
+  causeId?: string
   /** policy-question id — exact link via question_instance. */
   questionId?: string
   /** Meeting id — drill into a single meeting's decisions. */
@@ -33,7 +36,8 @@ export interface DecisionListResponse {
 export async function fetchDecisions(params: DecisionListParams = {}): Promise<DecisionListResponse> {
   const res = await api.get<DecisionListResponse>('/decisions', {
     params: {
-      topic_id: params.topicId,
+      topic_id: params.topicIds,
+      cause_id: params.causeId,
       question_id: params.questionId,
       meeting_id: params.meetingId,
       state: params.state,

@@ -65,6 +65,21 @@ models:
       - name: popularity_rank
         description: "EveryOrg popularity rank (lower = more popular); may be null."
         data_type: integer
+      - name: link_source
+        description: >
+          'decision' when the row is derived from a keyword match on the meeting's
+          decisions (int_decision_cause, rolled up via c1_event_id — PRIMARY);
+          'transcript' when it is a transcript-keyword fallback row
+          (int_meeting_cause), used only for meetings with no decision-derived
+          cause rows.
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['decision', 'transcript']
       - name: state_code
         description: "2-letter state code (passthrough from event_meeting)."
         data_type: varchar

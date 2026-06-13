@@ -36,7 +36,7 @@ from opentelemetry import trace
 from pydantic import BaseModel
 
 from api.routes.lenses import LensCard, build_card, stats_contested, video_id_subquery
-from api.routes.search import resolve_topic_tsquery
+from api.routes.search import resolve_topic_tsquery, resolve_cause_tsquery
 from api.routes.search_postgres import get_db_pool, normalize_state_input
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
@@ -172,9 +172,15 @@ def _build_filters(
 
 @router.get("", response_model=DecisionListResponse)
 async def list_decisions(
-    topic_id: Optional[int] = Query(
-        None, description="Named civic topic (public.civicsearch_topic) — matches "
-                          "the topic's keyword set against the decision text.",
+    topic_id: Optional[List[int]] = Query(
+        None, description="Named civic topic(s) (public.civicsearch_topic) — "
+                          "repeatable. Keeps decisions matching ANY selected "
+                          "topic's keyword set against the decision text.",
+    ),
+    cause_id: Optional[str] = Query(
+        None, description="EveryOrg cause slug (e.g. 'education','health') — keep "
+                          "only decisions whose text matches that cause's keyword "
+                          "set. ANDs with topic_id when both are given.",
     ),
     question_id: Optional[str] = Query(
         None, description="Policy-question id — keep only decisions that "
@@ -229,26 +235,51 @@ async def list_decisions(
         span.set_attribute("decisions.state_code", state_code or "")
         span.set_attribute("decisions.city", city or "")
         span.set_attribute("decisions.q", q or "")
-        span.set_attribute("decisions.topic_id", topic_id or 0)
+        span.set_attribute(
+            "decisions.topic_id", ",".join(str(t) for t in topic_id) if topic_id else ""
+        )
         span.set_attribute("decisions.question_id", question_id or "")
         span.set_attribute("decisions.meeting_id", meeting_id or 0)
         span.set_attribute("decisions.limit", limit)
         span.set_attribute("decisions.offset", offset)
 
-        # Resolve the topic to an OR-tsquery first. A supplied-but-empty topic
-        # (unknown id / no usable keywords) means "this topic has no matches" —
-        # return an honest empty page rather than the whole unfiltered feed.
+        # Resolve each selected topic to an OR-tsquery, then OR them together so
+        # the cards match ANY of the chosen topics. A supplied-but-empty set
+        # (unknown ids / no usable keywords) means "no matches" — return an
+        # honest empty page rather than the whole unfiltered feed.
         topic_tsquery: Optional[str] = None
-        if topic_id is not None:
-            topic_tsquery = await resolve_topic_tsquery(topic_id)
-            span.set_attribute("decisions.topic_resolved", topic_tsquery is not None)
-            if topic_tsquery is None:
+        if topic_id:
+            sub = [f"({tq})" for tid in topic_id
+                   if (tq := await resolve_topic_tsquery(tid))]
+            span.set_attribute("decisions.topic_resolved", bool(sub))
+            if not sub:
                 return DecisionListResponse(
                     items=[],
                     pagination=DecisionListPagination(
                         total=0, limit=limit, offset=offset
                     ),
                 )
+            topic_tsquery = " | ".join(sub)
+
+        # Cause filter: resolve to an OR-tsquery and AND it onto the topic filter
+        # (a cause is just another keyword cluster, matched against the same
+        # decision search_tsv — cause -> decision). A supplied-but-unknown cause
+        # means "no matches", so return an honest empty page.
+        if cause_id:
+            cause_tsquery = resolve_cause_tsquery(cause_id)
+            span.set_attribute("decisions.cause_id", cause_id)
+            span.set_attribute("decisions.cause_resolved", bool(cause_tsquery))
+            if not cause_tsquery:
+                return DecisionListResponse(
+                    items=[],
+                    pagination=DecisionListPagination(
+                        total=0, limit=limit, offset=offset
+                    ),
+                )
+            topic_tsquery = (
+                f"({topic_tsquery}) & ({cause_tsquery})"
+                if topic_tsquery else cause_tsquery
+            )
 
         from_sql, where_sql, params = _build_filters(
             topic_tsquery, question_id, state_code, city, q, meeting_id

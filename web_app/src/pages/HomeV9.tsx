@@ -26,7 +26,7 @@ import MoneyMovesTeaser from '../components/MoneyMovesTeaser'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
 import AddressLookup from '../components/AddressLookup'
 import SiteHeader from '../components/SiteHeader'
-import { LensCarousel } from '../components/StoryLenses'
+import { LensCarousel, type ApiCard } from '../components/StoryLenses'
 import MeetingThumbnail from '../components/MeetingThumbnail'
 import { fetchMeetings, type MeetingCard } from '../api/meetings'
 
@@ -77,12 +77,34 @@ const WHEN: { label: string; window: string }[] = [
   { label: 'All time', window: 'all' },
 ]
 
+// Map a real /api/meetings card into the shared LensCarousel card shape so the
+// "What's New" rail renders the most recent meetings in the same tiles the topic
+// lenses use — regardless of whether the meeting produced a decision. Stat chips
+// are shown only when there's a genuine count (no fabricated/zero filler).
+function meetingToCard(m: MeetingCard): ApiCard {
+  const stats: ApiCard['stats'] = []
+  if (m.decision_count > 0)
+    stats.push({ value: String(m.decision_count), label: m.decision_count === 1 ? 'Decision' : 'Decisions' })
+  if (m.question_count > 0)
+    stats.push({ value: String(m.question_count), label: m.question_count === 1 ? 'Topic' : 'Topics' })
+  return {
+    headline: m.title || 'Untitled meeting',
+    stats,
+    jurisdiction: m.city || m.jurisdiction || '',
+    date: m.date || undefined,
+    url: `/meetings/${m.meeting_id}`,
+    state_code: m.state_code || undefined,
+    state: m.state || undefined,
+    video_id: m.video_id,
+  }
+}
+
 // Left-side search scope. `types` is the comma list handed to /search (UnifiedSearch
 // reads ?types=); 'all' sends no types param so the search spans everything.
 const SEARCH_CATEGORIES: { id: string; label: string; types: string }[] = [
   { id: 'all', label: 'All', types: '' },
   { id: 'meetings', label: 'Meetings', types: 'meetings' },
-  { id: 'transcripts', label: 'Transcripts', types: 'documents' },
+  { id: 'transcripts', label: 'Videos', types: 'documents' },
   { id: 'decisions', label: 'Decisions', types: 'decisions' },
   { id: 'leaders', label: 'Leaders', types: 'leaders' },
   { id: 'nonprofits', label: 'Nonprofits', types: 'organizations' },
@@ -1143,7 +1165,13 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.order ?? Number.MAX_SAFE_INTEGER,
-                to: '/browse-causes',
+                // Carry the saved location into Browse Causes (same as Topics)
+                // so the cause pills + decision cards land scoped to that place.
+                to: locState
+                  ? `/browse-causes?state=${encodeURIComponent(locState)}${
+                      locCity ? `&city=${encodeURIComponent(locCity)}` : ''
+                    }`
+                  : '/browse-causes',
                 seeAllLabel: 'causes',
                 desc: 'Local nonprofits, grants & charitable work.',
                 header: 'Top causes',
@@ -1151,7 +1179,15 @@ export default function HomeV9() {
                   key: c.entity_id,
                   label: c.entity_name,
                   transcripts: c.transcript_count,
-                  onSelect: () => navigate('/browse-causes', { state: { fromHome: true } }),
+                  onSelect: () =>
+                    navigate(
+                      locState
+                        ? `/browse-causes?state=${encodeURIComponent(locState)}${
+                            locCity ? `&city=${encodeURIComponent(locCity)}` : ''
+                          }`
+                        : '/browse-causes',
+                      { state: { fromHome: true } },
+                    ),
                 })),
               },
               {
@@ -1212,9 +1248,6 @@ export default function HomeV9() {
                       onClick={() => navigate(b.to, { state: { fromHome: true } })}
                       style={{ background: 'none', border: 'none', padding: '9px 6px 9px 10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
                     >
-                      <span style={{ width: 30, height: 30, borderRadius: 8, background: '#f0fdfa', border: '1px solid #ccfbf1', display: 'grid', placeItems: 'center', fontSize: 15, flexShrink: 0 }}>
-                        {b.icon}
-                      </span>
                       <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>
                         {b.name}
                       </span>
@@ -1226,13 +1259,13 @@ export default function HomeV9() {
                       {b.hasTranscripts && b.count != null && b.count > 0 ? (
                         <span
                           className="font-mono-x"
-                          title={`${b.count.toLocaleString('en-US')} transcripts`}
-                          aria-label={`${b.count.toLocaleString('en-US')} transcripts`}
+                          title={`${b.count.toLocaleString('en-US')} meetings`}
+                          aria-label={`${b.count.toLocaleString('en-US')} meetings`}
                           style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}
                         >
                           {b.count.toLocaleString('en-US')}
                           <span style={{ fontSize: 9.5, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            transcripts
+                            meetings
                           </span>
                         </span>
                       ) : (
@@ -1484,8 +1517,41 @@ export default function HomeV9() {
             )
           }
 
+          // "What's New" — the most recent meetings in this place, rendered in
+          // the same tiles the topic lenses use, regardless of whether each
+          // meeting produced a decision. Sits at the top of the block in the
+          // normal case; in the empty-lenses fallback the "Recent meetings" grid
+          // above already covers these, so we don't double up.
+          const whatsNewCards = recentMeetings.map(meetingToCard)
+          const whatsNewSection =
+            whatsNewCards.length > 0 ? (
+              <section style={{ marginTop: 30 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: '#eff6ff', display: 'grid', placeItems: 'center', fontSize: 21 }}>
+                    🗓️
+                  </div>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#2563eb' }}>
+                      What&rsquo;s New
+                    </h2>
+                    <div style={{ fontSize: 14, color: '#78716c' }}>
+                      The most recent meetings, whatever the outcome · 📍 {placeLabel}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 16 }}>
+                  <LensCarousel
+                    cards={whatsNewCards}
+                    lens={{ id: 'whats-new', em: '🗓️', label: "What's New", clr: '#2563eb' }}
+                    unscoped={national}
+                  />
+                </div>
+              </section>
+            ) : null
+
           return (
             <>
+              {whatsNewSection}
               {renderLens('contested', true)}
               {renderLens('flags', false)}
             </>
