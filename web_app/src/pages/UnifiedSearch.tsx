@@ -32,6 +32,7 @@ import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from 
 import MeetingThumbnail from '../components/MeetingThumbnail'
 import { StoryCard, CONTESTED_LENS, TRANSCRIPT_LENS, type RenderCard } from '../components/StoryLenses'
 import { parseSpeaker } from '../lib/speakers'
+import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
 
 type SearchResultType =
   | 'leader'
@@ -384,10 +385,15 @@ function highlightSnippet(text: string) {
   )
 }
 
-export default function UnifiedSearch() {
+function UnifiedSearchInner() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const routerLocation = useLocation()
+  // In-app PDF popout (same react-pdf modal used on the Meeting Documents and
+  // Decision Detail pages). Available because UnifiedSearch is wrapped in a
+  // DocumentViewerProvider; meeting-document tiles open the PDF here instead of
+  // a raw new tab.
+  const docViewer = useDocumentViewer()
 
   // Whether the user arrived here from the home page (which has no sidebar/nav
   // to get back). The Home search navigations tag the route with
@@ -2876,7 +2882,7 @@ export default function UnifiedSearch() {
                       Meeting Documents ({searchResults.type_totals?.meeting_documents?.toLocaleString() || searchResults.results.meeting_documents.length})
                     </h3>
                     <p className="text-sm text-gray-500 mb-4 -mt-2">
-                      Official meeting PDFs — agendas, notes (minutes), and attachments. Each links directly to the source document.
+                      Official meeting PDFs — agendas, notes (minutes), and attachments. Click any document to open it in the PDF viewer.
                     </p>
                     <div className="grid grid-cols-1 gap-4">
                       {searchResults.results.meeting_documents.map((result, idx) => {
@@ -2914,15 +2920,34 @@ export default function UnifiedSearch() {
                                   )}
                                 </div>
                                 {pdfUrl ? (
-                                  <a
-                                    href={pdfUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-semibold text-gray-900 mb-1 inline-flex items-center gap-1 cursor-pointer hover:text-blue-600"
-                                  >
-                                    {result.title}
-                                    <span aria-hidden="true" className="text-xs text-gray-400">↗</span>
-                                  </a>
+                                  docViewer ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        docViewer.openDocument({
+                                          url: pdfUrl,
+                                          label: result.title,
+                                          caption: [badgeLabel, md.body_name, md.date]
+                                            .filter(Boolean)
+                                            .join(' • '),
+                                        })
+                                      }
+                                      className="font-semibold text-gray-900 mb-1 inline-flex items-center gap-1 cursor-pointer text-left hover:text-blue-600"
+                                    >
+                                      {result.title}
+                                      <span aria-hidden="true" className="text-xs text-gray-400">⤢</span>
+                                    </button>
+                                  ) : (
+                                    <a
+                                      href={pdfUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-semibold text-gray-900 mb-1 inline-flex items-center gap-1 cursor-pointer hover:text-blue-600"
+                                    >
+                                      {result.title}
+                                      <span aria-hidden="true" className="text-xs text-gray-400">↗</span>
+                                    </a>
+                                  )
                                 ) : (
                                   <h4 className="font-semibold text-gray-900 mb-1">{result.title}</h4>
                                 )}
@@ -3204,5 +3229,13 @@ export default function UnifiedSearch() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function UnifiedSearch() {
+  return (
+    <DocumentViewerProvider>
+      <UnifiedSearchInner />
+    </DocumentViewerProvider>
   )
 }
