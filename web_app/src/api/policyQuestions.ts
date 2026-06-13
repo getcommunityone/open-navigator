@@ -22,6 +22,24 @@ export interface PolicyQuestionSummary {
   money_total?: number
   money_share?: number
   talk_share?: number
+  // Real meetings whose transcript discusses this question's alias keyword(s)
+  // (dbt question_transcript_link). A high-recall keyword signal — distinct from
+  // the structured decision instances — that powers the "discussed in N meetings"
+  // fallback for questions with no mapped decisions.
+  discussion_meeting_count?: number
+}
+
+// A real meeting whose transcript discusses the question's alias keyword(s).
+export interface QuestionMeeting {
+  video_id: string
+  event_title: string | null
+  event_date: string | null
+  state_code: string | null
+  state: string | null
+  city: string | null
+  jurisdiction_name: string | null
+  video_url: string | null
+  n_alias_hits: number
 }
 
 // One quarter of a question's history (real). instances = how often it came up;
@@ -115,5 +133,16 @@ export async function fetchQuestionInstances(
   offset = 0,
 ): Promise<QuestionInstance[]> {
   const res = await api.get(`/policy-question/${id}/instances?limit=${limit}&offset=${offset}`)
+  return res.data
+}
+
+// Real meetings whose transcript discusses the question's alias keyword(s).
+// The "discussed in N meetings" fallback for questions with no mapped decisions.
+export async function fetchQuestionMeetings(
+  id: string,
+  limit = 50,
+  offset = 0,
+): Promise<QuestionMeeting[]> {
+  const res = await api.get(`/policy-question/${id}/meetings?limit=${limit}&offset=${offset}`)
   return res.data
 }

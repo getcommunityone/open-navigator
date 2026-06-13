@@ -105,6 +105,12 @@ const SEARCH_CATEGORIES: { id: string; label: string; types: string }[] = [
   { id: 'all', label: 'All', types: '' },
   { id: 'meetings', label: 'Meetings', types: 'meetings' },
   { id: 'transcripts', label: 'Videos', types: 'documents' },
+  // Official meeting PDFs (agenda / minutes / attachments) from
+  // public.event_meeting_document — full-text searched over extracted PDF body
+  // where present. Distinct from 'Videos' (transcripts) above; backend type is
+  // 'meeting_documents' (UnifiedSearch renders the tab + the agenda/minutes/
+  // attachment document_type filter).
+  { id: 'meeting_documents', label: 'Meeting Documents', types: 'meeting_documents' },
   { id: 'decisions', label: 'Decisions', types: 'decisions' },
   { id: 'leaders', label: 'Leaders', types: 'leaders' },
   { id: 'nonprofits', label: 'Nonprofits', types: 'organizations' },
@@ -575,7 +581,7 @@ export default function HomeV9() {
     queryKey: ['home-v9-cat-counts', debouncedQuery, national, stateCode, city],
     queryFn: async () => {
       const params: Record<string, string> = {
-        types: 'meetings,documents,decisions,leaders,organizations,causes,questions,topics,bills,grants',
+        types: 'meetings,documents,meeting_documents,decisions,leaders,organizations,causes,questions,topics,bills,grants',
         limit: '1',
       }
       if (debouncedQuery.length >= 2) params.q = debouncedQuery
@@ -1000,7 +1006,6 @@ export default function HomeV9() {
                       : 'Enter your address to see the meetings, votes, spending, and debates near you.'}
                   </p>
                   <AddressLookup
-                    initialAddress={location?.address || ''}
                     onLocationFound={(loc) => {
                       setLocation(loc)
                       levelPicked.current = false

@@ -10,6 +10,34 @@ interface AddressLookupProps {
   compact?: boolean
 }
 
+// In "city or county" mode we only want real places — cities, towns, villages,
+// counties, states — not the businesses, hotels and street addresses Nominatim
+// otherwise ranks highly for a query like "Atlanta, GA". A POI like "TownePlace
+// Suites Atlanta Airport North" comes back as class=tourism/building; an actual
+// place comes back as an admin boundary or a place node. Keep only the latter.
+const PLACE_ADDRESS_TYPES = new Set([
+  'city', 'town', 'village', 'hamlet', 'municipality', 'borough',
+  'suburb', 'county', 'state', 'administrative',
+])
+
+function isPlaceLikeResult(r: any): boolean {
+  if (r?.class === 'boundary' && r?.type === 'administrative') return true
+  if (r?.class === 'place' && PLACE_ADDRESS_TYPES.has(r?.addresstype)) return true
+  return false
+}
+
+// A short, human label ("Atlanta, GA" / "Fulton County, GA") for the input box
+// after a place is picked — far nicer than the full Nominatim display_name.
+function placeLabel(r: any): string {
+  const addr = r?.address || {}
+  const stateCode = nominatimUsStateCode(addr) || ''
+  const name =
+    addr.city || addr.town || addr.village || addr.municipality ||
+    addr.hamlet || addr.suburb || addr.county || addr.state || ''
+  if (name && stateCode) return `${name}, ${stateCode}`
+  return r?.display_name || name || ''
+}
+
 export default function AddressLookup({ onLocationFound, initialAddress = '', compact = false }: AddressLookupProps) {
   const { clearLocation } = useLocationContext()
   // Default lookup mode is ZIP/postal code (mirrors the MoneyGameModal "where's
@@ -98,9 +126,11 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
 
     try {
       // Same-origin proxy (api/routes/geocode.py): avoids Nominatim CORS and
-      // honors its rate-limit policy server-side.
+      // honors its rate-limit policy server-side. In place mode we ask for more
+      // rows than we show, because we filter POIs/streets out below.
+      const limit = mode === 'place' ? 12 : 5
       const response = await fetch(
-        `/api/geocode/search?q=${encodeURIComponent(query)}&limit=5`,
+        `/api/geocode/search?q=${encodeURIComponent(query)}&limit=${limit}`,
       )
 
       if (!response.ok) {
@@ -122,8 +152,17 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
         return acc
       }, [])
 
-      setSuggestions(uniqueResults)
-      setShowSuggestions(uniqueResults.length > 0)
+      // City/county search: drop businesses & street addresses so the user can
+      // actually pick "Atlanta, GA". Fall back to the raw list only if filtering
+      // leaves nothing (so we never show an empty dropdown for a real match).
+      let finalResults = uniqueResults
+      if (mode === 'place') {
+        const placesOnly = uniqueResults.filter(isPlaceLikeResult)
+        finalResults = (placesOnly.length > 0 ? placesOnly : uniqueResults).slice(0, 6)
+      }
+
+      setSuggestions(finalResults)
+      setShowSuggestions(finalResults.length > 0)
       setSelectedIndex(-1)
     } catch (err) {
       console.error('Autocomplete error:', err)
@@ -168,9 +207,11 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
 
     try {
       // Same-origin proxy (api/routes/geocode.py): avoids Nominatim CORS and
-      // honors its rate-limit policy server-side.
+      // honors its rate-limit policy server-side. In place mode over-fetch then
+      // filter to real places (see fetchSuggestions).
+      const limit = mode === 'place' ? 12 : 5
       const response = await fetch(
-        `/api/geocode/search?q=${encodeURIComponent(addressToLookup)}&limit=5`,
+        `/api/geocode/search?q=${encodeURIComponent(addressToLookup)}&limit=${limit}`,
       )
 
       if (!response.ok) {
@@ -185,20 +226,31 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
       }
 
       // Deduplicate results using OSM unique IDs
-      const uniqueResults = data.reduce((acc: any[], current: any) => {
+      let uniqueResults = data.reduce((acc: any[], current: any) => {
         // Use OSM type + ID as unique key (most reliable)
         const osmKey = `${current.osm_type}_${current.osm_id}`
-        
+
         const exists = acc.some((item) => {
           const itemKey = `${item.osm_type}_${item.osm_id}`
           return itemKey === osmKey
         })
-        
+
         if (!exists) {
           acc.push(current)
         }
         return acc
       }, [])
+
+      // City/county search: keep only real places (drop POIs/street addresses).
+      if (mode === 'place') {
+        const placesOnly = uniqueResults.filter(isPlaceLikeResult)
+        uniqueResults = (placesOnly.length > 0 ? placesOnly : uniqueResults).slice(0, 6)
+      }
+
+      if (uniqueResults.length === 0) {
+        setError('Address not found. Please try a different address or be more specific.')
+        return
+      }
 
       // If we have multiple unique results, show suggestions
       if (uniqueResults.length > 1) {
@@ -293,7 +345,9 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
   }
 
   const handleSuggestionClick = (suggestion: any) => {
-    setAddress(suggestion.display_name)
+    // In city/county mode show the short "Atlanta, GA" label; full address mode
+    // keeps the complete display_name.
+    setAddress(mode === 'place' ? placeLabel(suggestion) : suggestion.display_name)
     processResult(suggestion)
   }
 

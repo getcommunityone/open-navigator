@@ -20,10 +20,11 @@ models:
       DISTINCT transcript videos (public.event_documents, document_type=
       'transcript') linked to each browseable homepage entity. Lets the browse
       pages filter to a selected city (state_code + jurisdiction_name) and show
-      only the place|topic|question entities actually discussed there. Both
-      state_code and jurisdiction_name are never NULL. Questions are absent at
-      city grain (no clean place name on the question join path) and causes are
-      absent (no cause->transcript linkage) — no fabricated rows. Source:
+      only the place|topic|question|cause entities actually discussed there. Both
+      state_code and jurisdiction_name are never NULL. Questions are mostly absent
+      at city grain (no clean place name on the question join path); causes now
+      carry real city-grain keyword-FTS counts (EveryOrg taxonomy via
+      int_transcript_keyword_cause) — no fabricated rows. Source:
       intermediate.int_browse_entity_transcripts.
     config:
       materialized: table
@@ -35,14 +36,14 @@ models:
         columns: [entity_type, entity_id, state_code, jurisdiction_name]
     columns:
       - name: entity_type
-        description: "Entity kind: 'place' | 'topic' | 'question'. Part of the PK."
+        description: "Entity kind: 'place' | 'topic' | 'question' | 'cause'. Part of the PK."
         data_type: text
         constraints:
           - type: not_null
         data_tests:
           - not_null
           - accepted_values:
-              values: ['place', 'topic', 'question']
+              values: ['place', 'topic', 'question', 'cause']
       - name: entity_id
         description: >
           Polymorphic entity id (part of the PK): geoid for place, topic_id for

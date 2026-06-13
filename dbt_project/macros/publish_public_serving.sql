@@ -50,7 +50,7 @@
 
 {%- set served = [
     'event', 'event_meeting', 'event_documents', 'event_meeting_document',
-    'meeting_document', 'event_decision', 'event_decision_place',
+    'meeting_document', 'event_decision', 'event_decision_place', 'decision_speakers',
     'event_place_geocoded', 'event_financial_item', 'event_bill', 'event_topic',
     'contact_official', 'person_government', 'jurisdictions', 'civic_jurisdiction',
     'jurisdiction_document', 'jurisdiction_finance', 'jurisdiction_finance_category',
@@ -68,7 +68,7 @@
     'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction',
     'mdm_bridge_event_analysis',
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
-    'policy_question_relation', 'policy_question_trend',
+    'policy_question_relation', 'policy_question_trend', 'question_transcript_link',
     'meeting_browse', 'meeting_topic_link', 'meeting_question_link'
 ] -%}
 

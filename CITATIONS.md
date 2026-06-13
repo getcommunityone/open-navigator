@@ -41,6 +41,14 @@ July 2023, Toronto, Canada.
 
 ---
 
+### **LocalBench Benchmark (County-Level Local Knowledge & Reasoning)**
+
+Third-party benchmark for evaluating LLMs on county-level local knowledge and reasoning across the United States.
+
+- Repository / dataset: https://github.com/MadCollab/LocalBench
+
+---
+
 ### **CivicSearch (School Board Meeting Platform)**
 
 We use CivicSearch's aggregated school board meeting transcripts, agendas, and videos for tracking education policy and local governance.

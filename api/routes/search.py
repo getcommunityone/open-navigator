@@ -1121,6 +1121,84 @@ async def count_documents(
             return 0
 
 
+async def count_meeting_documents(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    document_type: Optional[str] = None,
+) -> int:
+    """Count official meeting documents matching the search filters.
+
+    Mirrors the WHERE predicates of search_postgres.search_meeting_documents_pg
+    over public.event_meeting_document: the same state_code filter, the same
+    whitelisted document_type filter, the same jurisdiction_id-slug city scope, and
+    the same full-text match against the STORED content_tsv vector (GIN-indexed).
+    Reports an HONEST type_total for "meeting_documents" so the count is
+    independent of the caller's limit. Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    cache_key = f"count_meeting_documents_{norm_state}_{city}_{document_type}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_meeting_documents") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if norm_state:
+                where_clauses.append(f"state_code = ${idx}")
+                params.append(norm_state.upper())
+                idx += 1
+
+            if document_type and document_type.strip().lower() in {'agenda', 'minutes', 'attachment'}:
+                where_clauses.append(f"document_type = ${idx}")
+                params.append(document_type.strip().lower())
+                idx += 1
+
+            if city and city.strip():
+                where_clauses.append(
+                    "regexp_replace(lower(regexp_replace(jurisdiction_id, '_[^_]*$', '')), "
+                    f"'[^a-z0-9]+', ' ', 'g') = lower(${idx})"
+                )
+                params.append(city.strip())
+                idx += 1
+
+            if has_query:
+                where_clauses.append(
+                    f"content_tsv @@ plainto_tsquery('english', ${idx})"
+                )
+                params.append(q)
+                idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM event_meeting_document WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Meeting documents count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
 async def count_topics(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -1528,7 +1606,7 @@ async def _traced_subsearch(
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,questions,documents,grants,grant_opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,questions,documents,meeting_documents,grants,grant_opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_id: Optional[str] = Query(None, description="Filter by exact jurisdiction_id (city, county, or state) — scopes orgs/persons/grants through the MDM jurisdiction bridges"),
@@ -1536,6 +1614,7 @@ async def unified_search(
     ntee_code: Optional[str] = Query(None, description="Filter organizations by NTEE code"),
     ein: Optional[str] = Query(None, description="Filter organizations by exact EIN (for direct organization links)"),
     session: Optional[str] = Query(None, description="Filter bills by legislative session"),
+    document_type: Optional[str] = Query(None, description="Filter meeting_documents by type: 'agenda', 'minutes', or 'attachment'"),
     topic_id: Optional[int] = Query(None, description="Filter by a named civic topic (public.civicsearch_topic.topic_id) — narrows decisions/meetings/topics to that topic's keyword set"),
     cause_id: Optional[str] = Query(None, description="Filter by an EveryOrg cause slug (e.g. 'housing','education','mental-health') — narrows decisions/meetings/topics to that cause's keyword set, matched through child decisions then transcript content"),
     question_id: Optional[str] = Query(None, description="Filter by a policy question (public.policy_question.question_id) — narrows decisions to those instantiating it, plus the question itself"),
@@ -1596,7 +1675,7 @@ async def unified_search(
                 if t.strip()
             ]
         else:
-            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'questions', 'documents', 'grants', 'grant_opportunities']
+            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'questions', 'documents', 'meeting_documents', 'grants', 'grant_opportunities']
 
         # Scope cut: drop the non-government "persons" category (mdm_person) unless
         # explicitly re-enabled. Stripping it here (rather than per-task) means
@@ -1723,6 +1802,11 @@ async def unified_search(
             # Full-text search over meeting transcripts (public.event_documents)
             search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset)))
 
+        if 'meeting_documents' in requested_types:
+            # Full-text search over official meeting documents — agenda / minutes /
+            # attachments (public.event_meeting_document), filterable by document_type.
+            search_tasks.append(('meeting_documents', search_postgres.search_meeting_documents_pg(q, state, city=city, document_type=document_type, limit=search_limit, offset=search_offset)))
+
         if 'causes' in requested_types:
             # NTEE causes now come from public.tag (vocabulary='ntee'); the old
             # causes_ntee_codes.parquet feed was retired.
@@ -1795,6 +1879,7 @@ async def unified_search(
             'causes': [r.to_dict() for r in paginated_results if r.result_type == 'cause'],
             'jurisdictions': [r.to_dict() for r in paginated_results if r.result_type == 'jurisdiction'],
             'documents': [r.to_dict() for r in paginated_results if r.result_type == 'document'],
+            'meeting_documents': [r.to_dict() for r in paginated_results if r.result_type == 'meeting_document'],
             'grants': [r.to_dict() for r in paginated_results if r.result_type == 'grant'],
             'grant_opportunities': [r.to_dict() for r in paginated_results if r.result_type == 'grant_opportunity'],
         }
@@ -1815,6 +1900,7 @@ async def unified_search(
             'causes': len([r for r in all_results if r.result_type == 'cause']),
             'jurisdictions': len([r for r in all_results if r.result_type == 'jurisdiction']),
             'documents': len([r for r in all_results if r.result_type == 'document']),
+            'meeting_documents': len([r for r in all_results if r.result_type == 'meeting_document']),
             'grants': len([r for r in all_results if r.result_type == 'grant']),
             'grant_opportunities': len([r for r in all_results if r.result_type == 'grant_opportunity']),
         }
@@ -1897,6 +1983,12 @@ async def unified_search(
             count_tasks.append(('bills', count_bills(query=q, state=state, city=city)))
         if 'documents' in requested_types:
             count_tasks.append(('documents', count_documents(query=q, state=state, city=city)))
+
+        # Meeting documents: the tiny (~2,900-row) official-document mart
+        # (event_meeting_document). Honest GIN-backed count so the tab badge/pager
+        # don't collapse under the limit=1 tab-counts call.
+        if 'meeting_documents' in requested_types:
+            count_tasks.append(('meeting_documents', count_meeting_documents(query=q, state=state, city=city, document_type=document_type)))
 
         # Topics: city-scoped meeting-derived mart (event_topic, ~12k), same shape
         # as bills/decisions — honest count so the badge/pager don't collapse.

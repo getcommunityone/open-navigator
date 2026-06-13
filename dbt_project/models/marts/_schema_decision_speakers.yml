@@ -1,0 +1,63 @@
+version: 2
+
+# public.decision_speakers — per-decision attribution of the people who gave named
+# testimony, extracted from event_decision.human_element->'personal_stories'. One
+# row per event_decision_id (only decisions with >=1 personal_story carrying a
+# non-empty person_id slug). Backs a "Voices" attribution line on decision cards.
+#
+# NOTE on keys: event_decision is a native range-partitioned table with a COMPOSITE
+# primary key (event_decision_id, extracted_at). Postgres cannot target a
+# composite/partitioned PK with a single-column FK, so — following the established
+# event_* family convention — the FK into it is asserted via a relationships
+# data_test (warn), while this mart's own single-column PK (event_decision_id) IS
+# contract-enforced.
+
+models:
+  - name: decision_speakers
+    description: >
+      public.decision_speakers — one row per event_decision_id listing the DISTINCT
+      person_id slugs that gave named testimony on that decision, extracted from
+      event_decision.human_element->'personal_stories'. speaker_ids is a jsonb array
+      of the leading (<=6) slugs in first-appearance order; speaker_count is the
+      uncapped distinct total so a card can render "+N more". Only real slugs from
+      the AI extraction are emitted (CLAUDE.md No Fabricated Data).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'decision', 'ai']
+      contract:
+        enforced: true
+    columns:
+      - name: event_decision_id
+        description: >
+          Primary key. FK -> event_decision.event_decision_id, asserted via a
+          relationships test (warn) rather than an enforced constraint because
+          event_decision is partitioned with a composite PK and cannot be a
+          single-column FK target.
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: speaker_ids
+        description: >
+          jsonb ARRAY of DISTINCT person_id slugs (e.g.
+          'jesus_carmona_jr_resident_clayton_county_georgia') in first-appearance
+          order, capped to at most 6 elements.
+        data_type: jsonb
+        constraints:
+          - type: not_null
+      - name: speaker_count
+        description: >
+          Total count of DISTINCT person_id slugs for the decision (UNCAPPED), so
+          the card can render "+N more" beyond the capped speaker_ids array.
+        data_type: integer
+        constraints:
+          - type: not_null

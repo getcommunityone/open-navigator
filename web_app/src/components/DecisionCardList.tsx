@@ -174,15 +174,24 @@ export default function DecisionCardList({
       {/* Search bar + a single Filters button on the same row — matches the
           Search page. Sort and the optional state/city filters live inside the
           flyout panel, so the row stays clean. */}
-      <div className="mb-5 flex items-stretch gap-3">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          // Flush the debounce so the button / Enter searches immediately.
+          setDebouncedQuery(rawQuery.trim())
+          setDebouncedState(rawState.trim())
+          setDebouncedCity(rawCity.trim())
+          setPage(0)
+        }}
+        className="mb-5 flex items-stretch gap-3"
+      >
         <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={rawQuery}
             onChange={(e) => setRawQuery(e.target.value)}
             placeholder="Search these decisions…"
-            className="w-full rounded-lg border-2 border-gray-300 bg-white py-3 pl-12 pr-10 text-base text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full rounded-lg border-2 border-gray-300 bg-white py-3 pl-4 pr-10 text-base text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           {rawQuery && (
             <button
@@ -195,6 +204,13 @@ export default function DecisionCardList({
             </button>
           )}
         </div>
+        <button
+          type="submit"
+          aria-label="Search"
+          className="flex shrink-0 items-center justify-center rounded-lg bg-primary-600 px-4 text-white transition-colors hover:bg-primary-700"
+        >
+          <MagnifyingGlassIcon className="h-5 w-5" />
+        </button>
         <button
           type="button"
           onClick={() => setAdvancedOpen((v) => !v)}
@@ -213,7 +229,7 @@ export default function DecisionCardList({
             </span>
           )}
         </button>
-      </div>
+      </form>
 
       {/* Filter panel — a right-side flyout (matches the Search & Jurisdictions
           pages): backdrop + fixed drawer. Sort (always) + optional state/city

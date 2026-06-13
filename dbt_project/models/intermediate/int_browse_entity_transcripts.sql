@@ -20,10 +20,14 @@
   (document_type = 'transcript', one row per video_id). All three legs are
   scoped to THAT same universe so counts are comparable across entity types.
 
-  CAUSES are deliberately ABSENT: no cause -> transcript linkage exists in the
-  warehouse, so causes never produce a video row here. The cause universe is
-  unioned in at the mart grain with transcript_count = 0 (see
-  marts/browse_transcript_count.sql) — no fabricated cause numbers.
+  CAUSES + the high-recall TOPIC leg now arrive via the pure-SQL keyword FTS
+  models (int_transcript_keyword_topic / int_transcript_keyword_cause). These
+  match the curated topic/cause keyword vocabularies against the FULL transcript
+  universe (~119k videos) — NOT the ~6k AI event_meeting grain — so topic
+  coverage jumps and causes get genuine transcript counts for the first time.
+  They are a SEPARATE, honestly high-recall keyword signal (see those models'
+  headers); the AI civicsearch-snippet topic leg below is kept intact alongside
+  them.
 
   Join paths (verified against localhost:5433/open_navigator):
     * PLACE    — event_documents.jurisdiction_name = jurisdictions.name AND
@@ -78,6 +82,7 @@ place as (
         j.geoid::text                       as entity_id,
         j.name::text                        as entity_name,
         j.state_code::text                  as state_code,
+        j.name::text                        as jurisdiction_name,
         t.video_id::text                    as video_id
     from transcripts t
     join jurisdictions_canonical j
@@ -101,6 +106,7 @@ topic as (
         tp.topic_id::text                   as entity_id,
         tp.name::text                       as entity_name,
         ed.state_code::text                 as state_code,
+        ed.jurisdiction_name::text          as jurisdiction_name,
         ed.video_id::text                   as video_id
     from {{ ref('civicsearch_topic') }} tp
     join snippets s
@@ -116,6 +122,7 @@ question as (
         q.question_id::text                 as entity_id,
         q.canonical_text::text              as entity_name,
         m.state_code::text                  as state_code,
+        m.jurisdiction_name::text           as jurisdiction_name,
         m.video_id::text                    as video_id
     from {{ ref('policy_question') }} q
     join {{ ref('question_instance') }} qi
@@ -126,10 +133,41 @@ question as (
     join {{ ref('event_meeting') }} m
         on m.legacy_event_id = d.legacy_event_id
     where m.video_id is not null
+),
+
+-- Keyword-FTS TOPIC leg: high-recall topic tags over the full transcript
+-- universe. Same entity_id space (topic_id) as the AI `topic` leg above, so the
+-- two simply UNION more videos onto the same topic entities.
+topic_keyword as (
+    select distinct
+        'topic'::text                       as entity_type,
+        tk.topic_id::text                   as entity_id,
+        tk.topic_name::text                 as entity_name,
+        tk.state_code::text                 as state_code,
+        tk.jurisdiction_name::text          as jurisdiction_name,
+        tk.video_id::text                   as video_id
+    from {{ ref('int_transcript_keyword_topic') }} tk
+),
+
+-- Keyword-FTS CAUSE leg: the first real cause -> transcript linkage. entity_id
+-- is the EveryOrg cause_id (the taxonomy the Browse Causes pills already use).
+cause_keyword as (
+    select distinct
+        'cause'::text                       as entity_type,
+        ck.cause_id::text                   as entity_id,
+        ck.cause_name::text                 as entity_name,
+        ck.state_code::text                 as state_code,
+        ck.jurisdiction_name::text          as jurisdiction_name,
+        ck.video_id::text                   as video_id
+    from {{ ref('int_transcript_keyword_cause') }} ck
 )
 
 select * from place
 union all
 select * from topic
+union all
+select * from topic_keyword
+union all
+select * from cause_keyword
 union all
 select * from question

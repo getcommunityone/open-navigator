@@ -10,15 +10,23 @@ staging.stg_suiteone_meeting_documents — cleaned SuiteOne agenda/minutes PDFs.
 
 GRAIN: one row per scraped meeting document (a single agenda or minutes PDF URL).
 
-SOURCE: bronze.bronze_events_meetings_municipalities_scraped, restricted to the
-SuiteOne municipal-calendar crawl:
-    meeting_date_source = 'suiteone_listing'
-    AND resource_kind   = 'pdf'
-    AND doc_type IN ('agenda','minutes')
+SOURCE: bronze.bronze_events_meetings_municipalities_scraped, admitting TWO
+populations of PDFs:
+    resource_kind = 'pdf' AND a non-empty url, AND either
+      (a) the SuiteOne municipal-calendar crawl:
+          meeting_date_source = 'suiteone_listing'
+          AND doc_type IN ('agenda','minutes'); OR
+      (b) "attachments": doc_type = 'unknown' AND resource_category = 'document'
+          (relabeled document_type = 'attachment').
 This filter is deliberately the ONLY thing scoping the model — it is NOT
 Tuscaloosa-specific. Any future SuiteOne city landed with the same
 meeting_date_source flows through unchanged. Other rows in the bronze table are
 year-only legacy entries and are excluded by the filter above.
+
+ATTACHMENTS flow through as ORPHANS downstream: they carry NULL/non-listing
+meeting_date (-> NULL doc_date) and (usually) NULL body_key, so the mart's
+date + body match never resolves a meeting and event_meeting_id stays NULL —
+which the mart already supports.
 
 It produces a `body_key` — a canonical body-category token derived from the
 SuiteOne `meeting_title` (after stripping the leading meeting time). The same
@@ -36,15 +44,18 @@ with src as (
         url,
         url_sha256,
         doc_type,
+        resource_category,
         meeting_date,
         meeting_title,
         raw_resource,
         loaded_at
     from {{ source('bronze', 'bronze_events_meetings_municipalities_scraped') }}
-    where meeting_date_source = 'suiteone_listing'
-      and resource_kind = 'pdf'
-      and doc_type in ('agenda', 'minutes')
+    where resource_kind = 'pdf'
       and nullif(btrim(url), '') is not null
+      and (
+           (meeting_date_source = 'suiteone_listing' and doc_type in ('agenda','minutes'))
+        or (doc_type = 'unknown' and resource_category = 'document')
+      )
 
 )
 
@@ -55,9 +66,12 @@ select
     md5(jurisdiction_id || '|' || url_sha256)              as event_meeting_document_id,
     jurisdiction_id,
     census_geoid,
+    url_sha256,
     rtrim(state_code)                                      as state_code,
     {{ state_code_to_name('rtrim(state_code)') }}          as state,
-    doc_type                                               as document_type,
+    -- 'unknown' doc_type rows are attachments (resource_category='document');
+    -- everything else is the SuiteOne agenda/minutes population.
+    case when doc_type = 'unknown' then 'attachment' else doc_type end as document_type,
     -- Canonicalize the decorative document-title path segment between 'GetXFile/'
     -- and '?' down to its keyword. SuiteOne serves the file purely by the mid/aid
     -- query param, but older portal rows pollute the label with the meeting date,

@@ -19,9 +19,11 @@ GROUPING SETS over int_browse_entity_transcripts so:
     multiple states.
   * entity_count = COUNT(DISTINCT entity_id) at each grain.
 
-CAUSES: a single NATIONAL row (state_code NULL) with transcript_count = 0 and
-entity_count = the NTEE tag universe — no cause->transcript linkage exists, so
-0 transcripts is honest (no fabricated data). No per-state cause rows.
+CAUSES: now roll up through int_browse_entity_transcripts like every other
+entity_type, carrying REAL keyword-FTS transcript counts (national + per-state)
+over the EveryOrg cause taxonomy (int_transcript_keyword_cause). The prior
+honest-zero NTEE-tag national row is retired now that a genuine cause->transcript
+linkage exists.
 
 PK: declared on the surrogate state_code_key = COALESCE(state_code, '_ALL_')
 because Postgres PK columns must be NOT NULL and the national rollup carries a
@@ -69,20 +71,8 @@ rollup as (
        or state_code is not null
 ),
 
-cause_national as (
-    select
-        'cause'::text                       as entity_type,
-        cast(null as text)                  as state_code,
-        0::integer                          as transcript_count,
-        count(*)::integer                   as entity_count
-    from {{ ref('tag') }}
-    where vocabulary = 'ntee'
-),
-
 unioned as (
     select entity_type, state_code, transcript_count, entity_count from rollup
-    union all
-    select entity_type, state_code, transcript_count, entity_count from cause_national
 ),
 
 -- Dense-rank entity_types by national transcript volume for default card order.

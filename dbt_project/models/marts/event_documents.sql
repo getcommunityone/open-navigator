@@ -5,6 +5,15 @@
   to_tsvector over the full 43KB-avg transcript for every match (a common word
   like "water" matches thousands of rows -> 25s+ stall). Storing the vector
   makes both the @@ match and the ts_rank ordering read precomputed lexemes.
+
+  The event_title pg_trgm GIN index exists for the SECOND search predicate:
+  search_documents_pg / search_events_pg / count_events match `event_title ILIKE
+  '%q%' OR content_tsv @@ q`. content_tsv is built from raw_text (the transcript
+  body) ONLY, so a title-only hit must come from the ILIKE. Without a trigram
+  index that leading-wildcard ILIKE is non-indexable and drags the WHOLE OR down
+  to a parallel seq scan (~3.5s reading ~3.3GB over ~120k transcripts). The
+  trigram index lets the planner BitmapOr the two index scans (~56ms), preserving
+  title recall AND speed.
   (This note lives in a Jinja comment, NOT inside the config() list below --
   a `--` SQL comment inside the post_hook list is not valid Jinja and breaks
   `dbt parse` for the whole project.)
@@ -23,7 +32,9 @@
     ],
     post_hook=(
       [
-        "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)"
+        "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)",
+        "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+        "CREATE INDEX IF NOT EXISTS event_documents_event_title_trgm_idx ON {{ this }} USING gin (event_title gin_trgm_ops)"
       ] if target.name != 'neon' else []
     )
   )
