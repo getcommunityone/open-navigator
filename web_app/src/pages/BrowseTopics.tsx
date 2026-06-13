@@ -14,7 +14,7 @@ import DecisionCardList from '../components/DecisionCardList'
 // How many topic pills to surface inline before the rest move to the flyout.
 // The API returns topics sorted by transcript_occurrences desc, so the first
 // few are the most-discussed.
-const TOP_PILL_COUNT = 4
+const TOP_PILL_COUNT = 5
 
 export default function BrowseTopics() {
   const [query, setQuery] = useState('')
@@ -206,7 +206,7 @@ export default function BrowseTopics() {
             list; the `key` remounts it so the new scope applies cleanly. */}
         <DecisionCardList
           key={`${selectedTopic?.topic_id ?? 'all-topics'}-${scopedCity ?? 'state'}`}
-          topicId={selectedTopic?.topic_id}
+          topicIds={selectedTopic ? [selectedTopic.topic_id] : undefined}
           state={stateCode}
           city={scopedCity}
           title={listTitle}

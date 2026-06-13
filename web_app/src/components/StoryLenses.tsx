@@ -76,6 +76,18 @@ export const LENSES: Lens[] = [
 // the same flame badge + accent as the homepage Contested carousel.
 export const CONTESTED_LENS: Lens = LENSES[0]
 
+// The Transcript lens descriptor — used by Search to render meeting-transcript
+// passages as the same rich preview tile (YouTube still + place/date) the
+// homepage and Browse Topics use, with a cyan "Transcript" badge that matches
+// the Transcripts tab header. Not part of the LENSES carousel set.
+export const TRANSCRIPT_LENS: Lens = {
+  id: 'transcript',
+  em: '\u{1F4C4}',
+  label: 'Transcript',
+  desc: 'A passage from a meeting recording',
+  clr: '#0891b2',
+}
+
 interface Stat {
   v: string
   l: string
@@ -204,6 +216,10 @@ export interface RenderCard {
   stateCode?: string
   /** Bare YouTube id for the optional card thumbnail (undefined when none). */
   videoId?: string
+  /** Optional matched-passage excerpt (e.g. a highlighted transcript snippet).
+   *  Rendered under the title, clamped to a few lines. Pre-built React nodes so
+   *  callers can pass <mark>-highlighted segments without dangerouslySetInnerHTML. */
+  excerpt?: React.ReactNode
 }
 
 // Census place names carry a *lowercase* generic type suffix ("Douglas city",
@@ -337,6 +353,14 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
         >
           {c.h}
         </h3>
+
+        {/* Optional matched-passage excerpt (transcript snippet). Clamped so a
+            long passage never blows out the tile height in the grid. */}
+        {c.excerpt && (
+          <p className="mb-3 text-[13.5px] leading-snug text-[#56635e] line-clamp-3">
+            {c.excerpt}
+          </p>
+        )}
 
         <div className="mb-3 flex flex-wrap gap-2">
           {c.stats.map((s) => {

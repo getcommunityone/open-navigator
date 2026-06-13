@@ -152,7 +152,14 @@ class APIClient {
     if (config?.params) {
       const params = new URLSearchParams()
       Object.entries(config.params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
+        if (value === undefined || value === null) return
+        // Arrays become repeated keys (?k=1&k=2), which FastAPI parses into a
+        // List[...] query param. String(value) would send "1,2" and 422.
+        if (Array.isArray(value)) {
+          value.forEach((v) => {
+            if (v !== undefined && v !== null) params.append(key, String(v))
+          })
+        } else {
           params.append(key, String(value))
         }
       })
