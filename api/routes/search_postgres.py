@@ -51,6 +51,27 @@ DOCUMENT_RESULT_CAP = 25
 # (relevance) within it, with recency as the tie-break.
 DOCUMENT_CANDIDATE_POOL = 400
 
+# Meeting search snippets its unanalyzed (transcript) leg with the SAME
+# ts_headline over 43KB-avg TOASTed content as document search, so it has the
+# identical cost profile: ~40ms/row, scaling with the number of rows snippeted.
+# The unified search over-fetches (limit + 100) to mix across types, but every
+# meeting carries a constant score (1.0 analyzed / 0.5 pending — the buffer never
+# reorders them), so headlining ~101 transcripts to surface ~20 is pure waste and
+# was the dominant cost of a broad meetings search (~4.5s -> the homepage's
+# fetch-abort window). Cap the rows we snippet to a page's worth, exactly like
+# DOCUMENT_RESULT_CAP. The accurate count (count_events) still drives the tab
+# badge/pager total, so capping returned rows doesn't distort the count.
+MEETING_RESULT_CAP = 25
+
+# Meeting search's unanalyzed (transcript) leg matches the same ~119k-row
+# event_documents corpus document search does, so a broad term ("water") matches
+# ~72k rows. DISTINCT ON (video_id) over that whole match set sorts ~72k rows
+# (multi-second) just to surface the most-recent ~25. Mirror DOCUMENT_CANDIDATE_POOL:
+# pull a bounded pool of the most RECENT matches (cheap — GIN match + a top-N sort
+# by event_date) and dedup only that pool. The merged feed sorts by date DESC and
+# shows a page, so the most-recent pool yields exactly the displayed rows.
+MEETING_CANDIDATE_POOL = 400
+
 # Connection pools (created on first request)
 _db_pool = None  # Production database pool (Neon)
 
@@ -1269,13 +1290,17 @@ async def search_events_pg(
             )
         em_where_sql = " AND ".join(em_where) if em_where else "TRUE"
 
-        # ---- Unanalyzed leg (event_documents WHERE event_id IS NULL) ----------
+        # ---- Unanalyzed leg (every meeting-video not already analyzed) --------
         # Scope by state_code + exact city name (the view has NO jurisdiction_id),
         # exactly like search_documents_pg. Dedup against analyzed meetings on
         # video_id. NOTE: event_documents may carry multiple rows per video_id
         # (different document_type/source), so DISTINCT ON (video_id) collapses
         # each video to a single representative transcript row.
-        ed_where: List[str] = ["ed.event_id IS NULL"]
+        # Every event_documents row is a transcribed meeting video; we surface
+        # all of them except those already in event_meeting (the NOT EXISTS
+        # dedup below). Previously gated on event_id IS NULL, which hid ~99k
+        # videos linked to an event but not AI-analyzed.
+        ed_where: List[str] = []
         if has_query:
             # Body match is the whole point: surface transcript-BODY hits, not
             # just title hits. content_tsv is the precomputed, GIN-indexable
@@ -1309,22 +1334,84 @@ async def search_events_pg(
 
         # LIMIT/OFFSET apply to the MERGED set so single-type browse paging is
         # correct. Registered AFTER all WHERE params so the $n indices above hold.
-        params.append(limit)
+        # Cap the LIMIT (and thus the number of rows the OUTER select snippets) at
+        # MEETING_RESULT_CAP regardless of the dispatcher's +100 over-fetch — the
+        # ts_headline over the unanalyzed leg's 43KB transcripts is the dominant
+        # cost and was timing the homepage out. Mirrors DOCUMENT_RESULT_CAP.
+        capped_limit = min(limit, MEETING_RESULT_CAP)
+        safe_offset = max(offset, 0)
+        params.append(capped_limit)
         limit_idx = len(params)
-        params.append(max(offset, 0))
+        params.append(safe_offset)
         offset_idx = len(params)
+
+        # Size the unanalyzed-leg candidate pool to at least cover the requested
+        # page (offset + capped rows) so paging never runs short, but never scan
+        # the whole match set. Inlined as an int literal (never user input).
+        meeting_pool_size = max(MEETING_CANDIDATE_POOL, safe_offset + capped_limit)
 
         # Aligned projection across both legs. `is_analyzed` drives the primary
         # sort; `row_id` is the per-leg stable tiebreaker. Snippet/detoast is
         # deferred to the OUTER select so only the LIMIT/OFFSET window is
         # headlined — never the full 119k-row transcript corpus.
+        _hl_opts = (
+            "'MaxFragments=2, MinWords=5, MaxWords=18, "
+            "StartSel=<mark>, StopSel=</mark>'"
+        )
+        # The tsquery that explains the match: a free-text query takes precedence,
+        # else the named-topic OR-tsquery. None for a plain (unfiltered) browse.
+        _match_q = None
         if has_query:
-            ed_snippet = (
-                f"ts_headline('english', ed.content, plainto_tsquery('english', ${q_fts_idx}), "
-                f"'MaxFragments=2, MinWords=5, MaxWords=18, StartSel=<mark>, StopSel=</mark>')"
+            _match_q = f"plainto_tsquery('english', ${q_fts_idx})"
+        elif topic_idx:
+            _match_q = f"to_tsquery('english', ${topic_idx})"
+
+        # Transcript leg: headline the body on the match query (keyword OR topic) so
+        # the matched passage is centered and <mark>-wrapped; plain opener otherwise.
+        # CRITICAL: detoast `content` (43KB avg, TOASTed) ONLY for the rows in the
+        # final LIMIT/OFFSET window, by fetching it back by event_document_id (PK,
+        # uniquely indexed) here in the OUTER select. The merged CTE deliberately
+        # does NOT carry `content`: a broad term ("water") matches ~72k transcripts,
+        # and carrying content into the CTE's sort detoasted EVERY match (~multi-
+        # second stall) even though only ~25 rows are ever snippeted.
+        _ed_content = (
+            "(SELECT content FROM event_documents "
+            "WHERE event_document_id = merged.event_document_id)"
+        )
+        if _match_q:
+            ed_snippet = f"ts_headline('english', {_ed_content}, {_match_q}, {_hl_opts})"
+        else:
+            ed_snippet = f"LEFT({_ed_content}, 200)"
+
+        # Analyzed-meeting snippet — make it clear WHY the meeting surfaced:
+        #   1. headline the AI summary; if the term is in it, use that passage;
+        #   2. else the match came from a child decision — headline the matching
+        #      decision text (headline/statement) looked up by c1_event_id, so the
+        #      card quotes the decision that triggered the match;
+        #   3. else (no in-text match / plain browse) fall back to the summary opener.
+        # Both headlines use the same <mark> convention the frontend already renders.
+        # Confined to the OUTER select, so it runs only over the LIMIT/OFFSET window
+        # (the decision subquery filters on search_tsv @@ query and matches on the
+        # already-projected merged.c1_event_id). Columns are merged-CTE aliases.
+        _em_text = "COALESCE(meeting_summary, agenda_summary, body_name, '')"
+        if _match_q:
+            _summary_hl = f"ts_headline('english', {_em_text}, {_match_q}, {_hl_opts})"
+            _decision_hl = (
+                "(SELECT ts_headline('english', "
+                "string_agg(COALESCE(d.headline, '') || ' ' "
+                "|| COALESCE(d.decision_statement, ''), ' '), "
+                f"{_match_q}, {_hl_opts}) "
+                "FROM event_decision d "
+                f"WHERE d.c1_event_id = merged.c1_event_id AND d.search_tsv @@ {_match_q})"
+            )
+            em_snippet = (
+                "CASE "
+                f"WHEN {_summary_hl} LIKE '%<mark>%' THEN {_summary_hl} "
+                f"WHEN {_decision_hl} LIKE '%<mark>%' THEN {_decision_hl} "
+                "ELSE LEFT(COALESCE(meeting_summary, agenda_summary, ''), 200) END"
             )
         else:
-            ed_snippet = "LEFT(ed.content, 200)"
+            em_snippet = "LEFT(COALESCE(meeting_summary, agenda_summary, ''), 200)"
 
         sql = f"""
             WITH merged AS (
@@ -1342,9 +1429,9 @@ async def search_events_pg(
                     {em_iso}                      AS iso_date,
                     em.meeting_summary,
                     em.agenda_summary,
-                    NULL::text                    AS content,
                     em.video_id,
-                    NULL::text                    AS video_url
+                    NULL::text                    AS video_url,
+                    em.c1_event_id
                 FROM event_meeting em
                 WHERE {em_where_sql}
 
@@ -1365,11 +1452,23 @@ async def search_events_pg(
                         ed.event_date::text           AS iso_date,
                         NULL::text                    AS meeting_summary,
                         NULL::text                    AS agenda_summary,
-                        ed.content,
                         ed.video_id,
-                        ed.video_url
-                    FROM event_documents ed
-                    WHERE {ed_where_sql}
+                        ed.video_url,
+                        NULL::varchar                 AS c1_event_id
+                    FROM (
+                        -- Bounded pool of the most-RECENT matching transcripts, so
+                        -- DISTINCT ON never sorts the full ~72k-row match set of a
+                        -- broad term. content is NOT pulled here (it's detoasted in
+                        -- the OUTER select for the LIMIT window only).
+                        SELECT
+                            ed.event_document_id, ed.event_title, ed.jurisdiction_name,
+                            ed.jurisdiction_type, ed.state_code, ed.state, ed.city,
+                            ed.event_date, ed.video_id, ed.video_url
+                        FROM event_documents ed
+                        WHERE {ed_where_sql}
+                        ORDER BY ed.event_date DESC NULLS LAST, ed.event_document_id DESC
+                        LIMIT {meeting_pool_size}
+                    ) ed
                     ORDER BY ed.video_id, ed.event_date DESC NULLS LAST, ed.event_document_id DESC
                 ) ed_distinct
             )
@@ -1379,8 +1478,8 @@ async def search_events_pg(
                 state_code, state, city, iso_date,
                 video_id, video_url,
                 CASE
-                    WHEN is_analyzed THEN LEFT(COALESCE(meeting_summary, agenda_summary, ''), 200)
-                    ELSE {ed_snippet.replace('ed.content', 'content')}
+                    WHEN is_analyzed THEN {em_snippet}
+                    ELSE {ed_snippet}
                 END AS snippet
             FROM merged
             ORDER BY is_analyzed DESC, iso_date DESC NULLS LAST, row_id DESC
@@ -2201,6 +2300,7 @@ async def search_decisions_pg(
             params.append(question_id)
             param_idx += 1
 
+        topic_idx = None
         if topic_tsquery:
             # Civic-topic filter (Advanced): narrow to decisions whose searchable
             # text matches the chosen named topic's keyword set. topic_tsquery is an
@@ -2208,6 +2308,7 @@ async def search_decisions_pg(
             # public.civicsearch_topic catalog; search_tsv is the GIN-indexed vector.
             where_conditions.append(f"d.search_tsv @@ to_tsquery('english', ${param_idx})")
             params.append(topic_tsquery)
+            topic_idx = param_idx
             param_idx += 1
 
         where_sql = " AND ".join(where_conditions) if where_conditions else "TRUE"
@@ -2242,6 +2343,28 @@ async def search_decisions_pg(
             # relevance with no query -> newest meeting first
             order_by = f"{meeting_date_expr} DESC NULLS LAST, d.extracted_at DESC"
 
+        # Match-evidence snippet: whenever a text query OR a topic filter is
+        # active, surface the passage of the decision (headline + statement) that
+        # actually matched, with the matched terms wrapped in <mark>…</mark> — so
+        # the tile shows the user WHY it was associated with their search/filter,
+        # not just the decision title. In plain browse mode (no filter) there is
+        # nothing to highlight, so we emit NULL and fall back to the leading text
+        # of the statement below. ts_headline only detoasts the result window.
+        decision_text_expr = "concat_ws('. ', NULLIF(d.headline, ''), NULLIF(d.decision_statement, ''))"
+        headline_opts = "'MaxFragments=2, MinWords=5, MaxWords=18, StartSel=<mark>, StopSel=</mark>'"
+        if has_query:
+            snippet_expr = (
+                f"ts_headline('english', {decision_text_expr}, "
+                f"plainto_tsquery('english', ${rank_idx}), {headline_opts})"
+            )
+        elif topic_idx is not None:
+            snippet_expr = (
+                f"ts_headline('english', {decision_text_expr}, "
+                f"to_tsquery('english', ${topic_idx}), {headline_opts})"
+            )
+        else:
+            snippet_expr = "NULL"
+
         sql = f"""
             SELECT
                 d.event_decision_id,
@@ -2260,6 +2383,7 @@ async def search_decisions_pg(
                 d.city,
                 d.c1_event_id,
                 d.extracted_at,
+                {snippet_expr} AS snippet,
                 m.body_name AS meeting_name,
                 {meeting_date_expr} AS meeting_date,
                 m.video_id AS meeting_video_id,
@@ -2312,9 +2436,15 @@ async def search_decisions_pg(
                     subtitle_parts.append(meeting_bits)
                 subtitle = " • ".join(subtitle_parts)
 
-                # Description is the decision_statement for additional context
-                description = row['decision_statement'] or row['headline'] or ''
-                if description and len(description) > 200:
+                # Description is the match-evidence snippet (ts_headline with
+                # <mark> highlights) when a query/topic filter is active, so the
+                # tile shows WHY this decision matched; otherwise the leading text
+                # of the decision_statement for context. Only truncate the plain
+                # fallback — a highlighted snippet is already short and clipping it
+                # could sever a <mark>…</mark> pair.
+                snippet = row['snippet']
+                description = snippet or row['decision_statement'] or row['headline'] or ''
+                if description and '<mark>' not in description and len(description) > 200:
                     description = description[:200] + "..."
 
                 results.append(SearchResult(
