@@ -72,6 +72,22 @@ create table if not exists bronze.bronze_question_centroid (
     built_at     timestamptz default now()
 );
 
+-- Local-embedding assignment of canonical questions to raw transcripts (video
+-- grain). High-recall semantic signal from llm.policy_questions.assign_transcripts;
+-- kept distinct from the precise Gemini analysis path. PK (video_id, question_id).
+create table if not exists bronze.bronze_transcript_question_match (
+    video_id          text not null,
+    question_id       text not null,
+    score             double precision,
+    n_chunks          integer,
+    state_code        text,
+    jurisdiction_name text,
+    model_name        text,
+    threshold         double precision,
+    built_at          timestamptz default now(),
+    primary key (video_id, question_id)
+);
+
 create table if not exists bronze.bronze_policy_question (
     question_id   text primary key,
     canonical_text text,

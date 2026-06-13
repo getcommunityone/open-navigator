@@ -79,6 +79,17 @@ causes:
     parent_id: null
     popularity_rank: 8
 
+  # Civic value-add cause (not in Every.org's upstream taxonomy): dental / oral
+  # health. "Dental health" is the canonical label; "oral health" is treated as
+  # a synonym in the cause keyword maps (int_*_cause.sql).
+  - cause_id: dental-health
+    cause_name: Dental Health
+    description: Organizations and programs advancing dental and oral health care.
+    icon: "🦷"
+    category: health
+    parent_id: health
+    popularity_rank: 18
+
   - cause_id: humanitarian
     cause_name: Humanitarian
     description: Organizations providing humanitarian aid.

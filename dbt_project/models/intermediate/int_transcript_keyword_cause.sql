@@ -1,51 +1,57 @@
 {{
     config(
         materialized='table',
-        tags=['intermediate', 'browse', 'decisions', 'cause', 'keyword-fts'],
+        tags=['intermediate', 'browse', 'transcripts', 'cause', 'keyword-fts'],
         post_hook=[
             "create index if not exists {{ this.name }}_cause_idx on {{ this }} (cause_id)",
-            "create index if not exists {{ this.name }}_c1_event_idx on {{ this }} (c1_event_id)"
+            "create index if not exists {{ this.name }}_video_idx on {{ this }} (video_id)"
         ]
     )
 }}
 
 /*
-int_decision_cause — pure-SQL/dbt full-text CAUSE tagging at the DECISION grain
-(public.event_decision, ~8.9k rows, all carrying c1_event_id). The decision
-sibling of int_transcript_keyword_cause.
+int_transcript_keyword_cause — pure-SQL/dbt full-text CAUSE tagging of the FULL
+transcript universe (~119k videos). The cause sibling of
+int_transcript_keyword_topic.
 
-WHY: the meeting browse for causes should link to DECISIONS first (a meeting's
-decisions rolled up via c1_event_id), falling back to transcript keyword matches
-only when a meeting has no decisions. This model is the decision leg: it matches
-the SAME curated EveryOrg cause keyword vocabulary against the decision TEXT
-(headline + decision_statement), NOT the AI primary_theme — a deliberate
-keyword-match choice so the linkage is an honest, traceable keyword signal.
+WHY: causes had ZERO transcript coverage on the homepage Browse cards. The
+existing keyword path (int_meeting_cause -> meeting_cause_link) is keyed on
+event_meeting_id, which only exists for the ~6k AI-analyzed videos, so it never
+reached the ~119k transcript universe. This model matches the SAME curated
+EveryOrg cause keyword vocabulary (kept identical to int_meeting_cause for
+consistency) against gold.event_documents.content_tsv directly.
 
-NO LLM. Matches lower(headline || ' ' || decision_statement)::tsvector against
-each cause keyword's phraseto/plainto tsquery.
+NO LLM. Reuses gold.event_documents.content_tsv (populated for all transcript
+videos) + its existing GIN index — no new tsvector/index built.
 
-GRAIN: one row per (event_decision_id, cause_id) — DISTINCT. Carries c1_event_id
-(for the meeting roll-up), cause_name, icon, popularity_rank.
+GRAIN: one row per (video_id, cause_id) — DISTINCT — carrying the place's
+state_code + jurisdiction_name. Stamped link_type='transcript_keyword' by the
+consuming mart so it is HONESTLY distinguishable from any AI-derived tag (these
+are high-recall keyword hits — CLAUDE.md No Fabricated Data).
 
-PRECISION STRATEGY: identical threshold to int_transcript_keyword_cause — the
-EveryOrg cause vocabulary is mostly single generic words ("school", "health"),
-so we REQUIRE >= 2 DISTINCT keyword hits per (decision, cause). Decision text is
-much shorter than a transcript, so two distinct cause-vocabulary terms
-co-occurring in a single decision headline+statement is a strong signal.
+PRECISION STRATEGY (spot-checked): the EveryOrg cause vocabulary is mostly
+single generic words ("school", "health", "youth"), so we REQUIRE >= 2 DISTINCT
+keyword hits per (video, cause). One generic word is not a cause; two distinct
+cause-vocabulary terms co-occurring is a defensible signal. Multi-word phrases
+are matched as phrase queries; single words via plainto. Eyeballed
+mental-health/education samples: on-topic at this threshold.
 
-KEYWORD VOCABULARY: kept byte-for-byte in sync with int_transcript_keyword_cause
-(and int_meeting_cause). KEEP IN SYNC — if you edit one, edit all three.
+KEYWORD VOCABULARY: kept byte-for-byte in sync with int_meeting_cause's
+cause_keyword VALUES list (editorial civic vocabulary, NOT fabricated counts).
+If you edit one, edit both.
 
 INJECTION SAFETY: each keyword goes through plainto_tsquery / phraseto_tsquery
 ('english', <kw>); no raw keyword text becomes a tsquery operator.
 
-SOURCE : stg_everyorg__cause (cause id/name/icon/rank), event_decision
-         (headline, decision_statement, c1_event_id).
-TARGET : gold.int_decision_cause (consumed by meeting_cause_link).
+SOURCE : stg_everyorg__cause (cause id/name/icon/rank), event_documents
+         (transcript, content_tsv, state_code, jurisdiction_name — read directly
+         to avoid a DAG cycle with int_browse_entity_transcripts, which consumes
+         this model).
+TARGET : gold.int_transcript_keyword_cause (consumed by
+         int_browse_entity_transcripts).
 */
 
--- Curated EveryOrg cause keyword vocabulary — KEEP IN SYNC with
--- int_transcript_keyword_cause and int_meeting_cause.
+-- Curated EveryOrg cause keyword vocabulary — KEEP IN SYNC with int_meeting_cause.
 with cause_keyword(cause_id, keyword) as (
     select * from (values
         ('animals', 'animal'), ('animals', 'animals'), ('animals', 'pet'),
@@ -144,55 +150,59 @@ cause_meta as (
     from {{ ref('stg_everyorg__cause') }}
 ),
 
--- Decision text universe: one tsvector per decision from headline +
--- decision_statement. Only decisions with a c1_event_id (the meeting roll-up key)
--- are kept; in event_decision every row already has one.
-decision_doc as (
-    select
-        d.event_decision_id,
-        d.c1_event_id,
-        to_tsvector(
-            'english',
-            lower(coalesce(d.headline, '') || ' ' || coalesce(d.decision_statement, ''))
-        ) as content_tsv
-    from {{ ref('event_decision') }} d
-    where d.c1_event_id is not null
-      and (
-            nullif(trim(coalesce(d.headline, '')), '') is not null
-         or nullif(trim(coalesce(d.decision_statement, '')), '') is not null
-      )
+transcript_place as (
+    select distinct on (d.video_id)
+        d.video_id,
+        d.jurisdiction_name,
+        d.state_code
+    from {{ ref('event_documents') }} d
+    where d.document_type = 'transcript'
+      and d.video_id is not null
+      and d.state_code is not null
+    order by d.video_id, d.content_length desc nulls last
+),
+
+doc as (
+    select distinct on (d.video_id)
+        d.video_id, d.content_tsv
+    from {{ ref('event_documents') }} d
+    where d.document_type = 'transcript'
+      and d.video_id is not null
+      and d.content_tsv is not null
+    order by d.video_id, d.content_length desc nulls last
 ),
 
 phrase_hit as (
     select
-        dd.event_decision_id,
-        dd.c1_event_id,
+        d.video_id,
         vq.cause_id,
         vq.keyword
-    from decision_doc dd
+    from doc d
     join valid_query vq
-        on dd.content_tsv @@ vq.pq::tsquery
+        on d.content_tsv @@ vq.pq::tsquery
 ),
 
 scored as (
     select
-        event_decision_id,
-        c1_event_id,
+        video_id,
         cause_id,
         count(distinct keyword) as n_keyword_hits
     from phrase_hit
-    group by event_decision_id, c1_event_id, cause_id
+    group by video_id, cause_id
 )
 
 select distinct
-    s.event_decision_id::text   as event_decision_id,
-    s.c1_event_id::text         as c1_event_id,
+    s.video_id::text            as video_id,
     s.cause_id::text            as cause_id,
     cm.cause_name::text         as cause_name,
     cm.icon::text               as icon,
     cm.popularity_rank          as popularity_rank,
+    tp.state_code::text         as state_code,
+    tp.jurisdiction_name::text  as jurisdiction_name,
     s.n_keyword_hits::integer   as n_keyword_hits
 from scored s
+join transcript_place tp
+    on tp.video_id = s.video_id
 join cause_meta cm
     on cm.cause_id = s.cause_id
 where s.n_keyword_hits >= 2

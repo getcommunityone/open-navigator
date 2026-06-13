@@ -63,6 +63,20 @@ class InstanceOut(BaseModel):
     assign_score: Optional[float] = None
 
 
+class QuestionMeetingOut(BaseModel):
+    """A real meeting whose transcript discusses the question's alias keyword(s)."""
+
+    video_id: str
+    event_title: Optional[str] = None
+    event_date: Optional[Any] = None  # date — ISO-serialized
+    state_code: Optional[str] = None
+    state: Optional[str] = None
+    city: Optional[str] = None
+    jurisdiction_name: Optional[str] = None
+    video_url: Optional[str] = None
+    n_alias_hits: int = 0
+
+
 class PolicyQuestionSummary(BaseModel):
     question_id: str
     canonical_text: Optional[str] = None
@@ -81,6 +95,11 @@ class PolicyQuestionSummary(BaseModel):
     money_total: float = 0
     money_share: float = 0
     talk_share: float = 0
+    # Real meetings whose transcript discusses this question's alias keyword(s)
+    # (dbt question_transcript_link). High-recall keyword signal, distinct from the
+    # structured decision/bill instances above — powers the "discussed in N
+    # meetings" fallback for questions with zero mapped decisions.
+    discussion_meeting_count: int = 0
 
 
 class RelationOut(BaseModel):
@@ -130,7 +149,9 @@ _LIST_COLS = """
     question_id, canonical_text, topic_code, primary_theme, cofog_code,
     scope, status, instances_total, jurisdictions_total, jurisdictions_approved,
     is_featured, display_order,
-    money_total, money_share, talk_share
+    money_total, money_share, talk_share,
+    (select count(*) from public.question_transcript_link l
+       where l.question_id = policy_question.question_id) as discussion_meeting_count
 """
 
 # Default list: theme/scope filters. Curated featured questions are PINNED to the
@@ -173,6 +194,21 @@ _INSTANCES_SQL = """
     where question_id = $1
     order by assign_score desc nulls last
     limit $2 offset $3
+"""
+
+# Real meetings whose transcript discusses the question's alias keyword(s)
+# (dbt question_transcript_link). Ordered by relevance (n_alias_hits) then recency.
+_MEETINGS_SQL = """
+    select video_id, event_title, event_date, state_code, state, city,
+           jurisdiction_name, video_url, n_alias_hits
+    from public.question_transcript_link
+    where question_id = $1
+    order by n_alias_hits desc, event_date desc nulls last
+    limit $2 offset $3
+"""
+
+_DISCUSSION_COUNT_SQL = """
+    select count(*) from public.question_transcript_link where question_id = $1
 """
 
 # Quarterly history (oldest → newest) for the registry drill-down trend chart.
@@ -224,6 +260,7 @@ async def get_policy_question(
                 args = await conn.fetch(_ARGS_SQL, question_id)
                 insts = await conn.fetch(_INSTANCES_SQL, question_id, sample, 0)
                 trend = await conn.fetch(_TREND_SQL, question_id)
+                discussion_count = await conn.fetchval(_DISCUSSION_COUNT_SQL, question_id)
                 try:
                     rels = await conn.fetch(_RELATIONS_SQL, question_id)
                 except Exception:  # noqa: BLE001 — relations are best-effort (Phase 3 mart optional)
@@ -254,6 +291,7 @@ async def get_policy_question(
             money_total=float(d.get("money_total") or 0),
             money_share=float(d.get("money_share") or 0),
             talk_share=float(d.get("talk_share") or 0),
+            discussion_meeting_count=int(discussion_count or 0),
             rollup=rollup,
             arguments=[ArgumentOut(**dict(a)) for a in args],
             sample_instances=[InstanceOut(**dict(i)) for i in insts],
@@ -274,3 +312,23 @@ async def get_question_instances(
         async with pool.acquire() as conn:
             rows = await conn.fetch(_INSTANCES_SQL, question_id, limit, offset)
         return [InstanceOut(**dict(r)) for r in rows]
+
+
+@router.get("/{question_id}/meetings", response_model=List[QuestionMeetingOut])
+async def get_question_meetings(
+    question_id: str,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> List[QuestionMeetingOut]:
+    """Real meetings whose transcript discusses the question's alias keyword(s).
+
+    The "discussed in N meetings" fallback for questions with no structured
+    decision-instances. Keyword-matched (dbt question_transcript_link) — a
+    high-recall signal, NOT an AI-extracted decision; the UI labels it as such.
+    """
+    with tracer.start_as_current_span("policy-question-meetings") as span:
+        span.set_attribute("policy_question.id", question_id)
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(_MEETINGS_SQL, question_id, limit, offset)
+        return [QuestionMeetingOut(**dict(r)) for r in rows]

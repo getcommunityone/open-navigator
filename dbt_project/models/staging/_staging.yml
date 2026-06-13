@@ -1284,6 +1284,28 @@ sources:
           - name: resource_kind
           - name: url
 
+      - name: bronze_meeting_document_text
+        description: >
+          One row per scraped meeting-document PDF with EXTRACTED full text.
+          Joins to bronze_events_meetings_municipalities_scraped (and the
+          stg_suiteone_meeting_documents / event_meeting_document grain) on
+          (jurisdiction_id, url_sha256). Currently Tuscaloosa only.
+        columns:
+          - name: jurisdiction_id
+          - name: census_geoid
+          - name: state_code
+          - name: url
+          - name: url_sha256
+          - name: doc_type
+          - name: meeting_date
+          - name: content
+            description: "Extracted PDF text body."
+          - name: content_length
+          - name: word_count
+          - name: page_count
+          - name: extraction_method
+          - name: extracted_at
+
       - name: bronze_jurisdictions_townships
         description: "Census Gazetteer county subdivision (township/minor civil division) jurisdictions"
         columns:

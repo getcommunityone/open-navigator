@@ -56,6 +56,7 @@ class LensCard(BaseModel):
     video_id: Optional[str] = None      # YouTube id of the meeting recording, or None
     state_code: Optional[str] = None
     state: Optional[str] = None
+    speakers: List[str] = []            # person_id slugs of named testimony, capped ≤6
 
 
 class Lens(BaseModel):
@@ -146,6 +147,25 @@ def video_id_subquery(alias: str) -> str:
         f"JOIN event_meeting m ON m.c1_event_id = ed.c1_event_id "
         f"WHERE ed.event_decision_id = {alias}.event_decision_id "
         f"AND m.video_id IS NOT NULL LIMIT 1) AS video_id"
+    )
+
+
+def speaker_ids_subquery(alias: str) -> str:
+    """
+    Correlated-subquery SQL fragment selecting the decision's `speaker_ids`
+    (a jsonb array of distinct person_id slugs, capped ≤6) for a decision row,
+    parameterized by the outer table alias.
+
+    Reads the already-modeled public.decision_speakers view — a plain column
+    read, NO jsonb extraction logic here (the cap/distinct lives upstream in
+    dbt). Returns NULL (-> None) when the decision has no named testimony.
+    PUBLIC so search_postgres.py / decision_browse.py can import and reuse it.
+    `alias` is the table/alias the outer query references the decision by (its
+    event_decision_id column), e.g. "ii" or "d".
+    """
+    return (
+        f"(SELECT ds.speaker_ids FROM public.decision_speakers ds "
+        f"WHERE ds.event_decision_id = {alias}.event_decision_id) AS speaker_ids"
     )
 
 
@@ -259,6 +279,19 @@ def _stats_next(row: Any) -> List[LensStat]:
     return stats[:3]
 
 
+def _speaker_slugs(row: Any) -> List[str]:
+    """
+    Parse a row's `speaker_ids` (jsonb -> text via asyncpg) into a list of slug
+    strings. Defaults to [] when the column is missing (flag/gap cards never
+    select it), null (decision has no testimony), or not a list. Slugs are
+    emitted RAW — the frontend humanizes them via parseSpeaker().
+    """
+    raw = _parse_json(row.get("speaker_ids"))
+    if not isinstance(raw, list):
+        return []
+    return [s for s in raw if isinstance(s, str)]
+
+
 def _build_card(row: Any, label: str, stats: List[LensStat]) -> LensCard:
     return LensCard(
         headline=_headline(row),
@@ -273,6 +306,8 @@ def _build_card(row: Any, label: str, stats: List[LensStat]) -> LensCard:
         video_id=row.get("video_id"),
         state_code=row["state_code"],
         state=row["state"],
+        # Same .get() guard as video_id: flag/gap cards never select the column.
+        speakers=_speaker_slugs(row),
     )
 
 

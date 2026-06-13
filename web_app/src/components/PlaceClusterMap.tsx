@@ -157,7 +157,76 @@ function ClusterLayers({
   return null
 }
 
-export default function PlaceClusterMap() {
+/** Keeps the Leaflet canvas correctly sized when its container resizes — e.g.
+ *  when the filters panel docks open and the page content reflows narrower. */
+function InvalidateOnResize() {
+  const map = useMap()
+  useEffect(() => {
+    const el = map.getContainer()
+    const ro = new ResizeObserver(() => map.invalidateSize())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [map])
+  return null
+}
+
+/** Fits the viewport to the pins of the currently-selected levels, so the map
+ *  zooms into the selection. Re-fires whenever the selected levels (`enabledKey`)
+ *  or the page's state focus (`focusKey`) change — including the initial seed —
+ *  but never on plain pan/zoom, so a user's manual navigation between selection
+ *  changes is preserved. */
+function FitToSelection({
+  levels,
+  enabled,
+  enabledKey,
+  focusKey,
+}: {
+  levels: PlaceMapLevel[]
+  enabled: Set<string>
+  enabledKey: string
+  focusKey: string
+}) {
+  const map = useMap()
+  useEffect(() => {
+    const pts: [number, number][] = []
+    for (const lvl of levels) {
+      if (!enabled.has(lvl.level)) continue
+      for (const p of lvl.pins) pts.push([p.latitude, p.longitude])
+    }
+    if (pts.length) {
+      map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 9 })
+    }
+    // enabledKey / focusKey drive the re-fit; levels/enabled are read fresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, enabledKey, focusKey])
+  return null
+}
+
+/** Maps a page-level filter id (which includes town / special_district / village)
+ *  onto the four map levels. Unmapped ids (special_district, village) have no map
+ *  layer and are simply dropped. */
+const PAGE_TO_MAP_LEVEL: Record<string, string> = {
+  city: 'city',
+  town: 'city',
+  county: 'county',
+  state: 'state',
+  school_district: 'school_district',
+}
+
+interface PlaceClusterMapProps {
+  /** 2-letter state code — restrict pins to this state and zoom to it. */
+  filterState?: string
+  /** City/locality name — focus the map on this single place and zoom to it. */
+  filterCity?: string
+  /** Page-level jurisdiction filter ids — restrict the visible map layers. */
+  filterLevels?: string[]
+}
+
+export default function PlaceClusterMap({
+  filterState,
+  filterCity,
+  filterLevels,
+}: PlaceClusterMapProps = {}) {
   const { data, isLoading, error } = useQuery<PlaceMapResponse>({
     queryKey: ['browse-place-map'],
     queryFn: async () => {
@@ -167,13 +236,60 @@ export default function PlaceClusterMap() {
     staleTime: 1000 * 60 * 30, // slow-moving index
   })
 
-  const levels = useMemo(() => data?.levels ?? [], [data])
+  const allLevels = useMemo(() => data?.levels ?? [], [data])
 
-  // All levels enabled by default; toggled by the filter chips.
+  // Restrict pins to the active page filters (when they carry one). The map data
+  // is fetched once with every place, so this is an instant client-side narrowing
+  // — no refetch — and counts/labels reflect the filtered set.
+  const stateCode = (filterState ?? '').trim().toUpperCase()
+  const cityName = (filterCity ?? '').trim().toUpperCase()
+  const levels = useMemo(() => {
+    if (!stateCode && !cityName) return allLevels
+
+    // 1) State narrowing (when a state is selected).
+    const stateScoped = allLevels.map((l) => {
+      const pins = stateCode
+        ? l.pins.filter((p) => (p.state_code ?? '').toUpperCase() === stateCode)
+        : l.pins
+      return { ...l, pins, count: pins.length }
+    })
+    if (!cityName) return stateScoped
+
+    // 2) City focus: a selected city should show *that* locality, not every
+    //    place in the state. Match pins by name (counties/states have no pin
+    //    named for a city, so those layers naturally empty out). If the city
+    //    isn't an indexed place, fall back to the state view so the map is
+    //    never left blank.
+    const cityScoped = stateScoped.map((l) => {
+      const pins = l.pins.filter(
+        (p) => (p.name ?? '').trim().toUpperCase() === cityName,
+      )
+      return { ...l, pins, count: pins.length }
+    })
+    const cityTotal = cityScoped.reduce((sum, l) => sum + l.count, 0)
+    return cityTotal > 0 ? cityScoped : stateScoped
+  }, [allLevels, stateCode, cityName])
+
+  // Page-level filter ids mapped onto map levels (empty = no level filter).
+  const filterKey = (filterLevels ?? []).join(',')
+  const mappedLevels = useMemo(() => {
+    const ids = (filterLevels ?? [])
+      .map((id) => PAGE_TO_MAP_LEVEL[id])
+      .filter(Boolean) as string[]
+    return new Set(ids)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey])
+
+  // Visible layers: chip-toggleable, but seeded/overridden by the page's level
+  // filter so picking levels in the flyout updates the map immediately.
   const [enabled, setEnabled] = useState<Set<string>>(new Set())
   useEffect(() => {
-    if (levels.length) setEnabled(new Set(levels.map((l) => l.level)))
-  }, [levels])
+    if (mappedLevels.size > 0) {
+      setEnabled(new Set(mappedLevels))
+    } else if (allLevels.length) {
+      setEnabled(new Set(allLevels.map((l) => l.level)))
+    }
+  }, [mappedLevels, allLevels])
 
   const toggle = (level: string) => {
     setEnabled((prev) => {
@@ -183,6 +299,9 @@ export default function PlaceClusterMap() {
       return next
     })
   }
+
+  // Stable key for the selected level set — drives the map's zoom-to-selection.
+  const enabledKey = useMemo(() => [...enabled].sort().join(','), [enabled])
 
   const totalPins = useMemo(
     () => levels.reduce((sum, l) => sum + l.count, 0),
@@ -247,6 +366,13 @@ export default function PlaceClusterMap() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <ClusterLayers levels={levels} enabled={enabled} />
+            <InvalidateOnResize />
+            <FitToSelection
+              levels={levels}
+              enabled={enabled}
+              enabledKey={enabledKey}
+              focusKey={`${stateCode}|${cityName}`}
+            />
           </MapContainer>
         </div>
       )}

@@ -14,18 +14,20 @@ to each browseable homepage entity (place | topic | question | cause).
 GRAIN: one row per (entity_type, entity_id, state_code). PK = (entity_type,
 entity_id) — see note below on why state_code is NOT in the PK.
 
-  * place / topic / question rows come from int_browse_entity_transcripts, the
-    DISTINCT (entity, video) bridge, GROUP BY-ed to COUNT(DISTINCT video_id).
-    state_code is the per-video state, so an entity may span several states; the
-    GROUP BY collapses to ONE row per (entity_type, entity_id) because the bridge
-    already has at most one state_code per video and we aggregate over the entity.
-    (A topic that appears in multiple states is summed into a single national
-    row here; per-state breakdowns live in browse_directory_summary.)
-  * cause rows are unioned in from public.tag (vocabulary='ntee') with
-    transcript_count = 0 and state_code = NULL — there is NO cause->transcript
-    linkage in the warehouse, so 0 is the honest value (no fabricated data).
+  * place / topic / question / cause rows ALL come from
+    int_browse_entity_transcripts, the DISTINCT (entity, video) bridge, GROUP
+    BY-ed to COUNT(DISTINCT video_id). state_code is the per-video state, so an
+    entity may span several states; the GROUP BY collapses to ONE row per
+    (entity_type, entity_id) because the bridge already has at most one
+    state_code per video and we aggregate over the entity. (A topic/cause that
+    appears in multiple states is summed into a single national row here;
+    per-state breakdowns live in browse_directory_summary.)
+  * cause rows now carry REAL transcript counts from the keyword-FTS layer
+    (int_transcript_keyword_cause, EveryOrg cause taxonomy) — the prior
+    honest-zero NTEE-tag union is retired now that a genuine cause->transcript
+    linkage exists.
 
-SOURCE : ref('int_browse_entity_transcripts') + ref('tag').
+SOURCE : ref('int_browse_entity_transcripts').
 TARGET : public.browse_transcript_count (served via publish_public_serving).
 
 PK NOTE: the entity grain is (entity_type, entity_id). state_code here is a
@@ -52,17 +54,6 @@ linked as (
         count(distinct video_id)::integer       as transcript_count
     from bridge
     group by entity_type, entity_id
-),
-
-causes as (
-    select
-        'cause'::text                           as entity_type,
-        t.tag_id::text                          as entity_id,
-        t.label::text                           as entity_name,
-        cast(null as text)                      as state_code,
-        0::integer                              as transcript_count
-    from {{ ref('tag') }} t
-    where t.vocabulary = 'ntee'
 )
 
 select
@@ -72,13 +63,3 @@ select
     state_code::text                            as state_code,
     transcript_count::integer                   as transcript_count
 from linked
-
-union all
-
-select
-    entity_type,
-    entity_id,
-    entity_name,
-    state_code,
-    transcript_count
-from causes

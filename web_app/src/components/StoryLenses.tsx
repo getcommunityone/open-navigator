@@ -17,6 +17,7 @@ import MeetingThumbnail from './MeetingThumbnail'
 import PersonalizeFeedModal from './PersonalizeFeedModal'
 import { useAuth } from '../contexts/AuthContext'
 import { fromSignalSlug } from '../lib/feedSlugs'
+import { type Speaker, parseSpeaker } from '../lib/speakers'
 
 /**
  * StoryLenses — the homepage "What's happening near you" section.
@@ -185,6 +186,10 @@ export interface ApiCard {
   /** Bare YouTube id of the decision's meeting recording; null/absent when
    *  the decision has no recording. Drives the optional card thumbnail. */
   video_id?: string | null
+  /** Raw AI speaker slugs (e.g. "jane_doe_resident_clayton_01031") for the
+   *  decision's testimony. Omitted/empty when none — never fabricated. Parsed
+   *  client-side into the compact "Voices" attribution row on the card. */
+  speakers?: string[]
 }
 interface ApiLens {
   id: string
@@ -220,6 +225,10 @@ export interface RenderCard {
    *  Rendered under the title, clamped to a few lines. Pre-built React nodes so
    *  callers can pass <mark>-highlighted segments without dangerouslySetInnerHTML. */
   excerpt?: React.ReactNode
+  /** Parsed speakers/voices who testified on this decision. When non-empty, the
+   *  card shows a compact "Voices" attribution row (overlapping initial avatars +
+   *  names). Undefined/empty ⇒ the row doesn't render (never invent a speaker). */
+  speakers?: Speaker[]
 }
 
 // Census place names carry a *lowercase* generic type suffix ("Douglas city",
@@ -375,6 +384,34 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
             )
           })}
         </div>
+
+        {/* Voices — speaker attribution. Only rendered when real speakers exist
+            (never fabricated). Up to 3 overlapping initial avatars + a muted
+            name label, with "+N" for the remainder. Clamped so it can't blow
+            out tile height. */}
+        {c.speakers && c.speakers.length > 0 && (
+          <div className="mb-3 flex items-center gap-2 text-[12px] text-[#8a958f]">
+            <span className="flex shrink-0 items-center -space-x-1.5">
+              {c.speakers.slice(0, 3).map((sp, i) => (
+                <span
+                  key={`${sp.name}-${i}`}
+                  className="flex h-5 w-5 items-center justify-center rounded-full font-bold ring-1 ring-white"
+                  style={{ background: sp.color.bg, color: sp.color.fg, fontSize: 8 }}
+                  title={sp.role ? `${sp.name} — ${sp.role}` : sp.name}
+                  aria-hidden
+                >
+                  {sp.initials}
+                </span>
+              ))}
+            </span>
+            <span className="truncate">
+              {c.speakers.slice(0, 2).map((sp) => sp.name).join(', ')}
+              {c.speakers.length > 2 && (
+                <span className="text-[#9bb8b8]"> +{c.speakers.length - 2}</span>
+              )}
+            </span>
+          </div>
+        )}
 
         <div className="mt-auto flex items-center gap-2 border-t border-[#e1ebe7] pt-2.5 text-[12px] text-[#8a958f]">
           <span className="font-semibold text-[#56635e]">{c.juris}</span>
@@ -550,6 +587,9 @@ export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCar
     url: c.url,
     stateCode: c.state_code || undefined,
     videoId: c.video_id ?? undefined,
+    // Raw speaker slugs → parsed Speakers; empty/absent ⇒ undefined so the
+    // "Voices" row stays hidden (never fabricated).
+    speakers: c.speakers && c.speakers.length > 0 ? c.speakers.map(parseSpeaker) : undefined,
   }))
   const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
   const showState = unscoped || distinctStates.size > 1

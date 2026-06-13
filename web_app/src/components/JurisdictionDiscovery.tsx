@@ -178,8 +178,8 @@ export default function JurisdictionDiscovery({ jurisdiction }: JurisdictionDisc
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <CheckCircleIcon className="h-5 w-5 text-green-600" />
-              <h3 className="font-bold text-gray-900 uppercase">
-                {jurisdiction.name}, {jurisdiction.state} - DISCOVERY COMPLETE!
+              <h3 className="font-bold text-gray-900">
+                {jurisdiction.name}, {jurisdiction.state}
               </h3>
             </div>
             

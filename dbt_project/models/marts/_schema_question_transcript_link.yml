@@ -1,0 +1,82 @@
+version: 2
+
+# public.question_transcript_link — curated policy question <-> transcript links
+# via the question's alias keyword phrases. The "discussed in N meetings" fallback
+# for the Browse Questions page (questions with zero structured decision-instances
+# but real transcript discussion). NO LLM; full-text alias match over
+# event_documents.content_tsv. policy_question has a single-column PK
+# (question_id), so the FK is a REAL enforced constraint.
+
+models:
+  - name: question_transcript_link
+    description: >
+      public.question_transcript_link — one row per (question_id, video_id): a
+      curated/featured policy question whose alias keyword phrase(s) full-text
+      matched a real meeting transcript. High-recall keyword signal (NOT an AI
+      theme), kept honestly distinct from question_instance (structured
+      decisions/bills). Powers the "discussed in N meetings" surface.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'policy-questions', 'transcript']
+      contract:
+        enforced: true
+    columns:
+      - name: question_transcript_link_id
+        description: "Primary key — md5(question_id || '|' || video_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: question_id
+        description: "FK -> policy_question.question_id (enforced)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('policy_question')
+            to_columns: [question_id]
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('policy_question')
+                field: question_id
+      - name: video_id
+        description: "Transcript/video key (event_documents.video_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: event_title
+        description: "Meeting/video title (passthrough from event_documents)."
+        data_type: text
+      - name: event_date
+        description: "Meeting date (event_documents.event_date)."
+        data_type: date
+      - name: state_code
+        description: "2-letter state code (passthrough from event_documents)."
+        data_type: text
+      - name: state
+        description: "Full state name (passthrough from event_documents)."
+        data_type: text
+      - name: city
+        description: "City (passthrough from event_documents)."
+        data_type: text
+      - name: jurisdiction_name
+        description: "Jurisdiction name (passthrough from event_documents)."
+        data_type: text
+      - name: video_url
+        description: "YouTube/video URL for the drill-through card."
+        data_type: text
+      - name: n_alias_hits
+        description: >
+          Count of DISTINCT alias phrases that matched this transcript — a
+          relevance signal for ordering / honest match labeling.
+        data_type: integer
+        constraints:
+          - type: not_null

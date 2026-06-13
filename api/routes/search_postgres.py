@@ -6,6 +6,7 @@ from typing import Any, Optional, List
 from urllib.parse import quote
 from loguru import logger
 import asyncpg
+import json
 import os
 import re
 from datetime import datetime
@@ -74,6 +75,23 @@ MEETING_CANDIDATE_POOL = 400
 
 # Connection pools (created on first request)
 _db_pool = None  # Production database pool (Neon)
+
+
+def _parse_speaker_slugs(value: Any) -> List[str]:
+    """
+    Parse a decision's `speaker_ids` (a jsonb array of person_id slugs from
+    public.decision_speakers; the pool has no jsonb codec so it arrives as text)
+    into a list of slug strings. Defaults to [] when null/missing/not-a-list.
+    Slugs are emitted RAW — the frontend humanizes them via parseSpeaker().
+    """
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (json.JSONDecodeError, ValueError):
+            return []
+    if not isinstance(value, list):
+        return []
+    return [s for s in value if isinstance(s, str)]
 
 # State name to code mapping for input normalization
 STATE_NAME_TO_CODE = {
@@ -1831,6 +1849,163 @@ async def search_documents_pg(
         return []
 
 
+def _jurisdiction_display_name(jurisdiction_id: Optional[str]) -> str:
+    """Derive a human display name from a jurisdiction_id slug.
+
+    event_meeting_document has no city/jurisdiction_name column, so we synthesize
+    one from the slug (e.g. 'tuscaloosa_0177256' -> 'Tuscaloosa'): drop the trailing
+    '_<census-geoid>' segment, then title-case the remaining slug words.
+    """
+    if not jurisdiction_id:
+        return ''
+    slug = re.sub(r'_[^_]*$', '', jurisdiction_id)
+    return slug.replace('_', ' ').replace('-', ' ').strip().title()
+
+
+async def search_meeting_documents_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    document_type: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0,
+) -> List[SearchResult]:
+    """Full-text search over official meeting documents (agenda / minutes /
+    attachments) backed by public.event_meeting_document.
+
+    Mirrors search_documents_pg but over the (tiny, ~2,900-row) meeting-document
+    mart: no two-phase candidate pool / SET LOCAL needed. Matches the STORED
+    content_tsv (GIN-indexed) which covers extracted PDF text plus title/body
+    metadata. The mart has no city/jurisdiction_name column, so the display name
+    and the optional city filter are derived from the jurisdiction_id slug.
+
+    Args:
+        query: Search text (matched against content_tsv)
+        state: Filter by state code ('AL') or full name ('Alabama')
+        city: Filter by city name (matched against the jurisdiction_id slug)
+        document_type: One of 'agenda' | 'minutes' | 'attachment' (whitelisted)
+        limit: Max results
+        offset: Pagination offset
+
+    Returns:
+        List of SearchResult objects (result_type='meeting_document')
+    """
+    # Normalize state input to 2-letter code
+    state = normalize_state_input(state)
+
+    try:
+        pool = await get_db_pool()
+
+        where_clauses: List[str] = []
+        params: List[Any] = []
+        param_idx = 1
+
+        if state:
+            where_clauses.append(f"state_code = ${param_idx}")
+            params.append(state.upper())
+            param_idx += 1
+
+        # Whitelist the document_type filter to the known mart values; silently
+        # ignore anything else so a stray value can't 500 or filter to nothing.
+        if document_type and document_type.strip().lower() in {'agenda', 'minutes', 'attachment'}:
+            where_clauses.append(f"document_type = ${param_idx}")
+            params.append(document_type.strip().lower())
+            param_idx += 1
+
+        # City scope — best-effort. The mart has no city column, so normalize the
+        # jurisdiction_id slug (drop trailing census-geoid segment, collapse
+        # non-alphanumerics to spaces) and compare to the requested city.
+        if city and city.strip():
+            where_clauses.append(
+                "regexp_replace(lower(regexp_replace(jurisdiction_id, '_[^_]*$', '')), "
+                f"'[^a-z0-9]+', ' ', 'g') = lower(${param_idx})"
+            )
+            params.append(city.strip())
+            param_idx += 1
+
+        if query and query.strip():
+            where_clauses.append(
+                f"content_tsv @@ plainto_tsquery('english', ${param_idx})"
+            )
+            params.append(query)
+            q_idx = param_idx
+            param_idx += 1
+
+            order_by = (
+                f"ts_rank(content_tsv, plainto_tsquery('english', ${q_idx})) DESC, "
+                "doc_date DESC NULLS LAST"
+            )
+            snippet_sql = (
+                "ts_headline('english', coalesce(content, meeting_title, ''), "
+                f"plainto_tsquery('english', ${q_idx}), "
+                "'MaxFragments=2, MinWords=5, MaxWords=18, StartSel=<mark>, StopSel=</mark>')"
+            )
+        else:
+            order_by = "doc_date DESC NULLS LAST, event_meeting_document_id"
+            snippet_sql = "LEFT(coalesce(content, meeting_title, ''), 200)"
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+        capped_limit = min(limit, 50)
+        safe_offset = max(offset, 0)
+
+        select_cols = (
+            "event_meeting_document_id, event_meeting_id, jurisdiction_id, "
+            "document_type, document_url, doc_date, body_name, meeting_title, "
+            "state_code, state, word_count"
+        )
+
+        sql = f"""
+            SELECT {select_cols}, {snippet_sql} AS snippet
+            FROM event_meeting_document
+            WHERE {where_sql}
+            ORDER BY {order_by}
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        """
+        params.append(capped_limit)
+        params.append(safe_offset)
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+        results: List[SearchResult] = []
+        for row in rows:
+            jurisdiction = _jurisdiction_display_name(row['jurisdiction_id'])
+            date_str = row['doc_date'].strftime('%Y-%m-%d') if row['doc_date'] else ''
+            doc_type = row['document_type'] or ''
+            title = row['meeting_title'] or (
+                f"{doc_type.title()} document" if doc_type else 'Meeting document'
+            )
+            subtitle = f"{jurisdiction}, {row['state']} - {date_str}".strip(' -')
+
+            results.append(SearchResult(
+                result_type='meeting_document',
+                title=title,
+                subtitle=subtitle,
+                description=row['snippet'] or '',
+                url=row['document_url'],
+                score=1.0,
+                metadata={
+                    'document_id': row['event_meeting_document_id'],
+                    'document_type': row['document_type'],
+                    'body_name': row['body_name'],
+                    'date': date_str,
+                    'jurisdiction': jurisdiction,
+                    'state': row['state'],
+                    'state_code': row['state_code'],
+                    'meeting_id': row['event_meeting_id'],
+                    'document_url': row['document_url'],
+                    'word_count': row['word_count'],
+                }
+            ))
+
+        logger.info(f"📄 PostgreSQL meeting-documents search: {len(results)} results")
+        return results
+
+    except Exception as e:
+        logger.error(f"PostgreSQL meeting-documents search error: {e}")
+        return []
+
+
 async def search_bills_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -2389,7 +2564,9 @@ async def search_decisions_pg(
                 m.video_id AS meeting_video_id,
                 ii.competing_views_count AS competing_views_count,
                 ii.votes_yes AS ii_votes_yes,
-                ii.votes_no AS ii_votes_no
+                ii.votes_no AS ii_votes_no,
+                (SELECT ds.speaker_ids FROM public.decision_speakers ds
+                 WHERE ds.event_decision_id = d.event_decision_id) AS speaker_ids
             FROM event_decision d
             LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
             LEFT JOIN item_interestingness ii ON ii.event_decision_id = d.event_decision_id
@@ -2474,6 +2651,10 @@ async def search_decisions_pg(
                         'competing_views_count': row['competing_views_count'],
                         'votes_yes': row['ii_votes_yes'],
                         'votes_no': row['ii_votes_no'],
+                        # person_id slugs of named testimony (public.decision_speakers,
+                        # jsonb -> text via asyncpg). [] when the decision has none;
+                        # the frontend humanizes the RAW slugs via parseSpeaker().
+                        'speakers': _parse_speaker_slugs(row['speaker_ids']),
                         'jurisdiction': row['jurisdiction_name'],
                         'jurisdiction_type': row['jurisdiction_type'],
                         'state': row['state'],

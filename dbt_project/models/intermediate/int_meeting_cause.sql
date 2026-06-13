@@ -71,6 +71,12 @@ with cause_keyword(cause_id, keyword) as (
         ('health', 'clinic'), ('health', 'medical'), ('health', 'public health'),
         ('health', 'vaccine'),
 
+        -- "oral health" is a synonym for "dental health"; both map to dental-health.
+        ('dental-health', 'dental health'), ('dental-health', 'oral health'),
+        ('dental-health', 'dental'), ('dental-health', 'dentist'),
+        ('dental-health', 'dental care'), ('dental-health', 'dental clinic'),
+        ('dental-health', 'tooth decay'), ('dental-health', 'oral hygiene'),
+
         ('humanitarian', 'humanitarian'), ('humanitarian', 'refugee'),
         ('humanitarian', 'humanitarian aid'), ('humanitarian', 'displaced'),
 

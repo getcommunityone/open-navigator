@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline'
 import JurisdictionDiscovery from '../components/JurisdictionDiscovery'
 import PlaceClusterMap from '../components/PlaceClusterMap'
+import StateSelect from '../components/StateSelect'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 
 /** A single state group of real indexed places for the browse list. */
@@ -100,7 +101,11 @@ export default function JurisdictionsSearch() {
     return []
   })
   const [selectedState, setSelectedState] = useState(() => searchParams.get('state') || '')
+  // `selectedCity` is the APPLIED city (drives the query/URL/chip); `cityDraft`
+  // is the textbox value, committed on Enter / Apply so we don't fire a search
+  // per keystroke.
   const [selectedCity, setSelectedCity] = useState(() => searchParams.get('city') || '')
+  const [cityDraft, setCityDraft] = useState(() => searchParams.get('city') || '')
   const [selectedCounty, setSelectedCounty] = useState(() => searchParams.get('county') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
   const [showFilters, setShowFilters] = useState(false)
@@ -128,6 +133,7 @@ export default function JurisdictionsSearch() {
     }
     if (cityParam) {
       setSelectedCity(cityParam)
+      setCityDraft(cityParam)
     }
     if (countyParam) {
       setSelectedCounty(countyParam)
@@ -264,16 +270,18 @@ export default function JurisdictionsSearch() {
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage)
     
-    // Update URL
+    // Update URL — keep every active filter, not just state/levels.
     const params: any = {}
     if (activeQuery) params.q = activeQuery
     if (selectedState) params.state = selectedState
+    if (selectedCity) params.city = selectedCity
+    if (selectedCounty) params.county = selectedCounty
     if (selectedLevels.length > 0) {
       params.levels = selectedLevels.join(',')
     }
     if (newPage > 1) params.page = newPage.toString()
     setSearchParams(params)
-    
+
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -285,11 +293,13 @@ export default function JurisdictionsSearch() {
     
     setSelectedLevels(newLevels)
     setCurrentPage(1)
-    
-    // Update URL with all current filters
+
+    // Update URL with all current filters (preserve city/county too).
     const params: any = {}
     if (activeQuery) params.q = activeQuery
     if (selectedState) params.state = selectedState
+    if (selectedCity) params.city = selectedCity
+    if (selectedCounty) params.county = selectedCounty
     if (newLevels.length > 0) {
       params.levels = newLevels.join(',')
     }
@@ -312,6 +322,8 @@ export default function JurisdictionsSearch() {
   // Badge count on the single "Filters" button — how many filters are engaged.
   const activeFilterCount = [
     selectedState,
+    selectedCity,
+    selectedCounty,
     selectedLevels.length > 0 ? 'levels' : null,
     hasWebsite ? 'website' : null,
     hasYouTube ? 'youtube' : null,
@@ -319,7 +331,11 @@ export default function JurisdictionsSearch() {
   ].filter(Boolean).length
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div
+      className={`min-h-screen bg-gray-50 transition-[padding] duration-300 ${
+        showFilters ? 'md:pr-96' : ''
+      }`}
+    >
       <div className="max-w-6xl mx-auto px-6 pb-6">
         {/* Back button — very first element on the page */}
         <button
@@ -333,26 +349,21 @@ export default function JurisdictionsSearch() {
         {/* Header card — title + search, matching Browse Topics/Causes style. */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Places</h1>
-          <p className="mt-2 text-gray-600 max-w-xl">
-            Every city, county, and place we index — search above, or explore them
-            on the map and list below to open a home page.
-          </p>
 
           {/* Search Bar + single Filters button on one row (matches the main
               Search page). All filter controls — levels, state, and the advanced
               data-availability toggles — live in the flyout below. */}
           <div className="flex items-stretch gap-3 mt-4">
-            <form onSubmit={handleSearch} className="relative flex-1">
-              <div className="relative">
+            <form onSubmit={handleSearch} className="flex flex-1 items-stretch gap-3">
+              <div className="relative flex-1">
                 <input
                   ref={searchInputRef}
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search for cities, counties, states, school districts..."
-                  className="w-full px-12 py-3 rounded-lg border-2 border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900 shadow-sm"
+                  className="w-full pl-4 pr-12 py-3 rounded-lg border-2 border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900 shadow-sm"
                 />
-                <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
 
                 {query && (
                   <button
@@ -368,6 +379,13 @@ export default function JurisdictionsSearch() {
                   </button>
                 )}
               </div>
+              <button
+                type="submit"
+                aria-label="Search"
+                className="flex shrink-0 items-center justify-center rounded-lg bg-primary-600 px-5 text-white transition-colors hover:bg-primary-700"
+              >
+                <MagnifyingGlassIcon className="h-6 w-6" />
+              </button>
             </form>
 
             <button
@@ -412,6 +430,7 @@ export default function JurisdictionsSearch() {
                   <button
                     onClick={() => {
                       setSelectedCity('')
+                      setCityDraft('')
                       setTimeout(() => handleSearch(), 0)
                     }}
                     className="hover:bg-green-200 rounded-full p-0.5"
@@ -456,9 +475,11 @@ export default function JurisdictionsSearch() {
               main Search page. */}
           {showFilters && (
             <>
-              {/* Backdrop */}
+              {/* Backdrop — only on mobile, where the panel covers the screen.
+                  On md+ the panel docks and the page content (incl. the map)
+                  reflows beside it, so we never dim/cover the map there. */}
               <div
-                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
                 onClick={() => setShowFilters(false)}
               />
 
@@ -509,67 +530,38 @@ export default function JurisdictionsSearch() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         State
                       </label>
-                      <select
+                      <StateSelect
                         value={selectedState}
-                        onChange={(e) => {
-                          setSelectedState(e.target.value)
+                        onChange={(code) => {
+                          setSelectedState(code)
                           setCurrentPage(1)
                           setTimeout(() => handleSearch(), 0)
                         }}
+                      />
+                    </div>
+
+                    {/* City Filter — free text (matched ILIKE on city /
+                        jurisdiction name server-side). Applied on Enter or via
+                        the Apply Filters button so we don't search per keystroke. */}
+                    <div>
+                      <label htmlFor="places-city-filter" className="block text-sm font-medium text-gray-700 mb-2">
+                        City
+                      </label>
+                      <input
+                        id="places-city-filter"
+                        type="text"
+                        value={cityDraft}
+                        onChange={(e) => setCityDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setSelectedCity(cityDraft.trim())
+                            setCurrentPage(1)
+                            setTimeout(() => handleSearch(), 0)
+                          }
+                        }}
+                        placeholder="e.g. Tuscaloosa"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
-                      >
-                        <option value="" className="text-gray-900">All States</option>
-                        <option value="AL" className="text-gray-900">Alabama</option>
-                        <option value="AK" className="text-gray-900">Alaska</option>
-                        <option value="AZ" className="text-gray-900">Arizona</option>
-                        <option value="AR" className="text-gray-900">Arkansas</option>
-                        <option value="CA" className="text-gray-900">California</option>
-                        <option value="CO" className="text-gray-900">Colorado</option>
-                        <option value="CT" className="text-gray-900">Connecticut</option>
-                        <option value="DE" className="text-gray-900">Delaware</option>
-                        <option value="FL" className="text-gray-900">Florida</option>
-                        <option value="GA" className="text-gray-900">Georgia</option>
-                        <option value="HI" className="text-gray-900">Hawaii</option>
-                        <option value="ID" className="text-gray-900">Idaho</option>
-                        <option value="IL" className="text-gray-900">Illinois</option>
-                        <option value="IN" className="text-gray-900">Indiana</option>
-                        <option value="IA" className="text-gray-900">Iowa</option>
-                        <option value="KS" className="text-gray-900">Kansas</option>
-                        <option value="KY" className="text-gray-900">Kentucky</option>
-                        <option value="LA" className="text-gray-900">Louisiana</option>
-                        <option value="ME" className="text-gray-900">Maine</option>
-                        <option value="MD" className="text-gray-900">Maryland</option>
-                        <option value="MA" className="text-gray-900">Massachusetts</option>
-                        <option value="MI" className="text-gray-900">Michigan</option>
-                        <option value="MN" className="text-gray-900">Minnesota</option>
-                        <option value="MS" className="text-gray-900">Mississippi</option>
-                        <option value="MO" className="text-gray-900">Missouri</option>
-                        <option value="MT" className="text-gray-900">Montana</option>
-                        <option value="NE" className="text-gray-900">Nebraska</option>
-                        <option value="NV" className="text-gray-900">Nevada</option>
-                        <option value="NH" className="text-gray-900">New Hampshire</option>
-                        <option value="NJ" className="text-gray-900">New Jersey</option>
-                        <option value="NM" className="text-gray-900">New Mexico</option>
-                        <option value="NY" className="text-gray-900">New York</option>
-                        <option value="NC" className="text-gray-900">North Carolina</option>
-                        <option value="ND" className="text-gray-900">North Dakota</option>
-                        <option value="OH" className="text-gray-900">Ohio</option>
-                        <option value="OK" className="text-gray-900">Oklahoma</option>
-                        <option value="OR" className="text-gray-900">Oregon</option>
-                        <option value="PA" className="text-gray-900">Pennsylvania</option>
-                        <option value="RI" className="text-gray-900">Rhode Island</option>
-                        <option value="SC" className="text-gray-900">South Carolina</option>
-                        <option value="SD" className="text-gray-900">South Dakota</option>
-                        <option value="TN" className="text-gray-900">Tennessee</option>
-                        <option value="TX" className="text-gray-900">Texas</option>
-                        <option value="UT" className="text-gray-900">Utah</option>
-                        <option value="VT" className="text-gray-900">Vermont</option>
-                        <option value="VA" className="text-gray-900">Virginia</option>
-                        <option value="WA" className="text-gray-900">Washington</option>
-                        <option value="WV" className="text-gray-900">West Virginia</option>
-                        <option value="WI" className="text-gray-900">Wisconsin</option>
-                        <option value="WY" className="text-gray-900">Wyoming</option>
-                      </select>
+                      />
                     </div>
 
                     {/* Data Availability Filters */}
@@ -670,6 +662,9 @@ export default function JurisdictionsSearch() {
                     <button
                       onClick={() => {
                         setSelectedState('')
+                        setSelectedCity('')
+                        setCityDraft('')
+                        setSelectedCounty('')
                         setSelectedLevels([])
                         setHasWebsite(false)
                         setHasYouTube(false)
@@ -683,8 +678,10 @@ export default function JurisdictionsSearch() {
                     </button>
                     <button
                       onClick={() => {
+                        setSelectedCity(cityDraft.trim())
+                        setCurrentPage(1)
                         setShowFilters(false)
-                        handleSearch()
+                        setTimeout(() => handleSearch(), 0)
                       }}
                       className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors font-medium"
                     >
@@ -700,8 +697,9 @@ export default function JurisdictionsSearch() {
         {/* Clustered pin map of every indexed place (state/county/city/school
             district levels, each independently filterable). Always shown — it's
             a global explore tool independent of the list filters below, so a
-            filtered deep-link (e.g. ?state=AL&city=Tuscaloosa) keeps the map. */}
-        <PlaceClusterMap />
+            filtered deep-link (e.g. ?state=AL&city=Tuscaloosa) keeps the map.
+            The active state/city/level filters scope and zoom the map live. */}
+        <PlaceClusterMap filterState={selectedState} filterCity={selectedCity} filterLevels={selectedLevels} />
 
         {/* Places browse — state-grouped chips of real indexed places. Shown
             only in browse mode (no active query/filters). Every city is a real

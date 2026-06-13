@@ -19,6 +19,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { withSpan } from '../instrumentation'
 import { expandStateName } from '../utils/formatters'
+import { type Speaker, parseSpeaker } from '../lib/speakers'
 
 // Agenda / minutes (and any future) document attached to the meeting. `url` is an
 // absolute external PDF link that opens in a new tab. `body_name` is a terse
@@ -689,63 +690,10 @@ function CompetingViews({
   )
 }
 
-// ---------------------------------------------------------------------------
 // Voices in the room (human_element) — puts faces to the testimony.
+// `Speaker`/`parseSpeaker` (slug → display name + role + initials avatar) live in
+// ../lib/speakers, shared with StoryCard's compact "Voices" attribution row.
 //
-// The AI `person_id`/`speaker_id` are descriptive slugs
-// (e.g. "chuck_tracy_resident_baldwin_01003"), NOT MDM person ids, so no
-// contact photo joins. We derive a display name + role + a deterministic
-// initials avatar from the slug — the honest universal fallback that still
-// works when a real photo isn't available.
-// ---------------------------------------------------------------------------
-const AVATAR_COLORS = [
-  { bg: '#e7f2ef', fg: '#1d6b5f' },
-  { bg: '#fdeee7', fg: '#c0432a' },
-  { bg: '#eaf1f8', fg: '#2f6fb0' },
-  { bg: '#efebfb', fg: '#6b5bd2' },
-  { bg: '#fbf3e2', fg: '#9a6b12' },
-  { bg: '#fdeef5', fg: '#b03a78' },
-]
-
-const ROLE_WORDS = new Set([
-  'resident', 'residents', 'applicant', 'representative', 'rep', 'owner', 'official', 'officials',
-  'council', 'councilmember', 'member', 'mayor', 'attorney', 'director', 'chair', 'chairman',
-  'chairwoman', 'chairperson', 'president', 'vice', 'spokesperson', 'staff', 'citizen', 'speaker',
-  'public', 'commissioner', 'commission', 'developer', 'petitioner', 'neighbor', 'business',
-  'manager', 'planner', 'engineer', 'consultant', 'pastor', 'professor', 'teacher', 'student',
-  'parent', 'advocate', 'opponent', 'supporter', 'clerk', 'administrator', 'superintendent',
-  'sheriff', 'trustee', 'board', 'deputy', 'assistant',
-])
-
-interface Speaker {
-  name: string
-  role: string
-  initials: string
-  color: { bg: string; fg: string }
-}
-
-function parseSpeaker(id: string): Speaker {
-  const toks = id.split('_').filter(Boolean)
-  while (toks.length && /^\d+$/.test(toks[toks.length - 1])) toks.pop() // drop trailing FIPS
-  const nameToks = toks.slice(0, 2)
-  const lowerName = nameToks.map((t) => t.toLowerCase())
-  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
-  const roleToks = [
-    ...new Set(
-      toks
-        .slice(nameToks.length)
-        .map((t) => t.toLowerCase())
-        .filter((t) => ROLE_WORDS.has(t) && !lowerName.includes(t)),
-    ),
-  ]
-  const name = nameToks.map(cap).join(' ') || 'Speaker'
-  const role = roleToks.map(cap).join(' ')
-  const initials = nameToks.map((t) => t.charAt(0).toUpperCase()).join('').slice(0, 2) || '?'
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return { name, role, initials, color: AVATAR_COLORS[h % AVATAR_COLORS.length] }
-}
-
 // Org ids are descriptive slugs too (e.g. "tuscaloosa_housing_authority_0177256"
 // or "smith_development_llc_0177256"). Derive a clean display label: drop a trailing
 // geoid, title-case words, and upper-case common org acronyms.

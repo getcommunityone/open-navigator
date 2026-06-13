@@ -35,7 +35,13 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
-from api.routes.lenses import LensCard, build_card, stats_contested, video_id_subquery
+from api.routes.lenses import (
+    LensCard,
+    build_card,
+    speaker_ids_subquery,
+    stats_contested,
+    video_id_subquery,
+)
 from api.routes.search import resolve_topic_tsquery, resolve_cause_tsquery
 from api.routes.search_postgres import get_db_pool, normalize_state_input
 
@@ -296,7 +302,7 @@ async def list_decisions(
                     limit_idx = len(params) + 1
                     offset_idx = len(params) + 2
                     list_sql = f"""
-                        SELECT {_CARD_COLS}, {video_id_subquery('ii')}
+                        SELECT {_CARD_COLS}, {video_id_subquery('ii')}, {speaker_ids_subquery('ii')}
                         FROM {from_sql}
                         WHERE {where_sql}
                         ORDER BY {_ORDER_BY[sort_key]}, ii.event_decision_id DESC

@@ -74,7 +74,7 @@ models:
         description: "Full state name (e.g. 'Alabama')."
         data_type: text
       - name: document_type
-        description: "Document kind — 'agenda' or 'minutes'."
+        description: "Document kind — 'agenda', 'minutes', or 'attachment'."
         data_type: text
         constraints:
           - type: not_null
@@ -92,6 +92,22 @@ models:
       - name: meeting_title
         description: "Original SuiteOne meeting title (e.g. '3:00 p.m. Finance Committee')."
         data_type: text
+      - name: content
+        description: >
+          Extracted PDF text body (from bronze.bronze_meeting_document_text,
+          joined on jurisdiction_id + url_sha256). NULLABLE — populated only where
+          text was extracted (~497 Tuscaloosa agenda/minutes today); NULL for
+          non-Tuscaloosa docs and attachments.
+        data_type: text
+      - name: word_count
+        description: "Word count of the extracted PDF text. NULLABLE — present only where content is."
+        data_type: integer
+      - name: content_tsv
+        description: >
+          Stored full-text search vector over content + meeting_title + body_name,
+          so search ranks/matches without recomputing to_tsvector. Backed by a GIN
+          index (see model post_hook).
+        data_type: tsvector
       - name: source
         description: "Constant 'suiteone' — the scrape source."
         data_type: text

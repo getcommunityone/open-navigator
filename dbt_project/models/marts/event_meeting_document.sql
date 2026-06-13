@@ -1,3 +1,17 @@
+{#
+  content_tsv GIN index: mirrors event_documents. The index is on the STORED
+  content_tsv column (not an expression index), so both the @@ full-text match
+  and the ts_rank() ordering read precomputed lexemes rather than recomputing
+  to_tsvector over the document body for every match. Created via post_hook
+  (the indexes=[] config below can't express a GIN-on-tsvector cleanly here),
+  skipped on the neon target.
+
+  content/content_tsv ARE populated: bronze.bronze_meeting_document_text holds
+  EXTRACTED PDF body text for ~497 agenda/minutes docs, LEFT JOINed in below on
+  (jurisdiction_id, url_sha256). Docs without extracted text (non-Tuscaloosa +
+  attachments) keep NULL content; content_tsv still covers title + body_name so
+  they remain searchable on metadata.
+#}
 {{
   config(
     materialized='table',
@@ -9,7 +23,12 @@
       {'columns': ['census_geoid'], 'type': 'btree'},
       {'columns': ['document_type'], 'type': 'btree'},
       {'columns': ['doc_date'], 'type': 'btree'}
-    ]
+    ],
+    post_hook=(
+      [
+        "CREATE INDEX IF NOT EXISTS event_meeting_document_content_tsv_idx ON {{ this }} USING gin (content_tsv)"
+      ] if target.name != 'neon' else []
+    )
   )
 }}
 
@@ -67,6 +86,7 @@ with docs as (
         event_meeting_document_id,
         jurisdiction_id,
         census_geoid,
+        url_sha256,
         state_code,
         state,
         document_type,
@@ -156,6 +176,10 @@ joined as (
         -- Serve the canonical body category as the cleaned body name.
         d.body_key                                          as body_name,
         d.meeting_title,
+        -- Extracted PDF text (1:1 per document on jurisdiction_id + url_sha256),
+        -- NULL where no text was extracted (~all non-Tuscaloosa + attachments).
+        t.content                                           as content,
+        t.word_count::integer                               as word_count,
         d.source,
         d.created_at
     from docs d
@@ -172,6 +196,11 @@ joined as (
                 and m.juris_name_norm = d.juris_name_norm
                 )
            )
+    -- Per-document extracted text; (jurisdiction_id, url_sha256) is unique in the
+    -- text table so this stays 1:1 and does not change grain.
+    left join {{ source('bronze', 'bronze_meeting_document_text') }} t
+        on t.jurisdiction_id = d.jurisdiction_id
+       and t.url_sha256      = d.url_sha256
 
 ),
 
@@ -192,6 +221,8 @@ matched as (
         doc_date,
         body_name,
         meeting_title,
+        content,
+        word_count,
         source,
         created_at
     from joined
@@ -214,6 +245,16 @@ select
     doc_date,
     body_name,
     meeting_title,
+    content,
+    word_count,
+    -- Precomputed full-text vector stored alongside the text so the search API
+    -- ts_rank()s without recomputing to_tsvector per match. Covers the extracted
+    -- PDF body plus the title/body metadata in one predicate (so text-less
+    -- attachments still match on title/body). Indexed by the GIN post_hook.
+    to_tsvector(
+        'english',
+        coalesce(content, '') || ' ' || coalesce(meeting_title, '') || ' ' || coalesce(body_name, '')
+    )                                                       as content_tsv,
     source,
     created_at::timestamp                                   as created_at
 from matched

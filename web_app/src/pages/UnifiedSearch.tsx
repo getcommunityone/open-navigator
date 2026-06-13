@@ -31,6 +31,7 @@ import {
 import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from '../utils/formatters'
 import MeetingThumbnail from '../components/MeetingThumbnail'
 import { StoryCard, CONTESTED_LENS, TRANSCRIPT_LENS, type RenderCard } from '../components/StoryLenses'
+import { parseSpeaker } from '../lib/speakers'
 
 type SearchResultType =
   | 'leader'
@@ -42,6 +43,7 @@ type SearchResultType =
   | 'topic'
   | 'decision'
   | 'document'
+  | 'meeting_document'
   | 'grant'
   | 'grant_opportunity'
   | 'question'
@@ -68,6 +70,9 @@ interface SearchResult {
     video_id?: string
     event_meeting_id?: number | string
     meeting_id?: number | string
+    // Raw AI speaker slugs for a decision result; parsed client-side into the
+    // card's "Voices" attribution row. Absent when the result has no testimony.
+    speakers?: string[]
   }
 }
 
@@ -85,6 +90,7 @@ interface SearchResponse {
     decisions: number
     jurisdictions: number
     documents?: number
+    meeting_documents?: number
     grants?: number
     grant_opportunities?: number
     questions?: number
@@ -100,6 +106,7 @@ interface SearchResponse {
     decisions: SearchResult[]
     jurisdictions?: SearchResult[]
     documents?: SearchResult[]
+    meeting_documents?: SearchResult[]
     grants?: SearchResult[]
     grant_opportunities?: SearchResult[]
     questions?: SearchResult[]
@@ -144,6 +151,10 @@ const RESULT_TYPES = [
   // policy-term hits live in the transcript body, not in meeting titles or
   // extracted decisions, so this is often the only category that surfaces them.
   { type: 'documents', label: 'Videos' },
+  // 'meeting_documents' = official meeting PDFs (agenda / minutes / attachments)
+  // from public.event_meeting_document, full-text searched over extracted PDF
+  // content where present. Distinct from 'documents' (transcripts) above.
+  { type: 'meeting_documents', label: 'Meeting Documents' },
   { type: 'bills', label: 'Bills' },
   { type: 'topics', label: 'Topics' },
   { type: 'decisions', label: 'Decisions' },
@@ -171,6 +182,7 @@ const RESULT_TABS = [
   { key: 'causes', label: 'Causes' },
   { key: 'meetings', label: 'Meetings' },
   { key: 'documents', label: 'Videos' },
+  { key: 'meeting_documents', label: 'Meeting Documents' },
   { key: 'bills', label: 'Bills' },
   { key: 'topics', label: 'Topics' },
   { key: 'questions', label: 'Questions' },
@@ -420,6 +432,9 @@ export default function UnifiedSearch() {
     return [...DEFAULT_RESULT_TYPES]
   })
   const [selectedState, setSelectedState] = useState(() => searchParams.get('state') || '')
+  // Meeting-document type filter ('' = all; 'agenda' | 'minutes' | 'attachment').
+  // Gated on the 'meeting_documents' result type; URL-synced like selectedState.
+  const [selectedDocType, setSelectedDocType] = useState(() => searchParams.get('document_type') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
   const [showFilters, setShowFilters] = useState(false)
   // Which results tab is active. Seeded from ?tab= for shareable deep links;
@@ -535,6 +550,7 @@ export default function UnifiedSearch() {
   useEffect(() => {
     const queryParam = searchParams.get('q')
     const stateParam = searchParams.get('state')
+    const docTypeParam = searchParams.get('document_type')
     const typesParam = searchParams.get('types')
     const einParam = searchParams.get('ein')
     searchParams.get('page') // Read but don't store
@@ -549,6 +565,7 @@ export default function UnifiedSearch() {
     setSelectedTopicId(topicIdParam || '')
     setSelectedCauseId(causeIdParam || '')
     setSelectedQuestionId(questionIdParam || '')
+    setSelectedDocType(docTypeParam || '')
     
     if (queryParam) {
       setQuery(queryParam)
@@ -678,6 +695,7 @@ export default function UnifiedSearch() {
     if (selectedTopicId) params.topic_id = selectedTopicId
     if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
+    if (selectedDocType) params.document_type = selectedDocType
     if (includeFullText) params.full_text = 'true'
     return params
   }
@@ -688,7 +706,7 @@ export default function UnifiedSearch() {
   // cached counts; only a changed query/filter set refetches. limit=1 keeps the
   // per-type fetch minimal — we only consume `type_totals`, not the rows.
   const { data: tabCountsData, isLoading: isCountsLoading } = useQuery<SearchResponse>({
-    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedEin, includeFullText],
+    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
     queryFn: async () => {
       if (!searchEnabled) return null
       const params = { ...buildSearchParams(), types: selectedTypes.join(','), limit: 1, page: 1 }
@@ -729,7 +747,7 @@ export default function UnifiedSearch() {
   // Active-tab results — fetches ONLY the active tab's type, so `page`/`limit`
   // paginate within that single type instead of across a mixed result set.
   const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedEin, includeFullText],
+    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
     queryFn: async () => {
       if (!effectiveTab) return null
       const params = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
@@ -1018,6 +1036,11 @@ export default function UnifiedSearch() {
       // highlighted, React-escaped segments. In plain browse mode the description
       // carries no markers, so it renders as a normal context line.
       excerpt: result.description ? highlightSnippet(result.description) : undefined,
+      // Speaker slugs from the result metadata → parsed Speakers for the compact
+      // "Voices" attribution row. Absent/non-array ⇒ undefined (never fabricated).
+      speakers: Array.isArray(md.speakers)
+        ? (md.speakers as string[]).map(parseSpeaker)
+        : undefined,
     }
   }
 
@@ -1499,7 +1522,8 @@ export default function UnifiedSearch() {
           {/* Search Bar + Filters on the same row */}
           <div className="flex items-stretch gap-3">
           <form onSubmit={handleSearch} className="relative flex-1" ref={searchContainerRef}>
-            <div className="relative">
+            <div className="flex items-stretch gap-3">
+            <div className="relative flex-1">
               <input
                 ref={searchInputRef}
                 type="text"
@@ -1510,10 +1534,9 @@ export default function UnifiedSearch() {
                 }}
                 onFocus={() => setShowSuggestions(true)}
                 placeholder="Search people, meetings, organizations, bills, topics, decisions, causes..."
-                className="w-full px-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900"
+                className="w-full pl-4 pr-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900"
               />
-              <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
-              
+
               {query && (
                 <button
                   type="button"
@@ -1528,7 +1551,15 @@ export default function UnifiedSearch() {
                 </button>
               )}
             </div>
-            
+            <button
+              type="submit"
+              aria-label="Search"
+              className="flex shrink-0 items-center justify-center rounded-lg bg-primary-600 px-5 text-white transition-colors hover:bg-primary-700"
+            >
+              <MagnifyingGlassIcon className="h-6 w-6" />
+            </button>
+            </div>
+
             {/* Rich Preview Dropdown with Grouped Results */}
             {showSuggestions && query.length >= 2 && (
               <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
@@ -2228,6 +2259,33 @@ export default function UnifiedSearch() {
                   </select>
                 </div>
 
+                {/* Document type (for Meeting Documents). Narrows the official
+                    meeting-document results to agendas, minutes, or attachments.
+                    Gated on the 'meeting_documents' result type being selected. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Document type
+                  </label>
+                  <select
+                    value={selectedDocType}
+                    onChange={(e) => {
+                      setSelectedDocType(e.target.value)
+                      setCurrentPage(1)
+                      setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
+                    disabled={!selectedTypes.includes('meeting_documents')}
+                  >
+                    <option value="" className="text-gray-900">All types</option>
+                    <option value="agenda" className="text-gray-900">Agenda</option>
+                    <option value="minutes" className="text-gray-900">Notes (minutes)</option>
+                    <option value="attachment" className="text-gray-900">Attachments</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Filters Meeting Documents by kind.
+                  </p>
+                </div>
+
                 {/* Topic — named civic-topic catalog (/api/topics). Narrows
                     decisions / meetings / topics to the chosen topic's keyword set. */}
                 <div>
@@ -2342,6 +2400,7 @@ export default function UnifiedSearch() {
                       setSelectedTopicId('')
                       setSelectedCauseId('')
                       setSelectedQuestionId('')
+                      setSelectedDocType('')
                       setIncludeFullText(false)
                       setSelectedTypes([...DEFAULT_RESULT_TYPES])
                       setTimeout(() => handleSearch(), 0)
@@ -2807,6 +2866,88 @@ export default function UnifiedSearch() {
                       Passages from meeting transcripts that mention your search term — the discussion itself, even when it never became a titled agenda item or a recorded decision.
                     </p>
                     <TranscriptResultGrid results={searchResults.results.documents} />
+                  </div>
+                )}
+
+                {effectiveTab === 'meeting_documents' && searchResults.results?.meeting_documents && searchResults.results.meeting_documents.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <DocumentTextIcon className="h-6 w-6 text-cyan-600" />
+                      Meeting Documents ({searchResults.type_totals?.meeting_documents?.toLocaleString() || searchResults.results.meeting_documents.length})
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4 -mt-2">
+                      Official meeting PDFs — agendas, notes (minutes), and attachments. Each links directly to the source document.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.meeting_documents.map((result, idx) => {
+                        const md = (result.metadata ?? {}) as Record<string, any>
+                        // PDF link: prefer the explicit metadata.document_url, fall
+                        // back to result.url (both are the same direct PDF link).
+                        const pdfUrl = (md.document_url as string) || result.url || ''
+                        // Type badge label from metadata.document_type.
+                        const dt = String(md.document_type ?? '').toLowerCase()
+                        const badgeLabel =
+                          dt === 'minutes' ? 'Notes'
+                          : dt === 'attachment' ? 'Attachment'
+                          : dt === 'agenda' ? 'Agenda'
+                          : (md.document_type as string) || 'Document'
+                        const badgeColor =
+                          dt === 'minutes' ? 'bg-amber-100 text-amber-700 border-amber-200'
+                          : dt === 'attachment' ? 'bg-gray-100 text-gray-700 border-gray-200'
+                          : 'bg-cyan-100 text-cyan-700 border-cyan-200'
+                        return (
+                          <div
+                            key={result.url || idx}
+                            className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg border bg-cyan-100 text-cyan-700 border-cyan-200">
+                                <DocumentTextIcon className="h-5 w-5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center flex-wrap gap-2 mb-1">
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium border ${badgeColor}`}>
+                                    {badgeLabel}
+                                  </span>
+                                  {md.body_name && (
+                                    <span className="text-xs text-gray-500">{md.body_name}</span>
+                                  )}
+                                </div>
+                                {pdfUrl ? (
+                                  <a
+                                    href={pdfUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-semibold text-gray-900 mb-1 inline-flex items-center gap-1 cursor-pointer hover:text-blue-600"
+                                  >
+                                    {result.title}
+                                    <span aria-hidden="true" className="text-xs text-gray-400">↗</span>
+                                  </a>
+                                ) : (
+                                  <h4 className="font-semibold text-gray-900 mb-1">{result.title}</h4>
+                                )}
+                                {result.subtitle && (
+                                  <p className="text-sm text-gray-600 mb-1">{result.subtitle}</p>
+                                )}
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 mb-2">
+                                  {md.date && <span>{md.date}</span>}
+                                  {md.jurisdiction && <span>{md.jurisdiction}</span>}
+                                </div>
+                                {/* ts_headline snippet: matched passage wrapped in
+                                    literal <mark>…</mark> markers. Reuse the shared
+                                    highlightSnippet helper so segments are React-
+                                    escaped (no dangerouslySetInnerHTML). */}
+                                {result.description && (
+                                  <p className="text-sm text-gray-500 line-clamp-3">
+                                    {highlightSnippet(result.description)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
 
