@@ -745,6 +745,89 @@ def _stream_enabled() -> bool:
     )
 
 
+def _call_deepseek_text(
+    *,
+    model: str,
+    user_text: str,
+    system_instruction: str = "",
+    temperature: float = 0.1,
+    max_output_tokens: int = 65536,
+) -> TextGenAIResult:
+    """Single-turn generation via DeepSeek's OpenAI-compatible Chat Completions API.
+
+    DeepSeek speaks the OpenAI protocol at ``https://api.deepseek.com``, so we use
+    the ``openai`` SDK pointed at that base URL. Text-only: callers must extract any
+    PDF text first (the ``call_gemini_text`` dispatch rejects ``pdf_bytes`` upfront).
+
+    Retries are handled by a small self-contained loop here rather than
+    ``call_with_genai_quota_retry`` — that classifier is google-genai-specific and
+    does not understand ``openai`` exception types.
+    """
+    import openai
+    from openai import OpenAI
+
+    key = _strip_api_key(os.getenv("DEEPSEEK_API_KEY", ""))
+    if not key:
+        # Fall back to the repo-root .env, mirroring resolve_gemini_api_key so a
+        # key dropped into .env (not exported) is still picked up.
+        from dotenv import load_dotenv
+
+        env_file = Path(__file__).resolve().parents[5] / ".env"
+        if env_file.is_file():
+            load_dotenv(env_file, override=False)
+            key = _strip_api_key(os.getenv("DEEPSEEK_API_KEY", ""))
+    if not key:
+        raise RuntimeError("DEEPSEEK_API_KEY not set")
+
+    client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
+
+    msgs: list[dict[str, str]] = []
+    if system_instruction.strip():
+        msgs.append({"role": "system", "content": system_instruction.strip()})
+    msgs.append({"role": "user", "content": user_text})
+
+    max_attempts = 4
+    last_exc: Optional[Exception] = None
+    for attempt in range(max_attempts):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=msgs,
+                temperature=temperature,
+                max_tokens=max_output_tokens,
+            )
+            content = (resp.choices[0].message.content or "").strip()
+            if not content:
+                raise RuntimeError(f"Empty response from {model}")
+            return TextGenAIResult(text=content, model=model, raw_response=resp)
+        except (openai.RateLimitError, openai.APIConnectionError) as exc:
+            last_exc = exc
+            if attempt == max_attempts - 1:
+                break
+        except openai.APIStatusError as exc:
+            # Retry only server-side (5xx) failures. 4xx (402 Insufficient
+            # Balance, 401 auth, 400 bad request) are permanent — fail fast so a
+            # bulk run doesn't burn ~14s of backoff per item on a dead account.
+            if exc.status_code < 500:
+                raise RuntimeError(
+                    f"DeepSeek call failed for {model}: {exc}"
+                ) from exc
+            last_exc = exc
+            if attempt == max_attempts - 1:
+                break
+            delay = 2.0 * (2**attempt)
+            logger.warning(
+                "DeepSeek {} error ({}): sleeping {:.0f}s, retry {}/{}",
+                model,
+                type(exc).__name__,
+                delay,
+                attempt + 1,
+                max_attempts,
+            )
+            time.sleep(delay)
+    raise RuntimeError(f"DeepSeek call failed for {model}: {last_exc}") from last_exc
+
+
 def call_gemini_text(
     *,
     api_key: str,
@@ -761,7 +844,24 @@ def call_gemini_text(
     When ``pdf_bytes`` is given, the document is attached as a native PDF part so
     Gemini reads it with vision — handling SCANNED PDFs that have no extractable
     text layer (plain text extraction returns empty for those).
+
+    A ``deepseek-*`` model name routes to DeepSeek's OpenAI-compatible Chat
+    Completions endpoint instead of Gemini (text-only; no ``pdf_bytes`` support).
     """
+    if model.startswith("deepseek"):
+        if pdf_bytes:
+            raise ValueError(
+                "DeepSeek is text-only and cannot read pdf_bytes; "
+                "extract text first or use a Gemini model for scanned PDFs."
+            )
+        return _call_deepseek_text(
+            model=model,
+            user_text=user_text,
+            system_instruction=system_instruction,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+
     from google.genai import types
 
     pool = _key_pool(api_key)

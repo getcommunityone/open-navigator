@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "core-lib",
     "google-genai>=0.3",
+    "openai>=1.0",  # DeepSeek (OpenAI-compatible Chat Completions) analysis provider
     "python-dotenv>=1.0",
     "loguru>=0.7",
     "psycopg2-binary>=2.9",
