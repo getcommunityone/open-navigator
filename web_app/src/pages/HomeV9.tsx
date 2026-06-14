@@ -1608,15 +1608,6 @@ export default function HomeV9() {
                 ],
               },
               {
-                icon: '📖', title: 'Make a plan', hash: 'explore-plan',
-                items: [
-                  { kind: 'check', label: 'Near You' },
-                  { kind: 'check', label: 'Upcoming Meetings' },
-                  { kind: 'check', label: 'Find Allies' },
-                  { kind: 'note', label: 'Goal: Fix dangerous potholes' },
-                ],
-              },
-              {
                 icon: '💚', title: 'Find help & allies', hash: 'explore-find-help',
                 items: [
                   { kind: 'check', label: 'Find Allies on Issues' },
