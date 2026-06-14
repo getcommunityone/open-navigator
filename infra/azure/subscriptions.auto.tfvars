@@ -39,3 +39,17 @@ subscription_budget = {
   contact_emails  = ["johnbowyer@getcommunityone.onmicrosoft.com"]
   thresholds      = [80, 100]
 }
+
+# Databricks workspace — INACTIVE. dbw-opennav-prod-eastus-001 was created in the
+# portal on the TRIAL sku and is managed manually for now. To let Terraform manage
+# it, upgrade off trial, uncomment below, then import (see README):
+#   terraform import 'azurerm_resource_group.databricks[0]' /subscriptions/2478d3f4-1db6-4832-88f8-c13f68d6c818/resourceGroups/rg-opennav-prod-eastus-001
+#   terraform import 'azurerm_databricks_workspace.this[0]'  /subscriptions/2478d3f4-1db6-4832-88f8-c13f68d6c818/resourceGroups/rg-opennav-prod-eastus-001/providers/Microsoft.Databricks/workspaces/dbw-opennav-prod-eastus-001
+# databricks_workspace = {
+#   name                        = "dbw-opennav-prod-eastus-001"
+#   resource_group_name         = "rg-opennav-prod-eastus-001"
+#   location                    = "eastus"
+#   sku                         = "premium" # upgrade off "trial" first
+#   no_public_ip                = true
+#   managed_resource_group_name = "databricks-rg-dbw-opennav-prod-eastus-001-ncht62dsp66ds"
+# }

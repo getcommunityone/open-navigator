@@ -58,6 +58,9 @@ Common ones we use. Full list in the [CAF abbreviation reference](https://learn.
 | Application Insights | `appi` | `appi-opennav-prod-eastus-001` |
 | Managed identity | `id` | `id-opennav-prod-eastus-001` |
 | Management group | `mg` | `mg-opennav-platform` |
+| Databricks workspace | `dbw` | `dbw-opennav-prod-eastus-001` |
+
+> **Databricks managed resource group.** Creating a Databricks workspace auto-creates a second, Azure-managed resource group named `databricks-rg-<workspace>-<hash>` (holding the workspace's VNet, storage, NAT gateway, etc.). You don't name or manage that one — Azure owns it.
 
 ¹ **Globally-unique / restricted names.** Some resources have tight rules that break the standard pattern:
 
