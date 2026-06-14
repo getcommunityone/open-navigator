@@ -16,7 +16,9 @@ models:
       the person-identity framing), so contact_official stays the single officials
       role mart and nothing downstream of it changes. Consumed by the API
       person-detail endpoint, which resolves an official id here when it misses
-      mdm_person.
+      mdm_person. PII-LIGHT IN PUBLIC: the published public serving copy redacts
+      the contact PII (email and phone) to NULL; the unredacted values exist only
+      in the private/gold warehouse.
     config:
       materialized: table
       on_schema_change: fail
@@ -65,6 +67,12 @@ models:
           - type: foreign_key
             to: ref('jurisdictions')
             to_columns: [jurisdiction_id]
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+              config:
+                where: "jurisdiction_id is not null"
       - name: office
         description: "Org classification / chamber (government/upper/lower/...). Nullable."
         data_type: text
@@ -83,10 +91,10 @@ models:
         description: "District/seat label, where known."
         data_type: text
       - name: email
-        description: "Official email, lower-cased. Nullable."
+        description: "Official email, lower-cased. Nullable. PII-light: redacted to NULL in the public serving copy."
         data_type: text
       - name: phone
-        description: "Official phone (scraped path only). Nullable."
+        description: "Official phone (scraped path only). Nullable. PII-light: redacted to NULL in the public serving copy."
         data_type: text
       - name: photo_url
         description: "Headshot URL. Nullable."

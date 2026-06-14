@@ -293,9 +293,16 @@ models:
 
   - name: mdm_organization
     description: >
-      MDM golden record — one row per resolved organization, canonical org_type.
-      Canonical public org table. PK master_org_id. The governing jurisdiction is
-      resolved separately in mdm_bridge_org_jurisdiction.
+      MDM golden record (MDM Layer 5) — one resolved/survivorship row per
+      organization cluster, built from int_organizations__clustered. Grain: one
+      row per master_org_id. The canonical public org table that backs org
+      search/browse (FTS GIN on org_name; btree on org_name_norm + state_code).
+      Survivorship runs two tracks: identity/location (city, geocode, ein,
+      website) keeps the most-complete, most-trusted occurrence (NCCS-preferred
+      for geocoding); the NAME is chosen by authority for the legal name (gov &
+      schools own their names; IRS BMF outranks NCCS for nonprofits) then recency.
+      The governing jurisdiction is resolved separately in
+      mdm_bridge_org_jurisdiction; nonprofit/990 detail in mdm_organization_nonprofit.
     config:
       materialized: table
       on_schema_change: fail
@@ -303,39 +310,58 @@ models:
         enforced: true
     columns:
       - name: master_org_id
+        description: "Primary key — golden-record cluster id from int_organizations__clustered (one row per resolved organization)."
         data_type: text
         constraints:
           - type: not_null
           - type: primary_key
+        tests:
+          - unique
+          - not_null
       - name: org_name
+        description: "Survived display name: the current (most-authoritative, then most-recent) name variant, run through display_org_name. Falls back to the golden row's org_name."
         data_type: text
       - name: org_name_norm
+        description: "Normalized form of the current name (lower/cleaned) used for matching and the org browse name-sort index. Falls back to the golden row's norm."
         data_type: text
       - name: org_type
+        description: "Canonical type: the most common non-'other' type voted across the cluster, falling back to the golden row's type (e.g. nonprofit, government, school)."
         data_type: text
       - name: org_subtype
+        description: "Finer-grained type qualifier from the golden (most-trusted) occurrence; NULL when none."
         data_type: text
       - name: ein
+        description: "Employer Identification Number from the golden occurrence (preferred from a registry source); non-null for resolved nonprofits, NULL otherwise."
         data_type: text
       - name: city_norm
+        description: "Normalized city of the golden (most-complete/trusted, NCCS-preferred) occurrence."
         data_type: text
       - name: state_code
+        description: "2-letter state code of the golden occurrence."
         data_type: text
       - name: zip5
+        description: "5-digit ZIP of the golden occurrence; NULL when the source had none."
         data_type: text
       - name: lat
+        description: "Latitude of the golden occurrence (NCCS-preferred for geocoding); NULL when ungeocoded."
         data_type: double precision
       - name: lon
+        description: "Longitude of the golden occurrence; NULL when ungeocoded."
         data_type: double precision
       - name: website
+        description: "Organization website from the golden occurrence; NULL when none."
         data_type: text
       - name: n_occurrences
+        description: "Evidence count: number of source occurrences (rows) in this cluster."
         data_type: bigint
       - name: n_sources
+        description: "Evidence count: number of distinct source systems contributing to this cluster."
         data_type: bigint
       - name: first_seen_year
+        description: "Earliest source as_of_year observed across the cluster (the date span's start). Integer calendar year."
         data_type: integer
       - name: last_seen_year
+        description: "Latest source as_of_year observed across the cluster (the date span's end). Integer calendar year."
         data_type: integer
       - name: former_names
         data_type: jsonb
@@ -417,30 +443,59 @@ models:
         enforced: true
     columns:
       - name: org_jurisdiction_id
+        description: "Primary key — md5(master_org_id | jurisdiction_id); one row per org<->jurisdiction tier link."
         data_type: text
         constraints:
           - type: not_null
           - type: primary_key
+        tests:
+          - unique
+          - not_null
       - name: master_org_id
+        description: >
+          Organization side — FK to mdm_organization.master_org_id. The FK is
+          added NOT VALID in the model post_hook (not as a contract constraint) to
+          avoid row-by-row validation over millions of rows during the bulk INSERT.
         data_type: text
         constraints:
           - type: not_null
+        tests:
+          - relationships:
+              to: ref('mdm_organization')
+              field: master_org_id
+              config:
+                where: "master_org_id is not null"
+                severity: warn
+              # WARN: ~344,514 rows (~83k distinct orgs) reference a master_org_id
+              # absent from the current mdm_organization — a build-order skew (the
+              # bridge was built against a prior mdm_organization). Referential
+              # integrity holds by construction at co-build time.
       - name: jurisdiction_id
+        description: >
+          Jurisdiction side — FK to jurisdictions.jurisdiction_id. Added NOT VALID
+          in the model post_hook (not as a contract constraint) for the same
+          bulk-INSERT reason as master_org_id.
         data_type: text
         constraints:
           - type: not_null
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+              config:
+                where: "jurisdiction_id is not null"
       - name: jurisdiction_level
         data_type: text
-        description: "'city' | 'county' | 'state'."
+        description: "Tier of the link: 'city' | 'county' | 'state'."
       - name: match_method
         data_type: text
-        description: "How the link was derived: 'state_code' | 'city_name_state' | 'zip5_hud'."
+        description: "How the link was derived: 'state_code' (state tier) | 'city_name_state' (city tier) | 'zip5_hud' (county tier via HUD ZIP->county crosswalk)."
       - name: allocation_ratio
         data_type: numeric
-        description: "HUD ZIP->county tot_ratio; NULL except the county tier."
+        description: "HUD ZIP->county tot_ratio (a ZIP can straddle counties); populated only on the county tier, NULL on state/city tiers."
       - name: is_dominant
         data_type: boolean
-        description: "TRUE for the single best row per (org, level); the max-tot_ratio county per org."
+        description: "TRUE for the single best row per (org, level): always TRUE for state/city tiers; the max-tot_ratio (largest-share) county for the county tier."
 
   - name: pending_mdm_person
     description: >

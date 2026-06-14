@@ -14,7 +14,9 @@ models:
       No FK is declared: the OCD jurisdiction slug has no clean key into
       public.jurisdictions (census slug+geoid); the jurisdiction name is
       denormalized for display. Resolving a hard org->jurisdiction FK is a
-      follow-up.
+      follow-up. PII-LIGHT IN PUBLIC: the published public serving copy redacts
+      the contact PII (email and phone) to NULL; the unredacted values exist only
+      in the private/gold warehouse.
     config:
       materialized: table
       on_schema_change: fail
@@ -61,10 +63,14 @@ models:
         description: "Org classification / chamber (government/upper/lower/...). Nullable."
         data_type: text
       - name: email
-        description: "Official email, lower-cased. Nullable."
+        description: "Official email, lower-cased. Nullable. PII-light: redacted to NULL in the public serving copy."
         data_type: text
       - name: phone
-        description: "Reserved nullable column (not carried by the OpenStates source) to match the legacy parquet contract."
+        description: >
+          Official phone (carried by the scraped municipal path only; the
+          OpenStates source has none — that leg pads it NULL to match the legacy
+          parquet contract). Nullable. PII-light: redacted to NULL in the public
+          serving copy.
         data_type: text
       - name: photo_url
         description: "Photo URL (opencivicdata_person.image). Nullable."
