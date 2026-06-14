@@ -1608,15 +1608,6 @@ export default function HomeV9() {
                 ],
               },
               {
-                icon: '📖', title: 'Make a plan', hash: 'explore-plan',
-                items: [
-                  { kind: 'check', label: 'Near You' },
-                  { kind: 'check', label: 'Upcoming Meetings' },
-                  { kind: 'check', label: 'Find Allies' },
-                  { kind: 'note', label: 'Goal: Fix dangerous potholes' },
-                ],
-              },
-              {
                 icon: '💚', title: 'Find help & allies', hash: 'explore-find-help',
                 items: [
                   { kind: 'check', label: 'Find Allies on Issues' },
@@ -1643,7 +1634,7 @@ export default function HomeV9() {
                   { kind: 'arrow', label: 'Easy Tools' },
                 ],
               },
-            ] as const).map((step) => (
+            ] as { icon: string; title: string; hash: string; items: { kind: 'check' | 'arrow' | 'note'; label: string }[] }[]).map((step) => (
               <button
                 key={step.title}
                 onClick={() => navigate(`/explore#${step.hash}`)}
