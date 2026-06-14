@@ -61,6 +61,23 @@ ENV/
 .env.development
 .env.test
 
+# Terraform (infra/azure)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+!subscriptions.auto.tfvars
+crash.log
+crash.*.log
+.terraform.lock.hcl
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
 # Credentials and secrets
 credentials.json
 service-account.json

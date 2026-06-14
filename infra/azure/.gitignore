@@ -1,0 +1,11 @@
+# Belt-and-suspenders (root .gitignore also covers these)
+.env
+*.tfvars
+!*.tfvars.example
+!subscriptions.auto.tfvars
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+crash.*.log

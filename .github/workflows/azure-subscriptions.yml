@@ -1,0 +1,77 @@
+name: Azure Subscriptions (Terraform)
+
+# Manages infra/azure via Terraform using GitHub OIDC — NO client secret stored.
+# Configure a workload-identity federated credential on the Azure service principal
+# trusting this repo, and set these repository VARIABLES (Settings → Secrets and
+# variables → Actions → Variables; these are non-secret GUIDs, not Secrets):
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# And one repository SECRET (carries billing-account identifiers):
+#   AZURE_BILLING_SCOPE_ID
+# The SP needs Owner on the billing scope (+ Management Group Contributor if used).
+
+on:
+  pull_request:
+    paths:
+      - "infra/azure/**"
+      - ".github/workflows/azure-subscriptions.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/azure/**"
+      - ".github/workflows/azure-subscriptions.yml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Run terraform apply (otherwise plan only)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  id-token: write # required for OIDC token
+  contents: read
+  pull-requests: write # to post the plan summary
+
+defaults:
+  run:
+    working-directory: infra/azure
+
+env:
+  # azurerm provider + backend read these automatically. OIDC => no secret.
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  # Subscription naming/topology is committed (subscriptions.auto.tfvars); only the
+  # billing-account identifier is injected here.
+  TF_VAR_billing_scope_id: ${{ secrets.AZURE_BILLING_SCOPE_ID }}
+
+jobs:
+  terraform:
+    name: Plan / Apply
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.6"
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Validate
+        run: terraform validate -no-color
+
+      - name: Plan
+        id: plan
+        run: terraform plan -input=false -no-color
+
+      - name: Apply
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.apply)
+        run: terraform apply -input=false -auto-approve -no-color

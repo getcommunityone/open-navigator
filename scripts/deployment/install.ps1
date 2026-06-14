@@ -151,6 +151,65 @@ Write-Host "Installing local workspace packages (editable)..."
     -e packages/llm -e packages/accessibility -e packages/hosting
 Write-Host "[OK] Workspace packages installed"
 
+# --- Optional: infrastructure CLIs (Azure CLI + Terraform) --------------------
+# For the infra/azure subscriptions Terraform. Opt-in (most contributors don't
+# need it) — enable with:  $env:INSTALL_INFRA_TOOLS = "1"; .\install.ps1
+# Prefers winget/choco; falls back to a rootless install (azure-cli via pip,
+# terraform binary into .venv\Scripts) when neither is available.
+$TerraformVersion = if ($env:TERRAFORM_VERSION) { $env:TERRAFORM_VERSION } else { "1.9.8" }
+
+function Install-AzureCli {
+    if (Get-Command az -ErrorAction SilentlyContinue) { Write-Host "[OK] Azure CLI already installed"; return }
+    Write-Host "Installing Azure CLI..."
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        try { winget install --id Microsoft.AzureCLI --accept-source-agreements --accept-package-agreements -e } catch {}
+    } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
+        try { choco install -y azure-cli } catch {}
+    }
+    if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+        Write-Host "[!] No system install path; installing azure-cli into .venv via pip (rootless)..." -ForegroundColor Yellow
+        try { & $venvPython -m pip install --upgrade azure-cli } catch {
+            Write-Host "[!] Could not install Azure CLI. Manual: https://learn.microsoft.com/cli/azure/install-azure-cli" -ForegroundColor Yellow
+        }
+    }
+}
+
+function Install-Terraform {
+    if (Get-Command terraform -ErrorAction SilentlyContinue) { Write-Host "[OK] Terraform already installed"; return }
+    Write-Host "Installing Terraform $TerraformVersion..."
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        try { winget install --id Hashicorp.Terraform --accept-source-agreements --accept-package-agreements -e } catch {}
+    } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
+        try { choco install -y terraform } catch {}
+    }
+    if (-not (Get-Command terraform -ErrorAction SilentlyContinue)) {
+        # Rootless: drop the official binary into .venv\Scripts (on PATH once activated).
+        $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
+        $url  = "https://releases.hashicorp.com/terraform/$TerraformVersion/terraform_${TerraformVersion}_windows_$arch.zip"
+        $zip  = Join-Path $env:TEMP "terraform.zip"
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+            Expand-Archive -Path $zip -DestinationPath ".venv\Scripts" -Force
+            Remove-Item $zip -Force
+            Write-Host "[OK] Terraform installed to .venv\Scripts"
+        } catch {
+            Write-Host "[!] Could not download Terraform. Manual: https://developer.hashicorp.com/terraform/install" -ForegroundColor Yellow
+        }
+    }
+}
+
+if ($env:INSTALL_INFRA_TOOLS -eq "1") {
+    Write-Host ""
+    Write-Host "Installing infrastructure CLIs (Azure CLI + Terraform) [INSTALL_INFRA_TOOLS=1]..."
+    Install-AzureCli
+    Install-Terraform
+    # If a tool fell back to the rootless install it lives in .venv\Scripts, which is
+    # only on PATH once the venv is activated.
+    if (Test-Path ".venv\Scripts\terraform.exe") {
+        Write-Host "[!] Rootless tools are in .venv\Scripts — activate the venv (.\.venv\Scripts\Activate.ps1) to use az/terraform." -ForegroundColor Yellow
+    }
+}
+
 # --- .env ---------------------------------------------------------------------
 Write-Host ""
 if (-not (Test-Path ".env")) {
@@ -190,3 +249,8 @@ Write-Host "  .\start-all.ps1"
 Write-Host ""
 Write-Host "Don't forget to configure your .env file with API keys!"
 Write-Host ""
+if ($env:INSTALL_INFRA_TOOLS -ne "1") {
+    Write-Host "Working on infra\azure (Azure subscriptions)? Re-run with the infra CLIs:"
+    Write-Host '  $env:INSTALL_INFRA_TOOLS = "1"; .\install.ps1   # installs Azure CLI + Terraform'
+    Write-Host ""
+}
