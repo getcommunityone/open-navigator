@@ -53,6 +53,7 @@
     'meeting_document', 'event_decision', 'event_decision_place', 'decision_speakers',
     'event_place_geocoded', 'event_financial_item', 'event_bill', 'event_topic',
     'contact_official', 'person_government', 'jurisdictions', 'civic_jurisdiction',
+    'jurisdiction_county_crosswalk',
     'jurisdiction_document', 'jurisdiction_finance', 'jurisdiction_finance_category',
     'jurisdiction_property_tax_rate', 'state_sales_tax_rate',
     'opportunity_atlas_mobility', 'opportunity_atlas_mobility_national',
