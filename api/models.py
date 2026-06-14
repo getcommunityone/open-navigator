@@ -16,7 +16,9 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     username = Column(String(100), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=True)
-    avatar_url = Column(String(500), nullable=True)
+    # OAuth avatar URLs (esp. Google's lh3.googleusercontent.com) routinely
+    # exceed 500 chars — use unbounded Text to avoid StringDataRightTruncation.
+    avatar_url = Column(Text, nullable=True)
     
     # OAuth provider info
     oauth_provider = Column(String(50), nullable=True)  # 'huggingface', 'google', 'facebook', 'github'

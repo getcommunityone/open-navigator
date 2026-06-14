@@ -9,6 +9,7 @@ request's ``Accept`` header.
 """
 from __future__ import annotations
 
+import os
 from html import escape
 from urllib.parse import quote
 from typing import Any, Optional
@@ -36,6 +37,22 @@ def wants_html(request: Request) -> bool:
     return True
 
 
+def _frontend_base(request: Request) -> str:
+    """Origin to resolve in-app links (``/support``, home) against.
+
+    The error page can be served by the API on a *different* origin than the
+    React app (local dev: API :8000 vs Vite :5173). A relative ``/support``
+    would then hit the API host and 404. When ``FRONTEND_URL`` names a
+    different origin than this request, return it as an absolute prefix;
+    otherwise return ``""`` so links stay relative (prod is same-origin).
+    """
+    fe = (os.getenv("FRONTEND_URL") or "").rstrip("/")
+    if not fe:
+        return ""
+    req_origin = f"{request.url.scheme}://{request.url.netloc}"
+    return fe if fe != req_origin else ""
+
+
 def _mailto(subject: str, body: str) -> str:
     """Build a ``mailto:`` link to support with a prefilled subject/body."""
     query = f"subject={quote(subject)}&body={quote(body)}"
@@ -49,6 +66,7 @@ def _html_page(
     message: str,
     suggestion: Optional[str],
     path: str,
+    frontend_base: str = "",
 ) -> str:
     subject = f"CommunityOne support — {status_code} on {path or 'the site'}"
     body = (
@@ -63,10 +81,11 @@ def _html_page(
     # Deep-link into the in-app support form (creates a GitHub-issue ticket),
     # prefilled with the failing path/status via query params it reads.
     report_url = (
-        "/support?category=bug"
+        f"{frontend_base}/support?category=bug"
         f"&subject={quote(subject)}"
         f"&path={quote(path or '')}"
     )
+    home_url = f"{frontend_base}/" if frontend_base else "/"
     safe_title = escape(title)
     safe_message = escape(message)
     safe_suggestion = escape(suggestion) if suggestion else ""
@@ -117,7 +136,7 @@ def _html_page(
     <div class="actions">
       <a class="btn primary" href="{escape(report_url)}">Report this issue</a>
       <a class="btn ghost" href="{escape(mailto)}">Email support</a>
-      <a class="btn ghost" href="/">Back to CommunityOne</a>
+      <a class="btn ghost" href="{escape(home_url)}">Back to CommunityOne</a>
     </div>
     <div class="path">{escape(path)}</div>
   </main>
@@ -149,6 +168,7 @@ def error_response(
                 message=message,
                 suggestion=suggestion,
                 path=path,
+                frontend_base=_frontend_base(request),
             ),
         )
 
