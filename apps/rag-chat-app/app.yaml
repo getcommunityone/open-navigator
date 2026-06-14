@@ -1,0 +1,10 @@
+command: ['npm', 'run', 'start']
+env:
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+  - name: DATABRICKS_ENDPOINT
+    value: 'databricks-gpt-oss-20b'
+  - name: DATABRICKS_EMBEDDING_ENDPOINT
+    value: 'databricks-gte-large-en'
+  - name: RAG_RESEED
+    value: 'false'
