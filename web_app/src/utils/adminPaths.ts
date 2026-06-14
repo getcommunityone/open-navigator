@@ -14,5 +14,8 @@ export const ADMIN_BATCH_JOBS = '/admin/batch-jobs'
  */
 export const DATABRICKS_WORKSPACE_URL = 'https://adb-7405608833986267.7.azuredatabricks.net'
 
-/** Deployed Databricks App deep-link: `<workspace-host>/apps/<app-name>`. */
-export const DATABRICKS_APP_URL = `${DATABRICKS_WORKSPACE_URL}/apps/rag-chat-app`
+/**
+ * Deployed Databricks App URL (the running app itself, not the workspace manage
+ * page): `https://<app-name>-<workspace-id>.<region>.azure.databricksapps.com/`.
+ */
+export const DATABRICKS_APP_URL = 'https://rag-chat-app-7405608833986267.7.azure.databricksapps.com/'
