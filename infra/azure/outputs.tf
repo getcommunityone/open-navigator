@@ -14,3 +14,12 @@ output "subscription_ids" {
   description = "Map of logical name -> subscription GUID, handy for downstream provider aliases."
   value       = { for key, sub in azurerm_subscription.this : key => sub.subscription_id }
 }
+
+output "budget" {
+  description = "The cost-alert budget, if configured."
+  value = length(azurerm_consumption_budget_subscription.this) == 0 ? null : {
+    name       = azurerm_consumption_budget_subscription.this[0].name
+    amount_usd = azurerm_consumption_budget_subscription.this[0].amount
+    thresholds = var.subscription_budget.thresholds
+  }
+}
