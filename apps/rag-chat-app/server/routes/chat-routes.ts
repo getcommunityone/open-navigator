@@ -30,20 +30,19 @@ async function getDatabricksToken() {
   return authHeader.replace('Bearer ', '');
 }
 
-function gatewayBaseUrl(): string {
-  // Derive the AI Gateway domain from the workspace host so it resolves on every
-  // environment instead of hardcoding the prod suffix. DATABRICKS_HOST is the bare
-  // hostname in the Apps runtime; drop its first label and reuse the rest, e.g.
-  // e2-dogfood.staging.cloud.databricks.com -> ai-gateway.staging.cloud.databricks.com.
-  const workspaceId = process.env.DATABRICKS_WORKSPACE_ID;
-  if (!workspaceId) {
-    throw new Error(
-      'DATABRICKS_WORKSPACE_ID is not set — add it to .env for local dev (it is auto-injected on deploy).'
-    );
+function servingBaseUrl(): string {
+  // Use the workspace's OpenAI-compatible Model Serving path on the workspace host
+  // itself: https://<host>/serving-endpoints (+ /chat/completions appended by the
+  // OpenAI client, with model=<endpoint-name>). The older
+  // `<workspace-id>.ai-gateway.<suffix>` host fails TLS on Azure — its two-label
+  // subdomain isn't covered by the single-label `*.<n>.azuredatabricks.net` cert.
+  // This is the same host the SDK uses for embeddings, so it works everywhere.
+  const raw = process.env.DATABRICKS_HOST?.replace(/\/$/, '');
+  if (!raw) {
+    throw new Error('DATABRICKS_HOST is not set — add it to .env for local dev (auto-injected on deploy).');
   }
-  const host = process.env.DATABRICKS_HOST?.replace(/^https?:\/\//, '').replace(/\/$/, '');
-  const suffix = host?.split('.').slice(1).join('.') || 'cloud.databricks.com';
-  return `https://${workspaceId}.ai-gateway.${suffix}/mlflow/v1`;
+  const host = raw.startsWith('http') ? raw : `https://${raw}`;
+  return `${host}/serving-endpoints`;
 }
 
 export function setupChatRoutes(appkit: AppKitWithLakebase) {
@@ -107,7 +106,7 @@ export function setupChatRoutes(appkit: AppKitWithLakebase) {
         const token = await getDatabricksToken();
         const endpoint = process.env.DATABRICKS_ENDPOINT || 'databricks-gpt-5-4-mini';
         const databricks = createOpenAI({
-          baseURL: gatewayBaseUrl(),
+          baseURL: servingBaseUrl(),
           apiKey: token,
         });
 

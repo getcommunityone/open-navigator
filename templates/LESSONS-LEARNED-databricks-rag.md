@@ -183,14 +183,25 @@ existing app. open-navigator civic data is NOT in UC, so use Databricks **`sampl
 - **GOTCHA — container height**: give `GenieChat`'s parent an explicit height or it collapses.
 - Missing `dashboards.genie` scope → runtime `does not have required scopes: genie`.
 
-## 4e. KNOWN ISSUE — AI Gateway TLS SAN mismatch on Azure (RAG chat generation)
+## 4e. FIXED — AI Gateway TLS SAN mismatch on Azure (RAG chat generation)
 
-The RAG chat's chat/embeddings go through the AI Gateway at
-`<workspace-id>.ai-gateway.<n>.azuredatabricks.net`, but the Azure cert only covers
-`*.<n>.azuredatabricks.net` (single label) → `AI_RetryError: Hostname/IP does not match
-certificate's altnames`. Seeding embeddings succeeded earlier, so it's intermittent /
-endpoint-path dependent. Genie is unaffected (it uses the workspace API host). TODO:
-confirm the correct Azure gateway host / serving-endpoints path in `server/lib/embeddings.ts`.
+The RAG chat generation built its base URL as
+`https://<workspace-id>.ai-gateway.<n>.azuredatabricks.net/mlflow/v1`, but the Azure
+cert only covers `*.<n>.azuredatabricks.net` (single label) — the two-label
+`<wsid>.ai-gateway` subdomain isn't covered → `AI_RetryError: Hostname/IP does not match
+certificate's altnames`. (Embeddings were fine — they use the SDK against the workspace
+host. Genie is fine — it uses the workspace API host.)
+
+**Fix** (`server/routes/chat-routes.ts`): use the OpenAI-compatible Model Serving path on
+the **workspace host** instead — `baseURL = https://<DATABRICKS_HOST>/serving-endpoints`
+(the OpenAI client appends `/chat/completions`, `model = <endpoint-name>`). Verified:
+```bash
+curl -X POST "https://<host>/serving-endpoints/chat/completions" \
+  -H "Authorization: Bearer $(databricks auth token -p <profile> | jq -r .access_token)" \
+  -d '{"model":"databricks-gpt-oss-20b","messages":[{"role":"user","content":"hi"}]}'
+```
+returns a normal chat completion. No more `ai-gateway` host; no `DATABRICKS_WORKSPACE_ID`
+needed for chat (still used by nothing critical now).
 
 ## 5. Organization & cost
 
