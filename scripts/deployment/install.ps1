@@ -203,6 +203,11 @@ if ($env:INSTALL_INFRA_TOOLS -eq "1") {
     Write-Host "Installing infrastructure CLIs (Azure CLI + Terraform) [INSTALL_INFRA_TOOLS=1]..."
     Install-AzureCli
     Install-Terraform
+    # If a tool fell back to the rootless install it lives in .venv\Scripts, which is
+    # only on PATH once the venv is activated.
+    if (Test-Path ".venv\Scripts\terraform.exe") {
+        Write-Host "[!] Rootless tools are in .venv\Scripts — activate the venv (.\.venv\Scripts\Activate.ps1) to use az/terraform." -ForegroundColor Yellow
+    }
 }
 
 # --- .env ---------------------------------------------------------------------

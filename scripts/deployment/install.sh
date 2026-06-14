@@ -149,6 +149,20 @@ echo "✓ Workspace packages installed"
 # (azure-cli via pip, terraform binary into .venv/bin) when sudo isn't available.
 TERRAFORM_VERSION="${TERRAFORM_VERSION:-1.9.8}"
 
+# Symlink a tool installed inside .venv into ~/.local/bin so it's on PATH without
+# activating the venv (the rootless fallback otherwise hides az/terraform). venv
+# console scripts use an absolute shebang, so the symlink works from any shell.
+link_into_local_bin() {
+    local name="$1" target="$2"
+    [ -e "$target" ] || return 0
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$(pwd)/$target" "$HOME/.local/bin/$name"
+    case ":$PATH:" in
+        *":$HOME/.local/bin:"*) echo "✓ Linked $name into ~/.local/bin (on PATH)" ;;
+        *) echo "⚠ Linked $name into ~/.local/bin — add it to PATH: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+    esac
+}
+
 install_azure_cli() {
     if command -v az &> /dev/null; then
         echo "✓ Azure CLI already installed: $(az version --query '"azure-cli"' -o tsv 2>/dev/null)"
@@ -167,8 +181,11 @@ install_azure_cli() {
     fi
     if ! command -v az &> /dev/null; then
         echo "⚠ No system install path; installing azure-cli into .venv via pip (rootless)..."
-        pip install --upgrade azure-cli || \
+        if pip install --upgrade azure-cli; then
+            link_into_local_bin az ".venv/bin/az"
+        else
             echo "⚠ Could not install Azure CLI. Install manually: https://learn.microsoft.com/cli/azure/install-azure-cli"
+        fi
     fi
 }
 
@@ -197,6 +214,7 @@ zipfile.ZipFile(sys.argv[1]).extractall(".venv/bin")
 p = ".venv/bin/terraform"
 os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 PY
+            link_into_local_bin terraform ".venv/bin/terraform"
         else
             echo "⚠ Could not download Terraform. Install manually: https://developer.hashicorp.com/terraform/install"
         fi
