@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -173,6 +174,16 @@ export default function SiteHeader() {
                   <button onClick={() => { setShowLoginMenu(false); navigate('/data-explorer/map/us/2024/median_household_income') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, fontWeight: 600, color: TEAL_DARK, cursor: 'pointer', fontFamily: 'inherit', borderBottom: '1px solid #f5f5f4', marginBottom: 4, borderRadius: 8 }}>Explore Now</button>
                   <button onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>My Profile</button>
                   <button onClick={() => { setShowLoginMenu(false); navigate('/settings') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Settings</button>
+                  {user.is_admin && (
+                    <button onClick={() => { setShowLoginMenu(false); navigate('/admin') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Admin</button>
+                  )}
+                  {user.is_admin && (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: '#a8a29e', padding: '8px 12px 2px', borderTop: '1px solid #f5f5f4', marginTop: 4 }}>Databricks</div>
+                      <a href={DATABRICKS_WORKSPACE_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8, textDecoration: 'none' }}>Workspace ↗</a>
+                      <a href={DATABRICKS_APP_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8, textDecoration: 'none' }}>App ↗</a>
+                    </>
+                  )}
                   <button onClick={() => { setShowLoginMenu(false); logout() }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#dc2626', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', borderTop: '1px solid #f5f5f4', marginTop: 4, borderRadius: 8 }}>Sign out</button>
                 </div>
               )}
