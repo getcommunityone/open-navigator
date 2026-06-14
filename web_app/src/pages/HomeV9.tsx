@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { getLaunchCounty } from '../lib/launchCounties'
 import MoneyGameModal from '../components/MoneyGameModal'
 import MoneyMovesTeaser from '../components/MoneyMovesTeaser'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
@@ -651,7 +652,15 @@ export default function HomeV9() {
     if (!national && stateCode) params.set('state', stateCode)
     // Carry the city through so a drill-down from e.g. Tuscaloosa reads
     // "City: Tuscaloosa" rather than just "State: AL" (UnifiedSearch reads ?city=).
-    if (!national && city) params.set('city', city)
+    if (!national && city) {
+      params.set('city', city)
+      // Default a known launch city to the county-inclusive scope so search lands
+      // on the surrounding-county view (e.g. Tuscaloosa → Tuscaloosa County) with
+      // the "Include surrounding county" checkbox shown and checked. SF is a
+      // consolidated city-county (no broadening), so leave it city-only.
+      const lc = getLaunchCounty(city)
+      if (lc && lc.countyFips !== '06075') params.set('county', '1')
+    }
     navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
   }
 
