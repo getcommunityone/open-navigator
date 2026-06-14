@@ -142,6 +142,75 @@ pip install --no-deps \
     -e packages/llm -e packages/accessibility -e packages/hosting
 echo "✓ Workspace packages installed"
 
+# Infrastructure CLIs (Azure CLI + Terraform) for the infra/azure subscriptions
+# Terraform. Opt-in — most contributors don't touch it — enable with:
+#     INSTALL_INFRA_TOOLS=1 ./install.sh
+# Prefers the OS package manager; falls back to a rootless install into .venv
+# (azure-cli via pip, terraform binary into .venv/bin) when sudo isn't available.
+TERRAFORM_VERSION="${TERRAFORM_VERSION:-1.9.8}"
+
+install_azure_cli() {
+    if command -v az &> /dev/null; then
+        echo "✓ Azure CLI already installed: $(az version --query '"azure-cli"' -o tsv 2>/dev/null)"
+        return 0
+    fi
+    echo "Installing Azure CLI..."
+    if command -v brew &> /dev/null; then
+        brew install azure-cli || true
+    elif command -v apt-get &> /dev/null; then
+        curl -sL https://aka.ms/InstallAzureCLIDeb | run_root bash || true
+    elif command -v dnf &> /dev/null; then
+        run_root rpm --import https://packages.microsoft.com/keys/microsoft.asc || true
+        run_root dnf install -y azure-cli || true
+    elif command -v zypper &> /dev/null; then
+        run_root zypper install -y azure-cli || true
+    fi
+    if ! command -v az &> /dev/null; then
+        echo "⚠ No system install path; installing azure-cli into .venv via pip (rootless)..."
+        pip install --upgrade azure-cli || \
+            echo "⚠ Could not install Azure CLI. Install manually: https://learn.microsoft.com/cli/azure/install-azure-cli"
+    fi
+}
+
+install_terraform() {
+    if command -v terraform &> /dev/null; then
+        echo "✓ Terraform already installed: $(terraform version | head -n 1)"
+        return 0
+    fi
+    echo "Installing Terraform ${TERRAFORM_VERSION}..."
+    if command -v brew &> /dev/null; then
+        brew tap hashicorp/tap 2>/dev/null && brew install hashicorp/tap/terraform || true
+    fi
+    if ! command -v terraform &> /dev/null; then
+        # Rootless: drop the official binary into .venv/bin (on PATH once activated).
+        local os arch url tmp
+        os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        arch="$(uname -m)"
+        case "$arch" in x86_64) arch=amd64 ;; aarch64 | arm64) arch=arm64 ;; esac
+        url="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${os}_${arch}.zip"
+        tmp="$(mktemp -d)"
+        if curl -fsSL "$url" -o "$tmp/terraform.zip"; then
+            # Use the venv's python (active here) to unzip — no `unzip` dependency.
+            python - "$tmp/terraform.zip" <<'PY' && echo "✓ Terraform installed to .venv/bin"
+import os, stat, sys, zipfile
+zipfile.ZipFile(sys.argv[1]).extractall(".venv/bin")
+p = ".venv/bin/terraform"
+os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+PY
+        else
+            echo "⚠ Could not download Terraform. Install manually: https://developer.hashicorp.com/terraform/install"
+        fi
+        rm -rf "$tmp"
+    fi
+}
+
+if [ "${INSTALL_INFRA_TOOLS:-0}" = "1" ]; then
+    echo ""
+    echo "Installing infrastructure CLIs (Azure CLI + Terraform) [INSTALL_INFRA_TOOLS=1]..."
+    install_azure_cli
+    install_terraform
+fi
+
 # Create .env file if it doesn't exist
 echo ""
 if [ ! -f ".env" ]; then
@@ -181,3 +250,8 @@ echo "  python examples/example_workflow.py"
 echo ""
 echo "Don't forget to configure your .env file with API keys!"
 echo ""
+if [ "${INSTALL_INFRA_TOOLS:-0}" != "1" ]; then
+    echo "Working on infra/azure (Azure subscriptions)? Re-run with the infra CLIs:"
+    echo "  INSTALL_INFRA_TOOLS=1 ./install.sh   # installs Azure CLI + Terraform"
+    echo ""
+fi

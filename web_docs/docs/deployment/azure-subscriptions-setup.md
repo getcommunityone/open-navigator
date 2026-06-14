@@ -24,7 +24,15 @@ Rationale (CAF convention): `sp-` = service principal, `opennav` = org, `tf` = m
 
 - **An EA, MCA, or MPA billing account.** Pay-As-You-Go **cannot** create subscriptions via API/Terraform — verify with `az billing account list -o table` (see [Azure Subscriptions Setup billing scope]).
 - **Your own** account must be **Owner / Global Admin** (to create the app registration) **and** have rights on the billing scope (to delegate subscription-creation to the SP).
-- Azure CLI installed and `az login` done.
+- **Azure CLI + Terraform installed.** Get both via the installer's opt-in infra flag:
+  ```bash
+  INSTALL_INFRA_TOOLS=1 ./install.sh        # Linux/macOS
+  ```
+  ```powershell
+  $env:INSTALL_INFRA_TOOLS = "1"; .\install.ps1   # Windows
+  ```
+  It prefers the OS package manager (apt/dnf/brew/winget/choco) and falls back to a
+  rootless install into `.venv` when sudo isn't available. Then `az login`.
 
 ## Step 1 — Create the app registration + service principal
 
