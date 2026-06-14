@@ -35,6 +35,13 @@ is the segment after `org_prefix`; add/remove/rename subscriptions by editing th
 
 No `.tf` or committed `.tfvars` file contains a secret.
 
+## First time? Set up Azure
+
+If you don't yet have a service principal / billing permissions, follow
+**[Azure Subscriptions Setup](../../web_docs/docs/deployment/azure-subscriptions-setup.md)**
+(create the SP `sp-opennav-tf-subscriptions`, add OIDC federated creds, grant the
+billing-scope role). Come back here once that's done.
+
 ## Prerequisites
 
 - An **EA, MCA, or MPA** billing account. Pay-As-You-Go **cannot** create
