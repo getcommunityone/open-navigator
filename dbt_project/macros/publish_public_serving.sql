@@ -48,6 +48,139 @@
 
 {%- set mode = var('public_serving_mode', 'view') -%}
 
+{#- ===================================================================
+    LAUNCH SCOPE (var: public_serving_launch_scope, default false).
+
+    The product launches in 4 counties only. When this var is OFF the macro
+    behaves EXACTLY as before (regression-safe). When ON, every served
+    relation's computed body is WRAPPED:
+
+        select * from (<body>) _s where <predicate>
+
+    Because both the view and materialize modes compute a `body` string, the
+    wrap applies uniformly to both. The wrap is layered ON TOP of the
+    neon_bodies slimming, so e.g. grant = (top-10-org-graph) ∩ launch states.
+
+    The geoid IN-list (95 launch places + 4 county FIPS + 4 state FIPS, all
+    confirmed present in jurisdictions.geoid) is resolved ONCE at macro start
+    from bronze and inlined as SQL literals — public views never depend on
+    bronze. Launch states / county FIPS are overridable vars.
+
+    Relations whose predicate map entry is absent are left UNFILTERED (small
+    national reference tables, or tables already slimmed by a neon body and
+    carrying no usable geo key). See launch_predicates below.
+    =================================================================== -#}
+{%- set launch_scope = var('public_serving_launch_scope', false) -%}
+{%- set launch_states = var('launch_states', ['AL', 'GA', 'MA', 'WA']) -%}
+{%- set launch_county_fips = var('launch_county_fips', ['01125', '13121', '25025', '53033']) -%}
+
+{#- Built only when scope is on: literal IN-list fragments. -#}
+{%- set geoid_in_list = '' -%}
+{%- set state_in_list = '' -%}
+
+{%- if launch_scope and execute -%}
+  {#- State-code literal list: ('AL','GA',...) -#}
+  {%- set _sc = [] -%}
+  {%- for s in launch_states -%}{%- do _sc.append("'" ~ s ~ "'") -%}{%- endfor -%}
+  {%- set state_in_list = '(' ~ (_sc | join(', ')) ~ ')' -%}
+
+  {#- State FIPS = first 2 chars of each county FIPS (e.g. 01125 -> 01). -#}
+  {%- set _state_fips = [] -%}
+  {%- for cf in launch_county_fips -%}
+    {%- set sf = cf[:2] -%}
+    {%- if sf not in _state_fips -%}{%- do _state_fips.append(sf) -%}{%- endif -%}
+  {%- endfor -%}
+
+  {#- Resolve the 95 launch place geoids from bronze, ONCE. -#}
+  {%- set _cf_lits = [] -%}
+  {%- for cf in launch_county_fips -%}{%- do _cf_lits.append("'" ~ cf ~ "'") -%}{%- endfor -%}
+  {%- set _geo_q -%}
+    select geoid from bronze.bronze_jurisdictions_county_fips_enriched
+    where county_fips_code in ({{ _cf_lits | join(', ') }})
+  {%- endset -%}
+  {%- set _geo_res = run_query(_geo_q) -%}
+  {%- set _geoids = [] -%}
+  {%- if _geo_res and _geo_res.rows -%}
+    {%- for r in _geo_res.rows -%}
+      {%- if r[0] is not none -%}{%- do _geoids.append(r[0]) -%}{%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {#- geoid set = places + county FIPS + state FIPS (so county/state-level
+      jurisdiction rows survive the place-strict geoid filter). -#}
+  {%- for cf in launch_county_fips -%}{%- if cf not in _geoids -%}{%- do _geoids.append(cf) -%}{%- endif -%}{%- endfor -%}
+  {%- for sf in _state_fips -%}{%- if sf not in _geoids -%}{%- do _geoids.append(sf) -%}{%- endif -%}{%- endfor -%}
+  {%- set _geo_lits = [] -%}
+  {%- for g in _geoids -%}{%- do _geo_lits.append("'" ~ g ~ "'") -%}{%- endfor -%}
+  {%- set geoid_in_list = '(' ~ (_geo_lits | join(', ')) ~ ')' -%}
+  {{ log("publish_public_serving: launch scope ON — " ~ (_geoids | length) ~ " geoids, states " ~ state_in_list, info=true) }}
+{%- endif -%}
+
+{#- Per-relation launch-scope predicate map. The VALUE is a boolean SQL
+    expression evaluated against the wrapped body alias `_s`. Placeholders
+    {{geoids}} and {{states}} are substituted with the inlined literal lists.
+    Every column referenced below was verified to exist in the gold relation
+    via information_schema. Relations NOT listed here are left unfiltered.
+
+    Tiers:
+      * PLACE  (strict geoid set): jurisdictions, civic_jurisdiction.
+      * CIVIC  (state_code IN states): all event_* / jurisdiction_* / browse /
+               item / officials relations that carry state_code.
+      * NATIONAL graph (state_code IN states): grant (either endpoint),
+               mdm_organization, bills.
+    NATIONAL graph also: bill_sponsorship (no state col -> scoped via bill_uid
+    to the kept-bills set; see entry below).
+
+    Left UNFILTERED (no usable geo column / already slimmed by neon body, noted
+    in summary): mdm_organization_nonprofit and mdm_bridge_org_jurisdiction
+    (already inner-joined to the top-10 kept-org set by their neon bodies),
+    jurisdiction_document (jurisdiction_id is a slug, tiny seed table),
+    jurisdiction_finance_category, and all national reference tables
+    (cpi_annual, state_sales_tax_rate, tag, opportunity_atlas_*national,
+    nonprofit_sector_revenue, grant_opportunity, etc.). -#}
+{%- set launch_predicates = {
+    'jurisdictions':                       "_s.geoid in {{geoids}}",
+    'civic_jurisdiction':                  "_s.geoid in {{geoids}}",
+    'event':                               "_s.state_code in {{states}}",
+    'event_meeting':                       "_s.state_code in {{states}}",
+    'event_decision':                      "_s.state_code in {{states}}",
+    'event_documents':                     "_s.state_code in {{states}}",
+    'event_meeting_document':              "_s.state_code in {{states}}",
+    'event_bill':                          "_s.state_code in {{states}}",
+    'event_financial_item':                "_s.state_code in {{states}}",
+    'event_place_geocoded':                "_s.state_code in {{states}}",
+    'event_topic':                         "_s.state_code in {{states}}",
+    'item_interestingness':                "_s.state_code in {{states}}",
+    'item_flags':                          "_s.state_code in {{states}}",
+    'contact_official':                    "_s.state_code in {{states}}",
+    'person_government':                    "_s.state_code in {{states}}",
+    'jurisdiction_state_aggregate':        "_s.state_code in {{states}}",
+    'jurisdiction_finance':                "_s.state_code in {{states}}",
+    'jurisdiction_mapping_analysis':       "_s.state_code in {{states}}",
+    'jurisdiction_property_tax_rate':      "_s.state_code in {{states}}",
+    'jurisdiction_minutes_publish_lag':    "_s.state_code in {{states}}",
+    'rpt_bill_map_aggregate':              "_s.state_code in {{states}}",
+    'topic_money_and_talk':                "_s.state_code in {{states}}",
+    'browse_transcript_count':             "_s.state_code in {{states}}",
+    'browse_directory_summary':            "_s.state_code in {{states}}",
+    'browse_entity_state_transcript_count':"_s.state_code in {{states}}",
+    'meeting_browse':                      "_s.state_code in {{states}}",
+    'meeting_topic_link':                  "_s.state_code in {{states}}",
+    'meeting_question_link':               "_s.state_code in {{states}}",
+    'question_instance':                   "_s.state_code in {{states}}",
+    'question_transcript_link':            "_s.state_code in {{states}}",
+    'grant':                               "(_s.grantee_state_code in {{states}} or _s.grantor_state_code in {{states}})",
+    'mdm_organization':                    "_s.state_code in {{states}}",
+    'bills':                               "_s.state_code in {{states}}",
+    'bill_sponsorship':
+        "_s.bill_uid in (select bill_uid from gold.bills "
+        "where year >= 2023 and state_code in {{states}})"
+} -%}
+{#- bill_sponsorship has no state column; the entry above scopes it to the SAME
+    kept-bill set the `bills` neon+launch rule produces (year>=2023 ∩ launch
+    states), joined on bill_uid. Unfiltered it is ~1.2 GB and alone blows the
+    0.5 GB budget; scoped it is ~53 MB. -#}
+
+
 {%- set served = [
     'event', 'event_meeting', 'event_documents', 'event_meeting_document',
     'meeting_document', 'event_decision', 'event_decision_place', 'decision_speakers',
@@ -170,9 +303,15 @@ where coalesce(
         analyzed_cte ~ "
 select
     event_document_id, event_id, document_type, document_source, video_id,
-    null::text as content,
+    -- Transcript full-text search MUST work on the serving layer: the document
+    -- search leg matches on content_tsv (GIN) and builds its match-evidence
+    -- snippet with ts_headline('english', content, ...), which detoasts the raw
+    -- content. Both are therefore KEPT (not nulled). Affordable only because the
+    -- launch scope + analyzed scope cut this to ~4.3k rows (~270 MB) — see the
+    -- launch_predicates wrap. content_excerpt stays as the cheap display field.
+    content,
     left(content, 300) as content_excerpt,
-    null::tsvector as content_tsv,
+    content_tsv,
     content_length, word_count, language, is_auto_generated,
     case when segments is null then null else (
         select jsonb_agg(jsonb_build_object(
@@ -223,7 +362,8 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
         'create unique index if not exists event_documents_pkey on public.event_documents (event_document_id)',
         'create index if not exists event_documents_video_id_idx on public.event_documents (video_id)',
         'create index if not exists event_documents_event_id_idx on public.event_documents (event_id)',
-        'create index if not exists event_documents_state_code_idx on public.event_documents (state_code)'
+        'create index if not exists event_documents_state_code_idx on public.event_documents (state_code)',
+        'create index if not exists event_documents_content_tsv_idx on public.event_documents using gin (content_tsv)'
     ],
     'event_decision': [
         'create index if not exists event_decision_state_code_idx on public.event_decision (state_code)',
@@ -278,6 +418,11 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
     {%- set chk = run_query("select to_regclass('gold." ~ q ~ "') as r") -%}
     {%- if chk and chk.rows and chk.rows[0][0] is not none -%}
       {%- set body = neon_bodies.get(name, projections.get(name, "select * from gold." ~ q)) -%}
+      {#- Launch-scope wrap (on top of the neon body). No-op when scope off. -#}
+      {%- if launch_scope and (name in launch_predicates) -%}
+        {%- set pred = launch_predicates[name] | replace('{{geoids}}', geoid_in_list) | replace('{{states}}', state_in_list) -%}
+        {%- set body = "select * from (" ~ body ~ "\n) _s where " ~ pred -%}
+      {%- endif -%}
       {#- Idempotent: drop any prior view OR table, then rebuild. -#}
       {%- do run_query("drop view if exists public." ~ q ~ " cascade") -%}
       {%- do run_query("drop table if exists public." ~ q ~ " cascade") -%}
@@ -299,6 +444,11 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
     {%- set chk = run_query("select to_regclass('gold." ~ q ~ "') as r") -%}
     {%- if chk and chk.rows and chk.rows[0][0] is not none -%}
       {%- set body = projections.get(name, "select * from gold." ~ q) -%}
+      {#- Launch-scope wrap. No-op when scope off. -#}
+      {%- if launch_scope and (name in launch_predicates) -%}
+        {%- set pred = launch_predicates[name] | replace('{{geoids}}', geoid_in_list) | replace('{{states}}', state_in_list) -%}
+        {%- set body = "select * from (" ~ body ~ "\n) _s where " ~ pred -%}
+      {%- endif -%}
       {#- Idempotent: a prior materialize run may have left a TABLE here. Only
           DROP TABLE when the public relation is actually a base table — issuing
           `drop table` against an existing VIEW raises

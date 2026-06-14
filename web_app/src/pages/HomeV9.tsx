@@ -18,7 +18,7 @@
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { getLaunchCounty } from '../lib/launchCounties'
@@ -30,6 +30,7 @@ import SiteHeader from '../components/SiteHeader'
 import { LensCarousel, type ApiCard } from '../components/StoryLenses'
 import MeetingThumbnail from '../components/MeetingThumbnail'
 import { fetchMeetings, type MeetingCard } from '../api/meetings'
+import { LAUNCH_CITIES } from '../lib/launchCoverage'
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -395,6 +396,12 @@ export default function HomeV9() {
   // Inline "change location" picker inside the level menu (restores the ability
   // to switch to a different city/place, not just City/State/National scope).
   const [changingLoc, setChangingLoc] = useState(false)
+  // When the user picks a place we haven't loaded civic data for yet, we keep the
+  // picker open and show a friendly "not loaded yet" notice (with the launch
+  // cities as alternatives) instead of silently dropping them into an empty scope.
+  const [uncoveredPick, setUncoveredPick] = useState<{ city?: string; state?: string } | null>(null)
+  const uncoveredLabel = (l: { city?: string; state?: string } | null) =>
+    l ? [l.city, l.state].filter(Boolean).join(', ') : ''
   const levelRef = useRef<HTMLButtonElement>(null)
   const levelMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -697,9 +704,8 @@ export default function HomeV9() {
             Free, forever.
           </div>
 
-          {/* ── Launch-coverage note: initial launch is limited to a handful of
-              cities; more are being ingested. Keep this list in sync with the
-              city-scoped event_documents load (5 launch cities). ── */}
+          {/* ── Launch-coverage note: live in four cities (ordered by content
+              volume), each linking to its state-scoped search. ── */}
           <div
             style={{
               display: 'inline-flex',
@@ -719,8 +725,18 @@ export default function HomeV9() {
               lineHeight: 1.45,
             }}
           >
-            <span style={{ fontWeight: 700 }}>📍 Launching in</span>
-            <span>Tuscaloosa, AL · Minneapolis, MN · Boston, MA · Atlanta, GA · Oregon, WI</span>
+            <span style={{ fontWeight: 700 }}>📍 Live in</span>
+            {LAUNCH_CITIES.map((c, i) => (
+              <span key={`${c.city}-${c.state}`}>
+                <Link
+                  to={`/search?state=${c.state}&city=${encodeURIComponent(c.city)}`}
+                  style={{ color: TEAL_DARK, fontWeight: 600, textDecoration: 'underline' }}
+                >
+                  {c.city}, {c.state}
+                </Link>
+                {i < LAUNCH_CITIES.length - 1 ? ' ·' : ''}
+              </span>
+            ))}
             <span style={{ fontWeight: 600, color: '#0d9488' }}>— more cities coming soon</span>
           </div>
 
@@ -1014,7 +1030,10 @@ export default function HomeV9() {
             {changingLoc && (
               <div
                 className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
-                onClick={() => setChangingLoc(false)}
+                onClick={() => {
+                  setChangingLoc(false)
+                  setUncoveredPick(null)
+                }}
                 style={{ animation: 'fadeIn 150ms ease' }}
               >
                 <div
@@ -1027,7 +1046,10 @@ export default function HomeV9() {
                     </h2>
                     <button
                       type="button"
-                      onClick={() => setChangingLoc(false)}
+                      onClick={() => {
+                        setChangingLoc(false)
+                        setUncoveredPick(null)
+                      }}
                       aria-label="Close"
                       style={{ padding: 8, borderRadius: 10, border: 'none', background: 'none', color: '#78716c', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f4')}
@@ -1041,8 +1063,50 @@ export default function HomeV9() {
                       ? `Currently set to ${[locCity, locState].filter(Boolean).join(', ')}. Enter a new address to change your location.`
                       : 'Enter your address to see the meetings, votes, spending, and debates near you.'}
                   </p>
+
+                  {/* "Not loaded yet" notice — shown when the picked place isn't one
+                      of our launch cities. We don't drop the user into an empty
+                      scope; we tell them honestly and offer the loaded cities. */}
+                  {uncoveredPick && (
+                    <div
+                      className="mb-6 rounded-xl border p-4"
+                      style={{ borderColor: '#fcd34d', background: '#fffbeb' }}
+                      role="status"
+                    >
+                      <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
+                        🚧 We haven&apos;t loaded {uncoveredLabel(uncoveredPick) || 'that area'} yet
+                      </p>
+                      <p className="mt-1 text-sm" style={{ color: '#92400e' }}>
+                        Civic data for {uncoveredLabel(uncoveredPick) || 'this location'} is on the way.
+                        For now, you can explore one of our launch cities:
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {LAUNCH_CITIES.map((c) => (
+                          <Link
+                            key={`${c.city}-${c.state}`}
+                            to={`/search?state=${c.state}`}
+                            onClick={() => {
+                              setChangingLoc(false)
+                              setUncoveredPick(null)
+                            }}
+                            className="rounded-full bg-white px-3 py-1.5 text-sm font-medium"
+                            style={{ border: '1px solid #fcd34d', color: '#92400e' }}
+                          >
+                            {c.city}, {c.state}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <AddressLookup
+                    onUncovered={(loc) => {
+                      // Block the switch and surface our custom in-modal notice
+                      // rather than dropping the user into an empty scope.
+                      setUncoveredPick({ city: loc.city, state: loc.state })
+                    }}
                     onLocationFound={(loc) => {
+                      setUncoveredPick(null)
                       setLocation(loc)
                       levelPicked.current = false
                       setChangingLoc(false)
