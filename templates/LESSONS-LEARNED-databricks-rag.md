@@ -162,6 +162,47 @@ RAG_RESEED=false
 `sync-bundle-vars.mjs` derives the bundle's `postgres_branch` from `LAKEBASE_ENDPOINT`
 (regex on `projects/…/branches/…`), so it MUST be the resource path.
 
+## 4d. Adding AI/BI Genie (the Genie Analytics cookbook) to the same app
+
+Goal: a second feature — natural-language analytics over Unity Catalog tables — in the
+existing app. open-navigator civic data is NOT in UC, so use Databricks **`samples`**
+(e.g. `samples.nyctaxi.trips`) and label it clearly in the UI (no-fabricated-data).
+
+- **Create the space** (CLI, not UI): `databricks genie create-space <WAREHOUSE_ID>
+  '{"version":2,"data_sources":{"tables":[{"identifier":"samples.nyctaxi.trips"}]}}'
+  --title "NYC Taxi Analytics"`. Warehouse: `databricks experimental aitools tools
+  get-default-warehouse` (or `databricks warehouses list`). Returns `space_id`.
+- **Wire it** (per the `databricks-apps` skill `appkit/genie.md`):
+  - `server/server.ts`: add `genie` to the plugin array — `plugins: [lakebase(), server(), genie()]`.
+  - `databricks.yml`: add `genie_space_id`/`genie_space_name` vars, a `genie_space`
+    resource (`permission: CAN_RUN`), `user_api_scopes: [dashboards.genie]`, and set the
+    values under `targets.default.variables`.
+  - `app.yaml`: `- name: DATABRICKS_GENIE_SPACE_ID` / `valueFrom: genie-space`.
+  - `.env`: `DATABRICKS_GENIE_SPACE_ID=<space_id>` for local dev.
+- **GOTCHA — `GenieChat` needs `alias`**: this appkit-ui version requires `<GenieChat alias="default" />`. The default single space registers under alias **`default`** (`DATABRICKS_GENIE_SPACE_ID`). Without it: `TS2741: Property 'alias' is missing`.
+- **GOTCHA — container height**: give `GenieChat`'s parent an explicit height or it collapses.
+- Missing `dashboards.genie` scope → runtime `does not have required scopes: genie`.
+
+## 4e. FIXED — AI Gateway TLS SAN mismatch on Azure (RAG chat generation)
+
+The RAG chat generation built its base URL as
+`https://<workspace-id>.ai-gateway.<n>.azuredatabricks.net/mlflow/v1`, but the Azure
+cert only covers `*.<n>.azuredatabricks.net` (single label) — the two-label
+`<wsid>.ai-gateway` subdomain isn't covered → `AI_RetryError: Hostname/IP does not match
+certificate's altnames`. (Embeddings were fine — they use the SDK against the workspace
+host. Genie is fine — it uses the workspace API host.)
+
+**Fix** (`server/routes/chat-routes.ts`): use the OpenAI-compatible Model Serving path on
+the **workspace host** instead — `baseURL = https://<DATABRICKS_HOST>/serving-endpoints`
+(the OpenAI client appends `/chat/completions`, `model = <endpoint-name>`). Verified:
+```bash
+curl -X POST "https://<host>/serving-endpoints/chat/completions" \
+  -H "Authorization: Bearer $(databricks auth token -p <profile> | jq -r .access_token)" \
+  -d '{"model":"databricks-gpt-oss-20b","messages":[{"role":"user","content":"hi"}]}'
+```
+returns a normal chat completion. No more `ai-gateway` host; no `DATABRICKS_WORKSPACE_ID`
+needed for chat (still used by nothing critical now).
+
 ## 5. Organization & cost
 
 - Keep the app self-contained in **`apps/rag-chat-app/`**; its `.gitignore` already excludes

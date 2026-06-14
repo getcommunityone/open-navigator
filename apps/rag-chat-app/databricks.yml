@@ -5,18 +5,32 @@ variables:
     description: Full Lakebase Postgres branch resource name. Obtain by running `databricks postgres list-branches projects/{project-id}`, select the desired item from the output array and use its .name value.
   postgres_database:
     description: Full Lakebase Postgres database resource name. Obtain by running `databricks postgres list-databases {branch-name}`, select the desired item from the output array and use its .name value. Requires the branch resource name.
+  genie_space_id:
+    description: AI/BI Genie space ID (NYC Taxi Analytics over samples.nyctaxi.trips).
+  genie_space_name:
+    description: AI/BI Genie space display name.
 resources:
   apps:
     app:
       name: rag-chat-app
-      description: 'Streaming RAG chat app with pgvector retrieval and Lakebase-backed chat history'
+      description: 'RAG chat (pgvector + Lakebase) plus AI/BI Genie conversational analytics'
       source_code_path: ./
+      user_api_scopes:
+        - dashboards.genie
       resources:
         - name: postgres
           postgres:
             branch: ${var.postgres_branch}
             database: ${var.postgres_database}
             permission: CAN_CONNECT_AND_CREATE
+        - name: genie-space
+          genie_space:
+            name: ${var.genie_space_name}
+            space_id: ${var.genie_space_id}
+            permission: CAN_RUN
 targets:
   default:
     default: true
+    variables:
+      genie_space_id: 01f168306a80105f8cb5ff31eb88cd89
+      genie_space_name: NYC Taxi Analytics

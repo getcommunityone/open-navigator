@@ -254,7 +254,7 @@ export function ChatPage() {
   );
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-full bg-background">
       {sidebarOpen && (
         <div className="flex w-72 flex-col border-r bg-muted/30">
           <div className="p-4">

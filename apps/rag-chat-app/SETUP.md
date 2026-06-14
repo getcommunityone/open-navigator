@@ -38,8 +38,19 @@ prints the corpus row count + app URL.
 | Databricks CLI | `~/.local/bin/databricks` v1.3.0 | rootless |
 | Agent skills | `~/.claude/skills/databricks-*` | `databricks aitools install` |
 | Lakebase project | `opennav-rag-chat` | autoscaling, scale-to-zero |
-| Databricks App | `rag-chat-app` | serverless hosting |
+| Genie space | `NYC Taxi Analytics` | AI/BI Genie over `samples.nyctaxi.trips` |
+| Databricks App | `rag-chat-app` | serverless hosting (two features, see below) |
 | Local `.env` | `apps/rag-chat-app/.env` | gitignored, profile-auth (no secrets) |
+
+## Two features in one app
+
+- **RAG Chat** (`/`) — streaming retrieval-augmented chat over the Lakebase pgvector corpus.
+- **NYC Taxi Analytics** (`/analytics`) — AI/BI **Genie** conversational analytics. Ask
+  plain-English questions; Genie writes + runs SQL against `samples.nyctaxi.trips` (a
+  Databricks sample table). The page shows the catalog/schema/table + columns so the
+  underlying data source is always clear. Genie space id lives in `databricks.yml`
+  (`genie_space_id`) and `.env` (`DATABRICKS_GENIE_SPACE_ID`); `setup.sh` creates the
+  space if missing. Requires `user_api_scopes: [dashboards.genie]` (already declared).
 
 ## Config knobs (env vars for `setup.sh`)
 
