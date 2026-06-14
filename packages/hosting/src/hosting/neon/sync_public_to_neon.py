@@ -87,6 +87,20 @@ RUNTIME_OWNED = frozenset(
     }
 )
 
+# Civic-serving objects that ARE mirrored to Neon, but NOT by this generic
+# copy — they have a dedicated loader that ships a slim/derived form. Listing
+# them here keeps them off the unclassified-warning AND out of the full-view
+# copy (the bug this guards against: local public.event_documents is a VIEW over
+# gold carrying the FULL transcript text — ~13.7 GB — so a blunt copy busts the
+# 512 MB cap). The slim path keeps ALL analyzed meetings as cues-only rows
+# (excerpt + segment timings, content/content_tsv NULLed) → ~108 MB.
+#   event_documents -> hosting/neon/sync_event_documents_to_neon.py
+DEDICATED_LOADER = frozenset(
+    {
+        "event_documents",
+    }
+)
+
 # The nonprofit / 990 money + MDM entity-resolution graph. These public objects
 # are views over the FULL gold warehouse — together ~5 GB of materialized rows
 # (grant ~2.3 GB, mdm_organization ~1.7 GB, mdm_bridge_org_jurisdiction ~0.8 GB,
@@ -102,6 +116,11 @@ NON_SERVING = frozenset(
         "mdm_organization_nonprofit",
         "mdm_bridge_org_jurisdiction",
         "nonprofit_sector_revenue",
+        # raw OpenStates bills — 1.55M bills (~592 MB) + 5.7M sponsorships
+        # (~1.18 GB), together ~3.5x the whole cap. The bill MAP is served by
+        # rpt_bill_map_aggregate (allow-listed), so the raw rows aren't needed.
+        "bills",
+        "bill_sponsorship",
     }
 )
 
@@ -125,7 +144,8 @@ CIVIC_SERVING = frozenset(
         "event_topic",
         "event_meeting",
         "event_meeting_document",
-        "event_documents",
+        # event_documents is intentionally absent — see DEDICATED_LOADER above
+        # (slim cues-only, loaded by sync_event_documents_to_neon.py).
         "meeting_document",
         "mdm_bridge_event_analysis",
         # people & officials
@@ -156,6 +176,29 @@ CIVIC_SERVING = frozenset(
         # reference series — annual CPI for the real-dollar / inflation toggle
         # (tiny: ~15 rows/series). Served via /api/cpi/annual.
         "cpi_annual",
+        # --- triaged 2026-06-14: small civic marts, ~26 MB combined ---
+        # browse counts + directory (homepage / browse surfaces)
+        "browse_directory_summary",
+        "browse_transcript_count",
+        "browse_entity_state_transcript_count",
+        # meeting-grain browse + topic/question linkage (Browse Topics/Questions)
+        "meeting_browse",
+        "meeting_question_link",
+        "question_transcript_link",
+        "civicsearch_topic",
+        "topic_money_and_talk",
+        "policy_question_trend",
+        # decision detail + arguments
+        "decision_speakers",
+        "instance_argument",
+        # finance / money lenses (small per-jurisdiction series)
+        "jurisdiction_finance",
+        "jurisdiction_property_tax_rate",
+        "state_sales_tax_rate",
+        "opportunity_atlas_mobility",
+        "opportunity_atlas_mobility_national",
+        # NOTE: meeting_topic_link (60 MB) + jurisdiction_finance_category (40 MB)
+        # are deliberately deferred (budget headroom); add when on a larger tier.
     }
 )
 
@@ -259,6 +302,7 @@ def _serving_objects(local_conn) -> List[str]:
         if r not in CIVIC_SERVING
         and r not in RUNTIME_OWNED
         and r not in NON_SERVING
+        and r not in DEDICATED_LOADER
     ]
     if unclassified:
         logger.warning(

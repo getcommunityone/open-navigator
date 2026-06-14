@@ -211,6 +211,27 @@ export default function BrowseTopics() {
           city={scopedCity}
           title={listTitle}
           showAdvancedFilters
+          scopeFilter={
+            <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
+              Topic
+              <select
+                value={selectedTopic?.topic_id ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value
+                  pickTopic(id ? topics.find((t) => String(t.topic_id) === id) ?? null : null)
+                }}
+                disabled={isLoading || topics.length === 0}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                <option value="">All topics</option>
+                {topics.map((t) => (
+                  <option key={t.topic_id} value={t.topic_id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          }
         />
       </div>
 

@@ -688,6 +688,33 @@ export default function HomeV9() {
             Free, forever.
           </div>
 
+          {/* ── Launch-coverage note: initial launch is limited to a handful of
+              cities; more are being ingested. Keep this list in sync with the
+              city-scoped event_documents load (5 launch cities). ── */}
+          <div
+            style={{
+              display: 'inline-flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              alignItems: 'center',
+              columnGap: 8,
+              rowGap: 4,
+              margin: '20px auto 0',
+              maxWidth: 760,
+              padding: '9px 18px',
+              borderRadius: 999,
+              background: 'rgba(13,148,136,0.08)',
+              border: '1px solid rgba(13,148,136,0.25)',
+              fontSize: 14,
+              color: '#0f766e',
+              lineHeight: 1.45,
+            }}
+          >
+            <span style={{ fontWeight: 700 }}>📍 Launching in</span>
+            <span>Tuscaloosa, AL · Minneapolis, MN · Boston, MA · Atlanta, GA · Oregon, WI</span>
+            <span style={{ fontWeight: 600, color: '#0d9488' }}>— more cities coming soon</span>
+          </div>
+
           <div style={{ position: 'relative', maxWidth: 760, margin: '28px auto 0', textAlign: 'left' }}>
             <div
               style={{

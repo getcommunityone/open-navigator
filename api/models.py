@@ -28,6 +28,10 @@ class User(Base):
     hashed_password = Column(String(255), nullable=True)  # For email/password (optional)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    # Operator/admin flag — gates the Admin area (Lighthouse report + batch jobs)
+    # surfaced via the profile menu and the /admin route. See migration
+    # packages/hosting/scripts/neon/migrations/110_add_user_is_admin.sql
+    is_admin = Column(Boolean, nullable=False, default=False, server_default="false")
     
     # Location preferences
     state = Column(String(100), nullable=True)  # US State

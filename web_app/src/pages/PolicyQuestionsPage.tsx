@@ -204,6 +204,27 @@ export default function PolicyQuestionsPage() {
           city={cityName}
           title={listTitle}
           showAdvancedFilters
+          scopeFilter={
+            <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
+              Question
+              <select
+                value={selectedQuestion?.question_id ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value
+                  pickQuestion(id ? questions.find((q) => String(q.question_id) === id) ?? null : null)
+                }}
+                disabled={isLoading || questions.length === 0}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                <option value="">All questions</option>
+                {questions.map((q) => (
+                  <option key={q.question_id} value={q.question_id}>
+                    {q.canonical_text || 'Untitled question'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          }
         />
 
         {/* Transcript fallback — real meetings whose transcript discusses this

@@ -81,6 +81,7 @@ class UserResponse(BaseModel):
     city: Optional[str]
     school_board: Optional[str]
     profile_completed: Optional[bool]
+    is_admin: Optional[bool] = False
 
 
 # Helper functions

@@ -21,6 +21,9 @@ eggs/
 .eggs/
 lib/
 !web_app/src/lib/
+# Databricks app source dirs named "lib" (otherwise hidden from git + bundle deploy)
+!apps/rag-chat-app/server/lib/
+!apps/rag-chat-app/client/src/lib/
 lib64/
 parts/
 sdist/
