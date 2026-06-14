@@ -12,27 +12,12 @@ common_tags = {
   owner       = "johncbowyer"
 }
 
-# Azure Landing Zones topology: platform subscriptions + per-environment app zones.
-# Map key = name segment after org_prefix, e.g. "prod" -> "opennav-prod".
+# Minimal setup: ONE subscription. An empty subscription costs nothing — you're
+# billed only for resources you deploy inside it — so a single sub is the simplest
+# and cheapest starting point. Map key = name after org_prefix ("prod" -> "opennav-prod").
+#
+# To add more later, just add a line (each is free until you deploy into it), e.g.:
+#   "sandbox" = { workload = "DevTest" }   # DevTest = discounted dev/test pricing
 subscriptions = {
-  # --- Platform landing zones ---
-  "platform-management"   = { workload = "Production" }
-  "platform-connectivity" = { workload = "Production" }
-  "platform-identity"     = { workload = "Production" }
-
-  # --- Application landing zones (open-navigator workloads) ---
-  "prod" = {
-    workload = "Production"
-    tags     = { environment_class = "production" }
-  }
-  "nonprod" = {
-    workload = "DevTest"
-    tags     = { environment_class = "non-production" }
-  }
-  "sandbox" = {
-    workload = "DevTest"
-    tags     = { environment_class = "experimentation" }
-  }
-  # Add a management group once it exists:
-  #   "prod" = { workload = "Production", management_group_id = "/providers/Microsoft.Management/managementGroups/mg-opennav-landingzones" }
+  "prod" = { workload = "Production" }
 }
