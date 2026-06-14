@@ -47,7 +47,9 @@ export default function BrowseCauses() {
     queryFn: () =>
       fetchTrendingCauses({
         source: 'everyorg',
-        limit: 200,
+        // The endpoint caps `limit` at 100 (returns 422 above it); the everyorg
+        // catalog is well under that, so 100 fetches every cause for the dropdown.
+        limit: 100,
         state: stateCode,
         city: scopedCity,
       }),
