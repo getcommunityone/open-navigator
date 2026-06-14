@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import {
@@ -50,6 +50,11 @@ interface DecisionCardListProps {
   /** Show the "Advanced filters" toggle (state / city) next to the search box.
    *  Off by default so scoped pages (a single state/city) aren't cluttered. */
   showAdvancedFilters?: boolean
+  /** Optional scope control rendered at the top of the Filters flyout — e.g. the
+   *  page's Topic / Cause / Question dropdown, so the active content scope can be
+   *  changed in the same panel as Sort / State / City. The parent owns its state
+   *  (and remounts this list on change via `key`). */
+  scopeFilter?: ReactNode
 }
 
 export default function DecisionCardList({
@@ -62,6 +67,7 @@ export default function DecisionCardList({
   title,
   initialQuery,
   showAdvancedFilters = false,
+  scopeFilter,
 }: DecisionCardListProps) {
   const navigate = useNavigate()
 
@@ -259,6 +265,10 @@ export default function DecisionCardList({
             </div>
 
             <div className="space-y-6 p-6">
+              {scopeFilter && (
+                <div className="grid grid-cols-1 gap-3">{scopeFilter}</div>
+              )}
+
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Sort by</div>
                 <div className="inline-flex flex-wrap rounded-full border border-gray-200 bg-white p-1">

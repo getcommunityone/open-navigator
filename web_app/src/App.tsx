@@ -44,6 +44,7 @@ import DecisionsMapPage from './pages/DecisionsMapPage'
 import CensusMapPage from './pages/CensusMapPage'
 import CensusDrilldownMapPage from './pages/CensusDrilldownMapPage'
 import DataExplorerLayout from './components/DataExplorerLayout'
+import AdminLayout from './components/AdminLayout'
 import DataExplorerScorecardPage from './pages/DataExplorerScorecardPage'
 import BillDetail from './pages/BillDetail'
 import GrantDetail from './pages/GrantDetail'
@@ -174,8 +175,9 @@ function App() {
           <Route index element={<DataExplorerMapDefaultRedirect />} />
           <Route path="scorecard" element={<DataExplorerScorecardPage />} />
           <Route path="jurisdiction-quality" element={<JurisdictionMappingQualityPage />} />
-          <Route path="lighthouse-report" element={<LighthouseReportPage />} />
-          <Route path="batch-jobs" element={<BatchJobStatusPage />} />
+          {/* Lighthouse report + batch jobs moved to the Admin area; keep old URLs working. */}
+          <Route path="lighthouse-report" element={<Navigate to="/admin/lighthouse-report" replace />} />
+          <Route path="batch-jobs" element={<Navigate to="/admin/batch-jobs" replace />} />
           <Route path="map/us/:vintage/:metric" element={<CensusDrilldownMapPage />} />
           <Route path="map/state/:stateFips/:vintage/:metric" element={<LegacyStatePlaceRedirect />} />
           <Route path="map/place/:stateFips/:vintage/:metric" element={<LegacyStatePlaceRedirect />} />
@@ -187,6 +189,12 @@ function App() {
           <Route path="map-legacy/us/:vintage/:metric" element={<CensusMapPage />} />
           <Route path="map-legacy/state/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
           <Route path="map-legacy/place/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
+        </Route>
+        {/* Admin area — operational tools, reachable from the logged-in profile menu. */}
+        <Route path="admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/admin/lighthouse-report" replace />} />
+          <Route path="lighthouse-report" element={<LighthouseReportPage />} />
+          <Route path="batch-jobs" element={<BatchJobStatusPage />} />
         </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="grants/:id" element={<GrantDetail />} />

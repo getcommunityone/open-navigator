@@ -38,6 +38,8 @@ export default function BrowseCauses() {
   // Surface only the top causes (matching Browse Topics' top-pills row), ranked
   // by their REAL meeting count (gold.meeting_cause_link). When a place is in
   // scope the API returns only causes discussed there, with place-scoped counts.
+  // We fetch the full catalog (one query) so the Filters-flyout dropdown can
+  // offer every cause while the pills stay the top handful.
   const TOP_CAUSE_COUNT = 5
 
   const { data, isLoading, isError, error } = useQuery({
@@ -45,17 +47,27 @@ export default function BrowseCauses() {
     queryFn: () =>
       fetchTrendingCauses({
         source: 'everyorg',
-        limit: TOP_CAUSE_COUNT,
+        // The endpoint caps `limit` at 100 (returns 422 above it); the everyorg
+        // catalog is well under that, so 100 fetches every cause for the dropdown.
+        limit: 100,
         state: stateCode,
         city: scopedCity,
       }),
   })
 
+  // Pills: the top causes by real meeting count.
   const causes = useMemo(
     () =>
       [...(data?.causes ?? [])]
         .sort((a, b) => (b.meeting_count ?? 0) - (a.meeting_count ?? 0))
         .slice(0, TOP_CAUSE_COUNT),
+    [data],
+  )
+
+  // Dropdown: the full catalog, alphabetical, for the Filters-flyout scope select.
+  const allCauses = useMemo(
+    () =>
+      [...(data?.causes ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
     [data],
   )
 
@@ -175,6 +187,27 @@ export default function BrowseCauses() {
           city={scopedCity}
           title={listTitle}
           showAdvancedFilters
+          scopeFilter={
+            <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
+              Cause
+              <select
+                value={selectedCause?.name ?? ''}
+                onChange={(e) => {
+                  const name = e.target.value
+                  setSelectedCause(name ? allCauses.find((c) => c.name === name) ?? null : null)
+                }}
+                disabled={isLoading || allCauses.length === 0}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                <option value="">All causes</option>
+                {allCauses.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          }
         />
       </div>
     </div>

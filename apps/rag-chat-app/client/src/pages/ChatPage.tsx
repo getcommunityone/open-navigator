@@ -2,8 +2,31 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Streamdown } from 'streamdown';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquarePlus, MessageSquare, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { MessageSquarePlus, MessageSquare, ChevronDown, ChevronRight, Trash2, Sparkles, Database } from 'lucide-react';
 import { Button, ScrollArea, Separator, Textarea } from '@databricks/appkit-ui/react';
+
+// The knowledge base is seeded from these Wikipedia articles (server/lib/seed-data.ts).
+const CORPUS_TOPICS = [
+  'Databricks',
+  'Apache Spark',
+  'Delta Lake',
+  'Apache Iceberg',
+  'Data lakehouse',
+  'Apache Parquet',
+  'ETL',
+  'RAG',
+  'Data lake',
+];
+
+// Clickable starters that exercise the seeded corpus.
+const SAMPLE_QUERIES = [
+  'What is a data lakehouse, and how is it different from a data lake?',
+  'How does Delta Lake provide ACID transactions on object storage?',
+  'Compare Delta Lake and Apache Iceberg as open table formats.',
+  'Why is Apache Parquet a columnar format, and when does that help?',
+  'What is retrieval-augmented generation (RAG)?',
+  'What is Apache Spark, and what problems does it solve?',
+];
 
 interface ChatSession {
   id: string;
@@ -190,11 +213,11 @@ export function ChatPage() {
     [setMessages]
   );
 
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
+  // Core send path, shared by the input form and the sample-query buttons.
+  const submitText = useCallback(
+    (raw: string) => {
       if (status !== 'ready') return;
-      const text = input.trim();
+      const text = raw.trim();
       if (!text) return;
 
       setInput('');
@@ -219,7 +242,15 @@ export function ChatPage() {
         void loadChats();
       })();
     },
-    [input, status, sendMessage, setInput, loadChats]
+    [status, sendMessage, setInput, loadChats]
+  );
+
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      submitText(input);
+    },
+    [input, submitText]
   );
 
   return (
@@ -296,12 +327,49 @@ export function ChatPage() {
         <ScrollArea ref={scrollAreaRef} className="min-h-0 flex-1 p-4">
           <div className="mx-auto max-w-3xl space-y-4">
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <p className="text-lg font-medium text-foreground">Lakehouse Knowledge Assistant</p>
-                <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                  Ask questions about Databricks, Apache Spark, Delta Lake, and the data lakehouse. Answers are grounded
-                  in a curated knowledge base.
+              <div className="flex flex-col items-center py-12 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <h2 className="mt-4 text-2xl font-semibold text-foreground">Lakehouse Knowledge Assistant</h2>
+                <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                  A retrieval-augmented chatbot grounded in a curated knowledge base about the Databricks
+                  lakehouse stack. Your question is embedded, the most similar passages are retrieved from a
+                  pgvector store in Lakebase, and the answer is generated from that context — with the source
+                  passages shown under each reply.
                 </p>
+
+                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Database className="h-3.5 w-3.5" />
+                  <span className="font-medium">Knowledge base covers:</span>
+                </div>
+                <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+                  {CORPUS_TOPICS.map((t) => (
+                    <span key={t} className="rounded-full border bg-muted/40 px-2.5 py-0.5 text-xs text-muted-foreground">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-8 w-full max-w-2xl text-left">
+                  <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Try a sample question
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {SAMPLE_QUERIES.map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => submitText(q)}
+                        disabled={status !== 'ready'}
+                        className="group flex items-start gap-2 rounded-lg border bg-card p-3 text-left text-sm text-foreground transition-colors hover:border-primary hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" />
+                        <span>{q}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
             {messages.map((message) => (

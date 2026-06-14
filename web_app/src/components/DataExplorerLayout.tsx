@@ -1,8 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
-  DATA_EXPLORER_BATCH_JOBS,
   DATA_EXPLORER_JURISDICTION_QUALITY,
-  DATA_EXPLORER_LIGHTHOUSE_REPORT,
   DATA_EXPLORER_MAP_BASE,
   DATA_EXPLORER_SCORECARD,
 } from '../utils/dataExplorerPaths'
@@ -22,10 +20,6 @@ export default function DataExplorerLayout() {
   const onScorecard = pathname.startsWith(DATA_EXPLORER_SCORECARD)
   const onJurisdictionQuality =
     pathname === DATA_EXPLORER_JURISDICTION_QUALITY || pathname.startsWith(`${DATA_EXPLORER_JURISDICTION_QUALITY}/`)
-  const onLighthouseReport =
-    pathname === DATA_EXPLORER_LIGHTHOUSE_REPORT || pathname.startsWith(`${DATA_EXPLORER_LIGHTHOUSE_REPORT}/`)
-  const onBatchJobs =
-    pathname === DATA_EXPLORER_BATCH_JOBS || pathname.startsWith(`${DATA_EXPLORER_BATCH_JOBS}/`)
 
   return (
     <div className="flex min-h-[calc(100dvh-4.25rem)] flex-1 flex-col bg-slate-200">
@@ -60,32 +54,14 @@ export default function DataExplorerLayout() {
             >
               Data quality
             </NavLink>
-            <NavLink
-              to={DATA_EXPLORER_LIGHTHOUSE_REPORT}
-              end
-              className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
-            >
-              Lighthouse report
-            </NavLink>
-            <NavLink
-              to={DATA_EXPLORER_BATCH_JOBS}
-              end
-              className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
-            >
-              Batch jobs
-            </NavLink>
           </nav>
-          {(onMap || onScorecard || onJurisdictionQuality || onLighthouseReport || onBatchJobs) && (
+          {(onMap || onScorecard || onJurisdictionQuality) && (
             <p className="mt-0.5 text-[10px] leading-snug text-slate-600 sm:text-[11px]" aria-live="polite">
               {onMap
                 ? 'Choropleth and drill-downs match the static census map bundle.'
                 : onScorecard
                   ? 'Trend windows follow the vintage list in the published bundle (1-, 3-, and 5-year lookbacks when years exist).'
-                  : onLighthouseReport
-                    ? 'Scores and warnings are read from the latest `bronze.bronze_jurisdiction_website_lighthouse` row for the URL you enter (after accessibility lighthouse ingest).'
-                    : onBatchJobs
-                      ? 'Live caption/analyze batch progress from Postgres (`bronze.youtube_batch_job_runs`) via SSE. Click a jurisdiction for per-video outcomes.'
-                      : 'Mapping rates use NACo, USCM, NCES directory, GSA .gov, Wikidata, and overrides — snapshot from `web_app/public/data/jurisdiction_mapping_quality.json`.'}
+                  : 'Mapping rates use NACo, USCM, NCES directory, GSA .gov, Wikidata, and overrides — snapshot from `web_app/public/data/jurisdiction_mapping_quality.json`.'}
             </p>
           )}
         </header>
