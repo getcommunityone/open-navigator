@@ -1,4 +1,8 @@
-.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup-preflight backup backup-public backup-neon restore restore-public restore-neon
+.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup-preflight backup backup-public backup-neon restore restore-public restore-neon azure-init azure-plan azure-apply azure-fmt
+
+# Azure subscriptions Terraform (infra/azure). Creds load from infra/azure/.env (ARM_*),
+# never committed. Override dir with AZURE_TF_DIR if needed.
+AZURE_TF_DIR ?= infra/azure
 
 help:
 	@echo "🦷 Open Navigator - Makefile Commands"
@@ -45,6 +49,34 @@ help:
 	@echo "  make restore-neon VERSION=v1.5.0   - Restore Neon snapshot into local '$(NEON_RESTORE_DB)' (dev only)"
 	@echo "  make restore-public VERSION=v1.5.0 - Restore the public schema (dev only; needs gold present)"
 	@echo ""
+	@echo "☁️  Azure subscriptions (Terraform, infra/azure — creds from infra/azure/.env):"
+	@echo "  make azure-init        - terraform init"
+	@echo "  make azure-fmt         - terraform fmt + validate"
+	@echo "  make azure-plan        - terraform plan"
+	@echo "  make azure-apply       - terraform apply"
+	@echo ""
+
+# --- Azure subscriptions Terraform ------------------------------------------------
+# Each target sources infra/azure/.env so ARM_* creds reach terraform without ever
+# living in a .tf/.tfvars file. Fails loudly if .env is missing.
+define _azure_tf
+	@command -v terraform >/dev/null 2>&1 || { echo "❌ terraform not installed (https://developer.hashicorp.com/terraform/install)"; exit 1; }
+	@test -f "$(AZURE_TF_DIR)/.env" || { echo "❌ $(AZURE_TF_DIR)/.env missing — copy $(AZURE_TF_DIR)/.env.example and fill in ARM_* creds"; exit 1; }
+	@set -a && . "$(AZURE_TF_DIR)/.env" && set +a && cd "$(AZURE_TF_DIR)" && terraform $(1)
+endef
+
+azure-init:
+	$(call _azure_tf,init)
+
+azure-fmt:
+	$(call _azure_tf,fmt -recursive)
+	$(call _azure_tf,validate)
+
+azure-plan:
+	$(call _azure_tf,plan)
+
+azure-apply:
+	$(call _azure_tf,apply)
 
 install:
 	@echo "📦 Creating virtual environment and installing dependencies..."
