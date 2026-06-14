@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
@@ -7,6 +8,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ArrowTopRightOnSquareIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline'
 import { apiBaseUrl } from '../lib/api'
 
@@ -64,11 +66,24 @@ interface DocumentViewerProps {
   label: string
   /** Optional caption under the heading (e.g. the document date). */
   caption?: string
+  /** Optional in-app route back to the meeting this document belongs to. */
+  backHref?: string
+  /** Label for the back link (defaults to "Back to meeting"). */
+  backLabel?: string
+  /** Called when the back link is followed, so the host modal can close. */
+  onNavigateBack?: () => void
 }
 
 type DocKind = 'loading' | 'pdf' | 'other' | 'failed'
 
-export default function DocumentViewer({ url, label, caption }: DocumentViewerProps) {
+export default function DocumentViewer({
+  url,
+  label,
+  caption,
+  backHref,
+  backLabel = 'Back to meeting',
+  onNavigateBack,
+}: DocumentViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [numPages, setNumPages] = useState(0)
   const [pageNumber, setPageNumber] = useState(1)
@@ -133,6 +148,16 @@ export default function DocumentViewer({ url, label, caption }: DocumentViewerPr
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+      {backHref && (
+        <Link
+          to={backHref}
+          onClick={onNavigateBack}
+          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          {backLabel}
+        </Link>
+      )}
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
           <DocumentTextIcon className="h-5 w-5 text-[#1d6b5f]" />

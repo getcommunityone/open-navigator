@@ -1717,6 +1717,26 @@ async def unified_search(
             _question_types = {'decisions', 'questions'}
             requested_types = [t for t in requested_types if t in _question_types] or list(_question_types)
 
+        # --- Natural-language place detection -------------------------------
+        # A query like "atlanta georgia" / "tuscaloosa al" is a PLACE, not a
+        # full-text term. Left as a query it matches rows whose *name* contains
+        # those words (e.g. orgs literally named "...Atlanta Georgia..." that are
+        # actually in Alpharetta/Columbus) instead of scoping to the city. When
+        # the caller hasn't already set an explicit location filter, detect a
+        # trailing US state + a real (DB-verified) leading city and promote them
+        # to the state/city filters, searching the residual text (if any) within
+        # that scope. Conservative — only fires on a verified city — so surnames
+        # like "Jordan Washington" stay plain text. See detect_place_in_query.
+        auto_detected_place = False
+        if q and not state and not city and not jurisdiction_id:
+            residual_q, detected_state, detected_city = await search_postgres.detect_place_in_query(q)
+            if detected_state and detected_city:
+                state = detected_state
+                city = detected_city
+                q = residual_q  # may be None -> the scope becomes a pure place browse
+                auto_detected_place = True
+                logger.info(f"📍 Auto-detected place in query -> state={state!r}, city={city!r}, residual_q={q!r}")
+
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
         if jurisdiction_levels:
@@ -2089,7 +2109,11 @@ async def unified_search(
                 "cause_id": cause_id,
                 "question_id": question_id,
                 "types": requested_types,
-                "sort": sort
+                "sort": sort,
+                # True when state/city were parsed out of a "<city> <state>"
+                # query (e.g. "atlanta georgia") rather than passed explicitly,
+                # so the frontend can show the scope label + sync the URL.
+                "auto_detected_place": auto_detected_place
             }
         }
         
