@@ -81,3 +81,27 @@ variable "subscription_budget" {
     error_message = "subscription_budget.amount must be greater than 0."
   }
 }
+
+variable "databricks_workspace" {
+  description = <<-EOT
+    Optional Azure Databricks workspace + its resource group, created in the provider's
+    default subscription (ARM_SUBSCRIPTION_ID = opennav-prod). null disables it.
+    NOTE: the live workspace is currently on the 14-day TRIAL sku and managed manually;
+    activate this to provision a permanent workspace, or to import the existing one
+    after upgrading off trial.
+  EOT
+  type = object({
+    name                        = string
+    resource_group_name         = string
+    location                    = string
+    sku                         = string               # "standard" | "premium" | "trial"
+    no_public_ip                = optional(bool, true) # Secure Cluster Connectivity
+    managed_resource_group_name = optional(string)     # omit to let Azure generate
+  })
+  default = null
+
+  validation {
+    condition     = var.databricks_workspace == null ? true : contains(["standard", "premium", "trial"], var.databricks_workspace.sku)
+    error_message = "databricks_workspace.sku must be standard, premium, or trial."
+  }
+}

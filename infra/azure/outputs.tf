@@ -23,3 +23,8 @@ output "budget" {
     thresholds = var.subscription_budget.thresholds
   }
 }
+
+output "databricks_workspace_url" {
+  description = "Databricks workspace URL, if managed by Terraform."
+  value       = length(azurerm_databricks_workspace.this) == 0 ? null : "https://${azurerm_databricks_workspace.this[0].workspace_url}"
+}
