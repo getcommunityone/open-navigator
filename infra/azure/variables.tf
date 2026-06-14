@@ -59,3 +59,25 @@ variable "subscriptions" {
     error_message = "workload must be either \"Production\" or \"DevTest\"."
   }
 }
+
+variable "subscription_budget" {
+  description = <<-EOT
+    Optional monthly cost-ALERT budget on an EXISTING subscription (referenced by
+    GUID, so it works even for subscriptions this module doesn't manage). This is an
+    ALERT that emails when crossed — NOT a hard spending cap. null disables it.
+  EOT
+  type = object({
+    name            = string                            # budget name, e.g. "opennav-prod-monthly"
+    subscription_id = string                            # subscription GUID to watch (no /subscriptions/ prefix)
+    amount          = number                            # monthly budget in USD
+    start_date      = string                            # first day of a month, ISO8601 e.g. "2026-06-01T00:00:00Z"
+    contact_emails  = list(string)                      # who gets the alert emails
+    thresholds      = optional(list(number), [80, 100]) # % of amount that trigger alerts
+  })
+  default = null
+
+  validation {
+    condition     = var.subscription_budget == null ? true : var.subscription_budget.amount > 0
+    error_message = "subscription_budget.amount must be greater than 0."
+  }
+}

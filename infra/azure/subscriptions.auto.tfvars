@@ -28,3 +28,14 @@ common_tags = {
 # into it). Map key = name after org_prefix, e.g. "sandbox" -> "opennav-sandbox":
 #   "sandbox" = { workload = "DevTest" }   # DevTest = discounted dev/test pricing
 subscriptions = {}
+
+# Monthly cost-ALERT budget on opennav-prod (an ALERT, not a hard cap — it emails
+# when crossed; it does not stop spending). Emails fire at 80% ($320) and 100% ($400).
+subscription_budget = {
+  name            = "opennav-prod-monthly"
+  subscription_id = "2478d3f4-1db6-4832-88f8-c13f68d6c818" # opennav-prod
+  amount          = 400
+  start_date      = "2026-06-01T00:00:00Z"
+  contact_emails  = ["johnbowyer@getcommunityone.onmicrosoft.com"]
+  thresholds      = [80, 100]
+}
