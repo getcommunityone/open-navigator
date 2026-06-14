@@ -1634,7 +1634,7 @@ export default function HomeV9() {
                   { kind: 'arrow', label: 'Easy Tools' },
                 ],
               },
-            ] as const).map((step) => (
+            ] as { icon: string; title: string; hash: string; items: { kind: 'check' | 'arrow' | 'note'; label: string }[] }[]).map((step) => (
               <button
                 key={step.title}
                 onClick={() => navigate(`/explore#${step.hash}`)}
