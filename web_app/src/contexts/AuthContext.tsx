@@ -12,6 +12,7 @@ interface User {
   city?: string;
   school_board?: string;
   profile_completed?: boolean;
+  is_admin?: boolean;
 }
 
 interface AuthContextType {
