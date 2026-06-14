@@ -34,6 +34,19 @@ Rationale (CAF convention): `sp-` = service principal, `opennav` = org, `tf` = m
   It prefers the OS package manager (apt/dnf/brew/winget/choco) and falls back to a
   rootless install into `.venv` when sudo isn't available. Then `az login`.
 
+## Shortcut: run the bootstrap script
+
+Steps 1–2 (and printing every value you need) are automated. After `az login`:
+
+```bash
+./infra/azure/setup-azure.sh              # creates the SP + OIDC creds, prints values
+./infra/azure/setup-azure.sh --set-github # also sets the GitHub repo Variables
+```
+
+It prints `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` ready to paste into
+`.env` — the only value you must still look up yourself is the **billing scope** (Step 3).
+The manual steps below explain what it does.
+
 ## Step 1 — Create the app registration + service principal
 
 ```bash
