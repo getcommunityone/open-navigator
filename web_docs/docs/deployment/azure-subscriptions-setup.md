@@ -158,6 +158,7 @@ A clean plan listing the `opennav-*` subscriptions means everything is wired. Th
 
 ## Reference
 
+- **[Azure Naming Conventions](azure-naming-conventions.md)** — the CAF naming/tagging standard for resources created inside these subscriptions.
 - Module + naming convention: [`infra/azure/README.md`](https://github.com/getcommunityone/open-navigator/blob/main/infra/azure/README.md)
 - CI workflow: `.github/workflows/azure-subscriptions.yml`
 - Microsoft docs: *Programmatically create Azure subscriptions* and *Workload identity federation*.
