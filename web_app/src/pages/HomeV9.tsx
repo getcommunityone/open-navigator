@@ -662,11 +662,10 @@ export default function HomeV9() {
     if (!national && city) {
       params.set('city', city)
       // Default a known launch city to the county-inclusive scope so search lands
-      // on the surrounding-county view (e.g. Tuscaloosa → Tuscaloosa County) with
-      // the "Include surrounding county" checkbox shown and checked. SF is a
-      // consolidated city-county (no broadening), so leave it city-only.
+      // on the surrounding-county view (e.g. Seattle → King County) with the
+      // "Include surrounding county" checkbox shown and checked.
       const lc = getLaunchCounty(city)
-      if (lc && lc.countyFips !== '06075') params.set('county', '1')
+      if (lc) params.set('county', '1')
     }
     navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
   }

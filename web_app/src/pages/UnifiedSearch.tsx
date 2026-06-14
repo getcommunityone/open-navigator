@@ -513,10 +513,9 @@ function UnifiedSearchInner() {
   // accepts a 5-digit `county_fips` which SUPERSEDES `city` (every city in the
   // county). The URL is the single source of truth: `county` param ('0' = off);
   // when ABSENT we treat it as ON (default-checked) so a Home link that just
-  // carries ?city= lands county-scoped. SF (06075) is a consolidated city-county
-  // — broadening is a no-op, so we offer no control for it.
+  // carries ?city= lands county-scoped.
   const launchCounty = getLaunchCounty(selectedCity)
-  const countyBroadenAvailable = !!launchCounty && launchCounty.countyFips !== '06075'
+  const countyBroadenAvailable = !!launchCounty
   // Scope is ON unless the URL explicitly says county=0.
   const countyScopeOn = countyBroadenAvailable && searchParams.get('county') !== '0'
   // The county FIPS to send when county scope is active (else undefined → send city).

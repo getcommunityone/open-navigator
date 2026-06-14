@@ -8,9 +8,8 @@
 // Keys are LOWERCASED city names for case-insensitive lookup. `countyName` is the
 // full "X County" label used verbatim in the scope label / checkbox.
 //
-// Note: San Francisco is a consolidated city-county, so its county FIPS (06075)
-// covers exactly the city — broadening is a no-op. It's included for
-// completeness, but callers should skip the broaden control for it.
+// Keep this aligned with the launch set in `launchCoverage.ts` and the
+// serving-layer `launch_county_fips` in publish_public_serving.sql.
 
 export interface LaunchCounty {
   countyName: string
@@ -18,10 +17,9 @@ export interface LaunchCounty {
 }
 
 export const LAUNCH_COUNTIES: Record<string, LaunchCounty> = {
-  'san francisco': { countyName: 'San Francisco County', countyFips: '06075' },
+  seattle: { countyName: 'King County', countyFips: '53033' },
   boston: { countyName: 'Suffolk County', countyFips: '25025' },
   atlanta: { countyName: 'Fulton County', countyFips: '13121' },
-  minneapolis: { countyName: 'Hennepin County', countyFips: '27053' },
   tuscaloosa: { countyName: 'Tuscaloosa County', countyFips: '01125' },
 }
 
