@@ -19,6 +19,8 @@ CHAT_ENDPOINT="${CHAT_ENDPOINT:-databricks-gpt-oss-20b}"
 EMBED_ENDPOINT="${EMBED_ENDPOINT:-databricks-gte-large-en}"
 CLI_VERSION="${CLI_VERSION:-1.3.0}"
 SUSPEND_SECONDS="${SUSPEND_SECONDS:-300}"
+GENIE_TITLE="${GENIE_TITLE:-NYC Taxi Analytics}"
+GENIE_TABLE="${GENIE_TABLE:-samples.nyctaxi.trips}"
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$APP_DIR"
@@ -73,6 +75,26 @@ databricks postgres update-endpoint "$EP" spec.autoscaling.suspend_timeout_durat
   && ok "Lakebase suspend timeout = ${SUSPEND_SECONDS}s" \
   || info "Could not set suspend timeout (non-fatal; check 'databricks postgres update-endpoint -h')"
 
+# ── 5b. Genie space (AI/BI analytics) — resolve by title, create if missing ───
+WID="$(databricks experimental aitools tools get-default-warehouse --profile "$PROFILE" -o json 2>/dev/null | "$PY" -c 'import json,sys;print(json.load(sys.stdin).get("warehouse_id",""))' 2>/dev/null || true)"
+[ -n "${WID:-}" ] || WID="$(databricks warehouses list -o json | "$PY" -c 'import json,sys;d=json.load(sys.stdin);print(d[0]["id"] if d else "")')"
+# Resolve an existing space by title (payload shape varies, so handle dict/list).
+GENIE_SPACE_ID="$(databricks api get /api/2.0/genie/spaces | "$PY" -c "
+import json,sys
+d=json.load(sys.stdin)
+spaces=d.get('spaces',[]) if isinstance(d,dict) else (d if isinstance(d,list) else [])
+print(next((s.get('space_id','') for s in spaces if s.get('title')=='$GENIE_TITLE'),''))
+" 2>/dev/null || true)"
+if [ -z "${GENIE_SPACE_ID:-}" ]; then
+  info "Creating Genie space '$GENIE_TITLE' over $GENIE_TABLE…"
+  GENIE_SPACE_ID="$(databricks genie create-space "$WID" \
+    "{\"version\":2,\"data_sources\":{\"tables\":[{\"identifier\":\"$GENIE_TABLE\"}]}}" \
+    --title "$GENIE_TITLE" -o json | "$PY" -c 'import json,sys;print(json.load(sys.stdin)["space_id"])')"
+  ok "Created Genie space $GENIE_SPACE_ID — update genie_space_id in databricks.yml if it changed."
+else
+  ok "Genie space '$GENIE_TITLE' = $GENIE_SPACE_ID"
+fi
+
 # ── 6. .env (write if missing) ────────────────────────────────────────────────
 if [ -f .env ]; then
   ok ".env already present (left as-is)"
@@ -88,6 +110,7 @@ LAKEBASE_ENDPOINT=$EP
 PGDATABASE=databricks_postgres
 DATABRICKS_ENDPOINT=$CHAT_ENDPOINT
 DATABRICKS_EMBEDDING_ENDPOINT=$EMBED_ENDPOINT
+DATABRICKS_GENIE_SPACE_ID=$GENIE_SPACE_ID
 RAG_RESEED=false
 EOF
   ok "Wrote .env"

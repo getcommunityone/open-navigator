@@ -1,4 +1,4 @@
-import { createApp, server, lakebase } from '@databricks/appkit';
+import { createApp, server, lakebase, genie } from '@databricks/appkit';
 import { setupRagTables, insertDocument } from './lib/rag-store';
 import { setupChatRoutes } from './routes/chat-routes';
 import { setupChatPersistenceRoutes } from './routes/chat-persistence-routes';
@@ -7,7 +7,7 @@ import { seedFromWikipedia } from './lib/seed-data';
 import { generateEmbedding } from './lib/embeddings';
 
 createApp({
-  plugins: [lakebase(), server()],
+  plugins: [lakebase(), server(), genie()],
   async onPluginsReady(appkit) {
     await setupRagTables(appkit);
     await setupChatTables(appkit);

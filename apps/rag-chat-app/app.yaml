@@ -8,3 +8,5 @@ env:
     value: 'databricks-gte-large-en'
   - name: RAG_RESEED
     value: 'false'
+  - name: DATABRICKS_GENIE_SPACE_ID
+    valueFrom: genie-space
