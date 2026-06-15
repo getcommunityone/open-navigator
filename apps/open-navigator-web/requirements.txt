@@ -1,0 +1,61 @@
+# Runtime requirements for the Open Navigator web app on Databricks Apps.
+#
+# SCOPE: serving only. Installs just what `api.main:app` needs to (a) start up and
+# (b) serve requests against Neon prod Postgres + the built static SPA/docs.
+#
+# It deliberately EXCLUDES the heavy data/ML/scraping stack from the repo-root
+# requirements.txt (torch, transformers, sentence-transformers, spaCy, mlflow,
+# langchain, splink, playwright, selenium, crawl4ai, pyspark, chromadb, qdrant,
+# geopandas, datasets, whisperx, ...). Those are imported LAZILY (inside
+# functions) by ingestion / analysis / scraper code paths that the served API
+# does not exercise at import time, so they are not needed to start or serve. On
+# the default Medium (6 GB / 2 vCPU) compute, installing sentence-transformers
+# alone drags in the multi-GB torch wheel and blows the 10-minute startup budget.
+#
+# The internal `packages/*` libraries are NOT pip-installed; they are made
+# importable via PYTHONPATH (set in app.yaml). See README.md.
+#
+# Pins mirror the repo-root requirements.txt where they overlap.
+
+# --- Web framework / ASGI ------------------------------------------------
+fastapi==0.109.0
+uvicorn[standard]==0.25.0
+python-multipart==0.0.27
+
+# --- Config / models -----------------------------------------------------
+pydantic[email]>=2.10,<3
+pydantic-settings>=2.6,<3
+python-dotenv==1.2.2
+
+# --- Database drivers ----------------------------------------------------
+sqlalchemy>=2.0.0
+asyncpg==0.29.0               # async pools for the data/read routes (Neon)
+psycopg2-binary==2.9.9        # sync ORM/auth engine
+
+# --- Auth ----------------------------------------------------------------
+python-jose[cryptography]==3.4.0
+passlib[bcrypt]==1.7.4
+itsdangerous==2.1.2
+
+# --- HTTP clients (route fan-out, enrichment, ProPublica/Every.org) ------
+httpx[http2]>=0.25.0
+requests>=2.31.0
+aiolimiter>=1.1              # core-lib rate limiter
+tenacity>=8.2.3
+
+# --- Observability (api/telemetry.py instruments at startup) -------------
+opentelemetry-api==1.42.0
+opentelemetry-sdk==1.42.0
+opentelemetry-instrumentation-fastapi==0.63b0
+opentelemetry-exporter-otlp-proto-http==1.42.0
+
+# --- Eagerly imported at startup ----------------------------------------
+# api.main imports scripts.visualization.heatmap (pandas + folium + plotly), and
+# agents/ingestion modules that touch pandas/bs4 at module load.
+pandas==2.1.4
+folium==0.15.1
+plotly==5.18.0
+beautifulsoup4==4.12.2
+
+# --- Logging -------------------------------------------------------------
+loguru==0.7.2
