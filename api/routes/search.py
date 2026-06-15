@@ -777,8 +777,9 @@ async def count_events(
        body/jurisdiction/summary/city ILIKE (+ child-decision FTS) for a query.
     2. UNANALYZED — DISTINCT video_id from public.event_documents where
        event_id IS NULL, same state/city scope, query = event_title ILIKE OR
-       content_tsv @@ plainto_tsquery, EXCLUDING video_ids already present in
-       event_meeting (NOT EXISTS), so the dedup matches search_events_pg.
+       to_tsvector('english', content) @@ plainto_tsquery, EXCLUDING video_ids
+       already present in event_meeting (NOT EXISTS), so the dedup matches
+       search_events_pg.
 
     Without the unanalyzed leg the tab would read 0 for transcript-only cities
     (e.g. Atlanta) while results still appear. Used to report an HONEST
@@ -786,7 +787,8 @@ async def count_events(
     otherwise cap the fetched-length estimate at 1.
 
     event_meeting is small (~6k rows); the unanalyzed DISTINCT-video_id count is
-    bounded by the state/city filters + content_tsv GIN index. Cached for 1 hour.
+    bounded by the state/city filters + the to_tsvector('english', content)
+    expression GIN index. Cached for 1 hour.
     """
     norm_state = search_postgres.normalize_state_input(state)
     has_query = bool(query and query.strip())
@@ -892,7 +894,7 @@ async def count_events(
             if has_query:
                 ed_where.append(
                     f"(ed.event_title ILIKE ${q_like_idx} "
-                    f"OR ed.content_tsv @@ plainto_tsquery('english', ${q_fts_idx}))"
+                    f"OR to_tsvector('english', ed.content) @@ plainto_tsquery('english', ${q_fts_idx}))"
                 )
             if state_idx:
                 ed_where.append(f"ed.state_code = ${state_idx}")
@@ -910,7 +912,7 @@ async def count_events(
                     f"OR lower(ed.city) = lower(${city_idx}))"
                 )
             if topic_idx:
-                ed_where.append(f"ed.content_tsv @@ to_tsquery('english', ${topic_idx})")
+                ed_where.append(f"to_tsvector('english', ed.content) @@ to_tsquery('english', ${topic_idx})")
             # Same dedup as search_events_pg: exclude videos already analyzed.
             ed_where.append(
                 "NOT EXISTS (SELECT 1 FROM event_meeting em2 WHERE em2.video_id = ed.video_id)"
@@ -1163,9 +1165,10 @@ async def count_documents(
 
     Mirrors the WHERE predicates of search_postgres.search_documents_pg over
     public.event_documents: the same state_code filter, the same exact-name city
-    scope (jurisdiction_name OR city), and the same full-text match against the
-    STORED content_tsv vector (GIN-indexed, so this count is index-backed and fast
-    even though the search's ts_headline/ts_rank work is not). Reports an HONEST
+    scope (jurisdiction_name OR city), and the same full-text match on the
+    EXPRESSION to_tsvector('english', content) (backed by the expression GIN index
+    event_documents_content_fts_idx, so this count is index-backed and fast even
+    though the search's ts_headline/ts_rank work is not). Reports an HONEST
     type_total for "documents" so the count is independent of the caller's limit.
 
     Result cached for 1 hour.
@@ -1217,7 +1220,7 @@ async def count_documents(
 
             if has_query:
                 where_clauses.append(
-                    f"content_tsv @@ plainto_tsquery('english', ${idx})"
+                    f"to_tsvector('english', content) @@ plainto_tsquery('english', ${idx})"
                 )
                 params.append(q)
                 idx += 1

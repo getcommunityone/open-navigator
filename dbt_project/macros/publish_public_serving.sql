@@ -16,7 +16,7 @@
       * 'materialize' (Neon-scoped self-contained TABLES):
         Each served relation becomes a standalone TABLE in public, populated with
         the SAME Neon serving scope the `neon` dbt target / sync loaders enforce
-        (analyzed-only event/event_documents; top-10-per-jurisdiction org graph;
+        (analyzed-only event/event_documents; top-2-per-jurisdiction org graph;
         org-linked grants; transcript full-text dropped). public no longer
         references gold at all, so an API running with search_path=public is a
         self-contained, Neon-sized serving layer. Essential serving indexes
@@ -59,7 +59,7 @@
 
     Because both the view and materialize modes compute a `body` string, the
     wrap applies uniformly to both. The wrap is layered ON TOP of the
-    neon_bodies slimming, so e.g. grant = (top-10-org-graph) ∩ launch states.
+    neon_bodies slimming, so e.g. grant = (top-2-org-graph) ∩ launch states.
 
     The geoid IN-list (95 launch places + 4 county FIPS + 4 state FIPS, all
     confirmed present in jurisdictions.geoid) is resolved ONCE at macro start
@@ -127,16 +127,18 @@
                item / officials relations that carry state_code.
       * NATIONAL graph (state_code IN states): grant (either endpoint),
                mdm_organization, bills.
-    NATIONAL graph also: bill_sponsorship (no state col -> scoped via bill_uid
-    to the kept-bills set; see entry below).
+
+    jurisdiction_finance_category has no state column but FK-references
+    jurisdiction_finance; it is scoped via jurisdiction_finance_id to the
+    state-scoped finance set (see entry below).
 
     Left UNFILTERED (no usable geo column / already slimmed by neon body, noted
     in summary): mdm_organization_nonprofit and mdm_bridge_org_jurisdiction
-    (already inner-joined to the top-10 kept-org set by their neon bodies),
-    jurisdiction_document (jurisdiction_id is a slug, tiny seed table),
-    jurisdiction_finance_category, and all national reference tables
-    (cpi_annual, state_sales_tax_rate, tag, opportunity_atlas_*national,
-    nonprofit_sector_revenue, grant_opportunity, etc.). -#}
+    (already inner-joined to the top-2 kept-org set by their neon bodies),
+    jurisdiction_document (jurisdiction_id is a slug, tiny seed table), and all
+    national reference tables (cpi_annual, state_sales_tax_rate, tag,
+    opportunity_atlas_*national, nonprofit_sector_revenue, grant_opportunity,
+    etc.). -#}
 {%- set launch_predicates = {
     'jurisdictions':                       "_s.geoid in {{geoids}}",
     'civic_jurisdiction':                  "_s.geoid in {{geoids}}",
@@ -155,6 +157,9 @@
     'person_government':                    "_s.state_code in {{states}}",
     'jurisdiction_state_aggregate':        "_s.state_code in {{states}}",
     'jurisdiction_finance':                "_s.state_code in {{states}}",
+    'jurisdiction_finance_category':
+        "_s.jurisdiction_finance_id in (select jurisdiction_finance_id "
+        "from gold.jurisdiction_finance where state_code in {{states}})",
     'jurisdiction_mapping_analysis':       "_s.state_code in {{states}}",
     'jurisdiction_property_tax_rate':      "_s.state_code in {{states}}",
     'jurisdiction_minutes_publish_lag':    "_s.state_code in {{states}}",
@@ -170,15 +175,12 @@
     'question_transcript_link':            "_s.state_code in {{states}}",
     'grant':                               "(_s.grantee_state_code in {{states}} or _s.grantor_state_code in {{states}})",
     'mdm_organization':                    "_s.state_code in {{states}}",
-    'bills':                               "_s.state_code in {{states}}",
-    'bill_sponsorship':
-        "_s.bill_uid in (select bill_uid from gold.bills "
-        "where year >= 2023 and state_code in {{states}})"
+    'bills':                               "_s.state_code in {{states}}"
 } -%}
-{#- bill_sponsorship has no state column; the entry above scopes it to the SAME
-    kept-bill set the `bills` neon+launch rule produces (year>=2023 ∩ launch
-    states), joined on bill_uid. Unfiltered it is ~1.2 GB and alone blows the
-    0.5 GB budget; scoped it is ~53 MB. -#}
+{#- bill_sponsorship is DROPPED from serving entirely (removed from `served`):
+    it has no state column and even scoped to the kept-bill set it is ~53 MB,
+    which the under-500 MB budget can't afford. The sponsorship graph stays in
+    gold (private warehouse); the public API does not read it. -#}
 
 
 {%- set served = [
@@ -193,7 +195,7 @@
     'jurisdiction_mapping_analysis',
     'jurisdiction_state_aggregate', 'jurisdiction_minutes_publish_lag',
     'grant', 'grant_opportunity', 'tag', 'rpt_bill_map_aggregate',
-    'bills', 'bill_sponsorship',
+    'bills',
     'cpi_annual',
     'item_interestingness', 'item_flags', 'nonprofit_sector_revenue',
     'topic_money_and_talk', 'civicsearch_topic',
@@ -234,7 +236,7 @@
                                 hosting/neon/sync_event_documents_to_neon.py
                                 (_ANALYZED_SCOPE_SQL).
       * mdm_organization     -> models/marts/serving_mdm_organization.sql
-                                (top-10 orgs per jurisdiction by revenue).
+                                (top-2 orgs per jurisdiction by revenue).
       * mdm_organization_nonprofit / mdm_bridge_org_jurisdiction
                              -> serving_mdm_organization_nonprofit.sql /
                                 serving_mdm_bridge_org_jurisdiction.sql
@@ -254,7 +256,7 @@ with analyzed_video_ids as (
 )
 {%- endset -%}
 
-{#- kept-org CTE: top-10 orgs per jurisdiction by revenue/income/assets. -#}
+{#- kept-org CTE: top-2 orgs per jurisdiction by revenue/income/assets. -#}
 {%- set kept_org_cte -%}
 with org_revenue as (
     select
@@ -276,7 +278,15 @@ ranked as (
     from org_revenue
 ),
 kept_org_ids as (
-    select distinct master_org_id from ranked where juris_rank <= 10
+    -- top-2 orgs per jurisdiction (was 10): shrinks grant + the 3 org-graph
+    -- tables (mdm_organization, mdm_organization_nonprofit,
+    -- mdm_bridge_org_jurisdiction) together to fit the serving layer under the
+    -- Neon 512 MB free-tier cap. Measured launch-scoped total: ~498 MB at top-2
+    -- (grant ~189 MB, the single largest table, is dominated by a handful of
+    -- mega-grant orgs that survive any top-N cut — top-1 saves only ~34 MB while
+    -- over-thinning the org graph to a single org per jurisdiction, so top-2 is
+    -- the best size/coverage balance).
+    select distinct master_org_id from ranked where juris_rank <= 2
 )
 {%- endset -%}
 
@@ -303,22 +313,24 @@ where coalesce(
         analyzed_cte ~ "
 select
     event_document_id, event_id, document_type, document_source, video_id,
-    -- Transcript full-text search MUST work on the serving layer: the document
-    -- search leg matches on content_tsv (GIN) and builds its match-evidence
-    -- snippet with ts_headline('english', content, ...), which detoasts the raw
-    -- content. Both are therefore KEPT (not nulled). Affordable only because the
-    -- launch scope + analyzed scope cut this to ~4.3k rows (~270 MB) — see the
-    -- launch_predicates wrap. content_excerpt stays as the cheap display field.
+    -- Transcript full-text search MUST work on the serving layer. We KEEP the raw
+    -- `content` (the document search leg matches with
+    -- to_tsvector('english', content) @@ websearch_to_tsquery(...) and builds its
+    -- match-evidence snippet with ts_headline('english', content, ...)), but DROP
+    -- the materialized `content_tsv` column (~85 MB): the FTS GIN index is now an
+    -- EXPRESSION index over to_tsvector('english', content) (see
+    -- table_indexes['event_documents']), so the planner still index-matches and
+    -- ts_headline snippets are unchanged. content_excerpt stays as the cheap
+    -- display field. Affordable because launch+analyzed scope cuts this to a few
+    -- thousand rows — see the launch_predicates wrap.
     content,
     left(content, 300) as content_excerpt,
-    content_tsv,
     content_length, word_count, language, is_auto_generated,
-    case when segments is null then null else (
-        select jsonb_agg(jsonb_build_object(
-            's', round((elem->>'start')::numeric, 1),
-            't', elem->>'text'))
-        from jsonb_array_elements(segments::jsonb) as elem
-    ) end as segments,
+    -- segments DROPPED on the serving layer (~94 MB): the slimmed {s,t} array
+    -- still carries the full transcript text, duplicating `content`. FTS +
+    -- ts_headline snippets run off content, so search is unaffected; only
+    -- transcript-grain timestamp scrubbing is lost in the served copy.
+    null::jsonb as segments,
     event_title, event_date, jurisdiction_name, jurisdiction_type,
     state_code, state, city, video_url, created_at
 from gold.event_documents
@@ -363,7 +375,7 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
         'create index if not exists event_documents_video_id_idx on public.event_documents (video_id)',
         'create index if not exists event_documents_event_id_idx on public.event_documents (event_id)',
         'create index if not exists event_documents_state_code_idx on public.event_documents (state_code)',
-        'create index if not exists event_documents_content_tsv_idx on public.event_documents using gin (content_tsv)'
+        "create index if not exists event_documents_content_fts_idx on public.event_documents using gin (to_tsvector('english', content))"
     ],
     'event_decision': [
         'create index if not exists event_decision_state_code_idx on public.event_decision (state_code)',

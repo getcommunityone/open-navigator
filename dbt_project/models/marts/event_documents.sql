@@ -1,19 +1,24 @@
 {#
-  post_hook GIN index rationale: the index is on the STORED content_tsv column
-  (not on to_tsvector(content)). The search ranks with ts_rank(content_tsv,
-  query), and ranking off an expression index would force Postgres to recompute
-  to_tsvector over the full 43KB-avg transcript for every match (a common word
-  like "water" matches thousands of rows -> 25s+ stall). Storing the vector
-  makes both the @@ match and the ts_rank ordering read precomputed lexemes.
+  post_hook GIN index rationale: gold carries TWO FTS GIN indexes on the body.
+  * event_documents_content_tsv_idx is on the STORED content_tsv column. gold is
+    the private warehouse and not size-constrained, so we keep the materialized
+    vector + its index for any consumer that still ts_rank()s off content_tsv.
+  * event_documents_content_fts_idx is an EXPRESSION index over
+    to_tsvector('english', content). The size-constrained SERVING copy
+    (publish_public_serving materialize mode) DROPS the content_tsv column to fit
+    the Neon budget and matches on this expression instead; in VIEW serving mode
+    the public view is over gold, so this expression index is what makes that
+    view's FTS index-only (no per-row detoast) rather than a seq scan. Both modes
+    therefore stay index-backed.
 
   The event_title pg_trgm GIN index exists for the SECOND search predicate:
   search_documents_pg / search_events_pg / count_events match `event_title ILIKE
-  '%q%' OR content_tsv @@ q`. content_tsv is built from raw_text (the transcript
-  body) ONLY, so a title-only hit must come from the ILIKE. Without a trigram
-  index that leading-wildcard ILIKE is non-indexable and drags the WHOLE OR down
-  to a parallel seq scan (~3.5s reading ~3.3GB over ~120k transcripts). The
-  trigram index lets the planner BitmapOr the two index scans (~56ms), preserving
-  title recall AND speed.
+  '%q%' OR to_tsvector('english', content) @@ q`. content is built from raw_text
+  (the transcript body) ONLY, so a title-only hit must come from the ILIKE.
+  Without a trigram index that leading-wildcard ILIKE is non-indexable and drags
+  the WHOLE OR down to a parallel seq scan (~3.5s reading ~3.3GB over ~120k
+  transcripts). The trigram index lets the planner BitmapOr the two index scans
+  (~56ms), preserving title recall AND speed.
   (This note lives in a Jinja comment, NOT inside the config() list below --
   a `--` SQL comment inside the post_hook list is not valid Jinja and breaks
   `dbt parse` for the whole project.)
@@ -33,6 +38,7 @@
     post_hook=(
       [
         "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)",
+        "CREATE INDEX IF NOT EXISTS event_documents_content_fts_idx ON {{ this }} USING gin (to_tsvector('english', content))",
         "CREATE EXTENSION IF NOT EXISTS pg_trgm",
         "CREATE INDEX IF NOT EXISTS event_documents_event_title_trgm_idx ON {{ this }} USING gin (event_title gin_trgm_ops)"
       ] if target.name != 'neon' else []

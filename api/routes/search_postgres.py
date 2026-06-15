@@ -1331,7 +1331,8 @@ async def search_events_pg(
 
     Args:
         query: Search text (meeting body / jurisdiction / summary, and — for the
-            unanalyzed leg — the transcript body via content_tsv).
+            unanalyzed leg — the transcript body via to_tsvector('english',
+            content)).
         state: Filter by state code ('MA') or full name ('Massachusetts').
         city: Filter by city name (matched against jurisdiction_name / city).
         limit: Max results.
@@ -1450,11 +1451,13 @@ async def search_events_pg(
         ed_where: List[str] = []
         if has_query:
             # Body match is the whole point: surface transcript-BODY hits, not
-            # just title hits. content_tsv is the precomputed, GIN-indexable
-            # vector (ranking/matching never re-tokenizes the 43KB-avg content).
+            # just title hits. The serving copy drops the materialized content_tsv
+            # column, so match on the EXPRESSION to_tsvector('english', content),
+            # which is backed by event_documents_content_fts_idx (an expression
+            # GIN index) — the planner index-matches it identically.
             ed_where.append(
                 f"(ed.event_title ILIKE ${q_like_idx} "
-                f"OR ed.content_tsv @@ plainto_tsquery('english', ${q_fts_idx}))"
+                f"OR to_tsvector('english', ed.content) @@ plainto_tsquery('english', ${q_fts_idx}))"
             )
         if state_idx:
             ed_where.append(f"ed.state_code = ${state_idx}")
@@ -1472,7 +1475,7 @@ async def search_events_pg(
                 f"OR lower(ed.city) = lower(${city_idx}))"
             )
         if topic_idx:
-            ed_where.append(f"ed.content_tsv @@ to_tsquery('english', ${topic_idx})")
+            ed_where.append(f"to_tsvector('english', ed.content) @@ to_tsquery('english', ${topic_idx})")
         # Dedup: never show a transcript whose video is already an analyzed meeting.
         ed_where.append(
             "NOT EXISTS (SELECT 1 FROM event_meeting em2 WHERE em2.video_id = ed.video_id)"
@@ -1840,22 +1843,23 @@ async def search_documents_pg(
             params.append(city.strip())
             param_idx += 1
 
-        # Full-text body search against the STORED content_tsv vector (GIN-indexed
-        # by event_documents_content_tsv_idx). Match AND rank both read the
-        # precomputed lexemes — ranking off to_tsvector(content) instead would
-        # re-tokenize every 43KB-avg transcript per match (a common word matches
-        # thousands of rows -> 25s+ stall). ts_headline below still reads the raw
-        # `content` text, but only for the handful of rows we actually return.
+        # Full-text body search over the transcript body. The serving copy drops
+        # the materialized content_tsv column, so the MATCH is on the EXPRESSION
+        # to_tsvector('english', content), backed by the expression GIN index
+        # event_documents_content_fts_idx (so matching is still index-only — no
+        # per-row detoast in the WHERE). RANK re-tokenizes content, but only over
+        # the bounded candidate pool below (a few hundred rows), not the full
+        # match set. ts_headline reads raw `content` for the LIMIT window only.
         if query and query.strip():
             where_clauses.append(
-                f"content_tsv @@ plainto_tsquery('english', ${param_idx})"
+                f"to_tsvector('english', content) @@ plainto_tsquery('english', ${param_idx})"
             )
             params.append(query)
             q_idx = param_idx
             param_idx += 1
 
             order_by = (
-                f"ts_rank(content_tsv, "
+                f"ts_rank(to_tsvector('english', content), "
                 f"plainto_tsquery('english', ${q_idx})) DESC, event_date DESC NULLS LAST"
             )
             # Highlighted snippet around the matching passage
@@ -1887,7 +1891,7 @@ async def search_documents_pg(
             pool_size = max(DOCUMENT_CANDIDATE_POOL, safe_offset + capped_limit)
             sql = f"""
                 WITH candidates AS (
-                    SELECT {select_cols}, content, content_tsv
+                    SELECT {select_cols}, content
                     FROM event_documents
                     WHERE {where_sql}
                     ORDER BY event_date DESC NULLS LAST, event_document_id DESC
@@ -1913,7 +1917,7 @@ async def search_documents_pg(
         params.append(safe_offset)
 
         async with pool.acquire() as conn:
-            # The planner under-costs the content_tsv detoast and prefers a seq
+            # The planner under-costs the content detoast and prefers a seq
             # scan over the GIN index; for the bounded candidate pool the index
             # is ~60x faster, so force it for this single-table query only
             # (transaction-scoped via SET LOCAL — never leaks to the pooled
