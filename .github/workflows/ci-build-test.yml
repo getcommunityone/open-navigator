@@ -2,6 +2,10 @@ name: CI - Build & Test
 
 # Run on all pushes and pull requests to catch build errors early
 on:
+  # Reusable: deploy-huggingface.yml calls this via `uses:`, which requires the
+  # workflow_call trigger — without it the deploy dispatch fails to parse
+  # ("workflow is not reusable as it is missing a `on.workflow_call` trigger").
+  workflow_call:
   push:
     branches:
       - main
