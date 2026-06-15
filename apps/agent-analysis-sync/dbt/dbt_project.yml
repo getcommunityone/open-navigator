@@ -1,0 +1,33 @@
+name: agent_analysis
+version: "1.0.0"
+config-version: 2
+
+# Databricks dbt tasks generate a profiles.yml from the task's catalog/schema/
+# warehouse_id and name it after this `profile`. Do NOT commit a profiles.yml.
+profile: agent_analysis
+
+model-paths: ["models"]
+
+# Medallion layering (Databricks-native + matches CLAUDE.md bronze→…→gold):
+#   bronze = ai_query output over staged transcripts (incremental, expensive)
+#   silver = JSON extracted/exploded into typed rows
+#   gold   = shaped to the event_* writeback contract
+# All models are Delta tables in the work schema; gold is the handoff to local gold.
+models:
+  agent_analysis:
+    +materialized: table
+    bronze:
+      +tags: ["analysis"]
+    silver:
+      +tags: ["analysis"]
+    gold:
+      +tags: ["analysis"]
+
+# dbt vars are injected by the job's dbt_task `--vars` (see analysis.job.yml).
+vars:
+  primary_model: databricks-gpt-oss-120b
+  escalate_model: databricks-llama-4-maverick
+  max_output_tokens: 8000
+  # Per-run cap on how many not-yet-analyzed transcripts to process (0 = all).
+  # Small batch keeps a live demo fast; re-run to catch up the backlog.
+  analysis_batch_size: 150

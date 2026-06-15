@@ -1,0 +1,59 @@
+# Scheduled Lakeflow Job: prod Neon -> Unity Catalog Delta -> Lakebase synced tables.
+#
+# Compute: SERVERLESS (no cluster block). This trial subscription is VM-quota /
+# capacity constrained in eastus — classic clusters failed with both
+# CLOUD_PROVIDER_RESOURCE_STOCKOUT (DS3_v2) and AZURE_QUOTA_EXCEEDED_EXCEPTION
+# (DDSv5 family, limit 0). Serverless runs on Databricks-managed compute, so it
+# consumes NO Azure VM quota from this subscription and can't hit those errors.
+# Serverless DBR also bundles the PostgreSQL JDBC driver, so Spark JDBC works
+# without a Maven attach.
+#
+# Classic fallback (only if serverless is disabled AND you have VM quota): re-add
+# a `job_clusters:` block with new_cluster (spark_version ${var.spark_version},
+# node_type_id ${var.node_type_id}, num_workers 0, data_security_mode
+# SINGLE_USER), set `job_cluster_key` on both tasks, and add the
+# `${var.postgres_jdbc_coordinates}` Maven library on the ingest task. The vars
+# are still defined in databricks.yml for that path.
+resources:
+  jobs:
+    serving_sync:
+      name: "[${bundle.target}] Lakebase serving sync (Neon prod → UC → Lakebase)"
+
+      tasks:
+        # 1. Pull the civic-serving tables out of prod Neon into UC Delta.
+        - task_key: ingest_neon_to_uc
+          notebook_task:
+            notebook_path: ../src/ingest_neon_to_uc.py
+            base_parameters:
+              catalog: ${var.catalog}
+              serving_schema: ${var.serving_schema}
+              neon_secret_scope: ${var.neon_secret_scope}
+              neon_secret_key: ${var.neon_secret_key}
+              sync_mode: ${var.sync_mode}
+
+        # 2. Create/refresh a Lakebase synced table for each UC Delta table.
+        - task_key: sync_uc_to_lakebase
+          depends_on:
+            - task_key: ingest_neon_to_uc
+          notebook_task:
+            notebook_path: ../src/sync_uc_to_lakebase.py
+            base_parameters:
+              catalog: ${var.catalog}
+              serving_schema: ${var.serving_schema}
+              lakebase_catalog: ${var.lakebase_catalog}
+              lakebase_project_id: ${var.lakebase_project_id}
+              lakebase_branch: ${var.lakebase_branch}
+              lakebase_postgres_database: ${var.lakebase_postgres_database}
+              sync_schema: ${var.sync_schema}
+              sync_mode: ${var.sync_mode}
+
+      schedule:
+        quartz_cron_expression: ${var.schedule_cron}
+        timezone_id: America/Chicago
+        pause_status: ${var.schedule_pause}
+
+      queue:
+        enabled: true
+
+      # Don't fan out concurrent syncs if a run overruns the schedule.
+      max_concurrent_runs: 1

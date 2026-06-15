@@ -1,0 +1,13 @@
+{
+  "_comment": "Reference only — the sync_uc_to_lakebase job builds this body per table from src/serving_tables.py and POSTs it to /api/2.0/postgres/synced_tables. Shown here so you can create/inspect one table by hand if needed: databricks postgres create-synced-table opennav_lakebase.public.jurisdictions --json @synced-table.example.json --profile opennav-prod",
+  "spec": {
+    "source_table_full_name": "main.open_navigator_serving.jurisdictions",
+    "primary_key_columns": ["jurisdiction_id"],
+    "scheduling_policy": "SNAPSHOT",
+    "create_database_objects_if_missing": true,
+    "new_pipeline_spec": {
+      "storage_catalog": "main",
+      "storage_schema": "open_navigator_serving"
+    }
+  }
+}

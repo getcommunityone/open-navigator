@@ -1,0 +1,43 @@
+# Single-task Lakeflow Job: dbt build (bronze ai_query -> silver -> gold).
+#
+# Runs on SERVERLESS compute — this trial workspace has 0 classic-VM core quota
+# (AZURE_QUOTA_EXCEEDED on D-family), so the dbt CLI runs in a serverless job
+# environment and the SQL executes on the serverless SQL warehouse. No VMs.
+#
+# Fully Databricks-resident: source tables (transcript_to_analyze, analysis_prompt)
+# are loaded into UC out-of-band by ingestion.databricks.load_transcripts_to_uc.
+# Re-runnable: bronze is incremental and `analysis_batch_size` caps per-run volume,
+# so re-running catches up the backlog a batch at a time.
+resources:
+  jobs:
+    agent_analysis_sync:
+      name: "[${bundle.target}] agent-analysis-sync — transcript analysis via ai_query (dbt)"
+
+      schedule:
+        quartz_cron_expression: ${var.schedule_cron}
+        timezone_id: America/New_York
+        pause_status: ${var.schedule_pause}
+
+      # Serverless job environment that hosts the dbt CLI + dbt-databricks.
+      environments:
+        - environment_key: dbt_env
+          spec:
+            client: "2"
+            dependencies:
+              - "dbt-databricks>=1.8.0,<2.0.0"
+
+      tasks:
+        # dbt: bronze ai_query analysis -> silver JSON extraction -> gold writeback marts.
+        # The dbt CLI runs on serverless (environment_key); SQL executes on the warehouse.
+        - task_key: dbt_build
+          environment_key: dbt_env
+          dbt_task:
+            project_directory: ../dbt
+            catalog: ${var.catalog}
+            schema: ${var.work_schema}
+            warehouse_id: ${var.warehouse_id}
+            commands:
+              - "dbt build --vars '{primary_model: ${var.primary_model}, escalate_model: ${var.escalate_model}, max_output_tokens: ${var.max_output_tokens}, analysis_batch_size: ${var.analysis_batch_size}}'"
+
+      queue:
+        enabled: true

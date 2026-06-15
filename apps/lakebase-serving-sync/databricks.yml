@@ -1,0 +1,95 @@
+# Lakebase serving sync — Declarative Automation Bundle (DAB)
+#
+# A Databricks-driven serving pipeline that runs entirely ON Databricks:
+#
+#   prod Neon Postgres  --(Spark JDBC)-->  Unity Catalog Delta  --(synced tables)-->  Lakebase Postgres
+#
+# Two-task scheduled Lakeflow Job:
+#   1. ingest_neon_to_uc    — read the civic-serving `public` tables from prod Neon
+#                             and write them as UC Delta tables.
+#   2. sync_uc_to_lakebase  — create/refresh a Lakebase *synced table* for each.
+#
+# Source of truth for the table list + primary keys: src/serving_tables.py
+# (PKs verified against the local `gold` marts on 2026-06-14).
+bundle:
+  name: lakebase-serving-sync
+
+include:
+  - resources/*.yml
+
+variables:
+  # --- Unity Catalog: where the Delta source tables + DLT pipeline metadata live ---
+  catalog:
+    description: Regular UC catalog for the Delta source tables AND the synced-table pipeline's storage_catalog (must NOT be the Lakebase catalog). This workspace's writable managed catalog.
+    default: dbw_opennav_prod_eastus_001
+  serving_schema:
+    description: UC schema for the exported Delta serving tables.
+    default: open_navigator_serving
+
+  # --- Lakebase: where the synced tables land ---
+  lakebase_project_id:
+    description: Lakebase Autoscaling project id (create once; see README).
+    default: opennav-serving
+  lakebase_branch:
+    description: Lakebase branch id.
+    default: production
+  lakebase_catalog:
+    description: UC catalog name the Lakebase database is registered as (binds project+branch+postgres_database).
+    default: opennav_lakebase
+  lakebase_postgres_database:
+    description: Postgres database name inside the Lakebase branch.
+    default: databricks_postgres
+  sync_schema:
+    description: Schema in Lakebase the synced tables are created in.
+    default: public
+  sync_mode:
+    description: SNAPSHOT | TRIGGERED | CONTINUOUS. TRIGGERED/CONTINUOUS require CDF (enabled automatically on the UC source for non-SNAPSHOT).
+    default: SNAPSHOT
+
+  # --- Neon source secret (libpq URL of prod Neon, e.g. postgresql://user:pass@host/db?sslmode=require) ---
+  neon_secret_scope:
+    description: Databricks secret scope holding the prod Neon connection URL.
+    default: open-navigator
+  neon_secret_key:
+    description: Secret key for the prod Neon connection URL.
+    default: neon-prod-url
+
+  # --- Schedule ---
+  schedule_cron:
+    description: Quartz cron for the sync job (default daily 08:00).
+    default: "0 0 8 * * ?"
+  schedule_pause:
+    description: PAUSED (default — unpause once verified) or UNPAUSED.
+    default: PAUSED
+
+  # --- Compute (classic single-node cluster) ---
+  # Classic (not serverless): guarantees the PostgreSQL JDBC driver via Maven and
+  # works even if serverless jobs are disabled in the workspace. If you hit an
+  # Azure capacity stockout (CLOUD_PROVIDER_RESOURCE_STOCKOUT / SkuNotAvailable),
+  # just change node_type_id — no file edits: --var node_type_id=Standard_D4ads_v5
+  node_type_id:
+    description: Single-node cluster VM SKU (Azure). Alternatives offered here — Standard_D4ads_v5, Standard_D4s_v5, Standard_DS4_v2.
+    default: Standard_D4ds_v5
+  spark_version:
+    description: Databricks Runtime (16.4 LTS).
+    default: "16.4.x-scala2.12"
+  postgres_jdbc_coordinates:
+    description: Maven coordinates for the PostgreSQL JDBC driver (attached so Spark JDBC against Neon works on classic compute).
+    default: "org.postgresql:postgresql:42.7.4"
+
+targets:
+  # Same workspace for both targets today; `dev` auto-prefixes + auto-pauses
+  # schedules (mode: development), `prod` deploys the real job.
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-7405608833986267.7.azuredatabricks.net
+      profile: opennav-prod
+
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-7405608833986267.7.azuredatabricks.net
+      profile: opennav-prod
+      root_path: /Workspace/Users/johnbowyer@getcommunityone.onmicrosoft.com/.bundle/${bundle.name}/${bundle.target}

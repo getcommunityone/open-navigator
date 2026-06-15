@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: bronze_transcript_analysis
+    description: One raw LLM analysis JSON per transcript (ai_query output). Incremental on video_id.
+    columns:
+      - name: video_id
+        tests: [not_null, unique]
+      - name: analysis_json
+        description: Raw JSON string returned by the model (may be null if the row errored).
+
+  - name: silver_meeting_analysis
+    description: Meeting-level summaries extracted from valid analysis JSON, one row per transcript.
+    columns:
+      - name: video_id
+        tests: [not_null, unique]
+      - name: meeting_summary
+        description: Non-empty by construction (rows without a real summary are dropped).
+        tests: [not_null]
+
+  - name: silver_decision_analysis
+    description: One row per decision (decisions[] exploded). Only rows with a real decision_statement.
+    columns:
+      - name: decision_statement
+        tests: [not_null]
+      - name: decision_id
+        tests: [not_null]
+
+  - name: gold_event_meeting_analysis
+    description: Writeback contract for event_meeting (keyed by video_id).
+    columns:
+      - name: video_id
+        tests: [not_null, unique]
+
+  - name: gold_event_decision_analysis
+    description: Writeback contract for event_decision (keyed by video_id + decision_id).
+    columns:
+      - name: video_id
+        tests: [not_null]
+      - name: decision_statement
+        tests: [not_null]

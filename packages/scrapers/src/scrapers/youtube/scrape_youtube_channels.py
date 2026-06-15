@@ -395,8 +395,10 @@ class MunicipalYouTubeScraper:
             content_details = item['contentDetails']
             recording_details = item.get('recordingDetails', {})
             
-            # Parse duration (ISO 8601 format: PT1H2M10S)
-            duration_str = content_details['duration']
+            # Parse duration (ISO 8601 format: PT1H2M10S). Live/upcoming videos
+            # have no contentDetails.duration — default to '' so one such video
+            # doesn't KeyError out the whole channel fetch.
+            duration_str = content_details.get('duration', '')
             duration_minutes = self.parse_duration(duration_str)
             
             # Check if captions available
@@ -445,6 +447,8 @@ class MunicipalYouTubeScraper:
     
     def parse_duration(self, duration_str: str) -> int:
         """Parse ISO 8601 duration to minutes"""
+        if not duration_str:
+            return 0
         match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration_str)
         if not match:
             return 0

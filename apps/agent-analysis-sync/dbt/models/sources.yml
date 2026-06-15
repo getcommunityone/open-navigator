@@ -1,0 +1,26 @@
+version: 2
+
+# Bronze inputs landed by the Python ingest task (src/ingest_transcripts_to_uc.py).
+# The dbt task is run with --target schema = ${work_schema}, and these sources
+# live in that same schema, so we resolve them via the target schema.
+sources:
+  - name: bronze
+    schema: "{{ target.schema }}"
+    description: >
+      Raw inputs for transcript analysis, landed by the ingest task. Not the
+      civic serving layer — these are working tables in the analysis schema.
+    tables:
+      - name: transcript_to_analyze
+        description: Bounded, unanalyzed transcript text staged from prod Neon (video_id + transcript_text).
+        columns:
+          - name: video_id
+            description: YouTube video id — the meeting key that bridges to event_meeting.
+            tests: [not_null, unique]
+          - name: transcript_text
+            description: Coalesced caption_text_timed/raw_text body to analyze.
+            tests: [not_null]
+      - name: analysis_prompt
+        description: One-row table holding the active civic-analysis prompt text.
+        columns:
+          - name: prompt
+            tests: [not_null]

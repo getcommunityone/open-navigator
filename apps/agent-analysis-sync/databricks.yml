@@ -1,0 +1,76 @@
+# Agent analysis sync — Declarative Automation Bundle (DAB)
+#
+# Runs the civic transcript analysis prompts ENTIRELY ON Databricks via batch
+# LLM inference (ai_query), layered bronze→silver→gold in dbt. No Gemini, no
+# local machine, no Neon at run time — judges just run the dbt job.
+#
+#   UC source tables (loaded once by ingestion.databricks.load_transcripts_to_uc):
+#     {work_schema}.transcript_to_analyze   (video_id, transcript_text)
+#     {work_schema}.analysis_prompt          (prompt)
+#   dbt:
+#     bronze  bronze_transcript_analysis   ai_query (gpt-oss-120b, escalate→llama-4-maverick), incremental + batched
+#     silver  silver_meeting_analysis / silver_decision_analysis   JSON extraction
+#     gold    gold_event_meeting_analysis / gold_event_decision_analysis   writeback-shaped
+#
+# Re-runnable: bronze is incremental on video_id and `analysis_batch_size` caps
+# per-run volume, so re-running catches up the backlog a batch at a time.
+#
+# COST: ~$0.05–0.40 per 150-transcript batch on gpt-oss-120b; full ~14.8k backlog
+# ~$10–40 across runs. Opus 4.8 is hosted too but ~$340 for the full set —
+# reserve it (--var primary_model=databricks-claude-opus-4-8) for a subset re-run.
+bundle:
+  name: agent-analysis-sync
+
+include:
+  - resources/*.yml
+
+variables:
+  # --- Unity Catalog: all analysis tables live here ---
+  catalog:
+    description: Writable managed catalog (same one lakebase-serving-sync uses).
+    default: dbw_opennav_prod_eastus_001
+  work_schema:
+    description: UC schema holding the source + bronze/silver/gold analysis tables.
+    default: open_navigator_analysis
+
+  # --- Model serving (pay-per-token foundation model endpoints, llm/v1/chat) ---
+  primary_model:
+    description: Endpoint ai_query leads with. Cheap + capable for structured extraction. Alternatives, databricks-llama-4-maverick, databricks-qwen3-next-80b-a3b-instruct, databricks-claude-opus-4-8 (premium).
+    default: databricks-gpt-oss-120b
+  escalate_model:
+    description: Endpoint used ONLY to re-run rows the primary returned as invalid. Set equal to primary_model to disable escalation.
+    default: databricks-llama-4-maverick
+  max_output_tokens:
+    description: Per-row output cap for ai_query (the policy JSON is large; keep generous).
+    default: "8000"
+  analysis_batch_size:
+    description: Max not-yet-analyzed transcripts processed per run (0 = all). Small keeps a live demo fast; re-run to catch up.
+    default: "150"
+
+  # --- Schedule ---
+  schedule_cron:
+    description: Quartz cron for the analysis job (default daily 06:00).
+    default: "0 0 6 * * ?"
+  schedule_pause:
+    description: PAUSED (default — unpause once a batch is verified) or UNPAUSED.
+    default: PAUSED
+
+  # --- Compute (serverless only — this workspace has 0 classic-VM core quota) ---
+  warehouse_id:
+    description: Serverless SQL warehouse that runs the dbt/ai_query SQL (workspace default).
+    default: 89382a58d0c1c6aa
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-7405608833986267.7.azuredatabricks.net
+      profile: opennav-prod
+
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-7405608833986267.7.azuredatabricks.net
+      profile: opennav-prod
+      root_path: /Workspace/Users/johnbowyer@getcommunityone.onmicrosoft.com/.bundle/${bundle.name}/${bundle.target}

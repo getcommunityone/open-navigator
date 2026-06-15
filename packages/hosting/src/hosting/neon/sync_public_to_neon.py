@@ -121,6 +121,15 @@ NON_SERVING = frozenset(
         # rpt_bill_map_aggregate (allow-listed), so the raw rows aren't needed.
         "bills",
         "bill_sponsorship",
+        # Civic but NOT used by the frontend (API + web_app audit 2026-06-14):
+        # no live endpoint queries event / mdm_bridge_event_analysis /
+        # instance_argument; jurisdiction_document's endpoint is registered but
+        # the UI never calls it. Dropped from serving; listed here so they're
+        # classified (not flagged "unclassified") and never re-copied.
+        "event",
+        "mdm_bridge_event_analysis",
+        "instance_argument",
+        "jurisdiction_document",
     }
 )
 
@@ -135,7 +144,6 @@ NON_SERVING = frozenset(
 CIVIC_SERVING = frozenset(
     {
         # events & AI analysis
-        "event",
         "event_decision",
         "event_decision_place",
         "event_place_geocoded",
@@ -147,14 +155,12 @@ CIVIC_SERVING = frozenset(
         # event_documents is intentionally absent — see DEDICATED_LOADER above
         # (slim cues-only, loaded by sync_event_documents_to_neon.py).
         "meeting_document",
-        "mdm_bridge_event_analysis",
         # people & officials
         "contact_official",
         "person_government",
         # jurisdictions
         "jurisdictions",
         "civic_jurisdiction",
-        "jurisdiction_document",
         "jurisdiction_mapping_analysis",
         "jurisdiction_state_aggregate",
         "jurisdiction_minutes_publish_lag",
@@ -190,7 +196,10 @@ CIVIC_SERVING = frozenset(
         "policy_question_trend",
         # decision detail + arguments
         "decision_speakers",
-        "instance_argument",
+        # county broaden crosswalk (search "Include surrounding county"); tiny
+        # static lookup (~32k city→county rows). Required by the county_fips
+        # search filter — must exist on Neon or that API leg errors.
+        "jurisdiction_county_crosswalk",
         # finance / money lenses (small per-jurisdiction series)
         "jurisdiction_finance",
         "jurisdiction_property_tax_rate",

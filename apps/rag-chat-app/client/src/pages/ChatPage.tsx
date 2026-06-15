@@ -165,6 +165,10 @@ export function ChatPage() {
   }, [chatId]);
 
   useEffect(() => {
+    // Only auto-stick to the bottom once a conversation exists. On the empty
+    // landing screen the welcome content can be taller than the viewport, and
+    // scrolling it to the bottom hides the heading — leave it scrolled to top.
+    if (messages.length === 0) return;
     const vp = viewportRef.current;
     if (vp && stickToBottomRef.current) vp.scrollTop = vp.scrollHeight;
   }, [messages]);

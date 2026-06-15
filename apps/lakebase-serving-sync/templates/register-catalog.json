@@ -1,0 +1,7 @@
+{
+  "_comment": "Reference only — the sync job registers this automatically. To do it by hand: databricks postgres create-catalog opennav_lakebase --json @register-catalog.json --profile opennav-prod . Binds the UC catalog name -> Lakebase (project/branch/database). Set branch to your project id.",
+  "spec": {
+    "postgres_database": "databricks_postgres",
+    "branch": "projects/opennav-serving/branches/production"
+  }
+}
