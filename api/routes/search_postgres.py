@@ -187,6 +187,70 @@ async def get_db_pool():
     return _db_pool
 
 
+# In-process cache for the county -> (city names, county name) crosswalk lookup.
+# Keyed by the 5-digit county_fips. The crosswalk is tiny + static, so a plain
+# module-level dict (no TTL) is sufficient; a process restart re-warms it.
+_COUNTY_CROSSWALK_CACHE: dict[str, tuple[list[str], Optional[str]]] = {}
+
+
+async def resolve_county_crosswalk(
+    county_fips: Optional[str],
+) -> tuple[list[str], Optional[str]]:
+    """Resolve a 5-digit county FIPS to the city/town names in it + the county name.
+
+    Reads public.jurisdiction_county_crosswalk (a raw-DDL view, NOT a dbt model)
+    which maps a county_fips to every city/town NAME in that county plus the
+    county's own name. The connection pool sets search_path to include `public`,
+    so the unqualified `jurisdiction_county_crosswalk` resolves there — exactly
+    like every other unqualified public relation referenced in this module
+    (event_meeting, event_decision, event_documents, contact_official, ...).
+
+    Returns a tuple of (city_names, county_name). On empty/unresolvable input,
+    or any error, returns ([], None) — callers MUST treat an empty name list as
+    "match nothing" (append FALSE) so an unresolvable county never silently
+    widens a geo leg to the whole state.
+
+    Results are memoized per county_fips in a module-level dict (in-process).
+    """
+    if not county_fips or not county_fips.strip():
+        return ([], None)
+    key = county_fips.strip()
+    cached = _COUNTY_CROSSWALK_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT name, county_name FROM jurisdiction_county_crosswalk "
+                "WHERE county_fips = $1",
+                key,
+            )
+        names = [r["name"] for r in rows if r["name"]]
+        county_name = next(
+            (r["county_name"] for r in rows if r["county_name"]), None
+        )
+        result = (names, county_name)
+        _COUNTY_CROSSWALK_CACHE[key] = result
+        return result
+    except Exception as e:
+        logger.error(f"County crosswalk resolve error for {key!r}: {e}")
+        return ([], None)
+
+
+async def resolve_county_city_names(county_fips: Optional[str]) -> list[str]:
+    """Return just the city/town names for a county_fips (see resolve_county_crosswalk)."""
+    names, _ = await resolve_county_crosswalk(county_fips)
+    return names
+
+
+async def resolve_county_name(county_fips: Optional[str]) -> Optional[str]:
+    """Return just the county display name for a county_fips (see resolve_county_crosswalk)."""
+    _, county_name = await resolve_county_crosswalk(county_fips)
+    return county_name
+
+
 async def search_jurisdictions_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -627,6 +691,7 @@ async def search_officials_pg(
     state: Optional[str] = None,
     city: Optional[str] = None,
     limit: int = 10,
+    county_fips: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Search elected/appointed officials, backed by the contact_official mart.
@@ -668,8 +733,9 @@ async def search_officials_pg(
 
     # A 1-char query is all noise (matches the whole table); mirror the persons
     # search early-return so the per-keystroke typeahead only fires at >=2 chars.
-    # When a state or city is supplied we still allow a bare browse (no query).
-    if has_query and len(q) < 2 and not state and not city:
+    # When a state, city, or county scope is supplied we still allow a bare browse.
+    use_county = bool(county_fips and county_fips.strip())
+    if has_query and len(q) < 2 and not state and not city and not use_county:
         return []
 
     try:
@@ -688,7 +754,22 @@ async def search_officials_pg(
         # (e.g. "Tuscaloosa"); a substring ILIKE keeps officials for that city.
         # Bound as a parameter ($N) like every other predicate here — no string
         # interpolation of user input.
-        if city and city.strip():
+        # county_fips SUPERSEDES city: widen to ANY of the county's city/town names
+        # (ILIKE-matched as before), still excluding county-level rows. Passed as a
+        # single text[] of '%name%' patterns; `jurisdiction ILIKE ANY($n)` is valid
+        # Postgres. Unresolvable county -> FALSE (match nothing).
+        if county_fips and county_fips.strip():
+            _county_names = await resolve_county_city_names(county_fips)
+            if _county_names:
+                where_clauses.append(
+                    f"(jurisdiction NOT ILIKE '%county%' "
+                    f"AND jurisdiction ILIKE ANY(${idx}))"
+                )
+                params.append([f"%{n}%" for n in _county_names])
+                idx += 1
+            else:
+                where_clauses.append("FALSE")
+        elif city and city.strip():
             # A city filter must not leak COUNTY officials: a bare
             # ILIKE '%Tuscaloosa%' also matches "Tuscaloosa County". Keep the
             # substring match on the city name but exclude county-level
@@ -853,7 +934,8 @@ async def search_organizations_pg(
     jurisdiction_id: Optional[str] = None,
     limit: int = 10,
     offset: int = 0,
-    sort: str = 'relevance'
+    sort: str = 'relevance',
+    county_fips: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Search nonprofit organizations using PostgreSQL
@@ -914,6 +996,28 @@ async def search_organizations_pg(
             )
             params.append(jurisdiction_id)
             param_idx += 1
+        elif county_fips and county_fips.strip():
+            # county_fips SUPERSEDES city: resolve the county's city/town NAME set
+            # and filter orgs bridged to ANY of those city/town jurisdictions.
+            # Same bridge subquery as the city branch, widened from `= lower($city)`
+            # to `= ANY($names_lower)`. Empty names -> IN(...) naturally returns
+            # nothing, so an unresolvable county matches no orgs (never the state).
+            _county_names = await resolve_county_city_names(county_fips)
+            county_pred = (
+                f"base.master_org_id IN ("
+                f"SELECT b.master_org_id FROM mdm_bridge_org_jurisdiction b "
+                f"JOIN jurisdictions j ON j.jurisdiction_id = b.jurisdiction_id "
+                f"WHERE lower(j.name) = ANY(${param_idx}) "
+                f"AND j.jurisdiction_type IN ('city','town')"
+            )
+            params.append([n.lower() for n in _county_names])
+            param_idx += 1
+            if state:
+                county_pred += f" AND j.state_code = ${param_idx}"
+                params.append(state.upper())
+                param_idx += 1
+            county_pred += ")"
+            where_clauses.append(county_pred)
         elif city:
             # Resolve the city/town jurisdiction(s) by name (+ state) and filter
             # orgs bridged to one of them. This is what makes "orgs in Tuscaloosa"
@@ -1197,6 +1301,7 @@ async def search_events_pg(
     limit: int = 10,
     offset: int = 0,
     topic_tsquery: Optional[str] = None,
+    county_fips: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Search meetings using PostgreSQL.
@@ -1261,8 +1366,23 @@ async def search_events_pg(
             params.append(state.upper())
             state_idx = len(params)
 
+        # County broadening SUPERSEDES city: when county_fips is provided we scope
+        # the geo legs to the SET of city/town names in that county instead of a
+        # single city. Resolve the names once and register them as a single
+        # lower-cased text[] array param ($n), reused across both legs. An
+        # unresolvable county (empty names) must match NOTHING (FALSE) so it never
+        # silently widens to the whole state.
+        use_county = bool(county_fips and county_fips.strip())
+        county_names_lower_idx = None
+        if use_county:
+            _county_names = await resolve_county_city_names(county_fips)
+            if _county_names:
+                params.append([n.lower() for n in _county_names])
+                county_names_lower_idx = len(params)
+
+        # City scope only applies when NOT broadening to a county.
         city_idx = None
-        if city and city.strip():
+        if not use_county and city and city.strip():
             params.append(city.strip())
             city_idx = len(params)
 
@@ -1290,7 +1410,16 @@ async def search_events_pg(
             )
         if state_idx:
             em_where.append(f"em.state_code = ${state_idx}")
-        if city_idx:
+        if use_county:
+            # Widened to the county's city/town name set (supersedes city).
+            if county_names_lower_idx:
+                em_where.append(
+                    f"(lower(em.jurisdiction_name) = ANY(${county_names_lower_idx}) "
+                    f"OR lower(em.city) = ANY(${county_names_lower_idx}))"
+                )
+            else:
+                em_where.append("FALSE")
+        elif city_idx:
             em_where.append(
                 f"(lower(em.jurisdiction_name) = lower(${city_idx}) "
                 f"OR lower(em.city) = lower(${city_idx}))"
@@ -1332,7 +1461,15 @@ async def search_events_pg(
             )
         if state_idx:
             ed_where.append(f"ed.state_code = ${state_idx}")
-        if city_idx:
+        if use_county:
+            if county_names_lower_idx:
+                ed_where.append(
+                    f"(lower(ed.jurisdiction_name) = ANY(${county_names_lower_idx}) "
+                    f"OR lower(ed.city) = ANY(${county_names_lower_idx}))"
+                )
+            else:
+                ed_where.append("FALSE")
+        elif city_idx:
             ed_where.append(
                 f"(lower(ed.jurisdiction_name) = lower(${city_idx}) "
                 f"OR lower(ed.city) = lower(${city_idx}))"
@@ -1648,7 +1785,8 @@ async def search_documents_pg(
     state: Optional[str] = None,
     city: Optional[str] = None,
     limit: int = 10,
-    offset: int = 0
+    offset: int = 0,
+    county_fips: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Full-text search over event documents (meeting transcripts) using PostgreSQL.
@@ -1685,7 +1823,20 @@ async def search_documents_pg(
         # (mirrors search_events_pg / search_bills_pg), so a city browse doesn't
         # leak the rest of the state's transcripts. jurisdiction_name is the
         # reliably-populated column; city is the OR fallback.
-        if city and city.strip():
+        # county_fips SUPERSEDES city: widen to the county's city/town name set
+        # (single lower-cased text[] param). Unresolvable county -> FALSE.
+        if county_fips and county_fips.strip():
+            _county_names = await resolve_county_city_names(county_fips)
+            if _county_names:
+                where_clauses.append(
+                    f"(lower(jurisdiction_name) = ANY(${param_idx}) "
+                    f"OR lower(city) = ANY(${param_idx}))"
+                )
+                params.append([n.lower() for n in _county_names])
+                param_idx += 1
+            else:
+                where_clauses.append("FALSE")
+        elif city and city.strip():
             where_clauses.append(
                 f"(lower(jurisdiction_name) = lower(${param_idx}) OR lower(city) = lower(${param_idx}))"
             )
@@ -2403,6 +2554,7 @@ async def search_decisions_pg(
     offset: int = 0,
     question_id: Optional[str] = None,
     topic_tsquery: Optional[str] = None,
+    county_fips: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Search governance decisions, backed by the public.event_decision mart
@@ -2439,7 +2591,21 @@ async def search_decisions_pg(
         # Location scope. event_decision carries jurisdiction_name (always set) and
         # a sparser city column; a city browse (e.g. "Tuscaloosa") must not leak
         # decisions from the rest of the state, so match the city against either.
-        if city and city.strip():
+        # county_fips SUPERSEDES city: widen to the SET of city/town names in the
+        # county (resolved via the crosswalk) as a single lower-cased text[] param.
+        # An unresolvable county matches NOTHING (FALSE) — never widens to the state.
+        if county_fips and county_fips.strip():
+            _county_names = await resolve_county_city_names(county_fips)
+            if _county_names:
+                where_conditions.append(
+                    f"(lower(d.jurisdiction_name) = ANY(${param_idx}) "
+                    f"OR lower(d.city) = ANY(${param_idx}))"
+                )
+                params.append([n.lower() for n in _county_names])
+                param_idx += 1
+            else:
+                where_conditions.append("FALSE")
+        elif city and city.strip():
             where_conditions.append(
                 f"(lower(d.jurisdiction_name) = lower(${param_idx}) OR lower(d.city) = lower(${param_idx}))"
             )

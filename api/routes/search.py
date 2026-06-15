@@ -310,6 +310,8 @@ async def count_organizations(
     state: Optional[str] = None,
     ntee_code: Optional[str] = None,
     query: Optional[str] = None,
+    city: Optional[str] = None,
+    county_fips: Optional[str] = None,
 ) -> int:
     """Count total nonprofit organizations matching browse/search criteria.
 
@@ -325,7 +327,7 @@ async def count_organizations(
     Signature kept as (state, ntee_code, query) so the call site is unchanged.
     """
     # Create cache key
-    cache_key = f"count_{state}_{ntee_code}_{query}"
+    cache_key = f"count_{state}_{ntee_code}_{query}_{city}_{county_fips}"
 
     # Check cache (1 hour TTL)
     now = datetime.now()
@@ -338,6 +340,7 @@ async def count_organizations(
         span.set_attribute("search.has_state", bool(state))
         span.set_attribute("search.has_ntee", bool(ntee_code))
         span.set_attribute("search.has_query", bool(query and query.strip()))
+        span.set_attribute("search.has_county", bool(county_fips and county_fips.strip()))
         try:
             # Mirror search_organizations_pg: normalize state to 2-letter code.
             norm_state = search_postgres.normalize_state_input(state)
@@ -346,7 +349,46 @@ async def count_organizations(
             params: List[Any] = []
             param_idx = 1
 
-            if norm_state:
+            # Location scope mirrors search_organizations_pg precedence: a county
+            # (resolved via the crosswalk to its city/town name set) SUPERSEDES a
+            # city, and both go through the MDM org<->jurisdiction bridge. A bare
+            # state stays a direct state_code match. county_fips/city are only
+            # passed in by paths that need them; the common org-browse call omits
+            # them, so behavior there is unchanged.
+            if county_fips and county_fips.strip():
+                _county_names = await search_postgres.resolve_county_city_names(county_fips)
+                county_pred = (
+                    f"m.master_org_id IN ("
+                    f"SELECT b.master_org_id FROM mdm_bridge_org_jurisdiction b "
+                    f"JOIN jurisdictions j ON j.jurisdiction_id = b.jurisdiction_id "
+                    f"WHERE lower(j.name) = ANY(${param_idx}) "
+                    f"AND j.jurisdiction_type IN ('city','town')"
+                )
+                params.append([n.lower() for n in _county_names])
+                param_idx += 1
+                if norm_state:
+                    county_pred += f" AND j.state_code = ${param_idx}"
+                    params.append(norm_state.upper())
+                    param_idx += 1
+                county_pred += ")"
+                where_clauses.append(county_pred)
+            elif city and city.strip():
+                city_pred = (
+                    f"m.master_org_id IN ("
+                    f"SELECT b.master_org_id FROM mdm_bridge_org_jurisdiction b "
+                    f"JOIN jurisdictions j ON j.jurisdiction_id = b.jurisdiction_id "
+                    f"WHERE lower(j.name) = lower(${param_idx}) "
+                    f"AND j.jurisdiction_type IN ('city','town')"
+                )
+                params.append(city.strip())
+                param_idx += 1
+                if norm_state:
+                    city_pred += f" AND j.state_code = ${param_idx}"
+                    params.append(norm_state.upper())
+                    param_idx += 1
+                city_pred += ")"
+                where_clauses.append(city_pred)
+            elif norm_state:
                 where_clauses.append(f"m.state_code = ${param_idx}")
                 params.append(norm_state.upper())
                 param_idx += 1
@@ -395,6 +437,7 @@ async def count_leaders(
     query: Optional[str] = None,
     state: Optional[str] = None,
     city: Optional[str] = None,
+    county_fips: Optional[str] = None,
 ) -> int:
     """Count government officials matching the leaders search filters.
 
@@ -414,12 +457,14 @@ async def count_leaders(
     has_query = bool(query and query.strip())
     q = query.strip() if has_query else ""
 
+    use_county = bool(county_fips and county_fips.strip())
+
     # Mirror the search's short-query early-return: a 1-char query with no
-    # state/city scope is all noise -> 0 (the search returns []).
-    if has_query and len(q) < 2 and not norm_state and not (city and city.strip()):
+    # state/city/county scope is all noise -> 0 (the search returns []).
+    if has_query and len(q) < 2 and not norm_state and not (city and city.strip()) and not use_county:
         return 0
 
-    cache_key = f"count_leaders_{norm_state}_{city}_{query}"
+    cache_key = f"count_leaders_{norm_state}_{city}_{county_fips}_{query}"
     now = datetime.now()
     if cache_key in _count_cache:
         cached_time = _count_cache_ttl.get(cache_key)
@@ -440,8 +485,26 @@ async def count_leaders(
                 params.append(norm_state.upper())
                 idx += 1
 
-            if city and city.strip():
-                where_clauses.append(f"jurisdiction ILIKE ${idx}")
+            # county_fips SUPERSEDES city: widen to ANY of the county's city/town
+            # names (ILIKE-matched), excluding county-level rows — mirrors
+            # search_officials_pg. Unresolvable county -> FALSE (match nothing).
+            if use_county:
+                _county_names = await search_postgres.resolve_county_city_names(county_fips)
+                if _county_names:
+                    where_clauses.append(
+                        f"(jurisdiction NOT ILIKE '%county%' "
+                        f"AND jurisdiction ILIKE ANY(${idx}))"
+                    )
+                    params.append([f"%{n}%" for n in _county_names])
+                    idx += 1
+                else:
+                    where_clauses.append("FALSE")
+            elif city and city.strip():
+                # Mirror search_officials_pg's city branch: exclude county-level
+                # jurisdictions so a city count doesn't leak "<City> County" rows.
+                where_clauses.append(
+                    f"(jurisdiction ILIKE ${idx} AND jurisdiction NOT ILIKE '%county%')"
+                )
                 params.append(f"%{city.strip()}%")
                 idx += 1
 
@@ -702,6 +765,7 @@ async def count_events(
     state: Optional[str] = None,
     city: Optional[str] = None,
     topic_tsquery: Optional[str] = None,
+    county_fips: Optional[str] = None,
 ) -> int:
     """Count meetings matching the events search filters.
 
@@ -730,7 +794,7 @@ async def count_events(
     has_query = bool(query and query.strip())
     q = query.strip() if has_query else ""
 
-    cache_key = f"count_events_{norm_state}_{city}_{query}_{topic_tsquery}"
+    cache_key = f"count_events_{norm_state}_{city}_{county_fips}_{query}_{topic_tsquery}"
     now = datetime.now()
     if cache_key in _count_cache:
         cached_time = _count_cache_ttl.get(cache_key)
@@ -758,8 +822,19 @@ async def count_events(
                 params.append(norm_state.upper())
                 state_idx = len(params)
 
+            # county_fips SUPERSEDES city: resolve the county's city/town name set
+            # once and register it as a single lower-cased text[] param, reused by
+            # both legs. Empty names -> match NOTHING (FALSE), never the state.
+            use_county = bool(county_fips and county_fips.strip())
+            county_names_lower_idx = None
+            if use_county:
+                _county_names = await search_postgres.resolve_county_city_names(county_fips)
+                if _county_names:
+                    params.append([n.lower() for n in _county_names])
+                    county_names_lower_idx = len(params)
+
             city_idx = None
-            if city and city.strip():
+            if not use_county and city and city.strip():
                 params.append(city.strip())
                 city_idx = len(params)
 
@@ -784,7 +859,15 @@ async def count_events(
                 )
             if state_idx:
                 em_where.append(f"em.state_code = ${state_idx}")
-            if city_idx:
+            if use_county:
+                if county_names_lower_idx:
+                    em_where.append(
+                        f"(lower(em.jurisdiction_name) = ANY(${county_names_lower_idx}) "
+                        f"OR lower(em.city) = ANY(${county_names_lower_idx}))"
+                    )
+                else:
+                    em_where.append("FALSE")
+            elif city_idx:
                 em_where.append(
                     f"(lower(em.jurisdiction_name) = lower(${city_idx}) "
                     f"OR lower(em.city) = lower(${city_idx}))"
@@ -815,7 +898,15 @@ async def count_events(
                 )
             if state_idx:
                 ed_where.append(f"ed.state_code = ${state_idx}")
-            if city_idx:
+            if use_county:
+                if county_names_lower_idx:
+                    ed_where.append(
+                        f"(lower(ed.jurisdiction_name) = ANY(${county_names_lower_idx}) "
+                        f"OR lower(ed.city) = ANY(${county_names_lower_idx}))"
+                    )
+                else:
+                    ed_where.append("FALSE")
+            elif city_idx:
                 ed_where.append(
                     f"(lower(ed.jurisdiction_name) = lower(${city_idx}) "
                     f"OR lower(ed.city) = lower(${city_idx}))"
@@ -856,6 +947,7 @@ async def count_decisions(
     city: Optional[str] = None,
     question_id: Optional[str] = None,
     topic_tsquery: Optional[str] = None,
+    county_fips: Optional[str] = None,
 ) -> int:
     """Count governance decisions matching the decisions search filters.
 
@@ -874,7 +966,7 @@ async def count_decisions(
     has_query = bool(query and query.strip())
     q = query.strip() if has_query else ""
 
-    cache_key = f"count_decisions_{norm_state}_{city}_{query}_{question_id}_{topic_tsquery}"
+    cache_key = f"count_decisions_{norm_state}_{city}_{county_fips}_{query}_{question_id}_{topic_tsquery}"
     now = datetime.now()
     if cache_key in _count_cache:
         cached_time = _count_cache_ttl.get(cache_key)
@@ -895,7 +987,20 @@ async def count_decisions(
                 params.append(norm_state.upper())
                 idx += 1
 
-            if city and city.strip():
+            # county_fips SUPERSEDES city (see search_decisions_pg). Unresolvable
+            # county -> FALSE (match nothing), never widen to the state.
+            if county_fips and county_fips.strip():
+                _county_names = await search_postgres.resolve_county_city_names(county_fips)
+                if _county_names:
+                    where_clauses.append(
+                        f"(lower(d.jurisdiction_name) = ANY(${idx}) "
+                        f"OR lower(d.city) = ANY(${idx}))"
+                    )
+                    params.append([n.lower() for n in _county_names])
+                    idx += 1
+                else:
+                    where_clauses.append("FALSE")
+            elif city and city.strip():
                 where_clauses.append(
                     f"(lower(d.jurisdiction_name) = lower(${idx}) OR lower(d.city) = lower(${idx}))"
                 )
@@ -1054,6 +1159,7 @@ async def count_documents(
     query: Optional[str] = None,
     state: Optional[str] = None,
     city: Optional[str] = None,
+    county_fips: Optional[str] = None,
 ) -> int:
     """Count meeting transcripts matching the documents search filters.
 
@@ -1071,7 +1177,7 @@ async def count_documents(
     has_query = bool(query and query.strip())
     q = query.strip() if has_query else ""
 
-    cache_key = f"count_documents_{norm_state}_{city}_{query}"
+    cache_key = f"count_documents_{norm_state}_{city}_{county_fips}_{query}"
     now = datetime.now()
     if cache_key in _count_cache:
         cached_time = _count_cache_ttl.get(cache_key)
@@ -1092,7 +1198,20 @@ async def count_documents(
                 params.append(norm_state.upper())
                 idx += 1
 
-            if city and city.strip():
+            # county_fips SUPERSEDES city (see search_documents_pg). Unresolvable
+            # county -> FALSE (match nothing), never widen to the state.
+            if county_fips and county_fips.strip():
+                _county_names = await search_postgres.resolve_county_city_names(county_fips)
+                if _county_names:
+                    where_clauses.append(
+                        f"(lower(jurisdiction_name) = ANY(${idx}) "
+                        f"OR lower(city) = ANY(${idx}))"
+                    )
+                    params.append([n.lower() for n in _county_names])
+                    idx += 1
+                else:
+                    where_clauses.append("FALSE")
+            elif city and city.strip():
                 where_clauses.append(
                     f"(lower(jurisdiction_name) = lower(${idx}) OR lower(city) = lower(${idx}))"
                 )
@@ -1613,6 +1732,7 @@ async def unified_search(
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_id: Optional[str] = Query(None, description="Filter by exact jurisdiction_id (city, county, or state) — scopes orgs/persons/grants through the MDM jurisdiction bridges"),
+    county_fips: Optional[str] = Query(None, description="Broaden the geo scope to a whole county (5-digit FIPS, e.g. '01125'). SUPERSEDES `city`: the geo-scoped legs (meetings, decisions, documents, leaders, organizations) match ANY city/town in that county via public.jurisdiction_county_crosswalk."),
     jurisdiction_levels: Optional[str] = Query(None, description="Comma-separated jurisdiction levels: city,county,town,village,school_district,special_district,state"),
     ntee_code: Optional[str] = Query(None, description="Filter organizations by NTEE code"),
     ein: Optional[str] = Query(None, description="Filter organizations by exact EIN (for direct organization links)"),
@@ -1649,7 +1769,7 @@ async def unified_search(
     - `/api/search?q=healthcare&types=bills&state=MA` - Search bills in Massachusetts
     """
     # 🔍 DEBUG LOGGING - Log all incoming request parameters
-    logger.info(f"🔍 SEARCH REQUEST: q={q!r}, types={types!r}, state={state!r}, city={city!r}, jurisdiction_id={jurisdiction_id!r}, jurisdiction_levels={jurisdiction_levels!r}, ntee_code={ntee_code!r}, ein={ein!r}, session={session!r}, topic_id={topic_id!r}, question_id={question_id!r}, limit={limit}, offset={offset}, page={page}, enrich={enrich}, sort={sort!r}")
+    logger.info(f"🔍 SEARCH REQUEST: q={q!r}, types={types!r}, state={state!r}, city={city!r}, county_fips={county_fips!r}, jurisdiction_id={jurisdiction_id!r}, jurisdiction_levels={jurisdiction_levels!r}, ntee_code={ntee_code!r}, ein={ein!r}, session={session!r}, topic_id={topic_id!r}, question_id={question_id!r}, limit={limit}, offset={offset}, page={page}, enrich={enrich}, sort={sort!r}")
     
     try:
         # Calculate offset from page if offset not explicitly provided
@@ -1764,13 +1884,13 @@ async def unified_search(
         # This is now its OWN category, distinct from "persons". (Aliases
         # 'contacts'/'officials' already normalized to 'leaders' above.)
         if 'leaders' in requested_types:
-            search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, city=city, limit=search_limit)))
+            search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, city=city, limit=search_limit, county_fips=county_fips)))
 
         if 'meetings' in requested_types:
-            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery)))
+            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery, county_fips=county_fips)))
 
         if 'organizations' in requested_types:
-            search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort)))
+            search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort, county_fips=county_fips)))
 
         if 'bills' in requested_types:
             search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, city=city, limit=search_limit, offset=search_offset)))
@@ -1793,7 +1913,7 @@ async def unified_search(
             search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery)))
 
         if 'decisions' in requested_types:
-            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, city=city, sort=sort, limit=search_limit, offset=search_offset, question_id=question_id, topic_tsquery=topic_tsquery)))
+            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, city=city, sort=sort, limit=search_limit, offset=search_offset, question_id=question_id, topic_tsquery=topic_tsquery, county_fips=county_fips)))
 
         if 'questions' in requested_types:
             # Cross-jurisdiction policy-question registry (public.policy_question):
@@ -1803,7 +1923,7 @@ async def unified_search(
 
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)
-            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset)))
+            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset, county_fips=county_fips)))
 
         if 'meeting_documents' in requested_types:
             # Full-text search over official meeting documents — agenda / minutes /
@@ -1835,6 +1955,7 @@ async def unified_search(
                 )
                 dispatch_span.set_attribute("search.has_query", bool(q and q.strip()))
                 dispatch_span.set_attribute("search.has_state", bool(state))
+                dispatch_span.set_attribute("search.has_county", bool(county_fips and county_fips.strip()))
                 gathered = await asyncio.gather(
                     *(
                         _traced_subsearch(label, coro, q=q, state=state)
@@ -1929,7 +2050,7 @@ async def unified_search(
         # (their type_totals can under-count a broad filtered search). Adding
         # COUNT helpers for those is a follow-up; scoped here to the high-traffic
         # leaders + persons (+ existing organizations) path.
-        is_filtered = bool(q) or bool(state) or bool(city) or bool(jurisdiction_id)
+        is_filtered = bool(q) or bool(state) or bool(city) or bool(jurisdiction_id) or bool(county_fips and county_fips.strip())
 
         # The per-type COUNT helpers below are each cached (1h), but on a COLD
         # cache they used to run back-to-back with `await`, so their latencies
@@ -1945,15 +2066,16 @@ async def unified_search(
         count_tasks: List[tuple] = []
 
         if not q and len(requested_types) == 1 and 'organizations' in requested_types:
-            # Single-type org browse: accurate count (unchanged behavior).
+            # Single-type org browse: accurate count (unchanged behavior, now
+            # county/city-aware so a county-broadened browse pager stays honest).
             count_tasks.append(('organizations', count_organizations(
-                state=state, ntee_code=ntee_code, query=q
+                state=state, ntee_code=ntee_code, query=q, city=city, county_fips=county_fips
             )))
 
         # Accurate per-type counts for the paginated people categories whenever
         # the result set is filtered (query and/or location scope).
         if is_filtered and 'leaders' in requested_types:
-            count_tasks.append(('leaders', count_leaders(query=q, state=state, city=city)))
+            count_tasks.append(('leaders', count_leaders(query=q, state=state, city=city, county_fips=county_fips)))
         if is_filtered and 'persons' in requested_types:
             count_tasks.append(('persons', count_persons(
                 query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
@@ -1966,7 +2088,7 @@ async def unified_search(
         # single-type browse mode (header said "1 results" over a 20-row page).
         if 'meetings' in requested_types:
             count_tasks.append(('meetings', count_events(
-                query=q, state=state, city=city, topic_tsquery=topic_tsquery
+                query=q, state=state, city=city, topic_tsquery=topic_tsquery, county_fips=county_fips
             )))
 
         # Decisions: event_decision is small (~9k rows) so a real COUNT is sub-ms.
@@ -1975,7 +2097,7 @@ async def unified_search(
         # decisions total and leave the homepage "Search in" badge blank in browse.
         if 'decisions' in requested_types:
             count_tasks.append(('decisions', count_decisions(
-                query=q, state=state, city=city, question_id=question_id, topic_tsquery=topic_tsquery
+                query=q, state=state, city=city, question_id=question_id, topic_tsquery=topic_tsquery, county_fips=county_fips
             )))
 
         # Bills & transcripts: the other small meeting-derived civic marts. Real
@@ -1985,7 +2107,7 @@ async def unified_search(
         if 'bills' in requested_types:
             count_tasks.append(('bills', count_bills(query=q, state=state, city=city)))
         if 'documents' in requested_types:
-            count_tasks.append(('documents', count_documents(query=q, state=state, city=city)))
+            count_tasks.append(('documents', count_documents(query=q, state=state, city=city, county_fips=county_fips)))
 
         # Meeting documents: the tiny (~2,900-row) official-document mart
         # (event_meeting_document). Honest GIN-backed count so the tab badge/pager
@@ -2069,7 +2191,14 @@ async def unified_search(
         total_results = sum(type_totals.values())
 
         total_pages = (total_results + limit - 1) // limit  # Ceiling division
-        
+
+        # When the search was broadened to a county, resolve its display name once
+        # (cached) so the frontend can render the scope label ("· Tuscaloosa County")
+        # straight from the response rather than its own lib map. None otherwise.
+        county_name = None
+        if county_fips and county_fips.strip():
+            county_name = await search_postgres.resolve_county_name(county_fips)
+
         response_data = {
             "query": q or "",
             "total_results": total_results,
@@ -2086,6 +2215,8 @@ async def unified_search(
             "filters": {
                 "state": state,
                 "city": city,
+                "county_fips": county_fips,
+                "county_name": county_name,
                 "jurisdiction_id": jurisdiction_id,
                 "ntee_code": ntee_code,
                 "topic_id": topic_id,

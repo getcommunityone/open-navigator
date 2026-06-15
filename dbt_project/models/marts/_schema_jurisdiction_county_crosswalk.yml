@@ -1,0 +1,75 @@
+version: 2
+
+# public.jurisdiction_county_crosswalk — city/town -> containing county crosswalk
+# that backs the search county-broaden filter (resolve_county_crosswalk in
+# api/routes/search_postgres.py). Reproduces, in dbt, the live view PR #176
+# hand-created with CREATE OR REPLACE VIEW so the relation exists in a fresh
+# build / prod / Neon.
+#
+# Keys (per CLAUDE.md):
+#   - PK: geoid (the city/town geoid). Unique because the build filters
+#     jurisdiction_type IN ('city','town').
+#   - county_fips REFERENCES a county's geoid in jurisdictions, but it CANNOT be
+#     declared as a Postgres-enforced foreign key: jurisdictions.geoid is NOT
+#     unique / NOT the PK (places and school districts can share a 7-char code;
+#     the jurisdictions PK is jurisdiction_id). A Postgres FK target must be a
+#     unique/PK column, so this relationship cannot be declared as an enforced
+#     constraint (same limitation pattern as the tag self-FK). The build itself
+#     guarantees integrity: county_name is LEFT-joined from the county subset of
+#     the same jurisdictions mart, so every non-null county_name traces to a real
+#     county row.
+
+models:
+  - name: jurisdiction_county_crosswalk
+    description: >
+      public.jurisdiction_county_crosswalk — one row per city/town geoid mapping
+      it to the 5-digit FIPS of its containing county (plus the county's name),
+      consumed by the search county-broaden filter
+      (resolve_county_crosswalk, api/routes/search_postgres.py). Built from
+      gold.jurisdictions (city + county name/type) joined to the spatial
+      enrichment source bronze.bronze_jurisdictions_county_fips_enriched. Replaces
+      the hand-created live view from PR #176 so the relation is reproducible.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: geoid
+        description: "Primary key — the city/town Census GEOID. Unique within the city/town subset."
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: name
+        description: "City/town name (matches public.jurisdictions.name; the API filters/reads this)."
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code of the city/town."
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: state
+        description: "Full state name of the city/town (from jurisdictions.state_name)."
+        data_type: text
+      - name: county_fips
+        description: >
+          5-digit FIPS of the containing county (spatial point-in-polygon
+          resolution). Logical FK -> public.jurisdictions.geoid (county rows) but
+          NOT a Postgres-enforced FK because jurisdictions.geoid is not unique/PK
+          (PK is jurisdiction_id); integrity is guaranteed by the build's
+          LEFT JOIN to the county subset of the same jurisdictions mart.
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: county_name
+        description: >
+          Name of the containing county (from the county row in jurisdictions).
+          NULLABLE — a city whose resolved county_fips has no matching county row
+          keeps county_fips with county_name NULL rather than being dropped.
+        data_type: varchar
