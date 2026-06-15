@@ -167,7 +167,7 @@ python -c "import asyncio; from api.routes.search_postgres import search_decisio
 
 ### Test Full API
 ```bash
-curl "http://localhost:8000/search/?q=budget&types=topics,decisions&limit=5" | jq .
+curl "http://localhost:8001/search/?q=budget&types=topics,decisions&limit=5" | jq .
 ```
 
 ## 📝 Database Schema
@@ -273,7 +273,7 @@ Results: Mixed results from all education-related entities
 For more details, see:
 - [Bronze to Production Merge](bronze-to-production-merge.md)
 - [Policy Analysis Prompt](../../prompts/policy_analysis.md)
-- [Search API Documentation](http://localhost:8000/docs)
+- [Search API Documentation](http://localhost:8001/docs)
 
 ---
 

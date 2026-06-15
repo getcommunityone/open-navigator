@@ -28,7 +28,7 @@ make deploy-databricks
 
 | Environment | Backend | Frontend | Type |
 |-------------|---------|----------|------|
-| Development | :8000 | :3000 | Separate |
+| Development | :8001 | :3000 | Separate |
 | Production | :8000 | :8000 | Combined |
 | Databricks | [your-workspace]/apps/oral-health-policy-pulse | Same | Combined |
 
@@ -94,8 +94,8 @@ cd frontend && npm run build && cd ..
 |-------|----------|
 | "Frontend not built" | `cd frontend && npm run build` |
 | "Module not found" | `source venv/bin/activate` |
-| Backend not responding | Check port 8000 is free |
-| Frontend proxy error | Ensure backend running on :8000 |
+| Backend not responding | Check port 8001 is free |
+| Frontend proxy error | Ensure backend running on :8001 |
 
 ## Environment Variables
 

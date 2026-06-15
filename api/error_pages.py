@@ -41,7 +41,7 @@ def _frontend_base(request: Request) -> str:
     """Origin to resolve in-app links (``/support``, home) against.
 
     The error page can be served by the API on a *different* origin than the
-    React app (local dev: API :8000 vs Vite :5173). A relative ``/support``
+    React app (local dev: API :8001 vs Vite :5173). A relative ``/support``
     would then hit the API host and 404. When ``FRONTEND_URL`` names a
     different origin than this request, return it as an absolute prefix;
     otherwise return ``""`` so links stay relative (prod is same-origin).

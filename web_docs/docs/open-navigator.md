@@ -66,7 +66,7 @@ export OPENAI_API_KEY=sk-...
 
 ```bash
 docker-compose up -d
-# Open Navigator available at http://localhost:8000
+# Open Navigator available at http://localhost:8001
 ```
 
 ## Features
@@ -109,7 +109,7 @@ Find local organizations:
 
 Open Navigator communicates with the FastAPI backend:
 
-**Base URL:** `http://localhost:8000/api`
+**Base URL:** `http://localhost:8001/api`
 
 **Key Endpoints:**
 - `GET /api/opportunities` - List advocacy opportunities
@@ -131,7 +131,7 @@ See the [API Reference](/docs/api) for complete documentation.
   <strong>Quick Links</strong>
   <ul>
     <li><a href="http://localhost:3000" target="_blank">Open Navigator (Dev)</a></li>
-    <li><a href="http://localhost:8000/docs" target="_blank">API Docs (Dev)</a></li>
+    <li><a href="http://localhost:8001/docs" target="_blank">API Docs (Dev)</a></li>
     <li><a href="/intro">Project Documentation</a></li>
   </ul>
 </div>

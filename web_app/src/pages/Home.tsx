@@ -2500,7 +2500,7 @@ export default function Home() {
               Documentation
             </a>
             <a
-              href={import.meta.env.PROD ? 'https://www.communityone.com/api/docs' : 'http://localhost:8000/docs'}
+              href={import.meta.env.PROD ? 'https://www.communityone.com/api/docs' : 'http://localhost:8001/docs'}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white transition-colors"

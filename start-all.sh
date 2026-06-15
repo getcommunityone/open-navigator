@@ -41,7 +41,7 @@ echo ""
 
 # Function to kill processes on required ports
 kill_port_processes() {
-    local ports=(3000 5173 8000)
+    local ports=(3000 5173 8001)
     
     echo -e "${BLUE}Checking for processes on ports...${NC}"
     
@@ -96,8 +96,8 @@ start_with_tmux() {
     echo "📡 Services:"
     echo "  • 🚀 MAIN APP:       http://localhost:5173 (Open Navigator - search, filters, heatmap)"
     echo "  • 📚 Documentation:  http://localhost:3000 (Docusaurus - guides & tutorials)"
-    echo "  • 🔥 API Backend:    http://localhost:8000 (FastAPI)"
-    echo "  • 📖 API Docs:       http://localhost:8000/docs"
+    echo "  • 🔥 API Backend:    http://localhost:8001 (FastAPI)"
+    echo "  • 📖 API Docs:       http://localhost:8001/docs"
     echo ""
     echo "💡 Start here: http://localhost:5173 (Open Navigator - MAIN APPLICATION)"
     echo ""
@@ -172,8 +172,8 @@ start_without_tmux() {
     echo "📡 Services:"
     echo "  • 🚀 MAIN APP:       http://localhost:5173 (Open Navigator - search, filters, heatmap)"
     echo "  • 📚 Documentation:  http://localhost:3000 (Docusaurus - guides & tutorials)"
-    echo "  • 🔥 API Backend:    http://localhost:8000 (FastAPI)"
-    echo "  • 📖 API Docs:       http://localhost:8000/docs"
+    echo "  • 🔥 API Backend:    http://localhost:8001 (FastAPI)"
+    echo "  • 📖 API Docs:       http://localhost:8001/docs"
     echo ""
     echo "💡 Start here: http://localhost:5173 (Open Navigator - MAIN APPLICATION)"
     echo ""
@@ -196,7 +196,7 @@ start_without_tmux() {
     echo ""
     echo "🚀 MAIN APP: http://localhost:5173 (Open Navigator - search, filters, heatmap)"
     echo "📚 Documentation: http://localhost:3000 (guides, API docs, tutorials)"
-    echo "🔥 API: http://localhost:8000/docs (FastAPI interactive docs)"
+    echo "🔥 API: http://localhost:8001/docs (FastAPI interactive docs)"
     echo ""
     
     # Offer to open browser

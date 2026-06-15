@@ -22,7 +22,7 @@ sidebar_position: 10
 
 ### 3. **Clear Documentation Links**
 - **"Docs" button** in header → Opens Docusaurus site (port 3000)
-- **"API Docs" button** in header → Opens FastAPI docs (port 8000)
+- **"API Docs" button** in header → Opens FastAPI docs (port 8001)
 - Documentation link on homepage
 - Always accessible from any page
 
@@ -87,7 +87,7 @@ sidebar_position: 10
 - **Dashboard Homepage**: http://localhost:5173
 - **Analytics**: http://localhost:5173/analytics
 - **Documentation**: http://localhost:3000 (separate site)
-- **API Docs**: http://localhost:8000/docs
+- **API Docs**: http://localhost:8001/docs
 
 ## Design Philosophy
 

@@ -134,7 +134,7 @@ cd web_docs && npm install && cd ..
 
 # Visit:
 # - Main App:  http://localhost:5173
-# - API Docs:  http://localhost:8000/docs
+# - API Docs:  http://localhost:8001/docs
 # - This Site: http://localhost:3000
 ```
 
@@ -149,7 +149,7 @@ cd open-navigator
 cd web_app;  npm install; cd ..
 cd web_docs; npm install; cd ..
 
-.\start-all.ps1                     # API (8000) + App (5173) + Docs (3000)
+.\start-all.ps1                     # API (8001) + App (5173) + Docs (3000)
 ```
 
 > **Don't use `uv sync` to install the backend** — the root `pyproject.toml` is a
@@ -169,7 +169,7 @@ cd web_docs; npm install; cd ..
 │  ┌──────────────┐   ┌──────────────┐  │
 │  │  React App   │   │  FastAPI     │  │
 │  │  (Frontend)  │──▶│  (Backend)   │  │
-│  │  Port 5173   │   │  Port 8000   │  │
+│  │  Port 5173   │   │  Port 8001   │  │
 │  └──────────────┘   └──────┬───────┘  │
 │                             │           │
 │  ┌──────────────────────────▼────────┐ │
@@ -265,15 +265,15 @@ python main.py publish-to-hf --dataset census --sample
 ### Start API Server
 
 ```bash
-python main.py serve --host 0.0.0.0 --port 8000
+python main.py serve --host 0.0.0.0 --port 8001
 ```
 
-Visit http://localhost:8000/docs for interactive API documentation.
+Visit http://localhost:8001/docs for interactive API documentation.
 
 ### Example: Start Workflow
 
 ```bash
-curl -X POST "http://localhost:8000/workflow/start" \
+curl -X POST "http://localhost:8001/workflow/start" \
      -H "Content-Type: application/json" \
      -d '{
        "scrape_targets": [
@@ -290,7 +290,7 @@ curl -X POST "http://localhost:8000/workflow/start" \
 ### Example: Query Opportunities
 
 ```bash
-curl "http://localhost:8000/opportunities?state=CA&urgency=critical"
+curl "http://localhost:8001/opportunities?state=CA&urgency=critical"
 ```
 
 ## Development Workflow
@@ -420,7 +420,7 @@ See [CONTRIBUTING.md](https://github.com/getcommunityone/open-navigator-for-enga
 
 ```bash
 # Find process using port
-lsof -i :8000
+lsof -i :8001
 lsof -i :5173
 lsof -i :3000
 
@@ -460,5 +460,5 @@ Adjust rate limits in `config/settings.py`.
 
 - **GitHub Issues**: [Report bugs or request features](https://github.com/getcommunityone/open-navigator-for-engagement/issues)
 - **Documentation**: Browse the sidebar
-- **API Docs**: http://localhost:8000/docs
+- **API Docs**: http://localhost:8001/docs
 - **Email**: johnbowyer@communityone.com

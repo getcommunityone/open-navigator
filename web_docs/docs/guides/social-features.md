@@ -447,8 +447,8 @@ All follow endpoints require authentication:
 ## 📚 Resources
 
 ### API Documentation
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- Swagger UI: http://localhost:8001/docs
+- ReDoc: http://localhost:8001/redoc
 
 ### Code Files
 - **Backend:**

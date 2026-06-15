@@ -51,7 +51,7 @@ fi
 
 # Kill any remaining node/python processes on known ports
 echo -e "${YELLOW}Cleaning up ports...${NC}"
-lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+lsof -ti:8001 | xargs kill -9 2>/dev/null || true
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 lsof -ti:5173 | xargs kill -9 2>/dev/null || true
 

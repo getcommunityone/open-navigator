@@ -54,7 +54,7 @@ export default function DashboardRedirect(): JSX.Element {
                   <ol>
                     <li>
                       <strong>Start the API backend:</strong>
-                      <pre><code>python -m uvicorn api.app:app --reload --port 8000</code></pre>
+                      <pre><code>python -m uvicorn api.app:app --reload --port 8001</code></pre>
                     </li>
                     <li>
                       <strong>Start the React dashboard:</strong>

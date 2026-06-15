@@ -49,7 +49,7 @@ This project runs three separate services:
 |---------|------|----------|-------------|
 | **⚛️ Open Navigator** 🚀 | 5173 | [www.communityone.com](https://www.communityone.com) | **MAIN APPLICATION** - Search, filters, heatmap, data exploration |
 | **📚 Documentation** | 3000 | [www.communityone.com/docs](https://www.communityone.com/docs) | Docusaurus site with complete guides and tutorials |
-| **🔥 API Backend** | 8000 | [www.communityone.com/api](https://www.communityone.com/api) | FastAPI server with AI agents |
+| **🔥 API Backend** | 8001 | [www.communityone.com/api](https://www.communityone.com/api) | FastAPI server with AI agents |
 
 > **💡 LIVE DEMO:** Visit **[www.communityone.com](https://www.communityone.com)** to use the application!
 > 
@@ -85,7 +85,7 @@ cd open-navigator
 ./install.sh                        # Python backend (creates .venv + .env)
 cd web_app && npm install && cd ..  # React app
 cd web_docs && npm install && cd .. # Documentation
-./start-all.sh                      # API (8000) + App (5173) + Docs (3000)
+./start-all.sh                      # API (8001) + App (5173) + Docs (3000)
 ```
 
 **On Windows**, use the PowerShell equivalents (the `.sh` scripts and `make`
@@ -95,7 +95,7 @@ targets are Unix-only):
 .\install.ps1                       # Python backend (creates .venv + .env)
 cd web_app;  npm install; cd ..
 cd web_docs; npm install; cd ..
-.\start-all.ps1                     # API (8000) + App (5173) + Docs (3000)
+.\start-all.ps1                     # API (8001) + App (5173) + Docs (3000)
 ```
 
 > **Don't run `uv sync` to install the backend** — the root `pyproject.toml` is a
@@ -122,7 +122,7 @@ source .venv/bin/activate
 **API Server**
 
 ```bash
-python main.py serve --host 0.0.0.0 --port 8000
+python main.py serve --host 0.0.0.0 --port 8001
 ```
 
 **Jurisdiction Discovery**
@@ -194,7 +194,7 @@ python main.py publish-to-hf --dataset census --sample
 **Start a workflow:**
 
 ```bash
-curl -X POST "http://localhost:8000/workflow/start" \
+curl -X POST "http://localhost:8001/workflow/start" \
      -H "Content-Type: application/json" \
      -d '{
        "scrape_targets": [
@@ -211,13 +211,13 @@ curl -X POST "http://localhost:8000/workflow/start" \
 **Query opportunities:**
 
 ```bash
-curl "http://localhost:8000/opportunities?state=CA&urgency=critical"
+curl "http://localhost:8001/opportunities?state=CA&urgency=critical"
 ```
 
 **Get heatmap:**
 
 ```bash
-curl "http://localhost:8000/heatmap" > heatmap.html
+curl "http://localhost:8001/heatmap" > heatmap.html
 ```
 
 ### Python API
@@ -326,7 +326,7 @@ docker-compose up -d
 ```
 
 Starts:
-- API server (port 8000)
+- API server (port 8001)
 - Qdrant vector database (port 6333)
 - Jupyter notebook (port 8888)
 

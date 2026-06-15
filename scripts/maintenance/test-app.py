@@ -21,17 +21,17 @@ def main():
     # Set environment variables
     env = os.environ.copy()
     env.update({
-        "DATABRICKS_HOST": os.getenv("DATABRICKS_HOST", "http://localhost:8000"),
+        "DATABRICKS_HOST": os.getenv("DATABRICKS_HOST", "http://localhost:8001"),
         "LOG_LEVEL": "INFO"
     })
     
     # Run uvicorn
-    print("🚀 Starting application on http://localhost:8000\n")
-    print("   API docs: http://localhost:8000/api/docs")
-    print("   Web UI:   http://localhost:8000\n")
+    print("🚀 Starting application on http://localhost:8001\n")
+    print("   API docs: http://localhost:8001/api/docs")
+    print("   Web UI:   http://localhost:8001\n")
     
     subprocess.run(
-        ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+        ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8001", "--reload"],
         env=env
     )
 

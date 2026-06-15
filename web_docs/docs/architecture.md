@@ -31,7 +31,7 @@ Open Navigator consists of **three distinct services** that work together:
 │      • Opportunity tracker                               │
 │                                                           │
 │  🔥 API Backend (FastAPI + Python)                       │
-│  └─> http://localhost:8000                              │
+│  └─> http://localhost:8001                              │
 │      • Data ingestion and processing                     │
 │      • Multi-agent AI system                             │
 │      • Database connections                              │
@@ -57,7 +57,7 @@ Open Navigator consists of **three distinct services** that work together:
 ### 🔥 API Backend (`api/`)
 - **Purpose**: Data processing and AI agents
 - **Technology**: FastAPI + Python
-- **Port**: 8000
+- **Port**: 8001
 - **Use Case**: Powers the dashboard, runs background jobs
 
 ## Integration Points
@@ -68,7 +68,7 @@ Open Navigator consists of **three distinct services** that work together:
 - `/dashboard` page auto-redirects to React app
 
 ### Dashboard → API
-- All data requests go to `http://localhost:8000/api/*`
+- All data requests go to `http://localhost:8001/api/*`
 - Real-time updates via API polling
 - Authentication handled via API
 
@@ -110,15 +110,15 @@ npm start
 |---------------|-------------------------|----------------------------------|
 | Documentation | http://localhost:3000   | Read guides and API docs         |
 | Dashboard     | http://localhost:5173   | **Main application interface**   |
-| API           | http://localhost:8000   | Backend services                 |
-| API Docs      | http://localhost:8000/docs | Interactive API reference     |
+| API           | http://localhost:8001   | Backend services                 |
+| API Docs      | http://localhost:8001/docs | Interactive API reference     |
 
 ## User Journey
 
 1. **Discovery**: User visits documentation site (port 3000)
 2. **Getting Started**: Reads installation guides
 3. **Launch**: Clicks "Dashboard" → Opens React app (port 5173)
-4. **Usage**: Interacts with dashboard, which calls API (port 8000)
+4. **Usage**: Interacts with dashboard, which calls API (port 8001)
 
 ## Production Deployment
 

@@ -26,7 +26,7 @@ For **all providers**, you need to configure these redirect URIs:
 
 ### Local Development
 ```
-http://localhost:8000/auth/callback/{provider}
+http://localhost:8001/auth/callback/{provider}
 ```
 
 ### Production (HTTPS required)
@@ -85,14 +85,14 @@ Replace `{provider}` with: `google`, `facebook`, `github`, or `huggingface`
 4. **Authorized JavaScript origins:**
    ```
    http://localhost:5173
-   http://localhost:8000
+   http://localhost:8001
    https://www.communityone.com
    https://your-space.hf.space
    ```
 
 5. **Authorized redirect URIs:**
    ```
-   http://localhost:8000/api/auth/callback/google
+   http://localhost:8001/api/auth/callback/google
    https://www.communityone.com/api/auth/callback/google
    https://your-space.hf.space/api/auth/callback/google
    ```
@@ -145,7 +145,7 @@ GOOGLE_CLIENT_SECRET=GOCSPX-your-secret-here
 
 2. **Valid OAuth Redirect URIs** (one per line):
    ```
-   http://localhost:8000/api/auth/callback/facebook
+   http://localhost:8001/api/auth/callback/facebook
    https://www.communityone.com/api/auth/callback/facebook
    https://your-space.hf.space/api/auth/callback/facebook
    ```
@@ -217,7 +217,7 @@ FACEBOOK_APP_SECRET=your-app-secret-here
 1. Fill in details:
    - **Application name:** `Open Navigator`
    - **Homepage URL:** `https://www.communityone.com`
-   - **Authorization callback URL:** `http://localhost:8000/api/auth/callback/github`
+   - **Authorization callback URL:** `http://localhost:8001/api/auth/callback/github`
 
 2. Click **"Register application"**
 
@@ -226,7 +226,7 @@ FACEBOOK_APP_SECRET=your-app-secret-here
 GitHub only allows ONE callback URL per OAuth app. For multiple environments:
 
 **Option 1:** Create separate apps for each environment
-- Local Dev app → `http://localhost:8000/api/auth/callback/github`
+- Local Dev app → `http://localhost:8001/api/auth/callback/github`
 - Production app → `https://www.communityone.com/api/auth/callback/github`
 
 **Option 2:** Use production URL only
@@ -270,7 +270,7 @@ GITHUB_CLIENT_SECRET=your-client-secret-here
 
 2. **Redirect URIs** (add all):
    ```
-   http://localhost:8000/api/auth/callback/huggingface
+   http://localhost:8001/api/auth/callback/huggingface
    https://www.communityone.com/api/auth/callback/huggingface
    https://your-space.hf.space/api/auth/callback/huggingface
    ```
@@ -313,7 +313,7 @@ JWT_SECRET_KEY=your-random-32-byte-hex-string
 
 # Application URLs
 FRONTEND_URL=http://localhost:5173
-API_BASE_URL=http://localhost:8000
+API_BASE_URL=http://localhost:8001
 
 # Google OAuth
 GOOGLE_CLIENT_ID=

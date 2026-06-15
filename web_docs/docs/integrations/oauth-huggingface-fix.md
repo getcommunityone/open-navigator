@@ -154,7 +154,7 @@ Make sure your Google Cloud Console has the correct redirect URI:
    ```
 5. **For local dev, also add:**
    ```
-   http://localhost:8000/auth/callback/google
+   http://localhost:8001/auth/callback/google
    ```
 
 ---
@@ -220,7 +220,7 @@ Location: /?token=eyJhbGc...  ← Should be relative!
 
 ## Local Development
 
-For local development (frontend on :5173, backend on :8000):
+For local development (frontend on :5173, backend on :8001):
 
 1. **Set FRONTEND_URL in `.env`:**
    ```bash
@@ -234,7 +234,7 @@ For local development (frontend on :5173, backend on :8000):
 
 3. **Google OAuth redirect URI:**
    ```
-   http://localhost:8000/auth/callback/google
+   http://localhost:8001/auth/callback/google
    ```
 
 ---

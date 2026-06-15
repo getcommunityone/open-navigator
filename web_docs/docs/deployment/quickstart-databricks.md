@@ -37,7 +37,7 @@ That's it! 🎉
 # Terminal 1 - Backend
 source venv/bin/activate
 uvicorn api.app:app --reload
-# http://localhost:8000
+# http://localhost:8001
 
 # Terminal 2 - Frontend (hot reload!)
 cd frontend
@@ -58,7 +58,7 @@ cd ..
 # Run app
 source venv/bin/activate
 python scripts/test-app.py
-# http://localhost:8000
+# http://localhost:8001
 ```
 
 ---
@@ -117,7 +117,7 @@ pytest tests/
 
 ### Check Agent Status
 ```bash
-curl http://localhost:8000/api/agents/status
+curl http://localhost:8001/api/agents/status
 ```
 
 ---

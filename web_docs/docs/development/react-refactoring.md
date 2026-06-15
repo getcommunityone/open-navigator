@@ -316,7 +316,7 @@ oral-health-policy-pulse/
 ```bash
 source venv/bin/activate
 uvicorn api.app:app --reload
-# Runs on http://localhost:8000
+# Runs on http://localhost:8001
 ```
 
 **2. Frontend (Hot Reload)**
@@ -324,7 +324,7 @@ uvicorn api.app:app --reload
 cd frontend
 npm run dev
 # Runs on http://localhost:3000
-# Proxies API calls to :8000
+# Proxies API calls to :8001
 ```
 
 ### Production Build
@@ -339,7 +339,7 @@ npm run build
 **2. Test Locally**
 ```bash
 python scripts/test-app.py
-# Serves at http://localhost:8000
+# Serves at http://localhost:8001
 ```
 
 **3. Deploy to Databricks**
@@ -529,7 +529,7 @@ databricks apps logs oral-health-policy-pulse --follow
 docker build -f Dockerfile.app -t oral-health-app .
 
 # Run
-docker run -p 8000:8000 \
+docker run -p 8001:8000 \
   -e DATABRICKS_HOST=$DATABRICKS_HOST \
   -e OPENAI_API_KEY=$OPENAI_API_KEY \
   oral-health-app

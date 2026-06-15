@@ -16,7 +16,7 @@ set -e
 # --- Run in an isolated clone so the LIVE serving checkout is never touched ----
 # This script does destructive git surgery (orphan branch, `rm --cached`, autostash,
 # force-push). The deployment panel/orchestrator launches it from the SAME checkout
-# the dev servers (API :8000, Vite :5173) run from, so doing that surgery in place
+# the dev servers (API :8001, Vite :5173) run from, so doing that surgery in place
 # yanks files out from under the running site and crashes it. Re-exec inside a
 # throwaway local clone instead: the deploy publishes committed `main` (not your
 # uncommitted work), so a `--local` clone reproduces exactly what would be deployed

@@ -1306,7 +1306,7 @@ function DrillPanel({
             </div>
           ) : isError ? (
             <div className="p-10 text-center text-sm text-[var(--jmq-red)]">
-              Could not load drill-down: {(error as Error)?.message ?? 'unknown error'}. Is the API running on port 8000?
+              Could not load drill-down: {(error as Error)?.message ?? 'unknown error'}. Is the API running on port 8001?
             </div>
           ) : rows.length === 0 ? (
             <div className="p-10 text-center text-sm text-[var(--jmq-green)]">No matching rows in the warehouse.</div>

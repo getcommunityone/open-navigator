@@ -73,13 +73,13 @@ ln -s ../../../data/media/causes frontend/public/images/causes
 # Or just API:
 cd /home/developer/projects/open-navigator
 source .venv/bin/activate
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8001
 
 # Test endpoints:
-curl http://localhost:8000/api/trending?source=everyorg&limit=12
-curl http://localhost:8000/api/trending?source=ntee&level=1
-curl http://localhost:8000/api/trending?source=mixed&limit=12
-curl http://localhost:8000/api/trending/stats
+curl http://localhost:8001/api/trending?source=everyorg&limit=12
+curl http://localhost:8001/api/trending?source=ntee&level=1
+curl http://localhost:8001/api/trending?source=mixed&limit=12
+curl http://localhost:8001/api/trending/stats
 ```
 
 ### Step 4: See It Live
@@ -417,7 +417,7 @@ grep GEMINI_API_KEY .env
 
 1. **Check API response:**
    ```bash
-   curl http://localhost:8000/api/trending?source=mixed&limit=1
+   curl http://localhost:8001/api/trending?source=mixed&limit=1
    # Look for "image_url" field
    ```
 
@@ -444,7 +444,7 @@ ls -lh data/gold/causes*.parquet
 
 1. Check API is running:
    ```bash
-   curl http://localhost:8000/api/trending
+   curl http://localhost:8001/api/trending
    ```
 
 2. Check for CORS errors in browser console

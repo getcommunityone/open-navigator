@@ -13,7 +13,7 @@ This project runs three separate services. Launch all three at once with `./star
 |---------|--------------|----------|-------------|
 | **⚛️ Open Navigator** (`web_app`) | 5173 | [www.communityone.com](https://www.communityone.com) | **Main application** — search, filters, heatmap, data exploration |
 | **📚 Documentation** (`web_docs`) | 3000 | [www.communityone.com/docs](https://www.communityone.com/docs) | Docusaurus site with complete guides and tutorials |
-| **🔥 API Backend** (`api`) | 8000 | [www.communityone.com/api/docs](https://www.communityone.com/api/docs) | FastAPI server with AI agents |
+| **🔥 API Backend** (`api`) | 8001 | [www.communityone.com/api/docs](https://www.communityone.com/api/docs) | FastAPI server with AI agents |
 
 > **💡 LIVE DEMO:** Visit **[www.communityone.com](https://www.communityone.com)** to use the hosted application.
 >
@@ -88,7 +88,7 @@ cd web_docs && npm install && cd ..
 cp .env.example .env
 
 # Start services in separate terminals:
-source .venv/bin/activate && python main.py serve  # Terminal 1 — API   (8000)
+source .venv/bin/activate && python main.py serve  # Terminal 1 — API (8001)
 cd web_app && npm run dev                           # Terminal 2 — App   (5173)
 cd web_docs && npm start                            # Terminal 3 — Docs  (3000)
 ```
@@ -105,7 +105,7 @@ services, each in its own window:
 .\install.ps1        # Python backend: creates .venv, installs deps, seeds .env
 cd web_app;  npm install; cd ..
 cd web_docs; npm install; cd ..
-.\start-all.ps1      # API (8000) + App (5173) + Docs (3000), one window each
+.\start-all.ps1      # API (8001) + App (5173) + Docs (3000), one window each
 ```
 
 If you see *"running scripts is disabled on this system"*, PowerShell's execution
@@ -165,7 +165,7 @@ Set these only for the features that need them — the site runs without all of 
 ```bash
 # OAuth login (omit a provider to disable just that login button)
 FRONTEND_URL=http://localhost:5173
-API_BASE_URL=http://localhost:8000
+API_BASE_URL=http://localhost:8001
 # GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, HUGGINGFACE_CLIENT_ID / _SECRET, etc.
 
 # Stable JWT signing across restarts (auto-generated if unset)
@@ -221,7 +221,7 @@ After the restore, refresh http://localhost:5173 — search, maps, and the heatm
 **💻 Local development:**
 - **🚀 Main App:** http://localhost:5173
 - **📚 Documentation:** http://localhost:3000
-- **🔥 API Docs:** http://localhost:8000/docs
+- **🔥 API Docs:** http://localhost:8001/docs
 
 **🌐 Live application:**
 - **🚀 Open Navigator:** https://www.communityone.com
@@ -249,7 +249,7 @@ python main.py serve
 make run
 ```
 
-Visit http://localhost:8000 for the API and http://localhost:8000/docs for interactive documentation.
+Visit http://localhost:8001 for the API and http://localhost:8001/docs for interactive documentation.
 
 ## Common Commands
 
@@ -486,6 +486,6 @@ git tag -a v1.5.0 -m "feat: add grants.gov opportunities to search" && git push 
 1. Configure your `.env` file (see [Configuration](#configuration) — only `NEON_DATABASE_URL_DEV` is required)
 2. Start all three services: `./start-all.sh`
 3. Open the app at http://localhost:5173
-4. Check out the interactive API docs: http://localhost:8000/docs
+4. Check out the interactive API docs: http://localhost:8001/docs
 
 For more details, see the main [README.md](https://github.com/getcommunityone/open-navigator/blob/main/README.md).

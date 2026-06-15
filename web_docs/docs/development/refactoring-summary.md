@@ -222,7 +222,7 @@ User Browser
     ↓
 React App (http://localhost:3000 in dev)
     ↓
-FastAPI Backend (http://localhost:8000)
+FastAPI Backend (http://localhost:8001)
     ↓
 Delta Lake / Unity Catalog
     ↓
@@ -270,7 +270,7 @@ cd frontend && npm run build && cd ..
 python scripts/test-app.py
 ```
 
-**Access:** http://localhost:8000
+**Access:** http://localhost:8001
 
 ### 3. Databricks Apps (Cloud)
 
@@ -284,10 +284,10 @@ python scripts/test-app.py
 
 ```bash
 docker build -f Dockerfile.app -t oral-health-app .
-docker run -p 8000:8000 oral-health-app
+docker run -p 8001:8000 oral-health-app
 ```
 
-**Access:** http://localhost:8000
+**Access:** http://localhost:8001
 
 ---
 

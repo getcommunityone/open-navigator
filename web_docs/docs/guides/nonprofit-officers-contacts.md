@@ -131,7 +131,7 @@ creator.create_all_contacts_tables(
 Officers are now searchable alongside elected officials:
 
 ```bash
-curl "http://localhost:8000/api/search/?q=Sarah&types=contacts&state=AL"
+curl "http://localhost:8001/api/search/?q=Sarah&types=contacts&state=AL"
 ```
 
 **Returns:**

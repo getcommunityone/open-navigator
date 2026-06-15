@@ -502,7 +502,7 @@ This is **Open Navigator** - a civic engagement platform that:
 Always mention all three services when documenting deployment:
 1. **Documentation** (Docusaurus) - Port 3000
 2. **Main Application** (React + Vite) - Port 5173 (MAIN APP)
-3. **API Backend** (FastAPI) - Port 8000
+3. **API Backend** (FastAPI) - Port 8001
 
 ### Common Patterns
 

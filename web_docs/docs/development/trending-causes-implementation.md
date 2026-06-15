@@ -109,13 +109,13 @@ Then:
 
 ```bash
 # National level
-curl "http://localhost:8000/api/stats" | jq '.trending_causes'
+curl "http://localhost:8001/api/stats" | jq '.trending_causes'
 
 # State level
-curl "http://localhost:8000/api/stats?state=AL" | jq '.trending_causes'
+curl "http://localhost:8001/api/stats?state=AL" | jq '.trending_causes'
 
 # City level
-curl "http://localhost:8000/api/stats?state=AL&city=Mobile" | jq '.trending_causes'
+curl "http://localhost:8001/api/stats?state=AL&city=Mobile" | jq '.trending_causes'
 ```
 
 ## Expected Behavior

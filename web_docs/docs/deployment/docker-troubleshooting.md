@@ -222,7 +222,7 @@ supervisord -c /etc/supervisor/conf.d/supervisord.conf
 
 ```bash
 # Test API directly
-python -m uvicorn api.app:app --host 0.0.0.0 --port 8000
+python -m uvicorn api.app:app --host 0.0.0.0 --port 8001
 
 # Test nginx config
 nginx -t -c /etc/nginx/nginx.conf

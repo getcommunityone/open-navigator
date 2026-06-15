@@ -5,7 +5,7 @@ services:
     build: .
     container_name: open-navigator-api
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DATABRICKS_HOST=${DATABRICKS_HOST}

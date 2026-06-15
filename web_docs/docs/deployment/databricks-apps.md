@@ -110,7 +110,7 @@ source venv/bin/activate
 python scripts/test-app.py
 ```
 
-Visit: http://localhost:8000
+Visit: http://localhost:8001
 
 ---
 

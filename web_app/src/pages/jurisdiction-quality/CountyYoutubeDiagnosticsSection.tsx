@@ -335,7 +335,7 @@ export default function CountyYoutubeDiagnosticsSection({
         <div className="jmq-placeholder">Loading YouTube diagnostics…</div>
       ) : isError ? (
         <div className="jmq-placeholder text-[var(--jmq-red)]">
-          Could not load diagnostics: {(error as Error)?.message ?? 'unknown'}. Is the API on port 8000?
+          Could not load diagnostics: {(error as Error)?.message ?? 'unknown'}. Is the API on port 8001?
         </div>
       ) : (
         <>

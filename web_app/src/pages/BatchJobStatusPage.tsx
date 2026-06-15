@@ -1428,7 +1428,7 @@ export default function BatchJobStatusPage() {
           <p className="mt-2 text-xs text-red-700">
             Start or restart the API:{' '}
             <code className="rounded bg-red-100 px-1">
-              uvicorn api.main:app --reload --port 8000
+              uvicorn api.main:app --reload --port 8001
             </code>
             . Apply migration 073 if needed. Batch runs sync from{' '}
             <code>run_priority_states_last_n.sh</code>.

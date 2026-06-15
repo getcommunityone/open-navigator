@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     
     # API Configuration
     api_host: str = Field("0.0.0.0", description="API host")
-    api_port: int = Field(8000, description="API port")
+    api_port: int = Field(8001, description="API port")
     api_workers: int = Field(4, description="Number of API workers")
     
     # Vector Database

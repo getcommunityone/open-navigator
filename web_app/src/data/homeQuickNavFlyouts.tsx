@@ -170,7 +170,7 @@ export type HomeFlyoutItem = {
 }
 
 function apiDocsUrl(): string {
-  return import.meta.env.PROD ? 'https://www.communityone.com/api/docs' : 'http://localhost:8000/docs'
+  return import.meta.env.PROD ? 'https://www.communityone.com/api/docs' : 'http://localhost:8001/docs'
 }
 
 function causesToReportFlyoutItems(): HomeFlyoutItem[] {

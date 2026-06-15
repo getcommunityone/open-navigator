@@ -260,7 +260,7 @@ app.mount(
 )
 ```
 
-Access at: `http://localhost:8000/dashboards`
+Access at: `http://localhost:8001/dashboards`
 
 ## Workflow
 

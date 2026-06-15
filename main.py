@@ -40,7 +40,7 @@ def cli():
 
 @cli.command()
 @click.option('--host', default='0.0.0.0', help='API host')
-@click.option('--port', default=8000, help='API port')
+@click.option('--port', default=8001, help='API port')
 @click.option('--reload', is_flag=True, help='Enable auto-reload')
 def serve(host: str, port: int, reload: bool):
     """Start the API server."""

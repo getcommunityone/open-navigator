@@ -18,7 +18,7 @@ export default defineConfig({
     watch: { usePolling: true, interval: 200 },
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8001',
         changeOrigin: true,
         proxyTimeout: 120_000,
         timeout: 120_000,

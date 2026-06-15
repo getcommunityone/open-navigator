@@ -229,7 +229,7 @@ Types: Causes
 ```bash
 cd /home/developer/projects/open-navigator
 source .venv/bin/activate
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8001
 ```
 
 ### Start the Frontend
@@ -272,6 +272,6 @@ Potential improvements:
 - Specify state to limit file scanning
 
 **Autocomplete not working:**
-- Check API is running on port 8000
+- Check API is running on port 8001
 - Verify `/api/search/suggest` endpoint
 - Check browser console for errors

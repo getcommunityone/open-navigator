@@ -200,11 +200,11 @@ echo ""
 
 # Step 4: Test API endpoint (if server is running)
 echo -e "${BLUE}🔍 Step 4: Testing API endpoint (optional)${NC}"
-if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+if curl -s http://localhost:8001/health > /dev/null 2>&1; then
     echo -e "${GREEN}✅ API server is running${NC}"
     
     # Test stats endpoint
-    STATS_RESPONSE=$(curl -s http://localhost:8000/api/stats?state=MA)
+    STATS_RESPONSE=$(curl -s http://localhost:8001/api/stats?state=MA)
     if echo "$STATS_RESPONSE" | grep -q "nonprofits"; then
         echo -e "${GREEN}✅ Stats API is working${NC}"
         echo -e "${BLUE}Sample response:${NC}"
@@ -226,7 +226,7 @@ echo ""
 echo -e "${GREEN}Next steps:${NC}"
 echo -e "  1. Start the application: ${BLUE}./start-all.sh${NC}"
 echo -e "  2. Open frontend: ${BLUE}http://localhost:5173${NC}"
-echo -e "  3. Check stats: ${BLUE}http://localhost:8000/api/stats${NC}"
+echo -e "  3. Check stats: ${BLUE}http://localhost:8001/api/stats${NC}"
 echo ""
 echo -e "${YELLOW}Troubleshooting:${NC}"
 echo -e "  - Check logs in ${BLUE}logs/${NC} directory"

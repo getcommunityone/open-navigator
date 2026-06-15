@@ -199,16 +199,16 @@ Returns summary statistics with optional geographic filtering.
 
 ```bash
 # National statistics
-curl "http://localhost:8000/api/stats"
+curl "http://localhost:8001/api/stats"
 
 # Massachusetts statistics
-curl "http://localhost:8000/api/stats?state=MA"
+curl "http://localhost:8001/api/stats?state=MA"
 
 # Suffolk County, MA statistics  
-curl "http://localhost:8000/api/stats?state=MA&county=Suffolk"
+curl "http://localhost:8001/api/stats?state=MA&county=Suffolk"
 
 # Boston, MA statistics
-curl "http://localhost:8000/api/stats?state=MA&county=Suffolk&city=Boston"
+curl "http://localhost:8001/api/stats?state=MA&county=Suffolk&city=Boston"
 ```
 
 **Response (National):**
@@ -448,19 +448,19 @@ When new state data is added, stats automatically update on next refresh:
 
 ```bash
 # After importing new state data
-curl -X POST http://localhost:8000/api/stats/refresh
+curl -X POST http://localhost:8001/api/stats/refresh
 ```
 
 ### Monitoring
 
 Check current stats:
 ```bash
-curl http://localhost:8000/api/stats | jq .
+curl http://localhost:8001/api/stats | jq .
 ```
 
 Check state-by-state breakdown:
 ```bash
-curl http://localhost:8000/api/stats/detailed | jq .data.state_breakdown
+curl http://localhost:8001/api/stats/detailed | jq .data.state_breakdown
 ```
 
 ### Troubleshooting
@@ -471,7 +471,7 @@ curl http://localhost:8000/api/stats/detailed | jq .data.state_breakdown
 # Query key should change: ['platform-stats', 'MA'] vs ['platform-stats', null]
 
 # Force refresh state-specific cache
-curl -X POST "http://localhost:8000/api/stats/refresh?state=MA"
+curl -X POST "http://localhost:8001/api/stats/refresh?state=MA"
 ```
 
 **Want to see all cached levels?**
@@ -537,10 +537,10 @@ As we add more states, projections become more accurate:
 # 1. Start API
 cd /home/developer/projects/open-navigator
 source .venv/bin/activate
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 
 # 2. Test endpoint
-curl http://localhost:8000/api/stats | jq .
+curl http://localhost:8001/api/stats | jq .
 
 # 3. Start frontend
 cd frontend

@@ -62,7 +62,7 @@ POST /api/debate-grade?text=<document_text>&title=<optional_title>
 
 **Example:**
 ```bash
-curl -X POST "http://localhost:8000/api/debate-grade?text=The%20city%20council%20approved%20funding..." \
+curl -X POST "http://localhost:8001/api/debate-grade?text=The%20city%20council%20approved%20funding..." \
   -H "Content-Type: application/json"
 ```
 
@@ -306,6 +306,6 @@ CREATE TABLE IF NOT EXISTS debate_grades (
 ## Support
 
 For questions or issues:
-- Check API docs: http://localhost:8000/docs
+- Check API docs: http://localhost:8001/docs
 - Review agent code: `/agents/debate_grader.py`
 - Frontend component: `/frontend/src/pages/DebateGrader.tsx`

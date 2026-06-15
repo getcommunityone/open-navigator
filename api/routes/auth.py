@@ -93,7 +93,7 @@ def get_base_url(request: Request) -> str:
     - Returns: https://www.communityone.com
     
     In local development:
-    - Returns: http://localhost:8000
+    - Returns: http://localhost:8001
     """
     # Check for explicit API_BASE_URL override first
     if base_url := os.getenv('API_BASE_URL'):

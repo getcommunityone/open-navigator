@@ -107,16 +107,16 @@ For each cause, you get:
 **Get trending causes:**
 ```bash
 # Mix of both sources (default)
-curl http://localhost:8000/api/trending?source=mixed&limit=12
+curl http://localhost:8001/api/trending?source=mixed&limit=12
 
 # Only popular causes
-curl http://localhost:8000/api/trending?source=everyorg&limit=12
+curl http://localhost:8001/api/trending?source=everyorg&limit=12
 
 # Only IRS categories
-curl http://localhost:8000/api/trending?source=ntee&level=1
+curl http://localhost:8001/api/trending?source=ntee&level=1
 
 # View stats
-curl http://localhost:8000/api/trending/stats
+curl http://localhost:8001/api/trending/stats
 ```
 
 **Response:**

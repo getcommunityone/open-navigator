@@ -82,10 +82,10 @@ print(f'Contacts: {cur.fetchone()[0]:,}')
 # Start the API server
 cd /home/developer/projects/open-navigator
 NEON_DATABASE_URL_DEV="postgresql://user:password@host/db" \
-  .venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+  .venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 
 # In another terminal, test stats endpoint
-curl "http://localhost:8000/api/stats?state=MA" | python3 -m json.tool
+curl "http://localhost:8001/api/stats?state=MA" | python3 -m json.tool
 ```
 
 ## Common Issues
@@ -108,7 +108,7 @@ curl "http://localhost:8000/api/stats?state=MA" | python3 -m json.tool
 tail -f logs/api.log
 
 # 3. Test API directly
-curl "http://localhost:8000/api/stats?state=MA"
+curl "http://localhost:8001/api/stats?state=MA"
 ```
 
 ### Database Connection Errors
@@ -296,10 +296,10 @@ print('✅ Vacuum complete')
 
 ```bash
 # Check API health
-curl http://localhost:8000/health
+curl http://localhost:8001/health
 
 # Check stats availability
-curl "http://localhost:8000/api/stats?state=MA" | jq '.nonprofits'
+curl "http://localhost:8001/api/stats?state=MA" | jq '.nonprofits'
 ```
 
 ### Logs

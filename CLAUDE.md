@@ -26,7 +26,7 @@
 ## Running Locally — Three Services
 1. **Documentation** (Docusaurus) — port 3000
 2. **Main Application** (React + Vite) — port 5173
-3. **API Backend** (FastAPI) — port 8000
+3. **API Backend** (FastAPI) — port 8001
 - Launch command: `./start-all.sh`
 
 ## Explicit Development Guidelines
