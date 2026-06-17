@@ -20,7 +20,19 @@ from api.models import User
 load_dotenv()
 
 # Security configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
+_jwt_secret = os.getenv("JWT_SECRET_KEY")
+if not _jwt_secret:
+    if os.getenv("HF_SPACES") == "1":
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be set in HuggingFace Space secrets; "
+            "an ephemeral key invalidates all tokens on every restart."
+        )
+    print(
+        "WARNING: JWT_SECRET_KEY not set; using an ephemeral key. "
+        "Tokens will not survive a restart. Set JWT_SECRET_KEY for stable sessions."
+    )
+    _jwt_secret = secrets.token_urlsafe(32)
+SECRET_KEY = _jwt_secret
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
