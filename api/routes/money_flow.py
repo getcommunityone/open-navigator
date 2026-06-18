@@ -26,11 +26,11 @@ from pydantic import BaseModel
 
 from api.routes.search_postgres import get_db_pool, normalize_state_input
 from api.routes.local_finance import (
-    _CATEGORY_SQL,
     _CITY_SQL,
     _COUNTY_SQL,
     _SCHOOL_SQL,
     _STATE_SQL,
+    _fetch_categories,
     _strip_county,
 )
 
@@ -520,7 +520,7 @@ async def _government(
         direct = row["direct_expenditure"]
         if not pop or pop <= 0 or not direct or direct <= 0:
             continue
-        cats = await conn.fetch(_CATEGORY_SQL, row["jurisdiction_finance_id"])
+        cats = await _fetch_categories(conn, row["jurisdiction_finance_id"])
         for c in cats:
             amount = c["amount"]
             if amount is None or amount <= 0:

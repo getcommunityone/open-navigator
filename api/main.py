@@ -218,15 +218,20 @@ else:
 # Serve favicon at root
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    """Serve favicon"""
+    """Serve favicon — HF deploy strips binary assets, so fall back to PNG/SVG."""
     from fastapi.responses import FileResponse
-    api_static = Path(__file__).parent / "static" / "favicon.ico"
-    if api_static.exists():
-        return FileResponse(api_static)
-    # Fallback to frontend public
-    frontend_favicon = Path(static_dir) / "favicon.ico"
-    if frontend_favicon.exists():
-        return FileResponse(frontend_favicon)
+
+    candidates = [
+        (Path(__file__).parent / "static" / "favicon.ico", "image/x-icon"),
+        (Path(static_dir) / "favicon.ico", "image/x-icon"),
+        (Path(__file__).parent / "static" / "communityone_logo_64.png", "image/png"),
+        (Path(static_dir) / "communityone_logo_64.png", "image/png"),
+        (Path(__file__).parent / "static" / "communityone_logo.svg", "image/svg+xml"),
+        (Path(static_dir) / "communityone_logo.svg", "image/svg+xml"),
+    ]
+    for path, media_type in candidates:
+        if path.exists():
+            return FileResponse(path, media_type=media_type)
     raise HTTPException(status_code=404, detail="Favicon not found")
 
 

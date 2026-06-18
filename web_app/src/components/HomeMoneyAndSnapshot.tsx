@@ -191,7 +191,7 @@ export function CityAtAGlance(props: HomeScopeProps) {
       Icon: BanknotesIcon,
       label: 'Tracked spending',
       value: spendValue,
-      sub: spending?.count_label || 'in money-flagged decisions',
+      sub: spending?.count_label || 'in money-flagged decisions (manual review recommended)',
     },
     {
       key: 'contested',

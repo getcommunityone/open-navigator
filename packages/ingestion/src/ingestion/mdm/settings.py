@@ -146,3 +146,48 @@ def person_settings() -> SettingsCreator:
         ],
         retain_intermediate_calculation_columns=True,
     )
+
+
+def location_settings() -> SettingsCreator:
+    """Dedupe mdm_location_input. unique id = location_uid.
+
+    This pool links location-like rows across organization_location,
+    jurisdictions_wikidata, and jurisdiction so we can build a unified location
+    table with canonical website_url and review flags.
+    """
+    return SettingsCreator(
+        link_type="dedupe_only",
+        unique_id_column_name="location_uid",
+        # Keep blocks bounded to avoid state-wide quadratic comparisons.
+        blocking_rules_to_generate_predictions=[
+            block_on("state_code", "domain"),
+            block_on("state_code", "phone_digits"),
+            block_on("state_code", "name_initial", "city_norm"),
+            block_on("state_code", "name_initial", "county_norm"),
+        ],
+        comparisons=[
+            cl.LevenshteinAtThresholds("name_norm", [1, 2]).configure(
+                term_frequency_adjustments=True
+            ),
+            cl.LevenshteinAtThresholds("city_norm", [1]).configure(
+                term_frequency_adjustments=True
+            ),
+            cl.ExactMatch("state_code"),
+            cl.ExactMatch("domain").configure(term_frequency_adjustments=True),
+            cl.ExactMatch("phone_digits"),
+            cl.DistanceInKMAtThresholds("lat", "lon", [0.5, 5.0, 25.0]),
+            cl.CustomComparison(
+                output_column_name="zip5",
+                comparison_levels=[
+                    cll.NullLevel("zip5"),
+                    cll.ExactMatchLevel("zip5"),
+                    cll.CustomLevel(
+                        "substr(zip5_l, 1, 3) = substr(zip5_r, 1, 3)",
+                        label_for_charts="first 3 ZIP digits",
+                    ),
+                    cll.ElseLevel(),
+                ],
+            ),
+        ],
+        retain_intermediate_calculation_columns=True,
+    )

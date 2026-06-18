@@ -200,14 +200,16 @@ CIVIC_SERVING = frozenset(
         # static lookup (~32k city→county rows). Required by the county_fips
         # search filter — must exist on Neon or that API leg errors.
         "jurisdiction_county_crosswalk",
-        # finance / money lenses (small per-jurisdiction series)
+        # finance / money lenses — jurisdiction_finance_category (~40 MB) is
+        # required by /api/local-finance/combined and the homepage money game;
+        # without it those routes 500 on Neon.
         "jurisdiction_finance",
+        "jurisdiction_finance_category",
         "jurisdiction_property_tax_rate",
         "state_sales_tax_rate",
         "opportunity_atlas_mobility",
         "opportunity_atlas_mobility_national",
-        # NOTE: meeting_topic_link (60 MB) + jurisdiction_finance_category (40 MB)
-        # are deliberately deferred (budget headroom); add when on a larger tier.
+        # NOTE: meeting_topic_link (60 MB) still deferred (budget headroom).
     }
 )
 

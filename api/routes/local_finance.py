@@ -125,6 +125,23 @@ _CATEGORY_SQL = """
 """
 
 
+async def _fetch_categories(conn, jurisdiction_finance_id: str) -> list:
+    """Category rows for one government; [] when the table is missing or the query fails.
+
+    Production Neon historically synced ``jurisdiction_finance`` without the
+    companion category mart; callers must degrade gracefully instead of 500ing.
+    """
+    try:
+        return await conn.fetch(_CATEGORY_SQL, jurisdiction_finance_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "jurisdiction_finance_category unavailable for {}: {}",
+            jurisdiction_finance_id,
+            exc,
+        )
+        return []
+
+
 class FinanceCategory(BaseModel):
     category: str
     amount: int  # whole dollars
@@ -543,8 +560,8 @@ async def get_local_finance(
                     )
 
                 with tracer.start_as_current_span("local-finance-categories"):
-                    cat_rows = await conn.fetch(
-                        _CATEGORY_SQL, row["jurisdiction_finance_id"]
+                    cat_rows = await _fetch_categories(
+                        conn, row["jurisdiction_finance_id"]
                     )
         except HTTPException:
             raise
@@ -699,8 +716,8 @@ async def get_combined_finance(
                 # Sum category amounts across the stacked governments.
                 cat_totals: dict[str, int] = {}
                 for _level, row in stacked:
-                    cats = await conn.fetch(
-                        _CATEGORY_SQL, row["jurisdiction_finance_id"]
+                    cats = await _fetch_categories(
+                        conn, row["jurisdiction_finance_id"]
                     )
                     for c in cats:
                         if c["amount"] is not None:
