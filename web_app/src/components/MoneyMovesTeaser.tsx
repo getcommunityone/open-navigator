@@ -89,7 +89,7 @@ export default function MoneyMovesTeaser({
         }}
       >
         <span style={{ fontSize: 20, lineHeight: 1 }}>💵</span>
-        <div style={{ flex: 1, minWidth: 220, fontSize: 14, color: '#57534e', lineHeight: 1.4 }}>
+        <div style={{ flex: 1, minWidth: 0, fontSize: 14, color: '#57534e', lineHeight: 1.4 }}>
           <span style={{ fontWeight: 700, color: '#059669' }}>Money Moves</span>
           {isLoading ? (
             <span style={{ color: '#a8a29e' }}> · loading…</span>

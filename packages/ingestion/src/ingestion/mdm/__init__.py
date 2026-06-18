@@ -7,8 +7,9 @@ predict matches and cluster each occurrence into a master entity, then writes th
 clusters back to ``bronze`` for dbt to serve.
 
 CLI:
-    python -m ingestion.mdm address          # resolve int_addresses__unioned
-    python -m ingestion.mdm person --dry-run # validate config without compute
+    python -m ingestion.mdm address            # resolve int_addresses__unioned
+    python -m ingestion.mdm person --dry-run   # validate config without compute
+    python -m ingestion.mdm location           # unify org/jurisdiction location rows
 
 ``ingestion.mdm.db`` is importable without splink installed; the linker/settings
 helpers import splink lazily on first access.
@@ -18,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["address_settings", "person_settings", "run_linker"]
+__all__ = ["address_settings", "person_settings", "location_settings", "run_linker"]
 
 
 def __getattr__(name: str) -> Any:  # PEP 562 lazy re-exports (avoid importing splink at package init)
@@ -26,7 +27,7 @@ def __getattr__(name: str) -> Any:  # PEP 562 lazy re-exports (avoid importing s
         from ingestion.mdm.linker import run_linker
 
         return run_linker
-    if name in ("address_settings", "person_settings"):
+    if name in ("address_settings", "person_settings", "location_settings"):
         from ingestion.mdm import settings
 
         return getattr(settings, name)

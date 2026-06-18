@@ -44,6 +44,10 @@ const FONTS = `
 .v9 .hide-scroll::-webkit-scrollbar { display: none; }
 .v9 .hide-scroll { scrollbar-width: none; }
 .v9 .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.v9 { overflow-x: clip; max-width: 100%; }
+.v9 .v9-main { box-sizing: border-box; max-width: 100%; }
+.v9 .v9-search { display: flex; min-width: 0; }
+.v9 .v9-money-hook-text { flex: 1; min-width: 0; }
 .v9 .v9-burger { display: none; }
 html { scroll-behavior: smooth; }
 .v9 .v9-navlink { position: relative; background: none; border: none; padding: 4px 0; font-size: 14.5px; font-weight: 600; color: #44403c; cursor: pointer; font-family: inherit; transition: color .2s ease; }
@@ -57,6 +61,16 @@ html { scroll-behavior: smooth; }
   .v9 .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
   .v9 .v9-burger { display: grid; margin-left: auto; }
   .v9 .v9-brand-sub { display: none; }
+  .v9 .v9-main { padding-left: 16px !important; padding-right: 16px !important; }
+  .v9 .v9-money-hook-text { min-width: 0 !important; }
+}
+@media (max-width: 640px) {
+  /* Stack search: input + go on row 1; category + location on row 2. */
+  .v9 .v9-search { flex-wrap: wrap; }
+  .v9 .v9-search-input { order: 1; flex: 1 1 calc(100% - 52px) !important; min-width: 0 !important; padding: 14px 16px !important; font-size: 16px !important; }
+  .v9 .v9-search-go { order: 2; flex: 0 0 52px !important; padding: 0 16px !important; font-size: 18px !important; }
+  .v9 .v9-search-cat { order: 3; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-right: 1px solid #e7e5e4 !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
+  .v9 .v9-search-level { order: 4; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-left: none !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
 }
 `
 
@@ -68,7 +82,7 @@ const SIGNAL_META: Record<
 > = {
   contested: { name: 'Contested', icon: '🔥', color: '#ea580c', bg: '#fff7ed', desc: 'Split votes and heated debate among officials or residents' },
   money: { name: 'Money Moves', icon: '💵', color: '#059669', bg: '#ecfdf5', desc: 'Contracts, grants, and budget changes pulled from the record' },
-  flags: { name: 'Raised Eyebrows', icon: '🤨', color: '#7c3aed', bg: '#f5f3ff', desc: 'Unusual patterns — sole-source contracts, reversals, late additions' },
+  flags: { name: 'Raised Eyebrows', icon: '🤨', color: '#7c3aed', bg: '#f5f3ff', desc: 'Unusual patterns — sole-source contracts, reversals, late additions. Manual human review recommended.' },
   soon: { name: 'Moving Fast', icon: '⚡', color: '#d97706', bg: '#fffbeb', desc: 'Items moving quicker than the usual process' },
   next: { name: 'Watch Next', icon: '👀', color: '#2563eb', bg: '#eff6ff', desc: 'Upcoming votes worth keeping on your radar' },
 }
@@ -279,7 +293,7 @@ function MoneyHookBanner() {
         }}
       >
         <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0 }}>💵</span>
-        <div style={{ flex: 1, minWidth: 240 }}>
+        <div className="v9-money-hook-text" style={{ flex: 1, minWidth: 240 }}>
           <div className="font-display" style={{ fontSize: 'clamp(19px, 2.4vw, 23px)', fontWeight: 800, lineHeight: 1.15, color: INK }}>
             How much of <span style={{ color: TEAL }}>your money</span> is on the line?
           </div>
@@ -684,7 +698,7 @@ export default function HomeV9() {
       {/* ── Shared header (identical to the search page) ── */}
       <SiteHeader />
 
-      <main style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
+      <main className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
         {/* ── Money hook (compact teal banner; REAL geocode + REAL modal) — sits
             above the search hero ── */}
         <MoneyHookBanner />
@@ -741,8 +755,8 @@ export default function HomeV9() {
 
           <div style={{ position: 'relative', maxWidth: 760, margin: '28px auto 0', textAlign: 'left' }}>
             <div
+              className="v9-search"
               style={{
-                display: 'flex',
                 background: '#fff',
                 border: `2px solid ${TEAL}`,
                 borderRadius: showSuggest ? '16px 16px 0 0' : 16,
@@ -757,6 +771,7 @@ export default function HomeV9() {
               <button
                 ref={catRef}
                 type="button"
+                className="v9-search-cat"
                 onClick={() => setCatOpen((o) => !o)}
                 aria-haspopup="listbox"
                 aria-expanded={catOpen}
@@ -793,6 +808,7 @@ export default function HomeV9() {
               </button>
 
               <input
+                className="v9-search-input"
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value)
@@ -818,11 +834,12 @@ export default function HomeV9() {
               <button
                 ref={levelRef}
                 type="button"
+                className="v9-search-level"
                 onClick={() => setLevelOpen((o) => !o)}
                 aria-haspopup="listbox"
                 aria-expanded={levelOpen}
                 aria-label="Location level"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderLeft: '1px solid #e7e5e4', background: 'none', color: '#44403c', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: 'inherit' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderLeft: '1px solid #e7e5e4', background: 'none', color: '#44403c', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: 'inherit', minWidth: 0 }}
               >
                 📍 {placeLabel}
                 <span
@@ -833,9 +850,10 @@ export default function HomeV9() {
                 </span>
               </button>
               <button
+                className="v9-search-go"
                 aria-label="Search"
                 onClick={() => runSearch()}
-                style={{ background: TEAL, color: '#fff', border: 'none', padding: '0 28px', fontSize: 20, cursor: 'pointer' }}
+                style={{ background: TEAL, color: '#fff', border: 'none', padding: '0 28px', fontSize: 20, cursor: 'pointer', flexShrink: 0 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = TEAL_DARK)}
                 onMouseLeave={(e) => (e.currentTarget.style.background = TEAL)}
               >
@@ -1205,7 +1223,7 @@ export default function HomeV9() {
           {/* ── Browse pills: dropdown flyout previews, right under the search.
               Each pill previews its top ~5 items (questions/topics/causes) from
               the warehouse — no fabricated rows. ── */}
-          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 10, marginTop: 16, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16, justifyContent: 'center' }}>
             {[
               {
                 key: 'questions' as const,
@@ -1605,6 +1623,25 @@ export default function HomeV9() {
                 </div>
 
                 <div style={{ marginTop: 16 }}>
+                  {id === 'flags' && cards.length > 0 && (
+                    <div
+                      style={{
+                        marginBottom: 10,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        borderRadius: 999,
+                        border: '1px solid #ddd6fe',
+                        background: '#f5f3ff',
+                        color: '#5b21b6',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        padding: '5px 10px',
+                      }}
+                    >
+                      Manual human review recommended
+                    </div>
+                  )}
                   {cards.length > 0 ? (
                     <LensCarousel
                       cards={cards}

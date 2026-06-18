@@ -66,7 +66,7 @@ export const LENSES: Lens[] = [
     desc: 'Decisions that make you go hmm…',
     clr: '#7a5cd0',
     note:
-      '⚠ Flags are unverified anomalies pulled from public records — a prompt to look closer, not a finding of wrongdoing. Every card links to the underlying record so you can judge for yourself.',
+      'Flagged items are unverified anomalies pulled from public records. They are prompts to look closer, not findings of wrongdoing. Manual human review is recommended before any action.',
   },
   { id: 'soon', em: '⚡', label: 'Moving Fast', desc: 'Urgent items and rushed decisions', clr: '#d57a1e' },
   { id: 'next', em: '\u{1F4C5}', label: 'Watch Next', desc: 'Upcoming votes to keep on your radar', clr: '#2f6fb0' },
@@ -346,13 +346,20 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
       <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
       <div className="flex flex-1 flex-col p-[18px]">
         <div className="mb-2.5 flex items-center justify-between gap-2">
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-wide"
-            style={{ color: lens.clr, background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
-          >
-            <span className="text-[12px] leading-none">{lens.em}</span>
-            {lens.label}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-wide"
+              style={{ color: lens.clr, background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
+            >
+              <span className="text-[12px] leading-none">{lens.em}</span>
+              {lens.label}
+            </span>
+            {lens.id === 'flags' && (
+              <span className="inline-flex items-center rounded-full bg-[#efe7ff] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-[#5d46a5]">
+                Human review
+              </span>
+            )}
+          </div>
           <span className="shrink-0 text-[12px] text-[#8a958f]">{c.when}</span>
         </div>
 
@@ -514,7 +521,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
   }
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0 max-w-full overflow-x-clip">
       <button
         type="button"
         onClick={() => step(-1)}
@@ -537,7 +544,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
       <div
         ref={railRef}
         onScroll={updateEdges}
-        className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="mx-0 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 sm:-mx-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {cards.map((c, i) => {
           const key = cardKey(c, i)
@@ -675,8 +682,12 @@ function HScroll({
 // Advisory note (e.g. Raised Eyebrows) shown above a lens's cards.
 function LensNote({ note }: { note: string }) {
   return (
-    <div className="mx-0.5 mb-4 flex gap-2 rounded-lg border border-[#e3dcf5] border-l-[3px] border-l-[#7a5cd0] bg-[#f4f0fc] px-3.5 py-2.5 text-[12.5px] leading-snug text-[#5b4a8a]">
-      <span>{note}</span>
+    <div className="mx-0.5 mb-4 rounded-lg border border-[#e9ddfb] border-l-[4px] border-l-[#7a5cd0] bg-[#f7f2ff] px-3.5 py-3 text-[12.5px] leading-snug text-[#4f3f80]">
+      <p className="mb-1.5 font-semibold tracking-wide text-[#5d46a5]">Flagged signal</p>
+      <p>{note}</p>
+      <p className="mt-2 inline-flex rounded-md bg-[#efe7ff] px-2 py-1 text-[11.5px] font-semibold text-[#5d46a5]">
+        Manual human review recommended
+      </p>
     </div>
   )
 }

@@ -22,6 +22,7 @@ const HEADER_CSS = `
 .site-header .v9-navlink:hover::after { width: 100%; }
 .site-header .v9-navlink.active { color: ${TEAL_DARK}; }
 .site-header .v9-navlink.active::after { width: 100%; }
+.site-header .v9-nav { display: flex; gap: 22px; margin-left: auto; align-items: center; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
   .site-header .v9-nav { display: none; }
@@ -135,7 +136,7 @@ export default function SiteHeader() {
           {menuOpen ? '✕' : '☰'}
         </button>
 
-        <nav className={'v9-nav' + (menuOpen ? ' open' : '')} style={{ display: 'flex', gap: 22, marginLeft: 'auto', alignItems: 'center' }}>
+        <nav className={'v9-nav' + (menuOpen ? ' open' : '')}>
           {navItems.map(({ label, onClick, active }) => (
             <button
               key={label}

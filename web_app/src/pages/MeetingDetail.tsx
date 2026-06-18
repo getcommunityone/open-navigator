@@ -172,7 +172,7 @@ export default function MeetingDetail() {
                   <div
                     key={fi.event_financial_item_id}
                     className={`flex items-start gap-4 py-3 ${
-                      isHighlight ? '-mx-3 rounded-lg border border-[#e3dcf5] bg-[#f4f0fc] px-3' : ''
+                      isHighlight ? '-mx-3 rounded-lg border border-[#e9ddfb] bg-[#f7f2ff] px-3' : ''
                     }`}
                   >
                     <div className="shrink-0 text-right">
@@ -184,9 +184,11 @@ export default function MeetingDetail() {
                     <div className="min-w-0">
                       <p className="text-sm text-gray-700">{fi.event_description || 'Financial item'}</p>
                       {isHighlight && (
-                        <span className="mt-1 inline-block rounded-full bg-[#efebfb] px-2 py-0.5 text-[11px] font-semibold text-[#6b5bd2]">
-                          Flagged: sits just under the approval limit
-                        </span>
+                        <div className="mt-2 rounded-md border border-[#e9ddfb] bg-[#efe7ff] px-2.5 py-2 text-[11.5px] leading-snug text-[#4f3f80]">
+                          <p className="font-semibold uppercase tracking-wide text-[#5d46a5]">Flagged item</p>
+                          <p className="mt-0.5">Sits just under the approval limit.</p>
+                          <p className="mt-1 font-semibold text-[#5d46a5]">Manual human review recommended.</p>
+                        </div>
                       )}
                     </div>
                   </div>
