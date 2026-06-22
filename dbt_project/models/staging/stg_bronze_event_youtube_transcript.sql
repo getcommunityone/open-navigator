@@ -99,10 +99,14 @@ FROM {{ source('bronze', 'bronze_event_youtube_transcript') }} t
 LEFT JOIN {{ source('bronze', 'bronze_event_youtube') }} y
     ON y.video_id = t.video_id
 
--- Basic quality filter: must have video_id and some transcript data
+-- Basic quality filter: must have video_id and some transcript data.
+-- Exclude policy-pipeline rejects (``excluded:non_meeting``, etc.) so promos /
+-- news segments never reach events_text_search / event_documents.
 WHERE
     t.video_id IS NOT NULL
     AND TRIM(t.video_id) != ''
+    AND COALESCE(t.has_transcript, false) = true
+    AND LOWER(COALESCE(TRIM(t.transcript_source), '')) NOT LIKE 'excluded:%'
     AND (
         t.raw_text IS NOT NULL
         OR t.segments IS NOT NULL

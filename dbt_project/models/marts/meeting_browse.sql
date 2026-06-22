@@ -25,19 +25,26 @@ e.g. "City Council Regular Meeting") is the best human label, with meeting_summa
 as a soft fallback only when body_name is null. Both are real source values.
 */
 
-with meeting as (
+with publishable_analysis as (
+    select id as analysis_id
+    from {{ source('bronze', 'bronze_events_analysis_ai') }}
+    where {{ is_publishable_governance_analysis('structured_analysis') }}
+),
+
+meeting as (
     select
-        event_meeting_id,
-        c1_event_id,
-        video_id,
-        body_name,
-        meeting_summary,
-        meeting_date,
-        state_code,
-        state,
-        city,
-        jurisdiction_name
-    from {{ ref('event_meeting') }}
+        m.event_meeting_id,
+        m.c1_event_id,
+        m.video_id,
+        m.body_name,
+        m.meeting_summary,
+        m.meeting_date,
+        m.state_code,
+        m.state,
+        m.city,
+        m.jurisdiction_name
+    from {{ ref('event_meeting') }} m
+    inner join publishable_analysis pa on pa.analysis_id = m.event_meeting_id
 ),
 
 transcript as (

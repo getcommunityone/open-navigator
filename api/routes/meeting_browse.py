@@ -82,17 +82,25 @@ _CARD_COLS = """
     mb.video_id
 """
 
+# Parsed meeting_date for ORDER BY. meeting_date is TEXT in the view and can hold
+# 'unknown' / '' / other non-ISO values — sorting the raw column lexicographically
+# puts 'unknown' *first* on DESC ('u' > '2'). Coerce to date and NULL the junk.
+_MEETING_DATE_SORT = (
+    "CASE WHEN mb.meeting_date ~ '^\\d{4}-\\d{2}-\\d{2}' "
+    "THEN substring(mb.meeting_date FROM 1 FOR 10)::date END"
+)
+
 # Sort modes. `interesting` keeps meetings without a scored decision last, then
 # falls back to recency; `decisions` leads with the busiest meetings.
 _ORDER_BY = {
-    "recent": "mb.meeting_date DESC NULLS LAST",
+    "recent": f"{_MEETING_DATE_SORT} DESC NULLS LAST",
     "interesting": (
         "mb.top_interestingness_score DESC NULLS LAST, "
-        "mb.meeting_date DESC NULLS LAST"
+        f"{_MEETING_DATE_SORT} DESC NULLS LAST"
     ),
     "decisions": (
         "mb.decision_count DESC NULLS LAST, "
-        "mb.meeting_date DESC NULLS LAST"
+        f"{_MEETING_DATE_SORT} DESC NULLS LAST"
     ),
 }
 

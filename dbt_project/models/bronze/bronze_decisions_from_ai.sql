@@ -31,6 +31,7 @@ WITH source_events AS (
         created_at
     FROM {{ source('bronze', 'bronze_events_analysis_ai') }}
     WHERE structured_analysis IS NOT NULL
+      AND {{ is_publishable_governance_analysis('structured_analysis') }}
 
     {% if is_incremental() %}
         AND created_at > (SELECT MAX(extracted_at) FROM {{ this }})

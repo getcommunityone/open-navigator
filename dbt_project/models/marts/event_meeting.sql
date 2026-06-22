@@ -45,6 +45,7 @@ src as (
 analysis as (
     select id as analysis_id, event_id as legacy_event_id
     from {{ source('bronze', 'bronze_events_analysis_ai') }}
+    where {{ is_publishable_governance_analysis('structured_analysis') }}
 ),
 
 events as (
@@ -78,5 +79,5 @@ select
     s.extracted_at
 
 from src s
-left join analysis a on a.analysis_id = s.source_event_id
+inner join analysis a on a.analysis_id = s.source_event_id
 left join events   e on e.legacy_id   = a.legacy_event_id
