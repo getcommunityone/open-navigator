@@ -431,10 +431,10 @@ function YourBill({
 
   return (
     <div>
-      <div className="flex flex-col gap-5 md:flex-row md:items-start">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-5">
         {/* Inputs */}
         <div className="flex-1">
-          <div className="mb-4 inline-flex rounded-xl border border-[#d4e8e8] bg-[#f7fafb] p-0.5">
+          <div className="mb-3 inline-flex rounded-xl border border-[#d4e8e8] bg-[#f7fafb] p-0.5 sm:mb-4">
             {[
               { v: true, label: 'I own' },
               { v: false, label: 'I rent' },
@@ -443,7 +443,7 @@ function YourBill({
                 key={o.label}
                 type="button"
                 onClick={() => setOwn(o.v)}
-                className={`rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors ${
+                className={`rounded-lg px-3 py-1 text-[12px] font-semibold transition-colors sm:px-4 sm:py-1.5 sm:text-[13px] ${
                   own === o.v ? 'bg-[#1a6b6b] text-white' : 'text-[#56635e] hover:text-[#0f2b2b]'
                 }`}
                 style={FONT}
@@ -467,7 +467,7 @@ function YourBill({
         </div>
 
         {/* Live result */}
-        <div className="flex-1 rounded-2xl border border-[#d4e8e8] bg-[#fafaf9] p-4 md:p-5">
+        <div className="flex-1 rounded-2xl border border-[#d4e8e8] bg-[#fafaf9] p-3 sm:p-5">
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5d7d7d]" style={MONO}>
@@ -670,6 +670,12 @@ const SPENDING_LEVELS: { value: SpendingLevel; label: string }[] = [
   { value: 'school_district', label: 'School' },
 ]
 
+const STEP_TABS = [
+  { key: 'estimate' as const, label: '1 · Your bill', short: '1 · Bill' },
+  { key: 'game' as const, label: '2 · The guessing game', short: '2 · Game' },
+  { key: 'grandkids' as const, label: '3 · The grandkids', short: '3 · Grandkids' },
+]
+
 // The phrase used in empty-state copy ("No City spending data…").
 function levelNoun(level: Exclude<SpendingLevel, 'combined'>): string {
   if (level === 'school_district') return 'school district'
@@ -692,7 +698,7 @@ function LevelSelector({
     <div
       role="tablist"
       aria-label="Government level"
-      className="inline-flex flex-wrap gap-1 rounded-xl border border-[#d4e8e8] bg-[#f7fafb] p-0.5"
+      className="inline-flex max-w-full flex-wrap gap-0.5 rounded-xl border border-[#d4e8e8] bg-[#f7fafb] p-0.5 sm:gap-1"
     >
       {SPENDING_LEVELS.map((opt) => {
         const active = value === opt.value
@@ -705,7 +711,7 @@ function LevelSelector({
             aria-selected={active}
             disabled={disabled}
             onClick={() => !disabled && onChange(opt.value)}
-            className={`rounded-lg px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
+            className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition-colors sm:px-3.5 sm:py-1.5 sm:text-[12.5px] ${
               active
                 ? 'bg-[#1a6b6b] text-white'
                 : disabled
@@ -1873,17 +1879,17 @@ export default function MoneyGameModal({
                 </button>
                 {/* Header — title, subtitle, stacked-governments, step tabs.
                     Stays put; only the tab body below scrolls. */}
-                <div className="shrink-0 px-5 pt-4 sm:px-7 sm:pt-5">
+                <div className="shrink-0 px-4 pt-3 sm:px-7 sm:pt-5">
 
                 <Dialog.Title
-                  className="pr-10 text-[22px] font-semibold leading-tight text-[#0f2b2b] sm:text-[24px]"
+                  className="pr-10 text-[20px] font-semibold leading-tight text-[#0f2b2b] sm:text-[24px]"
                   style={SERIF}
                 >
                   {title}
                 </Dialog.Title>
 
                 {/* Subtitle — prototype-style, all real data. */}
-                <p className="mt-0.5 text-[13px] leading-snug text-[#6b8a8a]" style={FONT}>
+                <p className="mt-0.5 text-[12px] leading-snug text-[#6b8a8a] sm:text-[13px]" style={FONT}>
                   {hasPlace ? (
                     <>
                       {placeName || data?.jurisdiction_name}
@@ -1907,7 +1913,7 @@ export default function MoneyGameModal({
                     resident funds (city + county + their school district), so
                     K-12 spending is included rather than hidden. */}
                 {data && data.governments.length > 0 && (
-                  <p className="mt-2 rounded-lg bg-[#f0faf8] px-3 py-1.5 text-[12.5px] leading-snug text-[#2a5a52]" style={FONT}>
+                  <p className="mt-1.5 rounded-lg bg-[#f0faf8] px-2.5 py-1 text-[11.5px] leading-snug text-[#2a5a52] sm:mt-2 sm:px-3 sm:py-1.5 sm:text-[12.5px]" style={FONT}>
                     <span className="font-bold">
                       {data.governments.map((g) => labelGovernment(g)).join(' + ')}
                     </span>
@@ -1918,12 +1924,8 @@ export default function MoneyGameModal({
                 {/* Step indicator (1 · Your bill → 2 · The guessing game → 3 · The grandkids).
                     Tab 1 is always available (it hosts the "where's home?" gate); the
                     others unlock once a place is chosen and its data has loaded. */}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {([
-                    ['estimate', '1 · Your bill'],
-                    ['game', '2 · The guessing game'],
-                    ['grandkids', '3 · The grandkids'],
-                  ] as const).map(([key, label]) => {
+                <div className="mt-2 flex flex-nowrap gap-1 overflow-x-auto sm:mt-3 sm:flex-wrap sm:gap-2">
+                  {STEP_TABS.map(({ key, label, short }) => {
                       const unlocked = key === 'estimate' ? true : key === 'game' ? !!data : revealed
                       const active = stage === key
                       return (
@@ -1931,7 +1933,7 @@ export default function MoneyGameModal({
                           key={key}
                           type="button"
                           onClick={() => unlocked && setStage(key)}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors ${
+                          className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.04em] transition-colors sm:px-3 sm:py-1.5 sm:text-[11px] sm:tracking-[0.06em] ${
                             active
                               ? 'border-[#1a6b6b] bg-[#f0faf8] text-[#1a6b6b]'
                               : unlocked
@@ -1940,7 +1942,8 @@ export default function MoneyGameModal({
                           }`}
                           style={MONO}
                         >
-                          {label}
+                          <span className="sm:hidden">{short}</span>
+                          <span className="hidden sm:inline">{label}</span>
                         </button>
                       )
                     })}
@@ -1949,8 +1952,8 @@ export default function MoneyGameModal({
 
                 {/* Scrollable body — only this region scrolls vertically, so the
                     title and step tabs above stay fixed in view. */}
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7 sm:pb-7">
-                <div className="mt-3">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5 sm:px-7 sm:pb-7">
+                <div className="mt-2 sm:mt-3">
                   {!hasPlace ? (
                     /* ── Tab 1 gate: resolve a real place before any bill ── */
                     <WhereIsHome onResolved={onResolvePlace} />
