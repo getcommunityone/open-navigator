@@ -26,9 +26,22 @@ const norm = (s?: string) => (s || '').trim().toLowerCase()
 // state (e.g. St. Paul, MN) is NOT covered — we surface that honestly rather than
 // pretending data exists. Match is case-insensitive and tolerant of a trailing
 // " city"/" town" the geocoder sometimes appends.
-export function isLocationCovered(loc: { city?: string; state?: string } | null | undefined): boolean {
+//
+// County-only picks ("outside city limits") in a launch state ARE covered: the
+// user chose an unincorporated area but still has real county/state civic data.
+export function isLocationCovered(loc: { city?: string; state?: string; county?: string; granularity?: string } | null | undefined): boolean {
   if (!loc?.state) return false
   const state = norm(loc.state)
   const city = norm(loc.city).replace(/\s+(city|town)$/, '')
-  return LAUNCH_CITIES.some((c) => norm(c.state) === state && norm(c.city) === city)
+  if (LAUNCH_CITIES.some((c) => norm(c.state) === state && norm(c.city) === city)) {
+    return true
+  }
+  if (
+    loc.granularity === 'county' &&
+    loc.county &&
+    LAUNCH_CITIES.some((c) => norm(c.state) === state)
+  ) {
+    return true
+  }
+  return false
 }
