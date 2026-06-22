@@ -29,6 +29,7 @@ const HEADER_CSS = `
   .site-header .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
   .site-header .v9-burger { display: grid; margin-left: auto; }
   .site-header .v9-brand-sub { display: none; }
+  .site-header .v9-header-inner { padding-left: 16px !important; padding-right: 16px !important; gap: 12px !important; }
 }
 `
 
@@ -99,7 +100,7 @@ export default function SiteHeader() {
   return (
     <header className="site-header" style={{ position: 'sticky', top: 0, zIndex: 50, background: '#fff', borderBottom: '1px solid #e7e5e4' }}>
       <style>{HEADER_CSS}</style>
-      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24, position: 'relative' }}>
+      <div className="v9-header-inner" style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24, position: 'relative' }}>
         <Link
           to="/"
           onClick={() => {
