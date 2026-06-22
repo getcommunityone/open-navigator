@@ -63,6 +63,11 @@ html { scroll-behavior: smooth; }
   .v9 .v9-brand-sub { display: none; }
   .v9 .v9-main { padding-left: 16px !important; padding-right: 16px !important; }
   .v9 .v9-money-hook-text { min-width: 0 !important; }
+  .v9 .v9-section-full { padding-left: 16px !important; padding-right: 16px !important; }
+  .v9 .v9-footer-inner { padding-left: 16px !important; padding-right: 16px !important; }
+  .v9 .v9-money-hook { padding: 14px 16px !important; gap: 12px !important; flex-direction: column !important; align-items: stretch !important; }
+  .v9 .v9-money-hook-cta { width: 100%; text-align: center; }
+  .v9 .v9-hero { padding-top: 28px !important; }
 }
 @media (max-width: 640px) {
   /* Stack search: input + go on row 1; category + location on row 2. */
@@ -281,6 +286,7 @@ function MoneyHookBanner() {
     <section style={{ paddingTop: 22 }}>
       {/* Compact teal banner — the screenshot's "money on the line" hook. */}
       <div
+        className="v9-money-hook"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -293,7 +299,7 @@ function MoneyHookBanner() {
         }}
       >
         <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0 }}>💵</span>
-        <div className="v9-money-hook-text" style={{ flex: 1, minWidth: 240 }}>
+        <div className="v9-money-hook-text" style={{ flex: 1, minWidth: 0 }}>
           <div className="font-display" style={{ fontSize: 'clamp(19px, 2.4vw, 23px)', fontWeight: 800, lineHeight: 1.15, color: INK }}>
             How much of <span style={{ color: TEAL }}>your money</span> is on the line?
           </div>
@@ -302,6 +308,8 @@ function MoneyHookBanner() {
           </div>
         </div>
         <button
+          type="button"
+          className="v9-money-hook-cta"
           onClick={() => setModalOpen(true)}
           style={{ background: TEAL, color: '#fff', border: 'none', borderRadius: 999, padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
         >
@@ -704,7 +712,7 @@ export default function HomeV9() {
         <MoneyHookBanner />
 
         {/* ── Hero: thesis + search + trending ── */}
-        <section style={{ padding: '44px 0 6px', textAlign: 'center' }}>
+        <section className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center' }}>
           <h1
             className="font-display"
             style={{ fontSize: 'clamp(38px, 6.4vw, 60px)', fontWeight: 900, margin: 0, lineHeight: 1.05, letterSpacing: '-0.02em', color: INK }}
@@ -1717,7 +1725,7 @@ export default function HomeV9() {
       {/* ── How It Works (ported from the original home page, restyled for v9).
           Header format matches the sibling "Our Impact" section: section name as
           the centered <h2>, no mono eyebrow. ── */}
-      <section id="how-it-works" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '40px 24px', scrollMarginTop: 72 }}>
+      <section id="how-it-works" className="v9-section-full" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '40px 24px', scrollMarginTop: 72 }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 18px' }}>
             <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: INK }}>
@@ -1813,7 +1821,7 @@ export default function HomeV9() {
       </section>
 
       {/* ── Our Impact / Our Mission (ported from the original home page) ── */}
-      <section id="impact" style={{ background: '#fafaf9', borderTop: '1px solid #e7e5e4', padding: '56px 24px', scrollMarginTop: 72 }}>
+      <section id="impact" className="v9-section-full" style={{ background: '#fafaf9', borderTop: '1px solid #e7e5e4', padding: '56px 24px', scrollMarginTop: 72 }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
             <h2 className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: INK }}>
@@ -1885,7 +1893,7 @@ export default function HomeV9() {
 
       {/* ── Why people use it (footer) ── */}
       <footer style={{ background: '#fff', borderTop: '1px solid #e7e5e4' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '9px 24px', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div className="v9-footer-inner" style={{ maxWidth: 1180, margin: '0 auto', padding: '9px 24px', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, color: '#a8a29e' }}>CommunityOne · a 501(c)(3) nonprofit · Tuscaloosa, Alabama</span>
         </div>
       </footer>
