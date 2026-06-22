@@ -69,6 +69,23 @@ html { scroll-behavior: smooth; }
   .v9 .v9-money-hook-cta { width: 100%; text-align: center; }
   .v9 .v9-hero { padding-top: 28px !important; }
 }
+.v9 .v9-browse-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  justify-content: center;
+}
+@media (min-width: 900px) {
+  .v9 .v9-browse-pills {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .v9 .v9-browse-pill-label { font-size: 15px !important; }
+  .v9 .v9-browse-pill-main { padding: 8px 4px 8px 10px !important; gap: 8px !important; }
+  .v9 .v9-browse-pill-badge-word { display: none; }
+  .v9 .v9-browse-pill-chev { padding: 0 10px !important; }
+}
 @media (max-width: 640px) {
   /* Stack search: input + go on row 1; category + location on row 2. */
   .v9 .v9-search { flex-wrap: wrap; }
@@ -1231,7 +1248,7 @@ export default function HomeV9() {
           {/* ── Browse pills: dropdown flyout previews, right under the search.
               Each pill previews its top ~5 items (questions/topics/causes) from
               the warehouse — no fabricated rows. ── */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16, justifyContent: 'center' }}>
+          <div className="v9-browse-pills">
             {[
               {
                 key: 'questions' as const,
@@ -1376,9 +1393,10 @@ export default function HomeV9() {
                     <button
                       title={b.desc}
                       onClick={() => navigate(b.to, { state: { fromHome: true } })}
+                      className="v9-browse-pill-main"
                       style={{ background: 'none', border: 'none', padding: '9px 6px 9px 10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}
                     >
-                      <span className="font-display" style={{ fontSize: 16.5, fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>
+                      <span className="font-display v9-browse-pill-label" style={{ fontSize: 16.5, fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>
                         {b.name}
                       </span>
                       {/* Badge = real distinct-transcript count for this
@@ -1394,7 +1412,7 @@ export default function HomeV9() {
                           style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}
                         >
                           {b.count.toLocaleString('en-US')}
-                          <span style={{ fontSize: 9.5, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <span className="v9-browse-pill-badge-word" style={{ fontSize: 9.5, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                             meetings
                           </span>
                         </span>
@@ -1412,6 +1430,7 @@ export default function HomeV9() {
                       )}
                     </button>
                     <button
+                      className="v9-browse-pill-chev"
                       aria-label={open ? `Hide top ${b.seeAllLabel}` : `Show top ${b.seeAllLabel}`}
                       aria-expanded={open}
                       aria-haspopup="true"
