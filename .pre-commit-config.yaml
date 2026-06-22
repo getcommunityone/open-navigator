@@ -1,5 +1,8 @@
 # Pre-commit hooks for open-navigator.
-# Install once per clone:  uv run pre-commit install
+# Install once per clone (from repo root, with .venv active):
+#   uv run pre-commit install --install-hooks --allow-missing-config
+# The --allow-missing-config flag keeps commits working in git worktrees / old
+# branches that predate this file; hooks run normally when the config is present.
 # Run against everything:  uv run pre-commit run --all-files
 repos:
   # Strip executed output from notebooks before commit — this is what leaked the
