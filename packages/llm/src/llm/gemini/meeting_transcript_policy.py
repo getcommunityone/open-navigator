@@ -482,6 +482,26 @@ def save_transcript_policy_output(
             error=str(analysis_error) if analysis_error else None,
             database_url=database_url,
         )
+        # Non-meeting uploads (promos, news segments, etc.) must not stay searchable.
+        if analysis_error:
+            db_url = database_url or _database_url(None)
+            if db_url:
+                try:
+                    from llm.gemini.persist_policy_analysis_bronze import resolve_event_id_for_video
+                    from llm.gemini.policy_exclusions import write_bronze_policy_exclusion
+
+                    write_bronze_policy_exclusion(
+                        db_url,
+                        event_id=resolve_event_id_for_video(db_url, video.video_id) or 0,
+                        video_id=video.video_id,
+                        reason="non_meeting",
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Could not mark bronze transcript excluded for {}: {}",
+                        video.video_id,
+                        exc,
+                    )
 
     if persist_bronze and json_parsed and not analysis_payload.get("_error"):
         from llm.gemini.persist_policy_analysis_bronze import (

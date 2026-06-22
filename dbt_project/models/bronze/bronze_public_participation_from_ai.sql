@@ -38,6 +38,7 @@ WITH source_events AS (
         created_at
     FROM {{ source('bronze', 'bronze_events_analysis_ai') }}
     WHERE structured_analysis IS NOT NULL
+      AND {{ is_publishable_governance_analysis('structured_analysis') }}
       AND jsonb_typeof(structured_analysis->'public_participation') = 'array'
 
     {% if is_incremental() %}
