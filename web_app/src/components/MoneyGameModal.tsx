@@ -14,7 +14,7 @@
 // Honest gaps vs. the design prototype:
 //   - When the requested city/county isn't found the API returns statewide
 //     figures (matched===false); we surface that with an explicit note.
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { XMarkIcon } from '@heroicons/react/24/outline'
@@ -1725,8 +1725,14 @@ export default function MoneyGameModal({
   // known via props we seed it and skip the gate, opening straight on the
   // forecast for that place instead of a redundant "where's home?" prompt.
   const [place, setPlace] = useState<LocationData | null>(null)
+  const prevOpen = useRef(false)
+  // Reset scope only when the modal *opens*, not when location props change mid-flow.
+  // onResolvePlace → setLocation updates parent props (city/county); re-running this
+  // on those deps was wiping the user's ZIP choice (e.g. "outside city limits").
   useEffect(() => {
-    if (!open) return
+    const justOpened = open && !prevOpen.current
+    prevOpen.current = open
+    if (!justOpened) return
     if (initialStage === 'grandkids' && stateCode) {
       setPlace({ state: stateCode, city: city ?? '', county: county ?? '' })
     } else {

@@ -421,9 +421,9 @@ export default function HomeV9() {
   // When the user picks a place we haven't loaded civic data for yet, we keep the
   // picker open and show a friendly "not loaded yet" notice (with the launch
   // cities as alternatives) instead of silently dropping them into an empty scope.
-  const [uncoveredPick, setUncoveredPick] = useState<{ city?: string; state?: string } | null>(null)
-  const uncoveredLabel = (l: { city?: string; state?: string } | null) =>
-    l ? [l.city, l.state].filter(Boolean).join(', ') : ''
+  const [uncoveredPick, setUncoveredPick] = useState<{ city?: string; county?: string; state?: string } | null>(null)
+  const uncoveredLabel = (l: { city?: string; county?: string; state?: string } | null) =>
+    l ? [l.city, l.county, l.state].filter(Boolean).join(', ') : ''
   const levelRef = useRef<HTMLButtonElement>(null)
   const levelMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -1128,7 +1128,7 @@ export default function HomeV9() {
                     onUncovered={(loc) => {
                       // Block the switch and surface our custom in-modal notice
                       // rather than dropping the user into an empty scope.
-                      setUncoveredPick({ city: loc.city, state: loc.state })
+                      setUncoveredPick({ city: loc.city, county: loc.county, state: loc.state })
                     }}
                     onLocationFound={(loc) => {
                       setUncoveredPick(null)
