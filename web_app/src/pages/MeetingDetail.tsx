@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { expandStateName } from '../utils/formatters'
 import MeetingPlayer from '../components/MeetingPlayer'
+import { MeetingVideoProvider, EvidenceLink } from '../components/MeetingVideoContext'
+import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
 import {
   ArrowLeftIcon,
   BuildingLibraryIcon,
@@ -10,6 +12,8 @@ import {
   MapPinIcon,
   ScaleIcon,
   BanknotesIcon,
+  DocumentTextIcon,
+  DocumentIcon,
 } from '@heroicons/react/24/outline'
 
 interface MeetingDecision {
@@ -27,6 +31,13 @@ interface MeetingFinancialItem {
   amount_type?: string | null
 }
 
+interface MeetingDocument {
+  document_type: string
+  document_url: string
+  doc_date?: string | null
+  body_name?: string | null
+}
+
 interface MeetingDetailData {
   event_meeting_id: number
   c1_event_id?: string | null
@@ -37,6 +48,9 @@ interface MeetingDetailData {
   state_code?: string | null
   meeting_date?: string | null
   video_id?: string | null
+  has_agenda?: boolean
+  has_minutes?: boolean
+  documents?: MeetingDocument[]
   decisions: MeetingDecision[]
   financial_items: MeetingFinancialItem[]
 }
@@ -58,7 +72,47 @@ function outcomeColor(outcome?: string | null): string {
   return 'bg-gray-100 text-gray-800'
 }
 
-export default function MeetingDetail() {
+function pickDoc(docs: MeetingDocument[], type: string): MeetingDocument | undefined {
+  return docs.find((d) => d.document_type === type)
+}
+
+function DocLinkChip({ label, type, url }: { label: string; type: string; url: string }) {
+  const viewer = useDocumentViewer()
+  if (viewer) {
+    return (
+      <button
+        type="button"
+        onClick={() => viewer.openDocument({ url, label })}
+        className="flex items-center gap-1.5 font-medium text-[#1d6b5f] hover:text-[#155448]"
+      >
+        <DocumentTextIcon className="h-4 w-4" />
+        {label}
+      </button>
+    )
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1.5 font-medium text-[#1d6b5f] hover:text-[#155448]"
+    >
+      <DocumentTextIcon className="h-4 w-4" />
+      {label}
+    </a>
+  )
+}
+
+function MutedDocChip({ label, title }: { label: string; title?: string }) {
+  return (
+    <span className="flex cursor-default items-center gap-1.5 text-[#b8c2c0]" title={title}>
+      <DocumentIcon className="h-4 w-4 opacity-60" />
+      {label}
+    </span>
+  )
+}
+
+function MeetingDetailBody() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const highlightItem = searchParams.get('item') // financial_item_id to spotlight
@@ -112,8 +166,15 @@ export default function MeetingDetail() {
 
   const place = data.jurisdiction_name || data.state || ''
   const caption = [data.body_name, data.meeting_date].filter(Boolean).join(' · ')
+  const docs = data.documents ?? []
+  const agenda = pickDoc(docs, 'agenda')
+  const minutes = pickDoc(docs, 'minutes')
+  const highlightFinancial = highlightItem
+    ? data.financial_items.find((fi) => fi.financial_item_id === highlightItem)
+    : undefined
+  const playerTargetText = highlightFinancial?.event_description || undefined
 
-  return (
+  const content = (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <button
@@ -147,13 +208,31 @@ export default function MeetingDetail() {
               </span>
             )}
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            {data.has_agenda && agenda ? (
+              <DocLinkChip label="Agenda" type="agenda" url={agenda.document_url} />
+            ) : (
+              <MutedDocChip
+                label="No agenda"
+                title="No agenda PDF is linked to this meeting yet — run the SuiteOne scrape + dbt link pass."
+              />
+            )}
+            {data.has_minutes && minutes ? (
+              <DocLinkChip label="Minutes" type="minutes" url={minutes.document_url} />
+            ) : (
+              <MutedDocChip
+                label="Minutes not yet published"
+                title="Minutes haven't been linked to this meeting yet."
+              />
+            )}
+          </div>
         </div>
 
         {/* Recording + transcript */}
         {data.video_id && (
           <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <h2 className="text-lg font-bold text-gray-900 mb-4">Watch the meeting</h2>
-            <MeetingPlayer videoId={data.video_id} caption={caption} />
+            <MeetingPlayer videoId={data.video_id} caption={caption} targetText={playerTargetText} />
           </div>
         )}
 
@@ -182,7 +261,12 @@ export default function MeetingDetail() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm text-gray-700">{fi.event_description || 'Financial item'}</p>
+                      <p className="text-sm text-gray-700">
+                        {fi.event_description || 'Financial item'}
+                        {data.video_id && (
+                          <EvidenceLink text={fi.event_description || undefined} />
+                        )}
+                      </p>
                       {isHighlight && (
                         <div className="mt-2 rounded-md border border-[#e9ddfb] bg-[#efe7ff] px-2.5 py-2 text-[11.5px] leading-snug text-[#4f3f80]">
                           <p className="font-semibold uppercase tracking-wide text-[#5d46a5]">Flagged item</p>
@@ -243,5 +327,19 @@ export default function MeetingDetail() {
         )}
       </div>
     </div>
+  )
+
+  return (
+    <MeetingVideoProvider videoId={data.video_id} caption={caption}>
+      {content}
+    </MeetingVideoProvider>
+  )
+}
+
+export default function MeetingDetail() {
+  return (
+    <DocumentViewerProvider>
+      <MeetingDetailBody />
+    </DocumentViewerProvider>
   )
 }

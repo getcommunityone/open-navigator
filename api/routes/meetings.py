@@ -169,6 +169,13 @@ class MeetingFinancialItem(BaseModel):
     amount_type: Optional[str] = None
 
 
+class MeetingDocument(BaseModel):
+    document_type: str
+    document_url: str
+    doc_date: Optional[str] = None
+    body_name: Optional[str] = None
+
+
 class MeetingDetail(BaseModel):
     event_meeting_id: int
     c1_event_id: Optional[str] = None
@@ -179,6 +186,9 @@ class MeetingDetail(BaseModel):
     state_code: Optional[str] = None
     meeting_date: Optional[str] = None
     video_id: Optional[str] = None
+    has_agenda: bool = False
+    has_minutes: bool = False
+    documents: List[MeetingDocument] = []
     decisions: List[MeetingDecision] = []
     financial_items: List[MeetingFinancialItem] = []
 
@@ -222,6 +232,15 @@ _MEETING_FINANCIAL_SQL = """
     ORDER BY amount DESC NULLS LAST
 """
 
+_MEETING_DOCUMENTS_SQL = """
+    SELECT document_type, document_url, doc_date, body_name
+    FROM event_meeting_document
+    WHERE event_meeting_id = $1
+    ORDER BY
+        CASE document_type WHEN 'agenda' THEN 0 WHEN 'minutes' THEN 1 ELSE 2 END,
+        doc_date NULLS LAST
+"""
+
 
 @router.get("/{event_meeting_id}", response_model=MeetingDetail)
 async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
@@ -240,6 +259,9 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
                 c1 = row["c1_event_id"]
                 decisions = await conn.fetch(_MEETING_DECISIONS_SQL, c1) if c1 else []
                 financial = await conn.fetch(_MEETING_FINANCIAL_SQL, c1) if c1 else []
+                documents = await conn.fetch(
+                    _MEETING_DOCUMENTS_SQL, event_meeting_id
+                )
         except HTTPException:
             raise
         except Exception as e:  # noqa: BLE001
@@ -247,9 +269,18 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
             logger.error("Meeting detail error for {}: {}", event_meeting_id, e)
             raise HTTPException(status_code=500, detail="Failed to load meeting")
 
+        doc_models = [
+            MeetingDocument(
+                document_type=d["document_type"],
+                document_url=d["document_url"],
+                doc_date=_meeting_iso_date(d["doc_date"]),
+                body_name=d["body_name"],
+            )
+            for d in documents
+        ]
         logger.info(
-            "🏛️ Meeting {} -> {} decisions, {} financial items",
-            event_meeting_id, len(decisions), len(financial),
+            "🏛️ Meeting {} -> {} decisions, {} financial items, {} documents",
+            event_meeting_id, len(decisions), len(financial), len(doc_models),
         )
         return MeetingDetail(
             event_meeting_id=row["event_meeting_id"],
@@ -261,6 +292,9 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
             state_code=row["state_code"],
             meeting_date=_meeting_iso_date(row["meeting_date"]),
             video_id=row["video_id"],
+            has_agenda=any(d.document_type == "agenda" for d in doc_models),
+            has_minutes=any(d.document_type == "minutes" for d in doc_models),
+            documents=doc_models,
             decisions=[
                 MeetingDecision(
                     event_decision_id=d["event_decision_id"],
