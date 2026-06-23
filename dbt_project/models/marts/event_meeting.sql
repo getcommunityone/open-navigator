@@ -67,7 +67,7 @@ select
 
     s.meeting_id,
     s.body_name,
-    s.meeting_date,
+    {{ coerce_plausible_meeting_date('s.meeting_date', 's.meeting_id') }} as meeting_date,
     s.event_date,
     s.jurisdiction,
     s.meeting_summary,

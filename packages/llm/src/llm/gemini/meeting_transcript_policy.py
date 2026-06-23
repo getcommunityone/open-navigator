@@ -451,6 +451,16 @@ def save_transcript_policy_output(
             _normalize_part1_analysis(parsed),
             video_url=video.video_url or "",
         )
+        from llm.gemini.meeting_date_qa import qa_recorded_video_meeting_date
+
+        analysis_payload, date_warnings = qa_recorded_video_meeting_date(
+            analysis_payload,
+            video_id=video.video_id,
+            title=title,
+            published_at=getattr(video, "published_at", None),
+        )
+        for w in date_warnings:
+            logger.warning(w)
         if enrich_legislation:
             from llm.gemini.legislation_analysis import enrich_part1_legislation
 

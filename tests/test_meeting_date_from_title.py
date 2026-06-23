@@ -12,6 +12,11 @@ def test_extract_slash_date_from_council_title():
     assert extract_meeting_date_from_title(title) == "2024-09-23"
 
 
+def test_rejects_implausible_four_digit_year_in_title():
+    assert extract_meeting_date_from_title("Meeting March 16, 2926") is None
+    assert extract_meeting_date_from_title("North Sherborn Commission 3/16/2926") is None
+
+
 def test_resolve_uses_iso_prefix_from_audio_path():
     title = "Behind Beloit Pilot"
     audio = "WI/Some_Channel/2026-02-25_260123_Behind_Beloit_Pilot.opus"

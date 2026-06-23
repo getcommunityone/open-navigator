@@ -985,6 +985,8 @@ def _full_year_from_two_digit(yy: int) -> int:
 
 
 def _parse_mdy_groups(month: int, day: int, year: int) -> Optional[str]:
+    if not (1990 <= int(year) <= 2035):
+        return None
     try:
         return datetime(year, month, day).strftime("%Y-%m-%d")
     except ValueError:
