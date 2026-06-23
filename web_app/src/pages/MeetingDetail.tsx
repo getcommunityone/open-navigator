@@ -76,7 +76,7 @@ function pickDoc(docs: MeetingDocument[], type: string): MeetingDocument | undef
   return docs.find((d) => d.document_type === type)
 }
 
-function DocLinkChip({ label, type, url }: { label: string; type: string; url: string }) {
+function DocLinkChip({ label, url }: { label: string; type: string; url: string }) {
   const viewer = useDocumentViewer()
   if (viewer) {
     return (
