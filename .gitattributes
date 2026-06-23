@@ -1,3 +1,6 @@
+# Synced license-plate assets (~56 MB total); stored as normal blobs so CI/HF deploy
+# clones don't require GitHub LFS (HF deploy strips binaries from the Space push anyway).
+web_app/public/wikicommons/** -filter -diff -merge
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs -text
