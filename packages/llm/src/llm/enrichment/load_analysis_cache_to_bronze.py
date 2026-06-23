@@ -224,6 +224,16 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
                 continue
 
             ai_model = (meta or {}).get("gemini_model") or DEFAULT_AI_MODEL
+            from llm.gemini.meeting_date_qa import qa_recorded_video_meeting_date
+
+            analysis, date_warnings = qa_recorded_video_meeting_date(
+                analysis,
+                video_id=video_id,
+                title=str((meta or {}).get("title") or ""),
+                published_at=(meta or {}).get("published_at"),
+            )
+            for w in date_warnings:
+                logger.warning("{} ({})", w, path.name)
             summary_text = (analysis.get("meeting") or {}).get("meeting_summary")
             timeline_mermaid = _timeline_from_analysis(analysis)
             created_at = _parse_generated_at(meta)

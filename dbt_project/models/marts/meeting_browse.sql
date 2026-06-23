@@ -38,7 +38,7 @@ meeting as (
         m.video_id,
         m.body_name,
         m.meeting_summary,
-        m.meeting_date,
+        {{ coerce_plausible_meeting_date('m.meeting_date', 'm.meeting_id') }} as meeting_date,
         m.state_code,
         m.state,
         m.city,

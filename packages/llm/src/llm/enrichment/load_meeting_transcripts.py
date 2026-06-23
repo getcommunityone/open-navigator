@@ -461,6 +461,20 @@ class MeetingTranscriptAnalyzer:
         
         # Extract video_id from YouTube URL
         video_id = meeting['video_url'].split('v=')[-1].split('&')[0] if 'v=' in meeting['video_url'] else 'unknown'
+
+        structured = analysis.get('structured_analysis')
+        if isinstance(structured, dict) and video_id != 'unknown':
+            from llm.gemini.meeting_date_qa import qa_recorded_video_meeting_date
+
+            structured, date_warnings = qa_recorded_video_meeting_date(
+                structured,
+                video_id=video_id,
+                title=str(meeting.get('title') or ''),
+                published_at=meeting.get('event_date'),
+            )
+            analysis['structured_analysis'] = structured
+            for w in date_warnings:
+                logger.warning(w)
         
         insert_sql = """
         INSERT INTO bronze.bronze_events_analysis_ai (
