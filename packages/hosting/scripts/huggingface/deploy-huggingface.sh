@@ -30,7 +30,9 @@ if [ -z "$HF_DEPLOY_ISOLATED" ]; then
         echo "   $CLONE_DIR"
         echo ""
         # --local hardlinks objects (fast, cheap) and carries all committed history.
-        git clone --quiet --local "$SRC_ROOT" "$CLONE_DIR"
+        # Skip LFS smudge: deploy strips public/ binaries anyway, and a missing LFS
+        # object on GitHub (e.g. web_app/public/wikicommons/*.png) aborts checkout.
+        GIT_LFS_SKIP_SMUDGE=1 git clone --quiet --local "$SRC_ROOT" "$CLONE_DIR"
         # Carry over gitignored .env so HF_USERNAME / HF_TOKEN are available in the clone.
         [ -f "$SRC_ROOT/.env" ] && cp "$SRC_ROOT/.env" "$CLONE_DIR/.env"
         cd "$CLONE_DIR"

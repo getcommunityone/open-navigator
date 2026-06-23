@@ -29,6 +29,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Do not smudge LFS — deploy re-clones locally and strips binaries; missing
+          # LFS objects (e.g. wikicommons plates) must not fail the job.
+          lfs: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -57,6 +60,7 @@ jobs:
         env:
           HF_USERNAME: ${{ inputs.HF_USERNAME || secrets.HF_USERNAME }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GIT_LFS_SKIP_SMUDGE: "1"
         run: |
           chmod +x ./packages/hosting/scripts/huggingface/deploy-huggingface.sh
           ./packages/hosting/scripts/huggingface/deploy-huggingface.sh
