@@ -79,9 +79,11 @@ function formatDate(docDate: string): string {
 function DocumentChip({
   document,
   caption,
+  backHref,
 }: {
   document: MeetingDocument
   caption?: string
+  backHref?: string
 }) {
   const viewer = useDocumentViewer()
   const label = typeLabel(document.document_type)
@@ -102,7 +104,7 @@ function DocumentChip({
             'document.type': document.document_type,
             'document.source': document.source,
           })
-          viewer.openDocument({ url: document.document_url, label, caption })
+          viewer.openDocument({ url: document.document_url, label, caption, backHref })
         }}
         className={`${base} ${style}`}
       >
@@ -139,6 +141,10 @@ function MeetingRow({
   jurisdictionId: string
 }) {
   const caption = `${group.body_name ?? 'Meeting'} • ${formatDate(group.doc_date)}`
+  // Only meetings matched to an AI summary have a detail page to link back to.
+  const backHref = group.event_meeting_id
+    ? `/meetings/${encodeURIComponent(group.event_meeting_id)}`
+    : undefined
   return (
     <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -153,6 +159,7 @@ function MeetingRow({
             key={`${doc.document_type}-${idx}`}
             document={doc}
             caption={caption}
+            backHref={backHref}
           />
         ))}
         {/* Only meetings matched to an AI summary can be compared. */}

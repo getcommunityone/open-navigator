@@ -88,6 +88,18 @@ _CARD_COLS = """
 # Sort modes. `contested` leads with the most opposing views, then the closest
 # vote among rows that actually have a tally (a 5-4 reads as more contested than
 # a 9-0), then most recent. `recent` and `interesting` are straight orderings.
+# Match-evidence snippet (CLAUDE.md "Show the Match Evidence on Filtered Tiles").
+# When a topic/cause filter is active we surface the passage of the decision text
+# (headline + statement — the same text its search_tsv is built from, i.e. what
+# the filter actually matched) with the matched terms wrapped in <mark>…</mark>,
+# so each tile shows WHY it matched the pill, not just a title. ts_headline only
+# detoasts the result window. Mirrors the decision leg of search_postgres.py.
+_DECISION_TEXT_EXPR = (
+    "concat_ws('. ', NULLIF(ed.headline, ''), NULLIF(ed.decision_statement, ''))"
+)
+_HL_OPTS = "'MaxFragments=2, MinWords=5, MaxWords=18, StartSel=<mark>, StopSel=</mark>'"
+
+
 _ORDER_BY = {
     "contested": (
         "ii.competing_views_count DESC NULLS LAST, "
@@ -107,20 +119,24 @@ def _build_filters(
     city: Optional[str],
     q: Optional[str],
     meeting_id: Optional[int] = None,
-) -> tuple[str, str, List[Any]]:
+) -> tuple[str, str, List[Any], str]:
     """
-    Build the shared FROM/JOIN clause + WHERE predicate + ordered params.
+    Build the shared FROM/JOIN clause + WHERE predicate + ordered params + the
+    match-evidence snippet expression.
 
-    Returns (from_sql, where_sql, params). `from_sql` always starts with
-    ``item_interestingness ii`` and only adds the event_decision JOIN when a topic
-    filter is active (so the common path stays a single-table scan). `where_sql`
-    is a complete predicate ('TRUE' when unfiltered) and `params` are positional
-    ($1, $2, ...) in the order the clauses reference them — the caller appends
-    LIMIT / OFFSET (list endpoint) or nothing (count).
+    Returns (from_sql, where_sql, params, snippet_sql). `from_sql` always starts
+    with ``item_interestingness ii`` and only adds the event_decision JOIN when a
+    topic filter is active (so the common path stays a single-table scan).
+    `where_sql` is a complete predicate ('TRUE' when unfiltered) and `params` are
+    positional ($1, $2, ...) in the order the clauses reference them — the caller
+    appends LIMIT / OFFSET (list endpoint) or nothing (count). `snippet_sql` is a
+    SELECT-list expression: a ts_headline over the matched decision text when a
+    topic/cause filter is active (so each tile shows why it matched), else 'NULL'.
     """
     from_sql = "item_interestingness ii"
     clauses: List[str] = []
     params: List[Any] = []
+    snippet_sql = "NULL"
     idx = 1
 
     if topic_tsquery is not None:
@@ -133,6 +149,12 @@ def _build_filters(
         )
         clauses.append(f"ed.search_tsv @@ to_tsquery('english', ${idx})")
         params.append(topic_tsquery)
+        # Same param reused in the SELECT-list snippet: highlight the matched
+        # passage of the decision text against the very tsquery that matched it.
+        snippet_sql = (
+            f"ts_headline('english', {_DECISION_TEXT_EXPR}, "
+            f"to_tsquery('english', ${idx}), {_HL_OPTS})"
+        )
         idx += 1
 
     if question_id:
@@ -173,7 +195,7 @@ def _build_filters(
         idx += 1
 
     where_sql = " AND ".join(clauses) if clauses else "TRUE"
-    return from_sql, where_sql, params
+    return from_sql, where_sql, params, snippet_sql
 
 
 @router.get("", response_model=DecisionListResponse)
@@ -287,7 +309,7 @@ async def list_decisions(
                 if topic_tsquery else cause_tsquery
             )
 
-        from_sql, where_sql, params = _build_filters(
+        from_sql, where_sql, params, snippet_sql = _build_filters(
             topic_tsquery, question_id, state_code, city, q, meeting_id
         )
 
@@ -302,7 +324,7 @@ async def list_decisions(
                     limit_idx = len(params) + 1
                     offset_idx = len(params) + 2
                     list_sql = f"""
-                        SELECT {_CARD_COLS}, {video_id_subquery('ii')}, {speaker_ids_subquery('ii')}
+                        SELECT {_CARD_COLS}, {video_id_subquery('ii')}, {speaker_ids_subquery('ii')}, {snippet_sql} AS snippet
                         FROM {from_sql}
                         WHERE {where_sql}
                         ORDER BY {_ORDER_BY[sort_key]}, ii.event_decision_id DESC

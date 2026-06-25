@@ -18,6 +18,7 @@ import PersonalizeFeedModal from './PersonalizeFeedModal'
 import { useAuth } from '../contexts/AuthContext'
 import { fromSignalSlug } from '../lib/feedSlugs'
 import { type Speaker, parseSpeaker } from '../lib/speakers'
+import { highlightSnippet } from '../lib/highlight'
 
 /**
  * StoryLenses — the homepage "What's happening near you" section.
@@ -190,6 +191,11 @@ export interface ApiCard {
    *  decision's testimony. Omitted/empty when none — never fabricated. Parsed
    *  client-side into the compact "Voices" attribution row on the card. */
   speakers?: string[]
+  /** Match-evidence snippet: the matched passage of the decision text with the
+   *  matched terms wrapped in <mark>…</mark> (server-side ts_headline). Present
+   *  only when a content filter (topic/cause) produced the card; rendered under
+   *  the title via highlightSnippet so the user sees WHY it matched the pill. */
+  description?: string | null
 }
 interface ApiLens {
   id: string
@@ -597,6 +603,10 @@ export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCar
     // Raw speaker slugs → parsed Speakers; empty/absent ⇒ undefined so the
     // "Voices" row stays hidden (never fabricated).
     speakers: c.speakers && c.speakers.length > 0 ? c.speakers.map(parseSpeaker) : undefined,
+    // Match-evidence: render the server's <mark>-highlighted snippet (React-
+    // escaped, never dangerouslySetInnerHTML). Absent ⇒ undefined so plain
+    // browse (no content filter) shows no excerpt rather than an empty line.
+    excerpt: c.description ? highlightSnippet(c.description) : undefined,
   }))
   const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
   const showState = unscoped || distinctStates.size > 1
