@@ -1,0 +1,70 @@
+# Databricks Asset Bundle (DAB) for the Open Navigator web app on Databricks Apps.
+#
+# Deploys the FastAPI app (api.main:app) that serves the REST API + built
+# React/Vite frontend + Docusaurus docs as a SINGLE process, pointed at the
+# already-loaded Neon PROD Postgres. Fallback for the HuggingFace Space.
+#
+# IMPORTANT (Databricks Apps platform rules):
+#   * `config.command` / `config.env` MUST mirror app.yaml. The `config` block
+#     only takes effect on `bundle run` (not `bundle deploy` alone).
+#   * `source_code_path: ./` uploads THIS directory. Run ./build.sh first to
+#     stage the repo source (api/, packages/, scripts/, web_app/public/) and the
+#     built static bundles (api/static) into here. They are git-ignored.
+#   * Profile: opennav-prod (the Default). Use `--profile opennav-prod`.
+#
+# Deploy flow (NOT run by the build script — requires explicit user consent):
+#   databricks bundle deploy -t dev --profile opennav-prod
+#   databricks bundle run open-navigator -t dev --profile opennav-prod
+# or the single combined command:
+#   databricks apps deploy open-navigator --profile opennav-prod
+
+bundle:
+  name: open-navigator-web
+
+resources:
+  apps:
+    open-navigator:
+      name: open-navigator            # <=26 chars, lowercase/hyphens
+      description: "Open Navigator — civic intelligence web app (FastAPI + React + Docusaurus) over Neon prod Postgres."
+      source_code_path: ./
+
+      # Secret injected as an env var to the app's service principal. The
+      # platform auto-grants the SP READ on this scope at deploy time. The
+      # deploying user needs MANAGE on the `open-navigator` scope.
+      resources:
+        - name: neon-db-url
+          secret:
+            scope: open-navigator
+            key: neon-prod-url
+            permission: READ
+
+      # Mirrors app.yaml. Applied on `bundle run`.
+      config:
+        command:
+          - uvicorn
+          - api.main:app
+          - --host
+          - "0.0.0.0"
+          - --port
+          - "${DATABRICKS_APP_PORT:-8000}"
+          - --proxy-headers
+          - --no-access-log
+        env:
+          - name: PYTHONPATH
+            value: ".:packages/core:packages/agents:packages/datamodels:packages/core-lib/src:packages/scrapers/src:packages/ingestion/src:packages/llm/src:packages/accessibility/src:packages/hosting/src"
+          - name: NEON_DATABASE_URL
+            value_from: neon-db-url
+          - name: API_DB_SCHEMA
+            value: "public"
+          - name: LOG_LEVEL
+            value: "INFO"
+          - name: DEPLOYMENTS_ALLOW_LAUNCH
+            value: "false"
+          - name: HF_SPACES
+            value: "0"
+
+targets:
+  dev:
+    default: true
+    workspace:
+      profile: opennav-prod

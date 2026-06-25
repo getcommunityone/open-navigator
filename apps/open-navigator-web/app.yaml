@@ -1,0 +1,63 @@
+# Databricks Apps runtime configuration for Open Navigator.
+#
+# Single-process deployment: FastAPI (api.main:app) serves the REST API AND the
+# built React/Vite frontend + Docusaurus docs as static files. There is no nginx
+# in front (unlike the HuggingFace Space), so the app itself owns:
+#   /            -> built React SPA (api/static/index.html)
+#   /assets/*    -> Vite hashed bundles
+#   /docs/*      -> Docusaurus documentation
+#   /api/*       -> FastAPI routes
+#   /api/docs    -> Swagger UI   (/redoc -> ReDoc)
+#
+# Platform rules honored here:
+#   * Bind 0.0.0.0 on $DATABRICKS_APP_PORT (NOT a hardcoded port -> avoids 502).
+#   * One process, one bound port.
+#   * Deps come from requirements.txt only (no Docker / uv at runtime).
+#
+# This directory is the bundle source root. Its contents (api/, packages/,
+# scripts/, web_app/public/, built api/static, requirements.txt, ...) are STAGED
+# in by ./build.sh before deploy — they are git-ignored, not committed. Run the
+# build first:  ./build.sh        (build + validate only; does NOT deploy)
+
+command:
+  - uvicorn
+  - api.main:app
+  - --host
+  - "0.0.0.0"
+  - --port
+  - "${DATABRICKS_APP_PORT:-8000}"
+  - --proxy-headers
+  - --no-access-log   # request logging is handled by the app's own middleware
+
+env:
+  # --- Workspace package imports ------------------------------------------
+  # The packages/* libraries are NOT pip-installed (that would drag in their
+  # heavy transitive deps). Instead each import root is on PYTHONPATH, plus the
+  # source root "." so api.*, scripts.*, and config (packages/core/config) resolve.
+  # Layout: flat packages expose their top module directly (core->config,
+  # agents->agents, datamodels->models); the rest use a src/ layout.
+  - name: PYTHONPATH
+    value: ".:packages/core:packages/agents:packages/datamodels:packages/core-lib/src:packages/scrapers/src:packages/ingestion/src:packages/llm/src:packages/accessibility/src:packages/hosting/src"
+
+  # --- Database: already-loaded Neon PROD Postgres ------------------------
+  # api/database.py resolves the DSN in this order:
+  #   NEON_DATABASE_URL_DEV  ->  NEON_DATABASE_URL  ->  DATABASE_URL
+  # We set ONLY NEON_DATABASE_URL (prod) and leave *_DEV unset so the app cannot
+  # fall back to a dev branch. Injected from the existing `open-navigator` secret
+  # scope (key `neon-prod-url`) via the `neon-db-url` resource in databricks.yml.
+  - name: NEON_DATABASE_URL
+    valueFrom: neon-db-url
+
+  # Data schema for the public serving views. Matches the prod API.
+  - name: API_DB_SCHEMA
+    value: "public"
+
+  # --- Runtime behavior flags ---------------------------------------------
+  - name: LOG_LEVEL
+    value: "INFO"
+  # Hard-disable the prod deployment launcher route inside this serving app.
+  - name: DEPLOYMENTS_ALLOW_LAUNCH
+    value: "false"
+  # Not the HuggingFace Space — skip HF dataset reachability checks at startup.
+  - name: HF_SPACES
+    value: "0"
