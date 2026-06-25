@@ -257,7 +257,7 @@ The script automatically updates:
    
    ## Reporting a Vulnerability
    
-   Please report security vulnerabilities to: security@communityone.com
+   Please report security vulnerabilities to: johnbowyer@communityone.com
    ```
 
 3. **Review Branch Protection**:

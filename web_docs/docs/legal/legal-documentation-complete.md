@@ -195,7 +195,7 @@ All documents located in: `website/docs/legal/`
 2. **User-Agent Headers:**
    ```python
    headers = {
-       'User-Agent': 'OpenNavigator/1.0 (https://communityone.com/; contact@example.com)'
+       'User-Agent': 'OpenNavigator/1.0 (https://communityone.com/; johnbowyer@communityone.com)'
    }
    ```
 

@@ -321,7 +321,7 @@ FEC_API_KEY=your-api-key-here  # Only needed for API, not bulk downloads
 
 **User-Agent:**
 ```python
-User-Agent: CommunityOne/1.0 (https://communityone.com/; contact@example.com)
+User-Agent: CommunityOne/1.0 (https://communityone.com/; johnbowyer@communityone.com)
 ```
 
 ---

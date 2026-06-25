@@ -202,7 +202,9 @@ is far faster than rebuilding every dbt model from scratch.
 make restore VERSION=snapshot-20260609   # dev only
 ```
 
-**Otherwise, restore a dump someone shared with you** directly:
+**No local symlink?** Browse shared snapshots at
+[open-navigator-backups on Google Drive](https://drive.google.com/drive/folders/1yQSHMI-lk36Zm3_RZJfO7qCgRXqxC9ur?usp=sharingWeWe),
+download the `.dump` files, then restore manually (below).
 
 ```bash
 # Create the DB if needed, then restore (rebuilds the `public` serving schema the API reads):
@@ -423,24 +425,32 @@ make backup-public VERSION=snapshot-20260609   # local public, personal tables e
 ### Google Drive folder (one-time setup)
 
 `make backup` writes into a folder synced by **Google Drive for Desktop**, reached in WSL
-through a symlink named `open-navigator-backups` in the repo root. Set it up once per machine:
+through a symlink named `open-navigator-backups` in the repo root.
+
+**Shared team folder:**
+[open-navigator-backups on Google Drive](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)
+(Anyone with the link can view snapshots under `releases/` and `snapshots/`).
+
+Set up the local symlink once per machine:
 
 ```bash
-# 1. Google Drive for Desktop must be running on Windows (so H:\My Drive is accessible).
+# One command (mounts I:, updates /etc/fstab, creates the folder, links the symlink):
+make setup-backup-drive
 
-# 2. Mount H: into WSL and make it persist across restarts:
-sudo mkdir -p /mnt/h && sudo mount -t drvfs 'H:' /mnt/h
-echo 'H: /mnt/h drvfs defaults 0 0' | sudo tee -a /etc/fstab
-
+# Or manually:
+# 1. Google Drive for Desktop must be running on Windows (so I:\My Drive is accessible).
+# 2. Mount I: into WSL and make it persist across restarts:
+sudo mkdir -p /mnt/i && sudo mount -t drvfs 'I:' /mnt/i
+echo 'I: /mnt/i drvfs defaults 0 0' | sudo tee -a /etc/fstab
 # 3. Create the Drive folder and link it into the repo (the symlink is gitignored):
-mkdir -p "/mnt/h/My Drive/open-navigator-backups"
-ln -sfn "/mnt/h/My Drive/open-navigator-backups" open-navigator-backups
-
+mkdir -p "/mnt/i/My Drive/open-navigator-backups"
+ln -sfn "/mnt/i/My Drive/open-navigator-backups" open-navigator-backups
 # 4. Verify:
 test -d open-navigator-backups/ && echo "✅ Drive backup folder ready"
 ```
 
-> Different Drive letter? Swap `H:` / `/mnt/h`. No Drive for Desktop? Point `BACKUP_DIR`
+> Different Drive letter? `make setup-backup-drive DRIVE_LETTER=H` (or swap `I:` / `/mnt/i`
+> in the manual steps). No Drive for Desktop? Point `BACKUP_DIR`
 > at any folder and sync it with [`rclone`](https://rclone.org/drive/) instead.
 
 ### Create a backup
@@ -467,15 +477,18 @@ ls open-navigator-backups/snapshots/snapshot-20260609/
 ### Share a snapshot with a collaborator
 
 1. Run `make backup VERSION=<label>`.
-2. At [drive.google.com](https://drive.google.com), open the `open-navigator-backups`
-   folder → right-click the `<label>` folder → **Share** → set "Anyone with the link →
-   Viewer" and copy the link.
-3. The recipient either shares the **same** Drive folder and runs
-   `make restore VERSION=<label>`, or downloads the `.dump` and restores it manually
+2. After Google Drive syncs, confirm the dumps appear under
+   [`snapshots/<label>/`](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)
+   in the shared [open-navigator-backups](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)
+   folder (or `releases/<label>/` for semver tags).
+3. Collaborators with folder access run `make restore VERSION=<label>` when their
+   [local symlink](#google-drive-folder-one-time-setup) points at the same Drive tree;
+   otherwise they download the `.dump` files from the shared folder and restore manually
    (see [Restore the Database](#restore-the-database)).
 
-For a tagged release, also push the matching git tag and record the backup link + SHA in
-the [Release History](development/release-history.md):
+For a tagged release, also push the matching git tag and record the snapshot path + SHA in
+the [Release History](development/release-history.md) (shared folder:
+[open-navigator-backups](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)):
 
 ```bash
 git tag -a v1.5.0 -m "feat: add grants.gov opportunities to search" && git push origin v1.5.0

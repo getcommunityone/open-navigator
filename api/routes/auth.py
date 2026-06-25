@@ -205,7 +205,7 @@ async def oauth_login(
             detail=(
                 f"{provider.title()} sign-in is temporarily unavailable "
                 f"(server is missing {missing}). Please try another sign-in method "
-                "or contact support@communityone.com."
+                "or contact johnbowyer@communityone.com."
             ),
         )
 
@@ -230,7 +230,7 @@ async def oauth_login(
             detail=(
                 f"{provider.title()} sign-in is temporarily unavailable "
                 "(could not start the login session). Please try again shortly "
-                "or contact support@communityone.com."
+                "or contact johnbowyer@communityone.com."
             ),
         )
     

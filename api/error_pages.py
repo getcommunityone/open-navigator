@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 # Single source of truth for the support address — referenced by the HTML page,
 # the mailto link, and the JSON ``support`` field.
-SUPPORT_EMAIL = "support@communityone.com"
+SUPPORT_EMAIL = "johnbowyer@communityone.com"
 
 
 def wants_html(request: Request) -> bool:
