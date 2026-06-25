@@ -1,7 +1,7 @@
 # CPU-Only Requirements (No GPU/CUDA needed)
 # Core Configuration
 python-dotenv>=1.2.2
-pydantic>=2.5.0
+pydantic[email]>=2.5.0
 pydantic-settings>=2.1.0
 
 # Web Scraping & Data Collection
@@ -86,3 +86,11 @@ black>=23.0.0
 ruff>=0.1.0
 mypy>=1.8.0
 pre-commit>=3.6.0
+
+# Authentication & DB drivers (required at API startup — see api/auth.py, api/routes/*)
+# Kept in sync with requirements.txt so CPU-only installs (install.sh prefers this
+# file) don't break on `import jose` / `import asyncpg` at import time.
+python-jose[cryptography]==3.4.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 + CVE-2024-33664)
+passlib[bcrypt]==1.7.4            # Password hashing
+psycopg2-binary==2.9.9           # PostgreSQL driver
+asyncpg==0.29.0                  # Async PostgreSQL driver (for Neon)
