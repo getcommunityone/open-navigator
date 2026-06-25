@@ -1,7 +1,7 @@
 # Core Dependencies
 python-dotenv==1.2.2
 pydantic>=2.10,<3        # >=2.10 required by crawl4ai (was pinned ==2.5.0, which made the tree unsatisfiable)
-pydantic-settings>=2.6,<3
+pydantic-settings>=2.14.2,<3
 
 # Web Scraping & Data Collection
 beautifulsoup4==4.12.2
@@ -14,12 +14,12 @@ httpx>=0.25.0
 crawl4ai>=0.4.0          # AI-friendly crawler (browser + LLM extraction); needs `crawl4ai-setup` once after install
 litellm>=1.40.0          # crawl4ai backend for non-OpenAI providers (Groq, Gemini, Anthropic, ...)
 socksio>=1.0.0  # needed for httpx SOCKS proxies (socks5://...)
-aiohttp==3.14.0
+aiohttp==3.14.1
 youtube-transcript-api>=0.6.2
 google-api-python-client>=2.100.0  # YouTube Data API v3
 
 # Document Processing (Multiple Formats)
-pypdf>=6.0.0               # PDF extraction (successor to PyPDF2)
+pypdf>=6.14.2               # PDF extraction (successor to PyPDF2)
 PyPDF2>=3.0.0              # PDF extraction (legacy, some scripts may use)
 pdfplumber>=0.10.0         # Advanced PDF extraction (tables)
 python-pptx>=0.6.0         # PowerPoint extraction
@@ -43,7 +43,7 @@ google-generativeai>=0.8.0
 # langgraph was dropped — it is not imported anywhere in the codebase.
 # langchain-community has no 1.x release; its 0.4 line allows langchain-core
 # <2.0 (so it co-resolves with the 1.x core) and is in no advisory.
-langchain>=1.0
+langchain>=1.3.11
 langchain-openai>=1.1.14
 langchain-community>=0.4
 langchain-core>=1.2.22
@@ -85,7 +85,7 @@ qdrant-client>=1.7.0
 fastapi==0.109.0
 uvicorn[standard]==0.25.0
 pydantic[email]>=2.10,<3
-python-multipart==0.0.31
+python-multipart==0.0.32
 
 # Observability (OpenTelemetry tracing for FastAPI — see api/telemetry.py)
 opentelemetry-api==1.42.0
