@@ -2397,7 +2397,7 @@ export default function Home() {
             </p>
             <div className="flex justify-center">
               <a
-                href="mailto:hello@communityone.com"
+                href="mailto:johnbowyer@communityone.com"
                 className="inline-flex items-center justify-center px-8 py-4 rounded-lg text-white font-semibold transition-all hover:shadow-lg"
                 style={{ backgroundColor: '#354F52' }}
               >

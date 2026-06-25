@@ -1,4 +1,4 @@
-.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup-preflight backup backup-public backup-neon restore restore-public restore-neon azure-init azure-plan azure-apply azure-fmt
+.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh setup-backup-drive backup-preflight backup backup-public backup-neon restore restore-public restore-neon azure-init azure-plan azure-apply azure-fmt
 
 # Azure subscriptions Terraform (infra/azure). Creds load from infra/azure/.env (ARM_*),
 # never committed. Override dir with AZURE_TF_DIR if needed.
@@ -42,6 +42,7 @@ help:
 	@echo "  make grants-refresh    - Refresh Grants.gov opportunities (incremental upsert)"
 	@echo ""
 	@echo "🏷️  Releases & Backups (semver, see web_docs Quick Start):"
+	@echo "  make setup-backup-drive            - Mount Google Drive (I:) and link open-navigator-backups"
 	@echo "  make backup VERSION=v1.5.0         - Dump full open_navigator + openstates, push to Drive"
 	@echo "  make backup-neon VERSION=v1.5.0    - Dump the Neon serving DB (civic only, NO user PII) [recommended]"
 	@echo "  make backup-public VERSION=v1.5.0  - Dump the local public schema, personal user tables excluded"
@@ -232,12 +233,12 @@ grants-refresh:
 #   make restore VERSION=v1.5.0   # restore that version's dumps from the Drive folder (DEV ONLY)
 #
 # BACKUP_DIR is a WSL symlink that points at the Google Drive for Desktop folder on
-# Windows (open-navigator-backups -> /mnt/h/My Drive/open-navigator-backups). Writing
+# Windows (open-navigator-backups -> /mnt/i/My Drive/open-navigator-backups). Writing
 # there means Google Drive auto-syncs the dumps off-machine — no rclone needed.
 #
 # pg_dump streams to a LOCAL staging dir first (BACKUP_STAGING, on fast ext4), then the
 # finished file is copied into the Drive folder. This sidesteps a known DriveFS-over-WSL
-# failure mode where large sequential writes straight into the virtual H: drive stall.
+# failure mode where large sequential writes straight into the virtual I: drive stall.
 # One-time setup is documented in web_docs/docs/quickstart.md.
 # Override any of these via env. Defaults match the local dev warehouse (localhost:5433).
 PG_HOST        ?= localhost
@@ -262,6 +263,32 @@ PG_BIN      ?= $(shell ls -d /usr/lib/postgresql/*/bin/ 2>/dev/null | sort -V | 
 PG_DUMP     ?= $(PG_BIN)pg_dump
 PG_RESTORE  ?= $(PG_BIN)pg_restore
 PG_CREATEDB ?= $(PG_BIN)createdb
+
+# Google Drive backup folder one-time setup. Default drive letter I: (override DRIVE_LETTER=H).
+DRIVE_LETTER ?= I
+
+setup-backup-drive:
+	@set -e; \
+	letter="$(DRIVE_LETTER)"; \
+	lc=$$(printf '%s' "$$letter" | tr '[:upper:]' '[:lower:]'); \
+	root="/mnt/$$lc"; \
+	drive="$$letter:"; \
+	target="$$root/My Drive/open-navigator-backups"; \
+	echo "📁 Setting up backup folder on $$drive ($$root)..."; \
+	sudo mkdir -p "$$root"; \
+	if ! mountpoint -q "$$root" 2>/dev/null; then \
+		sudo mount -t drvfs "$$drive" "$$root"; \
+	fi; \
+	if grep -qE '^H:[[:space:]]+/mnt/h[[:space:]]' /etc/fstab 2>/dev/null; then \
+		echo "🔄 Removing stale H: entry from /etc/fstab..."; \
+		sudo sed -i '/^H:[[:space:]]\+\/mnt\/h[[:space:]]/d' /etc/fstab; \
+	fi; \
+	if ! grep -qE "^$$letter:[[:space:]]+$$root[[:space:]]" /etc/fstab 2>/dev/null; then \
+		echo "$$drive $$root drvfs defaults 0 0" | sudo tee -a /etc/fstab; \
+	fi; \
+	mkdir -p "$$target"; \
+	ln -sfn "$$target" open-navigator-backups; \
+	test -d open-navigator-backups/ && echo "✅ Drive backup folder ready at open-navigator-backups → $$target"
 
 # Verify the Drive folder is reachable, and if not, diagnose *why* and print the exact
 # fix. Most common cause: the WSL symlink exists but the Drive letter never got mounted

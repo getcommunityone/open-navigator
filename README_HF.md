@@ -94,7 +94,7 @@ We welcome contributions! See CONTRIBUTING.md in the repository for guidelines.
 
 - **Issues**: [GitHub Issues](https://github.com/getcommunityone/open-navigator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/getcommunityone/open-navigator/discussions)
-- **Email**: hello@communityone.com
+- **Email**: johnbowyer@communityone.com
 
 ---
 

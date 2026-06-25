@@ -103,7 +103,7 @@ municipality,channel_id,state,population,added_date
 - `[cityname]tv`
 
 **Example channels:**
-- Seattle: `UCMFAKdxL6sATpkRqLdJyKUg`
+- Seattle (Seattle Channel): `UCu2IUja1ASnGIr_ORrtLReg`
 - Boston: `UCiMB3gH6PLe-JMDhxX4ZsmA`
 - Atlanta: `UCMdVz77sRLkqJe5NLVB7uTQ`
 
@@ -158,7 +158,7 @@ jobs:
       - name: Commit updates
         run: |
           git config user.name "LocalView Bot"
-          git config user.email "bot@communityone.com"
+          git config user.email "johnbowyer@communityone.com"
           git add data/cache/localview/
           git commit -m "Update LocalView data ($(date +%Y-%m-%d))" || true
           git push

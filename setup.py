@@ -10,7 +10,7 @@ setup(
     name="open-navigator",
     version="1.0.0",
     author="Community One",
-    author_email="support@communityone.org",
+    author_email="johnbowyer@communityone.com",
     description="CommunityOne: The open path to everything local",
     long_description=long_description,
     long_description_content_type="text/markdown",

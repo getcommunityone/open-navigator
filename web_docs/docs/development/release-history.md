@@ -32,17 +32,18 @@ Start guide for the `make backup` / `make restore` workflow.
   and the **Releases & Data Versioning** section of the Quick Start guide. Each release
   tag is paired with version-stamped `pg_dump` snapshots (`<db>_<version>_<date>_<sha>.dump`)
   written to a Google Drive for Desktop folder via a WSL symlink
-  (`open-navigator-backups` → `H:\My Drive\open-navigator-backups`), which Drive syncs
-  off-machine automatically.
+  (`open-navigator-backups` → `I:\My Drive\open-navigator-backups`), which Drive syncs
+  off-machine automatically. Shared folder:
+  [open-navigator-backups on Google Drive](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing).
 
 ## [1.0.0]
 
 Initial baseline version (as recorded in `web_app/package.json`). Establishes the
 FastAPI backend, dbt medallion warehouse, React app, and Docusaurus docs.
 
-> **Backup:** _to be provisioned_ — the first versioned warehouse snapshot will be
-> written once the Google Drive for Desktop folder + WSL symlink are set up (see the
-> Quick Start one-time setup) and `H:` is mounted in WSL.
+> **Backup:** [open-navigator-backups on Google Drive](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)
+> — versioned warehouse snapshots land under `releases/` and `snapshots/` once
+> `make backup` runs with the [local Drive symlink](../quickstart.md#google-drive-folder-one-time-setup) in place.
 
 [Unreleased]: https://github.com/getcommunityone/open-navigator/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/getcommunityone/open-navigator/releases/tag/v1.0.0
