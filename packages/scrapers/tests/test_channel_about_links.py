@@ -41,7 +41,7 @@ def test_parse_channel_about_page_offline():
                     "contents": {
                         "channelExternalLinkViewModel": {
                             "title": {"simpleText": "Official Website"},
-                            "link": {"content": "http://www.city.gov"}
+                            "link": {"content": "https://www.city.gov"}
                         }
                     }
                 };
