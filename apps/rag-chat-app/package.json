@@ -14,7 +14,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-resizable-panels": "3.0.6",
-    "react-router": "7.13.0",
+    "react-router": "7.15.1",
     "streamdown": "^2.5.0",
     "tailwind-merge": "3.3.1",
     "tailwindcss-animate": "1.0.7",
