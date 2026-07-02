@@ -82,7 +82,7 @@ class ELGLYouTubeDiscovery:
             {
                 'jurisdiction_name': 'Seattle',
                 'state': 'WA',
-                'youtube_url': 'https://youtube.com/@cityofseattle',
+                'youtube_url': 'https://www.youtube.com/channel/UCu2IUja1ASnGIr_ORrtLReg',
                 'source': 'ELGL Top Channels 2024',
                 'description': 'City council meetings and city updates',
                 'subscribers': '15000',

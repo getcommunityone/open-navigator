@@ -256,6 +256,7 @@ async def search_jurisdictions_pg(
     state: Optional[str] = None,
     city: Optional[str] = None,
     jurisdiction_levels: Optional[List[str]] = None,
+    geoid: Optional[str] = None,
     limit: int = 10,
     offset: int = 0
 ) -> List[SearchResult]:
@@ -315,6 +316,12 @@ async def search_jurisdictions_pg(
         if city:
             where_clauses.append(f"LOWER(display_name) LIKE LOWER(${param_idx})")
             params.append(f"%{city}%")
+            param_idx += 1
+
+        # Exact GEOID filter (homepage Browse places deep links).
+        if geoid and geoid.strip():
+            where_clauses.append(f"geoid = ${param_idx}")
+            params.append(geoid.strip())
             param_idx += 1
         
         # Jurisdiction level filter

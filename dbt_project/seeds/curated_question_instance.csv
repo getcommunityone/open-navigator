@@ -7,3 +7,6 @@ question_id,source_id,state_code,jurisdiction_name,city,outcome_raw,occurred_at
 2bcea4e521fd138a9df8c8435dc91910,ad107dd0f65e5cc2ee0c97cf2108a84f,IN,Adams County,,Approved,2026-05-28 22:57:10
 2bcea4e521fd138a9df8c8435dc91910,eb2e5bfd3762f8ba8be11a3f01edacbd,WA,Lacey,Lacey,Reported,2026-05-29 03:12:11
 cc6c76b088c72341e19abfda1b6807dd,8429d7134a11da34b186ef27b372e45d,AL,Barbour County,,Approved,2026-05-29 04:54:52
+837749a442882af1e3c1445b9691e7de,541ec3ff3f16ebef4c4d0f9afaae961e,MA,Medford,Medford,Passed with amendments and referral,2026-06-05 20:14:21
+837749a442882af1e3c1445b9691e7de,a47dffa721b3fd5704f3af6c0e61eaf9,AZ,Phoenix city,,Approved,2026-06-06 01:48:50
+837749a442882af1e3c1445b9691e7de,ddc841d296452493fa5c24667686e586,PA,,,Discussion and presentation of ongoing administrative actions; no formal vote on a specific ordinance was taken during this segment.,2026-06-10 03:29:59

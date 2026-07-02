@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useCallback, useMemo, useState } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Dialog, Transition } from '@headlessui/react'
@@ -67,14 +67,18 @@ export default function PolicyQuestionsPage() {
   const navigate = useNavigate()
   const routerLocation = useLocation()
   // Place filter carried over from the homepage (e.g. ?state=GA&city=Atlanta) —
-  // passed straight through to the scoped MeetingCardList, like Browse Topics.
-  const [searchParams] = useSearchParams()
+  // passed straight through to the scoped DecisionCardList, like Browse Topics.
+  const [searchParams, setSearchParams] = useSearchParams()
   const stateCode = (searchParams.get('state') || '').trim().toUpperCase() || undefined
   const cityName = (searchParams.get('city') || '').trim() || undefined
+  const questionIdParam = (searchParams.get('question_id') || '').trim() || undefined
+  const [placeScope, setPlaceScope] = useState<'city' | 'state'>('city')
+  const scopedCity = cityName && placeScope === 'city' ? cityName : undefined
+  const placeLabel = scopedCity || stateCode
 
-  // Picking a question SCOPES the meeting cards shown below — it no longer drills
-  // into a separate accordion view. The cards stay at the top the whole time.
-  const [selectedQuestion, setSelectedQuestion] = useState<PolicyQuestionSummary | null>(null)
+  // Picking a question SCOPES the decision cards shown below — ?question_id=
+  // in the URL is the source of truth so deep links, refresh, and homepage picks
+  // stay in sync with the pills + decision cards.
   // The full question catalog + keyword search lives in a slide-over flyout so
   // the main view stays focused on the top handful of questions.
   const [flyoutOpen, setFlyoutOpen] = useState(false)
@@ -99,6 +103,25 @@ export default function PolicyQuestionsPage() {
   })
 
   const questions = useMemo(() => data ?? [], [data])
+
+  const selectedQuestion = useMemo(
+    () =>
+      questionIdParam
+        ? questions.find((q) => q.question_id === questionIdParam) ?? null
+        : null,
+    [questions, questionIdParam],
+  )
+
+  const pickQuestion = useCallback(
+    (q: PolicyQuestionSummary | null) => {
+      const next = new URLSearchParams(searchParams)
+      if (q?.question_id) next.set('question_id', q.question_id)
+      else next.delete('question_id')
+      setSearchParams(next, { replace: true })
+      setFlyoutOpen(false)
+    },
+    [searchParams, setSearchParams],
+  )
 
   // Full catalog filtered by the flyout keyword search (text or theme).
   const filtered = useMemo(() => {
@@ -128,14 +151,16 @@ export default function PolicyQuestionsPage() {
         : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700'
     }`
 
-  const pickQuestion = (q: PolicyQuestionSummary | null) => {
-    setSelectedQuestion(q)
-    setFlyoutOpen(false)
-  }
+  const pickQuestionToggle = useCallback(
+    (q: PolicyQuestionSummary) => {
+      pickQuestion(selectedQuestion?.question_id === q.question_id ? null : q)
+    },
+    [pickQuestion, selectedQuestion],
+  )
 
   const listTitle = selectedQuestion
-    ? 'Decisions on this question'
-    : `Most contested decisions${stateCode ? ` · ${stateCode}` : ''}`
+    ? `Decisions on this question${placeLabel ? ` in ${placeLabel}` : ''}`
+    : `Most contested decisions${placeLabel ? ` in ${placeLabel}` : ''}`
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -152,12 +177,35 @@ export default function PolicyQuestionsPage() {
         {/* Header card — title + description; the full question search lives in
             the flyout, matching Browse Topics. */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Browse Questions{stateCode ? ` · ${stateCode}` : ''}
-          </h1>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <h1 className="text-2xl font-bold text-gray-900">
+              Browse Questions{placeLabel ? ` · ${placeLabel}` : ''}
+            </h1>
+            {cityName && stateCode && (
+              <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setPlaceScope('city')}
+                  className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                    placeScope === 'city' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  📍 {cityName}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlaceScope('state')}
+                  className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                    placeScope === 'state' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  All of {stateCode}
+                </button>
+              </div>
+            )}
+          </div>
 
-          {/* Top questions inline — pick one to scope the meeting cards below. The
-              rest of the catalog + keyword search live in the "More questions" flyout. */}
+          {/* Top questions inline — pick one to scope the decision cards below. */}
           {isError ? (
             <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               Couldn&apos;t load questions.{' '}
@@ -177,7 +225,7 @@ export default function PolicyQuestionsPage() {
                     <button
                       key={q.question_id}
                       type="button"
-                      onClick={() => pickQuestion(q)}
+                      onClick={() => pickQuestionToggle(q)}
                       title={q.canonical_text ?? undefined}
                       className={chipClass(on)}
                     >
@@ -198,10 +246,10 @@ export default function PolicyQuestionsPage() {
             Picking a question scopes this list; the `key` remounts it so the new
             scope applies cleanly. */}
         <DecisionCardList
-          key={selectedQuestion?.question_id ?? 'all-questions'}
-          questionId={selectedQuestion?.question_id}
+          key={`${selectedQuestion?.question_id ?? questionIdParam ?? 'all-questions'}-${scopedCity ?? 'state'}`}
+          questionId={selectedQuestion?.question_id ?? questionIdParam ?? undefined}
           state={stateCode}
-          city={cityName}
+          city={scopedCity}
           title={listTitle}
           showAdvancedFilters
           scopeFilter={
@@ -236,6 +284,7 @@ export default function PolicyQuestionsPage() {
             key={`meetings-${selectedQuestion.question_id}`}
             question={selectedQuestion}
             state={stateCode}
+            city={scopedCity}
           />
         )}
       </div>

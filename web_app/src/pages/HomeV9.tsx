@@ -521,6 +521,21 @@ export default function HomeV9() {
     }
   }, [])
 
+  // Logo click (SiteHeader) resets the hero when already on the home route.
+  useEffect(() => {
+    const onGoHome = () => {
+      setQuery('')
+      setDebouncedQuery('')
+      setSuggestOpen(false)
+      setSearchFocused(false)
+      setCatOpen(false)
+      setLevelOpen(false)
+      setChangingLoc(false)
+    }
+    window.addEventListener('open-navigator:go-home', onGoHome)
+    return () => window.removeEventListener('open-navigator:go-home', onGoHome)
+  }, [])
+
   // ── Real data ──
   const { data: lensesData } = useQuery<LensesResp>({
     queryKey: ['home-v9-lenses', national, stateCode, city, when.window],
@@ -1267,8 +1282,13 @@ export default function HomeV9() {
                     key: q.entity_id,
                     label: q.entity_name,
                     transcripts: q.transcript_count,
-                    onSelect: () =>
-                      navigate(`/policy-question/${q.entity_id}`, { state: { fromHome: true } }),
+                    onSelect: () => {
+                      const p = new URLSearchParams()
+                      if (locState) p.set('state', locState)
+                      if (locCity) p.set('city', locCity)
+                      p.set('question_id', q.entity_id)
+                      navigate(`/policy-questions?${p.toString()}`, { state: { fromHome: true } })
+                    },
                   })),
               },
               {
@@ -1294,15 +1314,13 @@ export default function HomeV9() {
                   key: t.entity_id,
                   label: t.entity_name,
                   transcripts: t.transcript_count,
-                  onSelect: () =>
-                    navigate(
-                      locState
-                        ? `/browse-topics?state=${encodeURIComponent(locState)}${
-                            locCity ? `&city=${encodeURIComponent(locCity)}` : ''
-                          }`
-                        : '/browse-topics',
-                      { state: { fromHome: true } },
-                    ),
+                  onSelect: () => {
+                    const p = new URLSearchParams()
+                    if (locState) p.set('state', locState)
+                    if (locCity) p.set('city', locCity)
+                    p.set('topic_id', t.entity_id)
+                    navigate(`/browse-topics?${p.toString()}`, { state: { fromHome: true } })
+                  },
                 })),
               },
               {
@@ -1326,15 +1344,13 @@ export default function HomeV9() {
                   key: c.entity_id,
                   label: c.entity_name,
                   transcripts: c.transcript_count,
-                  onSelect: () =>
-                    navigate(
-                      locState
-                        ? `/browse-causes?state=${encodeURIComponent(locState)}${
-                            locCity ? `&city=${encodeURIComponent(locCity)}` : ''
-                          }`
-                        : '/browse-causes',
-                      { state: { fromHome: true } },
-                    ),
+                  onSelect: () => {
+                    const p = new URLSearchParams()
+                    if (locState) p.set('state', locState)
+                    if (locCity) p.set('city', locCity)
+                    p.set('cause_id', c.entity_id)
+                    navigate(`/browse-causes?${p.toString()}`, { state: { fromHome: true } })
+                  },
                 })),
               },
               {
@@ -1363,10 +1379,13 @@ export default function HomeV9() {
                   key: p.entity_id,
                   label: p.entity_name,
                   transcripts: p.transcript_count,
-                  onSelect: () =>
-                    navigate(`/jurisdiction/${encodeURIComponent(p.entity_id)}/meetings`, {
-                      state: { fromHome: true },
-                    }),
+                  onSelect: () => {
+                    const params = new URLSearchParams()
+                    if (p.state_code) params.set('state', p.state_code)
+                    params.set('city', p.entity_name)
+                    params.set('geoid', p.entity_id)
+                    navigate(`/jurisdictions?${params.toString()}`, { state: { fromHome: true } })
+                  },
                 })),
               },
             ]

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
@@ -97,19 +97,28 @@ export default function SiteHeader() {
     { label: 'Contact', onClick: () => navigate('/support'), active: location.pathname === '/support' },
   ]
 
+  const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault()
+    setMenuOpen(false)
+    setShowLoginMenu(false)
+    setActiveSection('')
+    const onCleanHome =
+      location.pathname === '/' && !location.hash && !location.search
+    if (!onCleanHome) {
+      navigate('/')
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+    window.dispatchEvent(new CustomEvent('open-navigator:go-home'))
+  }
+
   return (
     <header className="site-header" style={{ position: 'sticky', top: 0, zIndex: 50, background: '#fff', borderBottom: '1px solid #e7e5e4' }}>
       <style>{HEADER_CSS}</style>
       <div className="v9-header-inner" style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24, position: 'relative' }}>
         <Link
           to="/"
-          onClick={() => {
-            // The logo always returns home and starts at the top. When already
-            // on '/', the pathname doesn't change so the global ScrollToTop
-            // effect won't fire — reset scroll here to cover that case too.
-            setMenuOpen(false)
-            window.scrollTo(0, 0)
-          }}
+          aria-label="Go to home"
+          onClick={goHome}
           style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, textDecoration: 'none', color: INK }}
         >
           <div

@@ -57,7 +57,7 @@ displayed_sidebar: policyMakersSidebar
 - Regional districts
 
 **Example Channels (Likely in ELGL Lists):**
-- City of Seattle: https://www.youtube.com/@cityofseattle
+- Seattle Channel: https://www.youtube.com/channel/UCu2IUja1ASnGIr_ORrtLReg
 - City of Austin: https://www.youtube.com/austintexasgov
 - Denver: https://www.youtube.com/DenverGov
 - King County, WA: https://www.youtube.com/KingCountyTV

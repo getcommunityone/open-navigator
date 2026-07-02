@@ -107,6 +107,7 @@ export default function JurisdictionsSearch() {
   const [selectedCity, setSelectedCity] = useState(() => searchParams.get('city') || '')
   const [cityDraft, setCityDraft] = useState(() => searchParams.get('city') || '')
   const [selectedCounty, setSelectedCounty] = useState(() => searchParams.get('county') || '')
+  const [selectedGeoid, setSelectedGeoid] = useState(() => searchParams.get('geoid') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
   const [showFilters, setShowFilters] = useState(false)
   const [hasWebsite, setHasWebsite] = useState(false)
@@ -121,6 +122,7 @@ export default function JurisdictionsSearch() {
     const stateParam = searchParams.get('state')
     const cityParam = searchParams.get('city')
     const countyParam = searchParams.get('county')
+    const geoidParam = searchParams.get('geoid')
     const levelsParam = searchParams.get('levels')
     const pageParam = searchParams.get('page')
     
@@ -138,6 +140,9 @@ export default function JurisdictionsSearch() {
     if (countyParam) {
       setSelectedCounty(countyParam)
     }
+    if (geoidParam) {
+      setSelectedGeoid(geoidParam)
+    }
     if (levelsParam) {
       const levels = levelsParam.split(',').filter(l => 
         JURISDICTION_LEVELS.some(jl => jl.id === l)
@@ -153,10 +158,10 @@ export default function JurisdictionsSearch() {
 
   // Main search results
   const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['jurisdictions-search', activeQuery, selectedLevels, selectedState, selectedCity, selectedCounty, currentPage],
+    queryKey: ['jurisdictions-search', activeQuery, selectedLevels, selectedState, selectedCity, selectedCounty, selectedGeoid, currentPage],
     queryFn: async () => {
       // Allow searching with query OR with filters (browse mode)
-      if (!activeQuery && !selectedState && !selectedCity && !selectedCounty && !selectedLevels.length) {
+      if (!activeQuery && !selectedState && !selectedCity && !selectedCounty && !selectedGeoid && !selectedLevels.length) {
         return null
       }
       
@@ -166,7 +171,7 @@ export default function JurisdictionsSearch() {
         page: currentPage
       }
       
-      // Query is optional - can browse by state/level/city/county
+      // Query is optional - can browse by state/level/city/county/geoid
       if (activeQuery) {
         params.q = activeQuery
       }
@@ -177,6 +182,10 @@ export default function JurisdictionsSearch() {
       
       if (selectedCity) {
         params.city = selectedCity
+      }
+
+      if (selectedGeoid) {
+        params.geoid = selectedGeoid
       }
       
       if (selectedCounty) {
@@ -191,14 +200,12 @@ export default function JurisdictionsSearch() {
       return response.data
     },
     // Enable if we have query OR filters (browse mode)
-    enabled: (activeQuery && activeQuery.length >= 2) || selectedState !== '' || selectedCity !== '' || selectedCounty !== '' || selectedLevels.length > 0
+    enabled: (activeQuery && activeQuery.length >= 2) || selectedState !== '' || selectedCity !== '' || selectedCounty !== '' || selectedGeoid !== '' || selectedLevels.length > 0
   })
 
   // BROWSE MODE: shown only when there is no active query and no active filters.
-  // Pulls a real (capped) sample of indexed places from the same search API the
-  // homepage "Browse places" uses, grouped by state.
   const isBrowseMode =
-    !activeQuery && !selectedState && !selectedCity && !selectedCounty && selectedLevels.length === 0
+    !activeQuery && !selectedState && !selectedCity && !selectedCounty && !selectedGeoid && selectedLevels.length === 0
 
   const { data: browseData, isLoading: isBrowseLoading } = useQuery<SearchResponse>({
     queryKey: ['jurisdictions-browse-places'],
@@ -250,7 +257,7 @@ export default function JurisdictionsSearch() {
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault()
     // Allow search with query OR just filters (browse mode)
-    if (query.trim().length >= 2 || selectedState || selectedCity || selectedCounty || selectedLevels.length > 0) {
+    if (query.trim().length >= 2 || selectedState || selectedCity || selectedCounty || selectedGeoid || selectedLevels.length > 0) {
       setActiveQuery(query)
       setCurrentPage(1) // Reset to first page on new search
       
@@ -260,6 +267,7 @@ export default function JurisdictionsSearch() {
       if (selectedState) params.state = selectedState
       if (selectedCity) params.city = selectedCity
       if (selectedCounty) params.county = selectedCounty
+      if (selectedGeoid) params.geoid = selectedGeoid
       if (selectedLevels.length > 0) {
         params.levels = selectedLevels.join(',')
       }
@@ -276,6 +284,7 @@ export default function JurisdictionsSearch() {
     if (selectedState) params.state = selectedState
     if (selectedCity) params.city = selectedCity
     if (selectedCounty) params.county = selectedCounty
+    if (selectedGeoid) params.geoid = selectedGeoid
     if (selectedLevels.length > 0) {
       params.levels = selectedLevels.join(',')
     }
@@ -300,6 +309,7 @@ export default function JurisdictionsSearch() {
     if (selectedState) params.state = selectedState
     if (selectedCity) params.city = selectedCity
     if (selectedCounty) params.county = selectedCounty
+    if (selectedGeoid) params.geoid = selectedGeoid
     if (newLevels.length > 0) {
       params.levels = newLevels.join(',')
     }
@@ -324,6 +334,7 @@ export default function JurisdictionsSearch() {
     selectedState,
     selectedCity,
     selectedCounty,
+    selectedGeoid,
     selectedLevels.length > 0 ? 'levels' : null,
     hasWebsite ? 'website' : null,
     hasYouTube ? 'youtube' : null,
@@ -407,7 +418,7 @@ export default function JurisdictionsSearch() {
           </div>
 
           {/* Active Filters Display */}
-          {(selectedState || selectedCity || selectedCounty || selectedLevels.length > 0) && (
+          {(selectedState || selectedCity || selectedCounty || selectedGeoid || selectedLevels.length > 0) && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-600">Active filters:</span>
               {selectedState && (
@@ -431,6 +442,7 @@ export default function JurisdictionsSearch() {
                     onClick={() => {
                       setSelectedCity('')
                       setCityDraft('')
+                      setSelectedGeoid('')
                       setTimeout(() => handleSearch(), 0)
                     }}
                     className="hover:bg-green-200 rounded-full p-0.5"
@@ -665,6 +677,7 @@ export default function JurisdictionsSearch() {
                         setSelectedCity('')
                         setCityDraft('')
                         setSelectedCounty('')
+                        setSelectedGeoid('')
                         setSelectedLevels([])
                         setHasWebsite(false)
                         setHasYouTube(false)

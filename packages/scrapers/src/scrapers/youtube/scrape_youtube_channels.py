@@ -149,7 +149,7 @@ class MunicipalYouTubeScraper:
         else:
             # Default starter list
             return [
-                {"municipality": "Seattle, WA", "channel_id": "UCMFAKdxL6sATpkRqLdJyKUg", "state": "WA"},
+                {"municipality": "Seattle, WA", "channel_id": "UCu2IUja1ASnGIr_ORrtLReg", "state": "WA"},
                 {"municipality": "Boston, MA", "channel_id": "UCiMB3gH6PLe-JMDhxX4ZsmA", "state": "MA"},
                 # Add more as discovered
             ]

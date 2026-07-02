@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useCallback, useMemo, useState } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Dialog, Transition } from '@headlessui/react'
@@ -19,8 +19,9 @@ const TOP_PILL_COUNT = 5
 export default function BrowseTopics() {
   const [query, setQuery] = useState('')
   // Picking a topic SCOPES the decision cards shown below — it no longer drills
-  // into a separate view. The cards stay at the top the whole time.
-  const [selectedTopic, setSelectedTopic] = useState<TopicSummary | null>(null)
+  // into a separate view. The cards stay at the top the whole time. ?topic_id=
+  // in the URL is the source of truth so deep links, refresh, and homepage picks
+  // stay in sync with the pills + decision cards.
   // The full topic catalog + keyword search lives in a slide-over flyout so the
   // main view stays focused on the top handful of topics.
   const [flyoutOpen, setFlyoutOpen] = useState(false)
@@ -29,9 +30,15 @@ export default function BrowseTopics() {
   // Place filter carried over from the homepage (e.g. ?state=GA&city=Atlanta).
   // The topic catalog is state-grain, but the decision cards scope to the city
   // when we have one — so browsing from Atlanta filters to Atlanta, not all GA.
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const stateCode = (searchParams.get('state') || '').trim().toUpperCase() || undefined
   const cityName = (searchParams.get('city') || '').trim() || undefined
+  const topicIdParam = (() => {
+    const raw = (searchParams.get('topic_id') || '').trim()
+    if (!raw) return undefined
+    const id = Number.parseInt(raw, 10)
+    return Number.isFinite(id) ? id : undefined
+  })()
   // When a city is carried in, default the decision scope to that city (e.g.
   // Atlanta, not all of GA) but let the user broaden to the state — some cities
   // have little analyzed data yet, so we never dead-end on an empty page.
@@ -56,7 +63,24 @@ export default function BrowseTopics() {
 
   const topics = useMemo(() => data ?? [], [data])
 
-  // Full catalog filtered by the flyout keyword search.
+  const selectedTopic = useMemo(
+    () =>
+      topicIdParam != null
+        ? topics.find((t) => t.topic_id === topicIdParam) ?? null
+        : null,
+    [topics, topicIdParam],
+  )
+
+  const pickTopic = useCallback(
+    (topic: TopicSummary | null) => {
+      const next = new URLSearchParams(searchParams)
+      if (topic?.topic_id != null) next.set('topic_id', String(topic.topic_id))
+      else next.delete('topic_id')
+      setSearchParams(next, { replace: true })
+      setFlyoutOpen(false)
+    },
+    [searchParams, setSearchParams],
+  )
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return topics
@@ -105,14 +129,10 @@ export default function BrowseTopics() {
     </span>
   )
 
-  const pickTopic = (topic: TopicSummary | null) => {
-    setSelectedTopic(topic)
-    setFlyoutOpen(false)
-  }
-
+  // Full catalog filtered by the flyout keyword search.
   const listTitle = selectedTopic
-    ? `Decisions on ${selectedTopic.name}`
-    : `Most contested decisions${placeLabel ? ` · ${placeLabel}` : ''}`
+    ? `Decisions on ${selectedTopic.name}${placeLabel ? ` in ${placeLabel}` : ''}`
+    : `Most contested decisions${placeLabel ? ` in ${placeLabel}` : ''}`
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -205,8 +225,14 @@ export default function BrowseTopics() {
             meeting previews, shown immediately. Picking a topic scopes this
             list; the `key` remounts it so the new scope applies cleanly. */}
         <DecisionCardList
-          key={`${selectedTopic?.topic_id ?? 'all-topics'}-${scopedCity ?? 'state'}`}
-          topicIds={selectedTopic ? [selectedTopic.topic_id] : undefined}
+          key={`${selectedTopic?.topic_id ?? topicIdParam ?? 'all-topics'}-${scopedCity ?? 'state'}`}
+          topicIds={
+            selectedTopic
+              ? [selectedTopic.topic_id]
+              : topicIdParam != null
+                ? [topicIdParam]
+                : undefined
+          }
           state={stateCode}
           city={scopedCity}
           title={listTitle}

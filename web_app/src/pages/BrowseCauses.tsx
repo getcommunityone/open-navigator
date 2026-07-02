@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
@@ -9,8 +9,9 @@ export default function BrowseCauses() {
   // Picking a cause SCOPES the decision cards shown below — it no longer drills
   // into a separate view. The cards stay at the top the whole time (matching
   // Browse Topics). A picked cause filters via ?cause_id= (cause -> decision ->
-  // meeting, transcript fallback), not a free-text seed.
-  const [selectedCause, setSelectedCause] = useState<CauseItem | null>(null)
+  // meeting, transcript fallback), not a free-text seed. The URL param is the
+  // source of truth so deep links, refresh, and homepage cause picks stay in sync
+  // with the pills + decision cards.
   const navigate = useNavigate()
   const routerLocation = useLocation()
 
@@ -18,9 +19,10 @@ export default function BrowseCauses() {
   // identical to Browse Topics: the cause pills + decision cards scope to that
   // place. Default the decision scope to the city we arrived with (so Tuscaloosa
   // filters to Tuscaloosa, not all of AL), with a one-click broaden to the state.
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const stateCode = (searchParams.get('state') || '').trim().toUpperCase() || undefined
   const cityName = (searchParams.get('city') || '').trim() || undefined
+  const causeIdParam = (searchParams.get('cause_id') || '').trim().toLowerCase() || undefined
   const [placeScope, setPlaceScope] = useState<'city' | 'state'>('city')
   const scopedCity = cityName && placeScope === 'city' ? cityName : undefined
   const placeLabel = scopedCity || stateCode
@@ -55,21 +57,43 @@ export default function BrowseCauses() {
       }),
   })
 
-  // Pills: the top causes by real meeting count.
-  const causes = useMemo(
-    () =>
-      [...(data?.causes ?? [])]
-        .sort((a, b) => (b.meeting_count ?? 0) - (a.meeting_count ?? 0))
-        .slice(0, TOP_CAUSE_COUNT),
-    [data],
-  )
-
   // Dropdown: the full catalog, alphabetical, for the Filters-flyout scope select.
   const allCauses = useMemo(
     () =>
       [...(data?.causes ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
     [data],
   )
+
+  // Active cause resolved from ?cause_id= against the loaded catalog.
+  const selectedCause = useMemo(
+    () =>
+      causeIdParam
+        ? allCauses.find((c) => (c.cause_id || '').toLowerCase() === causeIdParam) ?? null
+        : null,
+    [allCauses, causeIdParam],
+  )
+
+  const pickCause = useCallback(
+    (cause: CauseItem | null) => {
+      const next = new URLSearchParams(searchParams)
+      if (cause?.cause_id) next.set('cause_id', cause.cause_id)
+      else next.delete('cause_id')
+      setSearchParams(next, { replace: true })
+    },
+    [searchParams, setSearchParams],
+  )
+
+  // Pills: the top causes by real meeting count, plus the active one when it
+  // was picked from the flyout / a deep link outside the top handful.
+  const causes = useMemo(() => {
+    const top = [...(data?.causes ?? [])]
+      .sort((a, b) => (b.meeting_count ?? 0) - (a.meeting_count ?? 0))
+      .slice(0, TOP_CAUSE_COUNT)
+    if (selectedCause && !top.some((c) => c.cause_id === selectedCause.cause_id)) {
+      return [...top, selectedCause]
+    }
+    return top
+  }, [data, selectedCause])
 
   // Pill styling for the cause filter row — solid teal when active (theme).
   const chipClass = (on: boolean) =>
@@ -156,14 +180,14 @@ export default function BrowseCauses() {
               </span>
             ) : (
               causes.map((cause) => {
-                const on = selectedCause?.name === cause.name
+                const on = selectedCause?.cause_id === cause.cause_id
                 return (
                   <button
-                    key={cause.name}
+                    key={cause.cause_id ?? cause.name}
                     type="button"
                     // Clicking the active pill clears it (back to all causes) —
                     // replaces the removed "All causes" reset button.
-                    onClick={() => setSelectedCause(on ? null : cause)}
+                    onClick={() => pickCause(on ? null : cause)}
                     className={chipClass(on)}
                   >
                     <span aria-hidden="true">{cause.icon}</span>
@@ -181,8 +205,8 @@ export default function BrowseCauses() {
             ?cause_id= (cause -> decision -> meeting, transcript fallback); the
             place scope narrows by state/city. `key` remounts on any scope change. */}
         <DecisionCardList
-          key={`${selectedCause?.cause_id ?? 'all-causes'}-${stateCode ?? 'us'}-${scopedCity ?? 'state'}`}
-          causeId={selectedCause?.cause_id ?? undefined}
+          key={`${selectedCause?.cause_id ?? causeIdParam ?? 'all-causes'}-${stateCode ?? 'us'}-${scopedCity ?? 'state'}`}
+          causeId={selectedCause?.cause_id ?? causeIdParam ?? undefined}
           state={stateCode}
           city={scopedCity}
           title={listTitle}
@@ -194,7 +218,7 @@ export default function BrowseCauses() {
                 value={selectedCause?.name ?? ''}
                 onChange={(e) => {
                   const name = e.target.value
-                  setSelectedCause(name ? allCauses.find((c) => c.name === name) ?? null : null)
+                  pickCause(name ? allCauses.find((c) => c.name === name) ?? null : null)
                 }}
                 disabled={isLoading || allCauses.length === 0}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-400"

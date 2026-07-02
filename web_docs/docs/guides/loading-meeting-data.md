@@ -232,7 +232,7 @@ print(df.head())
 
 # 2. Scrape a single city for testing
 python scripts/localview/scrape_youtube_channels.py \
-    --channels "UCMFAKdxL6sATpkRqLdJyKUg" \
+    --channels "UCu2IUja1ASnGIr_ORrtLReg" \
     --max-videos 10
 
 # 3. Process and view results

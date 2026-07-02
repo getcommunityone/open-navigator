@@ -1732,6 +1732,7 @@ async def unified_search(
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_id: Optional[str] = Query(None, description="Filter by exact jurisdiction_id (city, county, or state) — scopes orgs/persons/grants through the MDM jurisdiction bridges"),
+    geoid: Optional[str] = Query(None, description="Filter jurisdictions by exact Census GEOID (Browse places deep links)"),
     county_fips: Optional[str] = Query(None, description="Broaden the geo scope to a whole county (5-digit FIPS, e.g. '01125'). SUPERSEDES `city`: the geo-scoped legs (meetings, decisions, documents, leaders, organizations) match ANY city/town in that county via public.jurisdiction_county_crosswalk."),
     jurisdiction_levels: Optional[str] = Query(None, description="Comma-separated jurisdiction levels: city,county,town,village,school_district,special_district,state"),
     ntee_code: Optional[str] = Query(None, description="Filter organizations by NTEE code"),
@@ -1936,7 +1937,7 @@ async def unified_search(
             search_tasks.append(('causes', search_postgres.search_causes_pg(q, limit=search_limit, offset=search_offset)))
 
         if 'jurisdictions' in requested_types:
-            search_tasks.append(('jurisdictions', search_postgres.search_jurisdictions_pg(q, state, city, jurisdiction_levels_list, limit=search_limit, offset=search_offset)))
+            search_tasks.append(('jurisdictions', search_postgres.search_jurisdictions_pg(q, state, city, jurisdiction_levels_list, geoid=geoid, limit=search_limit, offset=search_offset)))
 
         if search_tasks:
             # return_exceptions=True so one failing type degrades gracefully
