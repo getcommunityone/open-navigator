@@ -123,8 +123,13 @@ interface SearchResponse {
   }
   filters: {
     state?: string
+    city?: string
     ntee_code?: string
     types: string[]
+    // True when the backend parsed a "<city> <state>" query (e.g.
+    // "atlanta georgia") into the state/city scope rather than them being
+    // passed explicitly — the UI mirrors that scope into its filters + URL.
+    auto_detected_place?: boolean
   }
 }
 
@@ -820,6 +825,39 @@ function UnifiedSearchInner() {
     // tab-switching don't blank the list to a full-page spinner.
     placeholderData: keepPreviousData,
   })
+
+  // When the backend parses a "<city> <state>" query into an explicit place
+  // scope (e.g. typing "atlanta georgia" -> state=GA, city=Atlanta), mirror that
+  // scope into the UI filters + URL so the scope chips, query box, and results
+  // stay in lockstep and the scope survives refresh / back-button (per the
+  // site-wide scope-label rule). Idempotent: once state/city are set the next
+  // request passes them explicitly, the backend stops auto-detecting, and this
+  // effect no-ops.
+  useEffect(() => {
+    const f = searchResults?.filters
+    if (!f?.auto_detected_place) return
+    const detectedState = f.state || ''
+    const detectedCity = f.city || ''
+    const residualQ = searchResults?.query || ''
+    if (
+      selectedState === detectedState &&
+      selectedCity === detectedCity &&
+      activeQuery === residualQ
+    ) {
+      return
+    }
+    setSelectedState(detectedState)
+    setActiveQuery(residualQ)
+    setQuery(residualQ)
+    const params = new URLSearchParams(searchParams)
+    if (residualQ) params.set('q', residualQ)
+    else params.delete('q')
+    if (detectedState) params.set('state', detectedState)
+    if (detectedCity) params.set('city', detectedCity)
+    else params.delete('city')
+    setSearchParams(params)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchResults])
 
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -2996,6 +3034,10 @@ function UnifiedSearchInner() {
                                           caption: [badgeLabel, md.body_name, md.date]
                                             .filter(Boolean)
                                             .join(' • '),
+                                          // Orphan docs have no matched meeting to link back to.
+                                          backHref: md.meeting_id
+                                            ? `/meetings/${encodeURIComponent(String(md.meeting_id))}`
+                                            : undefined,
                                         })
                                       }
                                       className="font-semibold text-gray-900 mb-1 inline-flex items-center gap-1 cursor-pointer text-left hover:text-blue-600"

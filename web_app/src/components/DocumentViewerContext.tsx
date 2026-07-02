@@ -25,6 +25,10 @@ interface DocTarget {
   label: string
   /** Optional caption (e.g. the document date). */
   caption?: string
+  /** Optional in-app route back to the meeting this document belongs to. */
+  backHref?: string
+  /** Label for the back link (defaults to "Back to meeting"). */
+  backLabel?: string
 }
 
 interface DocumentViewerCtx {
@@ -64,7 +68,14 @@ export function DocumentViewerProvider({ children }: { children: ReactNode }) {
             >
               <XMarkIcon className="h-5 w-5" />
             </button>
-            <DocumentViewer url={target.url} label={target.label} caption={target.caption} />
+            <DocumentViewer
+              url={target.url}
+              label={target.label}
+              caption={target.caption}
+              backHref={target.backHref}
+              backLabel={target.backLabel}
+              onNavigateBack={() => setTarget(null)}
+            />
           </div>
         </div>
       )}

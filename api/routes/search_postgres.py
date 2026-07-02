@@ -155,6 +155,95 @@ def normalize_state_input(state: Optional[str]) -> Optional[str]:
     return state_stripped.upper()
 
 
+# --- Natural-language place detection ---------------------------------------
+# Lower-cased "full state name -> code" and the set of valid 2-letter codes,
+# derived from STATE_NAME_TO_CODE so they never drift. Used to recognise a
+# trailing US state in a free-text search query ("atlanta georgia", "tuscaloosa al").
+_STATE_NAME_LOWER = {name.lower(): code for name, code in STATE_NAME_TO_CODE.items()}
+_STATE_CODES = set(STATE_NAME_TO_CODE.values())
+# Longest state name in tokens ("District of Columbia" = 3) so we know how far
+# back to look when matching a multiword trailing state.
+_MAX_STATE_TOKENS = max(len(name.split()) for name in STATE_NAME_TO_CODE)
+
+
+def _match_trailing_state(tokens: List[str]) -> tuple:
+    """Return (state_code, tokens_consumed) when `tokens` END with a US state.
+
+    Matches a multiword full name first ("new york", "north carolina"), then a
+    single-word name, then a trailing 2-letter code (only when other tokens
+    precede it, so a bare "ga" isn't treated as a state). Returns (None, 0) otherwise.
+    """
+    for n in range(min(_MAX_STATE_TOKENS, len(tokens)), 0, -1):
+        phrase = " ".join(tokens[-n:]).lower()
+        if phrase in _STATE_NAME_LOWER:
+            return _STATE_NAME_LOWER[phrase], n
+    if len(tokens) >= 2 and tokens[-1].upper() in _STATE_CODES:
+        return tokens[-1].upper(), 1
+    return None, 0
+
+
+async def detect_place_in_query(query: Optional[str]) -> tuple:
+    """Detect a "<city> <state>" place inside a free-text search query.
+
+    A query like "atlanta georgia" is a PLACE, not a full-text term: without
+    this it matches rows whose *name* contains those words (e.g. orgs literally
+    named "...Atlanta Georgia..." that are actually in Alpharetta/Columbus)
+    instead of scoping to the city. When the trailing tokens name a US state AND
+    the leading tokens name a REAL city/town in that state (DB-verified), promote
+    them to explicit (state_code, city) filters and return the residual query.
+
+    Returns (residual_query, state_code, city_name):
+      - "atlanta georgia"     -> (None, "GA", "Atlanta")
+      - "tuscaloosa al"       -> (None, "AL", "Tuscaloosa")
+      - "fluoride atlanta ga" -> ("fluoride", "GA", "Atlanta")
+      - "budget georgia"      -> ("budget georgia", None, None)  # 'budget' isn't a GA city
+      - "indiana jones"       -> ("indiana jones", None, None)   # no TRAILING state
+
+    Conservative by design: only promotes when a city is DB-verified, so a
+    surname ending in a state-like word ("Jordan Washington") is left as text.
+    """
+    if not query or not query.strip():
+        return query, None, None
+    tokens = [t for t in re.split(r"[\s,]+", query.strip()) if t]
+    if len(tokens) < 2:
+        return query, None, None
+
+    state_code, consumed = _match_trailing_state(tokens)
+    if not state_code:
+        return query, None, None
+
+    leading = tokens[:-consumed]
+    if not leading:
+        # Bare state ("georgia") — leave untouched; the explicit state filter is
+        # the right tool for a whole-state browse, and a lone word is too easily
+        # a name/term to silently scope.
+        return query, None, None
+
+    # Try the longest trailing slice of the leading tokens as a city first
+    # (covers multiword cities like "san francisco"), shrinking from the left
+    # until one verifies against the jurisdictions table.
+    pool = await get_db_pool()
+    for start in range(len(leading)):
+        candidate = " ".join(leading[start:])
+        row = await pool.fetchrow(
+            """
+            SELECT name FROM jurisdictions
+            WHERE lower(name) = lower($1) AND state_code = $2
+              AND jurisdiction_type IN ('city', 'town')
+            LIMIT 1
+            """,
+            candidate,
+            state_code,
+        )
+        if row:
+            residual = " ".join(leading[:start]).strip() or None
+            return residual, state_code, row["name"]
+
+    # Trailing state present but no recognizable city: leave the query untouched
+    # rather than risk a false-positive state filter on a surname/plain term.
+    return query, None, None
+
+
 @dataclass
 class SearchResult:
     """Search result data class"""

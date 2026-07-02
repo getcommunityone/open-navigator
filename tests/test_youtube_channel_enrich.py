@@ -1,5 +1,7 @@
 """Tests for YouTube channel About-page enrichment."""
 
+import pytest
+
 from scrapers.youtube.youtube_channel_enrich import (
     jurisdiction_website_back_links,
     score_official_meeting_channel,
@@ -41,6 +43,7 @@ def test_jurisdiction_website_back_links_from_description_host():
     assert any("huntsvilleal.gov" in u for u in links)
 
 
+@pytest.mark.integration
 def test_fetch_latest_upload_from_rss():
     latest = fetch_latest_upload_date_from_rss("UCjQLzllGnzicLNiMMzcLwKQ")
     assert latest

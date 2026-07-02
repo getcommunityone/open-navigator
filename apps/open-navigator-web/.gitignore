@@ -1,0 +1,19 @@
+# Only the deploy CONFIG lives in git: app.yaml, databricks.yml, requirements.txt,
+# build.sh, README.md. Everything below is STAGED into this directory by build.sh
+# from the repo at deploy time (so the app source root is self-contained) and
+# must never be committed.
+
+# Staged repo source trees
+/api/
+/packages/
+/config/
+/scripts/
+
+# Built static bundles (Vite SPA -> api/static, Docusaurus -> api/static/docs)
+/web_app/
+
+# Bundle / CLI state
+.databricks/
+.bundle/
+__pycache__/
+*.pyc

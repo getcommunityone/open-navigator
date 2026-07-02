@@ -250,7 +250,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             title="Page not found",
             message=f"We couldn't find '{request.url.path}'.",
             suggestion="Check the link and try again, or head back to the homepage.",
-            extra={"documentation": "/docs"},
+            extra={"documentation": "/api/docs"},
         )
     elif exc.status_code == 401:
         return error_response(
@@ -303,7 +303,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         title="Validation Error",
         message="The request data is invalid. Please check the fields and try again.",
         suggestion="Review the error details and correct the invalid fields.",
-        extra={"errors": errors, "documentation": "/docs"},
+        extra={"errors": errors, "documentation": "/api/docs"},
     )
 
 @app.exception_handler(500)
@@ -410,8 +410,11 @@ app.include_router(decision_browse_routes.router, prefix="/api")
 # prefix (meeting-grain analogue of decision_browse_routes).
 app.include_router(meeting_browse_routes.router, prefix="/api")
 
-# Custom Swagger UI with logo
-@app.get("/docs", include_in_schema=False)
+# Custom Swagger UI with logo.
+# Served at /api/docs (not /docs) so the /docs/ path is free for the Docusaurus
+# documentation bundle in single-process deployments (Databricks Apps) and to
+# match the HuggingFace layout where nginx owns /docs/. ReDoc stays at /redoc.
+@app.get("/api/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     """Custom Swagger UI with CommunityOne logo"""
     return get_swagger_ui_html(
@@ -494,7 +497,17 @@ class SystemStatus(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    """Root endpoint with API information."""
+    """Root endpoint.
+
+    Single-process deployments (Databricks Apps) have no nginx in front to serve
+    the built React SPA, so when the Vite build is present (``api/static/index.html``)
+    we serve it here. Without a build (e.g. an API-only container) we fall back to
+    the informational API landing page below.
+    """
+    spa_index = Path(__file__).parent / "static" / "index.html"
+    if spa_index.is_file():
+        from fastapi.responses import FileResponse
+        return FileResponse(spa_index, media_type="text/html")
     html_content = """
     <!DOCTYPE html>
     <html>
@@ -585,7 +598,7 @@ async def root():
                 <strong>POST /auth/login/{provider}</strong> - OAuth login (HuggingFace, Google, Facebook, GitHub)
             </div>
             
-            <a href="/docs" class="docs-link">📚 View Full API Documentation</a>
+            <a href="/api/docs" class="docs-link">📚 View Full API Documentation</a>
         </body>
     </html>
     """
@@ -1526,12 +1539,69 @@ async def shutdown_event():
     logger.info("Shutting down CommunityOne Open Navigator API")
 
 
+# ---------------------------------------------------------------------------
+# Built frontend (React/Vite) + docs (Docusaurus) — single-process serving
+# ---------------------------------------------------------------------------
+# In the HuggingFace deployment nginx serves these static bundles and proxies
+# only /api to uvicorn. Databricks Apps run ONE process with no fronting proxy,
+# so FastAPI itself must serve the SPA and the docs. These routes are registered
+# LAST (after every API router) so the greedy ``/{full_path:path}`` catch-all
+# cannot shadow a real API route. The whole block is a no-op when no build is
+# present (api/static/index.html missing), e.g. an API-only container.
+_spa_static_dir = Path(__file__).parent / "static"
+if (_spa_static_dir / "index.html").is_file():
+    from fastapi.responses import FileResponse
+
+    # Hashed JS/CSS produced by Vite (build outDir = api/static, so /assets here).
+    _assets_dir = _spa_static_dir / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="spa_assets")
+
+    logger.info(f"Serving built SPA + docs from {_spa_static_dir}")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa_and_docs(full_path: str):
+        """Serve the built docs / SPA for any non-API path.
+
+        Resolution order:
+          1. /api/* that fell through the routers -> 404 (never serve the SPA for
+             a missing API endpoint, which would mask bugs with a 200 HTML body).
+          2. A concrete static file inside api/static (assets handled by the mount
+             above; this covers /docs/*, /robots.txt, /pdf/*, favicon, etc.).
+          3. A directory request that has an index.html (e.g. /docs/ -> docs/index.html).
+          4. Otherwise the React index.html (client-side routing).
+        Path traversal is guarded via ``relative_to``.
+        """
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+
+        if full_path:
+            candidate = (_spa_static_dir / full_path).resolve()
+            try:
+                candidate.relative_to(_spa_static_dir.resolve())
+            except ValueError:
+                candidate = None
+            if candidate is not None:
+                if candidate.is_file():
+                    return FileResponse(candidate)
+                # Directory (e.g. /docs/) -> its index.html if present.
+                index_in_dir = candidate / "index.html"
+                if candidate.is_dir() and index_in_dir.is_file():
+                    return FileResponse(index_in_dir)
+
+        return FileResponse(_spa_static_dir / "index.html", media_type="text/html")
+
+
 if __name__ == "__main__":
     import uvicorn
-    
+
+    # Honor DATABRICKS_APP_PORT when running this module directly so a local
+    # `python api/main.py` mirrors the platform launch. The app.yaml command is
+    # the authoritative entry point in production.
+    _port = int(os.getenv("DATABRICKS_APP_PORT", str(settings.api_port)))
     uvicorn.run(
         app,
-        host=settings.api_host,
-        port=settings.api_port,
-        workers=settings.api_workers
+        host="0.0.0.0",
+        port=_port,
+        workers=settings.api_workers,
     )

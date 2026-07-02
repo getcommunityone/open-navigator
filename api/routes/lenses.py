@@ -57,6 +57,11 @@ class LensCard(BaseModel):
     state_code: Optional[str] = None
     state: Optional[str] = None
     speakers: List[str] = []            # person_id slugs of named testimony, capped ≤6
+    # Match-evidence snippet: when a content filter (topic / cause / free-text)
+    # produced this card, the matched passage of the decision text with the
+    # matched terms wrapped in <mark>…</mark> (ts_headline). None in plain browse
+    # (nothing matched to highlight). The frontend renders it React-escaped.
+    description: Optional[str] = None
 
 
 class Lens(BaseModel):
@@ -308,6 +313,10 @@ def _build_card(row: Any, label: str, stats: List[LensStat]) -> LensCard:
         state=row["state"],
         # Same .get() guard as video_id: flag/gap cards never select the column.
         speakers=_speaker_slugs(row),
+        # Match-evidence snippet (ts_headline) — present only when the caller's
+        # query selected a `snippet` column under an active content filter; .get()
+        # so the homepage lenses / flag cards (which never select it) stay None.
+        description=row.get("snippet"),
     )
 
 
