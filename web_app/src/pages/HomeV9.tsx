@@ -1381,7 +1381,7 @@ export default function HomeV9() {
                   transcripts: p.transcript_count,
                   onSelect: () => {
                     const params = new URLSearchParams()
-                    if (p.state_code) params.set('state', p.state_code)
+                    if ((p as any).state_code) params.set('state', (p as any).state_code)
                     params.set('city', p.entity_name)
                     params.set('geoid', p.entity_id)
                     navigate(`/jurisdictions?${params.toString()}`, { state: { fromHome: true } })

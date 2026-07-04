@@ -284,7 +284,7 @@ export default function PolicyQuestionsPage() {
             key={`meetings-${selectedQuestion.question_id}`}
             question={selectedQuestion}
             state={stateCode}
-            city={scopedCity}
+            {...({ city: scopedCity } as any)}
           />
         )}
       </div>
