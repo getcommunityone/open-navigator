@@ -50,6 +50,9 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@emnapi/core": "^1.11.2",
+    "@emnapi/runtime": "^1.11.2",
+    "@emnapi/wasi-threads": "^2.0.0",
     "@playwright/test": "^1.60.0",
     "@types/d3-sankey": "^0.12.5",
     "@types/leaflet": "^1.9.8",
