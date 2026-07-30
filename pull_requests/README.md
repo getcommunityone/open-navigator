@@ -9,6 +9,8 @@ Reviews are produced via the **superpowers** plugin's code-review skills:
 requirements), and `receiving-code-review` governs verification of its findings
 before they are written down — only findings that survive verification are kept.
 Severities map Critical → 🔴 Blocking, Important → 🟡 Should fix, Minor → 🔵 Nits.
+Every review includes a mandatory secrets scan of the diff (committed keys, tokens,
+passwords, credentialed URLs); any real credential is automatically 🔴 Blocking.
 
 Files here are the latest review for that PR/branch (overwritten on re-review)
 and are not committed by default.
