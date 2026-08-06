@@ -160,6 +160,37 @@ def require_auth(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def admin_emails() -> set:
+    """Emails granted admin, from the ADMIN_EMAILS env var (comma-separated).
+
+    Read at call time (not import) so it can be changed without touching code.
+    Comparison is case-insensitive and whitespace-trimmed.
+    """
+    raw = os.getenv("ADMIN_EMAILS", "")
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
+
+
+def is_admin_email(email: Optional[str]) -> bool:
+    """True if `email` is in the ADMIN_EMAILS allowlist. Used to (de)provision
+    `User.is_admin` on every OAuth login so admin status tracks the env."""
+    return bool(email) and email.strip().lower() in admin_emails()
+
+
+def require_admin(user: User = Depends(require_auth)) -> User:
+    """
+    Require an authenticated admin (401 if anonymous, 403 if non-admin).
+
+    Gate for the control-plane endpoints (pipeline launch/stop, prod deploys):
+        @router.post("/launch", dependencies=[Depends(require_admin)])
+    """
+    if not getattr(user, "is_admin", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return user
+
+
 def generate_state_token() -> str:
     """Generate a secure random state token for OAuth CSRF protection"""
     return secrets.token_urlsafe(32)

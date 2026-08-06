@@ -26,11 +26,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field
 
-router = APIRouter(prefix="/deployments", tags=["deployments"])
+from api.auth import require_admin
+
+# Every deployment endpoint (list/status/log/launch/stop) is admin-only. Unlike
+# batch_jobs there is no SSE endpoint here, so gating the whole router is safe —
+# all callers are token-bearing fetch()es.
+router = APIRouter(
+    prefix="/deployments",
+    tags=["deployments"],
+    dependencies=[Depends(require_admin)],
+)
 
 # Step metadata is duplicated (lightly) from hosting.deploy.run_deployment so the
 # API need not import the hosting package (not installed in the API venv). The

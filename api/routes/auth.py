@@ -18,7 +18,8 @@ from pydantic import BaseModel
 
 from api.database import get_db
 from api.models import User, OAuthState
-from api.auth import create_access_token, generate_state_token
+from api.auth import create_access_token, generate_state_token, is_admin_email
+from api.origins import is_safe_redirect
 
 # Load environment variables from .env file
 load_dotenv()
@@ -133,18 +134,23 @@ def get_or_create_user(
         User.oauth_id == oauth_id
     ).first()
     
+    # Admin status is derived from the ADMIN_EMAILS allowlist and re-evaluated on
+    # every login, so promoting/demoting an admin is a config change, not a DB edit.
+    admin = is_admin_email(email)
+
     if user:
         # Update user info if changed
         user.full_name = full_name or user.full_name
         user.avatar_url = avatar_url or user.avatar_url
         user.username = username or user.username
         user.last_login = datetime.utcnow()
+        user.is_admin = admin
         db.commit()
         return user
-    
+
     # Try to find by email
     user = db.query(User).filter(User.email == email).first()
-    
+
     if user:
         # Link OAuth account to existing user
         user.oauth_provider = provider
@@ -154,9 +160,10 @@ def get_or_create_user(
         user.username = username or user.username
         user.last_login = datetime.utcnow()
         user.is_verified = True  # OAuth emails are verified
+        user.is_admin = admin
         db.commit()
         return user
-    
+
     # Create new user
     user = User(
         email=email,
@@ -167,6 +174,7 @@ def get_or_create_user(
         oauth_id=oauth_id,
         is_verified=True,
         is_active=True,
+        is_admin=admin,
         last_login=datetime.utcnow(),
     )
     db.add(user)
@@ -190,6 +198,14 @@ async def oauth_login(
     """
     if provider not in OAUTH_PROVIDERS:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+
+    # The callback appends the freshly minted JWT to redirect_uri, so an
+    # attacker-controlled target would exfiltrate the token. Drop anything not
+    # provably safe (an allowlisted origin or a same-origin relative path) and
+    # fall back to the trusted default — never hard-fail login over it.
+    if redirect_uri and not is_safe_redirect(redirect_uri):
+        logger.warning("Dropping unsafe OAuth redirect_uri: {}", redirect_uri)
+        redirect_uri = None
 
     config = OAUTH_PROVIDERS[provider]
     client_id = os.getenv(config['client_id_env'])
@@ -411,6 +427,12 @@ async def oauth_callback(
         # Use absolute URL for separate frontend server
         redirect_url = oauth_state.redirect_uri or frontend_url
     
+    # Defense-in-depth: redirect_uri was validated at /login, but never append
+    # the token to a target that isn't provably safe.
+    if not is_safe_redirect(redirect_url):
+        logger.warning("Refusing token redirect to unsafe target: {}", redirect_url)
+        redirect_url = '/'
+
     # Append token as URL parameter
     params = urlencode({'token': jwt_token})
     full_redirect_url = f"{redirect_url}?{params}" if '?' not in redirect_url else f"{redirect_url}&{params}"
