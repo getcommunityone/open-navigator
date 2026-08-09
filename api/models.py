@@ -3,7 +3,6 @@ Database models for authentication, user management, and social features
 """
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Index, text
-from geoalchemy2 import Geography
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -217,8 +216,8 @@ class ProximityAlert(Base):
     target_radius_meters = Column(Float, nullable=False)
     is_active = Column(Boolean, default=True)
     
-    # Geography point with SRID 4326 (WGS 84), spatial index created by default
-    center_point = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -9,8 +9,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/, /^\/docs/]
+      },
       devOptions: {
-        enabled: true
+        enabled: false
       },
       manifest: {
         name: 'Open Navigator',

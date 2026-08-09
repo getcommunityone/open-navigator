@@ -11,44 +11,47 @@ from packages.datamodels.models.proximity_alert import ProximityAlertCreate
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 @router.post("/proximity", response_model=Dict[str, Any])
-async def create_proximity_alert_and_scan(
+def create_proximity_alert_and_scan(
     alert_in: ProximityAlertCreate,
     current_user: User = Depends(require_auth),
     db: Session = Depends(get_db)
 ):
-    """
-    Creates a new proximity alert and immediately scans for nearby municipal organizations 
-    within the specified radius using PostGIS ST_DWithin.
-    """
     # 1. Create the alert record
-    wkt_point = f"POINT({alert_in.longitude} {alert_in.latitude})"
     
     new_alert = ProximityAlert(
         user_id=current_user.user_id,
         alert_name=alert_in.alert_name,
         target_radius_meters=alert_in.target_radius_meters,
         is_active=alert_in.is_active,
-        center_point=wkt_point
+        latitude=alert_in.latitude,
+        longitude=alert_in.longitude
     )
     db.add(new_alert)
     db.commit()
     db.refresh(new_alert)
 
-    # 2. Query nearby municipal items (civic organizations) using ST_DWithin
+    # 2. Query nearby municipal items using Haversine distance
     sql_query = text("""
-        SELECT org_id, org_name, latitude, longitude
-        FROM civic_organization
+        SELECT id, name, latitude, longitude,
+               (6371000 * acos(
+                   cos(radians(:lat)) * cos(radians(latitude)) * 
+                   cos(radians(longitude) - radians(:lon)) + 
+                   sin(radians(:lat)) * sin(radians(latitude))
+               )) AS distance
+        FROM gold.civic_organization
         WHERE latitude IS NOT NULL AND longitude IS NOT NULL
-          AND ST_DWithin(
-              CAST(ST_SetSRID(ST_MakePoint(longitude, latitude), 4326) AS geography),
-              CAST(:center_geom AS geography),
-              :radius
-          )
+          AND (6371000 * acos(
+                   cos(radians(:lat)) * cos(radians(latitude)) * 
+                   cos(radians(longitude) - radians(:lon)) + 
+                   sin(radians(:lat)) * sin(radians(latitude))
+               )) <= :radius
+        ORDER BY distance
         LIMIT 100;
     """)
     
     result = db.execute(sql_query, {
-        "center_geom": wkt_point,
+        "lat": alert_in.latitude,
+        "lon": alert_in.longitude,
         "radius": alert_in.target_radius_meters
     })
     
