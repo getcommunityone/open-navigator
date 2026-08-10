@@ -125,6 +125,7 @@ def get_or_create_user(
     full_name: Optional[str] = None,
     avatar_url: Optional[str] = None,
     username: Optional[str] = None,
+    email_verified: bool = False,
 ) -> User:
     """Get existing user or create new one from OAuth data"""
     
@@ -152,6 +153,19 @@ def get_or_create_user(
     user = db.query(User).filter(User.email == email).first()
 
     if user:
+        # Merging a new OAuth identity into a pre-existing account (matched only
+        # by email, not by this provider's own oauth_id) is an account-takeover
+        # vector unless the provider attests the email is verified. Refuse
+        # otherwise — email is unique, so a separate account isn't possible.
+        if not email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "An account with this email already exists. Sign in with the "
+                    "method you used originally, then link this provider from "
+                    "settings."
+                ),
+            )
         # Link OAuth account to existing user
         user.oauth_provider = provider
         user.oauth_id = oauth_id
@@ -396,17 +410,30 @@ async def oauth_callback(
         params = urlencode({'error': f'{provider.title()} login failed: {str(e)}'})
         return RedirectResponse(url=f"{redirect_url}?{params}")
     
-    # Get or create user
-    user = get_or_create_user(
-        db=db,
-        email=user_info['email'],
-        provider=provider,
-        oauth_id=user_info['oauth_id'],
-        full_name=user_info.get('full_name'),
-        avatar_url=user_info.get('avatar_url'),
-        username=user_info.get('username'),
-    )
-    
+    # Get or create user. A verified-email conflict (an existing account owns
+    # this email under a different identity) surfaces as a friendly error
+    # redirect rather than a raw 409.
+    try:
+        user = get_or_create_user(
+            db=db,
+            email=user_info['email'],
+            provider=provider,
+            oauth_id=user_info['oauth_id'],
+            full_name=user_info.get('full_name'),
+            avatar_url=user_info.get('avatar_url'),
+            username=user_info.get('username'),
+            email_verified=bool(user_info.get('email_verified')),
+        )
+    except HTTPException as exc:
+        frontend_url = os.getenv('FRONTEND_URL', '')
+        redirect_url = oauth_state.redirect_uri or (
+            frontend_url if frontend_url and 'localhost' not in frontend_url else '/'
+        )
+        if not is_safe_redirect(redirect_url):
+            redirect_url = '/'
+        params = urlencode({'error': exc.detail})
+        return RedirectResponse(url=f"{redirect_url}?{params}")
+
     # Clean up state token
     db.delete(oauth_state)
     db.commit()
@@ -453,6 +480,7 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
             data = resp.json()
             user_info = {
                 'email': data.get('email'),
+                'email_verified': bool(data.get('email_verified')),
                 'oauth_id': str(data.get('id')),
                 'full_name': data.get('fullname') or data.get('name'),
                 'avatar_url': data.get('avatarUrl'),
@@ -464,6 +492,11 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
             data = resp.json()
             user_info = {
                 'email': data.get('email'),
+                # Google v2 userinfo returns `verified_email`; OIDC returns
+                # `email_verified`. Accept either.
+                'email_verified': bool(
+                    data.get('verified_email') or data.get('email_verified')
+                ),
                 'oauth_id': data.get('id'),
                 'full_name': data.get('name'),
                 'avatar_url': data.get('picture'),
@@ -531,6 +564,10 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
                 
                 user_info = {
                     'email': email,
+                    # Graph API exposes no email-verification flag, and the email
+                    # may be a synthetic placeholder — never treat it as verified
+                    # for the purpose of merging into an existing account.
+                    'email_verified': False,
                     'oauth_id': str(data.get('id')),
                     'full_name': data.get('name'),
                     'avatar_url': data.get('picture', {}).get('data', {}).get('url') if isinstance(data.get('picture'), dict) else None,
@@ -550,15 +587,28 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
             resp = await client.get(config['userinfo_url'], headers=headers)
             data = resp.json()
             
-            # Get user email if not public
-            email = data.get('email')
-            if not email:
-                resp_emails = await client.get('https://api.github.com/user/emails', headers=headers)
+            # Resolve the primary email and its verified status from
+            # /user/emails — the /user profile email alone carries no
+            # verification signal.
+            email = None
+            email_verified = False
+            resp_emails = await client.get('https://api.github.com/user/emails', headers=headers)
+            if resp_emails.status_code == 200:
                 emails = resp_emails.json()
-                email = next((e['email'] for e in emails if e.get('primary')), emails[0]['email'] if emails else None)
-            
+                primary = next(
+                    (e for e in emails if e.get('primary')),
+                    emails[0] if emails else None,
+                )
+                if primary:
+                    email = primary.get('email')
+                    email_verified = bool(primary.get('verified'))
+            if not email:
+                # Fallback to the profile email; verification stays unknown.
+                email = data.get('email')
+
             user_info = {
                 'email': email,
+                'email_verified': email_verified,
                 'oauth_id': str(data.get('id')),
                 'full_name': data.get('name'),
                 'avatar_url': data.get('avatar_url'),
