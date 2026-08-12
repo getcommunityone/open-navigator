@@ -480,7 +480,9 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
             data = resp.json()
             user_info = {
                 'email': data.get('email'),
-                'email_verified': bool(data.get('email_verified')),
+                # whoami-v2 returns camelCase `emailVerified`; the OIDC
+                # /oauth/userinfo endpoint uses snake_case. Accept either.
+                'email_verified': bool(data.get('emailVerified') or data.get('email_verified')),
                 'oauth_id': str(data.get('id')),
                 'full_name': data.get('fullname') or data.get('name'),
                 'avatar_url': data.get('avatarUrl'),
