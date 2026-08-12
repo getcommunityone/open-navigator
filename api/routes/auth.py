@@ -281,6 +281,22 @@ async def oauth_login(
     return RedirectResponse(url=auth_url)
 
 
+def _safe_error_redirect_base(oauth_state) -> str:
+    """Base URL for an OAuth *error* redirect, re-validated against the allowlist.
+
+    ``redirect_uri`` is validated at ``/login`` before it is stored, but a stale
+    ``OAuthState`` row (one written before a deploy, or by any future code path
+    that skips that check) could still carry an unsafe target. An error redirect
+    echoes attacker-controllable text in the query string, so never bounce it to
+    anything not provably safe — fall back to a same-origin ``/``.
+    """
+    frontend_url = os.getenv('FRONTEND_URL', '')
+    redirect_url = oauth_state.redirect_uri or (
+        frontend_url if frontend_url and 'localhost' not in frontend_url else '/'
+    )
+    return redirect_url if is_safe_redirect(redirect_url) else '/'
+
+
 @router.get("/callback/{provider}", name="oauth_callback")
 async def oauth_callback(
     provider: str,
@@ -370,8 +386,7 @@ async def oauth_callback(
                 logger.error(f"OAuth token exchange failed for {provider}: {token_response.text}")
                 
                 # Redirect to frontend with error
-                frontend_url = os.getenv('FRONTEND_URL', '')
-                redirect_url = oauth_state.redirect_uri or (frontend_url if frontend_url and 'localhost' not in frontend_url else '/')
+                redirect_url = _safe_error_redirect_base(oauth_state)
                 params = urlencode({'error': f'{provider.title()} login failed: {error_msg}'})
                 return RedirectResponse(url=f"{redirect_url}?{params}")
             
@@ -382,8 +397,7 @@ async def oauth_callback(
             if not access_token:
                 logger.error(f"❌ [{provider.upper()}] No access token in response!")
                 logger.error(f"No access token in response from {provider}: {token_data}")
-                frontend_url = os.getenv('FRONTEND_URL', '')
-                redirect_url = oauth_state.redirect_uri or (frontend_url if frontend_url and 'localhost' not in frontend_url else '/')
+                redirect_url = _safe_error_redirect_base(oauth_state)
                 params = urlencode({'error': f'{provider.title()} login failed: No access token received'})
                 return RedirectResponse(url=f"{redirect_url}?{params}")
             
@@ -398,15 +412,13 @@ async def oauth_callback(
         if not user_info:
             logger.error(f"❌ [{provider.upper()}] Could not retrieve user info! Check API response logs above.")
             logger.error(f"Could not retrieve user info from {provider}. Check API response logs above.")
-            frontend_url = os.getenv('FRONTEND_URL', '')
-            redirect_url = oauth_state.redirect_uri or (frontend_url if frontend_url and 'localhost' not in frontend_url else '/')
+            redirect_url = _safe_error_redirect_base(oauth_state)
             params = urlencode({'error': f'{provider.title()} login failed: Could not retrieve user information'})
             return RedirectResponse(url=f"{redirect_url}?{params}")
     
     except Exception as e:
         logger.error(f"Unexpected error during {provider} OAuth: {str(e)}")
-        frontend_url = os.getenv('FRONTEND_URL', '')
-        redirect_url = oauth_state.redirect_uri or (frontend_url if frontend_url and 'localhost' not in frontend_url else '/')
+        redirect_url = _safe_error_redirect_base(oauth_state)
         params = urlencode({'error': f'{provider.title()} login failed: {str(e)}'})
         return RedirectResponse(url=f"{redirect_url}?{params}")
     
@@ -425,12 +437,7 @@ async def oauth_callback(
             email_verified=bool(user_info.get('email_verified')),
         )
     except HTTPException as exc:
-        frontend_url = os.getenv('FRONTEND_URL', '')
-        redirect_url = oauth_state.redirect_uri or (
-            frontend_url if frontend_url and 'localhost' not in frontend_url else '/'
-        )
-        if not is_safe_redirect(redirect_url):
-            redirect_url = '/'
+        redirect_url = _safe_error_redirect_base(oauth_state)
         params = urlencode({'error': exc.detail})
         return RedirectResponse(url=f"{redirect_url}?{params}")
 

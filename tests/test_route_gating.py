@@ -86,6 +86,36 @@ def test_gated_route_rejects_non_admin(app, method, path):
     app.dependency_overrides.pop(get_current_user, None)
 
 
+def test_stale_admin_flag_without_env_is_rejected(app, monkeypatch):
+    # A user carries a persisted is_admin=True, but their email is no longer in
+    # ADMIN_EMAILS. Because the env is authoritative at request time, admin
+    # access is revoked immediately — the stale DB flag is not enough.
+    monkeypatch.setenv("ADMIN_EMAILS", "current-admin@example.com")
+    app.dependency_overrides[get_current_user] = lambda: User(
+        user_id=2, email="removed-admin@example.com", is_admin=True
+    )
+    client = TestClient(app)
+    resp = client.post("/api/batch-jobs/launch", json={})
+    assert resp.status_code == 403
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_admin_in_env_passes_the_gate(app, monkeypatch):
+    # Same persisted flag, but the email IS in ADMIN_EMAILS → require_admin lets
+    # the request through. Launch is still opt-in (BATCH_JOBS_ALLOW_LAUNCH unset),
+    # so the endpoint's own guard answers 403 with a *different* detail — proving
+    # the request got past the admin gate rather than being blocked by it.
+    monkeypatch.setenv("ADMIN_EMAILS", "live-admin@example.com")
+    monkeypatch.delenv("BATCH_JOBS_ALLOW_LAUNCH", raising=False)
+    app.dependency_overrides[get_current_user] = lambda: User(
+        user_id=3, email="live-admin@example.com", is_admin=True
+    )
+    client = TestClient(app)
+    resp = client.post("/api/batch-jobs/launch", json={"step": "discover"})
+    assert resp.json().get("detail") != "Admin privileges required"
+    app.dependency_overrides.pop(get_current_user, None)
+
+
 def test_unsafe_redirect_uri_dropped_before_persist(app, db_session, monkeypatch):
     # Provider must be configured so the flow reaches OAuthState persistence
     # instead of short-circuiting on a missing-credentials 503.

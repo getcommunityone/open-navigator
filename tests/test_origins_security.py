@@ -3,23 +3,21 @@
 These guard the fix for the OAuth token-exfiltration bug: an attacker-controlled
 redirect_uri must never be treated as a safe post-login redirect target.
 """
-import importlib
-
 import pytest
+
+import api.origins as mod
 
 
 @pytest.fixture
 def origins(monkeypatch):
-    """Reload the module fresh so env changes take effect (allowed_origins is
-    lru_cached for the process lifetime)."""
+    """Clear the lru_cache so this test's env takes effect (allowed_origins reads
+    CORS_ALLOWED_ORIGINS and FRONTEND_URL inside the cached call)."""
     monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
     monkeypatch.setenv("FRONTEND_URL", "https://app.example.com")
-    import api.origins as mod
-
-    importlib.reload(mod)
+    mod.allowed_origins.cache_clear()
     yield mod
-    # Leave a clean module for the next test.
-    importlib.reload(mod)
+    # Leave a clean cache for the next test (monkeypatch restores the env first).
+    mod.allowed_origins.cache_clear()
 
 
 def test_frontend_url_is_trusted(origins):
@@ -51,16 +49,14 @@ def test_absent_redirect_is_safe(origins):
 def test_explicit_allowlist_overrides_defaults(monkeypatch):
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://only.example")
     monkeypatch.delenv("FRONTEND_URL", raising=False)
-    import api.origins as mod
-
-    importlib.reload(mod)
+    mod.allowed_origins.cache_clear()
     try:
         assert mod.is_allowed_origin("https://only.example")
         # A default that is NOT in the explicit list must now be rejected.
         assert not mod.is_allowed_origin("https://www.communityone.com")
         assert not mod.is_allowed_origin("http://localhost:5173")
     finally:
-        importlib.reload(mod)
+        mod.allowed_origins.cache_clear()
 
 
 def test_default_port_normalization(origins):

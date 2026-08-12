@@ -160,7 +160,7 @@ def require_auth(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-def admin_emails() -> set:
+def admin_emails() -> set[str]:
     """Emails granted admin, from the ADMIN_EMAILS env var (comma-separated).
 
     Read at call time (not import) so it can be changed without touching code.
@@ -180,10 +180,15 @@ def require_admin(user: User = Depends(require_auth)) -> User:
     """
     Require an authenticated admin (401 if anonymous, 403 if non-admin).
 
+    ``ADMIN_EMAILS`` is authoritative at request time: the persisted
+    ``is_admin`` flag alone is not trusted, so dropping an email from the env
+    (and restarting) revokes access immediately — without waiting for the
+    user's 7-day JWT to expire or for them to log in again.
+
     Gate for the control-plane endpoints (pipeline launch/stop, prod deploys):
         @router.post("/launch", dependencies=[Depends(require_admin)])
     """
-    if not getattr(user, "is_admin", False):
+    if not (getattr(user, "is_admin", False) and is_admin_email(user.email)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required",
