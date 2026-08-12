@@ -140,7 +140,10 @@ def get_or_create_user(
     admin = is_admin_email(email)
 
     if user:
-        # Update user info if changed
+        # Update user info if changed. Keep email in sync with the provider: it
+        # is the identity `is_admin`/`require_admin` key off, so letting it drift
+        # would silently lock out an admin whose provider email changed.
+        user.email = email
         user.full_name = full_name or user.full_name
         user.avatar_url = avatar_url or user.avatar_url
         user.username = username or user.username

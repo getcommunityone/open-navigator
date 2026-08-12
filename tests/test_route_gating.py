@@ -112,8 +112,32 @@ def test_admin_in_env_passes_the_gate(app, monkeypatch):
     )
     client = TestClient(app)
     resp = client.post("/api/batch-jobs/launch", json={"step": "discover"})
+    # Past the admin gate: launch is opt-in, so the endpoint's own guard answers
+    # with its specific disabled message — not the require_admin rejection.
+    assert resp.status_code == 403
     assert resp.json().get("detail") != "Admin privileges required"
+    assert "launch disabled" in resp.json().get("detail", "").lower()
     app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_malformed_redirect_uri_does_not_500(app, db_session, monkeypatch):
+    # A malformed redirect_uri (out-of-range port) used to raise ValueError deep
+    # in _normalize_origin and 500 the login endpoint, violating its "never
+    # hard-fail login over redirect_uri" contract. It must instead be dropped
+    # and login proceed, storing no redirect target.
+    monkeypatch.setenv("HUGGINGFACE_CLIENT_ID", "test-client-id")
+    monkeypatch.setenv("HUGGINGFACE_CLIENT_SECRET", "test-client-secret")
+    client = TestClient(app)
+
+    resp = client.get(
+        "/api/auth/login/huggingface",
+        params={"redirect_uri": "https://evil.example:99999"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code in (302, 307)
+    state = db_session.query(OAuthState).filter(OAuthState.provider == "huggingface").one()
+    assert state.redirect_uri is None
 
 
 def test_unsafe_redirect_uri_dropped_before_persist(app, db_session, monkeypatch):

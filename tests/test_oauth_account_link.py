@@ -45,6 +45,27 @@ def test_same_identity_relogin_needs_no_verification(db):
     assert again.oauth_id == "g1"
 
 
+def test_relogin_refreshes_email_and_admin(db, monkeypatch):
+    # Admin allowlist keyed on the user's current provider email. A relogin whose
+    # provider email changed must refresh user.email so the request-time
+    # is_admin_email(user.email) check in require_admin stays consistent and the
+    # admin isn't silently locked out.
+    monkeypatch.setenv("ADMIN_EMAILS", "new@x.com")
+    user = get_or_create_user(
+        db, email="old@x.com", provider="google", oauth_id="g1", email_verified=True
+    )
+    assert user.email == "old@x.com"
+    assert user.is_admin is False  # old@x.com not in ADMIN_EMAILS
+
+    same = get_or_create_user(
+        db, email="new@x.com", provider="google", oauth_id="g1", email_verified=True
+    )
+    # Same identity (g1), but email changed at the provider and is now an admin.
+    assert same.user_id == user.user_id
+    assert same.email == "new@x.com"
+    assert same.is_admin is True
+
+
 def test_unverified_cross_provider_link_refused(db):
     get_or_create_user(
         db, email="v@x.com", provider="google", oauth_id="g1", email_verified=True

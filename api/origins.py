@@ -50,11 +50,20 @@ def _normalize_origin(value: str) -> Optional[str]:
     """
     if not value:
         return None
-    parts = urlsplit(value.strip())
+    # urlsplit (bad IPv6 literal) and the .port property (out-of-range or
+    # non-numeric port) raise ValueError on malformed input. A malformed
+    # candidate is simply not a usable origin — drop it, never propagate. This
+    # matters because the value can be an attacker-supplied redirect_uri (a raw
+    # 500 would hard-fail login) or an operator typo in CORS_ALLOWED_ORIGINS /
+    # FRONTEND_URL (would otherwise crash the app at startup).
+    try:
+        parts = urlsplit(value.strip())
+        port = parts.port
+    except ValueError:
+        return None
     if parts.scheme not in ("http", "https") or not parts.hostname:
         return None
     host = parts.hostname.lower()
-    port = parts.port
     if port is not None and not (
         (parts.scheme == "https" and port == 443)
         or (parts.scheme == "http" and port == 80)
@@ -111,6 +120,14 @@ def is_safe_redirect(value: Optional[str]) -> bool:
     """
     if not value:
         return True
-    if value.startswith("/") and not value.startswith("//") and "\\" not in value[:2]:
+    # WHATWG: browsers strip ASCII tab/newline/CR from anywhere in a URL before
+    # parsing it. Do the same first, so a smuggled "/\t/evil.com" can't pose as
+    # a relative path here yet resolve to protocol-relative "//evil.com" in the
+    # browser. (Starlette's Location quoting happens to neutralize this today,
+    # but the validator must be self-sufficient for any other caller.)
+    cleaned = value.translate({0x09: None, 0x0A: None, 0x0D: None})
+    if not cleaned:
         return True
-    return is_allowed_origin(value)
+    if cleaned.startswith("/") and not cleaned.startswith("//") and "\\" not in cleaned[:2]:
+        return True
+    return is_allowed_origin(cleaned)
