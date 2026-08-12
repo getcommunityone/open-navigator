@@ -214,6 +214,7 @@ function EstRow({
   onChange,
   display,
   log,
+  sweepDelayMs = 0,
 }: {
   label: string
   value: number
@@ -223,6 +224,7 @@ function EstRow({
   onChange: (v: number) => void
   display: string
   log?: boolean
+  sweepDelayMs?: number
 }) {
   const toT = (v: number) => Math.round(1000 * (Math.log(v / min) / Math.log(max / min)))
   const fromT = (t: number) => {
@@ -231,7 +233,7 @@ function EstRow({
   }
   const filled = log ? toT(value) / 10 : ((value - min) / (max - min)) * 100
   return (
-    <div className="mb-3">
+    <div className="mb-3 mgm-fade" style={{ animationDelay: `${sweepDelayMs}ms` }}>
       <div className="mb-1 flex items-baseline justify-between gap-2 text-[13px]" style={FONT}>
         <span className="min-w-0 truncate font-medium text-[#0f2b2b]">{label}</span>
         <span className="shrink-0 font-semibold tabular-nums text-[#0f766e]">{display}</span>
@@ -247,9 +249,10 @@ function EstRow({
           {
             '--tc': '#0d9488',
             background: `linear-gradient(to right, #0d9488 ${filled}%, ${SLIDER_UNFILLED} ${filled}%)`,
+            animationDelay: `${sweepDelayMs + 60}ms`,
           } as React.CSSProperties
         }
-        className="range-x"
+        className="range-x mgm-sweep"
         aria-label={label}
       />
     </div>
@@ -454,16 +457,16 @@ function YourBill({
           </div>
 
           {own ? (
-            <EstRow label="Home value" value={hv} min={50_000} max={homeMax} step={5_000} onChange={setHomeValue} display={fmtDollars(hv)} log />
+            <EstRow label="Home value" value={hv} min={50_000} max={homeMax} step={5_000} onChange={setHomeValue} display={fmtDollars(hv)} log sweepDelayMs={0} />
           ) : (
             <p className="mb-3 rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
               Renters pay property tax through rent — your landlord remits it. We don&apos;t fabricate
               that split, so your visible bill below is local sales tax + fees.
             </p>
           )}
-          <EstRow label="Your yearly spending on taxable goods" value={spend} min={0} max={100_000} step={500} onChange={setSpend} display={spend > 0 ? fmtDollars(spend) : 'add yours'} />
-          <EstRow label="Your local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} />
-          <EstRow label="Your household income" value={income} min={0} max={250_000} step={1_000} onChange={setIncome} display={income > 0 ? fmtDollars(income) : 'add yours'} />
+          <EstRow label="Your yearly spending on taxable goods" value={spend} min={0} max={100_000} step={500} onChange={setSpend} display={spend > 0 ? fmtDollars(spend) : 'add yours'} sweepDelayMs={90} />
+          <EstRow label="Your local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} sweepDelayMs={180} />
+          <EstRow label="Your household income" value={income} min={0} max={250_000} step={1_000} onChange={setIncome} display={income > 0 ? fmtDollars(income) : 'add yours'} sweepDelayMs={270} />
         </div>
 
         {/* Live result */}
@@ -917,6 +920,7 @@ function GuessingGame({
   const [hintDismissed, setHintDismissed] = useState(false)
   // The "Other" slider can be expanded to reveal its real constituents (read-only).
   const [otherExpanded, setOtherExpanded] = useState(false)
+  const sliderRefs = useRef<(HTMLInputElement | null)[]>([])
 
   // Normalize the guesses to sum to 100 for display/scoring (auto-balance).
   const guessTotal = guesses.reduce((s, g) => s + g, 0)
@@ -983,13 +987,13 @@ function GuessingGame({
           <div className="mx-auto mt-3 flex max-w-[640px] flex-wrap items-center justify-center gap-x-5 gap-y-3">
             <GuessDonut game={game} guesses={guesses} touched={touched} />
 
-            <div className="min-w-[200px] max-w-[440px] flex-1 space-y-2">
+<div className="min-w-[200px] max-w-[440px] flex-1 space-y-2">
               {game.map((c, i) => {
                 const color = CAT_PALETTE[i % CAT_PALETTE.length]
                 const fill = touched[i] ? Math.round(guesses[i]) : 0
                 return (
-                  <div key={c.category}>
-                    <div className="mb-1 flex items-center justify-between text-[13px]" style={FONT}>
+                  <div key={c.category} className="mgm-fade" style={{ animationDelay: `${i * 70}ms` }}>
+                    <div className="mb-1 flex items-baseline justify-between text-[13px]" style={FONT}>
                       <span className="flex items-center gap-1.5 font-medium text-[#0f2b2b]">
                         <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
                         {c.category}
@@ -1014,6 +1018,9 @@ function GuessingGame({
                       step={1}
                       value={Math.round(guesses[i])}
                       onChange={(e) => setOne(i, Number(e.target.value))}
+                      ref={(el) => {
+                        sliderRefs.current[i] = el
+                      }}
                       style={
                         {
                           '--tc': color,
@@ -1058,10 +1065,13 @@ function GuessingGame({
 
           <button
             type="button"
-            onClick={() => allGuessed && onReveal()}
-            disabled={!allGuessed}
-            className={`mt-4 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
-              allGuessed ? 'mgm-pulse bg-[#1a6b6b] text-white hover:bg-[#155757]' : 'cursor-default bg-[#eef4f4] text-[#5d7d7d]'
+            onClick={() => {
+              if (allGuessed) onReveal()
+              else sliderRefs.current[firstUntouched]?.focus()
+            }}
+            aria-disabled={!allGuessed}
+            className={`mgm-pulse mt-4 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
+              allGuessed ? 'bg-[#1a6b6b] text-white hover:bg-[#155757]' : 'cursor-default bg-[#eef4f4] text-[#5d7d7d]'
             }`}
             style={FONT}
           >
@@ -1347,15 +1357,22 @@ function GrandkidsForecast({
   const genderLabel = GENDER_OPTIONS.find(([v]) => v === gender && v !== 'pooled')?.[1]
   const demoQual = [raceLabel, genderLabel].filter(Boolean).join(' · ')
 
-  const verdict = blank
-    ? 'Grandkids forecast'
-    : !hasLocal
-      ? 'Grandkids forecast'
-      : diff != null && Math.abs(diff) < 1
-        ? `Kids raised in ${localLabel} land about the U.S. average`
-        : diff != null && diff > 0
-          ? `Better off: kids raised in ${localLabel} reach a higher income rank than the U.S. average`
-          : `Tougher odds: kids raised in ${localLabel} reach a lower income rank than the U.S. average`
+  const pts = diff != null && Math.abs(diff) >= 1 ? Math.round(Math.abs(diff)) : null
+  const verdict = blank || !hasLocal ? (
+    'Grandkids forecast'
+  ) : pts == null ? (
+    <>
+      Kids raised in {localLabel} land about the U.S. average
+    </>
+  ) : diff != null && diff > 0 ? (
+    <>
+      Kids raised in {localLabel}: <span className="font-extrabold">+{pts} pts</span> vs U.S.
+    </>
+  ) : (
+    <>
+      Kids raised in {localLabel}: <span className="font-extrabold">−{pts} pts</span> vs U.S.
+    </>
+  )
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[#d4e8e8] bg-white shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
@@ -1608,7 +1625,7 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
               setChoices(null)
             }}
             onKeyDown={(e) => e.key === 'Enter' && handleShow()}
-            placeholder={mode === 'place' ? 'e.g. Tuscaloosa, AL' : 'e.g. 123 Main St, Tuscaloosa, AL'}
+            placeholder={mode === 'place' ? 'e.g. Tuscaloosa, AL' : 'Try 123 Main St, Tuscaloosa'}
             autoFocus
             className="w-72 max-w-full rounded-full border-[1.5px] px-4 py-3 text-center text-[15px] outline-none transition-colors"
             style={{ ...FONT, borderColor: textValid ? '#1a6b6b' : '#d4e8e8' }}
