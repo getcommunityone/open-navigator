@@ -793,8 +793,17 @@ body {
   50% { transform: scale(1.045); border-color: #1a6b6b; }
 }
 .mgm-ring { animation: mgmRing 2.2s ease-in-out infinite; }
+/* One-shot left-to-right fill sweep for the estimate sliders on mount — the
+   seeded home-value bar draws itself in so the modal feels alive immediately.
+   The range-track fill is a background gradient, so we animate a clip-path
+   reveal instead of the gradient itself. */
+@keyframes mgmSweep {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0% 0 0); }
+}
+.mgm-sweep { animation: mgmSweep 600ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 @media (prefers-reduced-motion: reduce) {
-  .mgm-pulse, .mgm-grow, .mgm-fade, .mgm-nudge, .mgm-ring { animation: none !important; }
+  .mgm-pulse, .mgm-grow, .mgm-fade, .mgm-nudge, .mgm-ring, .mgm-sweep { animation: none !important; }
 }
 
 /* ── Money-game modal sliders: the design prototype's exact range-x CSS ──── */
