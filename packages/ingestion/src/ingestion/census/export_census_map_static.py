@@ -265,6 +265,121 @@ def county_geoid(row: pd.Series) -> str:
     return f"{st}{co}"
 
 
+# --- Connecticut planning regions (2022+ ACS vintages) ---
+# Connecticut's nine planning regions replaced its eight legacy counties as
+# county equivalents in June 2022 (Census Bureau, Federal Register 2022-12063,
+# https://www.federalregister.gov/documents/2022/06/06/2022-12063). ACS
+# county-level files from the 2022 vintage onward therefore carry planning
+# region codes (09110-09190) instead of the legacy county codes (09001-09015),
+# which left every CT county blank on the census map for 2022+ vintages.
+#
+# Each planning region is mapped to the legacy county holding the majority of
+# its towns (the regional COG relationship). Regions that straddle legacy
+# county lines (Capitol, Naugatuck Valley, Lower CT River Valley, etc.) are
+# assigned to their dominant legacy county. Tolland County (09013) has no
+# majority region — its towns sit inside the Capitol and Northeastern regions
+# — so it is omitted beginning with the 2022 vintage.
+CT_PLANNING_REGION_TO_LEGACY_COUNTY: dict[str, str] = {
+    "09110": "09003",  # Capitol -> Hartford County
+    "09120": "09001",  # Greater Bridgeport -> Fairfield County
+    "09130": "09007",  # Lower Connecticut River Valley -> Middlesex County
+    "09140": "09009",  # Naugatuck Valley -> New Haven County
+    "09150": "09015",  # Northeastern Connecticut -> Windham County
+    "09160": "09005",  # Northwest Hills -> Litchfield County
+    "09170": "09009",  # South Central Connecticut -> New Haven County
+    "09180": "09011",  # Southeastern Connecticut -> New London County
+    "09190": "09001",  # Western Connecticut -> Fairfield County
+}
+
+CT_LEGACY_COUNTY_NAMES: dict[str, str] = {
+    "09001": "Fairfield County",
+    "09003": "Hartford County",
+    "09005": "Litchfield County",
+    "09007": "Middlesex County",
+    "09009": "New Haven County",
+    "09011": "New London County",
+    "09013": "Tolland County",
+    "09015": "Windham County",
+}
+
+
+def _county_export_geoid(row: pd.Series) -> str:
+    """Basemap county geoid for an ACS county row (CT planning-region crosswalk)."""
+    gid = county_geoid(row)
+    return CT_PLANNING_REGION_TO_LEGACY_COUNTY.get(gid, gid)
+
+
+# Count metrics are summed when multiple CT planning regions collapse into one
+# legacy county; every other metric (medians, means, percents, ratios) is
+# combined population-weighted across the region rows.
+CT_COUNT_SLUGS: frozenset[str] = frozenset(
+    {
+        "total_population",
+        "housing_units",
+        "poverty_universe",
+        "labor_force",
+        "sex_by_age_table_total",
+        "race_table_total",
+        "hispanic_latino_by_race_total",
+        "population_income_below_poverty_level",
+        "employed_civilian",
+        "unemployed_civilian",
+        "health_insurance_civilian_noninstitutional_total",
+        "health_insurance_under19_table_total",
+        "population_25_and_over_education_universe",
+        "school_enrollment_total",
+    }
+)
+
+
+def _ct_region_populations(acs_dir: Path, year: int) -> dict[str, float]:
+    """ACS B01003 population per county row, keyed by the raw county geoid.
+
+    Used as the weight when CT planning regions collapse into a legacy county:
+    a rate for a merged county is the population-weighted mean across its
+    regions (real ACS populations for the same vintage).
+    """
+    df = _read_metric_frame(acs_dir, "B01003", "county", "*", year)
+    if df is None:
+        return {}
+    col = _estimate_col_for_table(df, "B01003", "B01003_001E")
+    if not col:
+        return {}
+    pops: dict[str, float] = {}
+    for _, row in df.iterrows():
+        v = _parse_stat(row.get(col))
+        if v is not None:
+            pops[county_geoid(row)] = v
+    return pops
+
+
+def _collapse_ct_regions(
+    pairs: list[tuple[str, Optional[float]]], pops: dict[str, float], slug: str
+) -> Optional[float]:
+    """Combine ACS rows for one (legacy county, metric) pair into a single value.
+
+    Most rows pass through unchanged (a single pair). When CT planning regions
+    collapse into one legacy county, count metrics are summed and rate metrics
+    are population-weighted across the region rows (weight = the region's ACS
+    B01003 population for the same vintage). Falls back to a plain mean when
+    weights are unavailable or incomplete.
+    """
+    if not pairs:
+        return None
+    values = [v for _, v in pairs if isinstance(v, (int, float))]
+    if len(pairs) == 1:
+        return values[0] if values else None
+    if not values:
+        return None
+    if slug not in CT_COUNT_SLUGS:
+        weighted = [(v, pops.get(gid)) for gid, v in pairs if isinstance(v, (int, float))]
+        weights = [w for _, w in weighted if isinstance(w, (int, float)) and w > 0]
+        if len(weights) == len(weighted) and weights:
+            return sum(v * w for v, w in weighted) / sum(weights)
+        return sum(values) / len(values)
+    return sum(values)
+
+
 def place_geoid(row: pd.Series) -> str:
     st = str(int(row["state"])).zfill(2)
     pl = str(int(row["place"])).zfill(5)
@@ -363,6 +478,9 @@ def build_county_trends_for_state(acs_dir: Path, state_fips: str, years: list[in
     by_geoid: dict[str, dict[str, Any]] = {}
     for y in years:
         vy = str(y)
+        region_pops = _ct_region_populations(acs_dir, y)
+        accumulated: dict[str, dict[str, list[tuple[str, Optional[float]]]]] = {}
+        names: dict[str, str] = {}
         for m in METRICS:
             df = _read_metric_frame(acs_dir, m["table"], "county", "*", y)
             if df is None:
@@ -371,15 +489,22 @@ def build_county_trends_for_state(acs_dir: Path, state_fips: str, years: list[in
             if not col:
                 continue
             for _, row in df.iterrows():
-                gid = county_geoid(row)
+                region_gid = county_geoid(row)
+                gid = _county_export_geoid(row)
                 if not gid.startswith(stp):
                     continue
-                block = by_geoid.setdefault(gid, {"GEOID": gid, "NAME": ""})
-                block.setdefault(m["slug"], {})[vy] = _parse_stat(row.get(col))
+                accumulated.setdefault(gid, {}).setdefault(m["slug"], []).append(
+                    (region_gid, _parse_stat(row.get(col)))
+                )
                 if "NAME" in df.columns:
                     nm = row.get("NAME")
                     if isinstance(nm, str) and nm.strip():
-                        block["NAME"] = nm.strip()
+                        names[gid] = nm.strip()
+        for gid, slugs in accumulated.items():
+            block = by_geoid.setdefault(gid, {"GEOID": gid, "NAME": ""})
+            block["NAME"] = CT_LEGACY_COUNTY_NAMES.get(gid, names.get(gid, block["NAME"]))
+            for slug, pairs in slugs.items():
+                block.setdefault(slug, {})[vy] = _collapse_ct_regions(pairs, region_pops, slug)
     return {"geography": "county", "state": stp, "vintages": vintages, "byGeoid": by_geoid}
 
 
@@ -408,10 +533,18 @@ def build_place_trends_for_state(acs_dir: Path, state_fips: str, years: list[int
 
 
 def build_county_values(acs_dir: Path, year: int) -> dict[str, dict[str, Optional[float]]]:
-    out: dict[str, dict[str, Optional[float]]] = {}
-    state_star = "*"
+    """County metrics keyed by the basemap county FIPS codes.
+
+    Connecticut 2022+ ACS county files are keyed by planning region codes
+    (09110-09190) while the site's county basemap uses the legacy county codes
+    (09001-09015); region rows are collapsed back to the legacy codes via
+    ``CT_PLANNING_REGION_TO_LEGACY_COUNTY`` so CT counties render again.
+    """
+    region_pops = _ct_region_populations(acs_dir, year)
+    accumulated: dict[str, dict[str, list[tuple[str, Optional[float]]]]] = {}
+    names: dict[str, str] = {}
     for m in METRICS:
-        df = _read_metric_frame(acs_dir, m["table"], "county", state_star, year)
+        df = _read_metric_frame(acs_dir, m["table"], "county", "*", year)
         if df is None:
             continue
         col = _estimate_col_for_table(df, m["table"], m["estimate_col"])
@@ -419,13 +552,20 @@ def build_county_values(acs_dir: Path, year: int) -> dict[str, dict[str, Optiona
             logger.warning(f"No estimate column for {m['table']} in county frame ({m['slug']})")
             continue
         for _, row in df.iterrows():
-            gid = county_geoid(row)
-            out.setdefault(gid, {})
-            out[gid][m["slug"]] = _parse_stat(row.get(col))
+            region_gid = county_geoid(row)
+            gid = _county_export_geoid(row)
+            accumulated.setdefault(gid, {}).setdefault(m["slug"], []).append(
+                (region_gid, _parse_stat(row.get(col)))
+            )
             if "NAME" in df.columns:
                 nm = row.get("NAME")
                 if isinstance(nm, str) and nm.strip():
-                    out[gid]["NAME"] = nm.strip()
+                    names[gid] = nm.strip()
+    out: dict[str, dict[str, Optional[float]]] = {}
+    for gid, slugs in accumulated.items():
+        out[gid] = {"NAME": CT_LEGACY_COUNTY_NAMES.get(gid, names.get(gid, ""))}
+        for slug, pairs in slugs.items():
+            out[gid][slug] = _collapse_ct_regions(pairs, region_pops, slug)
     return out
 
 
