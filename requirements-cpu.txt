@@ -38,7 +38,7 @@ pyarrow>=14.0.0
 # NLP - CPU-only versions (much lighter)
 # Note: Omitting spacy, transformers, sentence-transformers, torch to save ~2GB
 # You can add them back if needed: torch --index-url https://download.pytorch.org/whl/cpu
-nltk>=3.9.4
+nltk>=3.10.0
 
 # Database & Storage
 sqlalchemy>=2.0.0
