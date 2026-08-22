@@ -214,6 +214,20 @@ curl -X POST "http://localhost:8001/workflow/start" \
 curl "http://localhost:8001/opportunities?state=CA&urgency=critical"
 ```
 
+**Create Proximity Alert:**
+
+```bash
+curl -X POST "http://localhost:8001/api/alerts/proximity" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "alert_name": "My Local Alert",
+       "target_radius_meters": 5000,
+       "latitude": 37.7749,
+       "longitude": -122.4194,
+       "is_active": true
+     }'
+```
+
 **Get heatmap:**
 
 ```bash
