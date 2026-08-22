@@ -284,7 +284,7 @@ export default function PolicyQuestionsPage() {
             key={`meetings-${selectedQuestion.question_id}`}
             question={selectedQuestion}
             state={stateCode}
-            {...({ city: scopedCity } as any)}
+            city={scopedCity}
           />
         )}
       </div>
@@ -662,9 +662,11 @@ const MEETING_PAGE = 24
 function QuestionMeetingList({
   question,
   state,
+  city,
 }: {
   question: PolicyQuestionSummary
   state?: string
+  city?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const total = question.discussion_meeting_count ?? 0

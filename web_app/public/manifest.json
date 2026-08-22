@@ -1,0 +1,26 @@
+{
+  "short_name": "CommunityOne",
+  "name": "CommunityOne — Open Navigator",
+  "icons": [
+    {
+      "src": "/communityone_logo_64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "/communityone_logo_192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/communityone_logo_512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#ffffff"
+}
