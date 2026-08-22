@@ -201,3 +201,26 @@ class UserSignalPref(Base):
     def __repr__(self):
         return f"<UserSignalPref user:{self.user_id} {self.signal_slug}>"
 
+
+# ============================================================================
+# GEOSPATIAL FEATURES
+# ============================================================================
+
+class ProximityAlert(Base):
+    """Geospatial alert for a user, monitoring a specific radius."""
+    __tablename__ = "proximity_alerts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
+    alert_name = Column(String(255), nullable=False)
+    target_radius_meters = Column(Float, nullable=False)
+    is_active = Column(Boolean, default=True)
+    
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<ProximityAlert user:{self.user_id} radius:{self.target_radius_meters}m>"

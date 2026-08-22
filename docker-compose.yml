@@ -23,7 +23,7 @@ services:
       - oral-health-network
 
   postgres:
-    image: postgres:16
+    image: postgis/postgis:16-3.4
     container_name: open-navigator-postgres
     ports:
       - "5433:5432"

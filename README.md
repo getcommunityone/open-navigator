@@ -17,7 +17,9 @@ license: apache-2.0
 >
 > CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
 
-AI-powered civic engagement platform with React + FastAPI web interface
+AI-powered civic engagement platform with React + FastAPI web interface.
+- 📍 **Proximity Alerts**: Get notified about civic meetings happening near you.
+- 📱 **Progressive Web App (PWA)**: Installable on mobile devices.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -212,6 +214,20 @@ curl -X POST "http://localhost:8001/workflow/start" \
 
 ```bash
 curl "http://localhost:8001/opportunities?state=CA&urgency=critical"
+```
+
+**Create Proximity Alert:**
+
+```bash
+curl -X POST "http://localhost:8001/api/alerts/proximity" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "alert_name": "My Local Alert",
+       "target_radius_meters": 5000,
+       "latitude": 37.7749,
+       "longitude": -122.4194,
+       "is_active": true
+     }'
 ```
 
 **Get heatmap:**

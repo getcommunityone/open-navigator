@@ -1,10 +1,35 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/, /^\/docs/]
+      },
+      devOptions: {
+        enabled: false
+      },
+      manifest: {
+        name: 'Open Navigator',
+        short_name: 'Navigator',
+        description: 'Track jurisdictions, nonprofits, and local policy with open data and AI.',
+        theme_color: '#ffffff',
+        icons: [
+          {
+            src: '/communityone_logo_64.png',
+            sizes: '64x64',
+            type: 'image/png'
+          }
+        ]
+      }
+    })
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -24,11 +49,11 @@ export default defineConfig({
         timeout: 120_000,
         // Don't follow redirects - let browser handle OAuth redirects
         followRedirects: false,
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
+        configure: (proxy: any, _options) => {
+          proxy.on('error', (err: any, _req: any, _res: any) => {
             console.log('proxy error', err);
           });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq: any, req: any, _res: any) => {
             console.log('Proxying:', req.method, req.url, '→', proxyReq.path);
           });
         },
