@@ -680,9 +680,11 @@ function QuestionMeetingList({
 
   // Optional place scoping carried over from the homepage (?state=…).
   const meetings = useMemo(() => {
-    const all = data ?? []
-    return state ? all.filter((m) => (m.state_code ?? '').toUpperCase() === state) : all
-  }, [data, state])
+    let all = data ?? []
+    if (state) all = all.filter((m) => (m.state_code ?? '').toUpperCase() === state)
+    if (city) all = all.filter((m) => m.city === city || m.jurisdiction_name === city)
+    return all
+  }, [data, state, city])
 
   if (total === 0) return null
 
