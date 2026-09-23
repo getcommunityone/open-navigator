@@ -26,16 +26,17 @@ interface LocationContextType {
 const LocationContext = createContext<LocationContextType | undefined>(undefined)
 
 export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
   const [location, setLocationState] = useState<LocationData | null>(null)
 
-  // Load location from user profile or localStorage (only on initial mount)
+  // Prefer the most recent manual selection from localStorage. If there is no
+  // manual selection, wait for AuthContext's asynchronous /auth/me request and
+  // then hydrate from the signed-in user's profile.
   useEffect(() => {
-    // Check localStorage first (most recent manual selection)
     const savedLocation = localStorage.getItem('user_location')
     if (savedLocation) {
       try {
-        const parsed = JSON.parse(savedLocation)
+        const parsed = JSON.parse(savedLocation) as LocationData
         
         // Migrate full state names to state codes
         if (parsed.state) {
@@ -46,13 +47,16 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
         
         // Save back the migrated version
         localStorage.setItem('user_location', JSON.stringify(parsed))
-        return; // Use localStorage value, don't check user profile
+        return // A manual selection takes precedence over the profile.
       } catch (e) {
         console.error('Failed to parse saved location:', e)
+        // A corrupt value must not permanently block the profile fallback.
+        localStorage.removeItem('user_location')
       }
     }
     
-    // If no localStorage, check user profile
+    if (authLoading) return
+
     if (isAuthenticated && user && user.state && user.city) {
       const stateCode = stateNameToCode(user.state)
       
@@ -65,7 +69,7 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
       
       setLocationState(profileLocation)
     }
-  }, []) // Empty dependency array - only run on mount
+  }, [authLoading, isAuthenticated, user])
 
   const setLocation = (newLocation: LocationData) => {
     setLocationState(newLocation)
