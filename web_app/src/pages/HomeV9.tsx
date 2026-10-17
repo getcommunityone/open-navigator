@@ -230,6 +230,7 @@ interface BrowseTopItem {
   entity_id: string
   entity_name: string
   transcript_count: number
+  state_code: string | null
 }
 
 // Maps each browse card's stable `key` to the API's entity_type so cards can
