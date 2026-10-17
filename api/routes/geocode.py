@@ -85,6 +85,13 @@ async def _throttled_get(path: str, params: dict[str, str]) -> Any:
 
     global _last_call_ts
     async with _throttle_lock:
+        # Another coroutine may have populated this key while we waited for the
+        # lock. Re-checking here coalesces concurrent identical lookups into one
+        # upstream request instead of sending the same query once per waiter.
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         wait = _MIN_INTERVAL_S - (time.monotonic() - _last_call_ts)
         if wait > 0:
             await asyncio.sleep(wait)
@@ -98,41 +105,74 @@ async def _throttled_get(path: str, params: dict[str, str]) -> Any:
                         "Accept": "application/json",
                     },
                 )
+        except httpx.TimeoutException as exc:
+            logger.warning("Nominatim timeout for {}", path)
+            raise HTTPException(status_code=502, detail="Geocoder request timed out.") from exc
+        except httpx.RequestError as exc:
+            logger.warning("Nominatim request failed for {}: {}", path, exc)
+            raise HTTPException(status_code=502, detail="Geocoder is unavailable.") from exc
         finally:
+            # Failed upstream calls still consume the shared request budget.
+            # Recording the attempt prevents a transient outage from causing a
+            # tight retry loop that violates Nominatim's usage policy.
             _last_call_ts = time.monotonic()
 
-    if resp.status_code == 429:
-        raise HTTPException(status_code=429, detail="Geocoder rate-limited; retry shortly.")
-    if resp.status_code >= 400:
-        logger.warning("Nominatim {} for {}: {}", resp.status_code, path, resp.text[:200])
-        raise HTTPException(status_code=502, detail=f"Geocoder error ({resp.status_code}).")
-    try:
-        payload = resp.json()
-    except ValueError as exc:
-        raise HTTPException(status_code=502, detail="Geocoder returned non-JSON.") from exc
+        # Cache the validated response before releasing the lock so identical
+        # requests waiting above can reuse it instead of calling upstream.
+        if resp.status_code == 429:
+            retry_after = resp.headers.get("Retry-After", "1")
+            # Only forward the integer form. This keeps the response predictable and
+            # avoids reflecting an arbitrary upstream header value.
+            if not retry_after.isdigit():
+                retry_after = "1"
+            raise HTTPException(
+                status_code=429,
+                detail="Geocoder rate-limited; retry shortly.",
+                headers={"Retry-After": retry_after},
+            )
+        if resp.status_code >= 400:
+            logger.warning("Nominatim {} for {}: {}", resp.status_code, path, resp.text[:200])
+            raise HTTPException(status_code=502, detail=f"Geocoder error ({resp.status_code}).")
+        try:
+            payload = resp.json()
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="Geocoder returned non-JSON.") from exc
 
-    _cache_put(cache_key, payload)
-    return payload
+        _cache_put(cache_key, payload)
+        return payload
 
 
 @router.get("/search")
 async def geocode_search(
     q: str = Query(..., min_length=3, description="Free-text address / place query."),
     limit: int = Query(6, ge=1, le=20),
-    countrycodes: str = Query("us", description="Comma-separated ISO country codes to bias to."),
+    countrycodes: str = Query(
+        "us",
+        pattern=r"^[A-Za-z]{2}(?:,[A-Za-z]{2})*$",
+        description="Comma-separated ISO alpha-2 country codes to restrict results to.",
+    ),
 ):
     """
     Forward-geocode a free-text query. Returns Nominatim's JSON array verbatim
     (each item has ``lat``, ``lon``, ``display_name``, ``address``,
     ``osm_type``, ``osm_id`` …). Empty array means no match.
     """
+    query = q.strip()
+    if len(query) < 3:
+        # FastAPI's min_length validates the raw string, so whitespace-only
+        # input needs an explicit post-normalization check.
+        raise HTTPException(status_code=422, detail="Query must contain at least 3 characters.")
+
+    normalized_countrycodes = ",".join(
+        code.strip().lower() for code in countrycodes.split(",")
+    )
     return await _throttled_get(
         "/search",
         {
-            "q": q.strip(),
+            "q": query,
             "format": "json",
             "addressdetails": "1",
-            "countrycodes": countrycodes,
+            "countrycodes": normalized_countrycodes,
             "limit": str(limit),
         },
     )
