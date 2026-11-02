@@ -71,7 +71,7 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
   const [uncovered, setUncovered] = useState<LocationData | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
-  const debounceTimer = useRef<number | null>(null)
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const zipValid = /^\d{5}$/.test(zip)
