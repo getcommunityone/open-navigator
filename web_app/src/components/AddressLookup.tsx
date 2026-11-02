@@ -210,7 +210,7 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
     }
 
     // Set new timer
-    debounceTimer.current = setTimeout(() => {
+    debounceTimer.current = window.setTimeout(() => {
       fetchSuggestions(value)
     }, 300)
   }

@@ -137,6 +137,7 @@ _delta_log/
 htmlcov/
 .pytest_cache/
 .tox/
+test-results/
 
 # Documentation
 docs/_build/

@@ -20,7 +20,7 @@ COPY web_docs/ ./
 
 # Verify environment variable is set and build
 RUN echo "Building Docusaurus with DOCUSAURUS_BASE_URL=$DOCUSAURUS_BASE_URL" && \
-    echo "Cache bust: 2026-06-08-22-12-6c3e7ee7" &&
+    echo "Cache bust: 2026-06-08-22-12-6c3e7ee7" && \
     npm run build && \
     echo "Verifying baseUrl in build output..." && \
     grep -r "baseUrl" build/ | head -5 || true
@@ -47,7 +47,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # OPTIMIZATION: Copy frontend package files first for better caching
 COPY web_app/package*.json /app/web_app/
-RUN cd /app/web_app && npm ci
+RUN cd /app/web_app && npm ci --legacy-peer-deps
 
 # Copy application code (now npm ci layer is cached)
 COPY . .

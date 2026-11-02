@@ -3,7 +3,7 @@ name = "communityone-datamodels"
 version = "0.1.0"
 description = "Shared data models for CommunityOne."
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["pydantic>=2.0"]
 
 [build-system]
 requires = ["hatchling"]
