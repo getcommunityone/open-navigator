@@ -141,3 +141,31 @@ def test_strip_compact_legacy_suffix():
         )
         == "City of Northport - Council Meeting"
     )
+
+
+def test_strip_ignores_non_date_resolution_numbers():
+    title = "Resolution 24-05-12 - Council Meeting 04.28.26"
+    assert extract_meeting_date_from_title(title) == "2026-04-28"
+    stripped = strip_meeting_date_from_title(title, resolved_date="2026-04-28")
+    assert stripped == "Resolution 24-05-12 - Council Meeting"
+    assert (
+        strip_meeting_date_from_title(stripped, resolved_date="2026-04-28")
+        == "Resolution 24-05-12 - Council Meeting"
+    )
+    assert (
+        meeting_media_basename(title, event_date="2026-05-01")
+        == "2026-04-28_Resolution_24-05-12_-_Council_Meeting"
+    )
+
+
+def test_strip_prefers_resolved_trailing_date_over_earlier_date():
+    title = "Minutes of 04/01/2026 approved at Council Meeting 04.28.2026"
+    assert extract_meeting_date_from_title(title) == "2026-04-28"
+    assert (
+        strip_meeting_date_from_title(title, resolved_date="2026-04-28")
+        == "Minutes of 04/01/2026 approved at Council Meeting"
+    )
+    assert (
+        meeting_media_basename(title, event_date="2026-05-01")
+        == "2026-04-28_Minutes_of_04-01-2026_approved_at_Council_Meeting"
+    )
