@@ -21,7 +21,7 @@ import httpx
 import pandas as pd
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator, HttpUrl
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception
 
 from models.meeting_event import (
     MeetingEvent,
@@ -69,6 +69,16 @@ class RawMunicipalMeeting(BaseModel):
 # 2. Robust HTTP Client
 # ==========================================
 
+def _is_retryable_http_error(exc: BaseException) -> bool:
+    """Retry network errors and transient HTTP statuses (429, 5xx), not permanent 4xx errors."""
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        return status == 429 or status >= 500
+    return False
+
+
 class AsyncMunicipalClient:
     """HTTP client for municipal scraping with exponential backoff,
     concurrency limiting, and rate-limit enforcement."""
@@ -89,7 +99,7 @@ class AsyncMunicipalClient:
     @retry(
         wait=wait_exponential(multiplier=1, min=2, max=10),
         stop=stop_after_attempt(5),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+        retry=retry_if_exception(_is_retryable_http_error),
         reraise=True,
     )
     async def _fetch_with_retry(self, endpoint: str, params: Optional[dict] = None) -> Any:
@@ -141,7 +151,7 @@ def transform_to_standard_model(
 
     # Build location from source data only — no fabrication
     location = Location(
-        name=raw.location_name if raw.location_name else "Unknown",
+        name=raw.location_name,
         city=municipality,
         state=state,
     )

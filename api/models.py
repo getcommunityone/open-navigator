@@ -1,7 +1,7 @@
 """
 Database models for authentication, user management, and social features
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Index, text
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -219,8 +219,8 @@ class ProximityAlert(Base):
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     def __repr__(self):
         return f"<ProximityAlert user:{self.user_id} radius:{self.target_radius_meters}m>"

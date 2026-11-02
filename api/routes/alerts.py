@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from opentelemetry import trace
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Dict, Any
@@ -9,6 +10,7 @@ from api.auth import require_auth
 from models.proximity_alert import ProximityAlertCreate
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
+tracer = trace.get_tracer(__name__)
 
 
 @router.post("/proximity", response_model=Dict[str, Any])
@@ -29,67 +31,77 @@ def create_proximity_alert_and_scan(
     guard against floating-point rounding on near-identical points, which
     would otherwise raise ``ERROR: input is out of range`` in Postgres.
     """
+    with tracer.start_as_current_span("alerts.create_proximity_alert") as span:
+        span.set_attribute("alert.radius_meters", alert_in.target_radius_meters)
 
-    # Stage the alert — do NOT commit yet so a scan failure rolls back
-    new_alert = ProximityAlert(
-        user_id=current_user.user_id,
-        alert_name=alert_in.alert_name,
-        target_radius_meters=alert_in.target_radius_meters,
-        is_active=alert_in.is_active,
-        latitude=alert_in.latitude,
-        longitude=alert_in.longitude,
-    )
-    db.add(new_alert)
-    db.flush()  # assigns new_alert.id without committing the transaction
+        # Stage the alert — do NOT commit yet so a scan failure rolls back
+        new_alert = ProximityAlert(
+            user_id=current_user.user_id,
+            alert_name=alert_in.alert_name,
+            target_radius_meters=alert_in.target_radius_meters,
+            is_active=alert_in.is_active,
+            latitude=alert_in.latitude,
+            longitude=alert_in.longitude,
+        )
+        db.add(new_alert)
+        db.flush()  # assigns new_alert.id without committing the transaction
 
-    # Haversine distance scan against the public serving view.
-    # Table name is UNQUALIFIED so it resolves via the ORM session's
-    # search_path (public-first); never hard-code a schema qualifier.
-    # acos() input is clamped to [-1, 1] to prevent domain errors.
-    sql_query = text("""
-        SELECT
-            event_place_id  AS id,
-            COALESCE(normalized_address, raw_text, place_id) AS name,
-            latitude,
-            longitude,
-            jurisdiction_name,
-            city,
-            state_code,
-            (6371000 * acos(
-                LEAST(1.0, GREATEST(-1.0,
-                    cos(radians(:lat)) * cos(radians(latitude))
-                    * cos(radians(longitude) - radians(:lon))
-                    + sin(radians(:lat)) * sin(radians(latitude))
-                ))
-            )) AS distance
-        FROM event_place_geocoded
-        WHERE latitude IS NOT NULL
-          AND longitude IS NOT NULL
-          AND (6371000 * acos(
-                LEAST(1.0, GREATEST(-1.0,
-                    cos(radians(:lat)) * cos(radians(latitude))
-                    * cos(radians(longitude) - radians(:lon))
-                    + sin(radians(:lat)) * sin(radians(latitude))
-                ))
-              )) <= :radius
-        ORDER BY distance
-        LIMIT 100;
-    """)
+        # Haversine distance scan against the public serving view.
+        # Table name is UNQUALIFIED so it resolves via the ORM session's
+        # search_path (public-first); never hard-code a schema qualifier.
+        # acos() input is clamped to [-1, 1] to prevent domain errors, and
+        # distance is computed once in a CTE to avoid duplicate evaluation.
+        sql_query = text("""
+            WITH scored_places AS (
+                SELECT
+                    event_place_id AS id,
+                    COALESCE(normalized_address, raw_text, place_id) AS name,
+                    latitude,
+                    longitude,
+                    jurisdiction_name,
+                    city,
+                    state_code,
+                    (6371000 * acos(
+                        LEAST(1.0, GREATEST(-1.0,
+                            cos(radians(:lat)) * cos(radians(latitude))
+                            * cos(radians(longitude) - radians(:lon))
+                            + sin(radians(:lat)) * sin(radians(latitude))
+                        ))
+                    )) AS distance
+                FROM event_place_geocoded
+                WHERE latitude IS NOT NULL
+                  AND longitude IS NOT NULL
+            )
+            SELECT
+                id,
+                name,
+                latitude,
+                longitude,
+                jurisdiction_name,
+                city,
+                state_code,
+                distance
+            FROM scored_places
+            WHERE distance <= :radius
+            ORDER BY distance
+            LIMIT 100;
+        """)
 
-    result = db.execute(
-        sql_query,
-        {"lat": alert_in.latitude, "lon": alert_in.longitude, "radius": alert_in.target_radius_meters},
-    )
+        result = db.execute(
+            sql_query,
+            {"lat": alert_in.latitude, "lon": alert_in.longitude, "radius": alert_in.target_radius_meters},
+        )
 
-    nearby_items = [dict(row._mapping) for row in result]
+        nearby_items = [dict(row._mapping) for row in result]
+        span.set_attribute("alert.nearby_count", len(nearby_items))
 
-    # Commit atomically after the scan succeeds
-    db.commit()
-    db.refresh(new_alert)
+        # Commit atomically after the scan succeeds
+        db.commit()
+        db.refresh(new_alert)
 
-    return {
-        "alert_id": new_alert.id,
-        "status": "created",
-        "nearby_municipal_items_found": len(nearby_items),
-        "items": nearby_items,
-    }
+        return {
+            "alert_id": new_alert.id,
+            "status": "created",
+            "nearby_municipal_items_found": len(nearby_items),
+            "items": nearby_items,
+        }

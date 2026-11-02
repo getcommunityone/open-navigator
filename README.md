@@ -220,6 +220,7 @@ curl "http://localhost:8001/opportunities?state=CA&urgency=critical"
 
 ```bash
 curl -X POST "http://localhost:8001/api/alerts/proximity" \
+     -H "Authorization: Bearer <token>" \
      -H "Content-Type: application/json" \
      -d '{
        "alert_name": "My Local Alert",
