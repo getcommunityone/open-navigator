@@ -409,6 +409,7 @@ app.include_router(decision_browse_routes.router, prefix="/api")
 # Flat meeting-browse list. Router prefix is "/meetings"; add the shared "/api"
 # prefix (meeting-grain analogue of decision_browse_routes).
 app.include_router(meeting_browse_routes.router, prefix="/api")
+app.include_router(feed_routes.router, prefix="/api")
 
 # Custom Swagger UI with logo.
 # Served at /api/docs (not /docs) so the /docs/ path is free for the Docusaurus
