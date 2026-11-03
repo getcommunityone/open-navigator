@@ -41,7 +41,10 @@ import zipfile
 from pathlib import Path
 from typing import Any, Optional
 
-import geopandas as gpd
+try:
+    import geopandas as gpd
+except ImportError:
+    gpd = None
 import httpx
 import pandas as pd
 from loguru import logger
@@ -231,6 +234,190 @@ TIGER_PLACE_ZIP = (
     "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_{statefp}_place_500k.zip"
 )
 
+# Connecticut 2022+ Planning Region FIPS (091xx) to Legacy County FIPS (090xx) Crosswalk.
+# Maps each legacy county code to its constituent planning regions and demographic weights.
+# Resolves Issue #71 where Connecticut counties render blank on 2022+ county-level maps.
+CONNECTICUT_LEGACY_COUNTY_CROSSWALK: dict[str, dict[str, Any]] = {
+    "09001": {
+        "name": "Fairfield County",
+        "regions": {
+            "09190": 0.64,  # Western Connecticut Planning Region
+            "09120": 0.36,  # Greater Bridgeport Planning Region
+        },
+    },
+    "09003": {
+        "name": "Hartford County",
+        "regions": {
+            "09110": 0.92,  # Capitol Planning Region
+            "09140": 0.08,  # Naugatuck Valley Planning Region (Bristol/Plymouth)
+        },
+    },
+    "09005": {
+        "name": "Litchfield County",
+        "regions": {
+            "09160": 0.75,  # Northwest Hills Planning Region
+            "09140": 0.25,  # Naugatuck Valley Planning Region
+        },
+    },
+    "09007": {
+        "name": "Middlesex County",
+        "regions": {
+            "09130": 1.00,  # Lower Connecticut River Valley Planning Region
+        },
+    },
+    "09009": {
+        "name": "New Haven County",
+        "regions": {
+            "09170": 0.68,  # South Central Connecticut Planning Region
+            "09140": 0.32,  # Naugatuck Valley Planning Region (Waterbury area)
+        },
+    },
+    "09011": {
+        "name": "New London County",
+        "regions": {
+            "09180": 0.95,  # Southeastern Connecticut Planning Region
+            "09130": 0.05,  # Lower Connecticut River Valley Planning Region
+        },
+    },
+    "09013": {
+        "name": "Tolland County",
+        "regions": {
+            "09110": 0.95,  # Capitol Planning Region (Eastern portion)
+            "09150": 0.05,  # Northeastern Connecticut Planning Region
+        },
+    },
+    "09015": {
+        "name": "Windham County",
+        "regions": {
+            "09150": 1.00,  # Northeastern Connecticut Planning Region
+        },
+    },
+}
+
+
+def synthesize_connecticut_legacy_counties(
+    county_values: dict[str, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """Synthesize Connecticut legacy county entries (09001-09015) from planning regions (09110-09190).
+
+    In 2022+ ACS vintages, Connecticut replaced its 8 legacy counties with 9 planning regions.
+    This crosswalk ensures that county_metrics.json retains the legacy 090xx FIPS codes matching
+    the standard TopoJSON basemap geometries (us-atlas@3/counties-10m.json).
+    """
+    has_planning_regions = any(k.startswith("091") for k in county_values)
+    if not has_planning_regions:
+        return county_values
+
+    for legacy_fips, spec in CONNECTICUT_LEGACY_COUNTY_CROSSWALK.items():
+        if legacy_fips in county_values and any(county_values[legacy_fips].get(m["slug"]) is not None for m in METRICS):
+            continue
+
+        regions_spec: dict[str, float] = spec["regions"]
+        avail = {r_fips: county_values[r_fips] for r_fips in regions_spec if r_fips in county_values}
+        if not avail:
+            continue
+
+        legacy_row: dict[str, Any] = {"NAME": spec["name"], "GEOID": legacy_fips}
+
+        for m in METRICS:
+            slug = m["slug"]
+            fmt = m.get("format", "")
+
+            valid_pts: list[tuple[float, float]] = []
+            for r_fips, r_data in avail.items():
+                val = r_data.get(slug)
+                if val is not None and isinstance(val, (int, float)) and val == val:
+                    w = regions_spec[r_fips]
+                    valid_pts.append((float(val), w))
+
+            if not valid_pts:
+                legacy_row[slug] = None
+                continue
+
+            sub_w_sum = sum(w for _, w in valid_pts)
+            if sub_w_sum <= 0:
+                legacy_row[slug] = None
+                continue
+
+            if fmt == "count":
+                computed_val = sum(val * (w / sub_w_sum) if len(avail) == 1 else val * w for val, w in valid_pts)
+                legacy_row[slug] = round(computed_val)
+            else:
+                weighted_avg = sum(val * (w / sub_w_sum) for val, w in valid_pts)
+                if fmt in ("currency", "years"):
+                    legacy_row[slug] = round(weighted_avg, 1 if fmt == "years" else 0)
+                elif fmt == "ratio":
+                    legacy_row[slug] = round(weighted_avg, 4)
+                elif fmt == "percent":
+                    legacy_row[slug] = round(weighted_avg, 2)
+                else:
+                    legacy_row[slug] = round(weighted_avg, 2)
+
+        county_values[legacy_fips] = legacy_row
+
+    return county_values
+
+
+def synthesize_connecticut_county_trends(
+    by_geoid: dict[str, dict[str, Any]],
+    vintages: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Synthesize multi-year trend series for Connecticut legacy counties from planning regions."""
+    has_planning_regions = any(k.startswith("091") for k in by_geoid)
+    if not has_planning_regions:
+        return by_geoid
+
+    for legacy_fips, spec in CONNECTICUT_LEGACY_COUNTY_CROSSWALK.items():
+        block = by_geoid.setdefault(legacy_fips, {"GEOID": legacy_fips, "NAME": spec["name"]})
+        if not block.get("NAME"):
+            block["NAME"] = spec["name"]
+
+        regions_spec: dict[str, float] = spec["regions"]
+        avail_regions = [r_fips for r_fips in regions_spec if r_fips in by_geoid]
+        if not avail_regions:
+            continue
+
+        for m in METRICS:
+            slug = m["slug"]
+            fmt = m.get("format", "")
+            series = block.setdefault(slug, {})
+
+            for vy in vintages:
+                if series.get(vy) is not None:
+                    continue
+
+                valid_pts: list[tuple[float, float]] = []
+                for r_fips in avail_regions:
+                    r_series = by_geoid[r_fips].get(slug, {})
+                    r_val = r_series.get(vy)
+                    if r_val is not None and isinstance(r_val, (int, float)) and r_val == r_val:
+                        w = regions_spec[r_fips]
+                        valid_pts.append((float(r_val), w))
+
+                if not valid_pts:
+                    continue
+
+                sub_w_sum = sum(w for _, w in valid_pts)
+                if sub_w_sum <= 0:
+                    continue
+
+                if fmt == "count":
+                    computed_val = sum(val * (w / sub_w_sum) if len(avail_regions) == 1 else val * w for val, w in valid_pts)
+                    series[vy] = round(computed_val)
+                else:
+                    weighted_avg = sum(val * (w / sub_w_sum) for val, w in valid_pts)
+                    if fmt in ("currency", "years"):
+                        series[vy] = round(weighted_avg, 1 if fmt == "years" else 0)
+                    elif fmt == "ratio":
+                        series[vy] = round(weighted_avg, 4)
+                    elif fmt == "percent":
+                        series[vy] = round(weighted_avg, 2)
+                    else:
+                        series[vy] = round(weighted_avg, 2)
+
+    return by_geoid
+
+
 # States + DC + PR (two-digit FIPS) for optional county trend sidecars.
 _CENSUS_STATE_FIPS_ALL: tuple[str, ...] = (
     "01", "02", "04", "05", "06", "08", "09", "10", "11", "12", "13", "15", "16", "17",
@@ -380,6 +567,8 @@ def build_county_trends_for_state(acs_dir: Path, state_fips: str, years: list[in
                     nm = row.get("NAME")
                     if isinstance(nm, str) and nm.strip():
                         block["NAME"] = nm.strip()
+    if stp == "09":
+        by_geoid = synthesize_connecticut_county_trends(by_geoid, vintages)
     return {"geography": "county", "state": stp, "vintages": vintages, "byGeoid": by_geoid}
 
 
@@ -426,7 +615,7 @@ def build_county_values(acs_dir: Path, year: int) -> dict[str, dict[str, Optiona
                 nm = row.get("NAME")
                 if isinstance(nm, str) and nm.strip():
                     out[gid]["NAME"] = nm.strip()
-    return out
+    return synthesize_connecticut_legacy_counties(out)
 
 
 def build_state_values(acs_dir: Path, year: int) -> dict[str, dict[str, Optional[float]]]:
@@ -686,6 +875,8 @@ def export_place_geojson(
     except Exception as e:
         logger.error(f"Tiger download/read failed for {state_fips}: {e}")
         return False
+    if gpd is None:
+        raise RuntimeError("geopandas is required to export place boundaries GeoJSON")
     gdf = gpd.read_file(shp)
     if gdf.crs is not None and gdf.crs.to_string() != "EPSG:4326":
         gdf = gdf.to_crs(4326)
