@@ -208,6 +208,12 @@ curl -X POST "http://localhost:8001/workflow/start" \
      }'
 ```
 
+**Query active states:**
+
+```bash
+curl "http://localhost:8001/api/states"
+```
+
 **Query opportunities:**
 
 ```bash

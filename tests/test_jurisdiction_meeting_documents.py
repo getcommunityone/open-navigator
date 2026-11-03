@@ -66,7 +66,7 @@ def test_group_empty_rows():
 def test_route_registered_at_api_path():
     from api.main import app
 
-    paths = {
+    paths = set(app.openapi().get("paths", {}).keys()) | {
         getattr(r, "path", None) or getattr(r, "path_format", None) for r in app.routes
     }
     assert "/api/jurisdiction/{jurisdiction_id}/meeting-documents" in paths
