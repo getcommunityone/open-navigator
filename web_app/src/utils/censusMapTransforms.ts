@@ -333,3 +333,155 @@ export function formatMetricValueDisplay(
   const sign = v < 0 ? '-' : ''
   return `${sign}${formatCompactMagnitude(Math.abs(v), false, u)}`
 }
+
+/**
+ * Crosswalk mapping Connecticut's 8 legacy counties (09001-09015) to their constituent
+ * 9 planning regions (09110-09190) with demographic population weights (Issue #71).
+ */
+export const CT_LEGACY_COUNTY_CROSSWALK: Record<
+  string,
+  { name: string; regions: Record<string, number> }
+> = {
+  '09001': {
+    name: 'Fairfield County',
+    regions: {
+      '09190': 0.64, // Western Connecticut Planning Region
+      '09120': 0.36, // Greater Bridgeport Planning Region
+    },
+  },
+  '09003': {
+    name: 'Hartford County',
+    regions: {
+      '09110': 0.92, // Capitol Planning Region
+      '09140': 0.08, // Naugatuck Valley Planning Region (Bristol/Plymouth)
+    },
+  },
+  '09005': {
+    name: 'Litchfield County',
+    regions: {
+      '09160': 0.75, // Northwest Hills Planning Region
+      '09140': 0.25, // Naugatuck Valley Planning Region
+    },
+  },
+  '09007': {
+    name: 'Middlesex County',
+    regions: {
+      '09130': 1.0, // Lower Connecticut River Valley Planning Region
+    },
+  },
+  '09009': {
+    name: 'New Haven County',
+    regions: {
+      '09170': 0.68, // South Central Connecticut Planning Region
+      '09140': 0.32, // Naugatuck Valley Planning Region (Waterbury area)
+    },
+  },
+  '09011': {
+    name: 'New London County',
+    regions: {
+      '09180': 0.95, // Southeastern Connecticut Planning Region
+      '09130': 0.05, // Lower Connecticut River Valley Planning Region
+    },
+  },
+  '09013': {
+    name: 'Tolland County',
+    regions: {
+      '09110': 0.95, // Capitol Planning Region (Eastern portion)
+      '09150': 0.05, // Northeastern Connecticut Planning Region
+    },
+  },
+  '09015': {
+    name: 'Windham County',
+    regions: {
+      '09150': 1.0, // Northeastern Connecticut Planning Region
+    },
+  },
+}
+
+/**
+ * Resolves a single metric value for a Connecticut legacy county (09001-09015)
+ * by computing a population-weighted average from constituent planning regions.
+ */
+export function resolveConnecticutCountyMetric(
+  legacyFips: string,
+  values: Record<string, Record<string, unknown>>,
+  metricSlug: string,
+): number | null {
+  const existing = values[legacyFips]?.[metricSlug]
+  if (typeof existing === 'number' && Number.isFinite(existing)) {
+    return existing
+  }
+
+  const spec = CT_LEGACY_COUNTY_CROSSWALK[legacyFips]
+  if (!spec) return null
+
+  const validPts: { val: number; weight: number }[] = []
+  for (const [rFips, weight] of Object.entries(spec.regions)) {
+    const rawVal = values[rFips]?.[metricSlug]
+    if (typeof rawVal === 'number' && Number.isFinite(rawVal)) {
+      validPts.push({ val: rawVal, weight })
+    }
+  }
+
+  if (!validPts.length) return null
+
+  const totalWeight = validPts.reduce((acc, p) => acc + p.weight, 0)
+  if (totalWeight <= 0) return null
+
+  const weightedSum = validPts.reduce((acc, p) => acc + p.val * (p.weight / totalWeight), 0)
+  return Number.isFinite(weightedSum) ? weightedSum : null
+}
+
+/**
+ * Resolves or synthesizes a trend series dictionary ({ [vintage]: value }) for a
+ * Connecticut legacy county from constituent planning regions in a byGeoid map.
+ */
+export function resolveConnecticutCountyTrendSeries(
+  legacyFips: string,
+  byGeoid: Record<string, Record<string, unknown>>,
+  metricSlug: string,
+  vintages: string[],
+): Record<string, number | null> | null {
+  const existingSeries = byGeoid[legacyFips]?.[metricSlug]
+  if (
+    existingSeries &&
+    typeof existingSeries === 'object' &&
+    !Array.isArray(existingSeries) &&
+    Object.keys(existingSeries).length > 0
+  ) {
+    return existingSeries as Record<string, number | null>
+  }
+
+  const spec = CT_LEGACY_COUNTY_CROSSWALK[legacyFips]
+  if (!spec) return null
+
+  const out: Record<string, number | null> = {}
+  let hasAny = false
+
+  for (const vy of vintages) {
+    const validPts: { val: number; weight: number }[] = []
+    for (const [rFips, weight] of Object.entries(spec.regions)) {
+      const rRow = byGeoid[rFips]
+      const rSeries = rRow?.[metricSlug]
+      if (rSeries && typeof rSeries === 'object' && !Array.isArray(rSeries)) {
+        const v = (rSeries as Record<string, unknown>)[vy]
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          validPts.push({ val: v, weight })
+        }
+      }
+    }
+
+    if (validPts.length > 0) {
+      const totalWeight = validPts.reduce((acc, p) => acc + p.weight, 0)
+      if (totalWeight > 0) {
+        const weighted = validPts.reduce((acc, p) => acc + p.val * (p.weight / totalWeight), 0)
+        out[vy] = Math.round(weighted * 100) / 100
+        hasAny = true
+        continue
+      }
+    }
+    out[vy] = null
+  }
+
+  return hasAny ? out : null
+}

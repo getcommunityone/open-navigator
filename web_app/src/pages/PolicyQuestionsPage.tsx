@@ -662,9 +662,11 @@ const MEETING_PAGE = 24
 function QuestionMeetingList({
   question,
   state,
+  city,
 }: {
   question: PolicyQuestionSummary
   state?: string
+  city?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const total = question.discussion_meeting_count ?? 0
@@ -676,11 +678,14 @@ function QuestionMeetingList({
     enabled: total > 0,
   })
 
-  // Optional place scoping carried over from the homepage (?state=…).
+  // Apply the same place scope as the decision list above.
   const meetings = useMemo(() => {
     const all = data ?? []
-    return state ? all.filter((m) => (m.state_code ?? '').toUpperCase() === state) : all
-  }, [data, state])
+    return all.filter((m) =>
+      (!state || (m.state_code ?? '').toUpperCase() === state) &&
+      (!city || (m.city ?? '').trim().toLowerCase() === city.toLowerCase()),
+    )
+  }, [data, state, city])
 
   if (total === 0) return null
 
