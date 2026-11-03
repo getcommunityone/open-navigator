@@ -493,6 +493,12 @@ class SystemStatus(BaseModel):
     last_update: datetime
 
 
+class StatesResponse(BaseModel):
+    """Response containing US state codes with active opportunities."""
+    states: List[str] = Field(..., description="List of 2-letter US state codes")
+    count: int = Field(..., description="Total count of states")
+
+
 # API Endpoints
 
 @app.get("/", response_class=HTMLResponse)
@@ -999,16 +1005,53 @@ async def get_topics():
     }
 
 
-@app.get("/states")
-async def get_states():
-    """Get list of all states with active opportunities."""
-    # Query distinct states from database
-    states = ["CA", "NY", "TX", "FL", "IL"]  # Placeholder
-    
-    return {
-        "states": states,
-        "count": len(states)
-    }
+FALLBACK_OPPORTUNITY_STATES: List[str] = [
+    "AL", "CA", "FL", "GA", "IL", "IN", "MA", "NY", "TX", "WA", "WI"
+]
+
+
+@app.get("/states", response_model=StatesResponse, tags=["opportunities"])
+@app.get("/api/states", response_model=StatesResponse, tags=["opportunities"])
+async def get_states() -> StatesResponse:
+    """Get list of all states with active opportunities.
+
+    Queries distinct state codes from active bills in the database if available.
+    Falls back gracefully to configured `settings.target_states` or standard
+    pipeline coverage states when running offline or without database access.
+    """
+    try:
+        from api.routes.bills_neon import get_pool
+        pool = await get_pool()
+        if pool is not None:
+            query = """
+                SELECT DISTINCT UPPER(state_code) AS state_code
+                FROM bills
+                WHERE state_code IS NOT NULL
+                  AND state_code != ''
+                  AND (
+                      LOWER(title) LIKE '%fluorid%'
+                      OR LOWER(title) LIKE '%dental%'
+                      OR LOWER(title) LIKE '%oral health%'
+                      OR LOWER(title) LIKE '%water treat%'
+                  )
+                ORDER BY UPPER(state_code)
+            """
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(query)
+            db_states = sorted(set(str(row["state_code"]).strip().upper() for row in rows if row.get("state_code")))
+            if db_states:
+                return StatesResponse(states=db_states, count=len(db_states))
+    except Exception as e:
+        logger.warning(f"Failed to query active opportunity states from bills database: {e}")
+
+    # Fallback to configured target states or standard coverage states
+    configured_states = settings.target_states
+    if configured_states:
+        resolved = sorted(set(st.upper() for st in configured_states if st))
+    else:
+        resolved = sorted(FALLBACK_OPPORTUNITY_STATES)
+
+    return StatesResponse(states=resolved, count=len(resolved))
 
 
 @app.get("/status", response_model=SystemStatus)

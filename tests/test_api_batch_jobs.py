@@ -33,7 +33,7 @@ def test_list_batch_jobs_endpoint():
 def test_batch_jobs_stream_route_exists():
     from api.main import app
 
-    paths = {
+    paths = set(app.openapi().get("paths", {}).keys()) | {
         getattr(r, "path", None) or getattr(r, "path_format", None) for r in app.routes
     }
     assert "/api/batch-jobs/stream" in paths
