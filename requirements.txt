@@ -14,19 +14,19 @@ httpx>=0.25.0
 crawl4ai>=0.4.0          # AI-friendly crawler (browser + LLM extraction); needs `crawl4ai-setup` once after install
 litellm>=1.40.0          # crawl4ai backend for non-OpenAI providers (Groq, Gemini, Anthropic, ...)
 socksio>=1.0.0  # needed for httpx SOCKS proxies (socks5://...)
-aiohttp==3.14.1
+aiohttp==3.14.3
 youtube-transcript-api>=0.6.2
 google-api-python-client>=2.100.0  # YouTube Data API v3
 
 # Document Processing (Multiple Formats)
-pypdf>=6.13.3               # PDF extraction (successor to PyPDF2)
+pypdf>=6.15.0               # PDF extraction (successor to PyPDF2)
 PyPDF2>=3.0.0              # PDF extraction (legacy, some scripts may use)
 pdfplumber>=0.10.0         # Advanced PDF extraction (tables)
 python-pptx>=0.6.0         # PowerPoint extraction
 python-docx>=1.0.0         # Word document extraction
 openpyxl>=3.1.0            # Excel extraction
 pytesseract>=0.3.0         # OCR for scanned documents (optional)
-Pillow>=10.0.0             # Image processing for OCR
+Pillow>=12.3.0             # Image processing for OCR
 pdf2image>=1.17.0          # PDF page rasterization (meeting cache PNGs; needs poppler-utils)
 
 # AI & LLM
