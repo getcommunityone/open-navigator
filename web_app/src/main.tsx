@@ -26,12 +26,8 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
+      {/* react-router 7: the v7_* future flags are the default behaviour and the prop is gone */}
+      <BrowserRouter>
         <ScrollToTop />
         <AuthProvider>
           <LocationProvider>
