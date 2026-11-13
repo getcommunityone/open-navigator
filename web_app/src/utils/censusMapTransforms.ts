@@ -333,3 +333,45 @@ export function formatMetricValueDisplay(
   const sign = v < 0 ? '-' : ''
   return `${sign}${formatCompactMagnitude(Math.abs(v), false, u)}`
 }
+
+/**
+ * Connecticut legacy counties (09001-09015) vs planning regions (091xx).
+ *
+ * Since the 2022 ACS vintage Connecticut reports by planning region, so the export emits each
+ * legacy county with null metrics and a `data_note`. We never convert planning-region values into
+ * county figures (planning regions do not nest in counties and medians/rates cannot be averaged).
+ * Only the real FIPS to name mapping is kept here.
+ */
+export const CT_LEGACY_COUNTY_NAMES: Record<string, string> = {
+  '09001': 'Fairfield County',
+  '09003': 'Hartford County',
+  '09005': 'Litchfield County',
+  '09007': 'Middlesex County',
+  '09009': 'New Haven County',
+  '09011': 'New London County',
+  '09013': 'Tolland County',
+  '09015': 'Windham County',
+}
+
+/** Tooltip / legend text for a county the source reports only by planning region. */
+export const CT_PLANNING_REGION_UNAVAILABLE_TEXT =
+  'Not available: Connecticut reports by planning region since 2022'
+
+/** True when a county row (or GeoJSON properties) carries the export's planning-region `data_note`. */
+export function hasPlanningRegionNote(props: Record<string, unknown> | null | undefined): boolean {
+  const note = props?.data_note
+  return typeof note === 'string' && note.trim().length > 0
+}
+
+/**
+ * True when a Connecticut county should explain its missing figure: the export marked it with the
+ * planning-region note, or it is a legacy county (09001-09015) in data exported before that note
+ * existed. Callers check that the value is missing first; this never supplies a number.
+ */
+export function isConnecticutPlanningRegionGap(
+  geoid: string,
+  props: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!geoid.startsWith('09')) return false
+  return hasPlanningRegionNote(props) || Object.prototype.hasOwnProperty.call(CT_LEGACY_COUNTY_NAMES, geoid)
+}
