@@ -4,12 +4,12 @@
 # Uses the project virtualenv when present (same pattern as packages/hosting/scripts/neon/run_jurisdiction_id_migration.sh).
 #
 # Usage:
-#   ./scripts/datasources/openstates/run_openstates_jurisdiction_mapping.sh --migrate
-#   ./scripts/datasources/openstates/run_openstates_jurisdiction_mapping.sh --dry-run
+#   ./packages/scrapers/scripts/openstates_run_openstates_jurisdiction_mapping.sh --migrate
+#   ./packages/scrapers/scripts/openstates_run_openstates_jurisdiction_mapping.sh --dry-run
 #
 # Prereqs:
 #   pip install -r requirements.txt           # main app / loaders (.venv)
-#   ./scripts/datasources/openstates/setup_dbt_venv.sh   # isolated dbt (.venv-dbt — avoids protobuf/pathspec clashes)
+#   ./packages/scrapers/scripts/openstates_setup_dbt_venv.sh   # isolated dbt (.venv-dbt — avoids protobuf/pathspec clashes)
 #   OPENSTATES_DATABASE_URL, OPEN_NAVIGATOR_DATABASE_URL / NEON_DATABASE_URL_DEV / NEON_DATABASE_URL
 #   First-time dbt config:
 #     mkdir -p ~/.dbt && cp --update=none dbt_project/profiles.yml.example ~/.dbt/profiles.yml || true
@@ -46,7 +46,7 @@ elif command -v dbt >/dev/null 2>&1; then
   DBT="$(command -v dbt)"
 else
   echo "ERROR: dbt not found. Create isolated venv (recommended):" >&2
-  echo "  ${ROOT}/scripts/datasources/openstates/setup_dbt_venv.sh" >&2
+  echo "  ${ROOT}/packages/scrapers/scripts/openstates_setup_dbt_venv.sh" >&2
   exit 1
 fi
 
@@ -58,7 +58,7 @@ for arg in "$@"; do
   fi
 done
 
-"${PY}" "${ROOT}/scripts/datasources/openstates/map_openstates_jurisdiction_ids.py" "$@"
+"${PY}" "${ROOT}/packages/ingestion/src/ingestion/openstates/map_openstates_jurisdiction_ids.py" "$@"
 
 if [[ "${RUN_DBT}" -eq 1 ]]; then
   mkdir -p "${HOME}/.dbt"
