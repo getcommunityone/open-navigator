@@ -25,7 +25,11 @@ backlog on Gemini's free tier:
 * **Resumable** — pending work is re-derived from the DB each pass; nothing is persisted
   client-side beyond the analysis JSON the pipeline already writes.
 
-Run the real backfill, leading with a healthy model::
+Run the real backfill (cheapest model first by default)::
+
+    python -m llm.gemini.analyze_backlog
+
+Lead with Flash instead, if Flash-Lite is congested::
 
     python -m llm.gemini.analyze_backlog \
         --models gemini-2.5-flash,gemini-2.5-flash-lite
@@ -68,16 +72,20 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 # is congested right now, so we step off it for ~10 min and try the next live model.
 DEFAULT_OVERLOAD_COOLDOWN_SECONDS: float = 600.0
 
-# Default model rotation, healthy/fast model FIRST. ``gemini-2.5-flash`` leads because it
-# is the reliable, currently-healthy model; ``gemini-2.5-flash-lite`` follows as the
-# higher-free-RPD fallback. ``gemini-2.0-flash-lite`` was RETIRED by Google (the API now
+# Default model rotation, CHEAPEST model first (#263). ``gemini-2.5-flash-lite`` leads: it
+# costs less per token than ``gemini-2.5-flash`` and does not think by default.
+# ``gemini-2.5-flash`` follows for when Flash-Lite walls. Flash used to lead because
+# Flash-Lite was 504-congested; the driver now steps off a congested model on a short
+# cooldown (GenAIServerOverloadGiveUp) and each request has a hard timeout, so a congested
+# lead costs a rotation, not a hung shard. To put Flash first again:
+# ``--models gemini-2.5-flash,gemini-2.5-flash-lite``. ``gemini-2.0-flash-lite`` was RETIRED by Google (the API now
 # 404s "This model models/gemini-2.0-flash-lite is no longer available"), so it is gone
 # from the defaults — a default run that rotated onto it used to crash the shard. If a run
 # ever does rotate onto a retired model, the driver now drops it from rotation (see
 # GenAIModelUnavailableGiveUp) instead of dying.
 DEFAULT_MODELS: Tuple[str, ...] = (
-    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
 )
 
 

@@ -359,6 +359,46 @@ def inject_transcript_into_prompt(prompt_text: str, transcript_block: str) -> st
     return f"{prompt_text.strip()}\n\n<transcript>\n{block}\n</transcript>"
 
 
+_TRANSCRIPT_SLOT_RE = re.compile(r"<transcript>.*?</transcript>", re.DOTALL | re.IGNORECASE)
+
+
+def build_cacheable_part1_message(
+    prompt_text: str,
+    transcript_block: str,
+    video: VideoRow,
+    *,
+    task_line: Optional[str] = None,
+) -> str:
+    """The Part 1 user turn with everything fixed first, so calls share a prefix (#263).
+
+    ``build_user_message`` puts the per-video MEDIA CONTEXT block ahead of the
+    policy prompt, so no two calls start with the same text and Gemini's implicit
+    caching (a discount on a prefix it has seen recently) never applies to the
+    ~32 KB of instructions every call repeats. Here the order is: the prompt up to
+    its ``<transcript>`` slot (identical for every video), then MEDIA CONTEXT, then
+    the transcript, then anything the prompt had after the slot. The model reads
+    the same three parts; only their order changes.
+    """
+    prompt = prompt_text.strip()
+    slot = _TRANSCRIPT_SLOT_RE.search(prompt)
+    head = prompt[: slot.start()].rstrip() if slot else prompt
+    tail = prompt[slot.end() :].strip() if slot else ""
+    # build_user_message("") is the MEDIA CONTEXT block alone.
+    media_block = build_user_message("", video, task_line=task_line).strip()
+    parts = [head, media_block, f"<transcript>\n{transcript_block.strip()}\n</transcript>"]
+    if tail:
+        parts.append(tail)
+    return "\n\n".join(parts)
+
+
+def _thinking_budget_arg(args: argparse.Namespace) -> Optional[int]:
+    """``--thinking-budget`` as the client takes it: a negative value means the model's default."""
+    value = getattr(args, "thinking_budget", 0)
+    if value is None or int(value) < 0:
+        return None
+    return int(value)
+
+
 def build_transcript_block(
     *,
     speaker_hints: str,
@@ -667,6 +707,9 @@ def generate_part2_markdown(
             system_instruction=args.system_instruction,
             temperature=args.temperature,
             max_output_tokens=args.max_output_tokens,
+            # Part 2 rewrites Part 1's JSON as Markdown: no thinking needed, and
+            # no JSON mode (the output is a report).
+            thinking_budget=_thinking_budget_arg(args),
         )
     return result.text.strip()
 
@@ -1072,10 +1115,9 @@ def process_one_video(
 
     prompt_path = Path(args.prompt_file).resolve()
     prompt_text = prompt_path.read_text(encoding="utf-8").strip()
-    prompt_with_tx = inject_transcript_into_prompt(prompt_text, transcript_block)
-
-    user_message = build_user_message(
-        prompt_with_tx,
+    user_message = build_cacheable_part1_message(
+        prompt_text,
+        transcript_block,
         video,
         task_line=(
             "Analyze the meeting from the <transcript> block only. "
@@ -1095,6 +1137,8 @@ def process_one_video(
             system_instruction=args.system_instruction,
             temperature=args.temperature,
             max_output_tokens=args.max_output_tokens,
+            thinking_budget=_thinking_budget_arg(args),
+            json_mode=not getattr(args, "no_json_mode", False),
         )
 
     capture = GeminiRunCapture(response_text=result.text, gemini_model=model)
@@ -1508,6 +1552,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--system-instruction", default="", help="Optional system prompt")
     parser.add_argument("--temperature", type=float, default=0.1)
     parser.add_argument("--max-output-tokens", type=int, default=65536)
+    parser.add_argument(
+        "--thinking-budget",
+        type=int,
+        default=int(os.getenv("GEMINI_THINKING_BUDGET", "0")),
+        help="Thinking-token cap for gemini-2.5-flash* (billed as output). 0 = off "
+        "(default, env GEMINI_THINKING_BUDGET); -1 = the model's own default",
+    )
+    parser.add_argument(
+        "--no-json-mode",
+        action="store_true",
+        help="Do not ask for application/json output on Part 1 (free text, as before #263)",
+    )
     parser.add_argument(
         "--transcript-languages",
         nargs="+",

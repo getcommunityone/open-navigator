@@ -600,6 +600,10 @@ def _genai_http_options() -> Any:
         limits = httpx.Limits(max_keepalive_connections=0)
     retries = max(0, int(os.environ.get("GENAI_HTTP_CONNECT_RETRIES", "2")))
     return types.HttpOptions(
+        # Pinned: google-genai 3.x defaults to "v1", which rejects thinking_config
+        # and JSON mode ("... is not enabled for api version v1. Use api version
+        # v1beta instead."). Older SDKs defaulted to v1beta, so this is a no-op there.
+        api_version=os.environ.get("GENAI_API_VERSION", "v1beta").strip() or "v1beta",
         timeout=_genai_http_timeout_ms(),
         client_args={"limits": limits, "transport": httpx.HTTPTransport(retries=retries)},
         async_client_args={"limits": limits, "transport": httpx.AsyncHTTPTransport(retries=retries)},
@@ -891,6 +895,31 @@ def _call_deepseek_text(
     raise RuntimeError(f"DeepSeek call failed for {model}: {last_exc}") from last_exc
 
 
+def supports_thinking_budget(model: str) -> bool:
+    """Whether ``thinking_budget`` (including ``0`` = off) may be sent to ``model``.
+
+    Only the 2.5 Flash family: it thinks by default on ``gemini-2.5-flash`` and
+    takes a budget of 0 to turn that off. Other models are left alone — Gemma
+    rejects a budget, 2.5 Pro cannot go to 0, and the 3.x models take a thinking
+    *level* instead — so a request to them is sent unchanged.
+    """
+    return (model or "").strip().lower().startswith("gemini-2.5-flash")
+
+
+def _rejected_generation_option(exc: BaseException, config_kwargs: dict[str, Any]) -> Optional[str]:
+    """The optional config key a 400 says the model/API won't take, if any."""
+    msg = str(exc).upper()
+    if "400" not in msg and "INVALID_ARGUMENT" not in msg:
+        return None
+    if "thinking_config" in config_kwargs and "THINKING" in msg:
+        return "thinking_config"
+    if "response_mime_type" in config_kwargs and any(
+        token in msg for token in ("JSON MODE", "RESPONSE_MIME_TYPE", "RESPONSE MIME TYPE", "MIME")
+    ):
+        return "response_mime_type"
+    return None
+
+
 def call_gemini_text(
     *,
     api_key: str,
@@ -901,6 +930,8 @@ def call_gemini_text(
     max_output_tokens: int = 65536,
     pdf_bytes: Optional[bytes] = None,
     pdf_mime: str = "application/pdf",
+    thinking_budget: Optional[int] = None,
+    json_mode: bool = False,
 ) -> TextGenAIResult:
     """Single-turn generation via AI Studio API (rotates across the key pool).
 
@@ -910,6 +941,12 @@ def call_gemini_text(
 
     A ``deepseek-*`` model name routes to DeepSeek's OpenAI-compatible Chat
     Completions endpoint instead of Gemini (text-only; no ``pdf_bytes`` support).
+
+    ``thinking_budget`` caps the model's thinking tokens (``0`` turns thinking
+    off); they are billed as output and add latency. It is sent only to models
+    :func:`supports_thinking_budget` names; ``None`` keeps the model's default.
+    ``json_mode`` asks for ``application/json`` output. If the API rejects either
+    setting with a 400, the call is retried once without it.
     """
     if model.startswith("deepseek"):
         if pdf_bytes:
@@ -937,6 +974,12 @@ def call_gemini_text(
     )
     if system_instruction.strip():
         config_kwargs["system_instruction"] = system_instruction.strip()
+    if thinking_budget is not None and supports_thinking_budget(model):
+        config_kwargs["thinking_config"] = types.ThinkingConfig(
+            thinking_budget=int(thinking_budget)
+        )
+    if json_mode:
+        config_kwargs["response_mime_type"] = "application/json"
 
     def _generate():
         client = _next_client(pool)
@@ -970,9 +1013,27 @@ def call_gemini_text(
     stats: dict[str, Any] = {"attempts": 0}
     raw: Any = None
     try:
-        text_raw, raw = call_with_genai_quota_retry(
-            _generate, label=model, key_pool_size=len(pool), stats=stats
-        )
+        while True:
+            try:
+                text_raw, raw = call_with_genai_quota_retry(
+                    _generate, label=model, key_pool_size=len(pool), stats=stats
+                )
+                break
+            except Exception as exc:
+                # A model or API version that won't take the thinking budget or JSON
+                # mode answers 400. Drop that one setting and try again, rather than
+                # fail a run over a cost optimisation. _generate reads config_kwargs
+                # on each call, so the retry goes out without it.
+                rejected = _rejected_generation_option(exc, config_kwargs)
+                if rejected is None:
+                    raise
+                logger.warning(
+                    "{}: API rejected {} — retrying without it ({})",
+                    model,
+                    rejected,
+                    describe_genai_error(exc, max_len=160),
+                )
+                config_kwargs.pop(rejected)
         text = (text_raw or "").strip()
         if not text:
             raise RuntimeError(f"Empty response from {model}")
