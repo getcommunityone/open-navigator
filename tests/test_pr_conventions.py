@@ -87,7 +87,9 @@ def test_agents_md_states_the_rule_and_claude_md_imports_it():
     assert "<type>/<issue>-<slug>" in agents and "Closes #" in agents and "action-item" in agents
     claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     assert "@AGENTS.md" in claude.split("\n## ")[0]          # imported before the first section
-    assert "AGENTS.md" in claude[claude.index("## Documentation Rules"):]   # allowed in the root
+    docs = claude[claude.index("## Documentation Rules"):]
+    root_rule = docs[: docs.index("\n## ")].split("- **Root:**", 1)[1].split("\n- ", 1)[0]
+    assert "AGENTS.md" in root_rule and "CLAUDE.md" in root_rule   # allowed in the root
 
 
 def test_the_issue_template_offers_the_four_parts():
@@ -115,3 +117,43 @@ def test_reviews_live_in_pull_requests_and_agents_md_says_so():
     assert not (ROOT / "pull_request").exists()
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "/create-pr" in agents and "/pr-review" in agents and "pull_requests/pr-<n>-review.md" in agents
+
+
+def run_main(pc, tmp_path, monkeypatch, pr, issue=None):
+    """main() on a made-up pull_request event, with the issue lookup stubbed (no network)."""
+    import json as _json
+    ev = tmp_path / "event.json"
+    ev.write_text(_json.dumps({"pull_request": pr}), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(ev))
+    monkeypatch.setattr(pc, "fetch_issue", lambda repo, number, token: issue)
+    return pc.main()
+
+
+def test_main_skips_tool_branches_even_when_the_body_quotes_upstream_fixes(pc, tmp_path, monkeypatch):
+    pr = {"created_at": "2026-12-01T00:00:00Z", "head": {"ref": "dependabot/npm_and_yarn/vite-5"}, "body": "- Fixes #4521 upstream"}
+    assert run_main(pc, tmp_path, monkeypatch, pr, issue=None) == 0
+
+
+def test_main_fails_with_an_annotation_when_the_linked_issue_cannot_be_read(pc, tmp_path, monkeypatch, capsys):
+    pr = {"created_at": "2026-12-01T00:00:00Z", "head": {"ref": "fix/999-ghost"}, "body": "Closes #999"}
+    assert run_main(pc, tmp_path, monkeypatch, pr, issue=None) == 1
+    assert "::error::" in capsys.readouterr().out
+
+
+def test_main_passes_a_good_pr(pc, tmp_path, monkeypatch):
+    pr = {"created_at": "2026-12-01T00:00:00Z", "head": {"ref": "feat/300-money-sankey"}, "body": "Closes #300"}
+    assert run_main(pc, tmp_path, monkeypatch, pr, issue=issue(FULL)) == 0
+
+
+def test_the_colon_form_counts_as_a_link(pc):
+    assert pc.linked_issue_numbers("Closes: #7, Resolves: #8") == [7, 8]
+
+
+def test_an_unfilled_template_lacks_all_four_parts(pc):
+    tpl = (ROOT / ".github" / "ISSUE_TEMPLATE" / "work-item.md").read_text(encoding="utf-8").split("---", 2)[2]
+    assert pc.missing_parts(tpl) == list(PARTS)
+
+
+def test_headings_inside_comments_or_with_no_text_do_not_count(pc):
+    body = "<!--\n## Problem\nx\n-->\n## Done when\n\n## Contract\n- z\n## Read first\n- w\n"
+    assert pc.missing_parts(body) == ["Problem", "Done when"]

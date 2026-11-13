@@ -40,7 +40,8 @@ Closes #<issue>
 - <follow-ups, each with its own issue number>
 ```
 
-End the body with the attribution lines the session asks for. Create it with the GitHub tools.
+Use `Refs #<issue>` instead of `Closes` when the PR is one part of a larger issue that stays open. End the body
+with the attribution lines the session asks for. Create it with the GitHub tools.
 
 ## 3. Review it
 
