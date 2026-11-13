@@ -391,8 +391,15 @@ def _call_with_walltimeout(fn: Callable[[], T], label: str) -> T:
 
 
 def call_with_genai_quota_retry(
-    fn: Callable[[], T], *, label: str = "Gemini", key_pool_size: int = 1
+    fn: Callable[[], T],
+    *,
+    label: str = "Gemini",
+    key_pool_size: int = 1,
+    stats: Optional[dict[str, Any]] = None,
 ) -> T:
+    """Run ``fn`` with quota/network retries. When ``stats`` is given, its
+    ``"attempts"`` entry counts every try (including the one that succeeded or
+    finally failed), for the usage log."""
     # Transient network disconnects (RemoteProtocolError etc.) get a larger budget
     # than quota errors: they're cheap to retry and a flaky window usually clears
     # within a minute, whereas quota waits are long. Tracked with separate counters.
@@ -407,6 +414,8 @@ def call_with_genai_quota_retry(
     quota_used = 0
     net_used = 0
     while True:
+        if stats is not None:
+            stats["attempts"] = int(stats.get("attempts", 0)) + 1
         try:
             return _call_with_walltimeout(fn, label)
         except Exception as exc:
@@ -485,6 +494,38 @@ class TextGenAIResult:
     text: str
     model: str
     raw_response: Any = None
+    # Token counts, latency and attempts for this call (llm.usage.calls.LLMCallUsage).
+    usage: Any = None
+
+
+def _record_usage(
+    *,
+    provider: str,
+    model: str,
+    usage: Any,
+    started: float,
+    attempts: int,
+    error: Optional[BaseException] = None,
+) -> Any:
+    """Fill in latency and attempts, write the call's usage row, and return the
+    usage. Never raises: a usage-log problem must not fail a model call."""
+    try:
+        from llm.usage.calls import LLMCallUsage, record_llm_call
+
+        usage = usage or LLMCallUsage()
+        usage.latency_seconds = time.monotonic() - started
+        usage.attempt_count = attempts
+        record_llm_call(
+            provider=provider,
+            model=model,
+            usage=usage,
+            is_ok=error is None,
+            error_type=type(error).__name__ if error is not None else None,
+        )
+        return usage
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("usage record skipped for {}: {}", model, exc)
+        return usage
 
 
 def default_flash_lite_model() -> str:
@@ -559,6 +600,10 @@ def _genai_http_options() -> Any:
         limits = httpx.Limits(max_keepalive_connections=0)
     retries = max(0, int(os.environ.get("GENAI_HTTP_CONNECT_RETRIES", "2")))
     return types.HttpOptions(
+        # Pinned: google-genai 3.x defaults to "v1", which rejects thinking_config
+        # and JSON mode ("... is not enabled for api version v1. Use api version
+        # v1beta instead."). Older SDKs defaulted to v1beta, so this is a no-op there.
+        api_version=os.environ.get("GENAI_API_VERSION", "v1beta").strip() or "v1beta",
         timeout=_genai_http_timeout_ms(),
         client_args={"limits": limits, "transport": httpx.HTTPTransport(retries=retries)},
         async_client_args={"limits": limits, "transport": httpx.AsyncHTTPTransport(retries=retries)},
@@ -786,8 +831,18 @@ def _call_deepseek_text(
         msgs.append({"role": "system", "content": system_instruction.strip()})
     msgs.append({"role": "user", "content": user_text})
 
+    from llm.usage.calls import usage_from_openai_response
+
     max_attempts = 4
     last_exc: Optional[Exception] = None
+    started = time.monotonic()
+
+    def _failed(exc: BaseException, attempts: int) -> None:
+        _record_usage(
+            provider="deepseek", model=model, usage=None, started=started,
+            attempts=attempts, error=exc,
+        )  # fmt: skip
+
     for attempt in range(max_attempts):
         try:
             resp = client.chat.completions.create(
@@ -798,8 +853,17 @@ def _call_deepseek_text(
             )
             content = (resp.choices[0].message.content or "").strip()
             if not content:
-                raise RuntimeError(f"Empty response from {model}")
-            return TextGenAIResult(text=content, model=model, raw_response=resp)
+                empty = RuntimeError(f"Empty response from {model}")
+                _failed(empty, attempt + 1)
+                raise empty
+            usage = _record_usage(
+                provider="deepseek",
+                model=model,
+                usage=usage_from_openai_response(resp),
+                started=started,
+                attempts=attempt + 1,
+            )
+            return TextGenAIResult(text=content, model=model, raw_response=resp, usage=usage)
         except (openai.RateLimitError, openai.APIConnectionError) as exc:
             last_exc = exc
             if attempt == max_attempts - 1:
@@ -809,6 +873,7 @@ def _call_deepseek_text(
             # Balance, 401 auth, 400 bad request) are permanent — fail fast so a
             # bulk run doesn't burn ~14s of backoff per item on a dead account.
             if exc.status_code < 500:
+                _failed(exc, attempt + 1)
                 raise RuntimeError(
                     f"DeepSeek call failed for {model}: {exc}"
                 ) from exc
@@ -825,7 +890,34 @@ def _call_deepseek_text(
                 max_attempts,
             )
             time.sleep(delay)
+    if last_exc is not None:
+        _failed(last_exc, max_attempts)
     raise RuntimeError(f"DeepSeek call failed for {model}: {last_exc}") from last_exc
+
+
+def supports_thinking_budget(model: str) -> bool:
+    """Whether ``thinking_budget`` (including ``0`` = off) may be sent to ``model``.
+
+    Only the 2.5 Flash family: it thinks by default on ``gemini-2.5-flash`` and
+    takes a budget of 0 to turn that off. Other models are left alone — Gemma
+    rejects a budget, 2.5 Pro cannot go to 0, and the 3.x models take a thinking
+    *level* instead — so a request to them is sent unchanged.
+    """
+    return (model or "").strip().lower().startswith("gemini-2.5-flash")
+
+
+def _rejected_generation_option(exc: BaseException, config_kwargs: dict[str, Any]) -> Optional[str]:
+    """The optional config key a 400 says the model/API won't take, if any."""
+    msg = str(exc).upper()
+    if "400" not in msg and "INVALID_ARGUMENT" not in msg:
+        return None
+    if "thinking_config" in config_kwargs and "THINKING" in msg:
+        return "thinking_config"
+    if "response_mime_type" in config_kwargs and any(
+        token in msg for token in ("JSON MODE", "RESPONSE_MIME_TYPE", "RESPONSE MIME TYPE", "MIME")
+    ):
+        return "response_mime_type"
+    return None
 
 
 def call_gemini_text(
@@ -838,6 +930,8 @@ def call_gemini_text(
     max_output_tokens: int = 65536,
     pdf_bytes: Optional[bytes] = None,
     pdf_mime: str = "application/pdf",
+    thinking_budget: Optional[int] = None,
+    json_mode: bool = False,
 ) -> TextGenAIResult:
     """Single-turn generation via AI Studio API (rotates across the key pool).
 
@@ -847,6 +941,12 @@ def call_gemini_text(
 
     A ``deepseek-*`` model name routes to DeepSeek's OpenAI-compatible Chat
     Completions endpoint instead of Gemini (text-only; no ``pdf_bytes`` support).
+
+    ``thinking_budget`` caps the model's thinking tokens (``0`` turns thinking
+    off); they are billed as output and add latency. It is sent only to models
+    :func:`supports_thinking_budget` names; ``None`` keeps the model's default.
+    ``json_mode`` asks for ``application/json`` output. If the API rejects either
+    setting with a 400, the call is retried once without it.
     """
     if model.startswith("deepseek"):
         if pdf_bytes:
@@ -874,6 +974,12 @@ def call_gemini_text(
     )
     if system_instruction.strip():
         config_kwargs["system_instruction"] = system_instruction.strip()
+    if thinking_budget is not None and supports_thinking_budget(model):
+        config_kwargs["thinking_config"] = types.ThinkingConfig(
+            thinking_budget=int(thinking_budget)
+        )
+    if json_mode:
+        config_kwargs["response_mime_type"] = "application/json"
 
     def _generate():
         client = _next_client(pool)
@@ -901,13 +1007,56 @@ def call_gemini_text(
         resp = client.models.generate_content(model=model, contents=contents, config=cfg)
         return (getattr(resp, "text", None) or ""), resp
 
-    text_raw, raw = call_with_genai_quota_retry(
-        _generate, label=model, key_pool_size=len(pool)
+    from llm.usage.calls import usage_from_genai_response
+
+    started = time.monotonic()
+    stats: dict[str, Any] = {"attempts": 0}
+    raw: Any = None
+    try:
+        while True:
+            try:
+                text_raw, raw = call_with_genai_quota_retry(
+                    _generate, label=model, key_pool_size=len(pool), stats=stats
+                )
+                break
+            except Exception as exc:
+                # A model or API version that won't take the thinking budget or JSON
+                # mode answers 400. Drop that one setting and try again, rather than
+                # fail a run over a cost optimisation. _generate reads config_kwargs
+                # on each call, so the retry goes out without it.
+                rejected = _rejected_generation_option(exc, config_kwargs)
+                if rejected is None:
+                    raise
+                logger.warning(
+                    "{}: API rejected {} — retrying without it ({})",
+                    model,
+                    rejected,
+                    describe_genai_error(exc, max_len=160),
+                )
+                config_kwargs.pop(rejected)
+        text = (text_raw or "").strip()
+        if not text:
+            raise RuntimeError(f"Empty response from {model}")
+    except BaseException as exc:
+        # A failed call is recorded too: its latency and attempts are the cost of
+        # the retries, and an empty response still reports the tokens it used.
+        _record_usage(
+            provider="gemini",
+            model=model,
+            usage=usage_from_genai_response(raw),
+            started=started,
+            attempts=stats["attempts"],
+            error=exc,
+        )
+        raise
+    usage = _record_usage(
+        provider="gemini",
+        model=model,
+        usage=usage_from_genai_response(raw),
+        started=started,
+        attempts=stats["attempts"],
     )
-    text = (text_raw or "").strip()
-    if not text:
-        raise RuntimeError(f"Empty response from {model}")
-    return TextGenAIResult(text=text, model=model, raw_response=raw)
+    return TextGenAIResult(text=text, model=model, raw_response=raw, usage=usage)
 
 
 def extract_json_from_model_text(text: str) -> Optional[dict[str, Any]]:

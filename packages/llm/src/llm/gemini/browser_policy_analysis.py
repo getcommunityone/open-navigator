@@ -145,6 +145,11 @@ class VideoRow:
     channel_id: Optional[str] = None
     duration_minutes: Optional[int] = None
     has_transcript: bool = False
+    # From event_youtube_with_jurisdiction; named in the prompt's MEDIA CONTEXT (#265).
+    jurisdiction_name: Optional[str] = None
+    jurisdiction_type: Optional[str] = None
+    state_code: Optional[str] = None
+    state: Optional[str] = None
 
 
 @dataclass
@@ -341,6 +346,10 @@ def fetch_videos(
             y.channel_id,
             y.duration_minutes,
             y.published_at,
+            y.jurisdiction_name,
+            y.jurisdiction_type,
+            y.state_code,
+            y.state,
             COALESCE(t.has_transcript, false) AS has_transcript
         -- Read jurisdiction_id from the resolved serving view, not raw bronze:
         -- public.event_youtube_with_jurisdiction is a column-superset of
@@ -424,6 +433,10 @@ def fetch_videos(
                 channel_id=str(r.get("channel_id") or "").strip() or None,
                 duration_minutes=r.get("duration_minutes"),
                 has_transcript=bool(r.get("has_transcript")),
+                jurisdiction_name=(str(r.get("jurisdiction_name") or "").strip() or None),
+                jurisdiction_type=(str(r.get("jurisdiction_type") or "").strip() or None),
+                state_code=(str(r.get("state_code") or "").strip() or None),
+                state=(str(r.get("state") or "").strip() or None),
             )
         )
 
@@ -741,14 +754,40 @@ def build_part2_message(
     )
 
 
+# A placeholder some bronze rows carry instead of a name ("c-AL-12345"); never shown.
+_JURISDICTION_CODE_RE = re.compile(r"^c-[A-Z]{2}-\d+$")
+_FROM_VIDEO = object()
+
+
+def _jurisdiction_label(video: VideoRow) -> Optional[str]:
+    """The video's own jurisdiction as one display line, e.g. ``Northport, Alabama
+    (municipality)``, or ``None`` when its name isn't known. Built only from the
+    video's warehouse columns: the prompt must never name a place the meeting is
+    not from (#265)."""
+    name = (video.jurisdiction_name or "").strip()
+    if not name or _JURISDICTION_CODE_RE.match(name):
+        return None
+    state = (video.state or video.state_code or "").strip()
+    label = f"{name}, {state}" if state and state.lower() not in name.lower() else name
+    kind = (video.jurisdiction_type or "").strip().replace("_", " ")
+    return f"{label} ({kind})" if kind else label
+
+
 def build_user_message(
     policy_prompt: str,
     video: VideoRow,
     *,
     media_source_id: str = "MS001",
     task_line: Optional[str] = None,
+    jurisdiction_label: Any = _FROM_VIDEO,
 ) -> str:
-    """Full Gemini user turn: policy instructions + MEDIA CONTEXT for one recording."""
+    """Full Gemini user turn: policy instructions + MEDIA CONTEXT for one recording.
+
+    ``jurisdiction_label`` is the display line for the meeting's jurisdiction; by
+    default it is built from the video's own columns, and ``None`` (or an unknown
+    name) leaves the line out."""
+    label = _jurisdiction_label(video) if jurisdiction_label is _FROM_VIDEO else jurisdiction_label
+    jurisdiction_line = f"\n**Jurisdiction:** {label}.\n" if label else ""
     title = (video.title or "Untitled meeting recording").strip()
     event_date = video.event_date or "unknown"
     local_note = ""
@@ -778,9 +817,7 @@ Populate `meeting.media_sources[]` from this block exactly — do not invent URL
 | jurisdiction_id | {video.jurisdiction_id} |
 | event_date | {event_date} |
 {local_note}
-
-**Jurisdiction:** City of Tuscaloosa, Alabama (incorporated municipality).
-
+{jurisdiction_line}
 **Task:** {task_line or "Apply the policy analysis instructions below to this recording."} If you cannot access the video directly, state that limitation in JSON under a top-level `"_error"` field with a short explanation.
 
 ---
@@ -3121,3 +3158,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+# Public name; the parameter of the same name in build_user_message shadows it there.
+jurisdiction_label = _jurisdiction_label

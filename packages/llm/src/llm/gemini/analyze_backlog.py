@@ -25,10 +25,14 @@ backlog on Gemini's free tier:
 * **Resumable** — pending work is re-derived from the DB each pass; nothing is persisted
   client-side beyond the analysis JSON the pipeline already writes.
 
-Run the real backfill, leading with a healthy model::
+Run the real backfill (Flash first, Flash-Lite as the fallback)::
+
+    python -m llm.gemini.analyze_backlog
+
+Lead with the cheaper Flash-Lite instead (see the note at DEFAULT_MODELS first)::
 
     python -m llm.gemini.analyze_backlog \
-        --models gemini-2.5-flash,gemini-2.5-flash-lite
+        --models gemini-2.5-flash-lite,gemini-2.5-flash
 
 Restrict to one or more states::
 
@@ -68,9 +72,13 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 # is congested right now, so we step off it for ~10 min and try the next live model.
 DEFAULT_OVERLOAD_COOLDOWN_SECONDS: float = 600.0
 
-# Default model rotation, healthy/fast model FIRST. ``gemini-2.5-flash`` leads because it
-# is the reliable, currently-healthy model; ``gemini-2.5-flash-lite`` follows as the
-# higher-free-RPD fallback. ``gemini-2.0-flash-lite`` was RETIRED by Google (the API now
+# Default model rotation: ``gemini-2.5-flash`` (thinking off since #263) first, then
+# ``gemini-2.5-flash-lite``. #263 briefly put Flash-Lite first to save money; the first
+# model comparison (#267, November 13, 2026) caught Flash-Lite recording a 5-2 vote as
+# 2-5, so Flash leads again until #267 runs on real meetings. A reversed vote count is a
+# civic figure shown to residents (CLAUDE.md, "No Fabricated Data"), which outweighs the
+# saving. To lead with Flash-Lite anyway: ``--models gemini-2.5-flash-lite,gemini-2.5-flash``.
+# ``gemini-2.0-flash-lite`` was RETIRED by Google (the API now
 # 404s "This model models/gemini-2.0-flash-lite is no longer available"), so it is gone
 # from the defaults — a default run that rotated onto it used to crash the shard. If a run
 # ever does rotate onto a retired model, the driver now drops it from rotation (see

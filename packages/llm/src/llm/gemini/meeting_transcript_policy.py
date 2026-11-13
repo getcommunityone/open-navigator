@@ -53,9 +53,10 @@ import json
 import os
 import re
 import sys
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -111,11 +112,15 @@ def _record_policy_event_safe(
     except Exception as exc:  # tracking must never break the pipeline
         logger.warning("policy event record skipped for {} ({}): {}", video_id, stage, exc)
 
+from llm.gemini.agenda_presenter_hints import (  # noqa: E402
+    enrich_uncontested_media_anchors,
+    format_agenda_presenter_hints_block,
+    segment_agenda_blocks,
+)
 from llm.gemini.browser_policy_analysis import (  # noqa: E402
     DEFAULT_JURISDICTION_ID,
     DEFAULT_PROMPT_PART_1,
     DEFAULT_PROMPT_PART_2,
-    GeminiRunCapture,
     VideoRow,
     _database_url,
     _normalize_part1_analysis,
@@ -128,11 +133,6 @@ from llm.gemini.browser_policy_analysis import (  # noqa: E402
     build_part2_message,
     build_user_message,
     fetch_videos,
-)
-from llm.gemini.agenda_presenter_hints import (  # noqa: E402
-    enrich_uncontested_media_anchors,
-    format_agenda_presenter_hints_block,
-    segment_agenda_blocks,
 )
 from llm.gemini.diarize_postprocess import (  # noqa: E402
     diarize_audio_whisperx,
@@ -171,6 +171,8 @@ from llm.gemini.transcript_cache_paths import (  # noqa: E402
     transcript_cache_path,
 )
 from llm.gemini.transcript_fetch import fetch_youtube_transcript  # noqa: E402
+from llm.usage.calls import llm_call_context  # noqa: E402
+from llm.usage.gpu import gpu_run  # noqa: E402
 
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 DEFAULT_YOUTUBE_AUDIO_ROOT = _REPO_ROOT / "data" / "cache" / "youtube_audio"
@@ -357,6 +359,46 @@ def inject_transcript_into_prompt(prompt_text: str, transcript_block: str) -> st
     return f"{prompt_text.strip()}\n\n<transcript>\n{block}\n</transcript>"
 
 
+_TRANSCRIPT_SLOT_RE = re.compile(r"<transcript>.*?</transcript>", re.DOTALL | re.IGNORECASE)
+
+
+def build_cacheable_part1_message(
+    prompt_text: str,
+    transcript_block: str,
+    video: VideoRow,
+    *,
+    task_line: Optional[str] = None,
+) -> str:
+    """The Part 1 user turn with everything fixed first, so calls share a prefix (#263).
+
+    ``build_user_message`` puts the per-video MEDIA CONTEXT block ahead of the
+    policy prompt, so no two calls start with the same text and Gemini's implicit
+    caching (a discount on a prefix it has seen recently) never applies to the
+    ~32 KB of instructions every call repeats. Here the order is: the prompt up to
+    its ``<transcript>`` slot (identical for every video), then MEDIA CONTEXT, then
+    the transcript, then anything the prompt had after the slot. The model reads
+    the same three parts; only their order changes.
+    """
+    prompt = prompt_text.strip()
+    slot = _TRANSCRIPT_SLOT_RE.search(prompt)
+    head = prompt[: slot.start()].rstrip() if slot else prompt
+    tail = prompt[slot.end() :].strip() if slot else ""
+    # build_user_message("") is the MEDIA CONTEXT block alone.
+    media_block = build_user_message("", video, task_line=task_line).strip()
+    parts = [head, media_block, f"<transcript>\n{transcript_block.strip()}\n</transcript>"]
+    if tail:
+        parts.append(tail)
+    return "\n\n".join(parts)
+
+
+def _thinking_budget_arg(args: argparse.Namespace) -> Optional[int]:
+    """``--thinking-budget`` as the client takes it: a negative value means the model's default."""
+    value = getattr(args, "thinking_budget", 0)
+    if value is None or int(value) < 0:
+        return None
+    return int(value)
+
+
 def build_transcript_block(
     *,
     speaker_hints: str,
@@ -401,6 +443,7 @@ def save_transcript_policy_output(
     state_code: Optional[str] = None,
     record_db_events: bool = False,
     defer_report_event: bool = False,
+    usage: Optional[Dict[str, Any]] = None,
 ) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     jid = video.jurisdiction_id
@@ -497,8 +540,12 @@ def save_transcript_policy_output(
             db_url = database_url or _database_url(None)
             if db_url:
                 try:
-                    from llm.gemini.persist_policy_analysis_bronze import resolve_event_id_for_video
-                    from llm.gemini.policy_exclusions import write_bronze_policy_exclusion
+                    from llm.gemini.persist_policy_analysis_bronze import (
+                        resolve_event_id_for_video,
+                    )
+                    from llm.gemini.policy_exclusions import (
+                        write_bronze_policy_exclusion,
+                    )
 
                     write_bronze_policy_exclusion(
                         db_url,
@@ -587,6 +634,9 @@ def save_transcript_policy_output(
         "pipeline": "transcript_flash_lite",
         "generated_at": ts,
         "response_chars": len(response_text),
+        # Token counts, latency and attempts as the API reported them (#262);
+        # null when the call's usage was not captured.
+        "usage": usage,
         "json_parsed": json_parsed,
         "has_diagrams_md": has_diagrams,
         "transcript": transcript_meta,
@@ -649,14 +699,22 @@ def generate_part2_markdown(
     )
     model = (args.part_2_model or args.model or default_flash_lite_model()).strip()
     logger.info("Part 2: calling {} ({} chars in)", model, len(user_message))
-    result = call_gemini_text(
-        api_key=api_key,
-        model=model,
-        user_text=user_message,
-        system_instruction=args.system_instruction,
-        temperature=args.temperature,
-        max_output_tokens=args.max_output_tokens,
-    )
+    with llm_call_context(
+        stage="part2",
+        video_id=_video_id_from_analysis_path(analysis_path) if analysis_path else None,
+        jurisdiction_id=getattr(args, "jurisdiction_id", None),
+    ):
+        result = call_gemini_text(
+            api_key=api_key,
+            model=model,
+            user_text=user_message,
+            system_instruction=args.system_instruction,
+            temperature=args.temperature,
+            max_output_tokens=args.max_output_tokens,
+            # Part 2 rewrites Part 1's JSON as Markdown: no thinking needed, and
+            # no JSON mode (the output is a report).
+            thinking_budget=_thinking_budget_arg(args),
+        )
     return result.text.strip()
 
 
@@ -825,15 +883,80 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
                 raise
 
 
-def process_one_video(
+PART1_TASK_LINE = (
+    "Analyze the meeting from the <transcript> block only. "
+    "Do not assume you can watch video; use MEDIA CONTEXT for metadata only. "
+    "Extract all addresses and named sites into places[] and cross-link place_refs "
+    "on every decisions[] and uncontested_items[] row."
+)
+
+
+@dataclass
+class Part1Request:
+    """One video's Part 1 request, and what saving its response needs.
+
+    The interactive pipeline builds one, calls the model and saves in one go.
+    The Batch API runner (``llm.gemini.batch_backlog``, #264) builds one at
+    submit time, writes it beside the job (``to_json``) and reads it back when
+    the job's results arrive (``from_json``).
+    """
+
+    video: VideoRow
+    model: str
+    user_message: str
+    prompt_path: Path
+    transcript_block: str
+    transcript_meta: Dict[str, Any]
+    agenda_blocks: List[Dict[str, Any]]
+    state_code: Optional[str]
+    out_dir: Path
+
+    def to_json(self) -> Dict[str, Any]:
+        video = asdict(self.video)
+        if video.get("last_updated") is not None:
+            video["last_updated"] = video["last_updated"].isoformat()
+        return {
+            "video": video,
+            "model": self.model,
+            "user_message": self.user_message,
+            "prompt_path": str(self.prompt_path),
+            "transcript_block": self.transcript_block,
+            "transcript_meta": self.transcript_meta,
+            "agenda_blocks": self.agenda_blocks,
+            "state_code": self.state_code,
+            "out_dir": str(self.out_dir),
+        }
+
+    @classmethod
+    def from_json(cls, data: Dict[str, Any]) -> "Part1Request":
+        video = dict(data["video"])
+        if video.get("last_updated"):
+            video["last_updated"] = datetime.fromisoformat(video["last_updated"])
+        return cls(
+            video=VideoRow(**video),
+            model=data["model"],
+            user_message=data["user_message"],
+            prompt_path=Path(data["prompt_path"]),
+            transcript_block=data["transcript_block"],
+            transcript_meta=data["transcript_meta"],
+            agenda_blocks=data.get("agenda_blocks") or [],
+            state_code=data.get("state_code"),
+            out_dir=Path(data["out_dir"]),
+        )
+
+
+def prepare_part1_request(
     video: VideoRow,
     args: argparse.Namespace,
     *,
     speaker_hints: str,
     known: List[Dict[str, str]],
-    api_key: str,
-) -> Optional[Path]:
-    """Fetch transcript (and optional policy JSON) for one video. Returns analysis path if any."""
+    build_message: bool = True,
+) -> Optional[Part1Request]:
+    """Everything up to the model call for one video: transcript, hints, the
+    official-record context and the Part 1 message. ``None`` means skip the video
+    (no transcript or no audio; the reason is logged). ``build_message=False``
+    leaves the prompt unread and the message empty (``--transcript-only``)."""
     video_id = video.video_id.strip()
     jurisdiction_id = video.jurisdiction_id
     state_code = _policy_state_code(args)
@@ -854,16 +977,13 @@ def process_one_video(
         return local_yt, [f"local_transcript_cache ({local_path.name})"]
 
     def _merge_video_metadata(local_payload: Dict[str, Any]) -> VideoRow:
-        nonlocal video
+        # replace() keeps every other field (channel, jurisdiction name and state, ...).
         if video.title is None and local_payload.get("title"):
-            return VideoRow(
-                video_id=video.video_id,
+            return replace(
+                video,
                 video_url=video.video_url or local_payload.get("video_url") or "",
                 title=local_payload.get("title"),
-                last_updated=video.last_updated,
                 event_date=local_payload.get("event_date") or video.event_date,
-                audio_file_path=video.audio_file_path,
-                jurisdiction_id=video.jurisdiction_id,
             )
         return video
 
@@ -967,12 +1087,18 @@ def process_one_video(
             )
             return None
         logger.info("Diarizing {}", audio_path)
-        diarize_meta = diarize_audio_whisperx(
-            audio_path,
-            model_size=args.whisper_model,
+        with gpu_run(
+            "whisperx_diarization",
             device=args.device,
-            known_names=[k.get("person_name", "") for k in known],
-        )
+            video_id=video_id,
+            jurisdiction_id=jurisdiction_id,
+        ):
+            diarize_meta = diarize_audio_whisperx(
+                audio_path,
+                model_size=args.whisper_model,
+                device=args.device,
+                known_names=[k.get("person_name", "") for k in known],
+            )
         segments = merge_caption_speakers(segments, diarize_meta["segments"])
         source_parts.append(f"whisperx_diarization ({audio_path.name})")
     elif any(s.get("speaker") for s in segments):
@@ -989,7 +1115,9 @@ def process_one_video(
         agenda_blocks,
         jurisdiction_id=jurisdiction_id,
     )
-    from llm.gemini.legislation_analysis import format_pre_gemini_agenda_legislation_hints
+    from llm.gemini.legislation_analysis import (
+        format_pre_gemini_agenda_legislation_hints,
+    )
 
     agenda_leg_hints = format_pre_gemini_agenda_legislation_hints(
         agenda_blocks, jurisdiction_id=jurisdiction_id
@@ -1037,6 +1165,83 @@ def process_one_video(
         "formatted_preview": transcript_block[:2000],
     }
 
+    prompt_path = Path(args.prompt_file).resolve()
+    user_message = ""
+    if build_message:
+        user_message = build_cacheable_part1_message(
+            prompt_path.read_text(encoding="utf-8").strip(),
+            transcript_block,
+            video,
+            task_line=PART1_TASK_LINE,
+        )
+    return Part1Request(
+        video=video,
+        model=(args.model or default_flash_lite_model()).strip(),
+        user_message=user_message,
+        prompt_path=prompt_path,
+        transcript_block=transcript_block,
+        transcript_meta=transcript_meta,
+        agenda_blocks=agenda_blocks,
+        state_code=state_code,
+        out_dir=out_dir,
+    )
+
+
+def save_part1_response(
+    request: Part1Request,
+    response_text: str,
+    args: argparse.Namespace,
+    *,
+    usage: Optional[Dict[str, Any]] = None,
+) -> Path:
+    """Write one Part 1 response (analysis JSON, meta, bronze stamps) and return
+    the analysis path. The same path whichever way the response was produced."""
+    request.transcript_meta["formatted_transcript"] = request.transcript_block
+    return save_transcript_policy_output(
+        request.out_dir,
+        request.video,
+        model=request.model,
+        response_text=response_text,
+        prompt_path=request.prompt_path,
+        transcript_meta=request.transcript_meta,
+        geocode_places=getattr(args, "geocode_places", False),
+        agenda_blocks=request.agenda_blocks,
+        enrich_legislation=not getattr(args, "skip_legislation_enrich", False),
+        persist_bronze=getattr(args, "persist_bronze", False),
+        database_url=_database_url(getattr(args, "database_url", None) or None),
+        state_code=request.state_code,
+        record_db_events=_db_events_enabled(args),
+        defer_report_event=getattr(args, "run_part_2", False),
+        usage=usage,
+    )
+
+
+def process_one_video(
+    video: VideoRow,
+    args: argparse.Namespace,
+    *,
+    speaker_hints: str,
+    known: List[Dict[str, str]],
+    api_key: str,
+) -> Optional[Path]:
+    """Fetch transcript (and optional policy JSON) for one video. Returns analysis path if any."""
+    request = prepare_part1_request(
+        video,
+        args,
+        speaker_hints=speaker_hints,
+        known=known,
+        build_message=not args.transcript_only,
+    )
+    if request is None:
+        return None
+    video = request.video
+    video_id = video.video_id.strip()
+    jurisdiction_id = video.jurisdiction_id
+    state_code = request.state_code
+    transcript_block = request.transcript_block
+    transcript_meta = request.transcript_meta
+    model = request.model
+
     if args.transcript_only:
         out_dir = Path(args.output_dir).resolve()
         path = transcript_cache_path(
@@ -1053,49 +1258,24 @@ def process_one_video(
         logger.info("Wrote transcript {}", path)
         return path
 
-    prompt_path = Path(args.prompt_file).resolve()
-    prompt_text = prompt_path.read_text(encoding="utf-8").strip()
-    prompt_with_tx = inject_transcript_into_prompt(prompt_text, transcript_block)
-
-    user_message = build_user_message(
-        prompt_with_tx,
-        video,
-        task_line=(
-            "Analyze the meeting from the <transcript> block only. "
-            "Do not assume you can watch video; use MEDIA CONTEXT for metadata only. "
-            "Extract all addresses and named sites into places[] and cross-link place_refs "
-            "on every decisions[] and uncontested_items[] row."
-        ),
-    )
-
-    model = (args.model or default_flash_lite_model()).strip()
     logger.info("Calling {} ({})", model, "AI Studio API")
-    result = call_gemini_text(
-        api_key=api_key,
-        model=model,
-        user_text=user_message,
-        system_instruction=args.system_instruction,
-        temperature=args.temperature,
-        max_output_tokens=args.max_output_tokens,
-    )
+    with llm_call_context(stage="part1", video_id=video_id, jurisdiction_id=jurisdiction_id):
+        result = call_gemini_text(
+            api_key=api_key,
+            model=model,
+            user_text=request.user_message,
+            system_instruction=args.system_instruction,
+            temperature=args.temperature,
+            max_output_tokens=args.max_output_tokens,
+            thinking_budget=_thinking_budget_arg(args),
+            json_mode=not getattr(args, "no_json_mode", False),
+        )
 
-    capture = GeminiRunCapture(response_text=result.text, gemini_model=model)
-    transcript_meta["formatted_transcript"] = transcript_block
-    analysis_path = save_transcript_policy_output(
-        out_dir,
-        video,
-        model=model,
-        response_text=capture.response_text,
-        prompt_path=prompt_path,
-        transcript_meta=transcript_meta,
-        geocode_places=getattr(args, "geocode_places", False),
-        agenda_blocks=agenda_blocks,
-        enrich_legislation=not getattr(args, "skip_legislation_enrich", False),
-        persist_bronze=getattr(args, "persist_bronze", False),
-        database_url=_database_url(getattr(args, "database_url", None) or None),
-        state_code=state_code,
-        record_db_events=_db_events_enabled(args),
-        defer_report_event=args.run_part_2,
+    analysis_path = save_part1_response(
+        request,
+        result.text,
+        args,
+        usage=result.usage.as_dict() if result.usage is not None else None,
     )
     if args.run_part_2 and analysis_path is not None:
         try:
@@ -1141,6 +1321,138 @@ def process_one_video(
                     error="Skipped Part 2 — Part 1 JSON invalid",
                 )
     return analysis_path
+
+
+def select_bronze_videos(
+    args: argparse.Namespace, jurisdiction_id: str, *, newest_n: int = 0
+) -> List[VideoRow]:
+    """The jurisdiction's bronze videos for this run, after the ``--shard`` slice."""
+    db_url = _database_url(args.database_url or None)
+    videos = fetch_videos(
+        db_url,
+        jurisdiction_id,
+        limit=args.limit,
+        video_id=(args.video_id or "").strip() or None,
+        order_by=args.order_by,
+        only_has_transcript=getattr(args, "only_has_transcript", False),
+        dedupe_duplicate_meetings=not newest_n,
+    )
+    if not videos:
+        hint = ""
+        if getattr(args, "only_has_transcript", False):
+            hint = (
+                " (no rows with bronze_event_youtube_transcript.has_transcript — "
+                "run packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py first)"
+            )
+        raise SystemExit(f"No bronze videos for {jurisdiction_id}{hint}")
+
+    from llm.gemini.analyze_backlog import _stable_shard_bucket, parse_shard
+
+    shard = parse_shard(getattr(args, "shard", "") or None)
+    if shard is not None:
+        shard_index, shard_count = shard
+        total = len(videos)
+        videos = [
+            v
+            for v in videos
+            if _stable_shard_bucket(v.video_id, shard_count) == shard_index
+        ]
+        logger.info(
+            "Shard {}/{}: processing {} of {} videos for {}",
+            shard_index,
+            shard_count,
+            len(videos),
+            total,
+            jurisdiction_id,
+        )
+    return videos
+
+
+def iter_videos_to_analyze(
+    videos: List[VideoRow],
+    args: argparse.Namespace,
+    jurisdiction_id: str,
+    state_code: Optional[str],
+) -> Iterator[VideoRow]:
+    """Yield the videos that still need Part 1: not excluded as a non-meeting, not
+    already analyzed (``--skip-analyzed``), with the bronze transcript synced to the
+    local cache first when asked. Shared by the interactive loop and the Batch API
+    runner (#264), so both work the same list."""
+    db_url = _database_url(args.database_url or None)
+    from scrapers.youtube.backfill_jurisdiction_transcripts import (
+        fetch_video_row,
+        write_local_from_bronze,
+    )
+
+    out_dir = Path(args.output_dir).resolve()
+    from llm.gemini.policy_exclusions import is_policy_video_excluded
+
+    for i, video in enumerate(videos, 1):
+        if is_policy_video_excluded(
+            out_dir,
+            jurisdiction_id,
+            video.video_id,
+            state_code=state_code,
+            channel_id=getattr(video, "channel_id", None),
+        ):
+            logger.info(
+                "[{}/{}] Skip {} — excluded non-meeting (05_exceptions/)",
+                i,
+                len(videos),
+                video.video_id,
+            )
+            continue
+        if getattr(args, "skip_analyzed", False):
+            existing = resolve_analysis_path(
+                out_dir,
+                jurisdiction_id,
+                video_id=video.video_id,
+                title=video.title or "",
+                event_date=video.event_date,
+                state_code=state_code,
+                channel_id=getattr(video, "channel_id", None),
+            )
+            if existing is not None:
+                logger.info(
+                    "[{}/{}] Skip {} — analysis exists ({})",
+                    i,
+                    len(videos),
+                    video.video_id,
+                    existing.name,
+                )
+                continue
+
+        if getattr(args, "ensure_local_from_bronze", False):
+            from llm.gemini.transcript_cache_paths import load_local_transcript_payload
+
+            if load_local_transcript_payload(
+                out_dir,
+                jurisdiction_id,
+                video_id=video.video_id,
+                title=video.title or "",
+                event_date=video.event_date,
+                state_code=state_code,
+                channel_id=getattr(video, "channel_id", None),
+            ) is None:
+                row = fetch_video_row(db_url, jurisdiction_id, video.video_id)
+                if row and write_local_from_bronze(
+                    db_url, out_dir, jurisdiction_id, row, state_code=state_code
+                ):
+                    logger.info("Synced bronze transcript to local cache for {}", video.video_id)
+                else:
+                    logger.warning(
+                        "No local cache for {} (bronze sync missed); process will try YouTube captions",
+                        video.video_id,
+                    )
+
+        logger.info(
+            "[{}/{}] {} — {}",
+            i,
+            len(videos),
+            video.video_id,
+            (video.title or "")[:80],
+        )
+        yield video
 
 
 def run_pipeline(args: argparse.Namespace) -> None:
@@ -1191,44 +1503,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
     speaker_hints, known = load_speaker_context(args, jurisdiction_id)
 
     if args.from_bronze:
-        db_url = _database_url(args.database_url or None)
-        videos = fetch_videos(
-            db_url,
-            jurisdiction_id,
-            limit=args.limit,
-            video_id=(args.video_id or "").strip() or None,
-            order_by=args.order_by,
-            only_has_transcript=getattr(args, "only_has_transcript", False),
-            dedupe_duplicate_meetings=not newest_n,
-        )
-        if not videos:
-            hint = ""
-            if getattr(args, "only_has_transcript", False):
-                hint = (
-                    " (no rows with bronze_event_youtube_transcript.has_transcript — "
-                    "run packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py first)"
-                )
-            raise SystemExit(f"No bronze videos for {jurisdiction_id}{hint}")
-
-        from llm.gemini.analyze_backlog import _stable_shard_bucket, parse_shard
-
-        shard = parse_shard(getattr(args, "shard", "") or None)
-        if shard is not None:
-            shard_index, shard_count = shard
-            total = len(videos)
-            videos = [
-                v
-                for v in videos
-                if _stable_shard_bucket(v.video_id, shard_count) == shard_index
-            ]
-            logger.info(
-                "Shard {}/{}: processing {} of {} videos for {}",
-                shard_index,
-                shard_count,
-                len(videos),
-                total,
-                jurisdiction_id,
-            )
+        videos = select_bronze_videos(args, jurisdiction_id, newest_n=newest_n)
         if args.dry_run:
             for i, v in enumerate(videos, 1):
                 ed = v.event_date or "?"
@@ -1238,79 +1513,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
                 )
             return
 
-        from scrapers.youtube.backfill_jurisdiction_transcripts import (
-            fetch_video_row,
-            write_local_from_bronze,
-        )
-
-        out_dir = Path(args.output_dir).resolve()
-        from llm.gemini.policy_exclusions import is_policy_video_excluded
-
-        for i, video in enumerate(videos, 1):
-            if is_policy_video_excluded(
-                out_dir,
-                jurisdiction_id,
-                video.video_id,
-                state_code=state_code,
-                channel_id=getattr(video, "channel_id", None),
-            ):
-                logger.info(
-                    "[{}/{}] Skip {} — excluded non-meeting (05_exceptions/)",
-                    i,
-                    len(videos),
-                    video.video_id,
-                )
-                continue
-            if getattr(args, "skip_analyzed", False):
-                existing = resolve_analysis_path(
-                    out_dir,
-                    jurisdiction_id,
-                    video_id=video.video_id,
-                    title=video.title or "",
-                    event_date=video.event_date,
-                    state_code=state_code,
-                    channel_id=getattr(video, "channel_id", None),
-                )
-                if existing is not None:
-                    logger.info(
-                        "[{}/{}] Skip {} — analysis exists ({})",
-                        i,
-                        len(videos),
-                        video.video_id,
-                        existing.name,
-                    )
-                    continue
-
-            if getattr(args, "ensure_local_from_bronze", False):
-                from llm.gemini.transcript_cache_paths import load_local_transcript_payload
-
-                if load_local_transcript_payload(
-                    out_dir,
-                    jurisdiction_id,
-                    video_id=video.video_id,
-                    title=video.title or "",
-                    event_date=video.event_date,
-                    state_code=state_code,
-                    channel_id=getattr(video, "channel_id", None),
-                ) is None:
-                    row = fetch_video_row(db_url, jurisdiction_id, video.video_id)
-                    if row and write_local_from_bronze(
-                        db_url, out_dir, jurisdiction_id, row, state_code=state_code
-                    ):
-                        logger.info("Synced bronze transcript to local cache for {}", video.video_id)
-                    else:
-                        logger.warning(
-                            "No local cache for {} (bronze sync missed); process will try YouTube captions",
-                            video.video_id,
-                        )
-
-            logger.info(
-                "[{}/{}] {} — {}",
-                i,
-                len(videos),
-                video.video_id,
-                (video.title or "")[:80],
-            )
+        for video in iter_videos_to_analyze(videos, args, jurisdiction_id, state_code):
             try:
                 process_one_video(
                     video, args, speaker_hints=speaker_hints, known=known, api_key=api_key
@@ -1489,6 +1692,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--system-instruction", default="", help="Optional system prompt")
     parser.add_argument("--temperature", type=float, default=0.1)
     parser.add_argument("--max-output-tokens", type=int, default=65536)
+    parser.add_argument(
+        "--thinking-budget",
+        type=int,
+        default=int(os.getenv("GEMINI_THINKING_BUDGET", "0")),
+        help="Thinking-token cap for gemini-2.5-flash* (billed as output). 0 = off "
+        "(default, env GEMINI_THINKING_BUDGET); -1 = the model's own default",
+    )
+    parser.add_argument(
+        "--no-json-mode",
+        action="store_true",
+        help="Do not ask for application/json output on Part 1 (free text, as before #263)",
+    )
     parser.add_argument(
         "--transcript-languages",
         nargs="+",

@@ -7,10 +7,11 @@ burst input tokens (e.g. Demo 2 HIGH pages on ``gemma-4-26b``).
 
 from __future__ import annotations
 
+import contextvars
 import os
 import re
 import time
-from typing import Callable, TypeVar
+from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
 
@@ -49,8 +50,67 @@ def genai_quota_retry_delay_seconds(exc: BaseException, attempt: int) -> float:
     return base * (1.0 + 0.2 * attempt)
 
 
-def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemma") -> T:
-    """Call ``fn``; on 429 RESOURCE_EXHAUSTED, sleep and retry."""
+def _record_usage(
+    model: str, stage: str | None, response: Any, started: float, attempts: int, error: BaseException | None
+) -> None:
+    """One usage row for the call (#268). ``stage`` only fills in a stage the caller's
+    ``llm_call_context`` (e.g. ``demo3``) has not already set. Never raises."""
+    try:
+        from llm.usage.calls import (
+            current_context,
+            record_llm_call,
+            usage_from_genai_response,
+        )
+
+        # A streamed answer (_StreamGenAIResponse) carries its usage on the last chunk.
+        usage = usage_from_genai_response(getattr(response, "last_chunk", response))
+        usage.latency_seconds = time.monotonic() - started
+        usage.attempt_count = attempts
+        labels = {"stage": stage} if stage and not current_context().get("stage") else {}
+        record_llm_call(
+            provider="gemini",
+            model=model,
+            usage=usage,
+            is_ok=error is None,
+            error_type=type(error).__name__ if error is not None else None,
+            **labels,
+        )
+    except Exception as exc:  # noqa: BLE001 - usage logging never breaks a call
+        from loguru import logger
+
+        logger.debug("usage record skipped for {}: {}", model, exc)
+
+
+def call_with_genai_quota_retry(
+    fn: Callable[[], T],
+    *,
+    label: str = "Gemma",
+    model: str | None = None,
+    stage: str | None = None,
+) -> T:
+    """Call ``fn``; on 429 RESOURCE_EXHAUSTED, sleep and retry.
+
+    With ``model``, the call (after its retries) writes one usage row: the token
+    counts ``fn``'s response reports, latency, attempts and outcome (#268)."""
+    if model is None:
+        return _call_with_retries(fn, label=label)
+    started = time.monotonic()
+    attempts = [0]
+
+    def counted() -> T:
+        attempts[0] += 1
+        return fn()
+
+    try:
+        response = _call_with_retries(counted, label=label)
+    except BaseException as exc:
+        _record_usage(model, stage, None, started, attempts[0], exc)
+        raise
+    _record_usage(model, stage, response, started, attempts[0], None)
+    return response
+
+
+def _call_with_retries(fn: Callable[[], T], *, label: str) -> T:
     max_retries = max(1, int(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRIES", "5")))
     buffer = float(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRY_BUFFER_SECONDS", "1.0"))
     last_exc: BaseException | None = None
@@ -93,10 +153,13 @@ def call_with_wall_clock_timeout(
     """Run ``fn`` in a worker thread; raise ``TimeoutError`` if it exceeds the cap."""
     if timeout_seconds <= 0:
         return fn()
-    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as FuturesTimeoutError
 
     with ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(fn)
+        # Run in a copy of the caller's context, so usage labels (llm_call_context:
+        # the demo stage, video and jurisdiction) reach the call in the worker thread.
+        future = pool.submit(contextvars.copy_context().run, fn)
         try:
             return future.result(timeout=timeout_seconds)
         except FuturesTimeoutError as exc:
