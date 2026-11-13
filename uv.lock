@@ -16,6 +16,7 @@ members = [
     "communityone-agents",
     "communityone-core",
     "communityone-datamodels",
+    "communityone-erd",
     "communityone-hosting",
     "communityone-ingestion",
     "communityone-llm",
@@ -570,6 +571,23 @@ requires-dist = [
 name = "communityone-datamodels"
 version = "0.1.0"
 source = { editable = "packages/datamodels" }
+
+[[package]]
+name = "communityone-erd"
+version = "0.1.0"
+source = { editable = "packages/erd" }
+dependencies = [
+    { name = "loguru" },
+    { name = "numpy" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "pyyaml", specifier = ">=6" },
+]
 
 [[package]]
 name = "communityone-hosting"
