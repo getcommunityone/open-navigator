@@ -1389,10 +1389,20 @@ function GrandkidsForecast({
 
       <div className="flex flex-wrap items-start gap-5 p-5">
         {/* Dot-column selectors — REAL Atlas dimensions. */}
-        <div className="flex shrink-0 gap-5">
+        <div className="shrink-0">
           <DotColumn title={'Parent\nincome'} options={PARENT_OPTIONS} active={parentIncome} onSelect={setParentIncome} />
-          <DotColumn title={'Child\nrace'} options={RACE_OPTIONS} active={race} onSelect={setRace} />
-          <DotColumn title={'Child\ngender'} options={GENDER_OPTIONS} active={gender} onSelect={setGender} />
+          <details className="mt-2 group" open={race !== 'pooled' || gender !== 'pooled'}>
+            <summary
+              className="cursor-pointer list-none text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#1a6b6b] hover:underline"
+              style={MONO}
+            >
+              More filters
+            </summary>
+            <div className="mt-2 flex gap-5">
+              <DotColumn title={'Child\nrace'} options={RACE_OPTIONS} active={race} onSelect={setRace} />
+              <DotColumn title={'Child\ngender'} options={GENDER_OPTIONS} active={gender} onSelect={setGender} />
+            </div>
+          </details>
         </div>
 
         {/* Chart — dashed "?" while blank, else the local-vs-U.S. slope. */}
@@ -1421,29 +1431,23 @@ function GrandkidsForecast({
             We couldn&apos;t load mobility data right now. Try again, or change a filter.
           </p>
         )}
-        {!blank && !hasLocal && (
-          <p className="rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-            {local == null
-              ? 'No local mobility data matched to this place for this group yet — showing the U.S. baseline.'
-              : `Not enough local data for ${localLabel} in this group — showing the U.S. baseline.`}
-          </p>
-        )}
-        {!blank && data?.note && (
-          <p className="mt-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-            {data.note}
-          </p>
-        )}
-        {!blank && data?.source && (
-          <p className="mt-2 border-t border-[#eef4f4] pt-2 text-[11px] text-[#5d7d7d]" style={FONT}>
-            Source:{' '}
-            {data.source_url ? (
-              <a href={data.source_url} target="_blank" rel="noopener noreferrer" className="underline decoration-[#d4e8e8] underline-offset-2 hover:text-[#1a6b6b]">
-                {data.source}
-              </a>
-            ) : (
-              data.source
+        {!blank && (data?.note || data?.source) && (
+          <details className="mt-1 text-[11.5px] text-[#5d7d7d]" style={FONT}>
+            <summary className="cursor-pointer font-semibold hover:text-[#1a6b6b]">About this data</summary>
+            {data?.note && <p className="mt-1.5 leading-relaxed text-[#6b8a8a]">{data.note}</p>}
+            {data?.source && (
+              <p className="mt-1.5">
+                Source:{' '}
+                {data.source_url ? (
+                  <a href={data.source_url} target="_blank" rel="noopener noreferrer" className="underline decoration-[#d4e8e8] underline-offset-2 hover:text-[#1a6b6b]">
+                    {data.source}
+                  </a>
+                ) : (
+                  data.source
+                )}
+              </p>
             )}
-          </p>
+          </details>
         )}
       </div>
     </div>
