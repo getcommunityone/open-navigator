@@ -6,7 +6,8 @@ sidebar_label: Data contracts
 # Data contracts for the public API
 
 Decision record for [#270](https://github.com/getcommunityone/open-navigator/issues/270): every table the public API
-serves gets a data contract, generated from dbt and checked in CI.
+serves gets a data contract, generated from dbt and checked in CI. The contracts are gathered into one data product by
+[#274](https://github.com/getcommunityone/open-navigator/issues/274) (see [The data product](#the-data-product-odps)).
 
 A data contract is a file that says what a table holds and what a reader can rely on: its columns and their types, its
 keys, and the data-quality rules it passes. Ours follow the
@@ -22,6 +23,7 @@ can read them.
 | **One file per table, in `dbt_project/contracts/`** | Beside the dbt project the contracts come from, so a `schema.yml` change and its contract land in the same diff. dbt reads only its own paths (`models/`, `macros/` and so on), so the folder doesn't affect dbt. |
 | **The official schema vendored** | `dbt_project/contracts/_schema/odcs-json-schema-v3.1.0.json`, unchanged, with a `NOTICE` giving its source, licence and SHA-256, so validation works offline in CI. |
 | **Code in `packages/datamodels`** | `models.odcs` in the `communityone-datamodels` package, run with `python -m models.odcs`: new Python goes in `packages/`, never `scripts/`. |
+| **ODPS v1.0.0 for the data product** (`apiVersion: v1.0.0`) | The Open Data Product Standard is Bitol's companion to ODCS (Apache-2.0). Ontos bundles the ODPS v1.0.0 JSON Schema, identical to Bitol's apart from one description string, so we use v1.0.0, not v1.1.0. The official schema is vendored beside the ODCS one, with the same `NOTICE` details. |
 
 ## Which tables
 
@@ -92,18 +94,34 @@ Neon serving scope. Each affected contract says so in `description.limitations`:
   columns but fewer rows.
 - `bills` and `event_documents` keep fewer rows, and drop or null some columns.
 
+## The data product (ODPS)
+
+Every contract names the data product it belongs to: today all of them say `dataProduct: open-navigator-public-api`.
+Each product named there gets a file, `dbt_project/contracts/products/<product>.odps.yaml`, generated from the
+contracts by the same command. So there is one file today, `products/open-navigator-public-api.odps.yaml`.
+
+- **The product:** `apiVersion: v1.0.0`, `kind: DataProduct`, `id` (the contracts' `dataProduct`), `name`,
+  `version: 1.0.0`, `status: active`, `domain: civic`, a `description` with `purpose`, `usage` and `limitations`, and
+  `tags`. The name, domain and description come from `PRODUCTS` in `models.odps`.
+- **One output port per contract:** `name` (the table), `version` (the contract's version), `contractId` (exactly the
+  contract's `id`), `type: table`, and `description` (the first sentence of the table's dbt description).
+- **No input ports:** the tables' sources have no contracts to point at.
+
+`--check` fails when a product file is stale, missing, extra or not valid ODPS v1.0.0, or when one of its ports names a
+`contractId` that matches no contract file. `packages/datamodels/tests/test_odps.py` covers it.
+
 ## Regenerate and check
 
 Regenerate after you change a served model's `schema.yml`, or the macro's `served` list or `projections`:
 
 ```bash
 pip install -e packages/datamodels   # once (or set PYTHONPATH=packages/datamodels)
-python -m models.odcs --write        # regenerate dbt_project/contracts/
+python -m models.odcs --write        # regenerate dbt_project/contracts/ and its products/
 python -m models.odcs --check        # what CI runs
 ```
 
-Commit the contracts with the change. The CI job **Backend Tests (Python)** runs `--check`. It fails, naming each
-problem, when a contract is:
+Commit the contracts and the product file with the change. The CI job **Backend Tests (Python)** runs `--check`. It
+fails, naming each problem, when a contract is:
 
 - stale;
 - missing;
@@ -121,9 +139,9 @@ to a catalog.
 Both are Databricks Labs projects, which Databricks provides for exploration without formal support. Open Navigator
 runs on Postgres, so neither is in use, and nothing here depends on them.
 
-- **[Ontos](https://github.com/databrickslabs/ontos)** ("a business catalog for Unity Catalog") reads ODCS v3.1.0. These
-  files could be imported unchanged, to catalog the public API's tables as one data product
-  (`open-navigator-public-api`).
+- **[Ontos](https://github.com/databrickslabs/ontos)** ("a business catalog for Unity Catalog") reads ODCS v3.1.0 and
+  bundles the ODPS v1.0.0 schema. The contracts and the product file could be imported unchanged, to catalog the public
+  API's tables as one data product (`open-navigator-public-api`).
 - **[DQX](https://github.com/databrickslabs/dqx)** validates the data quality of PySpark DataFrames and tables. If these
   tables were ever processed on Databricks, DQX checks could be generated from the contracts' quality rules (not-null,
   uniqueness, accepted-value and range checks), with each rule's `severity` as the check's criticality.

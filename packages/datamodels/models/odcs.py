@@ -20,6 +20,7 @@ enforces a dbt contract gets ``dbt_project/contracts/<model>.odcs.yaml``, genera
 
 Contracts describe structure only: no row data, hostnames or personal data. They are validated
 against the official ODCS v3.1.0 JSON Schema, vendored in dbt_project/contracts/_schema/.
+The same commands write and check the ODPS data products built from them (``models.odps``).
 """
 
 from __future__ import annotations
@@ -33,6 +34,8 @@ from typing import Any
 
 import yaml
 from loguru import logger
+
+from models import odps
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DBT_DIR = REPO_ROOT / "dbt_project"
@@ -443,10 +446,10 @@ def build_contracts(
     return contracts, left_out
 
 
-def render(contract: dict[str, Any]) -> str:
-    """The contract as committed: a header comment, then YAML in a stable order."""
-    return HEADER + yaml.safe_dump(
-        contract, sort_keys=False, allow_unicode=True, width=10_000
+def render(document: dict[str, Any], header: str = HEADER) -> str:
+    """A contract or product as committed: a header comment, then YAML in a stable order."""
+    return header + yaml.safe_dump(
+        document, sort_keys=False, allow_unicode=True, width=10_000
     )
 
 
@@ -475,9 +478,18 @@ def _name(path: Path) -> str:
 def write(dbt_dir: Path = DBT_DIR) -> int:
     """Regenerate every contract (and remove contracts for relations no longer served)."""
     contracts, left_out = build_contracts(dbt_dir)
-    invalid = {name: errors for name, c in contracts.items() if (errors := validate(c))}
+    products = odps.products_for(contracts)
+    invalid = {
+        f"{name}{SUFFIX}": f"ODCS {API_VERSION}: {errors[:3]}"
+        for name, c in contracts.items()
+        if (errors := validate(c))
+    } | {
+        f"{pid}{odps.SUFFIX}": f"ODPS {odps.API_VERSION}: {errors[:3]}"
+        for pid, product in products.items()
+        if (errors := odps.validate(product))
+    }
     for name, errors in invalid.items():
-        logger.error("{}: not valid ODCS {}: {}", name, API_VERSION, errors[:3])
+        logger.error("{}: not valid {}", name, errors)
     if invalid:
         return 1
     out = dbt_dir / "contracts"
@@ -490,7 +502,24 @@ def write(dbt_dir: Path = DBT_DIR) -> int:
             logger.info(
                 "Removed {}: no longer served with an enforced dbt contract", path.name
             )
-    logger.success("Wrote {} ODCS {} contracts to {}", len(contracts), API_VERSION, out)
+    product_dir = out / odps.SUBDIR
+    product_dir.mkdir(exist_ok=True)
+    for pid, product in products.items():
+        (product_dir / f"{pid}{odps.SUFFIX}").write_text(
+            render(product, odps.HEADER), encoding="utf-8"
+        )
+    for path in product_dir.glob(f"*{odps.SUFFIX}"):
+        if path.name[: -len(odps.SUFFIX)] not in products:
+            path.unlink()
+            logger.info("Removed {}: no contract names that data product", path.name)
+    logger.success(
+        "Wrote {} ODCS {} contracts and {} ODPS {} data products to {}",
+        len(contracts),
+        API_VERSION,
+        len(products),
+        odps.API_VERSION,
+        out,
+    )
     if left_out:
         logger.warning(
             "{} served relations have no enforced dbt contract, so no ODCS contract: {}",
@@ -521,15 +550,54 @@ def check(dbt_dir: Path = DBT_DIR) -> int:
             problems.append(
                 f"{_name(path)}: extra {path.name} (not served with an enforced dbt contract)"
             )
+    problems += _check_products(out, odps.products_for(contracts))
     for problem in problems:
         logger.error(problem)
     if problems:
         logger.error("Regenerate with: python -m models.odcs --write")
         return 1
     logger.success(
-        "{} ODCS {} contracts are current and valid", len(contracts), API_VERSION
+        "{} ODCS {} contracts and their ODPS {} data products are current and valid",
+        len(contracts),
+        API_VERSION,
+        odps.API_VERSION,
     )
     return 0
+
+
+def _check_products(out: Path, products: dict[str, dict[str, Any]]) -> list[str]:
+    """Problems with the ODPS product files: invalid, missing, stale, extra or dangling ports."""
+    problems: list[str] = []
+    product_dir = out / odps.SUBDIR
+    for pid, product in products.items():
+        errors = odps.validate(product)
+        if errors:
+            problems.append(f"{pid}: not valid ODPS {odps.API_VERSION}: {errors[:3]}")
+        path = product_dir / f"{pid}{odps.SUFFIX}"
+        if not path.exists():
+            problems.append(f"{pid}: missing {odps.SUBDIR}/{path.name}")
+        elif path.read_text(encoding="utf-8") != render(product, odps.HEADER):
+            problems.append(
+                f"{pid}: {odps.SUBDIR}/{path.name} is stale (a contract changed)"
+            )
+    # Ports must point at contracts that exist on disk, whatever wrote the product file.
+    contract_ids = {
+        (yaml.safe_load(p.read_text(encoding="utf-8")) or {}).get("id")
+        for p in out.glob(f"*{SUFFIX}")
+    }
+    for path in (
+        sorted(product_dir.glob(f"*{odps.SUFFIX}")) if product_dir.exists() else []
+    ):
+        if path.name[: -len(odps.SUFFIX)] not in products:
+            problems.append(
+                f"{odps.SUBDIR}/{path.name}: extra (no contract names that data product)"
+            )
+        product = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        problems += [
+            f"{odps.SUBDIR}/{path.name}: {d}"
+            for d in odps.dangling_ports(product, contract_ids)
+        ]
+    return problems
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -538,12 +606,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
-        "--write", action="store_true", help="regenerate dbt_project/contracts/"
+        "--write",
+        action="store_true",
+        help="regenerate dbt_project/contracts/ and its products/",
     )
     mode.add_argument(
         "--check",
         action="store_true",
-        help="fail on a stale, missing, extra or invalid contract",
+        help="fail on a stale, missing, extra or invalid contract or product",
     )
     parser.add_argument(
         "--dbt-dir",
