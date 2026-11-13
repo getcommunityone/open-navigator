@@ -128,6 +128,16 @@ jobs:
           python -c "import main; print('✅ Main module imports successfully')"
           python -c "from api.app import app; print('✅ API app imports successfully')"
 
+      # Every relation the public API serves has an ODCS v3.1.0 data contract generated
+      # from its dbt schema.yml (#270). Fails when a contract is stale, missing, extra or
+      # invalid, or a served relation without one isn't listed in
+      # web_docs/docs/development/data-contracts.md; fix with
+      # `python -m models.odcs --write` and commit the result.
+      - name: Data contracts are current
+        run: |
+          python -m models.odcs --check
+          python -m pytest -q -p no:cacheprovider packages/datamodels/tests
+
   # Test 5: API contract types (OpenAPI -> TypeScript)
   # Regenerates web_app/src/lib/api.types.ts from the live FastAPI schema
   # (api.app:app) and type-checks the *regenerated* file against the frontend
