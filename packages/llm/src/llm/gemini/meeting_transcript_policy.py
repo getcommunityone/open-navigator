@@ -53,7 +53,7 @@ import json
 import os
 import re
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
@@ -973,16 +973,13 @@ def prepare_part1_request(
         return local_yt, [f"local_transcript_cache ({local_path.name})"]
 
     def _merge_video_metadata(local_payload: Dict[str, Any]) -> VideoRow:
-        nonlocal video
+        # replace() keeps every other field (channel, jurisdiction name and state, ...).
         if video.title is None and local_payload.get("title"):
-            return VideoRow(
-                video_id=video.video_id,
+            return replace(
+                video,
                 video_url=video.video_url or local_payload.get("video_url") or "",
                 title=local_payload.get("title"),
-                last_updated=video.last_updated,
                 event_date=local_payload.get("event_date") or video.event_date,
-                audio_file_path=video.audio_file_path,
-                jurisdiction_id=video.jurisdiction_id,
             )
         return video
 
