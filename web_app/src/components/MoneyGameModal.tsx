@@ -1608,7 +1608,7 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
               setChoices(null)
             }}
             onKeyDown={(e) => e.key === 'Enter' && handleShow()}
-            placeholder={mode === 'place' ? 'e.g. Tuscaloosa, AL' : 'e.g. 123 Main St, Tuscaloosa, AL'}
+            placeholder={mode === 'place' ? 'e.g. Tuscaloosa, AL' : 'Try 123 Main St, Tuscaloosa'}
             autoFocus
             className="w-72 max-w-full rounded-full border-[1.5px] px-4 py-3 text-center text-[15px] outline-none transition-colors"
             style={{ ...FONT, borderColor: textValid ? '#1a6b6b' : '#d4e8e8' }}
