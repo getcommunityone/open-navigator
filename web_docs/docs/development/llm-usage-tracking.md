@@ -79,8 +79,9 @@ Cost is not stored. The report multiplies the token counts and GPU-hours by the 
 `packages/llm/src/llm/usage/prices.yaml`, so a corrected price reprices all history.
 
 A price is used only when it has a value, a `source` and a `read_date`. Anything else shows as a dash. The Gemini
-and DeepSeek rates are not filled in yet: fill them from each vendor's pricing page, with the page's URL and the date
-you read it. The GPU prices are estimates of what the GPU time would rent for on a cloud (a Colab or Kaggle GPU is
+interactive rates are filled in from Google Cloud's list prices as getdeploying.com republishes them, because
+Google's own pricing pages could not be reached when they were added; confirm them against Google (#266). Batch,
+Gemma and DeepSeek rates are not filled in, so those calls show no cost. The GPU prices are estimates of what the GPU time would rent for on a cloud (a Colab or Kaggle GPU is
 paid in compute units or not at all).
 
 ## Decision: the same method as health-transformation-lab-nlp

@@ -34,12 +34,12 @@ def test_parse_models_dedupes_and_trims_order():
     assert parse_models("a, b , a,c") == ["a", "b", "c"]
 
 
-def test_default_models_drop_retired_and_lead_with_flash_lite():
+def test_default_models_drop_retired_and_lead_with_flash():
     # gemini-2.0-flash-lite was retired by Google (API 404s "no longer available"); it
     # must be gone from the defaults so a default run never rotates onto a dead model.
     assert "gemini-2.0-flash-lite" not in DEFAULT_MODELS
-    # The cheapest model leads the rotation; Flash is the fallback (#263).
-    assert DEFAULT_MODELS == ("gemini-2.5-flash-lite", "gemini-2.5-flash")
+    # Flash leads: Flash-Lite reversed a vote in the first comparison (#267).
+    assert DEFAULT_MODELS == ("gemini-2.5-flash", "gemini-2.5-flash-lite")
 
 
 # --------------------------------------------------------------------------- #

@@ -19,7 +19,7 @@ the backlog through the Batch API. The numbers come from the usage log described
 | Thinking is off (`thinking_budget=0`) on `gemini-2.5-flash*` | `gemini-2.5-flash` thinks by default, and thinking tokens are billed as output | `--thinking-budget -1` (the model's default) or a number; env `GEMINI_THINKING_BUDGET` |
 | Part 1 asks for JSON output | The response was free text, searched for a JSON object | `--no-json-mode` |
 | The fixed prompt comes first in the message | The per-video block used to come first, so no two calls shared a prefix and Gemini's implicit caching never applied | none: the same three parts, reordered |
-| The backlog leads with `gemini-2.5-flash-lite` | It costs less per token than `gemini-2.5-flash` | `--models gemini-2.5-flash,gemini-2.5-flash-lite` |
+| ~~The backlog leads with `gemini-2.5-flash-lite`~~ Reverted: Flash leads | Flash-Lite reversed a vote in the first comparison (below) | `--models gemini-2.5-flash-lite,gemini-2.5-flash` |
 | Clients use API version `v1beta` | `google-genai` 3.x defaults to `v1`, which rejects the thinking and JSON settings | env `GENAI_API_VERSION` |
 
 If the API rejects the thinking budget or JSON mode with a 400, the call is retried once without that setting and a
@@ -101,11 +101,63 @@ Limits:
   top-level folders as states and jurisdictions.
 - **Local Gemma and DeepSeek were not changed.** Both are already wired in. Neither was measured as cheaper than
   Flash-Lite in batch mode, so nothing moves to them without numbers from the usage log.
+- **Flash leads the backlog again.** The first comparison caught `gemini-2.5-flash-lite` recording a 5-2 vote as 2-5.
+  One made-up meeting is thin evidence, but a wrong vote count shown to residents costs more than the saving, so the
+  cheaper default waits for the comparison on real meetings (#267).
+
+## Comparing models (#267)
+
+`python -m llm.gemini.compare_models` sends the same Part 1 message to several models (*arms*) for meetings that
+already have an analysis, and scores each answer against that analysis or against one arm. It writes `summary.md`
+(scores, tokens, latency and cost per arm, then every missed item, added item and differing vote for a person to
+check), `comparison.csv` and the raw answers under `data/cache/model_comparison/<run>/`. Nothing in the policy cache
+changes.
+
+```bash
+python -m llm.gemini.compare_models --jurisdiction-id municipality_0177256 --state AL --limit 10
+python -m llm.gemini.compare_models --rescore data/cache/model_comparison/<run>   # re-score, no model calls
+```
+
+The default arms are `gemini-2.5-flash` with and without thinking, `gemini-2.5-flash-lite`, the successors
+`gemini-3.5-flash-lite` and `gemini-3.8-flash`, and the open-weights `gemma-4-26b-a4b-it` and `gemma-4-31b-it`
+through the Gemini API. The scores measure agreement with the reference, not correctness.
+
+### First run: one made-up meeting
+
+Run on November 13, 2026 against the made-up four-item test meeting, with `gemini-2.5-flash` (thinking on) as the
+reference. One meeting decides nothing; it shows what the tool catches.
+
+| Arm | Items found | Votes agree | Places found | Thinking tokens | Latency | Cost per meeting |
+|---|---|---|---|---|---|---|
+| `gemini-2.5-flash` (reference, thinking on) | | | | 10,668 | 82 s | $0.055 |
+| `gemini-2.5-flash`, thinking off | 4/4 | 4/4 | 0.8 | 0 | 42 s | $0.028 |
+| `gemini-2.5-flash-lite` | 4/4 | **3/4** | 0.8 | 0 | 21 s | $0.005 |
+| `gemini-3.5-flash-lite` | 4/4 | 4/4 | 0.6 | 0 | 17 s | $0.025 |
+| `gemini-3.8-flash` | 4/4 | 4/4 | 0.8 | 2,097 | 81 s | $0.058 |
+| `gemma-4-31b-it` | 4/4 | 4/4 | 0.8 | 2,050 | 288 s | no price |
+| `gemma-4-26b-a4b-it` | no answer | | | | over 20 min | |
+
+Costs use the interactive list prices in `prices.yaml` (sourced from getdeploying.com, to be confirmed: #266).
+
+What it showed:
+
+- `gemini-2.5-flash-lite` recorded the rezoning vote as 2-5; the transcript says "The motion carries 5-2."
+- Both Flash-Lite models placed every address in "Tuscaloosa, AL", copying the hard-coded jurisdiction line in the
+  prompt (#265), where the transcript names Riverbend City. Flash got the city right. Fixing #265 matters most for
+  the cheap models.
+- `gemini-3.5-flash-lite` is not a cheap successor: its list price is the same as `gemini-2.5-flash`'s. Google is
+  reported to have closed the 2.5 models to new users in July 2026 (see `prices.yaml`), so the cheapest option may
+  not last.
+- Gemma through the Gemini API is too slow for the backlog: the 31B model took almost five minutes per meeting, and
+  the 26B model did not answer within 20 minutes. At the pipeline's 300-second timeout both fail with "504
+  DEADLINE_EXCEEDED", because the SDK forwards the client's timeout to Google as the server deadline. The tool
+  raises its own timeout to 1,200 seconds for that reason.
 
 ## Not done
 
-- Model prices are not filled in (`packages/llm/src/llm/usage/prices.yaml`), so the report shows tokens and no
-  dollar cost until they are.
+- Batch, Gemma and DeepSeek prices are not filled in, and the Gemini interactive prices still need confirming
+  against Google's page (#266).
+- The comparison has not run on real meetings (#267).
 - Output is the larger half of every call: the made-up four-item meeting produced about 10,000 output tokens, much
   of it the two Mermaid diagrams the schema requires on every decision. Trimming the schema is the next lever and
   is a prompt change, not made here.

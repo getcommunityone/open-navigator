@@ -10,21 +10,37 @@
 # the output rate. `cached_input_usd_per_1m` is the rate for input tokens the API
 # reports as served from its cache.
 #
-# NOT FILLED IN: Google's price page could not be reached from the session that
-# added this file (November 13, 2026), so the rates are left null. Read them from
-# the Gemini API pricing page and the DeepSeek pricing page, then set `source`
-# to the page's URL and `read_date` to the day you read it.
+# SOURCE CAVEAT: Google's own pricing pages (ai.google.dev, aistudio.google.com,
+# docs.cloud.google.com) could not be reached from the session that filled these
+# in. The interactive rates below are Google Cloud's base-tier, on-demand list
+# prices as getdeploying.com republishes them, read on 2026-11-13. Gemini API
+# paid-tier rates are expected to match; confirm against Google's page and update
+# the source (#266). Batch rates are not on that page, so they stay null and batch
+# calls show no cost until they are filled in. That page also says Google closed
+# gemini-2.5-flash and gemini-2.5-flash-lite to new users in July 2026 and expects
+# to shut them down.
 models:
   gemini-2.5-flash:
-    source: null
-    read_date: null
-    interactive: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+    source: https://getdeploying.com/llms/gemini-2.5-flash
+    read_date: "2026-11-13"
+    interactive: {input_usd_per_1m: 0.30, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 2.50}
     batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
   gemini-2.5-flash-lite:
-    source: null
-    read_date: null
-    interactive: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+    source: https://getdeploying.com/llms/gemini-2.5-flash-lite
+    read_date: "2026-11-13"
+    interactive: {input_usd_per_1m: 0.10, cached_input_usd_per_1m: 0.01, output_usd_per_1m: 0.40}
     batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  gemini-3.5-flash-lite:
+    source: https://getdeploying.com/llms/gemini-3.5-flash-lite
+    read_date: "2026-11-13"
+    interactive: {input_usd_per_1m: 0.30, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 2.50}
+    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  gemini-3.8-flash:
+    source: https://getdeploying.com/llms/gemini-3.8-flash
+    read_date: "2026-11-13"
+    interactive: {input_usd_per_1m: 0.75, cached_input_usd_per_1m: 0.075, output_usd_per_1m: 3.75}
+    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  # Gemma (gemma-4-*) and DeepSeek: no price found yet; they show no cost.
   deepseek-chat:
     source: null
     read_date: null
