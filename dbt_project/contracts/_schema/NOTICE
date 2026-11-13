@@ -1,0 +1,9 @@
+odcs-json-schema-v3.1.0.json is the official JSON Schema of the Open Data Contract Standard (ODCS)
+v3.1.0, by Bitol, a Linux Foundation AI & Data project, used unchanged under the Apache License 2.0.
+
+Source:  https://raw.githubusercontent.com/bitol-io/open-data-contract-standard/main/schema/odcs-json-schema-v3.1.0.json
+Project: https://github.com/bitol-io/open-data-contract-standard (Apache-2.0)
+Fetched: 2026-11-13
+SHA-256: f99a3093a5d65326837f96278654067ffdc10de314fc1f45b9dbfeb1d3429f84
+
+packages/datamodels/models/odcs.py validates every contract in dbt_project/contracts/ against it (issue #270).

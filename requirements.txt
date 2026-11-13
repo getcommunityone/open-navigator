@@ -115,6 +115,8 @@ python-dateutil==2.8.2
 pytz==2023.3
 tenacity==8.2.3
 loguru==0.7.2
+PyYAML>=6.0                        # dbt schema.yml parsing (models.odcs data contracts, #270)
+jsonschema>=4.18                   # ODCS v3.1.0 contract validation (models.odcs, #270)
 click>=8.1.8,<9  # ddgs 9.14+ requires click>=8.1.8 (was 8.1.7; conflicts with ddgs)
 tqdm==4.66.3
 
