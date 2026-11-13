@@ -94,3 +94,24 @@ def test_the_issue_template_offers_the_four_parts():
     tpl = (ROOT / ".github" / "ISSUE_TEMPLATE" / "work-item.md").read_text(encoding="utf-8")
     for part in PARTS:
         assert f"## {part}" in tpl
+
+
+def test_the_create_pr_and_pr_review_prompts_and_the_rubric_exist_and_agree():
+    create = (ROOT / ".claude" / "commands" / "create-pr.md").read_text(encoding="utf-8")
+    review = (ROOT / ".claude" / "commands" / "pr-review.md").read_text(encoding="utf-8")
+    rubric = (ROOT / ".claude" / "review-rubric.md").read_text(encoding="utf-8")
+    for text in (create, review):
+        assert text.startswith("---\ndescription:")             # slash-command frontmatter
+        assert "pull_requests/pr-<n>-review.md" in text and "review-rubric.md" in text
+    assert "Closes #<issue>" in create and "<type>/<issue>-<slug>" in create
+    for scan in ("Secrets", "Fabricated data", "Personal data", "Destructive"):
+        assert scan in rubric
+    for check in ("Frontend Build", "Documentation Build", "Backend Tests", "API Types"):
+        assert check in rubric and check in create
+
+
+def test_reviews_live_in_pull_requests_and_agents_md_says_so():
+    assert (ROOT / "pull_requests" / "README.md").is_file()
+    assert not (ROOT / "pull_request").exists()
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "/create-pr" in agents and "/pr-review" in agents and "pull_requests/pr-<n>-review.md" in agents

@@ -52,5 +52,9 @@ asked.
   merging closes it.
 - **The `PR conventions` check** (`.github/scripts/pr_conventions.py`) enforces both on every pull request opened from
   November 14, 2026. It also checks that the linked issue has the four parts.
+- **Open and review with the two prompts.** `/create-pr` (`.claude/commands/create-pr.md`) checks the branch, opens
+  the PR and reviews it. `/pr-review` (`.claude/commands/pr-review.md`) reviews any PR against
+  `.claude/review-rubric.md` and writes `pull_requests/pr-<n>-review.md`. The review is committed to the PR's branch.
+  Agents without slash commands read those files and follow the same steps. Every PR gets a review before it merges.
 - Everything in `CLAUDE.md`, "Branch & PR Workflow" still applies: never push to `main`, never force-push, required
   checks green before merge.
