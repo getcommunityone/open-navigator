@@ -45,9 +45,8 @@ import {
   minMaxExtent,
   quantileExtent,
   type CensusScaleId,
-  CT_LEGACY_COUNTY_CROSSWALK,
-  resolveConnecticutCountyMetric,
-  resolveConnecticutCountyTrendSeries,
+  CT_PLANNING_REGION_UNAVAILABLE_TEXT,
+  hasPlanningRegionNote,
 } from '../utils/censusMapTransforms'
 import { giniLetterSuffix } from '../utils/giniLetterGrade'
 import {
@@ -191,7 +190,7 @@ interface StateMetricsPayload {
 interface CountyMetricsPayload {
   geography: string
   vintage: string
-  values: Record<string, Record<string, number | null | undefined>>
+  values: Record<string, Record<string, number | string | null | undefined>>
 }
 
 /** Multi-year state series from ``state_trends.json`` */
@@ -240,14 +239,15 @@ function countyMetricsFromTrends(
   metricSlugs: string[],
   stateFips: string,
 ): CountyMetricsPayload {
-  const values: Record<string, Record<string, number | null | undefined>> = {}
+  const values: Record<string, Record<string, number | string | null | undefined>> = {}
   const stp = stateFips.padStart(2, '0')
   for (const [gid, row] of Object.entries(trends.byGeoid)) {
     if (!gid.startsWith(stp)) continue
-    const cell: Record<string, number | null | undefined> = {}
+    const cell: Record<string, number | string | null | undefined> = {}
     const nm = row.NAME
     if (typeof nm === 'string' && nm.trim()) cell.NAME = nm.trim()
     cell.GEOID = gid
+    if (hasPlanningRegionNote(row)) cell.data_note = String(row.data_note)
     for (const slug of metricSlugs) {
       const series = row[slug]
       if (series && typeof series === 'object' && !Array.isArray(series)) {
@@ -259,22 +259,6 @@ function countyMetricsFromTrends(
     }
     const g5 = gid.replace(/\D/g, '').slice(-5).padStart(5, '0')
     values[g5] = cell
-  }
-  if (stp === '09') {
-    for (const [legacyFips, spec] of Object.entries(CT_LEGACY_COUNTY_CROSSWALK)) {
-      const existing = values[legacyFips]
-      const hasMetric = existing && metricSlugs.some((s) => typeof existing[s] === 'number' && Number.isFinite(existing[s]))
-      if (!hasMetric) {
-        const cell: Record<string, number | null | undefined> = {
-          GEOID: legacyFips,
-          NAME: spec.name,
-        }
-        for (const slug of metricSlugs) {
-          cell[slug] = resolveConnecticutCountyMetric(legacyFips, values, slug)
-        }
-        values[legacyFips] = cell
-      }
-    }
   }
   return { geography: 'county', vintage, values }
 }
@@ -465,14 +449,11 @@ function collectAllVintageDisplayValuesCounty(
 ): number[] {
   const stp = stateFips.padStart(2, '0')
   const vals: number[] = []
-  const isCT = stp === '09'
-  const hasLegacyInCT = isCT && Object.keys(trends.byGeoid).some((k) => k.startsWith('090'))
   for (const vy of vintages) {
     const prevV = prevVintageInList(vintages, vy)
     const nat = nationalBaselineWithFallback(nationalRef, vy, metricSlug, { stateTrends })
     for (const [gid, row] of Object.entries(trends.byGeoid)) {
       if (!gid.startsWith(stp)) continue
-      if (isCT && hasLegacyInCT && gid.startsWith('091')) continue
       const rec = row as Record<string, unknown>
       const series = rec[metricSlug]
       const raw = trendCell(series, vy)
@@ -480,16 +461,6 @@ function collectAllVintageDisplayValuesCounty(
       if (valueMode === 'yoy' && prevV) prev = trendCell(series, prevV)
       const d = displayValueForMode(valueMode, raw, prev, nat)
       if (typeof d === 'number' && Number.isFinite(d)) vals.push(d)
-    }
-    if (isCT && !hasLegacyInCT) {
-      for (const legacyFips of Object.keys(CT_LEGACY_COUNTY_CROSSWALK)) {
-        const series = resolveConnecticutCountyTrendSeries(legacyFips, trends.byGeoid, metricSlug, [vy, ...(prevV ? [prevV] : [])])
-        const raw = series?.[vy] ?? null
-        let prev: number | null = null
-        if (valueMode === 'yoy' && prevV) prev = series?.[prevV] ?? null
-        const d = displayValueForMode(valueMode, raw, prev, nat)
-        if (typeof d === 'number' && Number.isFinite(d)) vals.push(d)
-      }
     }
   }
   return vals
@@ -1269,24 +1240,9 @@ function buildStateCountyGeoJson(
     for (const f of fc.features) {
       const gid = countyGeoidFromFeature(f)
       if (gid.length !== 5 || !gid.startsWith(stateFips)) continue
-      let row = values[gid] ?? {}
-      if (stateFips === '09' && (row[metricSlug] == null || !Number.isFinite(Number(row[metricSlug])))) {
-        const fallbackVal = resolveConnecticutCountyMetric(gid, values, metricSlug)
-        if (fallbackVal != null) {
-          row = {
-            ...row,
-            [metricSlug]: fallbackVal,
-            NAME: row.NAME ?? CT_LEGACY_COUNTY_CROSSWALK[gid]?.name ?? gid,
-          }
-        }
-      }
+      const row = values[gid] ?? {}
       const base = (f.properties as Record<string, unknown> | undefined) ?? {}
-      const name =
-        typeof row.NAME === 'string'
-          ? row.NAME
-          : typeof base.name === 'string'
-            ? base.name
-            : CT_LEGACY_COUNTY_CROSSWALK[gid]?.name ?? gid
+      const name = typeof row.NAME === 'string' ? row.NAME : typeof base.name === 'string' ? base.name : gid
       const props: Record<string, unknown> = {
         ...base,
         GEOID: gid,
@@ -2342,6 +2298,14 @@ function CensusMapPage() {
     return buildStateCountyGeoJson(countyTopo, countyPayload.values, stateFips, metricSlug)
   }, [mode, stateFips, countyTopo, countyPayload, metricSlug])
 
+  /** True when this state's counties carry the planning-region note (Connecticut): shown once in the legend. */
+  const connecticutPlanningRegionNote = useMemo(
+    () =>
+      stateFips === '09' &&
+      Boolean(stateCountyGeo?.features?.some((f) => hasPlanningRegionNote(f.properties as Record<string, unknown>))),
+    [stateFips, stateCountyGeo],
+  )
+
   const countyDisplayByGeoid = useMemo(() => {
     const out: Record<string, number | null> = {}
     if (!stateCountyGeo || !metricSlug) return out
@@ -2355,13 +2319,8 @@ function CensusMapPage() {
       const gid = countyGeoidFromFeature(f as GeoJSON.Feature)
       const raw = typeof p?.[metricSlug] === 'number' && Number.isFinite(p[metricSlug]) ? p[metricSlug] : null
       let prev: number | null = null
-      if (valueMode === 'yoy' && prevV) {
-        if (countyTrends?.byGeoid?.[gid]) {
-          prev = trendCell((countyTrends.byGeoid[gid] as Record<string, unknown>)[metricSlug], prevV)
-        } else if (stateFips === '09' && countyTrends?.byGeoid) {
-          const synth = resolveConnecticutCountyTrendSeries(gid, countyTrends.byGeoid, metricSlug, [prevV])
-          prev = synth?.[prevV] ?? null
-        }
+      if (valueMode === 'yoy' && prevV && countyTrends?.byGeoid?.[gid]) {
+        prev = trendCell((countyTrends.byGeoid[gid] as Record<string, unknown>)[metricSlug], prevV)
       }
       out[gid] = displayValueForMode(valueMode, raw, prev, nat)
     }
@@ -3446,15 +3405,20 @@ function CensusMapPage() {
                           const rankLine = rk
                             ? `<br/><span style="font-size:11px;color:#475569;">Ranked #${rk.rank} of ${rk.total}</span>`
                             : ''
-                          layer.bindPopup(
-                            `<div><strong>${name}</strong><br/>${metricValueTooltipLine(
+                          const noDataLine =
+                            disp == null && stateFips === '09' && hasPlanningRegionNote(p)
+                              ? CT_PLANNING_REGION_UNAVAILABLE_TEXT
+                              : null
+                          const valueLine =
+                            noDataLine ??
+                            metricValueTooltipLine(
                               currentMetricMeta?.label ?? metricSlug,
                               metricSlug,
                               disp,
                               metrics,
                               valueMode,
-                            )}${rankLine}</div>`,
-                          )
+                            )
+                          layer.bindPopup(`<div><strong>${name}</strong><br/>${valueLine}${rankLine}</div>`)
                           layer.on('mouseover', () => {
                             setCountyHover({ id: gid, name, value: disp })
                           })
@@ -3547,6 +3511,12 @@ function CensusMapPage() {
                 letterGradeLegend={giniRawLetterLegend}
               />
             )}
+            {connecticutPlanningRegionNote && (
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: colorFromT(null) }} aria-hidden />
+                {CT_PLANNING_REGION_UNAVAILABLE_TEXT}. Connecticut&apos;s planning regions are not drawn on this county map.
+              </p>
+            )}
             {viz === 'bubble' && (
               <BubbleLegend
                 min={countyBubbleExtent.min}
@@ -3559,19 +3529,9 @@ function CensusMapPage() {
             )}
             {countyTrends && countyHover && stateFips
               ? (() => {
-                  const rawSeries =
-                    (countyTrends.byGeoid[countyHover.id]?.[metricSlug] as Record<string, unknown> | undefined) ??
-                    (stateFips === '09'
-                      ? (resolveConnecticutCountyTrendSeries(
-                          countyHover.id,
-                          countyTrends.byGeoid,
-                          metricSlug,
-                          countyTrends.vintages,
-                        ) as Record<string, unknown> | undefined)
-                      : undefined)
                   const trendPts = trendPointsFromSeries(
                     countyTrends.vintages,
-                    rawSeries,
+                    countyTrends.byGeoid[countyHover.id]?.[metricSlug] as Record<string, unknown> | undefined,
                   )
                   return (
                     <AcTrendChart
