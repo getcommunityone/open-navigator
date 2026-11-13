@@ -1060,7 +1060,9 @@ def call_gemma_triage(
             )
 
     def _generate_with_quota_retry() -> Any:
-        return call_with_genai_quota_retry(_generate, label=f"gatekeeper {model}")
+        return call_with_genai_quota_retry(
+            _generate, label=f"gatekeeper {model}", model=model, stage="gatekeeper"
+        )
 
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 

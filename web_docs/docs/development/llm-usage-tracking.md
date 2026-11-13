@@ -98,7 +98,23 @@ Two things differ, on purpose:
 - **Cost is derived, not stored.** That project stores an estimated cost on each run. Here the report computes it,
   so no row holds a cost computed from a price that was later corrected.
 
-## Not covered yet
+## The governance pipeline
 
 The governance (Colab) pipeline calls the Gemini API directly in `gatekeeper_triage.py` and
-`governance_meeting_llm.py` and does not go through `call_gemini_text`, so those calls are not recorded.
+`governance_meeting_llm.py`, through its own retry wrapper (`governance/genai_quota_retry.py`). Given a `model`,
+that wrapper writes the same usage row (#268). Each call is labelled by stage: `gatekeeper`, `shield`, or the demo
+that made it (`demo1` to `demo4`, set by the demo runners in `colab_demos.py`), else `governance`.
+
+## In dbt
+
+`bronze.bronze_llm_call` and `bronze.bronze_gpu_run` are dbt sources (#268):
+
+| Model | Grain | Key |
+|---|---|---|
+| `stg_llm__call` (view) | one model call | `llm_call_id` |
+| `stg_llm__gpu_run` (view) | one GPU step | `gpu_run_id` |
+| `llm_usage_daily` (gold, contract enforced) | one day (UTC), model and API mode | (`usage_date`, `model`, `api_mode`) |
+
+Both staging views build empty until `python -m llm.usage.load_bronze` creates the bronze tables, so `dbt build`
+passes before any usage is loaded. `llm_usage_daily` has no cost column, for the reason above, and is not published
+to `public`.
