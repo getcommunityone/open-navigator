@@ -1341,34 +1341,51 @@ function GrandkidsForecast({
   const hasLocal = localPct != null
   const localLabel = data?.cz_name || data?.scope_label || 'Your area'
   const blank = isLoading || isError || !data || natPct == null
-  const diff = !blank && hasLocal ? (localPct as number) - (natPct as number) : null
 
   const raceLabel = RACE_OPTIONS.find(([v]) => v === race && v !== 'pooled')?.[1]
   const genderLabel = GENDER_OPTIONS.find(([v]) => v === gender && v !== 'pooled')?.[1]
   const demoQual = [raceLabel, genderLabel].filter(Boolean).join(' · ')
 
-  const verdict = blank
-    ? 'Grandkids forecast'
-    : !hasLocal
-      ? 'Grandkids forecast'
-      : diff != null && Math.abs(diff) < 1
-        ? `Kids raised in ${localLabel} land about the U.S. average`
-        : diff != null && diff > 0
-          ? `Better off: kids raised in ${localLabel} reach a higher income rank than the U.S. average`
-          : `Tougher odds: kids raised in ${localLabel} reach a lower income rank than the U.S. average`
+  // One bold sentence built only from the real percentiles the chart plots (rounded
+  // the same way the chart labels them, so the sentence and the graph agree).
+  // Null while loading / on error / with no national cell: no card, no stand-in.
+  const parentQual = `${parentIncome}-income parents${demoQual ? ` (${demoQual})` : ''}`
+  let takeaway: string | null = null
+  if (!blank && natPct != null) {
+    if (hasLocal) {
+      const gap = Math.round(localPct as number) - Math.round(natPct)
+      const gapText =
+        gap === 0
+          ? 'in line with the U.S.'
+          : `${Math.abs(gap)} ${Math.abs(gap) === 1 ? 'point' : 'points'} ${gap > 0 ? 'above' : 'below'} the U.S.`
+      takeaway = `Mobility outlook: kids in ${localLabel} with ${parentQual} reach the ${ordinal(localPct as number)} income percentile, ${gapText} (${ordinal(natPct)}).`
+    } else {
+      takeaway = `Mobility outlook: kids in the U.S. with ${parentQual} reach the ${ordinal(natPct)} income percentile (no local data for ${localLabel} in this group).`
+    }
+  }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[#d4e8e8] bg-white shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
       {/* Teal verdict header (real numbers only). */}
       <div className="bg-[#1a6b6b] px-5 py-3.5 text-white">
         <h3 className="text-[15.5px] font-semibold leading-snug" style={SERIF}>
-          {verdict}
+          Grandkids forecast
         </h3>
         <p className="mt-0.5 text-[12px] text-white/85" style={FONT}>
           Adult income rank for kids with <span className="font-semibold">{parentIncome}-income</span> parents
           {demoQual ? ` · ${demoQual}` : ''} · vs the U.S.
         </p>
       </div>
+
+      {/* Bold single-sentence takeaway above the graph (real numbers only). */}
+      {takeaway && (
+        <p
+          className="mx-5 mt-5 rounded-xl border border-[#d4e8e8] bg-[#f4fafa] px-4 py-3 text-[17px] font-bold leading-snug text-[#0f2b2b]"
+          style={SERIF}
+        >
+          {takeaway}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-start gap-5 p-5">
         {/* Dot-column selectors — REAL Atlas dimensions. */}
