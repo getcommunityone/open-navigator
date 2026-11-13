@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: mdm_organization_nonprofit
+- id: mdm_organization_nonprofit
+  name: mdm_organization_nonprofit
   physicalName: public.mdm_organization_nonprofit
   logicalType: object
   description: 'MDM satellite: IRS/990 nonprofit detail (NTEE, financials, GivingTuesday 990) for the subset of mdm_organization that carries an EIN. One row per master_org_id (1:1). PK master_org_id, FK -> mdm_organization.'
   dataGranularityDescription: One row per master_org_id (1:1).
   properties:
-  - name: master_org_id
+  - id: master_org_id
+    name: master_org_id
     logicalType: string
     physicalType: text
     description: Primary key — golden org id, FK to mdm_organization.master_org_id (1:1 with the EIN-carrying subset).
@@ -31,7 +33,7 @@ schema:
     primaryKeyPosition: 1
     relationships:
     - type: foreignKey
-      to: mdm_organization.master_org_id
+      to: mdm_organization.odcs.yaml#/schema/mdm_organization/properties/master_org_id
     quality:
     - type: library
       metric: duplicateValues
@@ -43,100 +45,124 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: ein
+  - id: ein
+    name: ein
     logicalType: string
     physicalType: text
     description: Employer Identification Number (nonprofit natural key).
     required: true
-  - name: ntee_code
+  - id: ntee_code
+    name: ntee_code
     logicalType: string
     physicalType: text
     description: Full NTEE classification code (e.g. 'E20').
-  - name: ntee_description
+  - id: ntee_description
+    name: ntee_description
     logicalType: string
     physicalType: text
     description: NTEE major-group (first letter of ntee_code) description, inlined here for serving parity; the canonical hierarchical taxonomy is the `tag` mart.
-  - name: subsection_code
+  - id: subsection_code
+    name: subsection_code
     logicalType: string
     physicalType: text
     description: IRS 501(c) subsection code (from int_nonprofits_combined.subsection).
-  - name: classification_code
+  - id: classification_code
+    name: classification_code
     logicalType: string
     physicalType: text
     description: IRS classification code (from int_nonprofits_combined.classification; distinct from OCD classification).
-  - name: revenue
+  - id: revenue
+    name: revenue
     logicalType: integer
     physicalType: bigint
     description: IRS BMF revenue figure (registry proxy).
-  - name: assets
+  - id: assets
+    name: assets
     logicalType: integer
     physicalType: bigint
     description: IRS BMF assets figure (registry proxy).
-  - name: income
+  - id: income
+    name: income
     logicalType: integer
     physicalType: bigint
     description: IRS BMF income figure (registry proxy).
-  - name: tax_period
+  - id: tax_period
+    name: tax_period
     logicalType: string
     physicalType: text
     description: IRS BMF tax period (YYYYMM).
-  - name: ruling_date
+  - id: ruling_date
+    name: ruling_date
     logicalType: string
     physicalType: text
     description: IRS ruling date (tax-exempt status grant).
-  - name: foundation_code
+  - id: foundation_code
+    name: foundation_code
     logicalType: string
     physicalType: text
     description: IRS foundation type code.
-  - name: gt990_tax_year
+  - id: gt990_tax_year
+    name: gt990_tax_year
     logicalType: integer
     physicalType: integer
     description: GivingTuesday curated-990 datamart tax year (the e-filed return year). Integer calendar year.
-  - name: gt990_total_revenue
+  - id: gt990_total_revenue
+    name: gt990_total_revenue
     logicalType: integer
     physicalType: bigint
     description: Real e-filed 990 total revenue (GivingTuesday datamart).
-  - name: gt990_total_expenses
+  - id: gt990_total_expenses
+    name: gt990_total_expenses
     logicalType: integer
     physicalType: bigint
     description: Real e-filed 990 total expenses (GivingTuesday datamart).
-  - name: gt990_total_assets
+  - id: gt990_total_assets
+    name: gt990_total_assets
     logicalType: integer
     physicalType: bigint
     description: Real e-filed 990 end-of-year total assets (GivingTuesday datamart).
-  - name: gt990_total_liabilities
+  - id: gt990_total_liabilities
+    name: gt990_total_liabilities
     logicalType: integer
     physicalType: bigint
     description: Real e-filed 990 end-of-year total liabilities (GivingTuesday datamart).
-  - name: gt990_net_assets
+  - id: gt990_net_assets
+    name: gt990_net_assets
     logicalType: integer
     physicalType: bigint
     description: Real e-filed 990 net assets / fund balances (GivingTuesday datamart).
-  - name: gt990_total_contributions
+  - id: gt990_total_contributions
+    name: gt990_total_contributions
     logicalType: integer
     physicalType: bigint
     description: Real e-filed 990 total contributions, gifts & grants received (GivingTuesday datamart).
-  - name: gt990_program_service_revenue
+  - id: gt990_program_service_revenue
+    name: gt990_program_service_revenue
     logicalType: integer
     physicalType: bigint
     description: Real e-filed 990 program service revenue (GivingTuesday datamart).
-  - name: gt990_source_url
+  - id: gt990_source_url
+    name: gt990_source_url
     logicalType: string
     physicalType: text
     description: URL of the source 990 filing/datamart record backing the gt990_* figures.
-  - name: gt990_mission
+  - id: gt990_mission
+    name: gt990_mission
     logicalType: string
     physicalType: text
     description: 990-filed mission statement (GivingTuesday datamart).
-  - name: has_gt990_data
+  - id: has_gt990_data
+    name: has_gt990_data
     logicalType: boolean
     physicalType: boolean
     description: True when a real 990 (financials or mission) was matched.
-  - name: source
+  - id: source
+    name: source
     logicalType: string
     physicalType: text
     description: Upstream datasource label (irs / nccs / ...).
-  - name: dbt_loaded_at
+  - id: dbt_loaded_at
+    name: dbt_loaded_at
     logicalType: timestamp
     physicalType: timestamp with time zone
     description: dbt build timestamp.

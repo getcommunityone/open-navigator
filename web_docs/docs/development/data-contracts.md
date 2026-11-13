@@ -8,6 +8,8 @@ sidebar_label: Data contracts
 Decision record for [#270](https://github.com/getcommunityone/open-navigator/issues/270): every table the public API
 serves gets a data contract, generated from dbt and checked in CI. The contracts are gathered into one data product by
 [#274](https://github.com/getcommunityone/open-navigator/issues/274) (see [The data product](#the-data-product-odps)).
+[#276](https://github.com/getcommunityone/open-navigator/issues/276) made their foreign keys resolve and vendored the
+schemas from their release tags.
 
 A data contract is a file that says what a table holds and what a reader can rely on: its columns and their types, its
 keys, and the data-quality rules it passes. Ours follow the
@@ -18,12 +20,13 @@ can read them.
 
 | Choice | Why |
 |---|---|
-| **ODCS v3.1.0** (`apiVersion: v3.1.0`) | An open standard from Bitol (a Linux Foundation AI & Data project, Apache-2.0) with an official JSON Schema. [Ontos](https://github.com/databrickslabs/ontos), a catalog we may use later, reads v3.1.0. Version 3.2.0 exists; moving to it is a later upgrade: vendor its schema, change `API_VERSION` in `models.odcs`, regenerate. |
+| **ODCS v3.1.0** (`apiVersion: v3.1.0`) | An open standard from Bitol (a Linux Foundation AI & Data project, Apache-2.0) with an official JSON Schema. [Ontos](https://github.com/databrickslabs/ontos), a catalog we may use later, reads v3.1.0. Version 3.2.0 exists; moving to it is a later upgrade: vendor the schema at its release tag, update the `NOTICE`, change `API_VERSION` in `models.odcs`, regenerate. |
 | **Generated from dbt, never written by hand** | dbt's `schema.yml` files stay the one place a table's structure is declared. A contract can't drift from its model, because CI regenerates it and compares. |
 | **One file per table, in `dbt_project/contracts/`** | Beside the dbt project the contracts come from, so a `schema.yml` change and its contract land in the same diff. dbt reads only its own paths (`models/`, `macros/` and so on), so the folder doesn't affect dbt. |
-| **The official schema vendored** | `dbt_project/contracts/_schema/odcs-json-schema-v3.1.0.json`, unchanged, with a `NOTICE` giving its source, licence and SHA-256, so validation works offline in CI. |
+| **The official schemas vendored from their release tags** | `dbt_project/contracts/_schema/odcs-json-schema-v3.1.0.json` is the copy at Bitol's `v3.1.0` tag, unchanged, so validation works offline in CI. It is byte for byte the copy Ontos bundles. The copy on Bitol's `main` branch differs from it in five places, the `id` and reference patterns among them, and can change again under the same file name. The `NOTICE` gives each file's release-tag URL, licence and SHA-256, and a test fails when a file's SHA-256 isn't the one stated or its source isn't the release tag in its name. |
 | **Code in `packages/datamodels`** | `models.odcs` in the `communityone-datamodels` package, run with `python -m models.odcs`: new Python goes in `packages/`, never `scripts/`. |
-| **ODPS v1.0.0 for the data product** (`apiVersion: v1.0.0`) | The Open Data Product Standard is Bitol's companion to ODCS (Apache-2.0). Ontos bundles the ODPS v1.0.0 JSON Schema, identical to Bitol's apart from one description string, so we use v1.0.0, not v1.1.0. The official schema is vendored beside the ODCS one, with the same `NOTICE` details. |
+| **ODPS v1.0.0 for the data product** (`apiVersion: v1.0.0`) | The Open Data Product Standard is Bitol's companion to ODCS (Apache-2.0). Ontos bundles the ODPS v1.0.0 JSON Schema, the copy at Bitol's `v1.0.0` tag, so we use v1.0.0, not v1.1.0. That copy is vendored beside the ODCS one, with the same `NOTICE` details. |
+| **Fully qualified references for foreign keys** | ODCS v3.1.0's [references page](https://github.com/bitol-io/open-data-contract-standard/blob/v3.1.0/docs/references.md) leaves out the file part only for a reference within the same contract, and recommends fully qualified references across contracts. Each of our contracts holds one table, so the shorthand `<model>.<column>` would name a table that isn't in the file. A foreign key whose parent has no contract holding the column is left out, because there is nothing to point at (see [Foreign keys left out](#foreign-keys-left-out)). |
 
 ## Which tables
 
@@ -51,6 +54,29 @@ them out of `served`. A test fails when a served relation has no contract and is
 | `civic_jurisdiction` | no dbt model in `dbt_project/models` |
 | `jurisdiction_mapping_analysis` | a dbt model with no `schema.yml` entry |
 
+### Foreign keys left out
+
+A foreign key points at a column in its parent's contract, so these 13 are left out of their contracts while the parent
+has none. Each one comes back by itself once the parent's contract holds the column: the generator writes every
+foreign key it can resolve. `python -m models.odcs --write` lists the ones it leaves out, and a test fails when one is
+left out but isn't listed here.
+
+| Column | Points at | Comes back when |
+|---|---|---|
+| `event_meeting_document.event_meeting_id` | `event_meeting.event_meeting_id` | `event_meeting` gets a contract ([#271](https://github.com/getcommunityone/open-navigator/issues/271)) |
+| `mdm_bridge_event_analysis.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
+| `meeting_browse.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
+| `meeting_question_link.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
+| `meeting_topic_link.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
+| `decision_speakers.event_decision_id` | `event_decision.event_decision_id` | `event_decision` gets a contract (#271) |
+| `event_decision_place.event_decision_id` | `event_decision.event_decision_id` | the same |
+| `item_interestingness.event_decision_id` | `event_decision.event_decision_id` | the same |
+| `question_instance.source_id` | `event_decision.event_decision_id` | the same |
+| `event_decision_place.place_id` | `event_place.place_id` | `event_place`, a dbt model that isn't served, is published in `public` with a contract |
+| `canonical_argument.frame_id` | `policy_frame.frame_id` | `policy_frame`, a dbt seed that isn't served, is published with a contract |
+| `policy_question.topic_code` | `cap_topic.code` | the same, for the seed `cap_topic` |
+| `topic_money_and_talk.canonical_theme` | `policy_theme_cofog.primary_theme` | the same, for the seed `policy_theme_cofog` |
+
 ## What a contract holds
 
 - **The table:** `id` `open-navigator-public-<model>`, `version` `1.0.0`, `status` `active`, `dataProduct`
@@ -59,10 +85,16 @@ them out of `served`. A test fails when a served relation has no contract and is
 - **Columns:** each column's Postgres type as dbt declares it (`physicalType`) and its ODCS type (`logicalType`:
   `string`, `integer`, `number`, `boolean`, `date`, `timestamp`, `time`, `object` for `json` and `jsonb`, `array` for
   types such as `text[]`).
+- **Ids:** the schema object's `id` is the model's name, and each property's `id` is its column's name. References
+  point at these ids.
 - **Keys:** the primary key (`primaryKey`, with `primaryKeyPosition` for a composite key). Foreign keys from dbt
-  constraints and `relationships` tests become `relationships` with `to: <model>.<column>`, using ODCS shorthand and the
-  dbt model name. A target that only a warn-level test asserts carries `dbtTestSeverity: warn`, because nothing
-  guarantees it.
+  constraints and `relationships` tests become `relationships`. Each `to` is a fully qualified reference into the
+  parent's contract, relative to the contract file, such as
+  `to: jurisdictions.odcs.yaml#/schema/jurisdictions/properties/jurisdiction_id`. Within the same contract the file
+  part is left out: `tag`'s `parent_tag_id` has `to: schema/tag/properties/tag_id`. A composite key is a schema-level
+  relationship with lists for `from` and `to`. A target that only a warn-level test asserts carries
+  `dbtTestSeverity: warn` in the relationship's `customProperties`, because nothing guarantees it. A foreign key whose
+  parent has no contract holding the column is left out ([Foreign keys left out](#foreign-keys-left-out)).
 - **Guarantees:** `required` and `unique` appear only when something enforces them. That is either a Postgres
   constraint or a dbt test that fails the build on every row. Every primary-key column is `required`, but only a
   one-column key makes its column `unique`: in a composite key, only the combination is unique. A test with
@@ -128,7 +160,9 @@ fails, naming each problem, when a contract is:
 - extra (its relation is no longer served with an enforced contract);
 - not valid ODCS v3.1.0.
 
-`packages/datamodels/tests/test_odcs.py` covers the mapping.
+`packages/datamodels/tests/test_odcs.py` covers the mapping. It also resolves every foreign key in the committed
+contracts to a property in a committed contract file, and checks each vendored schema against the SHA-256 and release
+tag in `_schema/NOTICE`.
 
 Every contract's `version` is `1.0.0`. While the contracts live only in this repository, git history is their change
 record. A version policy, such as bumping the major version on a breaking column change, comes when they are published
@@ -140,8 +174,9 @@ Both are Databricks Labs projects, which Databricks provides for exploration wit
 runs on Postgres, so neither is in use, and nothing here depends on them.
 
 - **[Ontos](https://github.com/databrickslabs/ontos)** ("a business catalog for Unity Catalog") reads ODCS v3.1.0 and
-  bundles the ODPS v1.0.0 schema. The contracts and the product file could be imported unchanged, to catalog the public
-  API's tables as one data product (`open-navigator-public-api`).
+  bundles the ODCS v3.1.0 and ODPS v1.0.0 schemas: the release-tag copies vendored here, byte for byte. The contracts
+  and the product file could be imported unchanged, to catalog the public API's tables as one data product
+  (`open-navigator-public-api`).
 - **[DQX](https://github.com/databrickslabs/dqx)** validates the data quality of PySpark DataFrames and tables. If these
   tables were ever processed on Databricks, DQX checks could be generated from the contracts' quality rules (not-null,
   uniqueness, accepted-value and range checks), with each rule's `severity` as the check's criticality.

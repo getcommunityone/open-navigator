@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: opportunity_atlas_mobility
+- id: opportunity_atlas_mobility
+  name: opportunity_atlas_mobility
   physicalName: public.opportunity_atlas_mobility
   logicalType: object
   description: 'public.opportunity_atlas_mobility — commuting-zone (CZ) intergenerational mobility, long/tidy: one row per (cz, race, gender, parent_income_level). child_income_rank is the child''s mean adult household-income rank (0..1) given parents at the parent_percentile national income percentile; child_percentile is the same on a 0..100 display scale. Source: Opportunity Insights "Opportunity Atlas" (Chetty, Hendren, Jones & Porter 2018, "Race and Economic Opportunity in the United States"). child_income_rank / child_percentile are NULL where the source cell is blank (never 0); n is the per-(race,gender) sample count for honest empty states.'
   dataGranularityDescription: One row per (cz, race, gender, parent_income_level).
   properties:
-  - name: opportunity_atlas_mobility_id
+  - id: opportunity_atlas_mobility_id
+    name: opportunity_atlas_mobility_id
     logicalType: string
     physicalType: text
     description: Surrogate id = md5(cz||'|'||race||'|'||gender||'|'||parent_income_level). Stable single-column handle.
@@ -38,18 +40,21 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: cz
+  - id: cz
+    name: cz
     logicalType: integer
     physicalType: integer
     description: Commuting-zone id (integer). Part of the composite PK.
     required: true
     primaryKey: true
     primaryKeyPosition: 1
-  - name: czname
+  - id: czname
+    name: czname
     logicalType: string
     physicalType: text
     description: Commuting-zone display name (e.g. 'Tuscaloosa', 'Boston').
-  - name: race
+  - id: race
+    name: race
     logicalType: string
     physicalType: text
     description: pooled | white | black | hisp | asian | natam | other. Part of the composite PK.
@@ -71,7 +76,8 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: gender
+  - id: gender
+    name: gender
     logicalType: string
     physicalType: text
     description: pooled | male | female. Part of the composite PK.
@@ -89,7 +95,8 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: parent_income_level
+  - id: parent_income_level
+    name: parent_income_level
     logicalType: string
     physicalType: text
     description: low (p25) | middle (p50) | high (p75) parent income percentile. Part of the composite PK.
@@ -107,20 +114,24 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: parent_percentile
+  - id: parent_percentile
+    name: parent_percentile
     logicalType: integer
     physicalType: integer
     description: Parent national income percentile (25 | 50 | 75).
     required: true
-  - name: child_income_rank
+  - id: child_income_rank
+    name: child_income_rank
     logicalType: number
     physicalType: numeric
     description: Child's mean adult household-income rank (0..1) for this CZ x demographic x parent income level. NULL when source blank (never 0).
-  - name: child_percentile
+  - id: child_percentile
+    name: child_percentile
     logicalType: number
     physicalType: numeric
     description: round(child_income_rank * 100, 1) — 0..100 display scale. NULL when rank NULL.
-  - name: n
+  - id: n
+    name: n
     logicalType: number
     physicalType: numeric
     description: Source sample count for the (race, gender) cell in this CZ. NULL when source blank. Use for honest empty states.

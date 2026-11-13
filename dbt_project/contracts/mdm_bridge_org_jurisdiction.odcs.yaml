@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: mdm_bridge_org_jurisdiction
+- id: mdm_bridge_org_jurisdiction
+  name: mdm_bridge_org_jurisdiction
   physicalName: public.mdm_bridge_org_jurisdiction
   logicalType: object
   description: 'MDM many-to-many: organization <-> jurisdiction across three geographic tiers (state, city, county). Powers location-scoped org search. Grain one row per (master_org_id, jurisdiction_id). State tier from state_code, city tier from normalized city_norm + state_code, county tier from zip5 via the HUD ZIP->county crosswalk (allocation_ratio = tot_ratio; is_dominant marks the best row per (org, level)). PK org_jurisdiction_id; FK master_org_id -> mdm_organization and FK jurisdiction_id -> jurisdictions are added NOT VALID via the model''s post_hook (not the contract constraints block) so the bulk INSERT isn''t row-by-row FK-validated over millions of rows; they still enforce future writes.'
   dataGranularityDescription: One row per (master_org_id, jurisdiction_id).
   properties:
-  - name: org_jurisdiction_id
+  - id: org_jurisdiction_id
+    name: org_jurisdiction_id
     logicalType: string
     physicalType: text
     description: Primary key — md5(master_org_id | jurisdiction_id); one row per org<->jurisdiction tier link.
@@ -40,38 +42,44 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: master_org_id
+  - id: master_org_id
+    name: master_org_id
     logicalType: string
     physicalType: text
     description: Organization side — FK to mdm_organization.master_org_id. The FK is added NOT VALID in the model post_hook (not as a contract constraint) to avoid row-by-row validation over millions of rows during the bulk INSERT.
     required: true
     relationships:
     - type: foreignKey
-      to: mdm_organization.master_org_id
+      to: mdm_organization.odcs.yaml#/schema/mdm_organization/properties/master_org_id
       customProperties:
       - property: dbtTestSeverity
         value: warn
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: Jurisdiction side — FK to jurisdictions.jurisdiction_id. Added NOT VALID in the model post_hook (not as a contract constraint) for the same bulk-INSERT reason as master_org_id.
     required: true
     relationships:
     - type: foreignKey
-      to: jurisdictions.jurisdiction_id
-  - name: jurisdiction_level
+      to: jurisdictions.odcs.yaml#/schema/jurisdictions/properties/jurisdiction_id
+  - id: jurisdiction_level
+    name: jurisdiction_level
     logicalType: string
     physicalType: text
     description: 'Tier of the link: ''city'' | ''county'' | ''state''.'
-  - name: match_method
+  - id: match_method
+    name: match_method
     logicalType: string
     physicalType: text
     description: 'How the link was derived: ''state_code'' (state tier) | ''city_name_state'' (city tier) | ''zip5_hud'' (county tier via HUD ZIP->county crosswalk).'
-  - name: allocation_ratio
+  - id: allocation_ratio
+    name: allocation_ratio
     logicalType: number
     physicalType: numeric
     description: HUD ZIP->county tot_ratio (a ZIP can straddle counties); populated only on the county tier, NULL on state/city tiers.
-  - name: is_dominant
+  - id: is_dominant
+    name: is_dominant
     logicalType: boolean
     physicalType: boolean
     description: 'TRUE for the single best row per (org, level): always TRUE for state/city tiers; the max-tot_ratio (largest-share) county for the county tier.'

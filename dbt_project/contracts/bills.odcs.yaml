@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: bills
+- id: bills
+  name: bills
   physicalName: public.bills
   logicalType: object
   description: public.bills — one row per OpenStates bill (PK bill_uid = md5 over ocd_bill_id). Built from int_bills__jurisdiction_linked. jurisdiction_id is a NULLABLE FK -> jurisdictions.jurisdiction_id (the state-level row); federal / unmapped bills are allowed. subject (jsonb array) is the topic source exploded in rpt_bill_map_aggregate. year is an INTEGER. Indexed on jurisdiction_id and state_code for map/geography filtering.
   dataGranularityDescription: One row per OpenStates bill (PK bill_uid = md5 over ocd_bill_id).
   properties:
-  - name: bill_uid
+  - id: bill_uid
+    name: bill_uid
     logicalType: string
     physicalType: text
     description: Primary key. md5('openstates_bill|' || ocd_bill_id).
@@ -40,7 +42,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: ocd_bill_id
+  - id: ocd_bill_id
+    name: ocd_bill_id
     logicalType: string
     physicalType: text
     description: OpenStates OCD bill id (natural key, unique).
@@ -57,58 +60,71 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: identifier
+  - id: identifier
+    name: identifier
     logicalType: string
     physicalType: text
     description: Bill number/identifier (e.g. 'HB 1').
-  - name: title
+  - id: title
+    name: title
     logicalType: string
     physicalType: text
     description: Bill title.
-  - name: classification
+  - id: classification
+    name: classification
     logicalType: object
     physicalType: jsonb
     description: jsonb array — bill classification(s).
-  - name: subject
+  - id: subject
+    name: subject
     logicalType: object
     physicalType: jsonb
     description: jsonb array — bill subjects/topics (exploded in rpt_bill_map_aggregate).
-  - name: session_identifier
+  - id: session_identifier
+    name: session_identifier
     logicalType: string
     physicalType: text
     description: Legislative session identifier.
-  - name: session_name
+  - id: session_name
+    name: session_name
     logicalType: string
     physicalType: text
     description: Legislative session display name.
-  - name: ocd_jurisdiction_id
+  - id: ocd_jurisdiction_id
+    name: ocd_jurisdiction_id
     logicalType: string
     physicalType: text
     description: OCD jurisdiction id (e.g. ocd-jurisdiction/country:us/state:al/government).
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state code.
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: NULLABLE FK -> jurisdictions.jurisdiction_id (state-level row). Null for federal / unmapped bills.
     relationships:
     - type: foreignKey
-      to: jurisdictions.jurisdiction_id
-  - name: latest_action_date
+      to: jurisdictions.odcs.yaml#/schema/jurisdictions/properties/jurisdiction_id
+  - id: latest_action_date
+    name: latest_action_date
     logicalType: date
     physicalType: date
     description: Date of the latest action on the bill (cast from source TEXT).
-  - name: latest_action_description
+  - id: latest_action_description
+    name: latest_action_description
     logicalType: string
     physicalType: text
     description: Description of the latest action.
-  - name: year
+  - id: year
+    name: year
     logicalType: integer
     physicalType: integer
     description: Calendar year (INTEGER) derived from latest/first action date or session label.
-  - name: dbt_loaded_at
+  - id: dbt_loaded_at
+    name: dbt_loaded_at
     logicalType: timestamp
     physicalType: timestamp with time zone
     description: dbt build timestamp.

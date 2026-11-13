@@ -81,7 +81,7 @@ def test_a_data_product_with_no_definition_fails():
 
 
 def test_products_validate_against_the_official_schema():
-    contracts, _ = odcs.build_contracts(DBT)
+    contracts = odcs.build_contracts(DBT).contracts
     products = odps.products_for(contracts)
     assert list(products) == [PRODUCT]
     product = products[PRODUCT]

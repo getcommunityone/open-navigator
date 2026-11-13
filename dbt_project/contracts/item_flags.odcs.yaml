@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: item_flags
+- id: item_flags
+  name: item_flags
   physicalName: public.item_flags
   logicalType: object
   description: Per-(subject, flag) anomaly scaffold for the Raised Eyebrows lens. Kept SEPARATE from item_interestingness on purpose — anomalies are review-sensitive and must never inflate the discovery score. Each flag is an UNVERIFIED anomaly (a review prompt), NOT a finding; verify against source_record_url before drawing any conclusion. Detectors are gated by per-type feature-flag vars (default off); see model SQL for the TODO detectors awaiting sources.
   properties:
-  - name: item_flag_id
+  - id: item_flag_id
+    name: item_flag_id
     logicalType: string
     physicalType: text
     description: PK — md5(flag_type || '|' || subject_ref).
@@ -39,24 +41,29 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: flag_type
+  - id: flag_type
+    name: flag_type
     logicalType: string
     physicalType: text
     description: 'Anomaly type: threshold_structuring | residency_mismatch | vendor_official_tie | expense_outlier | sole_source_concentration | late_disclosure.'
     required: true
-  - name: subject_ref
+  - id: subject_ref
+    name: subject_ref
     logicalType: string
     physicalType: text
     description: The flagged subject's id (an item/financial_item id or an official id).
     required: true
-  - name: subject_kind
+  - id: subject_kind
+    name: subject_kind
     logicalType: string
     physicalType: text
     description: 'What subject_ref points at: ''item'' | ''financial_item'' | ''official''.'
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
-  - name: severity
+  - id: severity
+    name: severity
     logicalType: number
     physicalType: double precision
     description: UNVERIFIED anomaly strength in [0,1]. NOT a probability of wrongdoing.
@@ -65,19 +72,23 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: evidence
+  - id: evidence
+    name: evidence
     logicalType: object
     physicalType: jsonb
     description: JSONB supporting detail (amounts, limits, links). Review material, not proof.
-  - name: source_record_url
+  - id: source_record_url
+    name: source_record_url
     logicalType: string
     physicalType: text
     description: Relative URL to the underlying record so the UI can link to evidence for human review.
-  - name: anomaly_score
+  - id: anomaly_score
+    name: anomaly_score
     logicalType: number
     physicalType: double precision
     description: Per-subject max(severity) for the Raised Eyebrows lens sort. UNVERIFIED.
-  - name: anomaly_any
+  - id: anomaly_any
+    name: anomaly_any
     logicalType: boolean
     physicalType: boolean
     description: True for any flagged subject row (rollup convenience).

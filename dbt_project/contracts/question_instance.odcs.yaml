@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: question_instance
+- id: question_instance
+  name: question_instance
   physicalName: public.question_instance
   logicalType: object
   description: public.question_instance — polymorphic bridge of decisions/bills to the policy question they instantiate, with normalized outcome. source_id -> event_decision is a relationships(warn) test only because event_decision is partitioned with a composite PK (same limitation as event_decision_place).
   properties:
-  - name: instance_id
+  - id: instance_id
+    name: instance_id
     logicalType: string
     physicalType: text
     description: PK — md5(source_type || '|' || source_id || '|' || question_id).
@@ -39,64 +41,69 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: question_id
+  - id: question_id
+    name: question_id
     logicalType: string
     physicalType: text
     description: FK -> policy_question.question_id.
     required: true
     relationships:
     - type: foreignKey
-      to: policy_question.question_id
+      to: policy_question.odcs.yaml#/schema/policy_question/properties/question_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: source_type
+  - id: source_type
+    name: source_type
     logicalType: string
     physicalType: text
     description: local_decision | state_bill.
     required: true
-  - name: source_id
+  - id: source_id
+    name: source_id
     logicalType: string
     physicalType: text
     description: The decision/bill id. For local_decision -> event_decision.event_decision_id, asserted via relationships(warn) (partitioned composite-PK parent).
     required: true
-    relationships:
-    - type: foreignKey
-      to: event_decision.event_decision_id
-      customProperties:
-      - property: dbtTestSeverity
-        value: warn
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
-  - name: jurisdiction_name
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: text
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: text
-  - name: outcome_raw
+  - id: outcome_raw
+    name: outcome_raw
     logicalType: string
     physicalType: text
-  - name: outcome_normalized
+  - id: outcome_normalized
+    name: outcome_normalized
     logicalType: string
     physicalType: text
     description: 'decisions: approved|denied|deferred|other; bills: pending (Phase 2 extends).'
-  - name: occurred_at
+  - id: occurred_at
+    name: occurred_at
     logicalType: timestamp
     physicalType: timestamp with time zone
-  - name: session
+  - id: session
+    name: session
     logicalType: string
     physicalType: text
-  - name: assign_score
+  - id: assign_score
+    name: assign_score
     logicalType: number
     physicalType: double precision

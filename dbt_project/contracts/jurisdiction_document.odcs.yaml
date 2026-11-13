@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: jurisdiction_document
+- id: jurisdiction_document
+  name: jurisdiction_document
   physicalName: public.jurisdiction_document
   logicalType: object
   description: 'public.jurisdiction_document — jurisdiction-grain civic documents (comprehensive plan / framework, zoning ordinance, ordinance code, zoning map) that belong to a JURISDICTION rather than a single meeting, so the API can surface "plans & ordinances" on a jurisdiction view and link them to civic data. One row per document. DISTINCT from event_meeting_document (meeting-grain agenda/minutes matched on jurisdiction + date + body): a framework has no meeting date and links straight to the jurisdiction. Source: staging.stg_jurisdiction_document (bronze.bronze_jurisdiction_document, landed by ingestion.jurisdiction_documents.bronze from a curated registry of real published documents — e.g. the City of Tuscaloosa "Framework").'
   dataGranularityDescription: One row per document.
   properties:
-  - name: jurisdiction_document_id
+  - id: jurisdiction_document_id
+    name: jurisdiction_document_id
     logicalType: string
     physicalType: text
     description: Primary key — md5(jurisdiction_id || '|' || url_sha256), stable per document.
@@ -40,15 +42,17 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: FK -> public.jurisdictions.jurisdiction_id (the owning jurisdiction). NOT NULL — a jurisdiction-grain document must belong to a real jurisdiction. Enforced FK (jurisdictions has a single-column PK).
     required: true
     relationships:
     - type: foreignKey
-      to: jurisdictions.jurisdiction_id
-  - name: document_type
+      to: jurisdictions.odcs.yaml#/schema/jurisdictions/properties/jurisdiction_id
+  - id: document_type
+    name: document_type
     logicalType: string
     physicalType: text
     description: comprehensive_plan | zoning_ordinance | ordinance_code | zoning_map.
@@ -65,29 +69,35 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: title
+  - id: title
+    name: title
     logicalType: string
     physicalType: text
     description: Human-readable document title.
-  - name: document_url
+  - id: document_url
+    name: document_url
     logicalType: string
     physicalType: text
     description: Canonical URL of the document.
     required: true
-  - name: url_sha256
+  - id: url_sha256
+    name: url_sha256
     logicalType: string
     physicalType: varchar(64)
     description: SHA-256 of document_url (the per-document key part).
     required: true
-  - name: adopted_date
+  - id: adopted_date
+    name: adopted_date
     logicalType: date
     physicalType: date
     description: Adoption date (DATE); null unless verified.
-  - name: source
+  - id: source
+    name: source
     logicalType: string
     physicalType: varchar(128)
     description: Publishing site / origin (e.g. 'framework.tuscaloosa.com').
-  - name: ingested_at
+  - id: ingested_at
+    name: ingested_at
     logicalType: timestamp
     physicalType: timestamp
     description: When the document was loaded into bronze.

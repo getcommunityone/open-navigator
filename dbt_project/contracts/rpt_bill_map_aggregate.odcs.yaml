@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: rpt_bill_map_aggregate
+- id: rpt_bill_map_aggregate
+  name: rpt_bill_map_aggregate
   physicalName: public.rpt_bill_map_aggregate
   logicalType: object
   description: 'public.rpt_bill_map_aggregate — pre-aggregated bill SUBJECTS (topics) by jurisdiction for fast map/geography "trending topics" queries. Grain: one row per (jurisdiction_id, subject) (state_code is functionally determined by jurisdiction_id). subject is exploded from bills.subject. topic_rank ranks subjects within a jurisdiction by bill_count desc so the UI can pull "top N trending topics in this geography"; recent_bill_count is the 2-year "trending" count. PK surrogate bill_topic_id; FK jurisdiction_id -> jurisdictions (nullable). Indexed on jurisdiction_id and state_code.'
   dataGranularityDescription: One row per (jurisdiction_id, subject) (state_code is functionally determined by jurisdiction_id).
   properties:
-  - name: bill_topic_id
+  - id: bill_topic_id
+    name: bill_topic_id
     logicalType: string
     physicalType: text
     description: Primary key. md5(coalesce(jurisdiction_id,'') || '|' || subject).
@@ -40,43 +42,52 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: NULLABLE FK -> jurisdictions.jurisdiction_id (state-level row).
     relationships:
     - type: foreignKey
-      to: jurisdictions.jurisdiction_id
-  - name: state_code
+      to: jurisdictions.odcs.yaml#/schema/jurisdictions/properties/jurisdiction_id
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state code (determined by jurisdiction_id).
-  - name: subject
+  - id: subject
+    name: subject
     logicalType: string
     physicalType: text
     description: Bill subject/topic (exploded from bills.subject jsonb array).
     required: true
-  - name: bill_count
+  - id: bill_count
+    name: bill_count
     logicalType: integer
     physicalType: bigint
     description: Total bills mentioning this subject in the jurisdiction.
-  - name: recent_bill_count
+  - id: recent_bill_count
+    name: recent_bill_count
     logicalType: integer
     physicalType: bigint
     description: Bills with latest_action_date within the last 2 years ('trending').
-  - name: most_recent_action_date
+  - id: most_recent_action_date
+    name: most_recent_action_date
     logicalType: date
     physicalType: date
     description: Latest action date across the subject's bills.
-  - name: topic_rank
+  - id: topic_rank
+    name: topic_rank
     logicalType: integer
     physicalType: bigint
     description: Rank of the subject within the jurisdiction by bill_count desc.
-  - name: sample_bill_titles
+  - id: sample_bill_titles
+    name: sample_bill_titles
     logicalType: array
     physicalType: text[]
     description: Up to 3 most-recent bill titles for the subject.
-  - name: dbt_loaded_at
+  - id: dbt_loaded_at
+    name: dbt_loaded_at
     logicalType: timestamp
     physicalType: timestamp with time zone
     description: dbt build timestamp.

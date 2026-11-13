@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: browse_entity_state_transcript_count
+- id: browse_entity_state_transcript_count
+  name: browse_entity_state_transcript_count
   physicalName: public.browse_entity_state_transcript_count
   logicalType: object
   description: 'public.browse_entity_state_transcript_count — per-entity-per-state count of DISTINCT transcript videos (public.event_documents, document_type= ''transcript'') linked to each browseable homepage entity. Lets the browse pages filter to a selected place''s state and show only the place|topic| question|cause entities actually discussed there. state_code is never NULL. Causes now carry real per-state keyword-FTS counts (EveryOrg taxonomy via int_transcript_keyword_cause). Source: intermediate.int_browse_entity_transcripts.'
   properties:
-  - name: entity_type
+  - id: entity_type
+    name: entity_type
     logicalType: string
     physicalType: text
     description: 'Entity kind: ''place'' | ''topic'' | ''question'' | ''cause''. Part of the PK.'
@@ -44,7 +46,8 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: entity_id
+  - id: entity_id
+    name: entity_id
     logicalType: string
     physicalType: text
     description: 'Polymorphic entity id (part of the PK): geoid for place, topic_id for topic, question_id for question.'
@@ -57,7 +60,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state the transcripts were recorded in. Part of the PK; never NULL.
@@ -70,11 +74,13 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: entity_name
+  - id: entity_name
+    name: entity_name
     logicalType: string
     physicalType: text
     description: Human-readable entity label (place name / topic name / question text).
-  - name: transcript_count
+  - id: transcript_count
+    name: transcript_count
     logicalType: integer
     physicalType: integer
     description: COUNT(DISTINCT video_id) of transcripts linked to this entity within this state. Never NULL.

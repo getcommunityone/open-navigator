@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: meeting_topic_link
+- id: meeting_topic_link
+  name: meeting_topic_link
   physicalName: public.meeting_topic_link
   logicalType: object
   description: public.meeting_topic_link — one row per (event_meeting_id, link_type, link_id). link_type 'civicsearch_topic' is a transcript full-text match against each CivicSearch topic's keyword set (PRIMARY); 'canonical_theme' is the AI primary_theme normalized to a canonical COFOG theme (FALLBACK). Causes are intentionally not modeled (no warehouse linkage exists).
   dataGranularityDescription: One row per (event_meeting_id, link_type, link_id).
   properties:
-  - name: meeting_topic_link_id
+  - id: meeting_topic_link_id
+    name: meeting_topic_link_id
     logicalType: string
     physicalType: text
     description: Primary key — md5(event_meeting_id || '|' || link_type || '|' || link_id).
@@ -40,21 +42,20 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: event_meeting_id
+  - id: event_meeting_id
+    name: event_meeting_id
     logicalType: integer
     physicalType: integer
     description: FK -> event_meeting.event_meeting_id (enforced).
     required: true
-    relationships:
-    - type: foreignKey
-      to: event_meeting.event_meeting_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: link_type
+  - id: link_type
+    name: link_type
     logicalType: string
     physicalType: text
     description: '''civicsearch_topic'' (full-text) or ''canonical_theme'' (AI theme).'
@@ -74,7 +75,8 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: link_id
+  - id: link_id
+    name: link_id
     logicalType: string
     physicalType: text
     description: 'Polymorphic link target as text: civicsearch_topic.topic_id for link_type=''civicsearch_topic'', the canonical theme slug for ''canonical_theme''.'
@@ -85,12 +87,14 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: link_label
+  - id: link_label
+    name: link_label
     logicalType: string
     physicalType: text
     description: Human label — topic name or canonical theme label.
     required: true
-  - name: link_source
+  - id: link_source
+    name: link_source
     logicalType: string
     physicalType: text
     description: '''decision'' for rows derived from the meeting''s decisions/event analysis via c1_event_id (the decision-keyword civicsearch_topic leg AND the canonical_theme leg — PRIMARY); ''transcript'' for transcript-keyword fallback civicsearch_topic rows used only for meetings with no decision-derived topic rows.'
@@ -110,31 +114,38 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: varchar
     description: 2-letter state code (passthrough from event_meeting).
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name (passthrough from event_meeting).
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: varchar
     description: City (passthrough from event_meeting).
-  - name: jurisdiction_name
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: varchar
     description: Jurisdiction name (passthrough from event_meeting).
-  - name: meeting_date
+  - id: meeting_date
+    name: meeting_date
     logicalType: string
     physicalType: text
     description: Meeting date as stored on event_meeting (text).
-  - name: video_id
+  - id: video_id
+    name: video_id
     logicalType: string
     physicalType: varchar
     description: Transcript/video key (passthrough from event_meeting).
-  - name: has_transcript
+  - id: has_transcript
+    name: has_transcript
     logicalType: boolean
     physicalType: boolean
     description: True when the meeting has a transcript document.

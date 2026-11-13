@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: meeting_question_link
+- id: meeting_question_link
+  name: meeting_question_link
   physicalName: public.meeting_question_link
   logicalType: object
   description: public.meeting_question_link — one row per (event_meeting_id, question_id). Resolves the meeting -> decision -> question_instance -> policy_question path.
   dataGranularityDescription: One row per (event_meeting_id, question_id).
   properties:
-  - name: meeting_question_link_id
+  - id: meeting_question_link_id
+    name: meeting_question_link_id
     logicalType: string
     physicalType: text
     description: Primary key — md5(event_meeting_id || '|' || question_id).
@@ -40,55 +42,60 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: event_meeting_id
+  - id: event_meeting_id
+    name: event_meeting_id
     logicalType: integer
     physicalType: integer
     description: FK -> event_meeting.event_meeting_id (enforced).
     required: true
-    relationships:
-    - type: foreignKey
-      to: event_meeting.event_meeting_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: question_id
+  - id: question_id
+    name: question_id
     logicalType: string
     physicalType: text
     description: FK -> policy_question.question_id (enforced).
     required: true
     relationships:
     - type: foreignKey
-      to: policy_question.question_id
+      to: policy_question.odcs.yaml#/schema/policy_question/properties/question_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: question_label
+  - id: question_label
+    name: question_label
     logicalType: string
     physicalType: text
     description: policy_question.canonical_text — the question's display text.
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: varchar
     description: 2-letter state code (passthrough from event_meeting).
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name (passthrough from event_meeting).
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: varchar
     description: City (passthrough from event_meeting).
-  - name: jurisdiction_name
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: varchar
     description: Jurisdiction name (passthrough from event_meeting).
-  - name: meeting_date
+  - id: meeting_date
+    name: meeting_date
     logicalType: string
     physicalType: text
     description: Meeting date as stored on event_meeting (text).

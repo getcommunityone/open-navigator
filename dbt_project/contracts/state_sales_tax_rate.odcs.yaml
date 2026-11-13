@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: state_sales_tax_rate
+- id: state_sales_tax_rate
+  name: state_sales_tax_rate
   physicalName: public.state_sales_tax_rate
   logicalType: object
   description: public.state_sales_tax_rate — combined state + average-local general sales-tax rate per state (50 states + DC), from the Tax Foundation report "State and Local Sales Tax Rates, 2026" (as of 2026-01-01). Census has sales-tax revenue but not rates, so this is the rate source. *_pct columns are percentages as published; combined_sales_tax_rate is the same value as a fraction (0.0946) ready to multiply by spending. State + average-local grain (not city-exact).
   properties:
-  - name: state_sales_tax_rate_id
+  - id: state_sales_tax_rate_id
+    name: state_sales_tax_rate_id
     logicalType: string
     physicalType: text
     description: PK — state_code.
@@ -39,7 +41,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter postal code.
@@ -56,22 +59,26 @@ schema:
       mustBe: 0
       dimension: uniqueness
       severity: error
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name.
     required: true
-  - name: state_sales_tax_rate_pct
+  - id: state_sales_tax_rate_pct
+    name: state_sales_tax_rate_pct
     logicalType: number
     physicalType: numeric
     description: State statutory sales-tax rate, percent.
     required: true
-  - name: avg_local_sales_tax_rate_pct
+  - id: avg_local_sales_tax_rate_pct
+    name: avg_local_sales_tax_rate_pct
     logicalType: number
     physicalType: numeric
     description: Population-weighted average local rate, percent (can be slightly negative).
     required: true
-  - name: combined_sales_tax_rate_pct
+  - id: combined_sales_tax_rate_pct
+    name: combined_sales_tax_rate_pct
     logicalType: number
     physicalType: numeric
     description: Published combined state + average-local rate, percent.
@@ -81,7 +88,8 @@ schema:
       description: Values from 0 to 15 (dbt test dbt_utils.accepted_range).
       dimension: conformity
       severity: error
-  - name: combined_sales_tax_rate
+  - id: combined_sales_tax_rate
+    name: combined_sales_tax_rate
     logicalType: number
     physicalType: numeric
     description: Combined rate as a fraction (combined_pct / 100), multiply-ready.
@@ -91,27 +99,33 @@ schema:
       description: Values from 0 to 0.15 (dbt test dbt_utils.accepted_range).
       dimension: conformity
       severity: error
-  - name: max_local_sales_tax_rate_pct
+  - id: max_local_sales_tax_rate_pct
+    name: max_local_sales_tax_rate_pct
     logicalType: number
     physicalType: numeric
     description: Highest local rate in the state, percent.
-  - name: combined_rank
+  - id: combined_rank
+    name: combined_rank
     logicalType: integer
     physicalType: integer
     description: Tax Foundation rank by combined rate (1 = highest). NULL for DC.
-  - name: as_of_date
+  - id: as_of_date
+    name: as_of_date
     logicalType: date
     physicalType: date
     description: Effective date of the published rates.
-  - name: vintage_year
+  - id: vintage_year
+    name: vintage_year
     logicalType: integer
     physicalType: integer
     description: Report vintage year.
-  - name: source
+  - id: source
+    name: source
     logicalType: string
     physicalType: text
     description: Citation string for the rate source.
-  - name: published_at
+  - id: published_at
+    name: published_at
     logicalType: timestamp
     physicalType: timestamp with time zone
     description: When this mart row was built.

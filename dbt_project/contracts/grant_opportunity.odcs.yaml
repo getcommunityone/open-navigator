@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: grant_opportunity
+- id: grant_opportunity
+  name: grant_opportunity
   physicalName: public.grant_opportunity
   logicalType: object
   description: 'public.grant_opportunity — one row per Grants.gov federal funding opportunity (prospective grants open / forecasted for application), from stg_grants_gov__opportunity. DISTINCT entity from the 990 Schedule I `grant` mart: this is "what''s open now", surfaced in /search as the ''opportunity'' result type. PK opportunity_id; no FKs (no resolved org/jurisdiction relationship yet).'
   dataGranularityDescription: One row per Grants.gov federal funding opportunity (prospective grants open / forecasted for application), from stg_grants_gov__opportunity.
   properties:
-  - name: opportunity_id
+  - id: opportunity_id
+    name: opportunity_id
     logicalType: string
     physicalType: text
     description: Grants.gov opportunity id. Primary key.
@@ -40,51 +42,63 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: opportunity_number
+  - id: opportunity_number
+    name: opportunity_number
     logicalType: string
     physicalType: text
     description: Funding-opportunity number (e.g. 'HRSA-24-019').
-  - name: title
+  - id: title
+    name: title
     logicalType: string
     physicalType: text
     description: Opportunity title.
-  - name: agency_code
+  - id: agency_code
+    name: agency_code
     logicalType: string
     physicalType: text
     description: Issuing agency code (e.g. 'HHS-HRSA').
-  - name: agency_name
+  - id: agency_name
+    name: agency_name
     logicalType: string
     physicalType: text
     description: Issuing agency name.
-  - name: open_date
+  - id: open_date
+    name: open_date
     logicalType: date
     physicalType: date
     description: Date the opportunity opens/was posted.
-  - name: close_date
+  - id: close_date
+    name: close_date
     logicalType: date
     physicalType: date
     description: Application close date.
-  - name: opp_status
+  - id: opp_status
+    name: opp_status
     logicalType: string
     physicalType: text
     description: 'Lifecycle status: forecasted | posted | closed | archived.'
-  - name: doc_type
+  - id: doc_type
+    name: doc_type
     logicalType: string
     physicalType: text
     description: Grants.gov document type (e.g. 'synopsis').
-  - name: aln
+  - id: aln
+    name: aln
     logicalType: string
     physicalType: text
     description: First Assistance Listing Number (formerly CFDA).
-  - name: is_open
+  - id: is_open
+    name: is_open
     logicalType: boolean
     physicalType: boolean
     description: True when close_date is null or has not yet passed (as of build).
-  - name: external_url
+  - id: external_url
+    name: external_url
     logicalType: string
     physicalType: text
     description: Canonical public Grants.gov opportunity detail page.
-  - name: dbt_loaded_at
+  - id: dbt_loaded_at
+    name: dbt_loaded_at
     logicalType: timestamp
     physicalType: timestamp with time zone
     description: Timestamp this mart was materialized.

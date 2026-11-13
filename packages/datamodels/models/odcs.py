@@ -7,7 +7,9 @@ enforces a dbt contract gets ``dbt_project/contracts/<model>.odcs.yaml``, genera
 
 * the model's description, and its grain (its "one row per ..." sentence);
 * each column's physical type as declared, and its ODCS logical type;
-* primary keys and foreign keys (dbt constraints and ``relationships`` tests);
+* primary keys and foreign keys (dbt constraints and ``relationships`` tests). A foreign key
+  points into its parent's contract with a fully qualified ODCS reference to the column's ``id``
+  (#276), so it is left out while the parent has no contract holding that column;
 * ``not_null``, ``unique`` and ``accepted_values`` tests as ODCS library quality rules, and range
   tests, filtered tests and CHECK constraints as text rules, each with the test's severity (a
   ``warn`` test never makes a column ``required`` or ``unique``);
@@ -19,8 +21,9 @@ enforces a dbt contract gets ``dbt_project/contracts/<model>.odcs.yaml``, genera
     python -m models.odcs --check   # CI: fails on a stale, missing, extra or invalid contract
 
 Contracts describe structure only: no row data, hostnames or personal data. They are validated
-against the official ODCS v3.1.0 JSON Schema, vendored in dbt_project/contracts/_schema/.
-The same commands write and check the ODPS data products built from them (``models.odps``).
+against the official ODCS v3.1.0 JSON Schema at its release tag (the copy Ontos bundles),
+vendored in dbt_project/contracts/_schema/. The same commands write and check the ODPS data
+products built from them (``models.odps``).
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ import json
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 from loguru import logger
@@ -156,6 +159,24 @@ def _ref(target: Any) -> str:
     return found.group(1) if found else str(target).strip().strip("'\"").split(".")[-1]
 
 
+def _reference(owner: str, relation: str, column: str) -> str:
+    """ODCS's fully qualified reference to a column, written in the contract of ``owner``.
+
+    Every contract holds one table, whose ``id`` is the relation's name, and each property's ``id``
+    is its column's name. Within the same contract the file part is left out; otherwise it is the
+    other contract's file, in the same folder: ``<relation>.odcs.yaml#/schema/<id>/properties/<id>``.
+    """
+    path = f"schema/{relation}/properties/{column}"
+    return path if relation == owner else f"{relation}{SUFFIX}#/{path}"
+
+
+def _target(reference: str) -> tuple[str, str]:
+    """The (relation, column) that a reference written by :func:`_reference` points at."""
+    _, _, path = reference.rpartition("#/")
+    _, relation, _, column = path.split("/")
+    return relation, column
+
+
 def _grain(description: str) -> str | None:
     """The description's "one row per ..." sentence, which states the relation's grain."""
     found = re.search(
@@ -240,11 +261,16 @@ def _rule(name: str, args: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _property(
-    column: dict[str, Any], keys: list[str], foreign: list[str], redacted: bool
+    owner: str,
+    column: dict[str, Any],
+    keys: list[str],
+    foreign: list[tuple[str, str]],
+    redacted: bool,
 ) -> dict[str, Any]:
     name = column["name"]
     data_type = str(column.get("data_type") or "")
     prop: dict[str, Any] = {
+        "id": name,
         "name": name,
         "logicalType": logical_type(data_type),
         "physicalType": data_type,
@@ -272,18 +298,19 @@ def _property(
         if name in keys:
             prop["primaryKey"] = True
             prop["primaryKeyPosition"] = keys.index(name) + 1
-    # Relationship targets, each kept once; a target only a warn-level test asserts is marked so.
-    soft: dict[str, bool] = {target: False for target in foreign}
+    # Relationship targets as (relation, column), each kept once; a target only a warn-level test
+    # asserts is marked so. build_contracts later drops those with no contract to point into.
+    soft: dict[tuple[str, str], bool] = {target: False for target in foreign}
     for c in constraints:
         if c.get("type") == "foreign_key" and c.get("to") and c.get("to_columns"):
-            soft[f"{_ref(c['to'])}.{c['to_columns'][0]}"] = False
+            soft[(_ref(c["to"]), c["to_columns"][0])] = False
     for test_name, args in tests:
         if test_name == "relationships" and args.get("to") and args.get("field"):
-            target = f"{_ref(args['to'])}.{args['field']}"
+            target = (_ref(args["to"]), args["field"])
             soft[target] = soft.get(target, True) and _severity(args) == "warning"
     if soft:
         prop["relationships"] = [
-            {"type": "foreignKey", "to": target}
+            {"type": "foreignKey", "to": _reference(owner, *target)}
             | (
                 {"customProperties": [{"property": "dbtTestSeverity", "value": "warn"}]}
                 if is_soft
@@ -321,11 +348,13 @@ def contract_for(
 
     ``projection`` is its entry in the macro's ``projections`` (columns kept and redacted);
     ``slimmed`` is its entry in :func:`serving_bodies` (``rows`` or ``columns``), if any.
+    Its foreign keys point into their parents' contract files; :func:`build_contracts` drops
+    each one whose parent has no contract holding the column.
     """
     name = model["name"]
     description = _clean(model.get("description"))
     keys: list[str] = []
-    foreign: dict[str, list[str]] = {}
+    foreign: dict[str, list[tuple[str, str]]] = {}
     composite: list[dict[str, Any]] = []
     for c in model.get("constraints") or []:
         if c.get("type") == "primary_key":
@@ -337,13 +366,13 @@ def contract_for(
                 _ref(c.get("to")),
             )
             if len(cols) == 1 and len(to_cols) == 1:
-                foreign.setdefault(cols[0], []).append(f"{target}.{to_cols[0]}")
+                foreign.setdefault(cols[0], []).append((target, to_cols[0]))
             elif cols and len(cols) == len(to_cols):
                 composite.append(
                     {
                         "type": "foreignKey",
-                        "from": [f"{name}.{col}" for col in cols],
-                        "to": [f"{target}.{col}" for col in to_cols],
+                        "from": [_reference(name, name, col) for col in cols],
+                        "to": [_reference(name, target, col) for col in to_cols],
                     }
                 )
     columns = model.get("columns") or []
@@ -365,6 +394,7 @@ def contract_for(
             )
         columns = [by_name[c] for c in projection["columns"] if c in by_name]
     table: dict[str, Any] = {
+        "id": name,
         "name": name,
         "physicalName": f"public.{name}",
         "logicalType": "object",
@@ -375,7 +405,7 @@ def contract_for(
         if grain:
             table["dataGranularityDescription"] = grain
     table["properties"] = [
-        _property(c, keys, foreign.get(c["name"], []), c["name"] in redacted)
+        _property(name, c, keys, foreign.get(c["name"], []), c["name"] in redacted)
         for c in columns
     ]
     if composite:
@@ -426,10 +456,71 @@ def _enforced(model: dict[str, Any]) -> bool:
     )
 
 
-def build_contracts(
-    dbt_dir: Path = DBT_DIR,
-) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    """The contracts of the served relations, and the served relations left out (no enforced dbt contract)."""
+class Built(NamedTuple):
+    """What :func:`build_contracts` returns.
+
+    ``contracts``: by relation, in the macro's served order. ``left_out``: the served relations
+    with no enforced dbt contract, so no contract. ``left_out_keys``: the foreign keys left out,
+    each as ``<model>.<column> -> <parent>.<column>``.
+    """
+
+    contracts: dict[str, dict[str, Any]]
+    left_out: list[str]
+    left_out_keys: list[str]
+
+
+def _drop_unresolved(contracts: dict[str, dict[str, Any]]) -> list[str]:
+    """Remove each foreign key whose target is no property of these contracts; list those removed.
+
+    A fully qualified reference names a property in the parent's contract, so it resolves only
+    when the parent has a contract holding that column. A parent served without one (#271), one
+    not served at all, or a column its public projection leaves out gives it nothing to point at.
+    Such a key comes back by itself once its parent's contract holds the column.
+    """
+    held = {
+        name: {p["id"] for p in c["schema"][0]["properties"]}
+        for name, c in contracts.items()
+    }
+
+    def resolves(reference: str) -> bool:
+        relation, column = _target(reference)
+        return column in held.get(relation, set())
+
+    def prune(holder: dict[str, Any], references) -> list[dict[str, Any]]:
+        """Drop the holder's relationships that don't all resolve; return the ones dropped."""
+        kept: list[dict[str, Any]] = []
+        dropped: list[dict[str, Any]] = []
+        for rel in holder.get("relationships", []):
+            (kept if all(map(resolves, references(rel))) else dropped).append(rel)
+        if kept:
+            holder["relationships"] = kept  # same key, so the YAML keeps its order
+        else:
+            holder.pop("relationships", None)
+        return dropped
+
+    def side(references: list[str]) -> str:
+        """One side of a composite key, as ``relation.(a, b)``."""
+        columns = ", ".join(_target(r)[1] for r in references)
+        return f"{_target(references[0])[0]}.({columns})"
+
+    left_out: list[str] = []
+    for name, contract in contracts.items():
+        table = contract["schema"][0]
+        for prop in table["properties"]:
+            left_out += [
+                f"{name}.{prop['name']} -> {'.'.join(_target(rel['to']))}"
+                for rel in prune(prop, lambda rel: [rel["to"]])
+            ]
+        left_out += [
+            f"{side(rel['from'])} -> {side(rel['to'])}"
+            for rel in prune(table, lambda rel: rel["from"] + rel["to"])
+        ]
+    return left_out
+
+
+def build_contracts(dbt_dir: Path = DBT_DIR) -> Built:
+    """The contracts of the served relations, the served relations left out (no enforced dbt
+    contract), and the foreign keys left out (no contract holds the column they point at)."""
     macro = (dbt_dir / "macros" / "publish_public_serving.sql").read_text(
         encoding="utf-8"
     )
@@ -443,7 +534,7 @@ def build_contracts(
             left_out.append(name)
             continue
         contracts[name] = contract_for(model, projected.get(name), slimmed.get(name))
-    return contracts, left_out
+    return Built(contracts, left_out, _drop_unresolved(contracts))
 
 
 def render(document: dict[str, Any], header: str = HEADER) -> str:
@@ -477,7 +568,7 @@ def _name(path: Path) -> str:
 
 def write(dbt_dir: Path = DBT_DIR) -> int:
     """Regenerate every contract (and remove contracts for relations no longer served)."""
-    contracts, left_out = build_contracts(dbt_dir)
+    contracts, left_out, left_out_keys = build_contracts(dbt_dir)
     products = odps.products_for(contracts)
     invalid = {
         f"{name}{SUFFIX}": f"ODCS {API_VERSION}: {errors[:3]}"
@@ -526,12 +617,18 @@ def write(dbt_dir: Path = DBT_DIR) -> int:
             len(left_out),
             ", ".join(left_out),
         )
+    if left_out_keys:
+        logger.warning(
+            "{} foreign keys point at a column no contract holds, so they are left out: {}",
+            len(left_out_keys),
+            "; ".join(left_out_keys),
+        )
     return 0
 
 
 def check(dbt_dir: Path = DBT_DIR) -> int:
     """0 when every contract is present, current and valid; 1 (naming each problem) otherwise."""
-    contracts, _ = build_contracts(dbt_dir)
+    contracts = build_contracts(dbt_dir).contracts
     out = dbt_dir / "contracts"
     problems: list[str] = []
     for name, contract in contracts.items():

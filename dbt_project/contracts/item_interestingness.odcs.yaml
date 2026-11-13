@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: item_interestingness
+- id: item_interestingness
+  name: item_interestingness
   physicalName: public.item_interestingness
   logicalType: object
   description: Tunable, explainable interestingness score per civic agenda item (decision). interestingness_score = 100 * time_decay * weight-normalized average of the seven components. Each component is emitted alongside the composite for single-signal lens sorts, plus top_signals (ordered contributions) for the "why this surfaced" badge. PROXIMITY is intentionally absent — it is a per-request signal computed in rank_for_user, never baked into this score.
   properties:
-  - name: event_decision_id
+  - id: event_decision_id
+    name: event_decision_id
     logicalType: string
     physicalType: text
     description: PK; the decision this score is for. FK -> event_decision (relationships test, warn).
@@ -28,12 +30,6 @@ schema:
     unique: true
     primaryKey: true
     primaryKeyPosition: 1
-    relationships:
-    - type: foreignKey
-      to: event_decision.event_decision_id
-      customProperties:
-      - property: dbtTestSeverity
-        value: warn
     quality:
     - type: library
       metric: duplicateValues
@@ -45,31 +41,39 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: meeting_id
+  - id: meeting_id
+    name: meeting_id
     logicalType: integer
     physicalType: integer
     description: FK -> event_meeting.event_meeting_id (the analysis/meeting).
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: Resolved jurisdiction id (name+state match to jurisdictions); NULL when unresolved (~17%).
-  - name: jurisdiction_name
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: text
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: text
-  - name: size_tier
+  - id: size_tier
+    name: size_tier
     logicalType: integer
     physicalType: integer
     description: Population quartile (1-4); 0 when population unresolved.
-  - name: occurred_at
+  - id: occurred_at
+    name: occurred_at
     logicalType: date
     physicalType: date
     description: Meeting date used for recency/decay and trailing peer window.
@@ -80,33 +84,42 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: scheduled_for
+  - id: scheduled_for
+    name: scheduled_for
     logicalType: date
     physicalType: date
     description: Upcoming-item date; always NULL today (no source). Drives the forward 'soon' lens when populated.
-  - name: subject_id
+  - id: subject_id
+    name: subject_id
     logicalType: string
     physicalType: text
-  - name: subject_key
+  - id: subject_key
+    name: subject_key
     logicalType: string
     physicalType: text
     description: Best-effort cross-session subject key (normalized subject_id or headline) for novelty/surprise.
-  - name: title
+  - id: title
+    name: title
     logicalType: string
     physicalType: text
-  - name: summary
+  - id: summary
+    name: summary
     logicalType: string
     physicalType: text
-  - name: primary_theme
+  - id: primary_theme
+    name: primary_theme
     logicalType: string
     physicalType: text
-  - name: cofog_code
+  - id: cofog_code
+    name: cofog_code
     logicalType: string
     physicalType: text
-  - name: outcome
+  - id: outcome
+    name: outcome
     logicalType: string
     physicalType: text
-  - name: conflict
+  - id: conflict
+    name: conflict
     logicalType: number
     physicalType: double precision
     description: 'Component [0,1]: vote closeness / competing views. Lens: contested.'
@@ -121,7 +134,8 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: money
+  - id: money
+    name: money
     logicalType: number
     physicalType: double precision
     description: 'Component [0,1]: percentile of log dollar impact. Lens: money.'
@@ -136,7 +150,8 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: novelty
+  - id: novelty
+    name: novelty
     logicalType: number
     physicalType: double precision
     description: 'Component [0,1]: first appearance of subject for body. Lens: new.'
@@ -151,7 +166,8 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: engagement
+  - id: engagement
+    name: engagement
     logicalType: number
     physicalType: double precision
     description: 'Component [0,1]: public-comment volume. Lens: people.'
@@ -166,7 +182,8 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: surprise
+  - id: surprise
+    name: surprise
     logicalType: number
     physicalType: double precision
     description: 'Component [0,1]: outcome reversal vs prior session. Lens: changed.'
@@ -181,7 +198,8 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: urgency
+  - id: urgency
+    name: urgency
     logicalType: number
     physicalType: double precision
     description: 'Component [0,1]: forward items only. Lens: soon. 0 today (no source).'
@@ -196,7 +214,8 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: buried
+  - id: buried
+    name: buried
     logicalType: number
     physicalType: double precision
     description: 'Component [0,1]: high impact, low discussion. Lens: slipped.'
@@ -211,46 +230,59 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: votes_yes
+  - id: votes_yes
+    name: votes_yes
     logicalType: integer
     physicalType: integer
-  - name: votes_no
+  - id: votes_no
+    name: votes_no
     logicalType: integer
     physicalType: integer
-  - name: total_votes
+  - id: total_votes
+    name: total_votes
     logicalType: integer
     physicalType: integer
-  - name: competing_views_count
+  - id: competing_views_count
+    name: competing_views_count
     logicalType: integer
     physicalType: integer
-  - name: has_competing_views
+  - id: has_competing_views
+    name: has_competing_views
     logicalType: boolean
     physicalType: boolean
-  - name: public_comment_speaker_count
+  - id: public_comment_speaker_count
+    name: public_comment_speaker_count
     logicalType: integer
     physicalType: integer
-  - name: net_dollar_impact
+  - id: net_dollar_impact
+    name: net_dollar_impact
     logicalType: number
     physicalType: numeric
     description: Sum of |amount| over the decision's financial_item_refs.
-  - name: appearance_idx
+  - id: appearance_idx
+    name: appearance_idx
     logicalType: integer
     physicalType: integer
     description: 1-based ordinal of this subject's appearances for the body (recency order).
-  - name: is_reversal
+  - id: is_reversal
+    name: is_reversal
     logicalType: boolean
     physicalType: boolean
-  - name: is_revisit
+  - id: is_revisit
+    name: is_revisit
     logicalType: boolean
     physicalType: boolean
-  - name: primary_latitude
+  - id: primary_latitude
+    name: primary_latitude
     logicalType: number
     physicalType: double precision
     description: Primary geocoded point latitude (exposed for downstream/per-request proximity only).
-  - name: primary_longitude
+  - id: primary_longitude
+    name: primary_longitude
     logicalType: number
     physicalType: double precision
-  - name: time_decay
+  - id: time_decay
+    name: time_decay
     logicalType: number
     physicalType: double precision
     description: pow(0.5, age_days / half_life_days); 1.0 for forward items.
@@ -265,7 +297,8 @@ schema:
       description: Values from 0 to 1 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: interestingness_score
+  - id: interestingness_score
+    name: interestingness_score
     logicalType: number
     physicalType: double precision
     description: Composite 0-100. Default-feed sort key.
@@ -280,7 +313,8 @@ schema:
       description: Values from 0 to 100 (dbt test dbt_expectations.expect_column_values_to_be_between).
       dimension: conformity
       severity: error
-  - name: top_signals
+  - id: top_signals
+    name: top_signals
     logicalType: object
     physicalType: jsonb
     description: Ordered JSONB array of {component, contribution} (desc) for the 'why this surfaced' badge.

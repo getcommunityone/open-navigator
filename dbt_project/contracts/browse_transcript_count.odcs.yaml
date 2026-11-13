@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: browse_transcript_count
+- id: browse_transcript_count
+  name: browse_transcript_count
   physicalName: public.browse_transcript_count
   logicalType: object
   description: 'public.browse_transcript_count — per-entity count of DISTINCT transcript videos (public.event_documents, document_type=''transcript'') linked to each browseable homepage entity. entity_type is one of place | topic | question | cause; entity_id is the matching geoid | topic_id | question_id | tag_id. Causes have transcript_count=0 (no cause->transcript linkage exists in the warehouse — honest zero, not fabricated). Source: intermediate.int_browse_entity_transcripts + public.tag (ntee).'
   properties:
-  - name: entity_type
+  - id: entity_type
+    name: entity_type
     logicalType: string
     physicalType: text
     description: 'Entity kind: ''place'' | ''topic'' | ''question'' | ''cause''. Part of the PK.'
@@ -44,7 +46,8 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: entity_id
+  - id: entity_id
+    name: entity_id
     logicalType: string
     physicalType: text
     description: 'Polymorphic entity id (part of the PK): geoid for place, topic_id for topic, question_id for question, tag_id for cause.'
@@ -57,15 +60,18 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: entity_name
+  - id: entity_name
+    name: entity_name
     logicalType: string
     physicalType: text
     description: Human-readable entity label (place name / topic name / question text / tag label).
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: Representative 2-letter state for the entity (NULL for causes; the place's state for places; a representative state for topic/question which may span states). Not part of the key.
-  - name: transcript_count
+  - id: transcript_count
+    name: transcript_count
     logicalType: integer
     physicalType: integer
     description: COUNT(DISTINCT video_id) of transcripts linked to this entity. 0 for causes (no linkage). Never NULL.

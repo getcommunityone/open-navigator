@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: jurisdiction_property_tax_rate
+- id: jurisdiction_property_tax_rate
+  name: jurisdiction_property_tax_rate
   physicalName: public.jurisdiction_property_tax_rate
   logicalType: object
   description: public.jurisdiction_property_tax_rate — effective property-tax rate per place and county, from ACS B25103 (median real estate taxes paid) ÷ B25077 (median home value), 5-year estimates. B25103 is the household's TOTAL real-estate tax bill (county + municipal + school + special levies already combined), so the place-grain rate is the all-in rate for a city resident and the county-grain rate is the all-in rate for an unincorporated resident — these are NOT additive layers. effective_property_tax_rate is a fraction (0.0048 = 0.48%); NULL when home value is missing/zero or taxes suppressed (honest missing, never 0).
   properties:
-  - name: jurisdiction_property_tax_rate_id
+  - id: jurisdiction_property_tax_rate_id
+    name: jurisdiction_property_tax_rate_id
     logicalType: string
     physicalType: text
     description: PK — geography_type:geoid:acs_vintage_year, stable per ACS geography+vintage.
@@ -39,14 +41,16 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: FK -> public.jurisdictions.jurisdiction_id. NULLABLE — matched by geoid + type (place -> 'city'); ACS geographies with no jurisdiction row stay NULL and are served by geoid.
     relationships:
     - type: foreignKey
-      to: jurisdictions.jurisdiction_id
-  - name: geography_type
+      to: jurisdictions.odcs.yaml#/schema/jurisdictions/properties/jurisdiction_id
+  - id: geography_type
+    name: geography_type
     logicalType: string
     physicalType: text
     description: '''place'' (city/town) or ''county''.'
@@ -66,7 +70,8 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: geoid
+  - id: geoid
+    name: geoid
     logicalType: string
     physicalType: text
     description: 'Census FIPS geoid: state(2)+place(5) for place, state(2)+county(3) for county.'
@@ -77,23 +82,28 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: state_fips
+  - id: state_fips
+    name: state_fips
     logicalType: string
     physicalType: text
     description: 2-digit state/territory FIPS.
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter postal code (state_fips_to_code).
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name (state_code_to_name).
-  - name: name
+  - id: name
+    name: name
     logicalType: string
     physicalType: text
     description: ACS geography display name, e.g. 'Tuscaloosa city, Alabama'.
-  - name: acs_vintage_year
+  - id: acs_vintage_year
+    name: acs_vintage_year
     logicalType: integer
     physicalType: integer
     description: ACS 5-year vintage (integer calendar year).
@@ -104,15 +114,18 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: median_real_estate_taxes_paid
+  - id: median_real_estate_taxes_paid
+    name: median_real_estate_taxes_paid
     logicalType: integer
     physicalType: integer
     description: B25103_001E — median annual real estate taxes paid (whole dollars). NULL if suppressed.
-  - name: median_home_value
+  - id: median_home_value
+    name: median_home_value
     logicalType: integer
     physicalType: integer
     description: B25077_001E — median home value (whole dollars). NULL if suppressed.
-  - name: effective_property_tax_rate
+  - id: effective_property_tax_rate
+    name: effective_property_tax_rate
     logicalType: number
     physicalType: numeric
     description: taxes / value, a fraction (0.0048 = 0.48%). NULL when value missing/zero.
@@ -121,7 +134,8 @@ schema:
       description: Values from 0 to 0.1 where effective_property_tax_rate is not null (dbt test dbt_utils.accepted_range).
       dimension: conformity
       severity: warning
-  - name: published_at
+  - id: published_at
+    name: published_at
     logicalType: timestamp
     physicalType: timestamp with time zone
     description: When this mart row was built.

@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: event
+- id: event
+  name: event
   physicalName: public.event
   logicalType: object
   description: MDM consolidated event — the single golden-record event surface in the public schema. Unions CDP events with LocalView meetings (deduped by video_url, CDP winning collisions) into one row per real-world meeting. Source occurrences crosswalk back via mdm_bridge_event_source on match_key. Consumed by the API (api/routes/search_postgres.py) and int_events_union.
   dataGranularityDescription: One row per real-world meeting.
   properties:
-  - name: event_id
+  - id: event_id
+    name: event_id
     logicalType: integer
     physicalType: bigint
     description: Surrogate master event id (1:1 with match_key).
@@ -40,7 +42,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: match_key
+  - id: match_key
+    name: match_key
     logicalType: string
     physicalType: text
     description: 'Natural dedup key: video_url, else datasource_id_source. Join key for mdm_bridge_event_source.'
@@ -51,99 +54,131 @@ schema:
       mustBe: 0
       dimension: uniqueness
       severity: error
-  - name: event_title
+  - id: event_title
+    name: event_title
     logicalType: string
     physicalType: text
-  - name: event_description
+  - id: event_description
+    name: event_description
     logicalType: string
     physicalType: text
-  - name: event_date
+  - id: event_date
+    name: event_date
     logicalType: date
     physicalType: date
-  - name: event_time
+  - id: event_time
+    name: event_time
     logicalType: time
     physicalType: time without time zone
-  - name: event_datetime
+  - id: event_datetime
+    name: event_datetime
     logicalType: timestamp
     physicalType: timestamp without time zone
-  - name: body_name
+  - id: body_name
+    name: body_name
     logicalType: string
     physicalType: text
-  - name: body_description
+  - id: body_description
+    name: body_description
     logicalType: string
     physicalType: text
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
-  - name: channel_id
+  - id: channel_id
+    name: channel_id
     logicalType: string
     physicalType: text
-  - name: jurisdiction_name
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: text
-  - name: jurisdiction_type
+  - id: jurisdiction_type
+    name: jurisdiction_type
     logicalType: string
     physicalType: text
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: text
-  - name: location
+  - id: location
+    name: location
     logicalType: string
     physicalType: text
-  - name: location_description
+  - id: location_description
+    name: location_description
     logicalType: string
     physicalType: text
-  - name: meeting_type
+  - id: meeting_type
+    name: meeting_type
     logicalType: string
     physicalType: text
-  - name: status
+  - id: status
+    name: status
     logicalType: string
     physicalType: text
-  - name: agenda_url
+  - id: agenda_url
+    name: agenda_url
     logicalType: string
     physicalType: text
-  - name: minutes_url
+  - id: minutes_url
+    name: minutes_url
     logicalType: string
     physicalType: text
-  - name: video_url
+  - id: video_url
+    name: video_url
     logicalType: string
     physicalType: text
-  - name: session_content_hash
+  - id: session_content_hash
+    name: session_content_hash
     logicalType: string
     physicalType: text
-  - name: view_count
+  - id: view_count
+    name: view_count
     logicalType: integer
     physicalType: bigint
-  - name: duration_minutes
+  - id: duration_minutes
+    name: duration_minutes
     logicalType: number
     physicalType: double precision
-  - name: like_count
+  - id: like_count
+    name: like_count
     logicalType: integer
     physicalType: bigint
-  - name: language
+  - id: language
+    name: language
     logicalType: string
     physicalType: text
-  - name: channel_type
+  - id: channel_type
+    name: channel_type
     logicalType: string
     physicalType: text
-  - name: channel_url
+  - id: channel_url
+    name: channel_url
     logicalType: string
     physicalType: text
-  - name: source
+  - id: source
+    name: source
     logicalType: string
     physicalType: text
-  - name: datasource_id
+  - id: datasource_id
+    name: datasource_id
     logicalType: string
     physicalType: text
-  - name: external_source_id
+  - id: external_source_id
+    name: external_source_id
     logicalType: string
     physicalType: text
-  - name: last_updated
+  - id: last_updated
+    name: last_updated
     logicalType: timestamp
     physicalType: timestamp with time zone

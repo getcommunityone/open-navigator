@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: mdm_bridge_event_analysis
+- id: mdm_bridge_event_analysis
+  name: mdm_bridge_event_analysis
   physicalName: public.mdm_bridge_event_analysis
   logicalType: object
   description: 'MDM crosswalk linking the AI-extraction family to the golden record: event_meeting (analysis) -> event (master). Joined on YouTube video_id (unique in event). One row per analysis that surfaced in the golden record; INNER join, so event_id is always present. Rebuilt in-run after `event` so its FK tracks event''s volatile ROW_NUMBER() surrogate. No c1_* dependency.'
   dataGranularityDescription: One row per analysis that surfaced in the golden record; INNER join, so event_id is always present.
   properties:
-  - name: event_meeting_id
+  - id: event_meeting_id
+    name: event_meeting_id
     logicalType: integer
     physicalType: integer
     description: Analysis id — PK here; FK -> event_meeting.event_meeting_id.
@@ -29,9 +31,6 @@ schema:
     unique: true
     primaryKey: true
     primaryKeyPosition: 1
-    relationships:
-    - type: foreignKey
-      to: event_meeting.event_meeting_id
     quality:
     - type: library
       metric: duplicateValues
@@ -43,21 +42,23 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: event_id
+  - id: event_id
+    name: event_id
     logicalType: integer
     physicalType: bigint
     description: Master golden-record event this analysis resolves to.
     required: true
     relationships:
     - type: foreignKey
-      to: event.event_id
+      to: event.odcs.yaml#/schema/event/properties/event_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: video_id
+  - id: video_id
+    name: video_id
     logicalType: string
     physicalType: text
     description: YouTube video id the two families share (the join key).

@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: opportunity_atlas_mobility_national
+- id: opportunity_atlas_mobility_national
+  name: opportunity_atlas_mobility_national
   physicalName: public.opportunity_atlas_mobility_national
   logicalType: object
   description: 'public.opportunity_atlas_mobility_national — national rollup of the CZ Opportunity Atlas mobility measures: one row per (race, gender, parent_income_level). DERIVED, POPULATION-WEIGHTED-ACROSS-CZs: child_income_rank is the sample-count-weighted mean of the per-CZ child_income_rank (weight = each CZ''s (race,gender) sample count n), with NULL-rank / NULL-or-zero-n CZs excluded (never zero-filled). This is NOT an Opportunity Insights published figure — it is our transparent weighted mean of their CZ values. total_n is the summed sample weight behind each row.'
   dataGranularityDescription: One row per (race, gender, parent_income_level).
   properties:
-  - name: opportunity_atlas_mobility_national_id
+  - id: opportunity_atlas_mobility_national_id
+    name: opportunity_atlas_mobility_national_id
     logicalType: string
     physicalType: text
     description: Surrogate id = md5(race||'|'||gender||'|'||parent_income_level).
@@ -38,7 +40,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: race
+  - id: race
+    name: race
     logicalType: string
     physicalType: text
     description: pooled | white | black | hisp | asian | natam | other. Part of the composite PK.
@@ -60,7 +63,8 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: gender
+  - id: gender
+    name: gender
     logicalType: string
     physicalType: text
     description: pooled | male | female. Part of the composite PK.
@@ -78,7 +82,8 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: parent_income_level
+  - id: parent_income_level
+    name: parent_income_level
     logicalType: string
     physicalType: text
     description: low (p25) | middle (p50) | high (p75). Part of the composite PK.
@@ -96,20 +101,24 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: parent_percentile
+  - id: parent_percentile
+    name: parent_percentile
     logicalType: integer
     physicalType: integer
     description: Parent national income percentile (25 | 50 | 75).
     required: true
-  - name: child_income_rank
+  - id: child_income_rank
+    name: child_income_rank
     logicalType: number
     physicalType: numeric
     description: Sample-count-weighted mean child_income_rank across CZs (0..1). NULL when no usable (rank, n) pairs exist.
-  - name: child_percentile
+  - id: child_percentile
+    name: child_percentile
     logicalType: number
     physicalType: numeric
     description: round(child_income_rank * 100, 1) — 0..100 display scale. NULL when rank NULL.
-  - name: total_n
+  - id: total_n
+    name: total_n
     logicalType: number
     physicalType: numeric
     description: Summed sample weight (sum of n over the CZs contributing to the weighted mean). Honest sample size; NULL/0 when no usable data.

@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: question_transcript_link
+- id: question_transcript_link
+  name: question_transcript_link
   physicalName: public.question_transcript_link
   logicalType: object
   description: 'public.question_transcript_link — one row per (question_id, video_id): a curated/featured policy question whose alias keyword phrase(s) full-text matched a real meeting transcript. High-recall keyword signal (NOT an AI theme), kept honestly distinct from question_instance (structured decisions/bills). Powers the "discussed in N meetings" surface.'
   dataGranularityDescription: 'One row per (question_id, video_id): a curated/featured policy question whose alias keyword phrase(s) full-text matched a real meeting transcript.'
   properties:
-  - name: question_transcript_link_id
+  - id: question_transcript_link_id
+    name: question_transcript_link_id
     logicalType: string
     physicalType: text
     description: Primary key — md5(question_id || '|' || video_id).
@@ -40,21 +42,23 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: question_id
+  - id: question_id
+    name: question_id
     logicalType: string
     physicalType: text
     description: FK -> policy_question.question_id (enforced).
     required: true
     relationships:
     - type: foreignKey
-      to: policy_question.question_id
+      to: policy_question.odcs.yaml#/schema/policy_question/properties/question_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: video_id
+  - id: video_id
+    name: video_id
     logicalType: string
     physicalType: text
     description: Transcript/video key (event_documents.video_id).
@@ -65,35 +69,43 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: event_title
+  - id: event_title
+    name: event_title
     logicalType: string
     physicalType: text
     description: Meeting/video title (passthrough from event_documents).
-  - name: event_date
+  - id: event_date
+    name: event_date
     logicalType: date
     physicalType: date
     description: Meeting date (event_documents.event_date).
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state code (passthrough from event_documents).
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name (passthrough from event_documents).
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: text
     description: City (passthrough from event_documents).
-  - name: jurisdiction_name
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: text
     description: Jurisdiction name (passthrough from event_documents).
-  - name: video_url
+  - id: video_url
+    name: video_url
     logicalType: string
     physicalType: text
     description: YouTube/video URL for the drill-through card.
-  - name: n_alias_hits
+  - id: n_alias_hits
+    name: n_alias_hits
     logicalType: integer
     physicalType: integer
     description: Count of DISTINCT alias phrases that matched this transcript — a relevance signal for ordering / honest match labeling.
