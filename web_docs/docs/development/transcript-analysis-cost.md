@@ -135,7 +135,7 @@ reference. One meeting decides nothing; it shows what the tool catches.
 | `gemini-3.5-flash-lite` | 4/4 | 4/4 | 0.6 | 0 | 17 s | $0.025 |
 | `gemini-3.8-flash` | 4/4 | 4/4 | 0.8 | 2,097 | 81 s | $0.058 |
 | `gemma-4-31b-it` | 4/4 | 4/4 | 0.8 | 2,050 | 288 s | no price |
-| `gemma-4-26b-a4b-it` | no answer | | | | over 20 min | |
+| `gemma-4-26b-a4b-it` | 4/4 | 4/4 | 0.8 | 5,196 | 1,121 s, third try | no price |
 
 Costs use the interactive list prices in `prices.yaml` (sourced from getdeploying.com, to be confirmed: #266).
 
@@ -149,7 +149,8 @@ What it showed:
   reported to have closed the 2.5 models to new users in July 2026 (see `prices.yaml`), so the cheapest option may
   not last.
 - Gemma through the Gemini API is too slow for the backlog: the 31B model took almost five minutes per meeting, and
-  the 26B model did not answer within 20 minutes. At the pipeline's 300-second timeout both fail with "504
+  the 26B model answered on its third try after almost 19 minutes, with its JSON wrapped in an array. Both
+  answers were as good as Flash's on this meeting; the speed is the problem. At the pipeline's 300-second timeout both fail with "504
   DEADLINE_EXCEEDED", because the SDK forwards the client's timeout to Google as the server deadline. The tool
   raises its own timeout to 1,200 seconds for that reason.
 

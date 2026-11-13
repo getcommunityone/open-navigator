@@ -138,6 +138,7 @@ def test_parse_answer():
     text = json.dumps(REFERENCE)
     assert cm.parse_answer(text)["meeting"]["body_name"] == "City Council"
     assert cm.parse_answer("```json\n" + text + "\n```")["decisions"]
+    assert cm.parse_answer("[" + text + "]")["meeting"]["body_name"] == "City Council"  # Gemma's array wrapper
     assert cm.parse_answer('{"no_meeting": 1}') is None
     assert cm.parse_answer("") is None
 

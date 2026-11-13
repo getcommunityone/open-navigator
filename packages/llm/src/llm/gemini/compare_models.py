@@ -347,6 +347,11 @@ def parse_answer(text: str | None) -> dict[str, Any] | None:
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
+        data = None
+    if isinstance(data, list) and len(data) == 1:
+        data = data[0]  # Gemma sometimes wraps the object in a one-element array
+    if not isinstance(data, dict):
+        # what the pipeline itself does: the first JSON object in the text
         data = extract_json_from_model_text(text)
     data = coalesce_part1_analysis(data) if isinstance(data, dict) else None
     return data if data and isinstance(data.get("meeting"), dict) else None
