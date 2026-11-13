@@ -174,9 +174,12 @@ The helper lines were removed from the prompt as a test, three runs each on `gem
 8,713 tokens before and 8,918 after, within run-to-run noise, and one run lost a diagram it could no longer be rebuilt
 from. The change was reverted. The model's output length doesn't shrink just because one optional field goes.
 
-`speaker_segments` and `evidence_metrics` are about a fifth of the output and nothing reads them yet. Whether to keep
-them for planned features (per-speaker floor time looks like groundwork for CORE-2.2, #241) is a product decision,
-so they stay. If they go, measure again with this tool, as the helper-line test showed.
+`speaker_segments` and `evidence_metrics` are about a fifth of the output and nothing reads them yet.
+
+**Decision (November 13, 2026): keep both.** The maintainer chose to keep them in the Part 1 schema for the features
+that will read them (per-speaker floor time, the figures cited as evidence; see CORE-2.2, #241), rather than save
+their share of the output now. If this is revisited, measure on real meetings with `part1_field_sizes` first: the
+helper-line test showed that removing a field does not by itself shorten the output.
 
 ## Not done
 
