@@ -25,11 +25,27 @@ class ArtifactKind(str, Enum):
     MINUTES = "minutes"
 
 
-def clean_value(value: Any) -> Any:
-    """Return ``None`` for missing values (None, NaN, blank text); otherwise the value, stripped if text."""
+def _is_missing(value: Any) -> bool:
+    """True for None, NaN and pandas' missing markers (``pd.NA``, ``pd.NaT``)."""
     if value is None:
-        return None
-    if isinstance(value, float) and math.isnan(value):
+        return True
+    if isinstance(value, float):
+        return math.isnan(value)
+    if isinstance(value, (str, bytes)):
+        return False
+    try:
+        import pandas as pd  # an ingestion dependency; imported here so the model stays light to import
+    except ImportError:  # pragma: no cover - pandas ships with ingestion
+        return False
+    try:
+        return bool(pd.isna(value))
+    except (TypeError, ValueError):  # list-likes: not a scalar missing marker
+        return False
+
+
+def clean_value(value: Any) -> Any:
+    """Return ``None`` for missing values (None, NaN, pd.NA, NaT, blank text); otherwise the value, stripped if text."""
+    if _is_missing(value):
         return None
     if isinstance(value, str):
         value = value.strip()

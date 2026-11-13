@@ -11,7 +11,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ingestion.meetings.model import ArtifactKind, Meeting, MeetingArtifact, clean_value, parse_meeting_date
+from ingestion.meetings.model import (
+    ArtifactKind,
+    Meeting,
+    MeetingArtifact,
+    clean_value,
+    parse_meeting_date,
+)
 from ingestion.meetings.registry import MeetingAdapter, register_adapter
 
 # Exact names only: an unlisted state gets no code rather than a guess from its first letters.

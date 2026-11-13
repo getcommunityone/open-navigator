@@ -6,8 +6,18 @@
     meeting = adapter_cls(...).normalize(raw_record)                    # the same Meeting shape everywhere
 """
 
-from ingestion.meetings.adapters import STATE_CODES, LegistarAdapter, YouTubeLocalViewAdapter
-from ingestion.meetings.model import ArtifactKind, Meeting, MeetingArtifact, clean_value, parse_meeting_date
+from ingestion.meetings.adapters import (
+    STATE_CODES,
+    LegistarAdapter,
+    YouTubeLocalViewAdapter,
+)
+from ingestion.meetings.model import (
+    ArtifactKind,
+    Meeting,
+    MeetingArtifact,
+    clean_value,
+    parse_meeting_date,
+)
 from ingestion.meetings.registry import (
     UNKNOWN_PLATFORM,
     CoverageReport,

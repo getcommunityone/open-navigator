@@ -12,7 +12,6 @@ import math
 from datetime import date
 
 import pytest
-
 from ingestion.meetings import (
     ArtifactKind,
     LegistarAdapter,
@@ -159,3 +158,15 @@ def test_coverage_report_counts_supported_and_lists_unsupported():
     assert report.supported == {"youtube": 2, "legistar": 1}
     assert report.unsupported == {"granicus": ["Spokane"], "unknown": ["Marshall"]}
     assert report.unsupported_count == 2
+
+
+def test_pandas_missing_markers_stay_missing():
+    pd = pytest.importorskip("pandas")
+    row = {**LOCALVIEW_ROW, "vid_title": pd.NA, "meeting_date": pd.NaT, "caption_text_clean": pd.NA,
+           "caption_text": float("nan"), "place_govt": pd.NA}
+    meeting = YouTubeLocalViewAdapter().normalize(row)
+    assert meeting.title is None
+    assert meeting.meeting_date is None
+    assert meeting.transcript is None
+    assert meeting.body_name is None
+    assert YouTubeLocalViewAdapter().normalize({**LOCALVIEW_ROW, "meeting_date": pd.Timestamp("2026-10-06")}).meeting_date == date(2026, 10, 6)
