@@ -323,7 +323,7 @@ function MoneyHookBanner() {
             How much of <span style={{ color: TEAL }}>your money</span> is on the line?
           </div>
           <div style={{ fontSize: 14, color: '#57534e', marginTop: 4 }}>
-            Four governments, one wallet. 90 seconds, mildly humbling, grandkids included.
+            See what you pay in local taxes, where it goes, and what it means for your grandkids. About 90 seconds.
           </div>
         </div>
         <button
