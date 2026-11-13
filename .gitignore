@@ -162,7 +162,12 @@ youtube_cookies.txt
 cookies.txt
 *.cookies
 , psycopg2
-.claude/
+# Claude Code: local state stays out of git; the shared agent files are tracked (AGENTS.md, issue #225)
+.claude/*
+!.claude/agents/
+!.claude/commands/
+!.claude/review-rubric.md
+!.claude/settings.json
 
 # transcript-analysis backfill runtime log
 analyze_backlog.out
