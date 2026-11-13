@@ -15,6 +15,7 @@ import io
 import logging
 import os
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -774,9 +775,33 @@ def call_gemma_hf_multimodal(
         from contextlib import nullcontext
 
         infer_ctx = nullcontext()
-    with infer_ctx:
+    # Usage (#262): GPU samples for the generation, and its token counts. The
+    # counts are exact (the prompt's length and the tokens generated), not estimates.
+    from llm.usage.gpu import gpu_run
+
+    generate_started = time.monotonic()
+    with infer_ctx, gpu_run("gemma_hf_generate", device=str(getattr(device, "type", device))):
         with torch.inference_mode():
             outputs = bundle.model.generate(**inputs, **gen_kwargs)
+    try:
+        from llm.usage.calls import LLMCallUsage, record_llm_call
+
+        generated = int(outputs.shape[-1]) - int(input_len)
+        record_llm_call(
+            provider="huggingface_local",
+            model=bundle.repo_id,
+            usage=LLMCallUsage(
+                input_token_count=int(input_len),
+                output_token_count=generated,
+                total_token_count=int(input_len) + generated,
+                latency_seconds=time.monotonic() - generate_started,
+                attempt_count=1,
+            ),
+            is_ok=True,
+            api_mode="local",
+        )
+    except Exception:  # noqa: BLE001 - usage logging never breaks a generation
+        pass
 
     text, thoughts = _decode_generation(
         bundle,

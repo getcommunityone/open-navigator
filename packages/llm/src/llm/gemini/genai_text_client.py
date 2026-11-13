@@ -391,8 +391,15 @@ def _call_with_walltimeout(fn: Callable[[], T], label: str) -> T:
 
 
 def call_with_genai_quota_retry(
-    fn: Callable[[], T], *, label: str = "Gemini", key_pool_size: int = 1
+    fn: Callable[[], T],
+    *,
+    label: str = "Gemini",
+    key_pool_size: int = 1,
+    stats: Optional[dict[str, Any]] = None,
 ) -> T:
+    """Run ``fn`` with quota/network retries. When ``stats`` is given, its
+    ``"attempts"`` entry counts every try (including the one that succeeded or
+    finally failed), for the usage log."""
     # Transient network disconnects (RemoteProtocolError etc.) get a larger budget
     # than quota errors: they're cheap to retry and a flaky window usually clears
     # within a minute, whereas quota waits are long. Tracked with separate counters.
@@ -407,6 +414,8 @@ def call_with_genai_quota_retry(
     quota_used = 0
     net_used = 0
     while True:
+        if stats is not None:
+            stats["attempts"] = int(stats.get("attempts", 0)) + 1
         try:
             return _call_with_walltimeout(fn, label)
         except Exception as exc:
@@ -485,6 +494,38 @@ class TextGenAIResult:
     text: str
     model: str
     raw_response: Any = None
+    # Token counts, latency and attempts for this call (llm.usage.calls.LLMCallUsage).
+    usage: Any = None
+
+
+def _record_usage(
+    *,
+    provider: str,
+    model: str,
+    usage: Any,
+    started: float,
+    attempts: int,
+    error: Optional[BaseException] = None,
+) -> Any:
+    """Fill in latency and attempts, write the call's usage row, and return the
+    usage. Never raises: a usage-log problem must not fail a model call."""
+    try:
+        from llm.usage.calls import LLMCallUsage, record_llm_call
+
+        usage = usage or LLMCallUsage()
+        usage.latency_seconds = time.monotonic() - started
+        usage.attempt_count = attempts
+        record_llm_call(
+            provider=provider,
+            model=model,
+            usage=usage,
+            is_ok=error is None,
+            error_type=type(error).__name__ if error is not None else None,
+        )
+        return usage
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("usage record skipped for {}: {}", model, exc)
+        return usage
 
 
 def default_flash_lite_model() -> str:
@@ -786,8 +827,18 @@ def _call_deepseek_text(
         msgs.append({"role": "system", "content": system_instruction.strip()})
     msgs.append({"role": "user", "content": user_text})
 
+    from llm.usage.calls import usage_from_openai_response
+
     max_attempts = 4
     last_exc: Optional[Exception] = None
+    started = time.monotonic()
+
+    def _failed(exc: BaseException, attempts: int) -> None:
+        _record_usage(
+            provider="deepseek", model=model, usage=None, started=started,
+            attempts=attempts, error=exc,
+        )  # fmt: skip
+
     for attempt in range(max_attempts):
         try:
             resp = client.chat.completions.create(
@@ -798,8 +849,17 @@ def _call_deepseek_text(
             )
             content = (resp.choices[0].message.content or "").strip()
             if not content:
-                raise RuntimeError(f"Empty response from {model}")
-            return TextGenAIResult(text=content, model=model, raw_response=resp)
+                empty = RuntimeError(f"Empty response from {model}")
+                _failed(empty, attempt + 1)
+                raise empty
+            usage = _record_usage(
+                provider="deepseek",
+                model=model,
+                usage=usage_from_openai_response(resp),
+                started=started,
+                attempts=attempt + 1,
+            )
+            return TextGenAIResult(text=content, model=model, raw_response=resp, usage=usage)
         except (openai.RateLimitError, openai.APIConnectionError) as exc:
             last_exc = exc
             if attempt == max_attempts - 1:
@@ -809,6 +869,7 @@ def _call_deepseek_text(
             # Balance, 401 auth, 400 bad request) are permanent — fail fast so a
             # bulk run doesn't burn ~14s of backoff per item on a dead account.
             if exc.status_code < 500:
+                _failed(exc, attempt + 1)
                 raise RuntimeError(
                     f"DeepSeek call failed for {model}: {exc}"
                 ) from exc
@@ -825,6 +886,8 @@ def _call_deepseek_text(
                 max_attempts,
             )
             time.sleep(delay)
+    if last_exc is not None:
+        _failed(last_exc, max_attempts)
     raise RuntimeError(f"DeepSeek call failed for {model}: {last_exc}") from last_exc
 
 
@@ -901,13 +964,38 @@ def call_gemini_text(
         resp = client.models.generate_content(model=model, contents=contents, config=cfg)
         return (getattr(resp, "text", None) or ""), resp
 
-    text_raw, raw = call_with_genai_quota_retry(
-        _generate, label=model, key_pool_size=len(pool)
+    from llm.usage.calls import usage_from_genai_response
+
+    started = time.monotonic()
+    stats: dict[str, Any] = {"attempts": 0}
+    raw: Any = None
+    try:
+        text_raw, raw = call_with_genai_quota_retry(
+            _generate, label=model, key_pool_size=len(pool), stats=stats
+        )
+        text = (text_raw or "").strip()
+        if not text:
+            raise RuntimeError(f"Empty response from {model}")
+    except BaseException as exc:
+        # A failed call is recorded too: its latency and attempts are the cost of
+        # the retries, and an empty response still reports the tokens it used.
+        _record_usage(
+            provider="gemini",
+            model=model,
+            usage=usage_from_genai_response(raw),
+            started=started,
+            attempts=stats["attempts"],
+            error=exc,
+        )
+        raise
+    usage = _record_usage(
+        provider="gemini",
+        model=model,
+        usage=usage_from_genai_response(raw),
+        started=started,
+        attempts=stats["attempts"],
     )
-    text = (text_raw or "").strip()
-    if not text:
-        raise RuntimeError(f"Empty response from {model}")
-    return TextGenAIResult(text=text, model=model, raw_response=raw)
+    return TextGenAIResult(text=text, model=model, raw_response=raw, usage=usage)
 
 
 def extract_json_from_model_text(text: str) -> Optional[dict[str, Any]]:

@@ -149,6 +149,8 @@ from llm.gemini.genai_text_client import (  # noqa: E402
     ensure_valid_gemini_api_key,
     extract_json_from_model_text,
 )
+from llm.usage.calls import llm_call_context  # noqa: E402
+from llm.usage.gpu import gpu_run  # noqa: E402
 from llm.gemini.speaker_hints import (  # noqa: E402
     format_speaker_hints_block,
     known_speaker_names,
@@ -401,6 +403,7 @@ def save_transcript_policy_output(
     state_code: Optional[str] = None,
     record_db_events: bool = False,
     defer_report_event: bool = False,
+    usage: Optional[Dict[str, Any]] = None,
 ) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     jid = video.jurisdiction_id
@@ -587,6 +590,9 @@ def save_transcript_policy_output(
         "pipeline": "transcript_flash_lite",
         "generated_at": ts,
         "response_chars": len(response_text),
+        # Token counts, latency and attempts as the API reported them (#262);
+        # null when the call's usage was not captured.
+        "usage": usage,
         "json_parsed": json_parsed,
         "has_diagrams_md": has_diagrams,
         "transcript": transcript_meta,
@@ -649,14 +655,19 @@ def generate_part2_markdown(
     )
     model = (args.part_2_model or args.model or default_flash_lite_model()).strip()
     logger.info("Part 2: calling {} ({} chars in)", model, len(user_message))
-    result = call_gemini_text(
-        api_key=api_key,
-        model=model,
-        user_text=user_message,
-        system_instruction=args.system_instruction,
-        temperature=args.temperature,
-        max_output_tokens=args.max_output_tokens,
-    )
+    with llm_call_context(
+        stage="part2",
+        video_id=_video_id_from_analysis_path(analysis_path) if analysis_path else None,
+        jurisdiction_id=getattr(args, "jurisdiction_id", None),
+    ):
+        result = call_gemini_text(
+            api_key=api_key,
+            model=model,
+            user_text=user_message,
+            system_instruction=args.system_instruction,
+            temperature=args.temperature,
+            max_output_tokens=args.max_output_tokens,
+        )
     return result.text.strip()
 
 
@@ -967,12 +978,18 @@ def process_one_video(
             )
             return None
         logger.info("Diarizing {}", audio_path)
-        diarize_meta = diarize_audio_whisperx(
-            audio_path,
-            model_size=args.whisper_model,
+        with gpu_run(
+            "whisperx_diarization",
             device=args.device,
-            known_names=[k.get("person_name", "") for k in known],
-        )
+            video_id=video_id,
+            jurisdiction_id=jurisdiction_id,
+        ):
+            diarize_meta = diarize_audio_whisperx(
+                audio_path,
+                model_size=args.whisper_model,
+                device=args.device,
+                known_names=[k.get("person_name", "") for k in known],
+            )
         segments = merge_caption_speakers(segments, diarize_meta["segments"])
         source_parts.append(f"whisperx_diarization ({audio_path.name})")
     elif any(s.get("speaker") for s in segments):
@@ -1070,14 +1087,15 @@ def process_one_video(
 
     model = (args.model or default_flash_lite_model()).strip()
     logger.info("Calling {} ({})", model, "AI Studio API")
-    result = call_gemini_text(
-        api_key=api_key,
-        model=model,
-        user_text=user_message,
-        system_instruction=args.system_instruction,
-        temperature=args.temperature,
-        max_output_tokens=args.max_output_tokens,
-    )
+    with llm_call_context(stage="part1", video_id=video_id, jurisdiction_id=jurisdiction_id):
+        result = call_gemini_text(
+            api_key=api_key,
+            model=model,
+            user_text=user_message,
+            system_instruction=args.system_instruction,
+            temperature=args.temperature,
+            max_output_tokens=args.max_output_tokens,
+        )
 
     capture = GeminiRunCapture(response_text=result.text, gemini_model=model)
     transcript_meta["formatted_transcript"] = transcript_block
@@ -1096,6 +1114,7 @@ def process_one_video(
         state_code=state_code,
         record_db_events=_db_events_enabled(args),
         defer_report_event=args.run_part_2,
+        usage=result.usage.as_dict() if result.usage is not None else None,
     )
     if args.run_part_2 and analysis_path is not None:
         try:

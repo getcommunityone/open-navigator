@@ -1,0 +1,51 @@
+# Prices for the usage report (#262). `python -m llm.usage.report` multiplies the
+# logged token counts and GPU-hours by these.
+#
+# A price is used only when its value, its `source` and its `read_date` are all
+# filled in. Anything left null shows as a blank cost in the report: no figure is
+# assumed (CLAUDE.md, "No Fabricated Data"). A change is a pull request that
+# updates the date.
+
+# Model prices in USD per 1M tokens, by API mode. Thinking tokens are billed at
+# the output rate. `cached_input_usd_per_1m` is the rate for input tokens the API
+# reports as served from its cache.
+#
+# NOT FILLED IN: Google's price page could not be reached from the session that
+# added this file (November 13, 2026), so the rates are left null. Read them from
+# the Gemini API pricing page and the DeepSeek pricing page, then set `source`
+# to the page's URL and `read_date` to the day you read it.
+models:
+  gemini-2.5-flash:
+    source: null
+    read_date: null
+    interactive: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  gemini-2.5-flash-lite:
+    source: null
+    read_date: null
+    interactive: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  deepseek-chat:
+    source: null
+    read_date: null
+    interactive: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+
+# GPU prices in USD per GPU-hour, matched against the name `nvidia-smi` reports
+# (the key is searched for in the name, so "T4" matches "Tesla T4"). These are
+# ESTIMATES of what the GPU time would rent for on a cloud: the median on-demand
+# price across the providers the source lists. A Colab or Kaggle GPU is paid for
+# in compute units or not at all. Values, sources and dates are the ones
+# health-transformation-lab-nlp records in ops/cost_settings.yaml.
+gpus:
+  T4:
+    usd_per_gpu_hour: 0.69
+    source: https://getdeploying.com/gpus/nvidia-t4
+    read_date: "2026-11-04"
+  L4:
+    usd_per_gpu_hour: 0.83
+    source: https://getdeploying.com/gpus/nvidia-l4
+    read_date: "2026-11-11"
+  A100:
+    usd_per_gpu_hour: 1.87
+    source: https://getdeploying.com/gpus/nvidia-a100
+    read_date: "2026-11-12"
