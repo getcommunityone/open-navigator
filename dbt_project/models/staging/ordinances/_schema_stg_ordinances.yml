@@ -1,0 +1,61 @@
+version: 2
+
+# CORE-1.1 (#237). Rows the marts can't keep (no identifier, no source link, an unknown
+# jurisdiction) are filtered there; these warn-level tests count them so the gap is
+# reported in every run instead of disappearing.
+
+models:
+  - name: stg_ordinances
+    description: >
+      Ordinances from bronze.bronze_ordinances, typed and with the status mapped through
+      the ordinance_status_map seed (unmapped labels stay null). Builds empty until the
+      CORE-1.1.2 loader creates the bronze table. Grain: one row per bronze row.
+    columns:
+      - name: ordinance_uid
+        description: "md5(platform_code | jurisdiction_id | platform_ordinance_id)."
+      - name: jurisdiction_id
+        description: "jurisdictions.jurisdiction_id."
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+              config:
+                severity: warn
+      - name: identifier
+        description: "Ordinance number as the clerk writes it."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: status
+        description: "Mapped status, or null when the source's label isn't in the map."
+      - name: status_raw
+        description: "The source's own status label."
+      - name: source_url
+        description: "Link to the source document."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+
+  - name: stg_ordinance_amendments
+    description: >
+      Amendments from bronze.bronze_ordinance_amendments, typed. Builds empty until the
+      CORE-1.1.2 loader creates the bronze table. Grain: one row per bronze row.
+    columns:
+      - name: amendment_uid
+        description: "md5(platform_code | jurisdiction_id | platform_ordinance_id | platform_amendment_id)."
+      - name: ordinance_uid
+        description: "The amended ordinance, as in stg_ordinances."
+        tests:
+          - relationships:
+              to: ref('stg_ordinances')
+              field: ordinance_uid
+              config:
+                severity: warn
+      - name: source_url
+        description: "Link to the source document."
+        tests:
+          - not_null:
+              config:
+                severity: warn

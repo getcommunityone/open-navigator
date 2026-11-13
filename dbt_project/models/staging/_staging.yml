@@ -6,6 +6,59 @@ sources:
     database: open_navigator  # Single database with schemas
     schema: bronze  # Bronze schema for raw data
     tables:
+      - name: bronze_ordinances
+        description: |
+          Raw ordinances as each source publishes them (CORE-1.1, #237). The CORE-1.1.2
+          loader creates and fills it; until then it doesn't exist and stg_ordinances
+          builds empty. One row per ordinance per jurisdiction per source platform; the
+          loader upserts on (platform_code, jurisdiction_id, platform_ordinance_id).
+        columns:
+          - name: platform_code
+            description: "Source platform, as in ingestion.meetings (e.g. legistar)."
+          - name: platform_ordinance_id
+            description: "The ordinance's id on that platform (e.g. a Legistar MatterId)."
+          - name: jurisdiction_id
+            description: "jurisdictions.jurisdiction_id the ordinance belongs to."
+          - name: identifier
+            description: "The ordinance number as the clerk writes it (e.g. 'Ord. 2026-14')."
+          - name: title
+            description: "The ordinance's title, as published."
+          - name: status_raw
+            description: "The platform's own status label, kept verbatim."
+          - name: full_text
+            description: "The ordinance's full text, when the source publishes it."
+          - name: source_url
+            description: "Link to the source document the row was read from."
+          - name: introduced_date
+            description: "Date introduced (a date, or an ISO yyyy-mm-dd string)."
+          - name: final_action_date
+            description: "Date of the final action: signature, veto or failure (date or ISO string)."
+          - name: loaded_at
+            description: "When the loader wrote the row."
+      - name: bronze_ordinance_amendments
+        description: |
+          Raw amendments to ordinances (CORE-1.1, #237). The CORE-1.1.2 loader creates and
+          fills it; until then stg_ordinance_amendments builds empty. One row per amendment;
+          (platform_code, jurisdiction_id, platform_ordinance_id) names its ordinance.
+        columns:
+          - name: platform_code
+            description: "Source platform of the amended ordinance."
+          - name: platform_ordinance_id
+            description: "The amended ordinance's id on that platform."
+          - name: jurisdiction_id
+            description: "jurisdictions.jurisdiction_id of the amended ordinance."
+          - name: platform_amendment_id
+            description: "The amendment's id on that platform."
+          - name: identifier
+            description: "The amendment's number or label, as published."
+          - name: description
+            description: "What the amendment changes, as published."
+          - name: amended_date
+            description: "Date the amendment was adopted (date or ISO string)."
+          - name: source_url
+            description: "Link to the source document the row was read from."
+          - name: loaded_at
+            description: "When the loader wrote the row."
       - name: bronze_acs_property_tax
         description: |
           ACS 5-year median real estate taxes paid (B25103_001E) and median home
