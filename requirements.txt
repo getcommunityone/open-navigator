@@ -92,6 +92,10 @@ opentelemetry-api==1.42.0
 opentelemetry-sdk==1.42.0
 opentelemetry-instrumentation-fastapi==0.63b0
 opentelemetry-exporter-otlp-proto-http==1.42.0
+# Database query spans (asyncpg, psycopg2, SQLAlchemy), same 0.63b0 line as the FastAPI one (#258)
+opentelemetry-instrumentation-asyncpg==0.63b0
+opentelemetry-instrumentation-psycopg2==0.63b0
+opentelemetry-instrumentation-sqlalchemy==0.63b0
 
 # Authentication & OAuth
 python-jose[cryptography]==3.4.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 algo confusion + CVE-2024-33664 JWT bomb)

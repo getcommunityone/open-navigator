@@ -28,6 +28,7 @@ Exporter selection is driven by env:
 """
 from __future__ import annotations
 
+import importlib
 import os
 
 from loguru import logger
@@ -49,6 +50,54 @@ tracer = trace.get_tracer(__name__)
 # Guard so repeated startup hooks (uvicorn reload, multiple app imports) don't
 # stack duplicate TracerProviders / processors.
 _INSTRUMENTED = False
+
+# The database drivers the API uses, each with its OpenTelemetry instrumentor.
+# asyncpg is patched at the class level, so pools made before or after are traced;
+# psycopg2 and SQLAlchemy patch connect()/create_engine(), which is why
+# setup_telemetry runs before api/main.py imports any route module (#258).
+#
+# The third field skips the instrumentor's declared version range. The SQLAlchemy
+# instrumentor (0.63b0) declares sqlalchemy < 2.1, but requirements.txt allows any
+# 2.x and pip resolves 2.1.8, where it would otherwise refuse to instrument. It works
+# on 2.1.8 (tests/test_telemetry_db.py runs a real query and checks its span).
+_DB_INSTRUMENTORS: tuple[tuple[str, str, bool], ...] = (
+    ("opentelemetry.instrumentation.asyncpg", "AsyncPGInstrumentor", False),
+    ("opentelemetry.instrumentation.psycopg2", "Psycopg2Instrumentor", False),
+    ("opentelemetry.instrumentation.sqlalchemy", "SQLAlchemyInstrumentor", True),
+)
+
+
+def instrument_databases(tracer_provider=None) -> list[str]:
+    """Give every database query its own client span, under the request that ran it.
+
+    Instruments asyncpg, psycopg2 and SQLAlchemy once each (instrumentors are
+    singletons, so a second call changes nothing) and returns the names of the
+    instrumentors now active. Spans carry the SQL text the driver sends; the API's
+    queries pass values as parameters, and asyncpg's parameter capture stays off.
+    Tracing is optional: a missing package or driver logs a warning and the API
+    carries on.
+    """
+    active: list[str] = []
+    for module_name, class_name, skip_dep_check in _DB_INSTRUMENTORS:
+        try:
+            instrumentor = getattr(importlib.import_module(module_name), class_name)()
+        except ImportError as exc:
+            logger.warning(
+                "OpenTelemetry: {} isn't installed, so those queries won't be traced ({})",
+                class_name,
+                exc,
+            )
+            continue
+        if not instrumentor.is_instrumented_by_opentelemetry:
+            options: dict = {"skip_dep_check": True} if skip_dep_check else {}
+            if tracer_provider is not None:
+                options["tracer_provider"] = tracer_provider
+            instrumentor.instrument(**options)
+        if instrumentor.is_instrumented_by_opentelemetry:
+            active.append(class_name)
+        else:  # instrument() skips quietly when the driver itself is missing
+            logger.warning("OpenTelemetry: {} skipped (its driver isn't installed)", class_name)
+    return active
 
 
 def _resolve_otlp_endpoint() -> str | None:
@@ -148,6 +197,10 @@ def setup_telemetry(app) -> None:
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
     FastAPIInstrumentor.instrument_app(app)
+
+    # One client span per database query, parented under the request span (#258).
+    traced = instrument_databases()
+    logger.info("OpenTelemetry: database queries traced via {}", ", ".join(traced) or "none")
 
     _INSTRUMENTED = True
     logger.success("✅ OpenTelemetry instrumentation enabled for {}", SERVICE_NAME)
