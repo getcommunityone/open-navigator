@@ -47,6 +47,7 @@ import {
   type CensusScaleId,
   CT_PLANNING_REGION_UNAVAILABLE_TEXT,
   hasPlanningRegionNote,
+  isConnecticutPlanningRegionGap,
 } from '../utils/censusMapTransforms'
 import { giniLetterSuffix } from '../utils/giniLetterGrade'
 import {
@@ -2298,14 +2299,6 @@ function CensusMapPage() {
     return buildStateCountyGeoJson(countyTopo, countyPayload.values, stateFips, metricSlug)
   }, [mode, stateFips, countyTopo, countyPayload, metricSlug])
 
-  /** True when this state's counties carry the planning-region note (Connecticut): shown once in the legend. */
-  const connecticutPlanningRegionNote = useMemo(
-    () =>
-      stateFips === '09' &&
-      Boolean(stateCountyGeo?.features?.some((f) => hasPlanningRegionNote(f.properties as Record<string, unknown>))),
-    [stateFips, stateCountyGeo],
-  )
-
   const countyDisplayByGeoid = useMemo(() => {
     const out: Record<string, number | null> = {}
     if (!stateCountyGeo || !metricSlug) return out
@@ -2336,6 +2329,19 @@ function CensusMapPage() {
     stateTrends,
     statePayload,
   ])
+
+  /** True when a Connecticut county on the map has no figure because the source reports by planning region: shown once in the legend. */
+  const connecticutPlanningRegionNote = useMemo(
+    () =>
+      stateFips === '09' &&
+      Boolean(
+        stateCountyGeo?.features?.some((f) => {
+          const gid = countyGeoidFromFeature(f as GeoJSON.Feature)
+          return countyDisplayByGeoid[gid] == null && isConnecticutPlanningRegionGap(gid, f.properties as Record<string, unknown>)
+        }),
+      ),
+    [stateFips, stateCountyGeo, countyDisplayByGeoid],
+  )
 
   const focusPinnedCountyNarrative = useMemo(() => {
     if (
@@ -3406,7 +3412,7 @@ function CensusMapPage() {
                             ? `<br/><span style="font-size:11px;color:#475569;">Ranked #${rk.rank} of ${rk.total}</span>`
                             : ''
                           const noDataLine =
-                            disp == null && stateFips === '09' && hasPlanningRegionNote(p)
+                            disp == null && stateFips === '09' && isConnecticutPlanningRegionGap(gid, p)
                               ? CT_PLANNING_REGION_UNAVAILABLE_TEXT
                               : null
                           const valueLine =

@@ -362,3 +362,16 @@ export function hasPlanningRegionNote(props: Record<string, unknown> | null | un
   const note = props?.data_note
   return typeof note === 'string' && note.trim().length > 0
 }
+
+/**
+ * True when a Connecticut county should explain its missing figure: the export marked it with the
+ * planning-region note, or it is a legacy county (09001-09015) in data exported before that note
+ * existed. Callers check that the value is missing first; this never supplies a number.
+ */
+export function isConnecticutPlanningRegionGap(
+  geoid: string,
+  props: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!geoid.startsWith('09')) return false
+  return hasPlanningRegionNote(props) || Object.prototype.hasOwnProperty.call(CT_LEGACY_COUNTY_NAMES, geoid)
+}
