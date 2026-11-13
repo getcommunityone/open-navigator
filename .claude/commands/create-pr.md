@@ -24,6 +24,8 @@ Open a pull request for the current branch, then review it. Follow `AGENTS.md` a
 Title: `$ARGUMENTS`, or a Conventional Commit summary of the commits (`<type>(<scope>): <description>`). Body:
 
 ```markdown
+<the issue's Attributes table, copied as is, when it has one: Epic and User story as links>
+
 Closes #<issue>
 
 ## Why
@@ -40,7 +42,9 @@ Closes #<issue>
 - <follow-ups, each with its own issue number>
 ```
 
-Use `Refs #<issue>` instead of `Closes` when the PR is one part of a larger issue that stays open. End the body
+Use `Refs #<issue>` instead of `Closes` when the PR is one part of a larger issue that stays open. If the issue
+opens with an Attributes table (planned work, `AGENTS.md`), the PR starts with the same table, so the Epic and User
+story links travel with the change. End the body
 with the attribution lines the session asks for. Create it with the GitHub tools.
 
 ## 3. Review it

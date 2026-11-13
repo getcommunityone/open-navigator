@@ -19,6 +19,13 @@ Every change starts from a GitHub issue, and agents open it themselves. Don't wa
 
 Write all four parts, as headings, before the first commit. The template is `.github/ISSUE_TEMPLATE/work-item.md`.
 
+**Planned work opens with an Attributes table.** When the work belongs to the quarter's plan (a PI epic and its user
+stories, filed as parent issues and sub-issues), the issue starts with a table that names its `Epic` and `User story`
+as markdown links to their issues, plus `PI · Sprint` and `Points` where the plan gives them. A story links its epic and
+says "this issue" for itself. A task, bug or follow-up under a story links both. The pull request repeats the table, so
+a reader can go from any change to the story and the epic it serves. Examples: the CORE epic #235, its story #242,
+and that story's pull request #253.
+
 - **Problem:** what is wrong or missing, and who it affects, with the evidence linked (a failing test, a log line,
   a screenshot, a feedback issue).
 - **Done when:** one line per check a test or reviewer will make.
