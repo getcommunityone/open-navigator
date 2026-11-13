@@ -5,6 +5,16 @@ title: "<type>(<scope>): <what changes>"
 labels: ""
 ---
 
+<!-- Planned work (a PI epic or one of its stories, or a task under them): keep this table and fill in the links.
+Otherwise delete it. A story says "this issue" for itself; anything under a story links both. -->
+
+| Attribute | Value |
+|---|---|
+| Epic | [<key> · <epic name>](https://github.com/getcommunityone/open-navigator/issues/<epic>) |
+| User story | [<key> · <story title>](https://github.com/getcommunityone/open-navigator/issues/<story>) |
+| PI · Sprint | <PI> · <sprint> |
+| Points | <points> |
+
 ## Problem
 
 <!-- What is wrong or missing, and who it affects. Link the evidence: a failing test, a log line, a screenshot, a
