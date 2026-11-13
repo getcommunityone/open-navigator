@@ -1577,10 +1577,10 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
       </h3>
       <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-[#6b8a8a]" style={FONT}>
         {mode === 'zip'
-          ? 'Every town reaches into your pocket a little differently. Just the ZIP — nothing stored.'
+          ? 'Local taxes depend on where you live, so all we need is your ZIP: no street address, no apartment number. Nothing stored.'
           : mode === 'place'
-            ? 'Type your city or county — we’ll find your community. Nothing stored.'
-            : 'Type your full address — we only use it to find your community. Nothing stored.'}
+            ? 'Local taxes depend on where you live, so a city or county is enough: no street address or apartment number. Nothing stored.'
+            : 'Local taxes depend on where you live. A street address is optional and we only use it to find your community (no apartment number needed). Nothing stored.'}
       </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
