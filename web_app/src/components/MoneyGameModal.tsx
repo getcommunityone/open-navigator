@@ -1489,7 +1489,16 @@ function ModalSkeleton() {
 // full street address. All three resolve to a REAL place via /api/geocode.
 type GateMode = 'zip' | 'place' | 'address'
 
-function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }) {
+function WhereIsHome({
+  onResolved,
+  knownPlace,
+  knownLabel,
+}: {
+  onResolved: (loc: LocationData) => void
+  /** A real saved place (from the site-wide location), used for the no-address fallback. */
+  knownPlace?: LocationData | null
+  knownLabel?: string
+}) {
   const [mode, setMode] = useState<GateMode>('zip')
   const [zip, setZip] = useState('')
   // Free-text query for the 'place' (city/county) and 'address' modes.
@@ -1598,10 +1607,10 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
       </h3>
       <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-[#6b8a8a]" style={FONT}>
         {mode === 'zip'
-          ? 'Every town reaches into your pocket a little differently. Just the ZIP — nothing stored.'
+          ? 'Local taxes depend on where you live, so all we need is your ZIP: no street address, no apartment number. Nothing stored.'
           : mode === 'place'
-            ? 'Type your city or county — we’ll find your community. Nothing stored.'
-            : 'Type your full address — we only use it to find your community. Nothing stored.'}
+            ? 'Local taxes depend on where you live, so a city or county is enough: no street address or apartment number. Nothing stored.'
+            : 'Local taxes depend on where you live. A street address is optional and we only use it to find your community (no apartment number needed). Nothing stored.'}
       </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
@@ -1648,6 +1657,32 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
         >
           {busy ? 'Finding…' : needsChoice ? 'Pick your area' : 'Show me my money'}
         </button>
+      </div>
+
+      {/* Trust line: the reassurance that moves hesitant users to enter a location,
+          so it stays right under the box at readable size, with a clickable
+          no-address path. The fallback only appears when a real place is already
+          known (never a made-up area). */}
+      <div className="mt-3 flex flex-col items-center gap-1" style={FONT}>
+        <p className="text-[14px] font-semibold text-[#0f766e]">
+          Takes about 15 seconds · No data stored
+        </p>
+        {knownPlace ? (
+          <p className="text-[13.5px] text-[#4d6b6b]">
+            No address?{' '}
+            <button
+              type="button"
+              onClick={() => onResolved(knownPlace)}
+              className="font-semibold text-[#1a6b6b] underline underline-offset-2 hover:text-[#155757]"
+            >
+              We&apos;ll use the median for {knownLabel || 'your area'}
+            </button>
+          </p>
+        ) : (
+          <p className="text-[13.5px] text-[#4d6b6b]">
+            No address? A city or county works too — use the links below.
+          </p>
+        )}
       </div>
 
       {/* Real geography: this ZIP spans places / city limits, and city rates stack
@@ -1977,7 +2012,11 @@ export default function MoneyGameModal({
                 <div className="mt-2 sm:mt-3">
                   {!hasPlace ? (
                     /* ── Tab 1 gate: resolve a real place before any bill ── */
-                    <WhereIsHome onResolved={onResolvePlace} />
+                    <WhereIsHome
+                      onResolved={onResolvePlace}
+                      knownPlace={stateCode ? { state: stateCode, city: city ?? '', county: county ?? '' } : null}
+                      knownLabel={requestedLabel || city || county || stateCode}
+                    />
                   ) : stage === 'grandkids' ? (
                     /* Income-mobility forecast — independent of the finance fetch,
                        so it loads even when this place has no tax-bill data. */
