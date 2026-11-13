@@ -7,12 +7,12 @@ Each step's stdout/stderr is streamed to the terminal AND saved to a timestamped
 log file under logs/download_bronze/<run_id>/.
 
 Downloaders (run in order):
-  1. gazetteer        — Jurisdictions (Gazetteer → gold parquet)   → census/download_census_gazetteer.py
-  2. shapefiles       — Boundary shapefiles (states/counties/zcta/places) → census/download_census_shapefiles.py
-  3. school_districts — School district shapefiles (TIGER/Line)    → census/download_census_school_districts.py
-  4. relationships    — ZCTA-County / ZCTA-Place crosswalks        → census/download_census_relationships.py
-  5. municipalities   — Municipalities Gazetteer CSV               → census/download_census_municipalities.py
-  6. acs              — ACS demographic tables (Census API)        → census/download_census_acs_data.py
+  1. gazetteer        — Jurisdictions (Gazetteer → gold parquet)   → packages/scrapers/src/scrapers/census/download_census_gazetteer.py
+  2. shapefiles       — Boundary shapefiles (states/counties/zcta/places) → packages/scrapers/src/scrapers/census/download_census_shapefiles.py
+  3. school_districts — School district shapefiles (TIGER/Line)    → packages/scrapers/src/scrapers/census/download_census_school_districts.py
+  4. relationships    — ZCTA-County / ZCTA-Place crosswalks        → packages/scrapers/src/scrapers/census/download_census_relationships.py
+  5. municipalities   — Municipalities Gazetteer CSV               → packages/scrapers/src/scrapers/census/download_census_municipalities.py
+  6. acs              — ACS demographic tables (Census API)        → packages/scrapers/src/scrapers/census/download_census_acs_data.py
 
 Usage:
     python scripts/download_bronze.py                          # download everything
@@ -47,7 +47,7 @@ DOWNLOADERS = [
     {
         "key": "gazetteer",
         "label": "Jurisdictions Gazetteer (Census → gold parquet)",
-        "script": "scripts/datasources/census/download_census_gazetteer.py",
+        "script": "packages/scrapers/src/scrapers/census/download_census_gazetteer.py",
         "cache_dirs": ["data/cache/census/gazetteer", "data/gold"],
         "supports_force": False,
         "supports_year": False,
@@ -56,7 +56,7 @@ DOWNLOADERS = [
     {
         "key": "shapefiles",
         "label": "Boundary Shapefiles (states / counties / zcta / places)",
-        "script": "scripts/datasources/census/download_census_shapefiles.py",
+        "script": "packages/scrapers/src/scrapers/census/download_census_shapefiles.py",
         "cache_dirs": ["data/cache/census/shapefiles"],
         "supports_force": False,
         "supports_year": True,
@@ -65,7 +65,7 @@ DOWNLOADERS = [
     {
         "key": "school_districts",
         "label": "School District Shapefiles (unified / elementary / secondary)",
-        "script": "scripts/datasources/census/download_census_school_districts.py",
+        "script": "packages/scrapers/src/scrapers/census/download_census_school_districts.py",
         "cache_dirs": ["data/cache/census/school_districts"],
         "supports_force": False,
         "supports_year": True,
@@ -74,7 +74,7 @@ DOWNLOADERS = [
     {
         "key": "relationships",
         "label": "Geographic Relationships (ZCTA-County, ZCTA-Place)",
-        "script": "scripts/datasources/census/download_census_relationships.py",
+        "script": "packages/scrapers/src/scrapers/census/download_census_relationships.py",
         "cache_dirs": ["data/cache/census_relationships"],
         "supports_force": True,
         "supports_year": False,
@@ -83,7 +83,7 @@ DOWNLOADERS = [
     {
         "key": "municipalities",
         "label": "Municipalities Gazetteer CSV (Census Places)",
-        "script": "scripts/datasources/census/download_census_municipalities.py",
+        "script": "packages/scrapers/src/scrapers/census/download_census_municipalities.py",
         "cache_dirs": ["data/cache/census"],
         "supports_force": True,
         "supports_year": False,
@@ -95,7 +95,7 @@ DOWNLOADERS = [
         # To use a non-default ACS year, run download_census_acs_data.py directly.
         "key": "acs",
         "label": "ACS Demographic Tables (Census API → parquet)",
-        "script": "scripts/datasources/census/download_census_acs_data.py",
+        "script": "packages/scrapers/src/scrapers/census/download_census_acs_data.py",
         "cache_dirs": ["data/cache/census/acs"],
         "supports_force": True,
         "supports_year": False,
