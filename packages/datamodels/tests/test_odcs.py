@@ -197,6 +197,10 @@ def test_composite_keys():
         1,
         2,
     )
+    # each key column is not null, but only the pair is unique
+    for column in ("a", "b"):
+        assert props[column]["required"] is True
+        assert "unique" not in props[column]
     assert contract["schema"][0]["relationships"] == [
         {
             "type": "foreignKey",

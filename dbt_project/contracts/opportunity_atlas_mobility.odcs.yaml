@@ -43,7 +43,6 @@ schema:
     physicalType: integer
     description: Commuting-zone id (integer). Part of the composite PK.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 1
   - name: czname
@@ -55,7 +54,6 @@ schema:
     physicalType: text
     description: pooled | white | black | hisp | asian | natam | other. Part of the composite PK.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 2
     quality:
@@ -78,7 +76,6 @@ schema:
     physicalType: text
     description: pooled | male | female. Part of the composite PK.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 3
     quality:
@@ -97,7 +94,6 @@ schema:
     physicalType: text
     description: low (p25) | middle (p50) | high (p75) parent income percentile. Part of the composite PK.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 4
     quality:

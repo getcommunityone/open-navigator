@@ -43,7 +43,6 @@ schema:
     physicalType: text
     description: pooled | white | black | hisp | asian | natam | other. Part of the composite PK.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 1
     quality:
@@ -66,7 +65,6 @@ schema:
     physicalType: text
     description: pooled | male | female. Part of the composite PK.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 2
     quality:
@@ -85,7 +83,6 @@ schema:
     physicalType: text
     description: low (p25) | middle (p50) | high (p75). Part of the composite PK.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 3
     quality:

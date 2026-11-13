@@ -25,7 +25,6 @@ schema:
     physicalType: text
     description: 'Entity kind: ''place'' | ''topic'' | ''question'' | ''cause''. Part of the PK.'
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 1
     quality:
@@ -50,7 +49,6 @@ schema:
     physicalType: text
     description: 'Polymorphic entity id (part of the PK): geoid for place, topic_id for topic, question_id for question.'
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 2
     quality:
@@ -64,7 +62,6 @@ schema:
     physicalType: text
     description: 2-letter state the transcripts were recorded in. Part of the PK; never NULL.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 3
     quality:

@@ -26,7 +26,6 @@ schema:
     physicalType: varchar(32)
     description: BLS series identifier (e.g. CUUR0000SA0 = CPI-U NSA, all items, US city avg).
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 1
   - name: year
@@ -34,7 +33,6 @@ schema:
     physicalType: integer
     description: Calendar year (INTEGER per the storage rule).
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 2
   - name: index_value

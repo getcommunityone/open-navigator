@@ -62,8 +62,9 @@ them out of `served`. A test fails when a served relation has no contract and is
   dbt model name. A target that only a warn-level test asserts carries `dbtTestSeverity: warn`, because nothing
   guarantees it.
 - **Guarantees:** `required` and `unique` appear only when something enforces them. That is either a Postgres
-  constraint (a primary key is both) or a dbt test that fails the build on every row. A test with `severity: warn` or a
-  `where:` filter reports problems but guarantees nothing.
+  constraint or a dbt test that fails the build on every row. Every primary-key column is `required`, but only a
+  one-column key makes its column `unique`: in a composite key, only the combination is unique. A test with
+  `severity: warn` or a `where:` filter reports problems but guarantees nothing.
 - **Quality rules**, each with its dbt test's severity: `error`, or `warning` for `severity: warn`.
   - `not_null`, `unique` and `accepted_values` become ODCS library rules (`nullValues`, `duplicateValues`, and
     `invalidValues` with the accepted values), each with `mustBe: 0`.

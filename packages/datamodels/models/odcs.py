@@ -261,9 +261,10 @@ def _property(
         n for n, args in tests if _severity(args) == "error" and not _where(args)
     }
     if not redacted:
+        # Every primary-key column is not null; only a one-column key makes the column unique.
         if name in keys or "not_null" in kinds or "not_null" in guaranteed:
             prop["required"] = True
-        if name in keys or "unique" in kinds or "unique" in guaranteed:
+        if keys == [name] or "unique" in kinds or "unique" in guaranteed:
             prop["unique"] = True
         if name in keys:
             prop["primaryKey"] = True

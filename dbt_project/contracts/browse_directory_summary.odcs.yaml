@@ -26,7 +26,6 @@ schema:
     physicalType: text
     description: 'Entity kind: ''place'' | ''topic'' | ''question'' | ''cause''. Part of the PK.'
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 1
     quality:
@@ -55,7 +54,6 @@ schema:
     physicalType: text
     description: NOT-NULL surrogate key = COALESCE(state_code, '_ALL_'). Exists only so the national (NULL state_code) row can participate in the composite PK.
     required: true
-    unique: true
     primaryKey: true
     primaryKeyPosition: 2
     quality:
