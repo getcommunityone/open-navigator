@@ -14,10 +14,10 @@ The source parquet also carries a video→channel mapping, which is upserted int
 intermediate.int_localview_youtube_video_channels for lineage.
 
 Usage:
-    python -m scripts.datasources.localview.events
-    python scripts/datasources/localview/events.py --truncate
-    python scripts/datasources/localview/events.py --truncate --year 2023
-    python scripts/datasources/localview/events.py \\
+    python -m ingestion.localview.events
+    python packages/ingestion/src/ingestion/localview/events.py --truncate
+    python packages/ingestion/src/ingestion/localview/events.py --truncate --year 2023
+    python packages/ingestion/src/ingestion/localview/events.py \\
         --file data/cache/localview/meetings.2023.parquet --limit 100
 
 Configuration:

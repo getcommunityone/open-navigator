@@ -712,39 +712,134 @@ async def get_opportunities(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Deterministic state center coordinates (WGS84) used as a fallback when a bill's
+# linked jurisdiction row does not provide explicit latitude/longitude coordinates.
+STATE_COORDS: Dict[str, tuple[float, float]] = {
+    "AL": (32.806671, -86.791130),
+    "AK": (61.370716, -152.404419),
+    "AZ": (33.729759, -111.431221),
+    "AR": (34.969704, -92.373123),
+    "CA": (36.116203, -119.681564),
+    "CO": (39.059811, -105.311104),
+    "CT": (41.597782, -72.755371),
+    "DE": (39.318523, -75.507141),
+    "DC": (38.897438, -77.026817),
+    "FL": (27.766279, -81.686783),
+    "GA": (33.040619, -83.643074),
+    "HI": (21.094318, -157.498337),
+    "ID": (44.240459, -114.478828),
+    "IL": (40.349457, -88.986137),
+    "IN": (39.849426, -86.258278),
+    "IA": (42.011539, -93.210526),
+    "KS": (38.526600, -96.726486),
+    "KY": (37.668140, -84.670067),
+    "LA": (31.169546, -91.867805),
+    "ME": (44.693947, -69.381927),
+    "MD": (39.063946, -76.802101),
+    "MA": (42.230171, -71.530106),
+    "MI": (43.326618, -84.536095),
+    "MN": (45.694454, -93.900192),
+    "MS": (32.741646, -89.678696),
+    "MO": (38.456085, -92.288368),
+    "MT": (46.921925, -110.454353),
+    "NE": (41.125370, -98.268082),
+    "NV": (38.313515, -117.055374),
+    "NH": (43.452492, -71.563896),
+    "NJ": (40.298904, -74.521011),
+    "NM": (34.840515, -106.248482),
+    "NY": (42.165726, -74.948051),
+    "NC": (35.630066, -79.806419),
+    "ND": (47.528912, -99.784012),
+    "OH": (40.388783, -82.764915),
+    "OK": (35.565342, -96.928917),
+    "OR": (44.572021, -122.070938),
+    "PA": (40.590752, -77.209755),
+    "RI": (41.680893, -71.511780),
+    "SC": (33.856892, -80.945007),
+    "SD": (44.299782, -99.438828),
+    "TN": (35.747845, -86.692345),
+    "TX": (31.054487, -97.563461),
+    "UT": (40.150032, -111.862434),
+    "VT": (44.045876, -72.710686),
+    "VA": (37.769337, -78.169968),
+    "WA": (47.400902, -121.490494),
+    "WV": (38.491226, -80.954453),
+    "WI": (44.268543, -89.616508),
+    "WY": (42.755966, -107.302490),
+}
+
+DEFAULT_OPPORTUNITY_STATES: tuple[str, ...] = ("AL", "GA", "IN", "MA", "WA", "WI")
+
+_OPPORTUNITY_TOPIC_ALIASES: Dict[str, str] = {
+    "fluoride": "water_fluoridation",
+    "water_fluoridation": "water_fluoridation",
+    "dental": "school_dental_screening",
+    "school_dental_screening": "school_dental_screening",
+    "medicaid": "medicaid_dental_expansion",
+    "medicaid_dental_expansion": "medicaid_dental_expansion",
+}
+
+
 # React frontend endpoints with /api/ prefix
 @app.get("/api/opportunities")
 async def get_api_opportunities(
     state: Optional[str] = Query(None),
     topic: Optional[str] = Query(None),
     urgency: Optional[str] = Query(None),
-    limit: int = Query(100)
+    limit: int = Query(100, ge=1, le=1000)
 ):
     """API endpoint for React frontend opportunities page - returns fluoridation bills as advocacy opportunities."""
     try:
-        import random
         from api.routes.bills_neon import get_pool
 
-        # State center coordinates for mapping
-        STATE_COORDS = {
-            'AL': (32.806671, -86.791130),
-            'GA': (33.040619, -83.643074),
-            'IN': (39.849426, -86.258278),
-            'MA': (42.230171, -71.530106),
-            'WA': (47.400902, -121.490494),
-            'WI': (44.268543, -89.616508)
-        }
+        if state is not None:
+            state_norm = state.strip().upper()
+            if state_norm not in STATE_COORDS:
+                return {"opportunities": [], "total": 0}
+            states = [state_norm]
+        else:
+            states = list(DEFAULT_OPPORTUNITY_STATES)
 
-        # Build query for fluoridation-related bills
-        states = [state] if state else list(STATE_COORDS.keys())
-        opportunities = []
+        topic_norm: Optional[str] = None
+        if topic is not None and topic.strip():
+            raw_topic = topic.strip().lower()
+            topic_norm = _OPPORTUNITY_TOPIC_ALIASES.get(raw_topic, raw_topic)
+
+        urgency_norm: Optional[str] = (
+            urgency.strip().lower() if urgency is not None and urgency.strip() else None
+        )
 
         pool = await get_pool()
         if pool is None:
             return {"opportunities": [], "total": 0}
 
-        # Query the Postgres `bills` mart (public serving view over gold).
-        query = """
+        sql_limit = min(max(limit * 5, limit), 1000) if (topic_norm or urgency_norm) else limit
+
+        # Query the Postgres `bills` mart joined to `jurisdictions` so real
+        # jurisdiction coordinates are used when available, with deterministic
+        # fallback to STATE_COORDS.
+        query_with_jurisdictions = """
+            SELECT
+                b.state_code,
+                b.title,
+                b.identifier,
+                b.session_identifier,
+                b.latest_action_description,
+                b.latest_action_date,
+                j.latitude::float8 AS jurisdiction_latitude,
+                j.longitude::float8 AS jurisdiction_longitude
+            FROM bills b
+            LEFT JOIN jurisdictions j
+                ON j.jurisdiction_id = b.jurisdiction_id
+            WHERE b.state_code = ANY($1::text[])
+                AND (LOWER(b.title) LIKE '%fluorid%'
+                   OR LOWER(b.title) LIKE '%dental%'
+                   OR LOWER(b.title) LIKE '%oral health%'
+                   OR LOWER(b.title) LIKE '%water treat%')
+            ORDER BY b.latest_action_date DESC NULLS LAST, b.identifier ASC
+            LIMIT $2
+        """
+        fallback_query = """
             SELECT
                 state_code,
                 title,
@@ -758,72 +853,78 @@ async def get_api_opportunities(
                    OR LOWER(title) LIKE '%dental%'
                    OR LOWER(title) LIKE '%oral health%'
                    OR LOWER(title) LIKE '%water treat%')
-            ORDER BY latest_action_date DESC NULLS LAST
+            ORDER BY latest_action_date DESC NULLS LAST, identifier ASC
             LIMIT $2
         """
 
         async with pool.acquire() as conn:
-            result = await conn.fetch(query, states, limit)
+            try:
+                result = await conn.fetch(query_with_jurisdictions, states, sql_limit)
+            except Exception:
+                result = await conn.fetch(fallback_query, states, sql_limit)
 
-        # Convert to opportunities format
+        opportunities = []
         for row in result:
-                state_code = row['state_code']
-                title = row['title']
-                identifier = row['identifier']
-                session = row['session_identifier']
-                latest_action = row['latest_action_description']
-                latest_action_date = row['latest_action_date']
+            row_dict = dict(row)
+            state_code = (row_dict.get("state_code") or "").strip().upper()
+            title = row_dict.get("title")
+            identifier = row_dict.get("identifier")
+            session = row_dict.get("session_identifier")
+            latest_action = row_dict.get("latest_action_description")
+            latest_action_date = row_dict.get("latest_action_date")
 
-                # Determine urgency based on keywords
-                title_lower = title.lower() if title else ""
-                # Check for fluoride topics (both pro and anti fluoride are critical)
-                if 'fluoride' in title_lower or 'fluorin' in title_lower or 'water' in title_lower:
-                    urgency_level = 'critical'
-                    confidence = 0.9
-                    topic_type = 'water_fluoridation'
-                elif 'dental' in title_lower:
-                    urgency_level = 'high'
-                    confidence = 0.75
-                    topic_type = 'school_dental_screening'
-                else:
-                    urgency_level = 'medium'
-                    confidence = 0.6
-                    topic_type = 'medicaid_dental_expansion'
-                
-                # Filter by topic if specified
-                if topic and topic_type != topic:
-                    continue
-                
-                # Filter by urgency if specified
-                if urgency and urgency_level != urgency:
-                    continue
-                
-                # Get state coordinates with slight random offset for multiple bills
-                if state_code not in STATE_COORDS:
-                    continue
-                base_lat, base_lon = STATE_COORDS[state_code]
-                lat_offset = random.uniform(-0.5, 0.5)
-                lon_offset = random.uniform(-0.5, 0.5)
-                
-                opportunities.append({
-                    'state': state_code,
-                    'municipality': f'{state_code} Legislature',
-                    'latitude': base_lat + lat_offset,
-                    'longitude': base_lon + lon_offset,
-                    'topic': topic_type,
-                    'urgency': urgency_level,
-                    'confidence': confidence,
-                    'meeting_date': latest_action_date.isoformat() if latest_action_date else None,
-                    'title': title,
-                    'bill_id': identifier,
-                    'session': session,
-                    'latest_action': latest_action
-                })
-        
-        return {"opportunities": opportunities[:limit]}
+            title_lower = title.lower() if title else ""
+            if "fluoride" in title_lower or "fluorin" in title_lower or "water" in title_lower:
+                urgency_level = "critical"
+                confidence = 0.9
+                topic_type = "water_fluoridation"
+            elif "dental" in title_lower:
+                urgency_level = "high"
+                confidence = 0.75
+                topic_type = "school_dental_screening"
+            else:
+                urgency_level = "medium"
+                confidence = 0.6
+                topic_type = "medicaid_dental_expansion"
+
+            if topic_norm and topic_type != topic_norm:
+                continue
+
+            if urgency_norm and urgency_level != urgency_norm:
+                continue
+
+            juris_lat = row_dict.get("jurisdiction_latitude")
+            juris_lon = row_dict.get("jurisdiction_longitude")
+            if juris_lat is not None and juris_lon is not None:
+                latitude = float(juris_lat)
+                longitude = float(juris_lon)
+            elif state_code in STATE_COORDS:
+                latitude, longitude = STATE_COORDS[state_code]
+            else:
+                continue
+
+            opportunities.append({
+                "state": state_code,
+                "municipality": f"{state_code} Legislature",
+                "latitude": latitude,
+                "longitude": longitude,
+                "topic": topic_type,
+                "urgency": urgency_level,
+                "confidence": confidence,
+                "meeting_date": latest_action_date.isoformat() if hasattr(latest_action_date, "isoformat") else (str(latest_action_date) if latest_action_date else None),
+                "title": title,
+                "bill_id": identifier,
+                "session": session,
+                "latest_action": latest_action,
+            })
+
+            if len(opportunities) >= limit:
+                break
+
+        return {"opportunities": opportunities, "total": len(opportunities)}
     except Exception as e:
         logger.error(f"Error: {e}")
-        return {"opportunities": []}
+        return {"opportunities": [], "total": 0}
 
 
 @app.get("/api/documents")
