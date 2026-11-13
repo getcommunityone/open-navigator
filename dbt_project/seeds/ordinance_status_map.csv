@@ -1,0 +1,18 @@
+raw_status_key,status
+introduced,introduced
+first reading,introduced
+second reading,introduced
+referred to committee,introduced
+in committee,introduced
+awaiting signature,awaiting_signature
+awaiting mayor's signature,awaiting_signature
+sent to mayor,awaiting_signature
+transmitted to mayor,awaiting_signature
+signed,signed
+signed by mayor,signed
+approved by mayor,signed
+vetoed,vetoed
+vetoed by mayor,vetoed
+failed,failed
+failed to pass,failed
+defeated,failed

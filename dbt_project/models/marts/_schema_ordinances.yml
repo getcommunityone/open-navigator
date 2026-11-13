@@ -1,0 +1,140 @@
+version: 2
+
+# CORE-1.1 (#237): the ordinance and amendment schema, with CHECK constraints.
+# Built into gold like every mart; publish_public_serving exposes them in public once the
+# API serves them (CORE-1.1.3).
+
+models:
+  - name: ordinances
+    description: >
+      One row per ordinance per jurisdiction per source platform (PK ordinance_uid).
+      Identifier, status, full text and source link, each traceable to the source
+      document. status is one of introduced, awaiting_signature, signed, vetoed, failed,
+      or null when the source's own label (status_raw) doesn't map unambiguously.
+      Empty until the CORE-1.1.2 loader lands bronze.bronze_ordinances.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: ordinance_uid
+        description: "Primary key. md5(platform_code | jurisdiction_id | platform_ordinance_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "FK to jurisdictions.jurisdiction_id: the body whose ordinance this is."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: platform_code
+        description: "Source platform, as in ingestion.meetings (e.g. legistar)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: platform_ordinance_id
+        description: "The ordinance's id on its source platform."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: identifier
+        description: "Ordinance number as the clerk writes it (e.g. 'Ord. 2026-14')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: title
+        description: "Title, as published."
+        data_type: text
+      - name: status
+        description: >
+          introduced, awaiting_signature, signed, vetoed or failed; null when the source's
+          label isn't in the ordinance_status_map seed. Never guessed.
+        data_type: text
+        constraints:
+          - type: check
+            expression: "status is null or status in ('introduced', 'awaiting_signature', 'signed', 'vetoed', 'failed')"
+        tests:
+          - accepted_values:
+              values: ['introduced', 'awaiting_signature', 'signed', 'vetoed', 'failed']
+      - name: status_raw
+        description: "The source's own status label, verbatim, so a mapped status can be checked."
+        data_type: text
+      - name: full_text
+        description: "Full text, when the source publishes it; null otherwise."
+        data_type: text
+      - name: source_url
+        description: "Link to the source document the row was read from. Required: every row is traceable."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: check
+            expression: "source_url ~ '^https?://'"
+      - name: introduced_date
+        description: "Date introduced."
+        data_type: date
+      - name: final_action_date
+        description: "Date of the final action: signature, veto or failure."
+        data_type: date
+      - name: loaded_at
+        description: "When the loader wrote the row."
+        data_type: timestamptz
+
+  - name: ordinance_amendments
+    description: >
+      One row per amendment of an ordinance (PK amendment_uid, FK ordinance_uid to
+      ordinances). Each traceable to its source document. Empty until the CORE-1.1.2
+      loader lands bronze.bronze_ordinance_amendments.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [ordinance_uid]
+        to: ref('ordinances')
+        to_columns: [ordinance_uid]
+    columns:
+      - name: amendment_uid
+        description: "Primary key. md5(platform_code | jurisdiction_id | platform_ordinance_id | platform_amendment_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: ordinance_uid
+        description: "FK to ordinances.ordinance_uid: the amended ordinance."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: identifier
+        description: "The amendment's number or label, as published."
+        data_type: text
+      - name: description
+        description: "What the amendment changes, as published."
+        data_type: text
+      - name: amended_date
+        description: "Date the amendment was adopted."
+        data_type: date
+      - name: source_url
+        description: "Link to the source document the row was read from. Required."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: check
+            expression: "source_url ~ '^https?://'"
+      - name: loaded_at
+        description: "When the loader wrote the row."
+        data_type: timestamptz
