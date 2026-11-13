@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: jurisdiction_county_crosswalk
+- id: jurisdiction_county_crosswalk
+  name: jurisdiction_county_crosswalk
   physicalName: public.jurisdiction_county_crosswalk
   logicalType: object
   description: 'public.jurisdiction_county_crosswalk — one row per city/town geoid mapping it to the 5-digit FIPS of its containing county (plus the county''s name), consumed by the search county-broaden filter (resolve_county_crosswalk, api/routes/search_postgres.py). Built from gold.jurisdictions (city + county name/type) joined to the spatial enrichment source bronze.bronze_jurisdictions_county_fips_enriched. Replaces the hand-created live view from PR #176 so the relation is reproducible.'
   dataGranularityDescription: One row per city/town geoid mapping it to the 5-digit FIPS of its containing county (plus the county's name), consumed by the search county-broaden filter (resolve_county_crosswalk, api/routes/search_postgres.py).
   properties:
-  - name: geoid
+  - id: geoid
+    name: geoid
     logicalType: string
     physicalType: varchar
     description: Primary key — the city/town Census GEOID. Unique within the city/town subset.
@@ -40,26 +42,31 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: name
+  - id: name
+    name: name
     logicalType: string
     physicalType: varchar
     description: City/town name (matches public.jurisdictions.name; the API filters/reads this).
     required: true
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: varchar
     description: 2-letter state code of the city/town.
     required: true
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name of the city/town (from jurisdictions.state_name).
-  - name: county_fips
+  - id: county_fips
+    name: county_fips
     logicalType: string
     physicalType: varchar
     description: 5-digit FIPS of the containing county (spatial point-in-polygon resolution). Logical FK -> public.jurisdictions.geoid (county rows) but NOT a Postgres-enforced FK because jurisdictions.geoid is not unique/PK (PK is jurisdiction_id); integrity is guaranteed by the build's LEFT JOIN to the county subset of the same jurisdictions mart.
     required: true
-  - name: county_name
+  - id: county_name
+    name: county_name
     logicalType: string
     physicalType: varchar
     description: Name of the containing county (from the county row in jurisdictions). NULLABLE — a city whose resolved county_fips has no matching county row keeps county_fips with county_name NULL rather than being dropped.

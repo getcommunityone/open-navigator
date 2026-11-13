@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: tag
+- id: tag
+  name: tag
   physicalName: public.tag
   logicalType: object
   description: Unified, hierarchical tag taxonomy (NTEE + EveryOrg) — replaces the ad-hoc public.cause_ntee. One row per node, keyed by the collision-safe synthetic tag_id (vocabulary || '|' || source_code). Adjacency via parent_tag_id (self-FK); subtree queries via tag_closure.
   dataGranularityDescription: One row per node, keyed by the collision-safe synthetic tag_id (vocabulary || '|' || source_code).
   properties:
-  - name: tag_id
+  - id: tag_id
+    name: tag_id
     logicalType: string
     physicalType: text
     description: 'Synthetic PK: vocabulary || ''|'' || source_code (e.g. ''ntee|E20'').'
@@ -40,7 +42,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: vocabulary
+  - id: vocabulary
+    name: vocabulary
     logicalType: string
     physicalType: text
     description: 'Source vocabulary: ''ntee'' or ''everyorg''.'
@@ -55,59 +58,72 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: source_code
+  - id: source_code
+    name: source_code
     logicalType: string
     physicalType: text
     description: Original code/slug within the vocabulary (e.g. 'E20', 'climate').
     required: true
-  - name: label
+  - id: label
+    name: label
     logicalType: string
     physicalType: text
     description: Human-readable tag name.
-  - name: description
+  - id: description
+    name: description
     logicalType: string
     physicalType: text
     description: Detailed description, when available.
-  - name: parent_tag_id
+  - id: parent_tag_id
+    name: parent_tag_id
     logicalType: string
     physicalType: text
     description: Adjacency edge to the parent node; NULL at roots. The self-referential FK is enforced in Postgres via the Neon DDL (fk_tag_parent) rather than a dbt constraint, which would introduce a self-cycle in the model DAG; integrity is checked here by the relationships test.
     relationships:
     - type: foreignKey
-      to: tag.tag_id
-  - name: depth
+      to: schema/tag/properties/tag_id
+  - id: depth
+    name: depth
     logicalType: integer
     physicalType: integer
     description: Distance from root (0 = root), derived from tag_closure.
-  - name: breadcrumb
+  - id: breadcrumb
+    name: breadcrumb
     logicalType: string
     physicalType: text
     description: 'Denormalized root->leaf path for display (NTEE: '' > '' joined).'
-  - name: category
+  - id: category
+    name: category
     logicalType: string
     physicalType: text
     description: Vocabulary-specific categorization.
-  - name: subcategory
+  - id: subcategory
+    name: subcategory
     logicalType: string
     physicalType: text
     description: NTEE subcategory (NULL for EveryOrg).
-  - name: icon
+  - id: icon
+    name: icon
     logicalType: string
     physicalType: text
     description: EveryOrg icon slug (NULL for NTEE).
-  - name: popularity_rank
+  - id: popularity_rank
+    name: popularity_rank
     logicalType: integer
     physicalType: integer
     description: EveryOrg popularity rank (NULL for NTEE).
-  - name: source
+  - id: source
+    name: source
     logicalType: string
     physicalType: text
     description: 'Provenance: ''irs'' (NTEE) or ''everyorg''.'
-  - name: source_ingested_at
+  - id: source_ingested_at
+    name: source_ingested_at
     logicalType: timestamp
     physicalType: timestamp with time zone
     description: When the source row was last landed in bronze.
-  - name: dbt_loaded_at
+  - id: dbt_loaded_at
+    name: dbt_loaded_at
     logicalType: timestamp
     physicalType: timestamp with time zone
     description: dbt build timestamp.

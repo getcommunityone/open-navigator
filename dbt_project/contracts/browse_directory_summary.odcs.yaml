@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: browse_directory_summary
+- id: browse_directory_summary
+  name: browse_directory_summary
   physicalName: public.browse_directory_summary
   logicalType: object
   description: 'public.browse_directory_summary — homepage Browse-card rollup. One row per (entity_type, state_code): state_code NULL = national rollup, non-null = per-state. transcript_count is the GENUINE COUNT(DISTINCT video_id) (a video spanning multiple states is counted once nationally); entity_count is COUNT(DISTINCT entity_id). Built via GROUPING SETS over intermediate.int_browse_entity_transcripts. Causes: a single national row with 0 transcripts (no warehouse linkage) and entity_count = NTEE tag count.'
   dataGranularityDescription: 'One row per (entity_type, state_code): state_code NULL = national rollup, non-null = per-state.'
   properties:
-  - name: entity_type
+  - id: entity_type
+    name: entity_type
     logicalType: string
     physicalType: text
     description: 'Entity kind: ''place'' | ''topic'' | ''question'' | ''cause''. Part of the PK.'
@@ -45,11 +47,13 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state for the per-state rollup, or NULL for the national rollup row. Nullable on purpose — the API filters state_code IS NULL for national totals.
-  - name: state_code_key
+  - id: state_code_key
+    name: state_code_key
     logicalType: string
     physicalType: text
     description: NOT-NULL surrogate key = COALESCE(state_code, '_ALL_'). Exists only so the national (NULL state_code) row can participate in the composite PK.
@@ -62,7 +66,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: transcript_count
+  - id: transcript_count
+    name: transcript_count
     logicalType: integer
     physicalType: integer
     description: COUNT(DISTINCT video_id) at this grain. National rows are genuinely distinct (no cross-state double counting). 0 for causes. Never NULL.
@@ -73,7 +78,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: entity_count
+  - id: entity_count
+    name: entity_count
     logicalType: integer
     physicalType: integer
     description: COUNT(DISTINCT entity_id) at this grain (e.g. distinct places in the state). Never NULL.
@@ -84,7 +90,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: sort_rank
+  - id: sort_rank
+    name: sort_rank
     logicalType: integer
     physicalType: integer
     description: Dense-rank of entity_type by national transcript_count desc (default card order).

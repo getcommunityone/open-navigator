@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: jurisdictions
+- id: jurisdictions
+  name: jurisdictions
   physicalName: public.jurisdictions
   logicalType: object
   description: public.jurisdictions - API-ready jurisdiction table consumed by search_jurisdictions_pg (api/routes/search_postgres.py) and the frontend jurisdiction search. One row per jurisdiction (PK jurisdiction_id), built from the live intermediate.int_jurisdictions (82,921 rows from the sharded bronze census/wikidata tables) enriched with population (jurisdiction_acs) and a best-pick website_url (int_jurisdiction_websites). geoid is NOT unique (places and school districts can share a 7-char code), so the PK is jurisdiction_id. jurisdiction_type is mapped to the API level_mapping values (municipality->city, township->town) and is the single canonical type column (search_jurisdictions_pg aliases it to `type` in its own SELECT).
   dataGranularityDescription: One row per jurisdiction (PK jurisdiction_id), built from the live intermediate.int_jurisdictions (82,921 rows from the sharded bronze census/wikidata tables) enriched with population (jurisdiction_acs) and a best-pick website_url (int_jurisdiction_websites).
   properties:
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: Primary key. Stable id (slug + geoid) from int_jurisdictions.
@@ -40,82 +42,101 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: geoid
+  - id: geoid
+    name: geoid
     logicalType: string
     physicalType: varchar
     description: Census GEOID. NOT unique across types (place vs school district share 7-char codes).
-  - name: fips_code
+  - id: fips_code
+    name: fips_code
     logicalType: string
     physicalType: varchar
     description: FIPS code (same value as geoid for most census shards).
-  - name: ansicode
+  - id: ansicode
+    name: ansicode
     logicalType: string
     physicalType: varchar
     description: Census ANSI/GNIS code where available.
-  - name: name
+  - id: name
+    name: name
     logicalType: string
     physicalType: varchar
     description: Raw jurisdiction name.
-  - name: display_name
+  - id: display_name
+    name: display_name
     logicalType: string
     physicalType: varchar
     description: Display name used by the API for search + UI (currently = name).
     required: true
-  - name: jurisdiction_type
+  - id: jurisdiction_type
+    name: jurisdiction_type
     logicalType: string
     physicalType: text
     description: 'API-facing type mapped to level_mapping values: city/town/county/state/school_district.'
     required: true
-  - name: jurisdiction_category
+  - id: jurisdiction_category
+    name: jurisdiction_category
     logicalType: string
     physicalType: text
     description: Raw census classification preserved for provenance (municipality/township/county/state/school_district).
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: varchar
     description: 2-letter state code.
     required: true
-  - name: state_name
+  - id: state_name
+    name: state_name
     logicalType: string
     physicalType: text
     description: Full state name.
-  - name: county_name
+  - id: county_name
+    name: county_name
     logicalType: string
     physicalType: varchar
     description: County name; populated only for county-type jurisdictions (a county's own name). NULL otherwise - no place->county crosswalk at scale.
-  - name: population
+  - id: population
+    name: population
     logicalType: integer
     physicalType: bigint
     description: Total population from public.jurisdiction_acs (latest vintage, on geoid). NULL where no ACS match.
-  - name: area_sq_miles
+  - id: area_sq_miles
+    name: area_sq_miles
     logicalType: number
     physicalType: numeric
     description: Land area in square miles.
-  - name: latitude
+  - id: latitude
+    name: latitude
     logicalType: number
     physicalType: numeric
     description: Centroid latitude.
-  - name: longitude
+  - id: longitude
+    name: longitude
     logicalType: number
     physicalType: numeric
     description: Centroid longitude.
-  - name: website_url
+  - id: website_url
+    name: website_url
     logicalType: string
     physicalType: text
     description: Best single official website (ranked by source quality from int_jurisdiction_websites). NULL where unknown.
-  - name: search_text
+  - id: search_text
+    name: search_text
     logicalType: string
     physicalType: text
     description: 'FTS blob: name + state + state_code + type (+ county for counties). Backs the API to_tsvector match/rank.'
-  - name: ingestion_date
+  - id: ingestion_date
+    name: ingestion_date
     logicalType: timestamp
     physicalType: timestamp
     description: Source ingestion timestamp from int_jurisdictions.
-  - name: transformed_at
+  - id: transformed_at
+    name: transformed_at
     logicalType: timestamp
     physicalType: timestamptz
     description: int_jurisdictions transform timestamp.
-  - name: published_at
+  - id: published_at
+    name: published_at
     logicalType: timestamp
     physicalType: timestamptz
     description: Build timestamp for this mart.

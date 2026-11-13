@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: policy_question_relation
+- id: policy_question_relation
+  name: policy_question_relation
   physicalName: public.policy_question_relation
   logicalType: object
   description: 'public.policy_question_relation — cross-level edges between policy questions (Phase 3). from_question_id (state-bill question) preempts / implements / relates to to_question_id (local-decision question). The state-preemption surface: a local council action paired with state legislation that would override or enable it. Both endpoints FK -> policy_question via relationships tests (the repo convention).'
   properties:
-  - name: relation_id
+  - id: relation_id
+    name: relation_id
     logicalType: string
     physicalType: text
     description: PK — md5(from_question_id || to_question_id || relation_type).
@@ -39,40 +41,44 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: from_question_id
+  - id: from_question_id
+    name: from_question_id
     logicalType: string
     physicalType: text
     description: FK -> policy_question.question_id (typically a state-bill question).
     required: true
     relationships:
     - type: foreignKey
-      to: policy_question.question_id
+      to: policy_question.odcs.yaml#/schema/policy_question/properties/question_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: to_question_id
+  - id: to_question_id
+    name: to_question_id
     logicalType: string
     physicalType: text
     description: FK -> policy_question.question_id (typically a local-decision question).
     required: true
     relationships:
     - type: foreignKey
-      to: policy_question.question_id
+      to: policy_question.odcs.yaml#/schema/policy_question/properties/question_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: relation_type
+  - id: relation_type
+    name: relation_type
     logicalType: string
     physicalType: text
     description: preempts | implements | related.
     required: true
-  - name: evidence
+  - id: evidence
+    name: evidence
     logicalType: string
     physicalType: text
     description: How the link was inferred (similarity score + matched keyword).

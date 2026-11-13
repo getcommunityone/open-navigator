@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: civicsearch_topic
+- id: civicsearch_topic
+  name: civicsearch_topic
   physicalName: public.civicsearch_topic
   logicalType: object
   description: 'public.civicsearch_topic — the CivicSearch policy-topic taxonomy CivicSearch uses to tag meeting transcript snippets. One row per topic_id. A FLAT topic -> keyword-cluster dictionary (NOT hierarchical): keyword_stats holds the cluster''s representative keyword strings as a JSONB array. Source: staging.stg_civicsearch__topic (bronze.bronze_events_civicsearch_topic).'
   dataGranularityDescription: One row per topic_id.
   properties:
-  - name: topic_id
+  - id: topic_id
+    name: topic_id
     logicalType: integer
     physicalType: integer
     description: Primary key — CivicSearch topic id.
@@ -40,7 +42,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: name
+  - id: name
+    name: name
     logicalType: string
     physicalType: text
     description: Human-readable topic label.
@@ -51,16 +54,19 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: query_id
+  - id: query_id
+    name: query_id
     logicalType: string
     physicalType: text
     description: CivicSearch query/slug this topic was harvested under.
-  - name: keyword_stats
+  - id: keyword_stats
+    name: keyword_stats
     logicalType: object
     physicalType: jsonb
     description: JSONB array of representative keyword strings for the topic cluster.
     required: true
-  - name: transcript_occurrences
+  - id: transcript_occurrences
+    name: transcript_occurrences
     logicalType: integer
     physicalType: integer
     description: Count of CivicSearch transcript snippets tagged with this topic_id (from staging.stg_civicsearch__snippet). 0 for topics with no snippet matches (coalesced, never NULL). Lets the API rank topics by how often they occur across meeting transcripts.

@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: nonprofit_sector_revenue
+- id: nonprofit_sector_revenue
+  name: nonprofit_sector_revenue
   physicalName: public.nonprofit_sector_revenue
   logicalType: object
   description: Pre-computed 990 nonprofit-sector revenue decomposition (contributions, program-service revenue, total revenue, org count) at us / per-state / per-city grains, so the money-flow "economy" lens reads one row scoped to the visitor's jurisdiction instead of scanning the full satellite per request. Geography comes from the 1:1 mdm_organization join (state_code / city_norm).
   properties:
-  - name: scope_key
+  - id: scope_key
+    name: scope_key
     logicalType: string
     physicalType: text
     description: 'PK; encodes grain + place: ''us'', ''state:<code>'', or ''city:<code>|<city_norm>''.'
@@ -39,7 +41,8 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: scope
+  - id: scope
+    name: scope
     logicalType: string
     physicalType: text
     description: 'Grain of the row: ''us'' | ''state'' | ''city''.'
@@ -55,34 +58,41 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state code; NULL for the 'us' grain.
-  - name: city_norm
+  - id: city_norm
+    name: city_norm
     logicalType: string
     physicalType: text
     description: Normalized (lowercased) city name; NULL for the 'us' and 'state' grains.
-  - name: contributions
+  - id: contributions
+    name: contributions
     logicalType: integer
     physicalType: bigint
     description: SUM of gt990_total_contributions across the scope's 990-filing nonprofits.
     required: true
-  - name: program_service_revenue
+  - id: program_service_revenue
+    name: program_service_revenue
     logicalType: integer
     physicalType: bigint
     description: SUM of gt990_program_service_revenue for the scope.
     required: true
-  - name: total_revenue
+  - id: total_revenue
+    name: total_revenue
     logicalType: integer
     physicalType: bigint
     description: SUM of COALESCE(gt990_total_revenue, revenue) for the scope.
     required: true
-  - name: org_count
+  - id: org_count
+    name: org_count
     logicalType: integer
     physicalType: bigint
     description: COUNT of nonprofit org rows feeding the aggregate.
     required: true
-  - name: dbt_loaded_at
+  - id: dbt_loaded_at
+    name: dbt_loaded_at
     logicalType: timestamp
     physicalType: timestamp with time zone

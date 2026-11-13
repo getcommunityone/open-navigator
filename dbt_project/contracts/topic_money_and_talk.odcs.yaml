@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: topic_money_and_talk
+- id: topic_money_and_talk
+  name: topic_money_and_talk
   physicalName: public.topic_money_and_talk
   logicalType: object
   description: 'public.topic_money_and_talk — per (jurisdiction, canonical COFOG theme, month) rollup of the "talk" (decision_count) vs the "money" (spend_amount = SUM(ABS(net_dollar_impact))) signals, powering the topic money-vs-talk web feature. Built from item_interestingness (decision grain): the noisy free-text primary_theme is collapsed to one of the 18 canonical COFOG buckets via the normalize_coarse_theme() macro (rows resolving to ''__unthemed__'' are excluded), and cofog_code is resolved by join to the policy_theme_cofog seed. One row per (jurisdiction_id, canonical_theme, month = date_trunc(''month'', occurred_at)).'
   dataGranularityDescription: One row per (jurisdiction_id, canonical_theme, month = date_trunc('month', occurred_at)).
   properties:
-  - name: topic_money_and_talk_id
+  - id: topic_money_and_talk_id
+    name: topic_money_and_talk_id
     logicalType: string
     physicalType: text
     description: Primary key — surrogate md5(jurisdiction_id || canonical_theme || month).
@@ -40,45 +42,49 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: FK -> public.jurisdictions.jurisdiction_id. NOT NULL — null-jurisdiction decisions are excluded upstream. Enforced FK (jurisdictions has a single-column PK).
     required: true
     relationships:
     - type: foreignKey
-      to: jurisdictions.jurisdiction_id
-  - name: jurisdiction_name
+      to: jurisdictions.odcs.yaml#/schema/jurisdictions/properties/jurisdiction_id
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: text
     description: Jurisdiction display name (carried from item_interestingness).
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state code.
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: text
     description: City name.
-  - name: canonical_theme
+  - id: canonical_theme
+    name: canonical_theme
     logicalType: string
     physicalType: text
     description: Canonical COFOG theme bucket (one of the 18 controlled labels), derived from the free-text primary_theme via normalize_coarse_theme(). '__unthemed__' rows are excluded.
     required: true
-    relationships:
-    - type: foreignKey
-      to: policy_theme_cofog.primary_theme
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: cofog_code
+  - id: cofog_code
+    name: cofog_code
     logicalType: string
     physicalType: text
     description: COFOG code for the canonical_theme (from the policy_theme_cofog seed).
-  - name: month
+  - id: month
+    name: month
     logicalType: date
     physicalType: date
     description: First day of the meeting month (date_trunc('month', occurred_at)).
@@ -89,17 +95,20 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: decision_count
+  - id: decision_count
+    name: decision_count
     logicalType: integer
     physicalType: integer
     description: The 'talk' metric — COUNT(*) of decisions in this theme/month/jurisdiction.
     required: true
-  - name: spend_amount
+  - id: spend_amount
+    name: spend_amount
     logicalType: number
     physicalType: numeric
     description: The 'money' metric — SUM(ABS(net_dollar_impact)) over decisions with a non-null, non-zero impact; 0 when none contribute money.
     required: true
-  - name: spend_count
+  - id: spend_count
+    name: spend_count
     logicalType: integer
     physicalType: integer
     description: Count of decisions contributing money (non-null, non-zero net_dollar_impact).

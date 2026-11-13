@@ -15,12 +15,14 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: instance_argument
+- id: instance_argument
+  name: instance_argument
   physicalName: public.instance_argument
   logicalType: object
   description: public.instance_argument — bridge from a question instance to each canonical argument it expressed, with the local verbatim excerpt + cosine match score.
   properties:
-  - name: instance_argument_id
+  - id: instance_argument_id
+    name: instance_argument_id
     logicalType: string
     physicalType: text
     description: PK — md5(instance_id || '|' || argument_id).
@@ -39,41 +41,46 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: instance_id
+  - id: instance_id
+    name: instance_id
     logicalType: string
     physicalType: text
     description: FK -> question_instance.instance_id.
     required: true
     relationships:
     - type: foreignKey
-      to: question_instance.instance_id
+      to: question_instance.odcs.yaml#/schema/question_instance/properties/instance_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: argument_id
+  - id: argument_id
+    name: argument_id
     logicalType: string
     physicalType: text
     description: FK -> canonical_argument.argument_id.
     required: true
     relationships:
     - type: foreignKey
-      to: canonical_argument.argument_id
+      to: canonical_argument.odcs.yaml#/schema/canonical_argument/properties/argument_id
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: verbatim_excerpt
+  - id: verbatim_excerpt
+    name: verbatim_excerpt
     logicalType: string
     physicalType: text
-  - name: source_view
+  - id: source_view
+    name: source_view
     logicalType: string
     physicalType: text
     description: dominant | counter | sponsor | fiscal_note | testimony.
-  - name: match_score
+  - id: match_score
+    name: match_score
     logicalType: number
     physicalType: double precision

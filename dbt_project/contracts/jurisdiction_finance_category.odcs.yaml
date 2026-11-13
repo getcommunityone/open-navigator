@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: jurisdiction_finance_category
+- id: jurisdiction_finance_category
+  name: jurisdiction_finance_category
   physicalName: public.jurisdiction_finance_category
   logicalType: object
   description: 'public.jurisdiction_finance_category — tidy/long companion to jurisdiction_finance: one row per (government x expenditure category) with amount (whole dollars) and share_pct of direct_expenditure. NULL-amount categories are omitted (no zero-fill). Shares per government sum to ~100.'
   dataGranularityDescription: One row per (government x expenditure category) with amount (whole dollars) and share_pct of direct_expenditure.
   properties:
-  - name: jurisdiction_finance_category_id
+  - id: jurisdiction_finance_category_id
+    name: jurisdiction_finance_category_id
     logicalType: string
     physicalType: text
     description: PK — md5(jurisdiction_finance_id || '|' || category_code).
@@ -40,15 +42,17 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: jurisdiction_finance_id
+  - id: jurisdiction_finance_id
+    name: jurisdiction_finance_id
     logicalType: string
     physicalType: text
     description: FK -> public.jurisdiction_finance.jurisdiction_finance_id. NOT NULL.
     required: true
     relationships:
     - type: foreignKey
-      to: jurisdiction_finance.jurisdiction_finance_id
-  - name: category_code
+      to: jurisdiction_finance.odcs.yaml#/schema/jurisdiction_finance/properties/jurisdiction_finance_id
+  - id: category_code
+    name: category_code
     logicalType: string
     physicalType: text
     description: Stable machine code for the category.
@@ -69,17 +73,20 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: category
+  - id: category
+    name: category
     logicalType: string
     physicalType: text
     description: Human-readable category label.
     required: true
-  - name: amount
+  - id: amount
+    name: amount
     logicalType: integer
     physicalType: bigint
     description: Expenditure for this category, whole dollars (NOT NULL — null categories are omitted).
     required: true
-  - name: share_pct
+  - id: share_pct
+    name: share_pct
     logicalType: number
     physicalType: numeric
     description: amount / direct_expenditure * 100 (0..100). NULL when direct_expenditure NULL/0.

@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: meeting_browse
+- id: meeting_browse
+  name: meeting_browse
   physicalName: public.meeting_browse
   logicalType: object
   description: public.meeting_browse — meeting-grain browse/serving rollup. One row per event_meeting_id with has_transcript and real decision/question/topic counts plus top_interestingness_score for ranking. Excludes bare meetings with nothing to show.
   dataGranularityDescription: One row per event_meeting_id with has_transcript and real decision/question/topic counts plus top_interestingness_score for ranking.
   properties:
-  - name: event_meeting_id
+  - id: event_meeting_id
+    name: event_meeting_id
     logicalType: integer
     physicalType: integer
     description: Primary key; FK -> event_meeting.event_meeting_id (enforced).
@@ -29,9 +31,6 @@ schema:
     unique: true
     primaryKey: true
     primaryKeyPosition: 1
-    relationships:
-    - type: foreignKey
-      to: event_meeting.event_meeting_id
     quality:
     - type: library
       metric: duplicateValues
@@ -43,59 +42,72 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: c1_event_id
+  - id: c1_event_id
+    name: c1_event_id
     logicalType: string
     physicalType: varchar
     description: civic_event bridge key (passthrough).
-  - name: video_id
+  - id: video_id
+    name: video_id
     logicalType: string
     physicalType: varchar
     description: Transcript/video key (passthrough).
-  - name: meeting_title
+  - id: meeting_title
+    name: meeting_title
     logicalType: string
     physicalType: text
     description: Human meeting label — event_meeting.body_name, falling back to meeting_summary only when body_name is null. Both are real source values (event_meeting has no dedicated title column).
-  - name: meeting_date
+  - id: meeting_date
+    name: meeting_date
     logicalType: string
     physicalType: text
     description: Meeting date as stored on event_meeting (text).
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: varchar
     description: 2-letter state code (passthrough).
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name (passthrough).
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: varchar
     description: City (passthrough).
-  - name: jurisdiction_name
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: varchar
     description: Jurisdiction name (passthrough).
-  - name: has_transcript
+  - id: has_transcript
+    name: has_transcript
     logicalType: boolean
     physicalType: boolean
     description: True when the meeting has a transcript document.
     required: true
-  - name: decision_count
+  - id: decision_count
+    name: decision_count
     logicalType: integer
     physicalType: bigint
     description: Count of event_decision rows for the meeting (via c1_event_id). 0 if none.
     required: true
-  - name: question_count
+  - id: question_count
+    name: question_count
     logicalType: integer
     physicalType: bigint
     description: Distinct policy_question count for the meeting. 0 if none.
     required: true
-  - name: topic_link_count
+  - id: topic_link_count
+    name: topic_link_count
     logicalType: integer
     physicalType: bigint
     description: Count of meeting_topic_link rows (both link types) for the meeting. 0 if none.
     required: true
-  - name: top_interestingness_score
+  - id: top_interestingness_score
+    name: top_interestingness_score
     logicalType: number
     physicalType: double precision
     description: Max item_interestingness.interestingness_score across the meeting's decisions, for ranking. NULL when the meeting has no scored item.

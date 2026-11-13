@@ -1,20 +1,29 @@
 odcs-json-schema-v3.1.0.json is the official JSON Schema of the Open Data Contract Standard (ODCS)
 v3.1.0, by Bitol, a Linux Foundation AI & Data project, used unchanged under the Apache License 2.0.
+It is the copy at the v3.1.0 release tag, byte for byte the copy that Databricks Labs' Ontos bundles
+in src/backend/src/schemas/ (compared 2026-11-13).
 
-Source:  https://raw.githubusercontent.com/bitol-io/open-data-contract-standard/main/schema/odcs-json-schema-v3.1.0.json
+Source:  https://raw.githubusercontent.com/bitol-io/open-data-contract-standard/v3.1.0/schema/odcs-json-schema-v3.1.0.json
 Project: https://github.com/bitol-io/open-data-contract-standard (Apache-2.0)
 Fetched: 2026-11-13
-SHA-256: f99a3093a5d65326837f96278654067ffdc10de314fc1f45b9dbfeb1d3429f84
+SHA-256: 2cb7dd6fe43344d2233e0406438622681dc3ebadcf8f0d606a15b40c8f6752c0
 
-packages/datamodels/models/odcs.py validates every contract in dbt_project/contracts/ against it (issue #270).
+packages/datamodels/models/odcs.py validates every contract in dbt_project/contracts/ against it (issues #270
+and #276).
 
 odps-json-schema-v1.0.0.json is the official JSON Schema of the Open Data Product Standard (ODPS)
 v1.0.0, by Bitol, a Linux Foundation AI & Data project, used unchanged under the Apache License 2.0.
+It is the copy at the v1.0.0 release tag, byte for byte the copy that Ontos bundles in
+src/backend/src/schemas/ (compared 2026-11-13).
 
-Source:  https://raw.githubusercontent.com/bitol-io/open-data-product-standard/main/schema/odps-json-schema-v1.0.0.json
+Source:  https://raw.githubusercontent.com/bitol-io/open-data-product-standard/v1.0.0/schema/odps-json-schema-v1.0.0.json
 Project: https://github.com/bitol-io/open-data-product-standard (Apache-2.0)
 Fetched: 2026-11-13
-SHA-256: 1724c7a1bba8cbf5da971f2b16a354a5daa79b888b4ef4aeeefd8d3cd7a6d34f
+SHA-256: 2730fbde0d9ba6d73d47798ada98b3a6dded9c6a14d3d44fa3c69c2c2575ff73
 
 packages/datamodels/models/odps.py validates every data product in dbt_project/contracts/products/ against it
 (issue #274).
+
+Vendor a release tag's copy, never a branch's: a branch's copy changes under the same file name (#276).
+packages/datamodels/tests/test_odcs.py fails when a file's SHA-256 differs from the one given here, or when its
+source isn't the release tag in its file name.

@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: contact_official
+- id: contact_official
+  name: contact_official
   physicalName: public.contact_official
   logicalType: object
   description: 'public.contact_official — API-ready current government officials (mayors, council members, legislators) sourced from the OpenStates opencivicdata_* tables. One row per official×role (PK id = OCD membership id). Rebuilt as a warehouse mart to replace the legacy gold parquet (data/gold/states/<ST>/contact_official.parquet) the API reads today; the previous public.contact_official table was dropped by migration 052. Unlike the parquet export this includes ALL current memberships, not just legislative chambers, so mayors and local officials are present. No FK is declared: the OCD jurisdiction slug has no clean key into public.jurisdictions (census slug+geoid); the jurisdiction name is denormalized for display. Resolving a hard org->jurisdiction FK is a follow-up. PII-LIGHT IN PUBLIC: the published public serving copy redacts the contact PII (email and phone) to NULL; the unredacted values exist only in the private/gold warehouse.'
   dataGranularityDescription: One row per official×role (PK id = OCD membership id).
   properties:
-  - name: id
+  - id: id
+    name: id
     logicalType: string
     physicalType: text
     description: Primary key. The OCD membership id (text).
@@ -40,69 +42,83 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: full_name
+  - id: full_name
+    name: full_name
     logicalType: string
     physicalType: text
     description: Official's full name.
     required: true
-  - name: title
+  - id: title
+    name: title
     logicalType: string
     physicalType: text
     description: Cleaned, title-cased role (e.g. 'Mayor', 'Council Member').
     required: true
-  - name: jurisdiction
+  - id: jurisdiction
+    name: jurisdiction
     logicalType: string
     physicalType: text
     description: Organization name the official serves (e.g. 'Tuscaloosa Government'). Display only.
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: '2-letter state/territory code (state:/territory:/district: token).'
     required: true
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name (from state_code_to_name).
-  - name: party
+  - id: party
+    name: party
     logicalType: string
     physicalType: text
     description: Primary party, where known.
-  - name: district
+  - id: district
+    name: district
     logicalType: string
     physicalType: text
     description: District/seat label (post.label), where known.
-  - name: office
+  - id: office
+    name: office
     logicalType: string
     physicalType: text
     description: Org classification / chamber (government/upper/lower/...). Nullable.
-  - name: email
+  - id: email
+    name: email
     logicalType: string
     physicalType: text
     description: 'Official email, lower-cased. Nullable. PII-light: redacted to NULL in the public serving copy. Always null in public: publish_public_serving redacts this column.'
     customProperties:
     - property: redactedInPublic
       value: true
-  - name: phone
+  - id: phone
+    name: phone
     logicalType: string
     physicalType: text
     description: 'Official phone (carried by the scraped municipal path only; the OpenStates source has none — that leg pads it NULL to match the legacy parquet contract). Nullable. PII-light: redacted to NULL in the public serving copy. Always null in public: publish_public_serving redacts this column.'
     customProperties:
     - property: redactedInPublic
       value: true
-  - name: photo_url
+  - id: photo_url
+    name: photo_url
     logicalType: string
     physicalType: text
     description: Photo URL (opencivicdata_person.image). Nullable.
-  - name: biography
+  - id: biography
+    name: biography
     logicalType: string
     physicalType: text
     description: Official biography prose. Sourced from the scraped municipal path (stg_scraped__official.biography — e.g. Northport's CivicPlus directory detail pages) when present, else the official_photo_override seed (e.g. a mayor's "meet the mayor" page). OpenStates carries no bio; NULL for everyone without either source.
-  - name: is_current
+  - id: is_current
+    name: is_current
     logicalType: boolean
     physicalType: boolean
     description: True when the term is open-ended or ends on/after the current-term cutoff.
     required: true
-  - name: website_url
+  - id: website_url
+    name: website_url
     logicalType: string
     physicalType: text
     description: The official's jurisdiction website (from public.jurisdictions), resolved for LOCAL leaders only (office in government/executive) by matching state_code + normalized place name. NULL for legislators and for any local leader whose jurisdiction has no known website.

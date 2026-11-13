@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: jurisdiction_minutes_publish_lag
+- id: jurisdiction_minutes_publish_lag
+  name: jurisdiction_minutes_publish_lag
   physicalName: public.jurisdiction_minutes_publish_lag
   logicalType: object
   description: 'public.jurisdiction_minutes_publish_lag — per-jurisdiction statistics for how long minutes typically take to publish after a meeting. One row per jurisdiction. Lag (days) per minutes PDF = (raw_resource->>''minutes_published_at'')::date - meeting_date; only lags in 0..180 days count (negatives are template noise, larger are outliers). A jurisdiction is emitted ONLY when sample_n >= 5 — fewer samples are not trustworthy, and the API treats an absent row as "no estimate". Source: the SuiteOne municipal-calendar crawl in bronze, scoped only by meeting_date_source=''suiteone_listing'' AND doc_type=''minutes'' (general, not city-specific).'
   dataGranularityDescription: One row per jurisdiction.
   properties:
-  - name: jurisdiction_id
+  - id: jurisdiction_id
+    name: jurisdiction_id
     logicalType: string
     physicalType: text
     description: Primary key — canonical jurisdiction id (e.g. 'tuscaloosa_0177256').
@@ -40,40 +42,48 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: census_geoid
+  - id: census_geoid
+    name: census_geoid
     logicalType: string
     physicalType: text
     description: Census GEOID of the jurisdiction (e.g. '0177256'). The API joins on this.
     required: true
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state code (e.g. 'AL').
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Full state name (e.g. 'Alabama').
-  - name: median_lag_days
+  - id: median_lag_days
+    name: median_lag_days
     logicalType: integer
     physicalType: integer
     description: Median publish lag in days (percentile_cont(0.5), rounded to integer). The value the API adds to meeting_date.
     required: true
-  - name: mean_lag_days
+  - id: mean_lag_days
+    name: mean_lag_days
     logicalType: number
     physicalType: numeric(6, 1)
     description: Mean publish lag in days (one decimal place).
     required: true
-  - name: p90_lag_days
+  - id: p90_lag_days
+    name: p90_lag_days
     logicalType: integer
     physicalType: integer
     description: 90th-percentile publish lag in days (percentile_cont(0.9), rounded to integer).
     required: true
-  - name: sample_n
+  - id: sample_n
+    name: sample_n
     logicalType: integer
     physicalType: integer
     description: Number of in-range (0..180 day) published minutes used in the statistic. Always >= 5.
     required: true
-  - name: computed_at
+  - id: computed_at
+    name: computed_at
     logicalType: timestamp
     physicalType: timestamp
     description: When this aggregate row was computed (model build time).

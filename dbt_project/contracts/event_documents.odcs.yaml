@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: event_documents
+- id: event_documents
+  name: event_documents
   physicalName: public.event_documents
   logicalType: object
   description: public.event_documents — searchable documents attached to a golden-record event. One row per (event, document); today the only document_type is 'transcript' (video transcripts from events_text_search), generalizing to agenda / minutes / caption documents later without a schema change. content holds the full searchable body (GIN full-text indexed). FK event_id -> event. Consumed by the API (search_documents_pg). Denormalized title/jurisdiction/state/city are sourced from the golden event when one exists, else COALESCE-backfilled from event_youtube_with_jurisdiction (by video_id) so the ~90% orphan transcripts still carry a location and survive state/city filters.
   dataGranularityDescription: One row per (event, document); today the only document_type is 'transcript' (video transcripts from events_text_search), generalizing to agenda / minutes / caption documents later without a schema change.
   properties:
-  - name: event_document_id
+  - id: event_document_id
+    name: event_document_id
     logicalType: integer
     physicalType: bigint
     description: Surrogate document id (PK). Stable within a build only.
@@ -40,14 +42,16 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: event_id
+  - id: event_id
+    name: event_id
     logicalType: integer
     physicalType: bigint
     description: 'Golden-record event this document belongs to. NULLABLE: ~90% of transcripts have no golden event yet (un-promoted video) and are kept searchable with event_id NULL. FK enforced for non-null values.'
     relationships:
     - type: foreignKey
-      to: event.event_id
-  - name: document_type
+      to: event.odcs.yaml#/schema/event/properties/event_id
+  - id: document_type
+    name: document_type
     logicalType: string
     physicalType: text
     description: Kind of document. Currently always 'transcript'.
@@ -61,79 +65,98 @@ schema:
       mustBe: 0
       dimension: conformity
       severity: error
-  - name: document_source
+  - id: document_source
+    name: document_source
     logicalType: string
     physicalType: text
     description: Provenance of the document body (e.g. transcript source 'youtube').
-  - name: video_id
+  - id: video_id
+    name: video_id
     logicalType: string
     physicalType: text
     description: YouTube video id the transcript was derived from.
-  - name: content
+  - id: content
+    name: content
     logicalType: string
     physicalType: text
     description: 'Full searchable document body (transcript text). GIN full-text indexed on the dev target. NULLABLE: on the `neon` serving target the full body is dropped (only content_excerpt is kept) to fit the free tier, so this is NULL there; on dev it is always populated.'
-  - name: content_excerpt
+  - id: content_excerpt
+    name: content_excerpt
     logicalType: string
     physicalType: text
     description: Capped left(content, 300) preview of the document body. Always present (both targets); on `neon` it is the only retained text since `content` is dropped.
-  - name: content_tsv
+  - id: content_tsv
+    name: content_tsv
     logicalType: string
     physicalType: tsvector
     description: Precomputed full-text vector over content (dev target, GIN indexed). On the `neon` serving target this is NULL (national document FTS disabled to fit the free tier; search_documents_pg returns empty rather than error).
-  - name: content_length
+  - id: content_length
+    name: content_length
     logicalType: integer
     physicalType: integer
     description: Character length of content.
-  - name: word_count
+  - id: word_count
+    name: word_count
     logicalType: integer
     physicalType: integer
     description: Approximate word count of content.
-  - name: language
+  - id: language
+    name: language
     logicalType: string
     physicalType: text
     description: Document language (e.g. 'en').
-  - name: is_auto_generated
+  - id: is_auto_generated
+    name: is_auto_generated
     logicalType: boolean
     physicalType: boolean
     description: True when the transcript was auto-generated (vs. human).
-  - name: segments
+  - id: segments
+    name: segments
     logicalType: object
     physicalType: jsonb
     description: Timed transcript segments (JSONB), when available.
-  - name: event_title
+  - id: event_title
+    name: event_title
     logicalType: string
     physicalType: text
     description: Denormalized event title for result display.
-  - name: event_date
+  - id: event_date
+    name: event_date
     logicalType: date
     physicalType: date
     description: Denormalized event date for sort/display.
-  - name: jurisdiction_name
+  - id: jurisdiction_name
+    name: jurisdiction_name
     logicalType: string
     physicalType: text
     description: Denormalized jurisdiction name for result display.
-  - name: jurisdiction_type
+  - id: jurisdiction_type
+    name: jurisdiction_type
     logicalType: string
     physicalType: text
     description: Denormalized jurisdiction type.
-  - name: state_code
+  - id: state_code
+    name: state_code
     logicalType: string
     physicalType: text
     description: Denormalized 2-letter state code for filtering.
-  - name: state
+  - id: state
+    name: state
     logicalType: string
     physicalType: text
     description: Denormalized full state name for display.
-  - name: city
+  - id: city
+    name: city
     logicalType: string
     physicalType: text
     description: Denormalized city for display.
-  - name: video_url
+  - id: video_url
+    name: video_url
     logicalType: string
     physicalType: text
     description: Source video URL.
-  - name: created_at
+  - id: created_at
+    name: created_at
     logicalType: timestamp
     physicalType: timestamp without time zone
     description: When the underlying transcript row was created.

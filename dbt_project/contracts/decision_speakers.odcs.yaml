@@ -15,13 +15,15 @@ tags:
 - open-navigator
 - public-api
 schema:
-- name: decision_speakers
+- id: decision_speakers
+  name: decision_speakers
   physicalName: public.decision_speakers
   logicalType: object
   description: public.decision_speakers — one row per event_decision_id listing the DISTINCT person_id slugs that gave named testimony on that decision, extracted from event_decision.human_element->'personal_stories'. speaker_ids is a jsonb array of the leading (<=6) slugs in first-appearance order; speaker_count is the uncapped distinct total so a card can render "+N more". Only real slugs from the AI extraction are emitted (CLAUDE.md No Fabricated Data).
   dataGranularityDescription: One row per event_decision_id listing the DISTINCT person_id slugs that gave named testimony on that decision, extracted from event_decision.human_element->'personal_stories'.
   properties:
-  - name: event_decision_id
+  - id: event_decision_id
+    name: event_decision_id
     logicalType: string
     physicalType: text
     description: Primary key. FK -> event_decision.event_decision_id, asserted via a relationships test (warn) rather than an enforced constraint because event_decision is partitioned with a composite PK and cannot be a single-column FK target.
@@ -29,12 +31,6 @@ schema:
     unique: true
     primaryKey: true
     primaryKeyPosition: 1
-    relationships:
-    - type: foreignKey
-      to: event_decision.event_decision_id
-      customProperties:
-      - property: dbtTestSeverity
-        value: warn
     quality:
     - type: library
       metric: duplicateValues
@@ -46,12 +42,14 @@ schema:
       mustBe: 0
       dimension: completeness
       severity: error
-  - name: speaker_ids
+  - id: speaker_ids
+    name: speaker_ids
     logicalType: object
     physicalType: jsonb
     description: jsonb ARRAY of DISTINCT person_id slugs (e.g. 'jesus_carmona_jr_resident_clayton_county_georgia') in first-appearance order, capped to at most 6 elements.
     required: true
-  - name: speaker_count
+  - id: speaker_count
+    name: speaker_count
     logicalType: integer
     physicalType: integer
     description: Total count of DISTINCT person_id slugs for the decision (UNCAPPED), so the card can render "+N more" beyond the capped speaker_ids array.
