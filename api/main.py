@@ -1106,19 +1106,15 @@ async def get_topics():
     }
 
 
-FALLBACK_OPPORTUNITY_STATES: List[str] = [
-    "AL", "CA", "FL", "GA", "IL", "IN", "MA", "NY", "TX", "WA", "WI"
-]
-
-
 @app.get("/states", response_model=StatesResponse, tags=["opportunities"])
 @app.get("/api/states", response_model=StatesResponse, tags=["opportunities"])
 async def get_states() -> StatesResponse:
     """Get list of all states with active opportunities.
 
     Queries distinct state codes from active bills in the database if available.
-    Falls back gracefully to configured `settings.target_states` or standard
-    pipeline coverage states when running offline or without database access.
+    When the query fails or returns nothing, uses the configured
+    `settings.target_states` (real configuration). If that is not set either,
+    returns an empty list rather than inventing states.
     """
     try:
         from api.routes.bills_neon import get_pool
@@ -1145,12 +1141,13 @@ async def get_states() -> StatesResponse:
     except Exception as e:
         logger.warning(f"Failed to query active opportunity states from bills database: {e}")
 
-    # Fallback to configured target states or standard coverage states
+    # No database result: use configured target states (real configuration), never an invented list.
     configured_states = settings.target_states
     if configured_states:
-        resolved = sorted(set(st.upper() for st in configured_states if st))
+        resolved = sorted(set(st.strip().upper() for st in configured_states if st and st.strip()))
     else:
-        resolved = sorted(FALLBACK_OPPORTUNITY_STATES)
+        resolved = []
+        logger.warning("No active opportunity states from the database and settings.target_states is not set; returning an empty list")
 
     return StatesResponse(states=resolved, count=len(resolved))
 
