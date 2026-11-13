@@ -7,3 +7,14 @@ Fetched: 2026-11-13
 SHA-256: f99a3093a5d65326837f96278654067ffdc10de314fc1f45b9dbfeb1d3429f84
 
 packages/datamodels/models/odcs.py validates every contract in dbt_project/contracts/ against it (issue #270).
+
+odps-json-schema-v1.0.0.json is the official JSON Schema of the Open Data Product Standard (ODPS)
+v1.0.0, by Bitol, a Linux Foundation AI & Data project, used unchanged under the Apache License 2.0.
+
+Source:  https://raw.githubusercontent.com/bitol-io/open-data-product-standard/main/schema/odps-json-schema-v1.0.0.json
+Project: https://github.com/bitol-io/open-data-product-standard (Apache-2.0)
+Fetched: 2026-11-13
+SHA-256: 1724c7a1bba8cbf5da971f2b16a354a5daa79b888b4ef4aeeefd8d3cd7a6d34f
+
+packages/datamodels/models/odps.py validates every data product in dbt_project/contracts/products/ against it
+(issue #274).
