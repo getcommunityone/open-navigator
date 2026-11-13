@@ -86,8 +86,16 @@ def load(log_dir: Path, *, database_url: str | None = None, dry_run: bool = Fals
     import psycopg2
     from psycopg2.extras import execute_values
 
-    from llm.gemini.persist_policy_analysis_bronze import _apply_migration
+    from llm.gemini.persist_policy_analysis_bronze import (
+        _MIGRATIONS_DIR,
+        _apply_migration,
+    )
     from llm.gemini.persist_policy_analysis_bronze import database_url as resolve_url
+
+    if not (_MIGRATIONS_DIR / MIGRATION).is_file():
+        # _apply_migration only warns about a missing file; the insert would then fail
+        # with a vaguer "relation does not exist".
+        raise SystemExit(f"Migration not found: {_MIGRATIONS_DIR / MIGRATION} (run from a repository checkout)")
 
     conn = psycopg2.connect(resolve_url(database_url))
     try:

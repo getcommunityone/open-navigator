@@ -49,7 +49,7 @@ import argparse
 import json
 import os
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -66,6 +66,9 @@ DEFAULT_MAX_REQUESTS_PER_JOB = 500
 
 # Batch job states (google.genai.types.JobState names).
 SUCCEEDED = "JOB_STATE_SUCCEEDED"
+# Ended with a results file: a partly succeeded job has one line per request, the
+# failed ones carrying their error.
+ENDED_WITH_RESULTS = {SUCCEEDED, "JOB_STATE_PARTIALLY_SUCCEEDED"}
 ENDED_WITHOUT_RESULTS = {"JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EXPIRED"}
 DRY_RUN = "DRY_RUN"  # files written, no job created
 
@@ -409,7 +412,7 @@ def run_status(args: argparse.Namespace) -> list[dict[str, Any]]:
         return []
     client = None
     for manifest in manifests:
-        if manifest.get("job_name") and is_in_flight(manifest) and manifest.get("state") != SUCCEEDED:
+        if manifest.get("job_name") and is_in_flight(manifest) and manifest.get("state") not in ENDED_WITH_RESULTS:
             client = client or _batch_client()
             try:
                 refresh_state(client, manifest)
@@ -440,6 +443,8 @@ def _save_namespace(args: argparse.Namespace) -> argparse.Namespace:
 
     ns = build_parser().parse_args([])
     ns.persist_bronze = not getattr(args, "no_persist_bronze", False)
+    # No warehouse at hand: skip the policy-event stamps on bronze too.
+    ns.no_db_events = not ns.persist_bronze
     ns.run_part_2 = False
     ns.database_url = args.database_url or ""
     return ns
@@ -450,10 +455,16 @@ def collect_results(
     manifest: dict[str, Any],
     lines: Iterable[str],
     save_args: argparse.Namespace,
+    on_outcome: Callable[[str, str], None] | None = None,
 ) -> dict[str, str]:
     """Save every result line of one job. Returns ``{video_id: outcome}`` where the
-    outcome is ``"saved"``, ``"already saved"`` or ``"failed: <why>"``. A video whose
-    analysis already exists is left as it is, so collecting twice rewrites nothing."""
+    outcome is ``"saved"``, ``"already saved"`` or ``"failed: <why>"``.
+
+    Idempotent: a video whose analysis already exists is left as it is, and a video
+    the manifest already has an outcome for (a collect that stopped part way) is
+    skipped, so neither its usage row nor its policy event is written twice.
+    ``on_outcome(video_id, outcome)`` is called after each video, so the caller can
+    persist progress as it goes."""
     from llm.gemini.meeting_transcript_policy import (
         Part1Request,
         _record_policy_event_safe,
@@ -462,15 +473,25 @@ def collect_results(
     from llm.gemini.transcript_cache_paths import resolve_analysis_path
     from llm.usage.calls import record_llm_call, usage_from_genai_response
 
-    outcomes: dict[str, str] = {}
+    outcomes: dict[str, str] = dict(manifest.get("results") or {})
+    done = set(outcomes)
+    record_events = not getattr(save_args, "no_db_events", False)
+
+    def finish(video_id: str, outcome: str) -> None:
+        outcomes[video_id] = outcome
+        if on_outcome is not None:
+            on_outcome(video_id, outcome)
+
     for line in lines:
         parsed = parse_result_line(line)
         if parsed is None:
             continue
         video_id, text, response, error = parsed
+        if video_id in done:
+            continue
         sidecar = job_dir / "requests" / f"{video_id}.json"
         if not sidecar.is_file():
-            outcomes[video_id] = "failed: no request sidecar for this key"
+            finish(video_id, "failed: no request sidecar for this key")
             continue
         request = Part1Request.from_json(json.loads(sidecar.read_text(encoding="utf-8")))
         video = request.video
@@ -483,28 +504,34 @@ def collect_results(
             state_code=request.state_code,
             channel_id=getattr(video, "channel_id", None),
         )
-        if existing is not None:
-            outcomes[video_id] = "already saved"
-            continue
         usage = usage_from_genai_response(response)
-        labels = dict(stage="part1", video_id=video_id, jurisdiction_id=video.jurisdiction_id)
+        labels = {"stage": "part1", "video_id": video_id, "jurisdiction_id": video.jurisdiction_id}
+        if existing is not None:
+            # Saved meanwhile (an interactive run). The batch answer is not used, but it
+            # was produced and billed, so its usage is still recorded.
+            record_llm_call(provider="gemini", model=request.model, usage=usage, is_ok=text is not None,
+                            error_type=None if text is not None else "BatchRequestFailed",
+                            api_mode="batch", **labels)  # fmt: skip
+            finish(video_id, "already saved")
+            continue
         if text is None:
-            outcomes[video_id] = f"failed: {error}"
             record_llm_call(provider="gemini", model=request.model, usage=usage, is_ok=False,
                             error_type="BatchRequestFailed", api_mode="batch", **labels)  # fmt: skip
-            _record_policy_event_safe(video_id, stage="analysis", ok=False, error=f"batch: {error}",
-                                      database_url=save_args.database_url or None)  # fmt: skip
+            if record_events:
+                _record_policy_event_safe(video_id, stage="analysis", ok=False, error=f"batch: {error}",
+                                          database_url=save_args.database_url or None)  # fmt: skip
+            finish(video_id, f"failed: {error}")
             continue
         try:
             save_part1_response(request, text, save_args, usage=usage.as_dict())
-            outcomes[video_id] = "saved"
             record_llm_call(provider="gemini", model=request.model, usage=usage, is_ok=True,
                             api_mode="batch", **labels)  # fmt: skip
+            finish(video_id, "saved")
         except Exception as exc:  # noqa: BLE001 - one bad response must not stop the collect
             logger.exception("Could not save {}: {}", video_id, exc)
-            outcomes[video_id] = f"failed: save error: {type(exc).__name__}: {exc}"[:2000]
             record_llm_call(provider="gemini", model=request.model, usage=usage, is_ok=False,
                             error_type=type(exc).__name__, api_mode="batch", **labels)  # fmt: skip
+            finish(video_id, f"failed: save error: {type(exc).__name__}: {exc}"[:2000])
     for video_id in manifest.get("video_ids") or []:
         outcomes.setdefault(video_id, "failed: no result line for this key")
     return outcomes
@@ -528,7 +555,7 @@ def run_collect(args: argparse.Namespace) -> list[dict[str, Any]]:
                              manifest["job_name"], manifest["state"])  # fmt: skip
                 write_manifest(jobs_dir, manifest)
                 continue
-            if manifest["state"] != SUCCEEDED:
+            if manifest["state"] not in ENDED_WITH_RESULTS:
                 waiting += 1
                 write_manifest(jobs_dir, manifest)
                 logger.info("{} is {} — not ready", manifest["job_name"], manifest["state"])
@@ -539,7 +566,15 @@ def run_collect(args: argparse.Namespace) -> list[dict[str, Any]]:
                 continue
             data = client.files.download(file=result_file)
             (job_dir / "results.jsonl").write_bytes(data)
-            outcomes = collect_results(job_dir, manifest, data.decode("utf-8").splitlines(), save_args)
+            manifest.setdefault("results", {})
+
+            def persist(video_id: str, outcome: str, manifest: dict[str, Any] = manifest) -> None:
+                manifest["results"][video_id] = outcome
+                write_manifest(jobs_dir, manifest)
+
+            outcomes = collect_results(
+                job_dir, manifest, data.decode("utf-8").splitlines(), save_args, on_outcome=persist
+            )
             manifest["results"] = outcomes
             manifest["collected_at"] = datetime.now(UTC).isoformat()
             write_manifest(jobs_dir, manifest)

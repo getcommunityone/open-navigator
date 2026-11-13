@@ -78,3 +78,14 @@ def test_demo_runners_label_their_calls(monkeypatch):
     wrapped = colab_demos._usage_stage("demo2")(lambda: calls.current_context())
     assert wrapped() == {"stage": "demo2"}
     assert colab_demos.run_demo1.__name__ == "run_demo1"  # functools.wraps kept the name
+
+
+def test_labels_reach_a_call_run_in_a_worker_thread(log_dir):
+    # Demo 3 runs its call through call_with_wall_clock_timeout (a worker thread).
+    def call():
+        return gqr.call_with_genai_quota_retry(_response, label="genai m", model="m", stage="governance")
+
+    with calls.llm_call_context(stage="demo3", video_id="vid"):
+        gqr.call_with_wall_clock_timeout(call, timeout_seconds=5)
+    (row,) = _rows(log_dir)
+    assert row["stage"] == "demo3" and row["video_id"] == "vid"

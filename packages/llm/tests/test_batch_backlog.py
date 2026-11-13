@@ -172,13 +172,22 @@ def test_negative_thinking_budget_means_the_model_default(tmp_path):
 # --------------------------------------------------------------------------- #
 # collect
 # --------------------------------------------------------------------------- #
+IDS = ["aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc", "ddddddddddd"]
+LINES = [
+    PROBE_LINE.replace('"k1"', '"aaaaaaaaaaa"'),
+    json.dumps({"key": "bbbbbbbbbbb", "error": {"message": "request too large"}}),
+    PROBE_LINE.replace('"k1"', '"ccccccccccc"'),
+    "not json",
+]
+
+
 @pytest.fixture()
-def collected(tmp_path, monkeypatch):
-    """A job of four videos whose results are: saved, failed, already analyzed, missing."""
+def collect(tmp_path, monkeypatch):
+    """Runs collect_results on a job of four videos whose results are: saved, failed,
+    already analyzed, missing. Returns a function; each call collects again."""
     monkeypatch.setenv("LLM_USAGE_LOG_DIR", str(tmp_path / "usage"))
     monkeypatch.delenv("LLM_USAGE_LOG", raising=False)
-    ids = ["aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc", "ddddddddddd"]
-    bb.write_job_files(tmp_path, "job1", [_request(v, tmp_path) for v in ids], _submit_args())
+    bb.write_job_files(tmp_path, "job1", [_request(v, tmp_path) for v in IDS], _submit_args())
     saved, stamped = [], []
 
     def fake_save(request, text, args, *, usage=None):
@@ -194,15 +203,20 @@ def collected(tmp_path, monkeypatch):
         "resolve_analysis_path",
         lambda out_dir, jid, *, video_id, **kw: tmp_path / "existing.json" if video_id == "ccccccccccc" else None,
     )
-    lines = [
-        PROBE_LINE.replace('"k1"', '"aaaaaaaaaaa"'),
-        json.dumps({"key": "bbbbbbbbbbb", "error": {"message": "request too large"}}),
-        PROBE_LINE.replace('"k1"', '"ccccccccccc"'),
-        "not json",
-    ]
-    outcomes = bb.collect_results(tmp_path / "job1", {"video_ids": ids}, lines, argparse.Namespace(database_url=""))
-    usage_rows = list(load_bronze.read_rows(tmp_path / "usage", "llm_calls"))
-    return outcomes, saved, stamped, usage_rows
+
+    def run(manifest=None, save_args=None, on_outcome=None):
+        manifest = manifest if manifest is not None else {"video_ids": IDS}
+        outcomes = bb.collect_results(tmp_path / "job1", manifest, LINES,
+                                      save_args or argparse.Namespace(database_url=""), on_outcome=on_outcome)  # fmt: skip
+        usage_rows = list(load_bronze.read_rows(tmp_path / "usage", "llm_calls"))
+        return outcomes, saved, stamped, usage_rows
+
+    return run
+
+
+@pytest.fixture()
+def collected(collect):
+    return collect()
 
 
 def test_collect_outcomes(collected):
@@ -221,11 +235,41 @@ def test_collect_outcomes(collected):
 def test_collect_records_usage_as_batch(collected):
     *_, usage_rows = collected
     by_video = {r["video_id"]: r for r in usage_rows}
-    assert set(by_video) == {"aaaaaaaaaaa", "bbbbbbbbbbb"}
-    ok, failed = by_video["aaaaaaaaaaa"], by_video["bbbbbbbbbbb"]
+    # the already-analyzed video's batch answer was billed too, so it is recorded
+    assert set(by_video) == {"aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc"}
+    ok, failed, meanwhile = by_video["aaaaaaaaaaa"], by_video["bbbbbbbbbbb"], by_video["ccccccccccc"]
     assert ok["api_mode"] == "batch" and ok["stage"] == "part1" and ok["is_ok"] is True
     assert ok["input_token_count"] == 7 and ok["latency_seconds"] is None
     assert failed["is_ok"] is False and failed["error_type"] == "BatchRequestFailed"
+    assert meanwhile["is_ok"] is True and meanwhile["input_token_count"] == 7
+
+
+def test_collect_reports_progress_and_a_rerun_writes_nothing_twice(collect):
+    progress = {}
+    first, *_ = collect(on_outcome=lambda v, o: progress.__setitem__(v, o))
+    assert progress == {k: v for k, v in first.items() if k != "ddddddddddd"}  # missing keys are added at the end
+    # a collect that stopped after two videos: the manifest holds their outcomes
+    partial = {"video_ids": IDS, "results": {"aaaaaaaaaaa": "saved", "bbbbbbbbbbb": "failed: request too large"}}
+    _, saved, stamped, usage_rows = collect()  # baseline counts after one full run
+    counts = (len(saved), len(stamped), len(usage_rows))
+    outcomes, saved, stamped, usage_rows = collect(manifest=partial)
+    assert outcomes["aaaaaaaaaaa"] == "saved" and outcomes["ccccccccccc"] == "already saved"
+    new_videos = [r["video_id"] for r in usage_rows[counts[2]:]]
+    assert new_videos == ["ccccccccccc"]  # a and b were not recorded again
+    assert len(saved) == counts[0] and len(stamped) == counts[1]
+
+
+def test_no_persist_bronze_skips_every_database_write(collect):
+    save_args = bb._save_namespace(argparse.Namespace(no_persist_bronze=True, database_url=""))
+    assert save_args.persist_bronze is False and save_args.no_db_events is True
+    _, _, stamped, _ = collect(save_args=save_args)
+    assert stamped == []
+
+
+def test_partially_succeeded_jobs_have_results():
+    assert "JOB_STATE_PARTIALLY_SUCCEEDED" in bb.ENDED_WITH_RESULTS
+    assert bb.is_in_flight({"state": "JOB_STATE_PARTIALLY_SUCCEEDED", "collected_at": None})
+    assert not bb.is_in_flight({"state": "JOB_STATE_PARTIALLY_SUCCEEDED", "collected_at": "x"})
 
 
 def test_cli_parses_each_command():

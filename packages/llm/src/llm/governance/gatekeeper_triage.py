@@ -37,6 +37,7 @@ CLI::
 from __future__ import annotations
 
 import argparse
+import contextvars
 from contextlib import contextmanager
 import json
 import logging
@@ -1069,7 +1070,8 @@ def call_gemma_triage(
     try:
         with gatekeeper_socket_freeze_guard(timeout_seconds):
             with ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(_generate_with_quota_retry)
+                # A copy of the caller's context, so its usage labels reach the worker.
+                future = pool.submit(contextvars.copy_context().run, _generate_with_quota_retry)
                 try:
                     response = future.result(timeout=timeout_seconds or None)
                 except FuturesTimeoutError as exc:

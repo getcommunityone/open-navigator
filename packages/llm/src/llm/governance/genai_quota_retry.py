@@ -7,6 +7,7 @@ burst input tokens (e.g. Demo 2 HIGH pages on ``gemma-4-26b``).
 
 from __future__ import annotations
 
+import contextvars
 import os
 import re
 import time
@@ -156,7 +157,9 @@ def call_with_wall_clock_timeout(
     from concurrent.futures import TimeoutError as FuturesTimeoutError
 
     with ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(fn)
+        # Run in a copy of the caller's context, so usage labels (llm_call_context:
+        # the demo stage, video and jurisdiction) reach the call in the worker thread.
+        future = pool.submit(contextvars.copy_context().run, fn)
         try:
             return future.result(timeout=timeout_seconds)
         except FuturesTimeoutError as exc:
