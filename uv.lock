@@ -571,6 +571,18 @@ requires-dist = [
 name = "communityone-datamodels"
 version = "0.1.0"
 source = { editable = "packages/datamodels" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "loguru" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jsonschema", specifier = ">=4.18" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "pyyaml", specifier = ">=6" },
+]
 
 [[package]]
 name = "communityone-erd"
