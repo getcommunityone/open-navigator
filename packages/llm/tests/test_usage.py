@@ -230,9 +230,8 @@ def test_gpu_run_writes_a_row_even_when_the_step_fails(log_dir, monkeypatch):
     monkeypatch.setattr(gpu, "gpu_names", lambda: ["Tesla T4", "Tesla T4"])
     monkeypatch.setattr(gpu, "start_gpu_sampler", lambda path, interval_ms=5000: None)
     monkeypatch.setattr(gpu, "stop_gpu_sampler", lambda sampler: None)
-    with pytest.raises(RuntimeError):
-        with gpu.gpu_run("whisperx_diarization", video_id="v", jurisdiction_id="j"):
-            raise RuntimeError("out of memory")
+    with pytest.raises(RuntimeError), gpu.gpu_run("whisperx_diarization", video_id="v", jurisdiction_id="j"):
+        raise RuntimeError("out of memory")
     (row,) = _rows(log_dir, "gpu_runs")
     assert row["step_name"] == "whisperx_diarization" and row["video_id"] == "v"
     assert row["gpu_count"] == 2 and row["gpu_name"] == "Tesla T4"

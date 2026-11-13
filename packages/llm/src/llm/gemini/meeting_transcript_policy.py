@@ -112,6 +112,11 @@ def _record_policy_event_safe(
     except Exception as exc:  # tracking must never break the pipeline
         logger.warning("policy event record skipped for {} ({}): {}", video_id, stage, exc)
 
+from llm.gemini.agenda_presenter_hints import (  # noqa: E402
+    enrich_uncontested_media_anchors,
+    format_agenda_presenter_hints_block,
+    segment_agenda_blocks,
+)
 from llm.gemini.browser_policy_analysis import (  # noqa: E402
     DEFAULT_JURISDICTION_ID,
     DEFAULT_PROMPT_PART_1,
@@ -129,11 +134,6 @@ from llm.gemini.browser_policy_analysis import (  # noqa: E402
     build_user_message,
     fetch_videos,
 )
-from llm.gemini.agenda_presenter_hints import (  # noqa: E402
-    enrich_uncontested_media_anchors,
-    format_agenda_presenter_hints_block,
-    segment_agenda_blocks,
-)
 from llm.gemini.diarize_postprocess import (  # noqa: E402
     diarize_audio_whisperx,
     format_diarized_transcript,
@@ -149,8 +149,6 @@ from llm.gemini.genai_text_client import (  # noqa: E402
     ensure_valid_gemini_api_key,
     extract_json_from_model_text,
 )
-from llm.usage.calls import llm_call_context  # noqa: E402
-from llm.usage.gpu import gpu_run  # noqa: E402
 from llm.gemini.speaker_hints import (  # noqa: E402
     format_speaker_hints_block,
     known_speaker_names,
@@ -173,6 +171,8 @@ from llm.gemini.transcript_cache_paths import (  # noqa: E402
     transcript_cache_path,
 )
 from llm.gemini.transcript_fetch import fetch_youtube_transcript  # noqa: E402
+from llm.usage.calls import llm_call_context  # noqa: E402
+from llm.usage.gpu import gpu_run  # noqa: E402
 
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 DEFAULT_YOUTUBE_AUDIO_ROOT = _REPO_ROOT / "data" / "cache" / "youtube_audio"
@@ -540,8 +540,12 @@ def save_transcript_policy_output(
             db_url = database_url or _database_url(None)
             if db_url:
                 try:
-                    from llm.gemini.persist_policy_analysis_bronze import resolve_event_id_for_video
-                    from llm.gemini.policy_exclusions import write_bronze_policy_exclusion
+                    from llm.gemini.persist_policy_analysis_bronze import (
+                        resolve_event_id_for_video,
+                    )
+                    from llm.gemini.policy_exclusions import (
+                        write_bronze_policy_exclusion,
+                    )
 
                     write_bronze_policy_exclusion(
                         db_url,
@@ -1111,7 +1115,9 @@ def prepare_part1_request(
         agenda_blocks,
         jurisdiction_id=jurisdiction_id,
     )
-    from llm.gemini.legislation_analysis import format_pre_gemini_agenda_legislation_hints
+    from llm.gemini.legislation_analysis import (
+        format_pre_gemini_agenda_legislation_hints,
+    )
 
     agenda_leg_hints = format_pre_gemini_agenda_legislation_hints(
         agenda_blocks, jurisdiction_id=jurisdiction_id

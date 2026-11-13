@@ -36,7 +36,8 @@ def _request(video_id: str, out_dir: Path, model: str = "gemini-2.5-flash-lite")
 
 
 def _submit_args(**over) -> argparse.Namespace:
-    base = dict(temperature=0.1, max_output_tokens=65536, thinking_budget=0, no_json_mode=False, system_instruction="")
+    base = {"temperature": 0.1, "max_output_tokens": 65536, "thinking_budget": 0, "no_json_mode": False,
+            "system_instruction": ""}  # fmt: skip
     return argparse.Namespace(**{**base, **over})
 
 

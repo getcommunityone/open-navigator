@@ -55,7 +55,11 @@ def _record_usage(
     """One usage row for the call (#268). ``stage`` only fills in a stage the caller's
     ``llm_call_context`` (e.g. ``demo3``) has not already set. Never raises."""
     try:
-        from llm.usage.calls import current_context, record_llm_call, usage_from_genai_response
+        from llm.usage.calls import (
+            current_context,
+            record_llm_call,
+            usage_from_genai_response,
+        )
 
         # A streamed answer (_StreamGenAIResponse) carries its usage on the last chunk.
         usage = usage_from_genai_response(getattr(response, "last_chunk", response))
@@ -70,8 +74,10 @@ def _record_usage(
             error_type=type(error).__name__ if error is not None else None,
             **labels,
         )
-    except Exception:  # noqa: BLE001 - usage logging never breaks a call
-        pass
+    except Exception as exc:  # noqa: BLE001 - usage logging never breaks a call
+        from loguru import logger
+
+        logger.debug("usage record skipped for {}: {}", model, exc)
 
 
 def call_with_genai_quota_retry(
@@ -146,7 +152,8 @@ def call_with_wall_clock_timeout(
     """Run ``fn`` in a worker thread; raise ``TimeoutError`` if it exceeds the cap."""
     if timeout_seconds <= 0:
         return fn()
-    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as FuturesTimeoutError
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(fn)

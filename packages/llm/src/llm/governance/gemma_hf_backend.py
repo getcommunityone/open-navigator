@@ -800,8 +800,8 @@ def call_gemma_hf_multimodal(
             is_ok=True,
             api_mode="local",
         )
-    except Exception:  # noqa: BLE001 - usage logging never breaks a generation
-        pass
+    except Exception as exc:  # noqa: BLE001 - usage logging never breaks a generation
+        logger.debug("usage record skipped for %s: %s", bundle.repo_id, exc)
 
     text, thoughts = _decode_generation(
         bundle,
