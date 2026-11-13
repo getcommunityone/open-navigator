@@ -1,0 +1,67 @@
+# Prices for the usage report (#262). `python -m llm.usage.report` multiplies the
+# logged token counts and GPU-hours by these.
+#
+# A price is used only when its value, its `source` and its `read_date` are all
+# filled in. Anything left null shows as a blank cost in the report: no figure is
+# assumed (CLAUDE.md, "No Fabricated Data"). A change is a pull request that
+# updates the date.
+
+# Model prices in USD per 1M tokens, by API mode. Thinking tokens are billed at
+# the output rate. `cached_input_usd_per_1m` is the rate for input tokens the API
+# reports as served from its cache.
+#
+# SOURCE CAVEAT: Google's own pricing pages (ai.google.dev, aistudio.google.com,
+# docs.cloud.google.com) could not be reached from the session that filled these
+# in. The interactive rates below are Google Cloud's base-tier, on-demand list
+# prices as getdeploying.com republishes them, read on 2026-11-13. Gemini API
+# paid-tier rates are expected to match; confirm against Google's page and update
+# the source (#266). Batch rates are not on that page, so they stay null and batch
+# calls show no cost until they are filled in. That page also says Google closed
+# gemini-2.5-flash and gemini-2.5-flash-lite to new users in July 2026 and expects
+# to shut them down.
+models:
+  gemini-2.5-flash:
+    source: https://getdeploying.com/llms/gemini-2.5-flash
+    read_date: "2026-11-13"
+    interactive: {input_usd_per_1m: 0.30, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 2.50}
+    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  gemini-2.5-flash-lite:
+    source: https://getdeploying.com/llms/gemini-2.5-flash-lite
+    read_date: "2026-11-13"
+    interactive: {input_usd_per_1m: 0.10, cached_input_usd_per_1m: 0.01, output_usd_per_1m: 0.40}
+    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  gemini-3.5-flash-lite:
+    source: https://getdeploying.com/llms/gemini-3.5-flash-lite
+    read_date: "2026-11-13"
+    interactive: {input_usd_per_1m: 0.30, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 2.50}
+    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  gemini-3.8-flash:
+    source: https://getdeploying.com/llms/gemini-3.8-flash
+    read_date: "2026-11-13"
+    interactive: {input_usd_per_1m: 0.75, cached_input_usd_per_1m: 0.075, output_usd_per_1m: 3.75}
+    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  # Gemma (gemma-4-*) and DeepSeek: no price found yet; they show no cost.
+  deepseek-chat:
+    source: null
+    read_date: null
+    interactive: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+
+# GPU prices in USD per GPU-hour, matched against the name `nvidia-smi` reports
+# (the key is searched for in the name, so "T4" matches "Tesla T4"). These are
+# ESTIMATES of what the GPU time would rent for on a cloud: the median on-demand
+# price across the providers the source lists. A Colab or Kaggle GPU is paid for
+# in compute units or not at all. Values, sources and dates are the ones
+# health-transformation-lab-nlp records in ops/cost_settings.yaml.
+gpus:
+  T4:
+    usd_per_gpu_hour: 0.69
+    source: https://getdeploying.com/gpus/nvidia-t4
+    read_date: "2026-11-04"
+  L4:
+    usd_per_gpu_hour: 0.83
+    source: https://getdeploying.com/gpus/nvidia-l4
+    read_date: "2026-11-11"
+  A100:
+    usd_per_gpu_hour: 1.87
+    source: https://getdeploying.com/gpus/nvidia-a100
+    read_date: "2026-11-12"

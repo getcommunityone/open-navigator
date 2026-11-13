@@ -52,10 +52,10 @@ Extract **every distinct real-world location** mentioned in the transcript: stre
 4. Set **`subjects[].primary_place_id`** when the subject is a parcel, property, or facility.
 **Per `places[]` row:**
 - **`raw_text`**: verbatim cue from transcript (e.g. "3620 23rd Street", "Southern Gardens", "Ed Love water treatment plant").
-- **`normalized_address`**: best-effort single line for geocoding (e.g. `3620 23rd St, Tuscaloosa, AL`). Use meeting city/state when spoken but omitted.
+- **`normalized_address`**: best-effort single line for geocoding (e.g. `3620 23rd St, <meeting city>, <ST>`). Use the meeting's city and state from the transcript, or from MEDIA CONTEXT when the transcript omits them.
 - **`place_type`**: one of `street_address`, `intersection`, `subdivision`, `facility`, `bridge`, `campus`, `neighborhood`, `corridor`, `jurisdiction_wide`, `other`.
 - **`street_address`**, **`city`**, **`state`**: parsed components when known; `state` as 2-letter USPS if US.
-- **`geocode_query`**: same as `normalized_address` unless a facility needs a name qualifier (e.g. `Ed Love Water Treatment Plant, Tuscaloosa, AL`).
+- **`geocode_query`**: same as `normalized_address` unless a facility needs a name qualifier (e.g. `Ed Love Water Treatment Plant, <meeting city>, <ST>`).
 - **`latitude`**, **`longitude`**: null in model output (filled by pipeline geocoder).
 - **`geocode_status`**: `pending` | `ok` | `not_found` | `skipped` — default `pending`.
 - **`linked_decision_ids`**, **`linked_item_ids`**: every `D00*` / `U00*` that references this place.

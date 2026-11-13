@@ -6,6 +6,21 @@ sources:
     database: open_navigator  # Single database with schemas
     schema: bronze  # Bronze schema for raw data
     tables:
+      - name: bronze_llm_call
+        description: |
+          One row per model call after its retries (#262), loaded from the llm.usage logs by
+          `python -m llm.usage.load_bronze` (migration 111 creates it). Token counts are what
+          the API reported. Until it is loaded, stg_llm__call builds empty.
+        columns:
+          - name: llm_call_id
+            description: "Primary key (uuid)."
+      - name: bronze_gpu_run
+        description: |
+          One row per GPU step (#262): wall time, GPU-hours and nvidia-smi samples, loaded by
+          `python -m llm.usage.load_bronze` (migration 111). Until then stg_llm__gpu_run builds empty.
+        columns:
+          - name: gpu_run_id
+            description: "Primary key (uuid)."
       - name: bronze_ordinances
         description: |
           Raw ordinances as each source publishes them (CORE-1.1, #237). The CORE-1.1.2
