@@ -154,6 +154,30 @@ What it showed:
   DEADLINE_EXCEEDED", because the SDK forwards the client's timeout to Google as the server deadline. The tool
   raises its own timeout to 1,200 seconds for that reason.
 
+## Where the output goes (#269)
+
+`python -m llm.gemini.part1_field_sizes <answers or analysis files> [--count-tokens]` measures each field's share
+of the output. Across the nine answers to the made-up meeting collected on November 13, 2026 (seven models):
+
+| Field | Share of output | Read by |
+|---|---|---|
+| `decisions[]` as a whole | 82% | |
+| `decisions[].competing_views` | 15% | dbt marts, API (`decisions`, `lenses`, search) |
+| `decisions[].speaker_segments` | 12% | **nothing outside the prompt** |
+| `decisions[].smart_brevity` | 10% | dbt, API, `DecisionDetail` page |
+| `decisions[].evidence_metrics` | 9% | **nothing outside the prompt** |
+| `decisions[].human_element` | 7% | dbt `decision_speakers`, API, `DecisionDetail` page |
+| the two diagrams | 10% | Part 2 report, dbt |
+| the two `*_lines` diagram helpers | 7% | only as a fallback when a diagram string is missing |
+
+The helper lines were removed from the prompt as a test, three runs each on `gemini-2.5-flash-lite`: output averaged
+8,713 tokens before and 8,918 after, within run-to-run noise, and one run lost a diagram it could no longer be rebuilt
+from. The change was reverted. The model's output length doesn't shrink just because one optional field goes.
+
+`speaker_segments` and `evidence_metrics` are about a fifth of the output and nothing reads them yet. Whether to keep
+them for planned features (per-speaker floor time looks like groundwork for CORE-2.2, #241) is a product decision,
+so they stay. If they go, measure again with this tool, as the helper-line test showed.
+
 ## Not done
 
 - Batch, Gemma and DeepSeek prices are not filled in, and the Gemini interactive prices still need confirming
