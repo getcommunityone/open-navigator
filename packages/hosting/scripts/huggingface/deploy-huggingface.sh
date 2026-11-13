@@ -44,7 +44,11 @@ if [ -z "$HF_DEPLOY_ISOLATED" ]; then
         # child's PATH so hf (and its python/pip) resolve directly, no install needed.
         _CHILD_PATH="$PATH"
         [ -d "$SRC_ROOT/.venv/bin" ] && _CHILD_PATH="$SRC_ROOT/.venv/bin:$PATH"
-        HF_DEPLOY_ISOLATED=1 PATH="$_CHILD_PATH" bash "packages/hosting/scripts/huggingface/deploy-huggingface.sh" "$@"
+        # The clone's origin is this local checkout, which may hold no LFS objects (CI checks
+        # out with lfs: false), so tell the child where the real LFS server is (#233).
+        HF_DEPLOY_LFS_REMOTE=$(git -C "$SRC_ROOT" remote get-url origin 2>/dev/null || true)
+        HF_DEPLOY_ISOLATED=1 HF_DEPLOY_LFS_REMOTE="$HF_DEPLOY_LFS_REMOTE" PATH="$_CHILD_PATH" \
+            bash "packages/hosting/scripts/huggingface/deploy-huggingface.sh" "$@"
         rc=$?
         set -e
         exit $rc
@@ -420,6 +424,17 @@ while IFS=$'\t' read -r add del path; do
     fi
 done < <(git diff --cached --numstat)
 echo "✅ Binary files excluded: ${_bin}"
+
+# Git LFS pointers: the clone skipped LFS smudge, so their objects aren't local and git-lfs
+# would refuse the push ("(missing) web_docs/static/img/erd/marts_full.png", #233). Fetch them
+# from the source repository's LFS server, then drop any pointer whose object still can't be
+# found, so one missing image can't block a deploy.
+echo "📦 Fetching Git LFS objects for the staged files..."
+# shellcheck source=packages/hosting/scripts/huggingface/lfs_objects.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lfs_objects.sh"
+lfs_fetch_staged "${HF_DEPLOY_LFS_REMOTE:-origin}" main
+_lfs_dropped=$(lfs_drop_missing_staged)
+echo "✅ Git LFS files without an object, excluded: ${_lfs_dropped}"
 
 echo "💾 Committing clean deployment (no git history)..."
 git commit -m "Clean HuggingFace deployment without binary files" --allow-empty
