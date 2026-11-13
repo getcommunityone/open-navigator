@@ -19,19 +19,20 @@ import os
 import socket
 import threading
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any
 
 from loguru import logger
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 _WRITE_LOCK = threading.Lock()
 _RUN_ID = (os.environ.get("LLM_USAGE_RUN_ID") or "").strip() or uuid.uuid4().hex[:12]
-_CONTEXT: ContextVar[Dict[str, Any]] = ContextVar("llm_call_context", default={})
+_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar("llm_call_context", default=None)
 
 # Labels a caller may set; anything else passed to llm_call_context is dropped,
 # so a transcript or prompt can never end up in the usage log by accident.
@@ -50,19 +51,19 @@ TOKEN_COLUMNS = (
 class LLMCallUsage:
     """What one model call used. ``None`` means the API did not report it."""
 
-    input_token_count: Optional[int] = None
-    cached_input_token_count: Optional[int] = None
-    output_token_count: Optional[int] = None
-    thinking_token_count: Optional[int] = None
-    total_token_count: Optional[int] = None
-    latency_seconds: Optional[float] = None
-    attempt_count: Optional[int] = None
+    input_token_count: int | None = None
+    cached_input_token_count: int | None = None
+    output_token_count: int | None = None
+    thinking_token_count: int | None = None
+    total_token_count: int | None = None
+    latency_seconds: float | None = None
+    attempt_count: int | None = None
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def _int_or_none(value: Any) -> Optional[int]:
+def _int_or_none(value: Any) -> int | None:
     if value is None or isinstance(value, bool):
         return None
     try:
@@ -129,7 +130,7 @@ def usage_from_openai_response(raw: Any) -> LLMCallUsage:
 @contextmanager
 def llm_call_context(**labels: Any) -> Iterator[None]:
     """Labels for every model call made inside the block (see ``CONTEXT_LABELS``)."""
-    merged = dict(_CONTEXT.get())
+    merged = dict(_CONTEXT.get() or {})
     merged.update(
         {k: str(v) for k, v in labels.items() if k in CONTEXT_LABELS and v not in (None, "")}
     )
@@ -140,8 +141,8 @@ def llm_call_context(**labels: Any) -> Iterator[None]:
         _CONTEXT.reset(token)
 
 
-def current_context() -> Dict[str, Any]:
-    return dict(_CONTEXT.get())
+def current_context() -> dict[str, Any]:
+    return dict(_CONTEXT.get() or {})
 
 
 def usage_enabled() -> bool:
@@ -158,13 +159,13 @@ def run_id() -> str:
     return _RUN_ID
 
 
-def append_row(prefix: str, row: Dict[str, Any], *, when: Optional[datetime] = None) -> Optional[Path]:
+def append_row(prefix: str, row: dict[str, Any], *, when: datetime | None = None) -> Path | None:
     """Append one JSON line to ``<prefix>_YYYYMMDD.jsonl``. Returns the file, or
     ``None`` when recording is off or the write failed (logged, never raised)."""
     if not usage_enabled():
         return None
     try:
-        day = (when or datetime.now(timezone.utc)).strftime("%Y%m%d")
+        day = (when or datetime.now(UTC)).strftime("%Y%m%d")
         path = usage_log_dir() / f"{prefix}_{day}.jsonl"
         line = json.dumps(row, ensure_ascii=False, default=str)
         with _WRITE_LOCK:
@@ -181,19 +182,19 @@ def record_llm_call(
     *,
     provider: str,
     model: str,
-    usage: Optional[LLMCallUsage],
+    usage: LLMCallUsage | None,
     is_ok: bool,
-    error_type: Optional[str] = None,
-    api_mode: Optional[str] = None,
-    called_at: Optional[datetime] = None,
+    error_type: str | None = None,
+    api_mode: str | None = None,
+    called_at: datetime | None = None,
     **labels: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Write one call's row and return it. Labels given here win over the context."""
     context = current_context()
     context.update({k: str(v) for k, v in labels.items() if k in CONTEXT_LABELS and v})
-    when = called_at or datetime.now(timezone.utc)
+    when = called_at or datetime.now(UTC)
     used = usage or LLMCallUsage()
-    row: Dict[str, Any] = {
+    row: dict[str, Any] = {
         "llm_call_id": str(uuid.uuid4()),
         "called_at": when.isoformat(),
         "provider": provider,
@@ -214,10 +215,11 @@ def record_llm_call(
     }
     append_row("llm_calls", row, when=when)
     logger.info(
-        "llm call {} {} [{}]: in={} cached={} out={} thinking={} {}s attempts={} ok={}",
+        "llm call {} {} [{}] {}: in={} cached={} out={} thinking={} seconds={} attempts={} ok={}",
         provider,
         model,
         row["stage"] or "-",
+        row["api_mode"],
         row["input_token_count"],
         row["cached_input_token_count"],
         row["output_token_count"],

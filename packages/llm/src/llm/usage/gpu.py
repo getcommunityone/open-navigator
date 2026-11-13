@@ -21,20 +21,27 @@ import socket
 import subprocess
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any
 
 from loguru import logger
 
-from llm.usage.calls import append_row, current_context, run_id, usage_enabled, usage_log_dir
+from llm.usage.calls import (
+    append_row,
+    current_context,
+    run_id,
+    usage_enabled,
+    usage_log_dir,
+)
 
 SAMPLE_HEADER = "timestamp,gpu_index,utilization_pct,memory_used_mb,power_w"
 _NVIDIA_SMI_TIME = "%Y/%m/%d %H:%M:%S.%f"
 
 
-def gpu_names() -> List[str]:
+def gpu_names() -> list[str]:
     """Each GPU's name as ``nvidia-smi`` reports it; ``[]`` with no GPU or no tool."""
     if shutil.which("nvidia-smi") is None:
         return []
@@ -53,7 +60,7 @@ def gpu_names() -> List[str]:
     return [line.strip() for line in out.stdout.splitlines() if line.strip()]
 
 
-def start_gpu_sampler(path: Path, interval_ms: int = 5000) -> Tuple[subprocess.Popen, Any]:
+def start_gpu_sampler(path: Path, interval_ms: int = 5000) -> tuple[subprocess.Popen, Any]:
     """Start ``nvidia-smi`` writing one line per GPU every ``interval_ms`` to ``path``."""
     path.parent.mkdir(parents=True, exist_ok=True)
     out = open(path, "w", encoding="utf-8")  # noqa: SIM115 - closed by stop_gpu_sampler
@@ -73,7 +80,7 @@ def start_gpu_sampler(path: Path, interval_ms: int = 5000) -> Tuple[subprocess.P
     return proc, out
 
 
-def stop_gpu_sampler(sampler: Tuple[subprocess.Popen, Any]) -> None:
+def stop_gpu_sampler(sampler: tuple[subprocess.Popen, Any]) -> None:
     proc, out = sampler
     try:
         proc.terminate()
@@ -84,7 +91,7 @@ def stop_gpu_sampler(sampler: Tuple[subprocess.Popen, Any]) -> None:
         out.close()
 
 
-def gpu_stats(samples: Path, start_unix: float, end_unix: float) -> Optional[Dict[str, Any]]:
+def gpu_stats(samples: Path, start_unix: float, end_unix: float) -> dict[str, Any] | None:
     """Mean utilization, peak memory and energy from the samples between two times.
 
     ``nvidia-smi`` stamps samples in the machine's local time, so they are read as
@@ -94,7 +101,7 @@ def gpu_stats(samples: Path, start_unix: float, end_unix: float) -> Optional[Dic
     """
     if not Path(samples).exists():
         return None
-    rows: List[Tuple[float, int, float, float, Optional[float]]] = []
+    rows: list[tuple[float, int, float, float, float | None]] = []
     with open(samples, encoding="utf-8") as fh:
         for r in csv.reader(fh):
             if not r or r[0].startswith("timestamp"):
@@ -105,14 +112,14 @@ def gpu_stats(samples: Path, start_unix: float, end_unix: float) -> Optional[Dic
             except (ValueError, IndexError):  # a cut-off last line
                 continue
             try:
-                watts: Optional[float] = float(r[4])
+                watts: float | None = float(r[4])
             except (ValueError, IndexError):  # "[N/A]" power on some GPUs
                 watts = None
             rows.append((ts, index, util, mem, watts))
     inside = [r for r in rows if start_unix <= r[0] <= end_unix]
     if not inside:
         return None
-    power: Dict[int, List[float]] = {}
+    power: dict[int, list[float]] = {}
     for _, index, _, _, watts in inside:
         if watts is not None:
             power.setdefault(index, []).append(watts)
@@ -132,7 +139,7 @@ def gpu_stats(samples: Path, start_unix: float, end_unix: float) -> Optional[Dic
 def gpu_run(
     step_name: str,
     *,
-    device: Optional[str] = None,
+    device: str | None = None,
     interval_ms: int = 5000,
     **labels: Any,
 ) -> Iterator[None]:
@@ -150,7 +157,7 @@ def gpu_run(
         sampler = start_gpu_sampler(samples, interval_ms=interval_ms)
     except Exception as exc:  # noqa: BLE001 - sampling never blocks the step
         logger.warning("GPU sampler not started for {}: {}", step_name, exc)
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     start_unix = time.time()
     try:
         yield
@@ -162,11 +169,11 @@ def gpu_run(
             wall = end_unix - start_unix
             context = current_context()
             context.update({k: str(v) for k, v in labels.items() if v})
-            row: Dict[str, Any] = {
+            row: dict[str, Any] = {
                 "gpu_run_id": gpu_run_id,
                 "step_name": step_name,
                 "started_at": started.isoformat(),
-                "ended_at": datetime.now(timezone.utc).isoformat(),
+                "ended_at": datetime.now(UTC).isoformat(),
                 "wall_seconds": round(wall, 1),
                 "gpu_count": len(names),
                 "gpu_name": names[0],

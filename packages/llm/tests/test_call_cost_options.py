@@ -9,9 +9,9 @@ import pytest
 
 pytest.importorskip("google.genai")
 
-from llm.gemini import genai_text_client as gtc  # noqa: E402
-from llm.gemini.browser_policy_analysis import DEFAULT_PROMPT_PART_1, VideoRow  # noqa: E402
-from llm.gemini.meeting_transcript_policy import (  # noqa: E402
+from llm.gemini import genai_text_client as gtc
+from llm.gemini.browser_policy_analysis import DEFAULT_PROMPT_PART_1, VideoRow
+from llm.gemini.meeting_transcript_policy import (
     _thinking_budget_arg,
     build_cacheable_part1_message,
     build_parser,

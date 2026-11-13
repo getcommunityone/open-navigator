@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Totals from the usage logs (#262).
 
     python -m llm.usage.report                      # every day in the log directory
@@ -15,8 +14,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
 from llm.usage.calls import TOKEN_COLUMNS, usage_log_dir
 from llm.usage.load_bronze import read_rows
@@ -32,11 +32,11 @@ GPU_COLUMNS = [
 ]  # fmt: skip
 
 
-def _day(row: Dict[str, Any], key: str) -> str:
+def _day(row: dict[str, Any], key: str) -> str:
     return str(row.get(key) or "")[:10]
 
 
-def _sum_cost(costs: List[Optional[float]]) -> Optional[float]:
+def _sum_cost(costs: list[float | None]) -> float | None:
     """The total, or ``None`` if any row has no cost: a partial sum would read as the whole."""
     if not costs or any(c is None for c in costs):
         return None
@@ -44,13 +44,13 @@ def _sum_cost(costs: List[Optional[float]]) -> Optional[float]:
 
 
 def summarize_calls(
-    rows: Iterable[Dict[str, Any]],
-    prices: Dict[str, Any],
+    rows: Iterable[dict[str, Any]],
+    prices: dict[str, Any],
     *,
     since: str = "",
     extra_keys: Sequence[str] = (),
-) -> List[Dict[str, Any]]:
-    groups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
+) -> list[dict[str, Any]]:
+    groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     for row in rows:
         day = _day(row, "called_at")
         if since and day < since:
@@ -58,11 +58,11 @@ def summarize_calls(
         key = (day, row.get("model"), row.get("api_mode") or "interactive",
                *(row.get(k) for k in extra_keys))  # fmt: skip
         groups.setdefault(key, []).append(row)
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for key in sorted(groups, key=lambda k: tuple(str(x) for x in k)):
         members = groups[key]
         latencies = [r["latency_seconds"] for r in members if r.get("latency_seconds") is not None]
-        summary: Dict[str, Any] = {"day": key[0], "model": key[1], "api_mode": key[2]}
+        summary: dict[str, Any] = {"day": key[0], "model": key[1], "api_mode": key[2]}
         summary.update(dict(zip(extra_keys, key[3:])))
         summary["call_count"] = len(members)
         summary["failed_call_count"] = sum(1 for r in members if not r.get("is_ok"))
@@ -83,15 +83,15 @@ def summarize_calls(
 
 
 def summarize_gpu(
-    rows: Iterable[Dict[str, Any]], prices: Dict[str, Any], *, since: str = ""
-) -> List[Dict[str, Any]]:
-    groups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
+    rows: Iterable[dict[str, Any]], prices: dict[str, Any], *, since: str = ""
+) -> list[dict[str, Any]]:
+    groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     for row in rows:
         day = _day(row, "started_at")
         if since and day < since:
             continue
         groups.setdefault((day, row.get("step_name"), row.get("gpu_name")), []).append(row)
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for key in sorted(groups, key=lambda k: tuple(str(x) for x in k)):
         members = groups[key]
         wall = sum(r.get("wall_seconds") or 0 for r in members)
@@ -123,7 +123,7 @@ def summarize_gpu(
     return out
 
 
-def format_table(rows: List[Dict[str, Any]], columns: Sequence[str]) -> str:
+def format_table(rows: list[dict[str, Any]], columns: Sequence[str]) -> str:
     """A plain text table; a missing value prints as a dash."""
     if not rows:
         return "(no rows)"

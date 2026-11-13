@@ -8,7 +8,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from llm.usage import calls, gpu, load_bronze, prices, report
 
 
@@ -215,7 +214,7 @@ def test_gpu_stats_none_without_samples(tmp_path):
 
 
 def test_gpu_run_is_a_no_op_without_a_gpu(log_dir, monkeypatch):
-    monkeypatch.setattr(gpu, "gpu_names", lambda: [])
+    monkeypatch.setattr(gpu, "gpu_names", list)
     with gpu.gpu_run("whisperx_diarization", video_id="v"):
         pass
     assert _rows(log_dir, "gpu_runs") == []
@@ -316,7 +315,7 @@ def test_summarize_calls_groups_and_prices():
         _call("2026-11-12", "gemini-2.5-flash"),
         _call("2026-11-12", "gemini-2.5-flash", latency_seconds=30.0, attempt_count=4),
         _call("2026-11-12", "gemini-2.5-flash", is_ok=False, input_token_count=None, output_token_count=None,
-              total_token_count=None, error_type="GenAITransientGiveUp"),  # fmt: skip
+              total_token_count=None, error_type="GenAITransientGiveUp"),
         _call("2026-11-13", "unsourced"),
         _call("2026-11-01", "gemini-2.5-flash"),
     ]

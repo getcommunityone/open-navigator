@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Load the usage logs into Postgres (#262).
 
     python -m llm.usage.load_bronze                 # every file under the log directory
@@ -14,8 +13,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence
+from typing import Any
 
 from loguru import logger
 
@@ -42,7 +42,7 @@ TABLES = {
 }
 
 
-def read_rows(log_dir: Path, prefix: str) -> Iterator[Dict[str, Any]]:
+def read_rows(log_dir: Path, prefix: str) -> Iterator[dict[str, Any]]:
     """Every JSON object in ``<prefix>_*.jsonl``; a line that isn't one is skipped."""
     for path in sorted(Path(log_dir).glob(f"{prefix}_*.jsonl")):
         with path.open(encoding="utf-8") as fh:
@@ -59,7 +59,7 @@ def read_rows(log_dir: Path, prefix: str) -> Iterator[Dict[str, Any]]:
                     yield row
 
 
-def to_tuples(rows: Iterable[Dict[str, Any]], columns: Sequence[str]) -> List[tuple]:
+def to_tuples(rows: Iterable[dict[str, Any]], columns: Sequence[str]) -> list[tuple]:
     """Rows as tuples in column order; a row with no id (the first column) is dropped."""
     return [tuple(r.get(c) for c in columns) for r in rows if r.get(columns[0])]
 
@@ -71,9 +71,9 @@ def insert_sql(table: str, columns: Sequence[str]) -> str:
     )
 
 
-def load(log_dir: Path, *, database_url: Optional[str] = None, dry_run: bool = False) -> Dict[str, int]:
+def load(log_dir: Path, *, database_url: str | None = None, dry_run: bool = False) -> dict[str, int]:
     """Load both logs. Returns rows read per log, and rows inserted unless ``dry_run``."""
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     batches = {
         prefix: to_tuples(read_rows(log_dir, prefix), columns)
         for prefix, (_, columns) in TABLES.items()
