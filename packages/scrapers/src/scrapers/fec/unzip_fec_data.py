@@ -75,6 +75,7 @@ from datetime import datetime
 from loguru import logger
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import cpu_count
 from functools import partial
 
 
@@ -543,7 +544,10 @@ def main():
         epilog=__doc__
     )
     
-    from fec_paths import default_fec_data_dir
+    try:
+        from scrapers.fec.fec_paths import default_fec_data_dir   # python -m scrapers.fec.unzip_fec_data
+    except ImportError:
+        from fec_paths import default_fec_data_dir                # run as a script from its folder
 
     parser.add_argument(
         '--base-dir',
