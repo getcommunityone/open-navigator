@@ -19,12 +19,14 @@ and are tested in ``tests/test_modal_diarize.py``.
 
 from __future__ import annotations
 
+import html as html_lib
 import json
 import posixpath
 import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 APP_NAME = "open-navigator-gpu"
 VOLUME_NAME = "open-navigator-audio"
@@ -93,6 +95,24 @@ def source_of(item: str) -> tuple[str, str]:
     return "volume", path
 
 
+MEDIA_EXTENSIONS = (".mp4", ".mp3", ".m4a", ".opus", ".wav", ".webm", ".ogg")
+_ANCHOR = re.compile(r"<a\b[^>]*?href\s*=\s*[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", re.IGNORECASE | re.DOTALL)
+
+
+def media_link_from_html(html: str, page_url: str) -> str | None:
+    """The first link on a meeting page to a media file, or labelled Download with a media word; None if there is none.
+
+    Archives such as CCTV hide a short-lived signed file link behind "Download", which is hard to copy on a phone.
+    """
+    for href, text in _ANCHOR.findall(html):
+        url = urljoin(page_url, html_lib.unescape(href.strip()))
+        label = re.sub(r"<[^>]+>", " ", text)
+        if urlsplit(url).path.lower().endswith(MEDIA_EXTENSIONS) or (
+                re.search(r"download", label, re.IGNORECASE) and re.search(r"mp4|mp3|audio|video", label, re.IGNORECASE)):
+            return url
+    return None
+
+
 def exit_code(rows: list[dict]) -> int:
     """1 when a batch ran items and none succeeded, so the GitHub run shows failed instead of green."""
     return 1 if rows and not any(r.get("run_status_code") == "ok" for r in rows) else 0
@@ -137,6 +157,13 @@ if modal is not None:
         try:
             if kind == "url":
                 tmp = Path(tempfile.mkdtemp()) / "audio"
+                head = requests.get(where, stream=True, timeout=120)
+                if head.headers.get("content-type", "").startswith("text/html"):
+                    link = media_link_from_html(head.text, head.url)
+                    if not link:
+                        raise ValueError("no audio or video download link on that page")
+                    where = link
+                head.close()
                 with requests.get(where, stream=True, timeout=120) as r:
                     r.raise_for_status()
                     with tmp.open("wb") as f:
