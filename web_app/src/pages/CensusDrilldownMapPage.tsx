@@ -51,6 +51,7 @@ import { deflate, isDollarMetric, peakYearOf } from '../utils/inflation'
 import { useInflationToggle } from '../hooks/useInflationToggle'
 import { useCpiAnnual } from '../hooks/useCpiAnnual'
 import InflationToggle from '../components/InflationToggle'
+import { tracedFetch } from '../lib/api'
 
 const STATES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json'
 const COUNTIES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json'
@@ -1036,7 +1037,7 @@ export default function CensusDrilldownMapPage() {
       const params = new URLSearchParams({ q })
       if (pinnedAddress.stateCode) params.set('state', pinnedAddress.stateCode)
       params.set('limit', '5')
-      const res = await fetch(`/api/addresses/search?${params.toString()}`)
+      const res = await tracedFetch(`/api/addresses/search?${params.toString()}`)
       if (!res.ok) {
         const detail = res.status === 503 ? 'bronze.bronze_addresses not loaded' : `HTTP ${res.status}`
         setPropertyLookup({ status: 'error', query: q, matches: [], error: detail })
