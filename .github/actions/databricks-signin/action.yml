@@ -1,12 +1,17 @@
-# Sign in as the environment's service principal: trim the credentials and hand them to later steps.
+# Sign in to Databricks: trim the credentials and hand them to later steps.
 # Values pasted into GitHub can carry spaces or Windows line endings (\r\n); sent as is, sign-in
 # fails with invalid_client. Only this action sets DATABRICKS_*, so the CLI never sees raw values.
+#
+# A service principal (client ID + OAuth secret) is preferred. A personal access token is accepted when there's no
+# client secret, so the workspace can be connected from a phone before the service principal exists (#294).
+# DATABRICKS_AUTH_OK is "true" when either is present; later steps skip when it isn't.
 name: Databricks sign-in
-description: Trim the service principal's host, client ID and secret and export them for later steps
+description: Trim the service principal's or the token's credentials and export them for later steps
 inputs:
   host: {description: Workspace URL, required: true}
-  client_id: {description: Service principal application ID, required: true}
-  client_secret: {description: Service principal OAuth secret, required: true}
+  client_id: {description: Service principal application ID, required: false, default: ""}
+  client_secret: {description: Service principal OAuth secret, required: false, default: ""}
+  token: {description: "Personal access token, used only when there's no client secret", required: false, default: ""}
 runs:
   using: composite
   steps:
@@ -15,11 +20,24 @@ runs:
         IN_HOST: ${{ inputs.host }}
         IN_CLIENT_ID: ${{ inputs.client_id }}
         IN_CLIENT_SECRET: ${{ inputs.client_secret }}
+        IN_TOKEN: ${{ inputs.token }}
       run: |
         trim() { printf '%s' "$1" | tr -d '[:space:]'; }
         host=$(trim "$IN_HOST"); host=${host%/}
         secret=$(trim "$IN_CLIENT_SECRET")
-        if [ -n "$secret" ]; then echo "::add-mask::$secret"; fi
-        { echo "DATABRICKS_HOST=$host"
-          echo "DATABRICKS_CLIENT_ID=$(trim "$IN_CLIENT_ID")"
-          echo "DATABRICKS_CLIENT_SECRET=$secret"; } >> "$GITHUB_ENV"
+        token=$(trim "$IN_TOKEN")
+        echo "DATABRICKS_HOST=$host" >> "$GITHUB_ENV"
+        if [ -n "$secret" ]; then
+          echo "::add-mask::$secret"
+          { echo "DATABRICKS_CLIENT_ID=$(trim "$IN_CLIENT_ID")"
+            echo "DATABRICKS_CLIENT_SECRET=$secret"
+            echo "DATABRICKS_AUTH_OK=true"; } >> "$GITHUB_ENV"
+          echo "Signing in as the service principal."
+        elif [ -n "$token" ]; then
+          echo "::add-mask::$token"
+          { echo "DATABRICKS_TOKEN=$token"
+            echo "DATABRICKS_AUTH_OK=true"; } >> "$GITHUB_ENV"
+          echo "::notice::Signing in with a personal access token; replace it with the service principal when you can."
+        else
+          echo "DATABRICKS_AUTH_OK=false" >> "$GITHUB_ENV"
+        fi
