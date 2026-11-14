@@ -42,7 +42,7 @@ jobs:
           python-version: "3.11"
       - name: Install Modal and the llm package (the image ships llm's source)
         if: env.MODAL_TOKEN_SECRET != ''
-        run: pip install modal && pip install --no-deps -e packages/llm
+        run: pip install modal python-dotenv && pip install --no-deps -e packages/llm
       # Lets the token live in GitHub (easy from a phone) instead of Modal's dashboard (#323). The value goes to Modal
       # through a temporary file, never a command-line argument; with no HF_TOKEN here, Modal's own secret is kept.
       - name: Put the Hugging Face token into Modal
