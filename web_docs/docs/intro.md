@@ -70,111 +70,47 @@ All data is **100% free and public** - no subscriptions or API fees required.
 
 ## 🎯 Top 5 Use Cases
 
-These are the most powerful ways to use Open Navigator:
+These are the most useful ways to use Open Navigator. Each one says what you would look at and where it is in the app;
+the figures come from the record you open, never from this page.
 
 ### 📊 1. Hold Governments Accountable
 
-**The Problem:** Cities and school boards claim priorities in meetings but don't fund them.
+**The Problem:** Cities and school boards name priorities in meetings that their budgets don't fund.
 
-**The Solution:** Compare meeting transcripts with budget line items to expose gaps between rhetoric and reality.
-
-<div style={{background: '#fff', padding: '20px', borderRadius: '8px', border: '2px solid #4CAF50', margin: '20px 0'}}>
-  <div style={{fontFamily: 'monospace', fontSize: '0.95em'}}>
-    <div><strong>Meeting:</strong> "Mental health is our top priority" (mentioned 47 times)</div>
-    <div><strong>Budget:</strong> Mental health funding: +2% (below inflation)</div>
-    <div style={{color: '#F44336', fontWeight: 'bold', marginTop: '15px'}}>⚠️ Gap Detected: Performative Talk</div>
-  </div>
-  <p style={{marginTop: '20px', fontSize: '0.9em', color: '#666'}}><strong>Data Used:</strong> <code>MEETING</code>, <code>BUDGET</code>, <code>JURISDICTION</code>, <code>TOPIC</code></p>
-</div>
+**The Solution:** Put how often a topic is discussed next to how much money it moves. **Money and talk**
+(`/money-and-talk`) pairs the decisions on a theme with the spending tied to them, and each decision links to the
+meeting and the passage it came from.
 
 ### 🗺️ 2. Find Policy Windows for Advocacy
 
-**The Problem:** Advocates miss critical moments when governments are receptive to change.
+**The Problem:** Advocates miss the moments when a government is about to decide.
 
-**The Solution:** Track meeting sentiment, budget cycles, and legislation timing to identify when to act.
+**The Solution:** The **Watch Next** lens on the home page lists upcoming votes, and **Policy questions**
+(`/policy-questions`) shows where the same question has come up in other places and how it was decided there.
 
-<div style={{background: '#fff', padding: '20px', borderRadius: '8px', border: '2px solid #2196F3', margin: '20px 0'}}>
-  <div>🟢 <strong>Urgent Opportunity:</strong> Tuscaloosa City Council</div>
-  <ul style={{marginTop: '10px', lineHeight: '1.8'}}>
-    <li>Budget discussion: April 15 (2 weeks away)</li>
-    <li>Sentiment: +0.65 (favorable toward policy)</li>
-    <li>Similar cities: 3 passed related ordinances</li>
-  </ul>
-  <div style={{color: '#4CAF50', fontWeight: 'bold', marginTop: '15px'}}>✅ Action: Submit testimony by April 10</div>
-  <p style={{marginTop: '20px', fontSize: '0.9em', color: '#666'}}><strong>Data Used:</strong> <code>OPPORTUNITY</code>, <code>SENTIMENT</code>, <code>DATE_DIMENSION</code>, <code>METRIC_VIEW</code></p>
-</div>
+### 🏛️ 3. Understand Nonprofits in Your Area
 
-### 🏛️ 3. Track Nonprofit Effectiveness
+**The Problem:** It's hard to see what local nonprofits take in and spend, and whether local government ever mentions
+them.
 
-**The Problem:** Donors can't verify if nonprofits deliver on their mission.
+**The Solution:** **Nonprofits** (`/nonprofits`) shows organizations with their IRS Form 990 filings, and search
+shows any meeting where the organization was named, with the passage.
 
-**The Solution:** Combine Form 990 financial data with service delivery data and meeting citations.
+### 🗣️ 4. Follow Public Debate
 
-<div style={{background: '#fff', padding: '20px', borderRadius: '8px', border: '2px solid #FF9800', margin: '20px 0'}}>
-  <div><strong>Health Nonprofit A:</strong></div>
-  <ul style={{marginTop: '10px', lineHeight: '1.8'}}>
-    <li>Revenue: $2.5M (Form 990)</li>
-    <li>CEO Salary: $450K (18% of revenue)</li>
-    <li>Program spending: 42% (below 65% standard)</li>
-    <li>Meeting citations: 0 (not mentioned in city meetings)</li>
-  </ul>
-  <div style={{color: '#F44336', fontWeight: 'bold', marginTop: '15px'}}>⚠️ Red Flag: High overhead, low community presence</div>
-  <p style={{marginTop: '20px', fontSize: '0.9em', color: '#666'}}><strong>Data Used:</strong> <code>NONPROFIT</code>, <code>DONATION</code>, <code>CONSTITUENT</code>, <code>PROGRAM_DELIVERY</code></p>
-</div>
+**The Problem:** It's hard to know what residents and officials actually said about a policy.
 
-### 🗣️ 4. Analyze Public Sentiment & Debate
+**The Solution:** Each decision page lists the speakers and, where they were extracted, the arguments made, quoted
+from the transcript, and the
+**Contested** lens finds split votes and heated debate.
 
-**The Problem:** It's hard to know how communities really feel about policies.
+### 🎓 5. Compare Spending Across Places
 
-**The Solution:** Extract sentiment from meeting transcripts, public comments, and video debates.
+**The Problem:** Residents can't easily tell how their government's spending compares with similar places.
 
-<div style={{background: '#fff', padding: '20px', borderRadius: '8px', border: '2px solid #9C27B0', margin: '20px 0'}}>
-  <div><strong>Topic:</strong> School mask policy</div>
-  <ul style={{marginTop: '10px', lineHeight: '1.8'}}>
-    <li>Public comments: 127 speakers</li>
-    <li>Sentiment breakdown: 58% against, 35% for, 7% neutral</li>
-    <li>Board vote: 6-1 to require masks</li>
-  </ul>
-  <div style={{color: '#FF9800', fontWeight: 'bold', marginTop: '15px'}}>📈 Insight: Board voted against majority sentiment</div>
-  <p style={{marginTop: '20px', fontSize: '0.9em', color: '#666'}}><strong>Data Used:</strong> <code>MEETING</code>, <code>VIDEO</code>, <code>OFFICIAL</code>, <code>SENTIMENT</code>, <code>VOTE_EVENT</code></p>
-</div>
-
-### 🎓 5. Compare Education Spending Across Districts
-
-**The Problem:** Parents don't know if their school district spends money efficiently.
-
-**The Solution:** Benchmark per-pupil spending, administrative costs, and outcomes across similar districts.
-
-<div style={{background: '#fff', padding: '20px', borderRadius: '8px', border: '2px solid #00BCD4', margin: '20px 0'}}>
-  <table style={{width: '100%', fontSize: '0.9em', borderCollapse: 'collapse'}}>
-    <thead>
-      <tr style={{borderBottom: '2px solid #ddd'}}>
-        <th style={{textAlign: 'left', padding: '10px'}}>District</th>
-        <th style={{textAlign: 'right', padding: '10px'}}>Per-Pupil</th>
-        <th style={{textAlign: 'right', padding: '10px'}}>Admin %</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td style={{padding: '10px'}}>Your District</td>
-        <td style={{textAlign: 'right', padding: '10px', fontWeight: 'bold', color: '#F44336'}}>$18,500</td>
-        <td style={{textAlign: 'right', padding: '10px', fontWeight: 'bold', color: '#F44336'}}>24%</td>
-      </tr>
-      <tr style={{background: '#f5f5f5'}}>
-        <td style={{padding: '10px'}}>Similar District A</td>
-        <td style={{textAlign: 'right', padding: '10px'}}>$14,200</td>
-        <td style={{textAlign: 'right', padding: '10px'}}>12%</td>
-      </tr>
-      <tr>
-        <td style={{padding: '10px'}}>Similar District B</td>
-        <td style={{textAlign: 'right', padding: '10px'}}>$13,800</td>
-        <td style={{textAlign: 'right', padding: '10px'}}>11%</td>
-      </tr>
-    </tbody>
-  </table>
-  <div style={{color: '#00BCD4', fontWeight: 'bold', marginTop: '15px'}}>📊 Question: Why are admin costs double the average?</div>
-  <p style={{marginTop: '20px', fontSize: '0.9em', color: '#666'}}><strong>Data Used:</strong> <code>JURISDICTION</code>, <code>BUDGET</code>, <code>DEMOGRAPHICS</code>, <code>METRIC_VIEW</code></p>
-</div>
+**The Solution:** **Show me my money** (on the home page) breaks down what your layers of government spend per
+resident, from Census finance data, and the **Census map** (`/census-map`) compares places on Census figures, so you can
+ask why yours differs.
 
 :::info[Explore the Complete Data Model]
 These use cases are powered by a comprehensive data model with 40+ entities including jurisdictions, meetings, budgets, nonprofits, officials, videos, and more.
