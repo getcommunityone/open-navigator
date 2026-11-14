@@ -16,9 +16,10 @@ is a chart magnitude, not a bare number rendered to the user.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from urllib.parse import quote
 
+import asyncpg
 from fastapi import APIRouter, Query
 from loguru import logger
 from opentelemetry import trace
@@ -38,6 +39,30 @@ router = APIRouter(prefix="/api/money-flow", tags=["money-flow"])
 tracer = trace.get_tracer(__name__)
 
 _ACCENT = {"spending": "#ea580c", "grants": "#0d9488", "economy": "#7c3aed"}
+
+# Relations this database doesn't have. Production (Neon) deliberately doesn't carry
+# the 990 money graph (`grant`, `nonprofit_sector_revenue`): it's ~5 GB against a
+# 512 MB cap (hosting.neon.sync_public_to_neon NON_SERVING;
+# web_docs/docs/development/neon-serving-scope.md). A lens whose table is absent
+# is unavailable for the life of the process: logged once, then not queried again,
+# and shown empty (placeholder), never with stand-in numbers (#284).
+_NOT_SERVED: Set[str] = set()
+
+
+async def _fetch_served(conn, relation: str, sql: str, *args: Any) -> Optional[List[Any]]:
+    """Rows for ``sql``, or None when ``relation`` isn't in this database."""
+    if relation in _NOT_SERVED:
+        return None
+    try:
+        return await conn.fetch(sql, *args)
+    except asyncpg.exceptions.UndefinedTableError:
+        _NOT_SERVED.add(relation)
+        logger.info(
+            "money-flow: relation {!r} isn't in this database (not served in this deployment); "
+            "its lens shows as unavailable",
+            relation,
+        )
+        return None
 
 
 def money_fmt(value: Any) -> str:
@@ -294,9 +319,11 @@ _GRANTS_SQL = """
 async def _grants(conn, *, state_code: Optional[str], q: Optional[str] = None) -> FlowLens:
     lens = FlowLens(accent=_ACCENT["grants"])
     try:
-        rows = await conn.fetch(_GRANTS_SQL, state_code, _like(q))
+        rows = await _fetch_served(conn, "grant", _GRANTS_SQL, state_code, _like(q))
     except Exception as exc:  # noqa: BLE001
         logger.warning("money-flow grants failed: {}", exc)
+        return lens
+    if rows is None:
         return lens
     if not rows:
         return lens
@@ -382,9 +409,11 @@ async def _economy(conn, *, state_code: Optional[str], city: Optional[str], scop
     lens = FlowLens(accent=_ACCENT["economy"])
     candidates = _economy_scope_keys(state_code, city)
     try:
-        rows = await conn.fetch(_ECONOMY_SQL, candidates)
+        rows = await _fetch_served(conn, "nonprofit_sector_revenue", _ECONOMY_SQL, candidates)
     except Exception as exc:  # noqa: BLE001
         logger.warning("money-flow economy failed: {}", exc)
+        return lens
+    if rows is None:
         return lens
     by_key = {r["scope_key"]: r for r in rows}
     # First candidate (most specific) with a real, non-zero total.
