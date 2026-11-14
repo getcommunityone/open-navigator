@@ -6,53 +6,53 @@
 # assumed (CLAUDE.md, "No Fabricated Data"). A change is a pull request that
 # updates the date.
 
-# Model prices in USD per 1M tokens, by API mode, for text input. Thinking tokens
-# are billed at the output rate (Google: "Output price (including thinking
-# tokens)"). `cached_input_usd_per_1m` is the rate for input tokens the API reports
-# as served from its cache (context caching; the per-hour storage price is not
-# counted). `valid_until` is the last day a rate applies: a call after it shows no
-# cost until the new rate is added.
+# Model prices in USD per 1M tokens, by API mode. Thinking tokens are billed at
+# the output rate. `cached_input_usd_per_1m` is the rate for input tokens the API
+# reports as served from its cache. `valid_until` is the last day a rate applies:
+# a call after it shows no cost until the new rate is added (#333).
 #
-# Source: Google's Gemini Developer API pricing page, paid tier, "Standard" and
-# "Batch" tabs, read 2026-11-14 (#266, #333).
-#
-# From the same day's deprecations page: gemini-2.5-flash is deprecated; from
-# December 1, 2026 its requests route to gemini-3.5-flash-lite and are billed at
-# that model's rates (the same numbers as below). gemini-2.5-flash-lite is not
-# deprecated.
+# Gemini rates: Google's Gemini API pricing page, paid tier, per 1M tokens, the
+# text / image / video rate (audio costs more and isn't priced here), read on
+# 2026-11-14 (#266). `cached_input_usd_per_1m` is the page's "context caching
+# price"; context-cache storage (per 1M tokens per hour) isn't counted. The same
+# page says gemini-2.5-flash is deprecated: from 2026-12-01 its requests are routed
+# to gemini-3.5-flash-lite and billed at that model's rates.
 models:
   gemini-2.5-flash:
-    source: https://aistudio.google.com/docs/pricing#gemini-2.5-flash
+    source: https://ai.google.dev/gemini-api/docs/pricing
     read_date: "2026-11-14"
     interactive: {input_usd_per_1m: 0.30, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 2.50}
     batch: {input_usd_per_1m: 0.15, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 1.25}
   gemini-2.5-flash-lite:
-    source: https://aistudio.google.com/docs/pricing#gemini-2.5-flash-lite
+    source: https://ai.google.dev/gemini-api/docs/pricing
     read_date: "2026-11-14"
     interactive: {input_usd_per_1m: 0.10, cached_input_usd_per_1m: 0.01, output_usd_per_1m: 0.40}
     batch: {input_usd_per_1m: 0.05, cached_input_usd_per_1m: 0.01, output_usd_per_1m: 0.20}
   gemini-3.5-flash-lite:
-    source: https://aistudio.google.com/docs/pricing#gemini-3.5-flash-lite
+    source: https://ai.google.dev/gemini-api/docs/pricing
     read_date: "2026-11-14"
     interactive: {input_usd_per_1m: 0.30, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 2.50}
     batch: {input_usd_per_1m: 0.15, cached_input_usd_per_1m: 0.015, output_usd_per_1m: 1.25}
-  # 3.6 and 3.8 Flash: these rates apply "through December 31, 2026"; Google lists
+  # 3.6 and 3.8 Flash: the page gives these rates "through December 31, 2026" and
   # double rates "starting January 1, 2027" (1.50 / 0.15 / 7.50; batch 0.75 / 0.075 / 3.75).
   gemini-3.6-flash:
-    source: https://aistudio.google.com/docs/pricing#gemini-3.6-flash
+    source: https://ai.google.dev/gemini-api/docs/pricing
     read_date: "2026-11-14"
     valid_until: "2026-12-31"
     interactive: {input_usd_per_1m: 0.75, cached_input_usd_per_1m: 0.075, output_usd_per_1m: 3.75}
     batch: {input_usd_per_1m: 0.375, cached_input_usd_per_1m: 0.0375, output_usd_per_1m: 1.875}
   gemini-3.8-flash:
-    source: https://aistudio.google.com/docs/pricing#gemini-3.8-flash
+    source: https://ai.google.dev/gemini-api/docs/pricing
     read_date: "2026-11-14"
     valid_until: "2026-12-31"
     interactive: {input_usd_per_1m: 0.75, cached_input_usd_per_1m: 0.075, output_usd_per_1m: 3.75}
     batch: {input_usd_per_1m: 0.375, cached_input_usd_per_1m: 0.0375, output_usd_per_1m: 1.875}
-  # Gemma 4 (gemma-4-*): Google lists it free of charge on the free tier and "Not
+  # Gemma 4 (gemma-4-*): the page lists it free of charge on the free tier and "Not
   # available" on the paid tier, so there is no paid price to record; it shows no cost.
-  # DeepSeek: not looked up yet; it shows no cost.
+  # deepseek-chat: DeepSeek's pricing page (https://api-docs.deepseek.com/quick_start/pricing/,
+  # read 2026-11-14) no longer lists this model name. Its models are deepseek-flash and
+  # deepseek-v4-pro, priced by peak and off-peak hours, which this file can't express yet.
+  # So no price is recorded here (#328).
   deepseek-chat:
     source: null
     read_date: null
