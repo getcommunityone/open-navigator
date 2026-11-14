@@ -171,14 +171,22 @@ github.com/getcommunityone/open-navigator · 9
 
 Where it stands  
 Live, useful, and still uneven  
+Nonprofits  
+Meetings and events  
+Government officials  
+Decisions extracted by AI  
+1,926,908  
+153,235  
+34,289  
+4,495  
 Working today  
 The app, docs and API are live at communityone.com. Nationwide directories of jurisdictions and nonprofits; search, lenses, maps and policy questions.  
 Not there yet  
-Meeting analysis is deep in a few states and thin elsewhere. Coverage counts in the docs disagree and are being reconciled. Older scripts are being moved into tested packages.  
+Meeting analysis is deep in a few states and thin elsewhere. Jurisdiction counts in the stats aren’t right yet and are left out. Older scripts are being moved into tested packages.  
 A small nonprofit project with one maintainer. Help with data, review and pilot communities moves it fastest.  
-10  
+Figures: communityone.com/api/stats, snapshot dated June 5, 2026, read November 14, 2026 · 10  
 
-**Speaker notes:** An honest status. It's live: the app, the docs and the API at communityone.com, with nationwide directories and the search, lenses, maps and policy questions you've seen. It is not finished. Meeting analysis is deep in a few states and thin elsewhere, so coverage is uneven. The coverage counts in our own docs disagree with each other and are being reconciled, which is why this deck quotes no platform totals. And older scripts are being moved into tested packages. It's a small nonprofit project with one maintainer, which is why help matters.
+**Speaker notes:** An honest status. It's live: the app, the docs and the API at communityone.com, with nationwide directories and the search, lenses, maps and policy questions you've seen. It is not finished. Meeting analysis is deep in a few states and thin elsewhere, so coverage is uneven. The figures at the top come straight from the live stats endpoint; that snapshot is from June, and its jurisdiction count is wrong, so I leave that one out until it's fixed. And older scripts are being moved into tested packages. It's a small nonprofit project with one maintainer, which is why help matters.
 
 ## Slide 11: One map for every community.
 
