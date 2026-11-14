@@ -34,6 +34,7 @@ VOLUME_MOUNT = "/audio"
 HF_SECRET_NAME = "huggingface"      # Modal secret holding HF_TOKEN (pyannote's diarization models are gated)
 DEFAULT_GPU = "T4"                  # cheapest; WhisperX "small" fits in its 16 GB
 DEFAULT_LIMIT = 3
+MEETING_LANGUAGE = "en"             # US local meetings; a guess from a silent opening can pick a language with no aligner
 TIMEOUT_SECONDS = 3600              # one long meeting on a T4; a hung run stops here
 # whisperx 3.8 needs numpy>=2.1 and ctranslate2>=4.5. A numpy<2 pin made pip fall back to ctranslate2 4.4.0, which
 # Debian trixie (Modal's base) refuses to load ("cannot enable executable stack"); whisperx pins torch itself.
@@ -201,7 +202,7 @@ if modal is not None:
                 audio = tmp
             else:
                 audio = Path(where)
-            result = diarize_audio_whisperx(audio, model_size=model_size, device="cuda")
+            result = diarize_audio_whisperx(audio, model_size=model_size, device="cuda", language=MEETING_LANGUAGE)
             status = "ok"
         except Exception as e:
             usage = usage_row(item, DEFAULT_GPU, started, time.monotonic() - t0, "failed")

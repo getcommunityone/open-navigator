@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from llm.gemini.diarize_postprocess import make_diarization_pipeline
+from llm.gemini.diarize_postprocess import align_language, make_diarization_pipeline
 
 
 class NewPipeline:  # current whisperx: token=
@@ -28,3 +28,12 @@ def test_older_whisperx_gets_use_auth_token():
 def test_the_pipeline_class_can_live_in_whisperx_diarize():
     mod = SimpleNamespace(diarize=SimpleNamespace(DiarizationPipeline=NewPipeline))
     assert make_diarization_pipeline(mod, "hf_x", "cuda").token == "hf_x"
+
+
+def test_the_requested_language_wins_over_whisperx_guess():
+    assert align_language("en", "cy") == "en"
+
+
+def test_without_a_request_the_guess_is_used_and_english_is_the_fallback():
+    assert align_language(None, "es") == "es"
+    assert align_language(None, None) == "en"
