@@ -17,6 +17,7 @@ the backlog through the Batch API. The numbers come from the usage log described
 | Change | Why | How to undo it |
 |---|---|---|
 | Thinking is off (`thinking_budget=0`) on `gemini-2.5-flash*` | `gemini-2.5-flash` thinks by default, and thinking tokens are billed as output | `--thinking-budget -1` (the model's default) or a number; env `GEMINI_THINKING_BUDGET` |
+| The lowest thinking *level* on the 3.x and 4 models (#336) | They take a level instead of a budget; 3.8 Flash, the backlog's fallback, defaults to "medium" | `--thinking-level default` (the model's own) or a level; env `GEMINI_THINKING_LEVEL` |
 | Part 1 asks for JSON output | The response was free text, searched for a JSON object | `--no-json-mode` |
 | The fixed prompt comes first in the message | The per-video block used to come first, so no two calls shared a prefix and Gemini's implicit caching never applied | none: the same three parts, reordered |
 | The backlog leads with `gemini-3.5-flash-lite`, then `gemini-3.8-flash` (#333) | `gemini-2.5-flash` shuts down December 1, 2026 (below); 2.5 Flash-Lite reversed a vote in the first comparison | `--models <a>,<b>` |
@@ -117,9 +118,10 @@ deprecated. So the backlog now names the model its requests would reach anyway:
   and vote right in the first comparison. `default_flash_model()` and `reanalyze_decision` default to 3.5 Flash-Lite.
 - From 3.5 Flash-Lite and 3.6 Flash on, Google ignores `temperature`, `top_p` and `top_k` and says future models will
   reject them, so the client and the batch requests leave `temperature` out for those models.
-- These models take a thinking *level*, not a budget. 3.5 Flash-Lite defaults to "minimal" (no thinking tokens in our
-  calls); 3.8 Flash thinks by default (124 thinking tokens on a two-line test prompt). The client cannot set the level
-  yet.
+- These models take a thinking *level*, not a budget. Since #336 the pipeline sends each model's lowest level
+  (`--thinking-level`, default `lowest`): "minimal" on 3.5 Flash-Lite (its default anyway) and "low" on 3.8 Flash,
+  whose default is "medium". On the made-up meeting, 3.8 Flash used 978 thinking tokens at its default and none at
+  "low", with the same items and votes (November 14, 2026).
 - Older scripts that still name `gemini-2.5-flash` keep working after December 1: Google routes them to 3.5
   Flash-Lite.
 

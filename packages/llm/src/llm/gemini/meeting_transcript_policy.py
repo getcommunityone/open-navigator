@@ -391,6 +391,13 @@ def build_cacheable_part1_message(
     return "\n\n".join(parts)
 
 
+def _thinking_level_arg(args: argparse.Namespace) -> Optional[str]:
+    """``--thinking-level`` as the client takes it: ``default`` means the model's own
+    level (``None``). Args built without the flag get ``lowest`` (#336)."""
+    value = (getattr(args, "thinking_level", "lowest") or "").strip().lower()
+    return None if value in ("", "default") else value
+
+
 def _thinking_budget_arg(args: argparse.Namespace) -> Optional[int]:
     """``--thinking-budget`` as the client takes it: a negative value means the model's default."""
     value = getattr(args, "thinking_budget", 0)
@@ -714,6 +721,7 @@ def generate_part2_markdown(
             # Part 2 rewrites Part 1's JSON as Markdown: no thinking needed, and
             # no JSON mode (the output is a report).
             thinking_budget=_thinking_budget_arg(args),
+            thinking_level=_thinking_level_arg(args),
         )
     return result.text.strip()
 
@@ -1268,6 +1276,7 @@ def process_one_video(
             temperature=args.temperature,
             max_output_tokens=args.max_output_tokens,
             thinking_budget=_thinking_budget_arg(args),
+            thinking_level=_thinking_level_arg(args),
             json_mode=not getattr(args, "no_json_mode", False),
         )
 
@@ -1698,6 +1707,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=int(os.getenv("GEMINI_THINKING_BUDGET", "0")),
         help="Thinking-token cap for gemini-2.5-flash* (billed as output). 0 = off "
         "(default, env GEMINI_THINKING_BUDGET); -1 = the model's own default",
+    )
+    parser.add_argument(
+        "--thinking-level",
+        choices=("lowest", "minimal", "low", "medium", "high", "xhigh", "default"),
+        default=os.getenv("GEMINI_THINKING_LEVEL", "lowest"),
+        help="Thinking level for the Gemini 3.x/4 models, which take a level, not a budget. "
+        "lowest = each model's lowest (default, env GEMINI_THINKING_LEVEL); default = the model's own",
     )
     parser.add_argument(
         "--no-json-mode",

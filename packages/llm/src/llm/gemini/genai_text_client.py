@@ -906,6 +906,63 @@ def supports_thinking_budget(model: str) -> bool:
     return (model or "").strip().lower().startswith("gemini-2.5-flash")
 
 
+# Thinking levels each model accepts, from Google's thinking docs ("Controlling
+# thinking", read 2026-11-14), lowest first. The 2.5 models are left out on purpose:
+# they keep the token budget (supports_thinking_budget), whose 0 is lower than any
+# level. Matched by the longest prefix of the model id (#336).
+THINKING_LEVEL_ORDER = ("minimal", "low", "medium", "high", "xhigh")
+LOWEST_THINKING_LEVEL = "lowest"
+_THINKING_LEVELS: dict[str, tuple[str, ...]] = {
+    "gemini-4-hydrogen": ("low", "medium", "high", "xhigh"),
+    "gemini-4": ("low", "medium", "high"),
+    "gemini-3.8-flash": ("low", "medium", "high"),
+    "gemini-3.6-flash": ("minimal", "low", "medium", "high"),
+    "gemini-3.5-flash-lite": ("minimal", "low", "medium", "high"),
+    "gemini-3.1-pro": ("low", "medium", "high"),
+    "gemini-3.1-flash-lite-image": ("minimal", "high"),
+    "gemini-3.1-flash-lite": ("minimal", "low", "medium", "high"),
+    "gemini-3-flash": ("minimal", "low", "medium", "high"),
+    "gemini-3-pro": ("low", "high"),
+}
+
+
+def _bare_model_id(model: str) -> str:
+    name = (model or "").strip().lower()
+    return name[len("models/") :] if name.startswith("models/") else name
+
+
+def thinking_levels(model: str) -> Optional[tuple[str, ...]]:
+    """The thinking levels ``model`` accepts, lowest first, or ``None`` when it
+    takes no level (2.5 models, Gemma, DeepSeek, unknown ids)."""
+    name = _bare_model_id(model)
+    key = max((k for k in _THINKING_LEVELS if name.startswith(k)), key=len, default=None)
+    return _THINKING_LEVELS[key] if key else None
+
+
+def supports_thinking_level(model: str) -> bool:
+    return thinking_levels(model) is not None
+
+
+def resolve_thinking_level(model: str, level: Optional[str]) -> Optional[str]:
+    """The level to send to ``model``: ``None`` when it takes none or ``level`` is
+    ``None`` (keep the model's default). ``"lowest"`` is the model's lowest level
+    (``minimal`` on 3.5 Flash-Lite, ``low`` on 3.8 Flash). A level the model doesn't
+    accept becomes the nearest one above it, else its highest."""
+    levels = thinking_levels(model)
+    wanted = (level or "").strip().lower()
+    if not levels or not wanted:
+        return None
+    if wanted == LOWEST_THINKING_LEVEL:
+        return levels[0]
+    if wanted in levels:
+        return wanted
+    if wanted not in THINKING_LEVEL_ORDER:
+        raise ValueError(f"unknown thinking level {level!r}; one of {THINKING_LEVEL_ORDER} or 'lowest'")
+    rank = THINKING_LEVEL_ORDER.index(wanted)
+    above = [lvl for lvl in levels if THINKING_LEVEL_ORDER.index(lvl) >= rank]
+    return above[0] if above else levels[-1]
+
+
 _SAMPLING_PARAMS_IGNORED_FROM = (3, 6)
 
 
@@ -956,6 +1013,7 @@ def call_gemini_text(
     pdf_mime: str = "application/pdf",
     thinking_budget: Optional[int] = None,
     json_mode: bool = False,
+    thinking_level: Optional[str] = None,
 ) -> TextGenAIResult:
     """Single-turn generation via AI Studio API (rotates across the key pool).
 
@@ -972,6 +1030,9 @@ def call_gemini_text(
     ``json_mode`` asks for ``application/json`` output. If the API rejects either
     setting with a 400, the call is retried once without it. ``temperature`` is left
     out for models that ignore it (:func:`supports_sampling_params`).
+    ``thinking_level`` (``"lowest"``, ``"minimal"`` … ``"xhigh"``) is sent to the
+    models that take a level instead of a budget (:func:`thinking_levels`); a
+    caller can pass both, and each model gets the setting its family takes.
     """
     if model.startswith("deepseek"):
         if pdf_bytes:
@@ -998,10 +1059,13 @@ def call_gemini_text(
         config_kwargs["temperature"] = temperature
     if system_instruction.strip():
         config_kwargs["system_instruction"] = system_instruction.strip()
+    level = resolve_thinking_level(model, thinking_level)
     if thinking_budget is not None and supports_thinking_budget(model):
         config_kwargs["thinking_config"] = types.ThinkingConfig(
             thinking_budget=int(thinking_budget)
         )
+    elif level is not None:
+        config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=level.upper())
     if json_mode:
         config_kwargs["response_mime_type"] = "application/json"
 

@@ -58,6 +58,7 @@ from loguru import logger
 
 from llm.gemini.genai_text_client import (
     default_flash_lite_model,
+    resolve_thinking_level,
     supports_sampling_params,
     supports_thinking_budget,
 )
@@ -97,14 +98,18 @@ def build_request_line(
     thinking_budget: int | None,
     json_mode: bool,
     system_instruction: str = "",
+    thinking_level: str | None = None,
 ) -> dict[str, Any]:
     """One line of the batch input file. The same generation settings as the
     interactive Part 1 call (``call_gemini_text``)."""
     generation_config: dict[str, Any] = {"max_output_tokens": max_output_tokens}
     if supports_sampling_params(model):
         generation_config["temperature"] = temperature
+    level = resolve_thinking_level(model, thinking_level)
     if thinking_budget is not None and supports_thinking_budget(model):
         generation_config["thinking_config"] = {"thinking_budget": int(thinking_budget)}
+    elif level is not None:
+        generation_config["thinking_config"] = {"thinking_level": level.upper()}
     if json_mode:
         generation_config["response_mime_type"] = "application/json"
     request: dict[str, Any] = {
@@ -272,6 +277,7 @@ def _pipeline_namespace(args: argparse.Namespace, plan: Any, database_url: str) 
     )
     ns.output_dir = Path(args.output_dir)
     ns.thinking_budget = args.thinking_budget
+    ns.thinking_level = args.thinking_level
     ns.no_json_mode = args.no_json_mode
     return ns
 
@@ -334,6 +340,7 @@ def write_job_files(jobs_dir: Path, job_id: str, requests: list[Any], args: argp
                 thinking_budget=None if args.thinking_budget < 0 else args.thinking_budget,
                 json_mode=not args.no_json_mode,
                 system_instruction=args.system_instruction,
+                thinking_level=None if args.thinking_level == "default" else args.thinking_level,
             )
             fh.write(json.dumps(line, ensure_ascii=False) + "\n")
             (job_dir / "requests" / f"{video_id}.json").write_text(
@@ -629,6 +636,9 @@ def build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--max-output-tokens", type=int, default=65536)
     submit.add_argument("--thinking-budget", type=int, default=int(os.getenv("GEMINI_THINKING_BUDGET", "0")),
                         help="Thinking-token cap for gemini-2.5-flash* (0 = off, -1 = the model's default)")  # fmt: skip
+    submit.add_argument("--thinking-level", choices=("lowest", "minimal", "low", "medium", "high", "xhigh", "default"),
+                        default=os.getenv("GEMINI_THINKING_LEVEL", "lowest"),
+                        help="Thinking level for the 3.x/4 models (lowest = each model's lowest; default = its own)")  # fmt: skip
     submit.add_argument("--no-json-mode", action="store_true")
     submit.add_argument("--dry-run", action="store_true", help="Write the job files and create no job")
     submit.set_defaults(func=run_submit)
