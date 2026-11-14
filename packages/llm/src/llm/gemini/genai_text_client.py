@@ -537,14 +537,14 @@ def default_flash_lite_model() -> str:
 
 
 def default_flash_model() -> str:
-    """Healthy default analysis model.
+    """Default analysis model: ``gemini-3.5-flash-lite`` (#333).
 
-    ``gemini-2.5-flash`` is the reliable, currently-healthy model. Prefer this over
-    ``default_flash_lite_model()`` for analysis defaults: ``gemini-2.5-flash-lite`` is
-    504-congested (it caused the 37-minute hang documented at the top of this module)
-    and ``gemini-2.0-flash-lite`` was retired (404). Overridable via ``GEMINI_FLASH_MODEL``.
+    Google deprecated ``gemini-2.5-flash``: from December 1, 2026 its requests are
+    routed to ``gemini-3.5-flash-lite`` and billed at that model's rates, which are the
+    same as 2.5 Flash's. Naming the model the requests will reach keeps the usage log
+    and the request settings honest. Overridable via ``GEMINI_FLASH_MODEL``.
     """
-    return (os.environ.get("GEMINI_FLASH_MODEL") or "gemini-2.5-flash").strip()
+    return (os.environ.get("GEMINI_FLASH_MODEL") or "gemini-3.5-flash-lite").strip()
 
 
 def _genai_http_timeout_ms() -> int:
@@ -906,6 +906,30 @@ def supports_thinking_budget(model: str) -> bool:
     return (model or "").strip().lower().startswith("gemini-2.5-flash")
 
 
+_SAMPLING_PARAMS_IGNORED_FROM = (3, 6)
+
+
+def supports_sampling_params(model: str) -> bool:
+    """Whether ``temperature`` (and ``top_p``/``top_k``) may be sent to ``model`` (#333).
+
+    Google's migration guide: from ``gemini-3.6-flash`` and ``gemini-3.5-flash-lite``
+    on, "temperature, top_p, and top_k are deprecated. The API ignores these
+    parameters and returns an error in future model generations." So they are left
+    out for ``gemini-3.5-flash-lite``, ``gemini-3.6`` and later, and ``gemini-4*``.
+    Every other model (2.x, 3.0–3.5 Flash, Gemma, DeepSeek) still gets them.
+    """
+    name = (model or "").strip().lower()
+    if name.startswith("models/"):
+        name = name[len("models/") :]
+    if name.startswith("gemini-3.5-flash-lite"):
+        return False
+    m = re.match(r"gemini-(\d+)(?:\.(\d+))?", name)
+    if not m:
+        return True
+    version = (int(m.group(1)), int(m.group(2) or 0))
+    return version < _SAMPLING_PARAMS_IGNORED_FROM
+
+
 def _rejected_generation_option(exc: BaseException, config_kwargs: dict[str, Any]) -> Optional[str]:
     """The optional config key a 400 says the model/API won't take, if any."""
     msg = str(exc).upper()
@@ -946,7 +970,8 @@ def call_gemini_text(
     off); they are billed as output and add latency. It is sent only to models
     :func:`supports_thinking_budget` names; ``None`` keeps the model's default.
     ``json_mode`` asks for ``application/json`` output. If the API rejects either
-    setting with a 400, the call is retried once without it.
+    setting with a 400, the call is retried once without it. ``temperature`` is left
+    out for models that ignore it (:func:`supports_sampling_params`).
     """
     if model.startswith("deepseek"):
         if pdf_bytes:
@@ -968,10 +993,9 @@ def call_gemini_text(
     parts = [types.Part.from_text(text=user_text)]
     if pdf_bytes:
         parts.append(types.Part.from_bytes(data=pdf_bytes, mime_type=pdf_mime))
-    config_kwargs: dict[str, Any] = dict(
-        temperature=temperature,
-        max_output_tokens=max_output_tokens,
-    )
+    config_kwargs: dict[str, Any] = {"max_output_tokens": max_output_tokens}
+    if supports_sampling_params(model):
+        config_kwargs["temperature"] = temperature
     if system_instruction.strip():
         config_kwargs["system_instruction"] = system_instruction.strip()
     if thinking_budget is not None and supports_thinking_budget(model):

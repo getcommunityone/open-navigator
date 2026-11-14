@@ -80,7 +80,9 @@ Cost is not stored. The report multiplies the token counts and GPU-hours by the 
 
 A price is used only when it has a value, a `source` and a `read_date`. Anything else shows as a dash. The Gemini
 rates, interactive and batch, come from Google's Gemini API pricing page (paid tier, text rates, read
-November 14, 2026; #266). Gemma has no price yet. DeepSeek's page no longer lists `deepseek-chat`, and its
+November 14, 2026; #266). A rate can end: `valid_until` is the last day it applies, and a call after that day shows
+no cost until the new rate is added (Google doubles the 3.6 and 3.8 Flash rates on January 1, 2027; #333). Gemma 4
+has no paid price (Google offers it on the free tier only). DeepSeek's page no longer lists `deepseek-chat`, and its
 current models are priced by peak and off-peak hours, which the file can't express yet (#328). So those calls show
 no cost. Google has deprecated `gemini-2.5-flash`: from December 1, 2026 its calls are billed as
 `gemini-3.5-flash-lite` (#329). The GPU prices are estimates of what the GPU time would rent for on a cloud (a

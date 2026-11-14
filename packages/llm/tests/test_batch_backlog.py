@@ -58,6 +58,13 @@ def test_request_line_carries_the_interactive_settings():
     assert "system_instruction" not in line["request"]
 
 
+def test_request_line_leaves_out_temperature_for_models_that_ignore_it():
+    line = bb.build_request_line("vid", "hello", model="gemini-3.5-flash-lite", temperature=0.1,
+                                 max_output_tokens=100, thinking_budget=0, json_mode=True)  # fmt: skip
+    assert "temperature" not in line["request"]["generation_config"]
+    assert "thinking_config" not in line["request"]["generation_config"]
+
+
 def test_request_line_leaves_out_what_does_not_apply():
     line = bb.build_request_line("vid", "hello", model="gemini-3.1-flash-lite-preview", temperature=0.2,
                                  max_output_tokens=100, thinking_budget=0, json_mode=False,

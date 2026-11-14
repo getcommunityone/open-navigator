@@ -400,3 +400,22 @@ def test_recorded_row_has_exactly_the_table_columns(log_dir, monkeypatch):
         pass
     (gpu_row,) = _rows(log_dir, "gpu_runs")
     assert set(gpu_row) == set(load_bronze.GPU_RUN_COLUMNS)
+
+
+def test_a_price_past_its_valid_until_gives_no_cost():
+    dated = {"models": {"m": {"source": "s", "read_date": "2026-11-14", "valid_until": "2026-12-31",
+                              "interactive": {"input_usd_per_1m": 1.0, "output_usd_per_1m": 10.0}}}}  # fmt: skip
+    row = {"model": "m", "api_mode": "interactive", "input_token_count": 1_000_000, "output_token_count": 0}
+    assert prices.call_cost_usd({**row, "called_at": "2026-12-31T23:59:00+00:00"}, dated) == 1.0
+    assert prices.call_cost_usd({**row, "called_at": "2027-01-01T00:00:00+00:00"}, dated) is None
+    assert prices.call_cost_usd(row, dated) == 1.0  # no date on the row: the price applies
+
+
+def test_shipped_prices_cite_google_and_have_batch_rates():
+    shipped = prices.load_prices()["models"]
+    for name in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash-lite", "gemini-3.8-flash"):
+        entry = shipped[name]
+        assert entry["source"].startswith(("https://ai.google.dev/gemini-api/docs/pricing",
+                                           "https://aistudio.google.com/docs/pricing")), name  # fmt: skip
+        assert prices.model_price(name, "batch", {"models": shipped}) is not None, name
+    assert shipped["gemini-3.8-flash"]["valid_until"] == "2026-12-31"

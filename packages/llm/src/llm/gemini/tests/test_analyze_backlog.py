@@ -34,12 +34,14 @@ def test_parse_models_dedupes_and_trims_order():
     assert parse_models("a, b , a,c") == ["a", "b", "c"]
 
 
-def test_default_models_drop_retired_and_lead_with_flash():
+def test_default_models_drop_retired_and_deprecated_models():
     # gemini-2.0-flash-lite was retired by Google (API 404s "no longer available"); it
     # must be gone from the defaults so a default run never rotates onto a dead model.
     assert "gemini-2.0-flash-lite" not in DEFAULT_MODELS
-    # Flash leads: Flash-Lite reversed a vote in the first comparison (#267).
-    assert DEFAULT_MODELS == ("gemini-2.5-flash", "gemini-2.5-flash-lite")
+    # gemini-2.5-flash is deprecated (routes to 3.5 Flash-Lite from 2026-12-01), and
+    # 2.5 Flash-Lite reversed a vote in the first comparison (#267, #333).
+    assert "gemini-2.5-flash" not in DEFAULT_MODELS
+    assert DEFAULT_MODELS == ("gemini-3.5-flash-lite", "gemini-3.8-flash")
 
 
 # --------------------------------------------------------------------------- #

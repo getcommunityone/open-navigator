@@ -152,3 +152,44 @@ def test_cli_can_restore_the_model_default_or_set_a_budget():
     assert _thinking_budget_arg(build_parser().parse_args(["--thinking-budget", "512"])) == 512
     assert build_parser().parse_args(["--no-json-mode"]).no_json_mode is True
     assert _thinking_budget_arg(SimpleNamespace()) == 0  # args built without the flag (older callers)
+
+
+# --------------------------------------------------------------------------- #
+# Sampling parameters (#333)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    ("model", "sends"),
+    [
+        ("gemini-2.5-flash", True),
+        ("gemini-2.5-flash-lite", True),
+        ("gemini-3-flash-preview", True),
+        ("gemini-3.1-flash-lite", True),
+        ("gemini-3.5-flash", True),
+        ("gemini-3.5-flash-lite", False),
+        ("models/gemini-3.5-flash-lite", False),
+        ("gemini-3.6-flash", False),
+        ("gemini-3.8-flash", False),
+        ("gemini-4-argon", False),
+        ("gemma-4-31b-it", True),
+        ("deepseek-chat", True),
+    ],
+)
+def test_supports_sampling_params(model, sends):
+    assert gtc.supports_sampling_params(model) is sends
+
+
+def test_temperature_is_left_out_for_models_that_ignore_it(monkeypatch):
+    models = _Models()
+    _call(monkeypatch, models, model="gemini-3.5-flash-lite", temperature=0.1)
+    assert models.configs[0].temperature is None
+    models = _Models()
+    _call(monkeypatch, models, model="gemini-2.5-flash-lite", temperature=0.1)
+    assert models.configs[0].temperature == 0.1
+
+
+def test_default_flash_model_is_off_the_deprecated_25_flash(monkeypatch):
+    monkeypatch.delenv("GEMINI_FLASH_MODEL", raising=False)
+    assert gtc.default_flash_model() == "gemini-3.5-flash-lite"
+    from llm.gemini import reanalyze_decision
+
+    assert reanalyze_decision.DEFAULT_MODEL == "gemini-3.5-flash-lite"

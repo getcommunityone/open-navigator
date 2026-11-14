@@ -29,10 +29,16 @@ def _positive(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
 
 
-def model_price(model: str, api_mode: str, prices: dict[str, Any]) -> dict[str, Any] | None:
+def model_price(
+    model: str, api_mode: str, prices: dict[str, Any], *, on: str | None = None
+) -> dict[str, Any] | None:
     """The rates for ``model`` in ``api_mode``: the exact id, else the longest
     listed id the model's name starts with (a dated or preview variant). ``None``
-    unless the entry is sourced, dated and has both the input and output rate."""
+    unless the entry is sourced, dated and has both the input and output rate.
+
+    An entry may carry ``valid_until: "YYYY-MM-DD"`` (the last day the rates
+    apply). For a call made after that day (``on``, an ISO date or timestamp) the
+    result is ``None``: the report shows no cost rather than a stale one (#333)."""
     models = prices.get("models") or {}
     name = (model or "").strip()
     key = name if name in models else max(
@@ -40,6 +46,9 @@ def model_price(model: str, api_mode: str, prices: dict[str, Any]) -> dict[str, 
     )
     entry = models.get(key) if key else None
     if not _sourced(entry):
+        return None
+    valid_until = str(entry.get("valid_until") or "").strip()
+    if valid_until and on and str(on)[:10] > valid_until:
         return None
     rates = entry.get(api_mode or "interactive")
     if not isinstance(rates, dict) or not all(_positive(rates.get(k)) for k in _RATE_KEYS):
@@ -51,7 +60,9 @@ def call_cost_usd(row: dict[str, Any], prices: dict[str, Any]) -> float | None:
     """One call's cost: uncached input at the input rate, cached input at the
     cached rate, output plus thinking at the output rate. ``None`` when a price or
     a token count needed for it is missing."""
-    rates = model_price(row.get("model") or "", row.get("api_mode") or "interactive", prices)
+    rates = model_price(
+        row.get("model") or "", row.get("api_mode") or "interactive", prices, on=row.get("called_at")
+    )
     input_tokens, output_tokens = row.get("input_token_count"), row.get("output_token_count")
     if rates is None or input_tokens is None or output_tokens is None:
         return None
