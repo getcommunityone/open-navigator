@@ -24,8 +24,9 @@ starts from GitHub Actions, so it can be run from a phone
    accept its conditions (current WhisperX uses it; with only the older model accepted, speakers come back empty). For
    older WhisperX versions, also accept [speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
    and [segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0). Then make a **read** token with the same
-   account ([settings/tokens](https://huggingface.co/settings/tokens)). In Modal → **Secrets** → **Create** → custom,
-   name it `huggingface`, key `HF_TOKEN`.
+   account ([settings/tokens](https://huggingface.co/settings/tokens)). Add it as a third GitHub secret, `HF_TOKEN`;
+   each run copies it into the Modal secret `huggingface`. (Or make that secret yourself in Modal → **Secrets** →
+   **Create new secret** → **Custom**, key `HF_TOKEN`.)
 5. **Run it:** GitHub → **Actions** → **GPU diarization on Modal** → **Run workflow**, with the items to process.
 </details>
 
@@ -58,5 +59,5 @@ code calls (`llm.gemini.diarize_postprocess`).
 | Credential | Where it's made | Scope | Goes to | Lifetime |
 |---|---|---|---|---|
 | Modal API token | modal.com → Settings → API tokens | the Modal workspace | GitHub secrets `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` | until revoked; revoke if unused |
-| Hugging Face read token | huggingface.co → Settings → Access tokens | read, gated models accepted | Modal secret `huggingface`, key `HF_TOKEN` | 90 days |
+| Hugging Face read token | huggingface.co → Settings → Access tokens | read, gated models accepted | GitHub secret `HF_TOKEN`, copied each run into Modal secret `huggingface` | 90 days |
 </details>
