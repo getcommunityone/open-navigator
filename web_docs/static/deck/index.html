@@ -46,7 +46,7 @@
 <nav class="topnav" aria-label="Main">
 <a class="home" href="https://www.communityone.com/" title="Back to CommunityOne"><span class="mark" aria-hidden="true">←</span><span class="name">CommunityOne</span></a>
 <div class="links"><a class="doc" href="https://www.communityone.com/docs/">Docs</a><span class="pager"><button id="deck-prev" aria-label="Previous slide" title="Previous slide (←)">‹<span class="lbl"> Previous</span></button>
-<select id="deck-jump" aria-label="Go to slide"><option value="cover">1. Local decisions shape daily life.</option><option value="audience">2. Four kinds of people, one record</option><option value="problem">3. 91,438 local governments. No common record.</option><option value="solution">4. Find it, read it, follow it</option><option value="lenses">5. Five ways to spot what matters in the record</option><option value="policy-model">6. From one vote to the question behind it</option><option value="pipeline">7. How a meeting becomes a searchable decision</option><option value="trust">8. Rules that keep it honest</option><option value="open">9. Anyone can check it, use it or build on it</option><option value="status">10. Live, useful, and still uneven</option><option value="close">11. One map for every community.</option></select>
+<select id="deck-jump" aria-label="Go to slide"><option value="cover">1. Local decisions shape daily life.</option><option value="audience">2. Four kinds of people, one record</option><option value="problem">3. 91,438 local governments. No common record.</option><option value="solution">4. Find it, read it, follow it</option><option value="lenses">5. Five ways to spot what matters in the record</option><option value="policy-model">6. From one vote to the question behind it</option><option value="pipeline">7. How a meeting becomes a searchable decision</option><option value="trust">8. Rules that keep it honest</option><option value="open">9. Anyone can check it, use it or build on it</option><option value="data-centers">10. Data centers: what’s coming, and whether the jobs are real</option><option value="status">11. Live, useful, and still uneven</option><option value="close">12. One map for every community.</option></select>
 <button id="deck-next" aria-label="Next slide" title="Next slide (→)"><span class="lbl">Next </span>›</button></span>
 <button id="deck-notes-btn" aria-pressed="false" title="Speaker notes (N)">Notes</button>
 <a class="cta" href="https://github.com/getcommunityone/open-navigator" target="_blank" rel="noopener">GitHub ↗</a></div></nav>
@@ -179,6 +179,19 @@
 <aside class="notes">Everything is open. The code is Apache 2.0, and the work happens in public issues and pull requests. The datasets are published on Hugging Face. There is an MCP server, so an AI assistant can query the data directly instead of guessing. And the data follows existing civic standards, like the Council Data Project's meeting model and Open Civic Data identifiers, so it can connect to other civic tools rather than becoming another silo.</aside>
 </section>
 
+<section id="data-centers" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">This quarter</p>
+<h2>Data centers: what’s coming, and whether the jobs are real</h2></div>
+<p class="lead">What is being built near me, who approved it, what it does to my bill, and are the jobs real? This quarter starts with the first and the last.</p>
+<div class="row">
+<div class="card"><h3>Job promises, on the record</h3><p>Construction and permanent jobs shown separately, each with its dates and who promised it, linked to that moment in the recording. Unknown says “not stated”, never zero.</p></div>
+<div class="card"><h3>The pipeline near me</h3><p>Proposed sites before the vote, matched to the agenda where they’ll come up, with alerts ranked by how much local concern the record shows.</p></div>
+</div>
+<p class="callout"><b>Status:</b> six stories planned for October to December 2026; none built yet.</p>
+<p class="foot">Plan: github.com/getcommunityone/open-navigator/issues/236 · 10</p>
+<aside class="notes">This quarter, most of the work goes to data centers, because that's where residents are asking the hardest questions: what's being built near me, who approved it, what it will do to my power bill, and whether the promised jobs are real. We start with two of those. First, job promises on the record: when someone at a meeting promises jobs, we show construction jobs and permanent jobs separately, each with its dates, because a two-year build isn't a career. Every number says who said it, at which meeting, and links to that moment in the recording, and if a number was never stated we say so instead of showing zero. Second, the pipeline near me: proposed sites before the vote, matched to the agenda where they'll come up, with alerts ranked by local concern. To be clear, this is planned work for October through December; none of it is built yet, and it builds on the meeting citations planned in the core work.</aside>
+</section>
+
 <section id="status" class="s" data-transition="fade">
 <div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">Where it stands</p>
 <h2>Live, useful, and still uneven</h2></div>
@@ -191,7 +204,7 @@
 <div class="card"><h3>Not there yet</h3><p>Meeting analysis is deep in a few states and thin elsewhere. Jurisdiction counts in the stats aren&rsquo;t right yet and are left out. Older scripts are being moved into tested packages.</p></div>
 </div>
 <p class="callout">A small nonprofit project with one maintainer. Help with data, review and pilot communities moves it fastest.</p>
-<p class="foot">Figures: communityone.com/api/stats, snapshot dated June 5, 2026, read November 14, 2026 · 10</p>
+<p class="foot">Figures: communityone.com/api/stats, snapshot dated June 5, 2026, read November 14, 2026 · 11</p>
 <aside class="notes">An honest status. It's live: the app, the docs and the API at communityone.com, with nationwide directories and the search, lenses, maps and policy questions you've seen. It is not finished. Meeting analysis is deep in a few states and thin elsewhere, so coverage is uneven. The figures at the top come straight from the live stats endpoint; that snapshot is from June, and its jurisdiction count is wrong, so I leave that one out until it's fixed. And older scripts are being moved into tested packages. It's a small nonprofit project with one maintainer, which is why help matters.</aside>
 </section>
 
