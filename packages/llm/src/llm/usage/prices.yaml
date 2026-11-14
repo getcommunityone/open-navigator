@@ -49,14 +49,35 @@ models:
     batch: {input_usd_per_1m: 0.375, cached_input_usd_per_1m: 0.0375, output_usd_per_1m: 1.875}
   # Gemma 4 (gemma-4-*): the page lists it free of charge on the free tier and "Not
   # available" on the paid tier, so there is no paid price to record; it shows no cost.
-  # deepseek-chat: DeepSeek's pricing page (https://api-docs.deepseek.com/quick_start/pricing/,
-  # read 2026-11-14) no longer lists this model name. Its models are deepseek-flash and
-  # deepseek-v4-pro, priced by peak and off-peak hours, which this file can't express yet.
-  # So no price is recorded here (#328).
-  deepseek-chat:
-    source: null
-    read_date: null
-    interactive: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+  # DeepSeek: its pricing page, per 1M tokens, read on 2026-11-14 (#328). Rates depend on
+  # the time of day: `interactive` holds the peak rates and `interactive.off_peak` the
+  # off-peak ones (half of peak). Peak hours are 01:00-04:00 and 06:00-10:00 UTC, Monday
+  # to Friday; every other hour is off-peak. The page also makes Chinese public holidays
+  # off-peak in full. Those dates aren't recorded here, so a call during peak hours on one
+  # is priced at the peak rate and the estimate errs high. `cached_input_usd_per_1m` is
+  # the page's "cache hit" input rate. deepseek-v4-flash (and deepseek-v4-flash-vision-exp)
+  # are legacy names the page says are still accepted and billed at the Flash price.
+  # deepseek-chat, the name the code used before, is neither listed nor accepted, so its
+  # past calls show no cost.
+  deepseek-flash: &deepseek_flash
+    source: https://api-docs.deepseek.com/quick_start/pricing/
+    read_date: "2026-11-14"
+    peak: &deepseek_peak {days: [mon, tue, wed, thu, fri], hours_utc: ["01:00-04:00", "06:00-10:00"]}
+    interactive:
+      input_usd_per_1m: 0.30
+      cached_input_usd_per_1m: 0.006
+      output_usd_per_1m: 1.20
+      off_peak: {input_usd_per_1m: 0.15, cached_input_usd_per_1m: 0.003, output_usd_per_1m: 0.60}
+  deepseek-v4-flash: *deepseek_flash
+  deepseek-v4-pro:
+    source: https://api-docs.deepseek.com/quick_start/pricing/
+    read_date: "2026-11-14"
+    peak: *deepseek_peak
+    interactive:
+      input_usd_per_1m: 1.32
+      cached_input_usd_per_1m: 0.044
+      output_usd_per_1m: 3.96
+      off_peak: {input_usd_per_1m: 0.66, cached_input_usd_per_1m: 0.022, output_usd_per_1m: 1.98}
 
 # GPU prices in USD per GPU-hour, matched against the name `nvidia-smi` reports
 # (the key is searched for in the name, so "T4" matches "Tesla T4"). These are

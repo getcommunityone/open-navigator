@@ -202,7 +202,7 @@ helper-line test showed that removing a field does not by itself shorten the out
 
 ## Not done
 
-- DeepSeek's price is not filled in. Gemma 4 has no paid price: Google offers it on the free tier only.
+- Gemma 4 has no paid price: Google offers it on the free tier only. DeepSeek's prices are filled in, by peak and off-peak hours (#328), but no DeepSeek run has been measured.
 - The comparison has not run on real meetings (#267).
 - Output is the larger half of every call: the made-up four-item meeting produced about 10,000 output tokens, much
   of it the two Mermaid diagrams the schema requires on every decision. Trimming the schema is the next lever and

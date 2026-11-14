@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { tracedFetch } from '../lib/api';
 
 interface User {
   id: number;
@@ -77,7 +78,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchUser = async (authToken: string) => {
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
+      const response = await tracedFetch(`${API_URL}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
         },

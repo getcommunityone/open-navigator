@@ -10,7 +10,7 @@ import {
   ArrowTopRightOnSquareIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline'
-import { apiBaseUrl } from '../lib/api'
+import { apiBaseUrl, tracedFetch } from '../lib/api'
 
 /**
  * Inline document viewer for meeting agenda/minutes — the document analogue of
@@ -116,7 +116,7 @@ export default function DocumentViewer({
     let cancelled = false
     setKind('loading')
     setPdfData(null)
-    fetch(fileUrl)
+    tracedFetch(fileUrl)
       .then(async (resp) => {
         if (!resp.ok) throw new Error(`proxy returned ${resp.status}`)
         const contentType = resp.headers.get('content-type') ?? ''

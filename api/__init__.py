@@ -1,4 +1,5 @@
-"""API module for the CommunityOne Open Navigator system."""
-from api.main import app
+"""API module for the CommunityOne Open Navigator system.
 
-__all__ = ["app"]
+Import the app from its own module (``from api.main import app``, or ``uvicorn api.main:app``). This file imports
+nothing, so loading one module such as ``api.database`` doesn't build the whole app (#261).
+"""
