@@ -669,6 +669,16 @@ class ComprehensiveDiscoveryPipeline:
         
         logger.info(f"Saved JSON: {json_file}")
         
+        # Platforms the meeting model can't read yet are a gap, not "no meetings" (#252): count them per
+        # jurisdiction and log one warning per unsupported platform.
+        from ingestion.meetings import coverage_report, supported_platforms
+        from ingestion.meetings.registry import normalize_platform_code
+
+        with_adapter = set(supported_platforms())
+        detected = [(r['jurisdiction']['name'], p.get('type')) for r in results for p in r['meeting_platforms']]
+        if detected:
+            coverage_report(detected).log()
+
         # Save summary CSV
         summary = []
         for r in results:
@@ -681,6 +691,9 @@ class ComprehensiveDiscoveryPipeline:
                 'website': r['websites'][0]['url'] if r['websites'] else '',
                 'youtube_channels': len(r['youtube_channels']),
                 'meeting_platforms': len(r['meeting_platforms']),
+                'meeting_platforms_without_adapter': sum(
+                    1 for p in r['meeting_platforms'] if normalize_platform_code(p.get('type')) not in with_adapter
+                ),
                 'agenda_portals': len(r['agenda_portals']),
                 'completeness': r.get('completeness_score', 0.0),
                 'status': r['status']
