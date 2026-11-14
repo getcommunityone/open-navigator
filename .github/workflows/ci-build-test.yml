@@ -78,6 +78,9 @@ jobs:
           cd web_docs
           npm ci
 
+      - name: Check the pitch slideshow is built from its slides
+        run: node web_docs/scripts/build-deck.mjs --check
+
       - name: Build documentation
         run: |
           cd web_docs

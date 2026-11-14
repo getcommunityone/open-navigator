@@ -52,6 +52,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'quickstart',
+        'development/code-walkthrough',
         'quick-reference',
       ],
     },
