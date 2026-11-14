@@ -51,9 +51,9 @@ def _uninstrument_all() -> None:
 
 @pytest.fixture()
 def exporter():
-    """A private tracer provider whose finished spans land in memory, from a clean start: importing ``api``
-    loads ``api.main`` (``api/__init__.py``), whose setup_telemetry has already instrumented the drivers against
-    the app's own provider. Undone after the test."""
+    """A private tracer provider whose finished spans land in memory, from a clean start: another test may have
+    imported ``api.main``, whose setup_telemetry has already instrumented the drivers against the app's own
+    provider. Undone after the test."""
     _uninstrument_all()
     memory = InMemorySpanExporter()
     provider = TracerProvider()
