@@ -19,9 +19,13 @@ starts from GitHub Actions, so it can be run from a phone
 2. **Modal token:** modal.com → **Settings** → **API tokens** → **New token**. Copy the token ID and secret.
 3. **GitHub secrets:** repository **Settings** → **Secrets and variables** → **Actions** → add `MODAL_TOKEN_ID` and
    `MODAL_TOKEN_SECRET`. Never paste them anywhere else.
-4. **Hugging Face token for the speaker models:** on huggingface.co, accept the terms of
-   `pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0`, then make a **read** token (Settings → Access
-   tokens). In Modal → **Secrets** → **Create** → custom, name it `huggingface`, key `HF_TOKEN`.
+4. **Hugging Face token for the speaker models:** signed in on huggingface.co, open
+   [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) and
+   accept its conditions (current WhisperX uses it; with only the older model accepted, speakers come back empty). For
+   older WhisperX versions, also accept [speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
+   and [segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0). Then make a **read** token with the same
+   account ([settings/tokens](https://huggingface.co/settings/tokens)). In Modal → **Secrets** → **Create** → custom,
+   name it `huggingface`, key `HF_TOKEN`.
 5. **Run it:** GitHub → **Actions** → **GPU diarization on Modal** → **Run workflow**, with the items to process.
 </details>
 

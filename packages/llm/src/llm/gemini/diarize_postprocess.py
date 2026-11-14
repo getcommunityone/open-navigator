@@ -28,6 +28,21 @@ def _format_ts(seconds: float) -> str:
     return f"{m:02d}:{sec:02d}"
 
 
+def make_diarization_pipeline(whisperx_module: Any, token: str, device: str) -> Any:
+    """WhisperX's diarization pipeline, for old and current versions (#318).
+
+    Current WhisperX takes ``token=`` and uses the gated ``pyannote/speaker-diarization-community-1`` model; versions
+    before that switch took ``use_auth_token=``. Newer releases may only expose the class under ``whisperx.diarize``.
+    """
+    cls = getattr(whisperx_module, "DiarizationPipeline", None)
+    if cls is None:
+        cls = whisperx_module.diarize.DiarizationPipeline
+    try:
+        return cls(token=token, device=device)
+    except TypeError:
+        return cls(use_auth_token=token, device=device)
+
+
 def diarize_audio_whisperx(
     audio_path: Path,
     *,
@@ -74,7 +89,7 @@ def diarize_audio_whisperx(
         return_char_alignments=False,
     )
 
-    diarize_model = whisperx.DiarizationPipeline(use_auth_token=token, device=device)
+    diarize_model = make_diarization_pipeline(whisperx, token, device)
     diarize_segments = diarize_model(audio)
 
     annotated = whisperx.assign_word_speakers(diarize_segments, aligned)
