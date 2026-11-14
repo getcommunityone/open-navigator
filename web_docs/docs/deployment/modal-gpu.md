@@ -17,7 +17,7 @@ starts from GitHub Actions, so it can be run from a phone
    with a payment method on file). Without a card, work stops when the credit runs out, which caps spending at zero.
    With a card, use past the credit is billed, so watch the dashboard or keep runs small.
 2. **Modal token:** modal.com → **Settings** → **API tokens** → **New token**. Copy the token ID and secret.
-3. **GitHub secrets:** repository **Settings** → **Secrets and variables** → **Actions** → add `MODAL_TOKEN_ID` and
+3. **GitHub secrets:** repository **Settings** → **Environments** → `dev` → add `MODAL_TOKEN_ID` and
    `MODAL_TOKEN_SECRET`. Never paste them anywhere else.
 4. **Hugging Face token for the speaker models:** signed in on huggingface.co, open
    [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) and
@@ -58,6 +58,6 @@ code calls (`llm.gemini.diarize_postprocess`).
 
 | Credential | Where it's made | Scope | Goes to | Lifetime |
 |---|---|---|---|---|
-| Modal API token | modal.com → Settings → API tokens | the Modal workspace | GitHub secrets `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` | until revoked; revoke if unused |
-| Hugging Face read token | huggingface.co → Settings → Access tokens | read, gated models accepted | GitHub secret `HF_TOKEN`, copied each run into Modal secret `huggingface` | 90 days |
+| Modal API token | modal.com → Settings → API tokens | the Modal workspace | GitHub environment `dev`: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` | until revoked; revoke if unused |
+| Hugging Face read token | huggingface.co → Settings → Access tokens | read, gated models accepted | GitHub environment `dev`: `HF_TOKEN`, copied each run into Modal secret `huggingface` | 90 days |
 </details>
