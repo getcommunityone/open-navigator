@@ -287,6 +287,19 @@ def test_gpu_cost():
     assert prices.gpu_cost_usd({"gpu_name": "NVIDIA H100", "gpu_hours": 2.0}, PRICED) is None
 
 
+def test_shipped_gemini_flash_prices_cover_interactive_and_batch_from_googles_page():
+    """#266: both Gemini 2.5 Flash models are priced in both API modes, sourced from Google's own pricing page."""
+    shipped = prices.load_prices()
+    for model in ("gemini-2.5-flash", "gemini-2.5-flash-lite"):
+        for mode in ("interactive", "batch"):
+            rates = prices.model_price(model, mode, shipped)
+            assert rates is not None, f"{model} {mode} has no usable price"
+            assert rates["source"].startswith("https://ai.google.dev/"), rates["source"]
+    batch_call = {"model": "gemini-2.5-flash-lite", "api_mode": "batch",
+                  "input_token_count": 1_000_000, "output_token_count": 1_000_000}
+    assert prices.call_cost_usd(batch_call, shipped) == pytest.approx(0.05 + 0.20)
+
+
 def test_shipped_prices_file_has_no_unsourced_price():
     shipped = prices.load_prices()
     assert shipped["models"] and shipped["gpus"]
