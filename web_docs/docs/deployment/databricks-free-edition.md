@@ -28,6 +28,24 @@ Source: [Free Edition limitations](https://docs.databricks.com/aws/en/getting-st
 </details>
 
 <details>
+<summary><b>Connect it from a phone (about 5 minutes)</b></summary>
+
+The deploy also signs in with a personal access token, so the workspace can be connected without a terminal. Replace
+the token with the service principal (below) when you're at a computer.
+
+1. In the Free Edition workspace, open your profile (top right) → **Settings** → **Developer** → **Access tokens** →
+   **Generate new token**. Comment "open-navigator CI", lifetime **30 days**. Copy it.
+2. In GitHub: repository **Settings** → **Environments** → **New environment** named `free`. Add the variable
+   `DATABRICKS_HOST` (the workspace URL, e.g. `https://dbc-xxxx.cloud.databricks.com`) and the secret
+   `DATABRICKS_TOKEN` (the token). Never paste the token anywhere else.
+3. **Actions** → **Deploy to Databricks Free Edition** → **Run workflow**. It checks the connection, creates the
+   `open_navigator` catalog once, then validates and deploys.
+
+The token acts as you, with your rights in the workspace; the service principal has only what the job needs. Delete the
+token in the workspace when the service principal is in place.
+</details>
+
+<details>
 <summary><b>One-time setup (about 15 minutes)</b></summary>
 
 1. Sign up at [databricks.com/learn/free-edition](https://www.databricks.com/learn/free-edition) (or use the workspace
@@ -63,5 +81,6 @@ shows how much quota a batch uses.
 
 | Credential | Where it's made | Scope | Goes to | Lifetime |
 |---|---|---|---|---|
+| Personal access token (phone setup only) | Workspace → Settings → Developer → Access tokens | your user's rights | GitHub environment `free`, secret `DATABRICKS_TOKEN` | 30 days; delete once the service principal is set up |
 | `open_navigator_free_sp` OAuth secret | Databricks CLI: `service-principal-secrets-proxy create` (printed by the setup script) | the service principal: workspace access, SQL access, ALL PRIVILEGES on `open_navigator` | GitHub environment `free`, secret `DATABRICKS_CLIENT_SECRET` | 90 days; renew 14 days before |
 </details>

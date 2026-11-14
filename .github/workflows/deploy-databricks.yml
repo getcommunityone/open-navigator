@@ -1,11 +1,11 @@
 # Deploy the agent-analysis-sync bundle to Databricks Free Edition (target `free`, #294), the way the Health
-# Transformation Lab deploys its dev target: on every merge that changes the bundle, and on demand, signed in as
-# the environment's service principal (OAuth M2M; apps/agent-analysis-sync/setup/create_service_principal.sh
-# makes it).
+# Transformation Lab deploys its dev target: on every merge that changes the bundle, and on demand.
 #
-# The GitHub environment `free` holds: variables DATABRICKS_HOST, DATABRICKS_CLIENT_ID; secret
-# DATABRICKS_CLIENT_SECRET. Without the secret every step after sign-in skips, so the workflow stays green until
-# the workspace is set up. Deploying creates schemas and a volume and the (paused) job; it never runs the job.
+# The GitHub environment `free` holds the variable DATABRICKS_HOST and EITHER the service principal's sign-in
+# (variable DATABRICKS_CLIENT_ID, secret DATABRICKS_CLIENT_SECRET; apps/agent-analysis-sync/setup/
+# create_service_principal.sh makes it) OR, to start from a phone, a personal access token (secret
+# DATABRICKS_TOKEN). Without either, every step after sign-in skips, so the workflow stays green.
+# Deploying creates the catalog (once), schemas, the crawl volume and the paused job; it runs the job only when asked.
 name: Deploy to Databricks Free Edition
 on:
   push:
@@ -35,6 +35,9 @@ jobs:
     defaults:
       run:
         working-directory: apps/agent-analysis-sync
+    env:
+      CATALOG: open_navigator
+      WAREHOUSE_NAME: Serverless Starter Warehouse
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/databricks-signin
@@ -42,18 +45,31 @@ jobs:
           host: ${{ vars.DATABRICKS_HOST }}
           client_id: ${{ vars.DATABRICKS_CLIENT_ID }}
           client_secret: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          token: ${{ secrets.DATABRICKS_TOKEN }}
       - name: Stop if the environment isn't set up
-        if: env.DATABRICKS_CLIENT_SECRET == ''
-        run: echo "::notice::No DATABRICKS_CLIENT_SECRET in the free environment; skipping (see web_docs/docs/deployment/databricks-free-edition.md)."
+        if: env.DATABRICKS_AUTH_OK != 'true'
+        run: echo "::notice::No sign-in in the free environment; skipping (see web_docs/docs/deployment/databricks-free-edition.md)."
       - uses: databricks/setup-cli@v1.3.0
-        if: env.DATABRICKS_CLIENT_SECRET != ''
+        if: env.DATABRICKS_AUTH_OK == 'true'
+      - name: Check the connection
+        if: env.DATABRICKS_AUTH_OK == 'true'
+        run: databricks current-user me -o json | python3 -c "import json,sys; u=json.load(sys.stdin); print('Signed in as', u.get('userName') or u.get('displayName'))"
+      # A Free Edition workspace with Default Storage can't create a catalog through the bundle's API, so it's made
+      # once with SQL on the starter warehouse. IF NOT EXISTS makes this a no-op after the first run.
+      - name: Create the catalog once
+        if: env.DATABRICKS_AUTH_OK == 'true'
+        run: |
+          wh_id=$(databricks warehouses list -o json | python3 -c "import json,sys,os; n=os.environ['WAREHOUSE_NAME']; print(next(w['id'] for w in json.load(sys.stdin) if w['name']==n))")
+          databricks api post /api/2.0/sql/statements --json \
+            "{\"warehouse_id\": \"$wh_id\", \"statement\": \"CREATE CATALOG IF NOT EXISTS $CATALOG\", \"wait_timeout\": \"50s\"}" \
+            | python3 -c "import json,sys; r=json.load(sys.stdin); s=r.get('status',{}); print('catalog', '$CATALOG:', s.get('state'), s.get('error',{}).get('message',''))"
       - name: Validate
-        if: env.DATABRICKS_CLIENT_SECRET != ''
+        if: env.DATABRICKS_AUTH_OK == 'true'
         run: databricks bundle validate -t free
       - name: Deploy
-        if: env.DATABRICKS_CLIENT_SECRET != ''
+        if: env.DATABRICKS_AUTH_OK == 'true'
         run: databricks bundle deploy -t free
       - name: Run one analysis batch
-        if: env.DATABRICKS_CLIENT_SECRET != '' && github.event.inputs.run_analysis == 'true'
+        if: env.DATABRICKS_AUTH_OK == 'true' && github.event.inputs.run_analysis == 'true'
         # Returns once Databricks has started the run; follow it from the run URL in the log.
         run: databricks bundle run -t free --no-wait agent_analysis_sync
