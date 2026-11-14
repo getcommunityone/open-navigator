@@ -1696,7 +1696,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default="",
-        help="Default: GEMINI_FLASH_LITE_MODEL or gemini-2.5-flash-lite (~3x faster; 330s wall-clock guards hangs); a deepseek-* model (e.g. deepseek-chat) routes to DeepSeek instead of Gemini",
+        help="Default: GEMINI_FLASH_LITE_MODEL or gemini-2.5-flash-lite (~3x faster; 330s wall-clock guards hangs); a deepseek-* model (e.g. deepseek-flash) routes to DeepSeek instead of Gemini",
     )
     parser.add_argument("--system-instruction", default="", help="Optional system prompt")
     parser.add_argument("--temperature", type=float, default=0.1)

@@ -82,9 +82,12 @@ A price is used only when it has a value, a `source` and a `read_date`. Anything
 rates, interactive and batch, come from Google's Gemini API pricing page (paid tier, text rates, read
 November 14, 2026; #266). A rate can end: `valid_until` is the last day it applies, and a call after that day shows
 no cost until the new rate is added (Google doubles the 3.6 and 3.8 Flash rates on January 1, 2027; #333). Gemma 4
-has no paid price (Google offers it on the free tier only). DeepSeek's page no longer lists `deepseek-chat`, and its
-current models are priced by peak and off-peak hours, which the file can't express yet (#328). So those calls show
-no cost. Google has deprecated `gemini-2.5-flash`: from December 1, 2026 its calls are billed as
+has no paid price (Google offers it on the free tier only). DeepSeek prices by time of day, so its entries
+(`deepseek-flash`, `deepseek-v4-pro`, and the legacy name `deepseek-v4-flash`) carry `peak` hours and an `off_peak`
+rate. A call is priced at the rate for its UTC time, and a call with no time of day shows no cost. Peak is 01:00 to
+04:00 and 06:00 to 10:00 UTC on weekdays. DeepSeek also makes Chinese public holidays off-peak; those dates aren't
+recorded, so on them the estimate errs high (read November 14, 2026; #328). `deepseek-chat`, the name used before,
+is no longer listed, so its calls show no cost. Google has deprecated `gemini-2.5-flash`: from December 1, 2026 its calls are billed as
 `gemini-3.5-flash-lite` (#329). The GPU prices are estimates of what the GPU time would rent for on a cloud (a
 Colab or Kaggle GPU is paid in compute units or not at all).
 

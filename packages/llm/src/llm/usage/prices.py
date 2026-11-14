@@ -7,11 +7,13 @@ blank: a cost is never assumed.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, time
 from pathlib import Path
 from typing import Any
 
 PRICES_FILE = Path(__file__).with_name("prices.yaml")
 _RATE_KEYS = ("input_usd_per_1m", "output_usd_per_1m")
+_WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
 def load_prices(path: Path | None = None) -> dict[str, Any]:
@@ -29,6 +31,34 @@ def _positive(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
 
 
+def _call_moment(on: Any) -> datetime | None:
+    """``on`` (an ISO timestamp) in UTC, or ``None`` when it has no time of day or doesn't parse. A timestamp
+    with no offset is read as UTC, the zone usage rows are written in."""
+    text = str(on or "").strip()
+    if len(text) <= 10:  # a bare date, "YYYY-MM-DD"
+        return None
+    try:
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (moment if moment.tzinfo else moment.replace(tzinfo=UTC)).astimezone(UTC)
+
+
+def _in_peak(peak: dict[str, Any], moment: datetime) -> bool:
+    """Whether ``moment`` (UTC) falls in a peak window: on one of ``peak["days"]`` (every day when absent), from
+    a window's start up to, but not including, its end. A window is ``"HH:MM-HH:MM"`` and doesn't cross
+    midnight."""
+    days = {str(day).strip().lower()[:3] for day in peak.get("days") or _WEEKDAYS}
+    if _WEEKDAYS[moment.weekday()] not in days:
+        return False
+    clock = moment.time()
+    for window in peak.get("hours_utc") or []:
+        start, end = (time.fromisoformat(part.strip()) for part in str(window).split("-", 1))
+        if start <= clock < end:
+            return True
+    return False
+
+
 def model_price(
     model: str, api_mode: str, prices: dict[str, Any], *, on: str | None = None
 ) -> dict[str, Any] | None:
@@ -38,7 +68,13 @@ def model_price(
 
     An entry may carry ``valid_until: "YYYY-MM-DD"`` (the last day the rates
     apply). For a call made after that day (``on``, an ISO date or timestamp) the
-    result is ``None``: the report shows no cost rather than a stale one (#333)."""
+    result is ``None``: the report shows no cost rather than a stale one (#333).
+
+    An entry priced by time of day (DeepSeek, #328) carries ``peak`` (its ``days``
+    and UTC ``hours_utc`` windows), and the mode's rates carry ``off_peak``. The
+    mode's own rates apply in a peak window and ``off_peak`` outside one. Without
+    the call's time of day (``on`` missing or a bare date) the result is ``None``,
+    because the rate can't be chosen."""
     models = prices.get("models") or {}
     name = (model or "").strip()
     key = name if name in models else max(
@@ -51,7 +87,17 @@ def model_price(
     if valid_until and on and str(on)[:10] > valid_until:
         return None
     rates = entry.get(api_mode or "interactive")
-    if not isinstance(rates, dict) or not all(_positive(rates.get(k)) for k in _RATE_KEYS):
+    if not isinstance(rates, dict):
+        return None
+    peak = entry.get("peak")
+    if isinstance(peak, dict) and isinstance(rates.get("off_peak"), dict):
+        moment = _call_moment(on)
+        if moment is None:
+            return None
+        if not _in_peak(peak, moment):
+            rates = rates["off_peak"]
+    rates = {k: v for k, v in rates.items() if k != "off_peak"}
+    if not all(_positive(rates.get(k)) for k in _RATE_KEYS):
         return None
     return {**rates, "source": entry["source"], "read_date": str(entry["read_date"])}
 
