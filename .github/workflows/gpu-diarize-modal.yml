@@ -1,5 +1,5 @@
 # Speech-to-text and speaker separation on a Modal GPU (#314), on demand, so it can be started from a phone.
-# Needs repository secrets MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (modal.com > Settings > API tokens), and HF_TOKEN
+# Needs secrets in the GitHub environment `dev`: MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (modal.com > Settings > API tokens), and HF_TOKEN
 # (copied into the Modal secret `huggingface` each run; web_docs/docs/deployment/modal-gpu.md). Without the Modal token it skips.
 # Each run is capped (`limit`), writes one estimated-cost row per item, and uploads the outputs as an artifact.
 name: GPU diarization on Modal
@@ -22,6 +22,7 @@ permissions:
 jobs:
   diarize:
     runs-on: ubuntu-latest
+    environment: dev  # MODAL_TOKEN_ID, MODAL_TOKEN_SECRET and HF_TOKEN live here
     timeout-minutes: 120
     concurrency:
       group: gpu-diarize-modal
