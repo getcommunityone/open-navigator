@@ -202,7 +202,8 @@ if modal is not None:
                 audio = tmp
             else:
                 audio = Path(where)
-            result = diarize_audio_whisperx(audio, model_size=model_size, device="cuda", language=MEETING_LANGUAGE)
+            result = diarize_audio_whisperx(audio, model_size=model_size, device="cuda", language=MEETING_LANGUAGE,
+                                            allow_no_speakers=True)
             status = "ok"
         except Exception as e:
             usage = usage_row(item, DEFAULT_GPU, started, time.monotonic() - t0, "failed")

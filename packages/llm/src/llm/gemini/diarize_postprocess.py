@@ -55,12 +55,15 @@ def diarize_audio_whisperx(
     hf_token: str | None = None,
     known_names: list[str] | None = None,
     language: str | None = None,
+    allow_no_speakers: bool = False,
 ) -> dict[str, Any]:
     """
     Run WhisperX ASR + alignment + diarization on ``audio_path``.
 
     ``language`` fixes the spoken language; without it WhisperX guesses from the first 30 seconds, which a silent or
     music-only opening can send to a language with no alignment model (a US meeting came back as Welsh, #340).
+    ``allow_no_speakers`` keeps the transcript when speaker separation fails (a gated model refused, say): segments
+    get ``speaker`` None and the result names the error in ``diarization_error``.
 
     Returns ``{segments: [{start, end, text, speaker}], raw_text, engine}``.
     """
@@ -98,10 +101,14 @@ def diarize_audio_whisperx(
         return_char_alignments=False,
     )
 
-    diarize_model = make_diarization_pipeline(whisperx, token, device)
-    diarize_segments = diarize_model(audio)
-
-    annotated = whisperx.assign_word_speakers(diarize_segments, aligned)
+    diarization_error = None
+    try:
+        diarize_model = make_diarization_pipeline(whisperx, token, device)
+        annotated = whisperx.assign_word_speakers(diarize_model(audio), aligned)
+    except Exception as exc:
+        if not allow_no_speakers:
+            raise
+        diarization_error, annotated = f"{type(exc).__name__}: {str(exc)[:200]}", aligned
 
     segments: list[dict[str, Any]] = []
     for seg in annotated.get("segments") or []:
@@ -110,7 +117,7 @@ def diarize_audio_whisperx(
             continue
         start = float(seg.get("start") or 0)
         end = float(seg.get("end") or start)
-        speaker = str(seg.get("speaker") or "SPEAKER_00")
+        speaker = None if diarization_error else str(seg.get("speaker") or "SPEAKER_00")
         segments.append(
             {
                 "start": start,
@@ -130,6 +137,7 @@ def diarize_audio_whisperx(
         "language": lang,
         "raw_text": " ".join(s["text"] for s in segments),
         "segments": segments,
+        "diarization_error": diarization_error,
     }
 
 
