@@ -58,6 +58,7 @@ from loguru import logger
 
 from llm.gemini.genai_text_client import (
     default_flash_lite_model,
+    supports_sampling_params,
     supports_thinking_budget,
 )
 
@@ -99,10 +100,9 @@ def build_request_line(
 ) -> dict[str, Any]:
     """One line of the batch input file. The same generation settings as the
     interactive Part 1 call (``call_gemini_text``)."""
-    generation_config: dict[str, Any] = {
-        "temperature": temperature,
-        "max_output_tokens": max_output_tokens,
-    }
+    generation_config: dict[str, Any] = {"max_output_tokens": max_output_tokens}
+    if supports_sampling_params(model):
+        generation_config["temperature"] = temperature
     if thinking_budget is not None and supports_thinking_budget(model):
         generation_config["thinking_config"] = {"thinking_budget": int(thinking_budget)}
     if json_mode:

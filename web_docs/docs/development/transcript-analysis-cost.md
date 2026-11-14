@@ -19,7 +19,8 @@ the backlog through the Batch API. The numbers come from the usage log described
 | Thinking is off (`thinking_budget=0`) on `gemini-2.5-flash*` | `gemini-2.5-flash` thinks by default, and thinking tokens are billed as output | `--thinking-budget -1` (the model's default) or a number; env `GEMINI_THINKING_BUDGET` |
 | Part 1 asks for JSON output | The response was free text, searched for a JSON object | `--no-json-mode` |
 | The fixed prompt comes first in the message | The per-video block used to come first, so no two calls shared a prefix and Gemini's implicit caching never applied | none: the same three parts, reordered |
-| ~~The backlog leads with `gemini-2.5-flash-lite`~~ Reverted: Flash leads | Flash-Lite reversed a vote in the first comparison (below) | `--models gemini-2.5-flash-lite,gemini-2.5-flash` |
+| The backlog leads with `gemini-3.5-flash-lite`, then `gemini-3.8-flash` (#333) | `gemini-2.5-flash` shuts down December 1, 2026 (below); 2.5 Flash-Lite reversed a vote in the first comparison | `--models <a>,<b>` |
+| `temperature` is left out for `gemini-3.5-flash-lite`, `gemini-3.6` and later (#333) | Google: those models ignore it, and future ones will reject it | none |
 | Clients use API version `v1beta` | `google-genai` 3.x defaults to `v1`, which rejects the thinking and JSON settings | env `GENAI_API_VERSION` |
 
 If the API rejects the thinking budget or JSON mode with a 400, the call is retried once without that setting and a
@@ -101,9 +102,26 @@ Limits:
   top-level folders as states and jurisdictions.
 - **Local Gemma and DeepSeek were not changed.** Both are already wired in. Neither was measured as cheaper than
   Flash-Lite in batch mode, so nothing moves to them without numbers from the usage log.
-- **Flash leads the backlog again.** The first comparison caught `gemini-2.5-flash-lite` recording a 5-2 vote as 2-5.
-  One made-up meeting is thin evidence, but a wrong vote count shown to residents costs more than the saving, so the
+- **Not the cheapest model.** The first comparison caught `gemini-2.5-flash-lite` recording a 5-2 vote as 2-5. One
+  made-up meeting is thin evidence, but a wrong vote count shown to residents costs more than the saving, so the
   cheaper default waits for the comparison on real meetings (#267).
+
+## The 2.5 Flash shutdown (#333)
+
+Google's deprecations page (read November 14, 2026) says `gemini-2.5-flash` is deprecated: from **December 1, 2026**
+its requests are routed to `gemini-3.5-flash-lite` and billed at that model's rates. `gemini-2.5-flash-lite` is not
+deprecated. So the backlog now names the model its requests would reach anyway:
+
+- `analyze_backlog` leads with `gemini-3.5-flash-lite`, the same price as 2.5 Flash ($0.30 input / $2.50 output per
+  1M), and falls back to `gemini-3.8-flash` ($0.75 / $3.75 until December 31, 2026, then double). Both got every item
+  and vote right in the first comparison. `default_flash_model()` and `reanalyze_decision` default to 3.5 Flash-Lite.
+- From 3.5 Flash-Lite and 3.6 Flash on, Google ignores `temperature`, `top_p` and `top_k` and says future models will
+  reject them, so the client and the batch requests leave `temperature` out for those models.
+- These models take a thinking *level*, not a budget. 3.5 Flash-Lite defaults to "minimal" (no thinking tokens in our
+  calls); 3.8 Flash thinks by default (124 thinking tokens on a two-line test prompt). The client cannot set the level
+  yet.
+- Older scripts that still name `gemini-2.5-flash` keep working after December 1: Google routes them to 3.5
+  Flash-Lite.
 
 ## Comparing models (#267)
 
@@ -137,7 +155,7 @@ reference. One meeting decides nothing; it shows what the tool catches.
 | `gemma-4-31b-it` | 4/4 | 4/4 | 0.8 | 2,050 | 288 s | no price |
 | `gemma-4-26b-a4b-it` | 4/4 | 4/4 | 0.8 | 5,196 | 1,121 s, third try | no price |
 
-Costs use the interactive list prices in `prices.yaml` (sourced from getdeploying.com, to be confirmed: #266).
+Costs use the interactive prices in `prices.yaml` (Google's pricing page, read 2026-11-14).
 
 What it showed:
 
@@ -145,9 +163,8 @@ What it showed:
 - Both Flash-Lite models placed every address in "Tuscaloosa, AL", copying the hard-coded jurisdiction line in the
   prompt (#265), where the transcript names Riverbend City. Flash got the city right. Fixing #265 matters most for
   the cheap models.
-- `gemini-3.5-flash-lite` is not a cheap successor: its list price is the same as `gemini-2.5-flash`'s. Google is
-  reported to have closed the 2.5 models to new users in July 2026 (see `prices.yaml`), so the cheapest option may
-  not last.
+- `gemini-3.5-flash-lite` is not a cheap successor to 2.5 Flash-Lite: its price is the same as `gemini-2.5-flash`'s,
+  three to six times 2.5 Flash-Lite's. It is the model `gemini-2.5-flash` turns into on December 1, 2026 (#333).
 - Gemma through the Gemini API is too slow for the backlog: the 31B model took almost five minutes per meeting, and
   the 26B model answered on its third try after almost 19 minutes, with its JSON wrapped in an array. Both
   answers were as good as Flash's on this meeting; the speed is the problem. At the pipeline's 300-second timeout both fail with "504
@@ -183,8 +200,7 @@ helper-line test showed that removing a field does not by itself shorten the out
 
 ## Not done
 
-- Batch, Gemma and DeepSeek prices are not filled in, and the Gemini interactive prices still need confirming
-  against Google's page (#266).
+- DeepSeek's price is not filled in. Gemma 4 has no paid price: Google offers it on the free tier only.
 - The comparison has not run on real meetings (#267).
 - Output is the larger half of every call: the made-up four-item meeting produced about 10,000 output tokens, much
   of it the two Mermaid diagrams the schema requires on every decision. Trimming the schema is the next lever and

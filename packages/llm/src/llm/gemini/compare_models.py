@@ -58,10 +58,13 @@ from typing import Any
 from loguru import logger
 
 DEFAULT_ARMS = (
+    # gemini-2.5-flash shuts down on 2026-12-01 (routed to gemini-3.5-flash-lite, #333);
+    # kept as arms until then because the existing analyses being compared against
+    # were made with it. Drop these two after that date.
     "gemini-2.5-flash:-1",
     "gemini-2.5-flash:0",
     "gemini-2.5-flash-lite:0",
-    # successors: the 2.5 models are reported closed to new users (see usage/prices.yaml)
+    # the backlog's lead and fallback since #333
     "gemini-3.5-flash-lite",
     "gemini-3.8-flash",
     # open-weights models on the Gemini API; slow (minutes per meeting), see --request-timeout-seconds

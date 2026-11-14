@@ -79,9 +79,10 @@ Cost is not stored. The report multiplies the token counts and GPU-hours by the 
 `packages/llm/src/llm/usage/prices.yaml`, so a corrected price reprices all history.
 
 A price is used only when it has a value, a `source` and a `read_date`. Anything else shows as a dash. The Gemini
-interactive rates are filled in from Google Cloud's list prices as getdeploying.com republishes them, because
-Google's own pricing pages could not be reached when they were added; confirm them against Google (#266). Batch,
-Gemma and DeepSeek rates are not filled in, so those calls show no cost. The GPU prices are estimates of what the GPU time would rent for on a cloud (a Colab or Kaggle GPU is
+rates, interactive and batch, come from Google's pricing page (paid tier, read 2026-11-14). A rate can end:
+`valid_until` is the last day it applies, and a call after that day shows no cost until the new rate is added
+(Google doubles the 3.6 and 3.8 Flash rates on January 1, 2027). Gemma 4 has no paid price (free tier only) and
+DeepSeek's is not filled in, so those calls show no cost. The GPU prices are estimates of what the GPU time would rent for on a cloud (a Colab or Kaggle GPU is
 paid in compute units or not at all).
 
 ## Decision: the same method as health-transformation-lab-nlp

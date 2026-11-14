@@ -25,14 +25,14 @@ backlog on Gemini's free tier:
 * **Resumable** — pending work is re-derived from the DB each pass; nothing is persisted
   client-side beyond the analysis JSON the pipeline already writes.
 
-Run the real backfill (Flash first, Flash-Lite as the fallback)::
+Run the real backfill (3.5 Flash-Lite first, 3.8 Flash as the fallback)::
 
     python -m llm.gemini.analyze_backlog
 
-Lead with the cheaper Flash-Lite instead (see the note at DEFAULT_MODELS first)::
+Lead with the cheaper 2.5 Flash-Lite instead (see the note at DEFAULT_MODELS first)::
 
     python -m llm.gemini.analyze_backlog \
-        --models gemini-2.5-flash-lite,gemini-2.5-flash
+        --models gemini-2.5-flash-lite,gemini-3.5-flash-lite
 
 Restrict to one or more states::
 
@@ -72,20 +72,23 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 # is congested right now, so we step off it for ~10 min and try the next live model.
 DEFAULT_OVERLOAD_COOLDOWN_SECONDS: float = 600.0
 
-# Default model rotation: ``gemini-2.5-flash`` (thinking off since #263) first, then
-# ``gemini-2.5-flash-lite``. #263 briefly put Flash-Lite first to save money; the first
-# model comparison (#267, November 13, 2026) caught Flash-Lite recording a 5-2 vote as
-# 2-5, so Flash leads again until #267 runs on real meetings. A reversed vote count is a
-# civic figure shown to residents (CLAUDE.md, "No Fabricated Data"), which outweighs the
-# saving. To lead with Flash-Lite anyway: ``--models gemini-2.5-flash-lite,gemini-2.5-flash``.
+# Default model rotation (#333): ``gemini-3.5-flash-lite`` first, ``gemini-3.8-flash`` as
+# the fallback when it walls. Google deprecated ``gemini-2.5-flash``, the former lead:
+# from December 1, 2026 its requests route to ``gemini-3.5-flash-lite`` at that model's
+# rates, which equal 2.5 Flash's ($0.30 / $2.50 per 1M, Google's pricing page,
+# 2026-11-14). Both models here got every item and vote right in the first comparison
+# (#267); ``gemini-2.5-flash-lite`` is cheaper but recorded a 5-2 vote as 2-5 there, and a
+# wrong vote count shown to residents outweighs the saving (CLAUDE.md, "No Fabricated
+# Data"). 3.8 Flash costs $0.75 / $3.75 until it doubles on January 1, 2027, so it is only
+# the fallback. Revisit when #267 runs on real meetings.
 # ``gemini-2.0-flash-lite`` was RETIRED by Google (the API now
 # 404s "This model models/gemini-2.0-flash-lite is no longer available"), so it is gone
 # from the defaults — a default run that rotated onto it used to crash the shard. If a run
 # ever does rotate onto a retired model, the driver now drops it from rotation (see
 # GenAIModelUnavailableGiveUp) instead of dying.
 DEFAULT_MODELS: Tuple[str, ...] = (
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
 )
 
 
