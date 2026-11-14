@@ -1,7 +1,7 @@
 version: 2
 
 # DC-1.1 (#246): jobs claims split by phase, from the Part 1 meeting analysis.
-# Built into gold like every mart; not in publish_public_serving's served list yet.
+# Built into gold like every mart and published to public (publish_public_serving's served list).
 
 models:
   - name: job_claim
@@ -70,6 +70,9 @@ models:
         data_type: text
       - name: jurisdiction_name
         description: "Jurisdiction name, from event_meeting."
+        data_type: text
+      - name: city
+        description: "City of the meeting's event, from event_meeting (the API's ?city= matches it or jurisdiction_name)."
         data_type: text
       - name: person_id
         description: >

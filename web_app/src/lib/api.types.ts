@@ -1063,8 +1063,11 @@ export interface components {
         JobClaim: {
             /** Ends On */
             ends_on?: string | null;
-            /** Event Meeting Id */
-            event_meeting_id?: string | null;
+            /**
+             * Event Meeting Id
+             * @description FK to event_meeting (the mart's NOT NULL integer key).
+             */
+            event_meeting_id: number;
             /** Headcount High */
             headcount_high?: number | null;
             /** Headcount Low */
@@ -1128,11 +1131,28 @@ export interface components {
              */
             state_code?: string | null;
         };
+        /**
+         * JobClaimTotals
+         * @description Claims per phase for the whole scope, before ``limit``: real counts, so 0 means none.
+         */
+        JobClaimTotals: {
+            /**
+             * Construction
+             * @default 0
+             */
+            construction: number;
+            /**
+             * Operations
+             * @default 0
+             */
+            operations: number;
+        };
         /** JobClaimsResponse */
         JobClaimsResponse: {
             /** Items */
             items: components["schemas"]["JobClaim"][];
             scope: components["schemas"]["JobClaimScope"];
+            totals?: components["schemas"]["JobClaimTotals"];
         };
         /** JurisdictionRunModel */
         JurisdictionRunModel: {
@@ -1859,7 +1879,7 @@ export interface operations {
             query?: {
                 /** @description 2-letter state code (a full state name is normalized to one). */
                 state?: string | null;
-                /** @description City name; case-insensitive match on jurisdiction_name. */
+                /** @description City name; case-insensitive substring of city or jurisdiction_name. */
                 city?: string | null;
                 /** @description Exact jurisdiction_id. */
                 jurisdiction_id?: string | null;

@@ -22,9 +22,13 @@ PATH = "/api/data-centers/job-claims"
 
 class _FakeConn:
     def __init__(
-        self, rows: list[dict[str, Any]] | None = None, error: Exception | None = None
+        self,
+        rows: list[dict[str, Any]] | None = None,
+        error: Exception | None = None,
+        totals: list[dict[str, Any]] | None = None,
     ):
         self.rows = rows or []
+        self.totals = totals or []
         self.error = error
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
 
@@ -32,7 +36,7 @@ class _FakeConn:
         self.calls.append((sql, params))
         if self.error is not None:
             raise self.error
-        return self.rows
+        return self.totals if "GROUP BY phase" in sql else self.rows
 
 
 class _Acquire:
@@ -97,7 +101,7 @@ def _row(**overrides: Any) -> dict[str, Any]:
         "quote": "This will bring jobs.",
         "speaker_name": None,
         "person_id": None,
-        "event_meeting_id": "em-9",
+        "event_meeting_id": 9,
         "meeting_date": date(2026, 3, 2),
         "video_id": "vid123",
         "start_seconds": 754.5,
@@ -115,7 +119,7 @@ def test_national_query_only_filters_project_type() -> None:
     assert scope.level == "national"
     assert "FROM job_claim" in sql
     assert "project_type = 'data_center'" in sql
-    assert "state_code =" not in sql and "jurisdiction_name" not in sql
+    assert "state_code =" not in sql and "jurisdiction_name ILIKE" not in sql
     assert "jurisdiction_id =" not in sql
     assert "ORDER BY meeting_date DESC NULLS LAST, start_seconds" in sql
     assert "LIMIT $1" in sql
@@ -126,10 +130,10 @@ def test_all_filters_bind_params_in_order() -> None:
     scope = data_centers.build_scope(" al ", "  Tuscaloosa ", "ocd-jurisdiction/x")
     sql, params = data_centers.build_job_claims_query(scope, 25)
     assert "state_code = $1" in sql
-    assert "lower(jurisdiction_name) = lower($2)" in sql
+    assert "(city ILIKE $2 OR jurisdiction_name ILIKE $2)" in sql
     assert "jurisdiction_id = $3" in sql
     assert "LIMIT $4" in sql
-    assert params == ["AL", "Tuscaloosa", "ocd-jurisdiction/x", 25]
+    assert params == ["AL", "%Tuscaloosa%", "ocd-jurisdiction/x", 25]
     # Values are bound, never inlined.
     assert "Tuscaloosa" not in sql and "'AL'" not in sql
 
@@ -138,8 +142,16 @@ def test_city_only_uses_first_placeholder() -> None:
     sql, params = data_centers.build_job_claims_query(
         data_centers.build_scope(None, "Mobile", None), 10
     )
-    assert "lower(jurisdiction_name) = lower($1)" in sql
-    assert params == ["Mobile", 10]
+    assert "(city ILIKE $1 OR jurisdiction_name ILIKE $1)" in sql
+    assert params == ["%Mobile%", 10]
+
+
+def test_totals_query_uses_the_same_scope_without_a_limit() -> None:
+    scope = data_centers.build_scope("AL", "Mobile", None)
+    sql, params = data_centers.build_job_claims_totals_query(scope)
+    assert "GROUP BY phase" in sql and "LIMIT" not in sql
+    assert "project_type = 'data_center'" in sql and "state_code = $1" in sql
+    assert params == ["AL", "%Mobile%"]
 
 
 # --- scope echo ----------------------------------------------------------------
@@ -227,8 +239,23 @@ def test_route_echoes_scope_and_passes_params(make_client) -> None:
         "jurisdiction_id": None,
     }
     assert body["items"] == []
-    ((_sql, params),) = conn.calls
-    assert params == ("AL", "tuscaloosa", 100)
+    assert body["totals"] == {"construction": 0, "operations": 0}
+    (_sql, params), (_totals_sql, totals_params) = conn.calls
+    assert params == ("AL", "%tuscaloosa%", 100)
+    assert totals_params == ("AL", "%tuscaloosa%")
+
+
+def test_totals_count_the_whole_scope_not_just_the_page(make_client) -> None:
+    conn = _FakeConn(
+        rows=[_row()],
+        totals=[
+            {"phase": "construction", "claim_count": 140},
+            {"phase": "operations", "claim_count": 3},
+        ],
+    )
+    body = make_client(conn).get(PATH, params={"limit": 1}).json()
+    assert len(body["items"]) == 1
+    assert body["totals"] == {"construction": 140, "operations": 3}
 
 
 # --- null handling / serialization --------------------------------------------
@@ -306,6 +333,7 @@ def test_missing_relation_returns_empty_items_with_scope(make_client) -> None:
             "city": None,
             "jurisdiction_id": "j-1",
         },
+        "totals": {"construction": 0, "operations": 0},
         "items": [],
     }
 

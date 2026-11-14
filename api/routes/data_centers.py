@@ -78,17 +78,29 @@ class JobClaim(BaseModel):
     starts_on: date | None = None
     ends_on: date | None = None
     project_name: str | None = None
-    quote: str = Field(..., description="Verbatim words of the claim; the mart drops rows without one.")
+    quote: str = Field(
+        ..., description="Verbatim words of the claim; the mart drops rows without one."
+    )
     speaker_name: str | None = None
     person_id: str | None = None
-    event_meeting_id: str | None = None
+    event_meeting_id: int = Field(
+        ..., description="FK to event_meeting (the mart's NOT NULL integer key)."
+    )
     meeting_date: date | None = None
     video_id: str | None = None
     start_seconds: float | None = None
 
 
+class JobClaimTotals(BaseModel):
+    """Claims per phase for the whole scope, before ``limit``: real counts, so 0 means none."""
+
+    construction: int = 0
+    operations: int = 0
+
+
 class JobClaimsResponse(BaseModel):
     scope: JobClaimScope
+    totals: JobClaimTotals = Field(default_factory=JobClaimTotals)
     items: list[JobClaim]
 
 
@@ -104,7 +116,7 @@ _SELECT_SQL = """
         quote,
         speaker_name,
         person_id,
-        event_meeting_id::text AS event_meeting_id,
+        event_meeting_id,
         meeting_date,
         video_id,
         start_seconds
@@ -145,21 +157,41 @@ def build_scope(
     )
 
 
-def build_job_claims_query(scope: JobClaimScope, limit: int) -> tuple[str, list[Any]]:
-    """SQL + positional params for the scope. Values are always bound, never inlined."""
+def _scope_where(scope: JobClaimScope) -> tuple[list[str], list[Any]]:
+    """WHERE clauses + params for the scope. ``city`` matches like the browse routes
+    (meeting_browse, decision_browse): a substring of the city or the jurisdiction name,
+    so a scope carried over from another page finds the same place."""
     clauses: list[str] = ["project_type = 'data_center'"]
     params: list[Any] = []
-
     if scope.state_code:
         params.append(scope.state_code)
         clauses.append(f"state_code = ${len(params)}")
     if scope.city:
-        params.append(scope.city)
-        clauses.append(f"lower(jurisdiction_name) = lower(${len(params)})")
+        params.append(f"%{scope.city}%")
+        clauses.append(
+            f"(city ILIKE ${len(params)} OR jurisdiction_name ILIKE ${len(params)})"
+        )
     if scope.jurisdiction_id:
         params.append(scope.jurisdiction_id)
         clauses.append(f"jurisdiction_id = ${len(params)}")
+    return clauses, params
 
+
+def build_job_claims_totals_query(scope: JobClaimScope) -> tuple[str, list[Any]]:
+    """Claims per phase for the whole scope (no limit)."""
+    clauses, params = _scope_where(scope)
+    sql = (
+        "    SELECT phase, count(*)::int AS claim_count\n"
+        "    FROM job_claim\n"
+        f"    WHERE {' AND '.join(clauses)}\n"
+        "    GROUP BY phase\n"
+    )
+    return sql, params
+
+
+def build_job_claims_query(scope: JobClaimScope, limit: int) -> tuple[str, list[Any]]:
+    """SQL + positional params for the scope. Values are always bound, never inlined."""
+    clauses, params = _scope_where(scope)
     params.append(limit)
     sql = (
         f"{_SELECT_SQL}"
@@ -177,7 +209,8 @@ async def list_job_claims(
         description="2-letter state code (a full state name is normalized to one).",
     ),
     city: str | None = Query(
-        None, description="City name; case-insensitive match on jurisdiction_name."
+        None,
+        description="City name; case-insensitive substring of city or jurisdiction_name.",
     ),
     jurisdiction_id: str | None = Query(None, description="Exact jurisdiction_id."),
     limit: int = Query(
@@ -192,6 +225,7 @@ async def list_job_claims(
     """
     scope = build_scope(state, city, jurisdiction_id)
     sql, params = build_job_claims_query(scope, limit)
+    totals_sql, totals_params = build_job_claims_totals_query(scope)
 
     with tracer.start_as_current_span("data-centers.job-claims") as span:
         span.set_attribute("job_claims.scope_level", scope.level)
@@ -204,6 +238,7 @@ async def list_job_claims(
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("data-centers.job-claims.query"):
                     rows = await conn.fetch(sql, *params)
+                    total_rows = await conn.fetch(totals_sql, *totals_params)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("job_claims.relation_missing", True)
             logger.warning(
@@ -220,8 +255,15 @@ async def list_job_claims(
             raise HTTPException(status_code=500, detail="Failed to load job claims")
 
         items = [JobClaim(**dict(row)) for row in rows]
+        totals = JobClaimTotals(
+            **{
+                r["phase"]: r["claim_count"]
+                for r in total_rows
+                if r["phase"] in ("construction", "operations")
+            }
+        )
         span.set_attribute("job_claims.count", len(items))
         logger.info(
             "🏗️ Data-center job claims -> {} rows (scope={})", len(items), scope.level
         )
-        return JobClaimsResponse(scope=scope, items=items)
+        return JobClaimsResponse(scope=scope, totals=totals, items=items)

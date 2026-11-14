@@ -113,7 +113,7 @@ Capture **how long** the body spent on each item and **how long each speaker hel
 ## Jobs claims (`job_claims[]`)
 Record every claim made in the meeting about **how many jobs** a project will create — most often a data center, factory or warehouse — so residents can check the promise later.
 - **One row per claim per phase.** `phase` is `construction` (temporary build jobs) or `operations` (permanent jobs once running). A claim that gives both ("800 during construction and 50 permanent") is **two rows**. **Never** add the phases into one combined jobs number.
-- `headcount_low` / `headcount_high`: integers as said. A single figure ("about 50 jobs") sets both to 50; a range ("40 to 60") sets 40 and 60; "up to 300" sets only `headcount_high`. If no number is said ("lots of jobs"), leave both **null** — never estimate.
+- `headcount_low` / `headcount_high`: integers as said. A single figure ("about 50 jobs") sets both to 50; a range ("40 to 60") sets 40 and 60; "up to 300" sets only `headcount_high`; "at least 200" or "more than 200" sets only `headcount_low`. If no number is said ("lots of jobs"), leave both **null** — never estimate.
 - `starts_on` / `ends_on`: ISO `YYYY-MM-DD` only when a full date is stated for that phase. A year or month alone ("construction runs through 2028") → null. Never guess.
 - `project_name`: as named in the meeting, else null. `project_type`: `data_center` when the project is a data center or server campus, otherwise a short lowercase noun (`factory`, `warehouse`, `other`).
 - `speaker_name`: who made the claim, as named; `start_seconds`: the timestamp of the claim from the transcript cue, else null.

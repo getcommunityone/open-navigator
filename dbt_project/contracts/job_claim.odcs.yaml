@@ -87,6 +87,11 @@ schema:
     logicalType: string
     physicalType: text
     description: Jurisdiction name, from event_meeting.
+  - id: city
+    name: city
+    logicalType: string
+    physicalType: text
+    description: City of the meeting's event, from event_meeting (the API's ?city= matches it or jurisdiction_name).
   - id: person_id
     name: person_id
     logicalType: string

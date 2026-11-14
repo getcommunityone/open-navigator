@@ -34,7 +34,8 @@ meetings as (
         video_id,
         state_code,
         state,
-        jurisdiction_name
+        jurisdiction_name,
+        city
     from {{ ref('event_meeting') }}
 ),
 
@@ -63,6 +64,7 @@ select
     m.state::text                                          as state,
     j.jurisdiction_id::text                                as jurisdiction_id,
     m.jurisdiction_name::text                              as jurisdiction_name,
+    m.city::text                                           as city,
     null::text                                             as person_id,
     c.phase::text                                          as phase,
     c.headcount_low::integer                               as headcount_low,

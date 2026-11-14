@@ -19,14 +19,18 @@ import { expandStateName } from '../utils/formatters'
  */
 export default function DataCenters() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const stateCode = (searchParams.get('state') || '').trim().toUpperCase() || undefined
+  const rawState = (searchParams.get('state') || '').trim() || undefined
   const cityName = (searchParams.get('city') || '').trim() || undefined
-  const scope = placeScope(stateCode, cityName)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['data-centers', 'job-claims', stateCode ?? null, cityName ?? null],
-    queryFn: () => fetchJobClaims({ state: stateCode, city: cityName }),
+    queryKey: ['data-centers', 'job-claims', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchJobClaims({ state: rawState, city: cityName }),
   })
+
+  // The label follows the scope the API applied (it normalizes "Alabama" to "AL"),
+  // so the label and the data always name the same place.
+  const stateCode = data?.scope?.state_code ?? rawState?.toUpperCase()
+  const scope = placeScope(stateCode, cityName)
 
   const setScope = (next: { state?: string; city?: string }) => {
     const params = new URLSearchParams(searchParams)
@@ -82,8 +86,18 @@ export default function DataCenters() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <PhaseColumn phase="construction" claims={construction} scopeLabel={scope.label} />
-              <PhaseColumn phase="operations" claims={operations} scopeLabel={scope.label} />
+              <PhaseColumn
+                phase="construction"
+                claims={construction}
+                total={data?.totals?.construction ?? construction.length}
+                scopeLabel={scope.label}
+              />
+              <PhaseColumn
+                phase="operations"
+                claims={operations}
+                total={data?.totals?.operations ?? operations.length}
+                scopeLabel={scope.label}
+              />
             </div>
           )}
         </section>
@@ -144,16 +158,19 @@ const PHASE_TITLE: Record<JobClaimPhase, string> = {
 interface PhaseColumnProps {
   phase: JobClaimPhase
   claims: JobClaim[]
+  /** Claims in this phase for the whole scope (the API's totals), not just this page. */
+  total: number
   scopeLabel: string
 }
 
-function PhaseColumn({ phase, claims, scopeLabel }: PhaseColumnProps) {
+function PhaseColumn({ phase, claims, total, scopeLabel }: PhaseColumnProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
       <h3 className="mb-3 text-lg font-semibold text-gray-900">
         {PHASE_TITLE[phase]}{' '}
         <span className="text-sm font-normal text-gray-500">
-          ({claims.length.toLocaleString()} {claims.length === 1 ? 'claim' : 'claims'})
+          ({total.toLocaleString()} {total === 1 ? 'claim' : 'claims'}
+          {claims.length < total ? `, showing the latest ${claims.length.toLocaleString()}` : ''})
         </span>
       </h3>
       {claims.length === 0 ? (

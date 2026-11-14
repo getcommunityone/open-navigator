@@ -19,7 +19,7 @@ meeting, split by phase, with the speaker and the words they used. It is part of
 | Bronze | `bronze.bronze_events_analysis_ai.structured_analysis` | The analysis JSON, as for every other `*_from_ai` extraction |
 | Staging | `staging.stg_job_claim_ai` (view) | Each claim typed, with guarded casts; rows that break the rules are kept so warn tests count them |
 | Mart | `job_claim` (gold, published to `public`) | One row per claim per meeting. PK `job_claim_id`; FK `jurisdiction_id` → `jurisdictions` |
-| API | `GET /api/data-centers/job-claims?state=&city=&jurisdiction_id=` | The data center claims for the scope, with the scope echoed back |
+| API | `GET /api/data-centers/job-claims?state=&city=&jurisdiction_id=&limit=` | The data center claims for the scope (newest first), the scope echoed back, and the claims per phase for the whole scope (`totals`). `city` matches a substring of the city or the jurisdiction name, as the browse routes do |
 | UI | `/data-centers?state=&city=` | Construction and operations side by side, with the quote, speaker and a link to the moment |
 
 ## Rules
@@ -27,7 +27,8 @@ meeting, split by phase, with the speaker and the words they used. It is part of
 - **Never one combined jobs number.** A claim of "1,200 during construction and 50 permanent" is two rows, one per
   phase, and the page shows them in separate columns.
 - **Unknown is null, never 0.** No number said ("lots of jobs") means no headcount, and the page shows "Not stated".
-  One bound only reads as such: "up to 300" shows "Up to 300 jobs", never "300 jobs". A year or month alone is not a
+  One bound only reads as such: "up to 300" shows "Up to 300 jobs" and "at least 200" shows "At least 200 jobs",
+  never an exact figure. Counts on the page are the scope's real totals; a cut list says so ("showing the latest N"). A year or month alone is not a
   date.
 - **No quote, no row.** The mart drops claims without their verbatim words or with a phase other than construction
   or operations.
