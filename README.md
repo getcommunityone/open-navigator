@@ -29,7 +29,7 @@ the site is a made-up number: when data is missing, it says so.
 | **Residents** | [the app](https://www.communityone.com) · [guide for citizens](web_docs/docs/for-citizens.md) |
 | **Advocates and nonprofit leaders** | [guide for advocates](web_docs/docs/for-advocates.md) · [accountability strategy](web_docs/docs/guides/accountability-strategy.md) |
 | **Researchers and data analysts** | [data sources](web_docs/docs/data-sources/overview.md) · [data model](web_docs/docs/data-sources/data-model-erd.md) · [citations](CITATIONS.md) |
-| **Developers and data engineers** | [quick start](web_docs/docs/quickstart.md) · [architecture](web_docs/docs/architecture.md) · [how we work](AGENTS.md) |
+| **Developers and data engineers** | [code walkthrough](web_docs/docs/development/code-walkthrough.md) · [quick start](web_docs/docs/quickstart.md) · [architecture](web_docs/docs/architecture.md) · [how we work](AGENTS.md) |
 
 Each role has more below. Click to open.
 
@@ -85,6 +85,10 @@ To edit the deck, change a slide in `web_docs/deck/slides/` and run `node web_do
 
 <details>
 <summary><b>Developers and data engineers</b>: run it, change it</summary>
+
+**Start with the [code walkthrough](web_docs/docs/development/code-walkthrough.md):** twelve steps in run order, from
+finding governments' websites to the page in the app, each with its code, command and output, plus a table of where to
+change things.
 
 **Stack.** FastAPI (`api/`), React + Vite + TypeScript (`web_app/`), Docusaurus (`web_docs/`), dbt on PostgreSQL
 (`dbt_project/`: bronze → staging → intermediate → marts), shared Python libraries in `packages/` (a uv workspace).

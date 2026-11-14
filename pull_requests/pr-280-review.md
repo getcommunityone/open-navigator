@@ -24,7 +24,8 @@ Approve with nits.
   `web_docs/docs/pitch/full-text-and-notes.md` are generated.
 - Areas touched: README, web_docs, ci.
 - Commits: `docs(readme): role-based drill-downs and an HTML slideshow pitch`; a follow-up that points the full-text
-  page's slideshow link at the live URL and adds this review.
+  page's slideshow link at the live URL and adds this review; `docs(walkthrough): ...` adding the developers' code
+  walkthrough (scope line added to #278).
 - Range reviewed: `origin/main..docs/278-readme-roles-deck`.
 
 ## CI Status
@@ -82,6 +83,10 @@ None.
 | Tests | Yes | `build-deck.mjs --check` in the Documentation Build job |
 
 ## Test Coverage
+
+Code walkthrough: every relative docs link and every GitHub file link was checked to exist on the branch, and the API
+paths were checked against the routers' prefixes in `api/main.py` and `api/routes/`. The docs build includes the page.
+
 
 Run locally: `node web_docs/scripts/build-deck.mjs --check` (up to date); `npm ci && npm run build` in `web_docs`
 (succeeds; existing broken-link warnings only); each slide rendered at 1920 × 1080 in Chrome with no overflow.
