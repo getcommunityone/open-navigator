@@ -124,6 +124,10 @@ jobs:
           # (formerly the root `pipeline/` tree). llm is needed since the
           # meeting_comparison route imports `llm.gemini.*`.
           pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion -e packages/llm
+          # What the tests import that requirements.txt doesn't list (#305): dependencies the workspace packages declare
+          # (core-lib: aiolimiter, h2 for httpx[http2]; ingestion: zipfile-deflate64; llm: google-genai), and aiosqlite
+          # for the SQLite engine in the core-lib session tests.
+          pip install aiolimiter aiosqlite h2 zipfile-deflate64 google-genai
 
       - name: Check Python syntax
         run: |
@@ -145,6 +149,12 @@ jobs:
         run: |
           python -m models.odcs --check
           python -m pytest -q -p no:cacheprovider packages/datamodels/tests
+
+      # The root tests/ folder and every package's tests (pytest.ini testpaths), not only datamodels (#305). Tests
+      # marked `live` (real websites, local services) skip unless RUN_LIVE_TESTS=1, and tests that need local crawl
+      # files under data/cache/ skip when those aren't in the checkout.
+      - name: Tests (root and packages)
+        run: python -m pytest -q -p no:cacheprovider
 
   # Test 5: API contract types (OpenAPI -> TypeScript)
   # Regenerates web_app/src/lib/api.types.ts from the live FastAPI schema
