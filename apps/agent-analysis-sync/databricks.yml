@@ -62,6 +62,9 @@ variables:
 
 targets:
   dev:
+    presets:
+      tags:
+        project: open-navigator   # pipeline-doctor cost view (conventions 0.3.0)
     mode: development
     default: true
     workspace:
@@ -75,6 +78,8 @@ targets:
   # limits and at most 5 concurrent job tasks, so batches stay small.
   free:
     presets:
+      tags:
+        project: open-navigator   # pipeline-doctor cost view (conventions 0.3.0)
       trigger_pause_status: PAUSED
     variables:
       catalog: open_navigator
@@ -101,6 +106,9 @@ targets:
           comment: Raw crawl files, one folder per source and run date.
 
   prod:
+    presets:
+      tags:
+        project: open-navigator   # pipeline-doctor cost view (conventions 0.3.0)
     mode: production
     workspace:
       host: https://adb-7405608833986267.7.azuredatabricks.net
