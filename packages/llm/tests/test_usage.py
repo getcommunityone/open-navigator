@@ -411,6 +411,57 @@ def test_a_price_past_its_valid_until_gives_no_cost():
     assert prices.call_cost_usd(row, dated) == 1.0  # no date on the row: the price applies
 
 
+PEAKED = {"models": {"m": {
+    "source": "s", "read_date": "2026-11-14",
+    "peak": {"days": ["mon", "tue", "wed", "thu", "fri"], "hours_utc": ["01:00-04:00", "06:00-10:00"]},
+    "interactive": {"input_usd_per_1m": 2.0, "output_usd_per_1m": 8.0,
+                    "off_peak": {"input_usd_per_1m": 1.0, "output_usd_per_1m": 4.0}},
+}}}  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("called_at", "input_rate"),
+    [
+        ("2026-11-18T02:30:00+00:00", 2.0),  # Wednesday, inside 01:00-04:00: peak
+        ("2026-11-18T03:59:59+00:00", 2.0),
+        ("2026-11-18T04:00:00+00:00", 1.0),  # a window's end is off-peak
+        ("2026-11-18T05:00:00+00:00", 1.0),  # between the windows
+        ("2026-11-18T06:00:00+00:00", 2.0),  # a window's start is peak
+        ("2026-11-18T10:00:00+00:00", 1.0),
+        ("2026-11-21T02:30:00+00:00", 1.0),  # Saturday: off-peak all day
+        ("2026-11-17T21:30:00-05:00", 2.0),  # 02:30 UTC on Wednesday, written in Eastern time
+    ],
+)
+def test_a_peak_priced_model_takes_the_rate_for_the_calls_utc_time(called_at, input_rate):
+    """#328: DeepSeek prices by time of day. The call's UTC time picks the peak or the off-peak rate."""
+    assert prices.model_price("m", "interactive", PEAKED, on=called_at)["input_usd_per_1m"] == input_rate
+
+
+def test_a_peak_priced_model_has_no_price_without_the_time_of_the_call():
+    assert prices.model_price("m", "interactive", PEAKED, on="2026-11-18") is None  # a date alone can't choose
+    assert prices.model_price("m", "interactive", PEAKED) is None
+    row = {"model": "m", "api_mode": "interactive", "input_token_count": 1_000_000, "output_token_count": 0}
+    assert prices.call_cost_usd(row, PEAKED) is None
+
+
+def test_shipped_deepseek_flash_prices_one_call_at_each_time():
+    """#328: the shipped deepseek-flash rates, from DeepSeek's own page: a peak call costs twice an off-peak one."""
+    shipped = prices.load_prices()
+    entry = shipped["models"]["deepseek-flash"]
+    assert entry["source"] == "https://api-docs.deepseek.com/quick_start/pricing/"
+    row = {"model": "deepseek-flash", "api_mode": "interactive", "input_token_count": 1_000_000,
+           "cached_input_token_count": 0, "output_token_count": 1_000_000}  # fmt: skip
+    peak = prices.call_cost_usd({**row, "called_at": "2026-11-18T02:30:00+00:00"}, shipped)
+    off_peak = prices.call_cost_usd({**row, "called_at": "2026-11-18T05:00:00+00:00"}, shipped)
+    assert peak == pytest.approx(0.30 + 1.20)
+    assert off_peak == pytest.approx(0.15 + 0.60)
+    # the legacy name DeepSeek still accepts is billed at the Flash price
+    legacy = prices.call_cost_usd({**row, "model": "deepseek-v4-flash-vision-exp",
+                                   "called_at": "2026-11-18T05:00:00+00:00"}, shipped)  # fmt: skip
+    assert legacy == off_peak
+    assert "deepseek-chat" not in shipped["models"]  # DeepSeek's page neither lists nor accepts it
+
+
 def test_shipped_prices_cite_google_and_have_batch_rates():
     shipped = prices.load_prices()["models"]
     for name in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash-lite", "gemini-3.8-flash"):
