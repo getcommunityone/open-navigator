@@ -49,3 +49,15 @@ def test_a_path_cannot_leave_the_volume():
 def test_the_output_name_is_safe_for_a_file():
     assert md.output_name("meetings/2026-11-03 council.opus") == "meetings_2026-11-03_council.diarized.json"
     assert md.output_name("https://example.org/v/a.mp4?x=1").endswith(".diarized.json")
+
+
+def test_the_image_installs_whisperx_new_enough_for_a_loadable_ctranslate2():
+    assert "whisperx>=3.8,<4" in md.IMAGE_PACKAGES
+    assert "ctranslate2>=4.6,<5" in md.IMAGE_PACKAGES
+    assert not any(p.startswith("numpy") for p in md.IMAGE_PACKAGES)
+
+
+def test_a_batch_with_no_successful_item_fails_and_one_success_passes():
+    assert md.exit_code([{"run_status_code": "failed"}, {"run_status_code": "failed"}]) == 1
+    assert md.exit_code([{"run_status_code": "failed"}, {"run_status_code": "ok"}]) == 0
+    assert md.exit_code([]) == 0

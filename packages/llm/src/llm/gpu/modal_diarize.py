@@ -33,6 +33,9 @@ HF_SECRET_NAME = "huggingface"      # Modal secret holding HF_TOKEN (pyannote's 
 DEFAULT_GPU = "T4"                  # cheapest; WhisperX "small" fits in its 16 GB
 DEFAULT_LIMIT = 3
 TIMEOUT_SECONDS = 3600              # one long meeting on a T4; a hung run stops here
+# whisperx 3.8 needs numpy>=2.1 and ctranslate2>=4.5. A numpy<2 pin made pip fall back to ctranslate2 4.4.0, which
+# Debian trixie (Modal's base) refuses to load ("cannot enable executable stack"); whisperx pins torch itself.
+IMAGE_PACKAGES = ["whisperx>=3.8,<4", "ctranslate2>=4.6,<5", "requests"]
 RETRIES = 1                         # a lost or preempted GPU can pass on its own; bad audio fails again and stops
 
 # Modal's published GPU rates, US$ per second (modal.com/pricing, as reported 2026-11-14). GPU time only.
@@ -90,6 +93,11 @@ def source_of(item: str) -> tuple[str, str]:
     return "volume", path
 
 
+def exit_code(rows: list[dict]) -> int:
+    """1 when a batch ran items and none succeeded, so the GitHub run shows failed instead of green."""
+    return 1 if rows and not any(r.get("run_status_code") == "ok" for r in rows) else 0
+
+
 def output_name(item: str) -> str:
     """A file-safe output name for an item."""
     base = re.sub(r"^https?://[^/]+/", "", item).split("?")[0]
@@ -107,8 +115,7 @@ if modal is not None:
     _image = (
         modal.Image.debian_slim(python_version="3.11")
         .apt_install("ffmpeg")
-        # the same pins as requirements-transcript-diarize.txt (numpy<2 for the torch/whisperx stack)
-        .pip_install("numpy>=1.26.0,<2.0.0", "whisperx>=3.1.0", "torch>=2.0.0", "torchaudio>=2.0.0", "requests")
+        .pip_install(*IMAGE_PACKAGES)
         .add_local_python_source("llm")
     )
     app = modal.App(APP_NAME)
@@ -170,3 +177,5 @@ if modal is not None:
         known = [r["estimated_cost_usd"] for r in rows if r.get("estimated_cost_usd") is not None]
         print(f"{sum(r['run_status_code'] == 'ok' for r in rows)}/{len(rows)} ok; "
               f"estimated GPU cost ${sum(known):.4f} (GPU time only; CPU and memory are extra)")
+        if exit_code(rows):
+            raise SystemExit(1)
