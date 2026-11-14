@@ -1,0 +1,25 @@
+# Sign in as the environment's service principal: trim the credentials and hand them to later steps.
+# Values pasted into GitHub can carry spaces or Windows line endings (\r\n); sent as is, sign-in
+# fails with invalid_client. Only this action sets DATABRICKS_*, so the CLI never sees raw values.
+name: Databricks sign-in
+description: Trim the service principal's host, client ID and secret and export them for later steps
+inputs:
+  host: {description: Workspace URL, required: true}
+  client_id: {description: Service principal application ID, required: true}
+  client_secret: {description: Service principal OAuth secret, required: true}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        IN_HOST: ${{ inputs.host }}
+        IN_CLIENT_ID: ${{ inputs.client_id }}
+        IN_CLIENT_SECRET: ${{ inputs.client_secret }}
+      run: |
+        trim() { printf '%s' "$1" | tr -d '[:space:]'; }
+        host=$(trim "$IN_HOST"); host=${host%/}
+        secret=$(trim "$IN_CLIENT_SECRET")
+        if [ -n "$secret" ]; then echo "::add-mask::$secret"; fi
+        { echo "DATABRICKS_HOST=$host"
+          echo "DATABRICKS_CLIENT_ID=$(trim "$IN_CLIENT_ID")"
+          echo "DATABRICKS_CLIENT_SECRET=$secret"; } >> "$GITHUB_ENV"
