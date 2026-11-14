@@ -10,15 +10,9 @@ displayed_sidebar: gettingStartedSidebar
 
 ## 🎯 What's Inside
 
-The platform gives you access to:
+The platform covers government jurisdictions (counties, cities, townships, school districts), nonprofits with their IRS Form 990 data, meeting transcripts, and elected officials.
 
-- **925 government jurisdictions** - Counties, cities, townships, school districts
-- **43,726 nonprofit organizations** - Complete IRS Form 990 financial data (5 states)
-- **6,913 meeting transcripts** - Government meeting minutes
-- **306 school districts** - Financial and meeting data
-- **362 elected officials** - Voting records and decision patterns
-- **4,372 churches** - Community-based organizations
-- **5 states** - States with complete IRS BMF data
+Coverage grows as data is loaded, so this page doesn't list totals. The current counts (jurisdictions, school districts, nonprofits, meetings, decisions, officials) come from the live API: [communityone.com/api/stats](https://www.communityone.com/api/stats), which reads the warehouse directly. Meeting analysis is deep in a few states and thin elsewhere.
 
 ---
 

@@ -62,41 +62,7 @@ This documentation is organized by audience. Click the section that best describ
 
 ## Platform Scale
 
-Open Navigator provides nationwide civic data, with deep AI meeting analysis concentrated across 7 states:
-
-<div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', margin: '30px 0', textAlign: 'center'}}>
-
-<div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#2196F3'}}>82,921</div>
-  <div style={{marginTop: '10px', color: '#666'}}>Government Jurisdictions</div>
-</div>
-
-<div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#4CAF50'}}>3.6M</div>
-  <div style={{marginTop: '10px', color: '#666'}}>Nonprofit Organizations</div>
-</div>
-
-<div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#FF9800'}}>2,297</div>
-  <div style={{marginTop: '10px', color: '#666'}}>Meeting Minutes Analyzed</div>
-</div>
-
-<div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#9C27B0'}}>34,322</div>
-  <div style={{marginTop: '10px', color: '#666'}}>Elected Officials</div>
-</div>
-
-<div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#F44336'}}>10,893</div>
-  <div style={{marginTop: '10px', color: '#666'}}>School Districts</div>
-</div>
-
-<div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#00BCD4'}}>52</div>
-  <div style={{marginTop: '10px', color: '#666'}}>States &amp; Territories Covered</div>
-</div>
-
-</div>
+Coverage grows as data is loaded, so this page doesn't list totals. The current counts (jurisdictions, school districts, nonprofits, meetings, decisions, officials) come from the live API: [communityone.com/api/stats](https://www.communityone.com/api/stats), which reads the warehouse directly. Meeting analysis is deep in a few states and thin elsewhere.
 
 All data is **100% free and public** - no subscriptions or API fees required.
 
@@ -222,11 +188,11 @@ These use cases are powered by a comprehensive data model with 40+ entities incl
 
 Open Navigator combines multiple free, public data sources:
 
-- **📄 Meeting Minutes**: 1,000+ municipalities with full transcripts and videos
-- **📺 Video Channels**: 50+ state legislature YouTube channels
-- **💰 Financial Data**: Complete budget and Form 990 coverage
-- **🗺️ Geographic Coverage**: All 50 states, 3,000+ counties and cities
-- **🏛️ Nonprofits**: 3M+ organizations with Form 990 financial data
+- **📄 Meeting Minutes**: transcripts and videos from municipal meetings
+- **📺 Video Channels**: state legislature and local government YouTube channels
+- **💰 Financial Data**: local government finance and IRS Form 990 filings
+- **🗺️ Geographic Coverage**: states, counties and cities from the Census
+- **🏛️ Nonprofits**: IRS tax-exempt organizations with Form 990 financial data
 - **🗳️ Elections**: Ballots, candidates, results, polling data
 - **✅ Fact-Checking**: Claims verification from trusted sources
 
