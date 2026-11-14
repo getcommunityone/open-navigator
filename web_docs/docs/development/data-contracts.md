@@ -68,6 +68,7 @@ left out but isn't listed here.
 | `meeting_browse.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
 | `meeting_question_link.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
 | `meeting_topic_link.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
+| `job_claim.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
 | `decision_speakers.event_decision_id` | `event_decision.event_decision_id` | `event_decision` gets a contract (#271) |
 | `event_decision_place.event_decision_id` | `event_decision.event_decision_id` | the same |
 | `item_interestingness.event_decision_id` | `event_decision.event_decision_id` | the same |
