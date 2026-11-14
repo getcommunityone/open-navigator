@@ -18,6 +18,8 @@ each publishes its agendas, minutes, videos and budgets its own way. Open Naviga
 filings and Census data, and shows what was decided, where, and the passage from the record that says so. Nothing on
 the site is a made-up number: when data is missing, it says so.
 
+**Coverage today:** 1,926,908 nonprofits, 153,235 meetings and events, 34,289 government officials and 4,495 decisions extracted by AI, from [/api/stats](https://www.communityone.com/api/stats) (snapshot dated June 5, 2026, read November 14, 2026). Jurisdiction counts are left out until that endpoint reports them correctly ([#291](https://github.com/getcommunityone/open-navigator/issues/291)).
+
 **Live:** [communityone.com](https://www.communityone.com) · [docs](https://www.communityone.com/docs) ·
 [API](https://www.communityone.com/api) · Apache 2.0
 
