@@ -68,6 +68,38 @@ targets:
       host: https://adb-7405608833986267.7.azuredatabricks.net
       profile: opennav-prod
 
+  # Databricks Free Edition (#294), set up the way the Health Transformation Lab's dev target is: no
+  # `mode: development` (it prefixes every name), schedules paused, serverless only, and deployed by CI as a
+  # service principal (.github/workflows/deploy-databricks.yml). The host comes from the environment
+  # (DATABRICKS_HOST, set by the sign-in action), or from --profile locally. Free Edition has daily usage
+  # limits and at most 5 concurrent job tasks, so batches stay small.
+  free:
+    presets:
+      trigger_pause_status: PAUSED
+    variables:
+      catalog: open_navigator
+      analysis_batch_size: "25"
+      warehouse_id:
+        lookup:
+          warehouse: Serverless Starter Warehouse
+    resources:
+      schemas:
+        open_navigator_analysis:
+          catalog_name: ${var.catalog}
+          name: ${var.work_schema}
+          comment: Transcript analysis (bronze ai_query, silver, gold). Public meeting records only.
+        open_navigator_landing:
+          catalog_name: ${var.catalog}
+          name: open_navigator_landing
+          comment: Raw crawl output landed by the nightly crawl (#295) and the Colab GPU steps (#297).
+      volumes:
+        crawl:
+          catalog_name: ${var.catalog}
+          schema_name: open_navigator_landing
+          name: crawl
+          volume_type: MANAGED
+          comment: Raw crawl files, one folder per source and run date.
+
   prod:
     mode: production
     workspace:
