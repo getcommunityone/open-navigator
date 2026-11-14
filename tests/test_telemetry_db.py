@@ -118,17 +118,68 @@ print(json.dumps({"request": request.get_span_context().span_id, "spans": spans}
 """
 
 
+def _run_in_a_fresh_interpreter(script: str) -> dict:
+    """Run ``script`` in a new interpreter, with this session's import path and an in-memory database, and return
+    the JSON its last line prints."""
+    env = {k: v for k, v in os.environ.items() if k not in ("NEON_DATABASE_URL_DEV", "NEON_DATABASE_URL")}
+    env["DATABASE_URL"] = "sqlite://"  # in memory: nothing is written
+    env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
+    done = subprocess.run([sys.executable, "-c", script], cwd=REPO_ROOT, env=env, capture_output=True,
+                          text=True, timeout=300, check=False)
+    assert done.returncode == 0, done.stderr[-3000:]
+    return json.loads(done.stdout.strip().splitlines()[-1])
+
+
 def test_the_apis_own_engine_is_traced_under_the_request():
     """End to end, in a fresh interpreter: import api.main, then query through api.database's engine inside a
     stand-in request span. This fails if a module that binds create_engine (api.database does) is ever imported
     before setup_telemetry runs: its engine would quietly go untraced."""
-    env = {k: v for k, v in os.environ.items() if k not in ("NEON_DATABASE_URL_DEV", "NEON_DATABASE_URL")}
-    env["DATABASE_URL"] = "sqlite://"  # in memory: nothing is written
-    env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
-    done = subprocess.run([sys.executable, "-c", END_TO_END], cwd=REPO_ROOT, env=env, capture_output=True,
-                          text=True, timeout=300, check=False)
-    assert done.returncode == 0, done.stderr[-3000:]
-    out = json.loads(done.stdout.strip().splitlines()[-1])
+    out = _run_in_a_fresh_interpreter(END_TO_END)
     queries = [s for s in out["spans"] if s["system"] == "sqlite" and s["name"] != "connect"]
     assert queries, f"no query span: {out['spans']}"
     assert all(s["parent"] == out["request"] for s in queries), "query spans aren't under the request span"
+
+
+ASYNC_ENGINE = """
+import asyncio
+import json
+from opentelemetry import trace
+from opentelemetry.sdk.trace import SpanProcessor
+import api.main  # noqa: F401 - as uvicorn loads it: setup_telemetry runs first
+import sqlalchemy
+from sqlalchemy.ext.asyncio import create_async_engine
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+class QuerySpans(SpanProcessor):
+    started = ended = 0
+    def on_start(self, span, parent_context=None):
+        QuerySpans.started += span.name != "connect"
+    def on_end(self, span):
+        QuerySpans.ended += span.name != "connect"
+
+trace.get_tracer_provider().add_span_processor(QuerySpans())
+
+async def one_query():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.connect() as connection:
+        await connection.execute(sqlalchemy.text("select 1"))
+    await engine.dispose()
+
+asyncio.run(one_query())
+error = None
+try:
+    SQLAlchemyInstrumentor().uninstrument()
+except Exception as exc:  # what broke the exporter fixture above on main (#337)
+    error = repr(exc)
+print(json.dumps({"started": QuerySpans.started, "ended": QuerySpans.ended, "uninstrument_error": error}))
+"""
+
+
+def test_an_async_engine_is_traced_once():
+    """In a fresh interpreter, as uvicorn loads the app: one query on an async engine starts one span and ends it,
+    and tracing turns off cleanly. When SQLAlchemy's asyncio extension was first imported after tracing started,
+    create_async_engine traced each engine twice: two spans per query, one never ended, and uninstrumenting raised
+    (#337)."""
+    pytest.importorskip("aiosqlite")
+    out = _run_in_a_fresh_interpreter(ASYNC_ENGINE)
+    assert out == {"started": 1, "ended": 1, "uninstrument_error": None}
