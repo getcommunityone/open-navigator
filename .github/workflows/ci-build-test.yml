@@ -43,6 +43,11 @@ jobs:
           cd web_app
           npx tsc --noEmit
 
+      - name: Run frontend unit tests
+        run: |
+          cd web_app
+          npm test
+
       - name: Build frontend
         run: |
           cd web_app
