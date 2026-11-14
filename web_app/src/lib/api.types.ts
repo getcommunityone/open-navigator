@@ -220,6 +220,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/job-claims": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Job Claims
+         * @description Data-center jobs claims from meetings, split by phase (construction / operations).
+         *
+         *     Example:
+         *         GET /api/data-centers/job-claims?state=AL&city=Tuscaloosa&limit=100
+         */
+        get: operations["list_job_claims_api_data_centers_job_claims_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data/ingest/census": {
         parameters: {
             query?: never;
@@ -1033,6 +1056,84 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * JobClaim
+         * @description One jobs claim from a meeting; unknown values are null, never 0.
+         */
+        JobClaim: {
+            /** Ends On */
+            ends_on?: string | null;
+            /** Event Meeting Id */
+            event_meeting_id?: string | null;
+            /** Headcount High */
+            headcount_high?: number | null;
+            /** Headcount Low */
+            headcount_low?: number | null;
+            /** Job Claim Id */
+            job_claim_id: string;
+            /** Meeting Date */
+            meeting_date?: string | null;
+            /** Person Id */
+            person_id?: string | null;
+            /**
+             * Phase
+             * @description Never combined: one row per phase (the mart's CHECK).
+             * @enum {string}
+             */
+            phase: "construction" | "operations";
+            /** Project Name */
+            project_name?: string | null;
+            /**
+             * Quote
+             * @description Verbatim words of the claim; the mart drops rows without one.
+             */
+            quote: string;
+            /** Speaker Name */
+            speaker_name?: string | null;
+            /** Start Seconds */
+            start_seconds?: number | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Video Id */
+            video_id?: string | null;
+        };
+        /**
+         * JobClaimScope
+         * @description The filters actually applied to ``items``; ``level='national'`` when none.
+         */
+        JobClaimScope: {
+            /**
+             * City
+             * @description City filter (matched on jurisdiction_name).
+             */
+            city?: string | null;
+            /**
+             * Jurisdiction Id
+             * @description Exact jurisdiction_id filter.
+             */
+            jurisdiction_id?: string | null;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "national" | "state" | "city" | "jurisdiction";
+            /**
+             * State
+             * @description Full state name for state_code, if known.
+             */
+            state?: string | null;
+            /**
+             * State Code
+             * @description 2-letter state code filter, if any.
+             */
+            state_code?: string | null;
+        };
+        /** JobClaimsResponse */
+        JobClaimsResponse: {
+            /** Items */
+            items: components["schemas"]["JobClaim"][];
+            scope: components["schemas"]["JobClaimScope"];
+        };
         /** JurisdictionRunModel */
         JurisdictionRunModel: {
             /**
@@ -1749,6 +1850,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_job_claims_api_data_centers_job_claims_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full state name is normalized to one). */
+                state?: string | null;
+                /** @description City name; case-insensitive match on jurisdiction_name. */
+                city?: string | null;
+                /** @description Exact jurisdiction_id. */
+                jurisdiction_id?: string | null;
+                /** @description Max rows (1..500). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobClaimsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -1,0 +1,131 @@
+version: 2
+
+# DC-1.1 (#246): jobs claims split by phase, from the Part 1 meeting analysis.
+# Built into gold like every mart; not in publish_public_serving's served list yet.
+
+models:
+  - name: job_claim
+    description: >
+      One row per jobs claim per meeting (PK job_claim_id): what a speaker said about the
+      jobs a project will bring, split into construction and operations, with the
+      headcount range, dates, the verbatim quote and where it starts in the video.
+      Headcounts and dates are null when the analysis didn't give a clean value; nothing
+      is filled in. Only claims with a quote, a valid phase and a meeting in
+      event_meeting are kept; the rest are counted by warn tests on stg_job_claim_ai.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: job_claim_id
+        description: "Primary key. md5(analysis id | start_seconds | phase | quote)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_meeting_id
+        description: >
+          The meeting: event_meeting.event_meeting_id (= bronze_events_analysis_ai.id).
+          Guaranteed by the inner join in the model and checked by a relationships test.
+          Not a Postgres FK constraint: event_meeting is not contract-enforced in dbt, and
+          its primary key exists only where the bootstrap_event_meeting macro created
+          gold.event_meeting by hand, so a declared FK would fail on any build where that
+          macro hasn't run.
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_meeting')
+              field: event_meeting_id
+              config:
+                severity: warn
+      - name: meeting_date
+        description: "Meeting date from event_meeting (null when it isn't a valid ISO date)."
+        data_type: date
+      - name: video_id
+        description: "YouTube video id of the meeting, from event_meeting."
+        data_type: text
+      - name: state_code
+        description: "Two-letter state code, from event_meeting."
+        data_type: text
+      - name: state
+        description: "Full state name, from event_meeting."
+        data_type: text
+      - name: jurisdiction_id
+        description: >
+          FK to jurisdictions.jurisdiction_id, resolved from the meeting's video through
+          event_youtube_with_jurisdiction. Null when the video has no resolved
+          jurisdiction or the id isn't in jurisdictions.
+        data_type: text
+      - name: jurisdiction_name
+        description: "Jurisdiction name, from event_meeting."
+        data_type: text
+      - name: person_id
+        description: >
+          The speaker as a resolved person. Always null for now: speaker names from the
+          analysis aren't matched to a person record yet, so there is no FK. speaker_name
+          holds the name as the analysis gives it.
+        data_type: text
+      - name: phase
+        description: "construction or operations."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: check
+            expression: "phase in ('construction', 'operations')"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['construction', 'operations']
+      - name: headcount_low
+        description: "Low end of the jobs figure; null when not stated as a whole number."
+        data_type: integer
+      - name: headcount_high
+        description: "High end of the jobs figure; null when not stated as a whole number."
+        data_type: integer
+      - name: starts_on
+        description: "When the jobs start, if the claim gives a date."
+        data_type: date
+      - name: ends_on
+        description: "When the jobs end, if the claim gives a date."
+        data_type: date
+      - name: project_name
+        description: "The project the claim is about, as named in the meeting."
+        data_type: text
+      - name: project_type
+        description: "data_center or another project type, lower-cased."
+        data_type: text
+      - name: speaker_name
+        description: "Who made the claim, as the analysis names them."
+        data_type: text
+      - name: start_seconds
+        description: "Offset into the meeting video where the quote starts."
+        data_type: double precision
+      - name: quote
+        description: "The claim, verbatim from the transcript."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: source_ai_model
+        description: "The model that produced the analysis."
+        data_type: text
+      - name: extracted_at
+        description: "When the analysis was produced."
+        data_type: timestamptz
+        constraints:
+          - type: not_null
+        tests:
+          - not_null

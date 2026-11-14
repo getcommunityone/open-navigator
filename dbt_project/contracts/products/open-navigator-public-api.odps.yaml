@@ -240,3 +240,8 @@ outputPorts:
   contractId: open-navigator-public-meeting_question_link
   type: table
   description: One row per (event_meeting_id, question_id).
+- name: job_claim
+  version: 1.0.0
+  contractId: open-navigator-public-job_claim
+  type: table
+  description: 'One row per jobs claim per meeting (PK job_claim_id): what a speaker said about the jobs a project will bring, split into construction and operations, with the headcount range, dates, the verbatim quote and where it starts in the video.'

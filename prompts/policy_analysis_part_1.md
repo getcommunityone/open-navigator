@@ -110,6 +110,16 @@ Capture **how long** the body spent on each item and **how long each speaker hel
 1. **Per-item span — `media_anchor` on `decisions[]`** (the schema already requires it on `uncontested_items[]`; now required on `decisions[]` too). Set `timestamp_start_seconds` to when discussion of the item opened and `timestamp_end_seconds` to when it closed (after the vote). Leave `duration_seconds` `null` — it is derived downstream from start/end; only fill it if the transcript states an explicit elapsed time. Both bounds `null` when the transcript is untimed.
 2. **Per-speaker floor time — `speaker_segments[]` on `decisions[]`.** When the transcript is timestamped, emit one row per **contiguous turn** a person held the floor on this decision: `person_id` (must resolve to a `people[]` entry), `timestamp_start_seconds`, `timestamp_end_seconds`. Leave `speaking_seconds` `null` (derived from the bounds downstream) unless the transcript gives an explicit figure. Use the same person-binding cues as `held_by` ("Councilman Reed said…", a chair recognizing a speaker). If you cannot bind a turn to a specific `person_id`, set `person_id` to `null` rather than guessing. Emit `[]` when the transcript carries no usable timestamps — an empty array means "no timing available," never "no one spoke."
 3. **Coverage, not precision.** Approximate turn boundaries from the surrounding timed segments are fine; do not split a single turn into many micro-segments. Do **not** add `speaker_segments` to `uncontested_items[]` — only the item-level `media_anchor` span there.
+## Jobs claims (`job_claims[]`)
+Record every claim made in the meeting about **how many jobs** a project will create — most often a data center, factory or warehouse — so residents can check the promise later.
+- **One row per claim per phase.** `phase` is `construction` (temporary build jobs) or `operations` (permanent jobs once running). A claim that gives both ("800 during construction and 50 permanent") is **two rows**. **Never** add the phases into one combined jobs number.
+- `headcount_low` / `headcount_high`: integers as said. A single figure ("about 50 jobs") sets both to 50; a range ("40 to 60") sets 40 and 60; "up to 300" sets only `headcount_high`. If no number is said ("lots of jobs"), leave both **null** — never estimate.
+- `starts_on` / `ends_on`: ISO `YYYY-MM-DD` only when a full date is stated for that phase. A year or month alone ("construction runs through 2028") → null. Never guess.
+- `project_name`: as named in the meeting, else null. `project_type`: `data_center` when the project is a data center or server campus, otherwise a short lowercase noun (`factory`, `warehouse`, `other`).
+- `speaker_name`: who made the claim, as named; `start_seconds`: the timestamp of the claim from the transcript cue, else null.
+- `quote`: the **verbatim** words of the claim from the transcript (≤40 words). No quote, no row.
+- No jobs claim in the meeting → `"job_claims": []`.
+
 ## Output Instructions
 Output the JSON object matching the schema below and NOTHING ELSE.
  
@@ -230,6 +240,20 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
       "funding_source": "string or null",
       "item_date": "string or null — ISO YYYY-MM-DD the dollars are dated to (contract award / payment / budget-effective date). null if the transcript doesn't state one — NEVER guess a date.",
       "item_date_type": "string or null — what item_date represents: e.g. award | contract | payment | due | effective | budget_year. null when item_date is null."
+    }
+  ],
+  "job_claims": [
+    {
+      "phase": "construction | operations",
+      "headcount_low": "integer or null",
+      "headcount_high": "integer or null",
+      "starts_on": "string or null — ISO YYYY-MM-DD, only if stated",
+      "ends_on": "string or null — ISO YYYY-MM-DD, only if stated",
+      "project_name": "string or null",
+      "project_type": "data_center | factory | warehouse | other",
+      "speaker_name": "string or null",
+      "start_seconds": "number or null — from the transcript cue",
+      "quote": "string — verbatim words of the claim (≤40 words)"
     }
   ],
   "places": [
