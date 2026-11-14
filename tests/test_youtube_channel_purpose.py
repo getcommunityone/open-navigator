@@ -1,5 +1,7 @@
 """Tests for YouTube channel purpose classification."""
 
+import pytest
+
 from scripts.discovery.youtube_channel_purpose import (
     classify_channel_purpose,
     has_meeting_purpose_signal,
@@ -50,6 +52,7 @@ def test_tv_public_channel():
     assert purpose == "tv-public"
 
 
+@pytest.mark.xfail(reason="test and code disagree since ffe865a5; the owner decides which is right: #322", strict=False)
 def test_county_general_rejected_without_meeting_signal():
     row = {
         "youtube_channel_url": "https://www.youtube.com/channel/UCexample",

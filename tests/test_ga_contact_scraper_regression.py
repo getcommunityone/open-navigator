@@ -195,6 +195,7 @@ _APPLING_EXPECTED_NAMES = frozenset({
 })
 
 
+@pytest.mark.skipif(not _GA_COUNTY_CACHE.is_dir(), reason="needs the local GA crawl cache under data/cache/scraped_meetings (not in git)")
 def test_appling_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
     """Offline regression on appling_13001/: cache must show the BOC page was reached.
 
@@ -303,6 +304,7 @@ _BAKER_EXPECTED_HEADSHOTS = frozenset({
 })
 
 
+@pytest.mark.skipif(not _GA_COUNTY_CACHE.is_dir(), reason="needs the local GA crawl cache under data/cache/scraped_meetings (not in git)")
 def test_baker_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
     """Offline regression on baker_13007/: BOC page must yield all 5 commissioners.
 
@@ -392,6 +394,7 @@ _BULLOCH_EXPECTED_EMAILS = frozenset(
 )
 
 
+@pytest.mark.skipif(not _GA_COUNTY_CACHE.is_dir(), reason="needs the local GA crawl cache under data/cache/scraped_meetings (not in git)")
 def test_berrien_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
     """Offline regression on berrien_13019/: BOC page must yield exactly 5 commissioners.
 
@@ -453,6 +456,7 @@ def test_berrien_cache_proves_commissioners_page_was_crawled_and_extracted() -> 
     )
 
 
+@pytest.mark.skipif(not _GA_COUNTY_CACHE.is_dir(), reason="needs the local GA crawl cache under data/cache/scraped_meetings (not in git)")
 def test_banks_cache_requires_danny_maxwell_full_contact_fields() -> None:
     """Banks County BOC page must emit Danny Maxwell with name, role, phone, and email.
 
@@ -502,6 +506,7 @@ def test_banks_cache_requires_danny_maxwell_full_contact_fields() -> None:
     )
 
 
+@pytest.mark.skipif(not _GA_COUNTY_CACHE.is_dir(), reason="needs the local GA crawl cache under data/cache/scraped_meetings (not in git)")
 def test_bulloch_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
     """Bulloch commissioners page must be crawled and yield commissioner emails.
 
@@ -547,6 +552,7 @@ def test_bulloch_cache_proves_commissioners_page_was_crawled_and_extracted() -> 
     )
 
 
+@pytest.mark.skipif(not _GA_COUNTY_CACHE.is_dir(), reason="needs the local GA crawl cache under data/cache/scraped_meetings (not in git)")
 def test_qualifying_county_count_does_not_shrink() -> None:
     """Guard against silent skips: at least MIN_QUALIFYING_COUNTIES must run."""
     qualifying = []
