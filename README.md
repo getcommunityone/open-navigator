@@ -27,11 +27,28 @@ the site is a made-up number: when data is missing, it says so.
 
 | For | Go to |
 |---|---|
-| **Executives and funders** (11 slides, 10 minutes) | [read the pitch with speaker notes](web_docs/docs/pitch/full-text-and-notes.md) · [slides](https://www.communityone.com/docs/deck/) ([source](web_docs/static/deck/index.html): download and open in a browser) |
+| **Executives and funders** (12 slides, 10 minutes) | [read the pitch with speaker notes](web_docs/docs/pitch/full-text-and-notes.md) · [slides](https://www.communityone.com/docs/deck/) ([source](web_docs/static/deck/index.html): download and open in a browser) |
 | **Residents** | [the app](https://www.communityone.com) · [guide for citizens](web_docs/docs/for-citizens.md) |
 | **Advocates and nonprofit leaders** | [guide for advocates](web_docs/docs/for-advocates.md) · [accountability strategy](web_docs/docs/guides/accountability-strategy.md) |
 | **Researchers and data analysts** | [data sources](web_docs/docs/data-sources/overview.md) · [data model](web_docs/docs/data-sources/data-model-erd.md) · [citations](CITATIONS.md) |
 | **Developers and data engineers** | [code walkthrough](web_docs/docs/development/code-walkthrough.md) · [quick start](web_docs/docs/quickstart.md) · [architecture](web_docs/docs/architecture.md) · [how we work](AGENTS.md) |
+
+**This quarter: data center accountability** (planned, not built yet). Residents ask what's being built near them,
+who approved it, what it does to their bill and whether the jobs are real. The plan, October to December 2026:
+[epic #236](https://github.com/getcommunityone/open-navigator/issues/236).
+
+<details>
+<summary><b>The six stories</b></summary>
+
+- Job promises, on the record: [jobs split by phase](https://github.com/getcommunityone/open-navigator/issues/246) ·
+  [promise attributed to a speaker](https://github.com/getcommunityone/open-navigator/issues/247) ·
+  [live application links](https://github.com/getcommunityone/open-navigator/issues/248)
+- The pipeline near me: [proposed sites near me](https://github.com/getcommunityone/open-navigator/issues/249) ·
+  [site matched to a coming agenda](https://github.com/getcommunityone/open-navigator/issues/250) ·
+  [alerts ranked by local concern](https://github.com/getcommunityone/open-navigator/issues/251)
+
+They build on the meeting citations in the [CORE epic](https://github.com/getcommunityone/open-navigator/issues/235).
+</details>
 
 Each role has more below. Click to open.
 
@@ -39,7 +56,8 @@ Each role has more below. Click to open.
 <summary><b>Executives and funders</b>: the pitch in ten minutes</summary>
 
 The [slideshow](https://www.communityone.com/docs/deck/) covers who it is for, the problem, what it does, the story
-lenses, the policy model, how the pipeline works, the trust rules, what is open, an honest status, and the ask.
+lenses, the policy model, how the pipeline works, the trust rules, what is open, this quarter's data center work,
+an honest status, and the ask.
 Press **N** for speaker notes, **S** for the speaker view. The [full text and notes](web_docs/docs/pitch/full-text-and-notes.md)
 has every slide's words, for reading on a phone or searching.
 

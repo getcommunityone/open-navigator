@@ -167,7 +167,22 @@ github.com/getcommunityone/open-navigator · 9
 
 **Speaker notes:** Everything is open. The code is Apache 2.0, and the work happens in public issues and pull requests. The datasets are published on Hugging Face. There is an MCP server, so an AI assistant can query the data directly instead of guessing. And the data follows existing civic standards, like the Council Data Project's meeting model and Open Civic Data identifiers, so it can connect to other civic tools rather than becoming another silo.
 
-## Slide 10: Live, useful, and still uneven
+## Slide 10: Data centers: what’s coming, and whether the jobs are real
+
+This quarter  
+Data centers: what’s coming, and whether the jobs are real  
+What is being built near me, who approved it, what it does to my bill, and are the jobs real? This quarter starts with the first and the last.  
+Job promises, on the record  
+Construction and permanent jobs shown separately, each with its dates and who promised it, linked to that moment in the recording. Unknown says “not stated”, never zero.  
+The pipeline near me  
+Proposed sites before the vote, matched to the agenda where they’ll come up, with alerts ranked by how much local concern the record shows.  
+Status:  
+six stories planned for October to December 2026; none built yet.  
+Plan: github.com/getcommunityone/open-navigator/issues/236 · 10  
+
+**Speaker notes:** This quarter, most of the work goes to data centers, because that's where residents are asking the hardest questions: what's being built near me, who approved it, what it will do to my power bill, and whether the promised jobs are real. We start with two of those. First, job promises on the record: when someone at a meeting promises jobs, we show construction jobs and permanent jobs separately, each with its dates, because a two-year build isn't a career. Every number says who said it, at which meeting, and links to that moment in the recording, and if a number was never stated we say so instead of showing zero. Second, the pipeline near me: proposed sites before the vote, matched to the agenda where they'll come up, with alerts ranked by local concern. To be clear, this is planned work for October through December; none of it is built yet, and it builds on the meeting citations planned in the core work.
+
+## Slide 11: Live, useful, and still uneven
 
 Where it stands  
 Live, useful, and still uneven  
@@ -184,11 +199,11 @@ The app, docs and API are live at communityone.com. Nationwide directories of ju
 Not there yet  
 Meeting analysis is deep in a few states and thin elsewhere. Jurisdiction counts in the stats aren’t right yet and are left out. Older scripts are being moved into tested packages.  
 A small nonprofit project with one maintainer. Help with data, review and pilot communities moves it fastest.  
-Figures: communityone.com/api/stats, snapshot dated June 5, 2026, read November 14, 2026 · 10  
+Figures: communityone.com/api/stats, snapshot dated June 5, 2026, read November 14, 2026 · 11  
 
 **Speaker notes:** An honest status. It's live: the app, the docs and the API at communityone.com, with nationwide directories and the search, lenses, maps and policy questions you've seen. It is not finished. Meeting analysis is deep in a few states and thin elsewhere, so coverage is uneven. The figures at the top come straight from the live stats endpoint; that snapshot is from June, and its jurisdiction count is wrong, so I leave that one out until it's fixed. And older scripts are being moved into tested packages. It's a small nonprofit project with one maintainer, which is why help matters.
 
-## Slide 11: One map for every community.
+## Slide 12: One map for every community.
 
 The ask  
 One map for every community.  
