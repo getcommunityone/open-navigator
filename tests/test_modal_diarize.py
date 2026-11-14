@@ -75,3 +75,24 @@ def test_a_download_link_labelled_mp4_is_followed_even_without_a_file_extension(
 
 def test_a_page_without_a_media_link_gives_none():
     assert md.media_link_from_html('<a href="/agenda.pdf">Download agenda</a>', "https://example.org/") is None
+
+
+def test_the_embedded_player_source_is_found_when_no_link_is():
+    page = '<video controls><source src="/media/516/council.mp4" type="video/mp4"></video>'
+    assert md.media_link_from_html(page, "https://example.org/p/516") == "https://example.org/media/516/council.mp4"
+
+
+def test_the_og_video_tag_is_found():
+    page = '<meta property="og:video:secure_url" content="https://cdn.example.org/v/516.mp4">'
+    assert md.media_link_from_html(page, "https://example.org/p/516") == "https://cdn.example.org/v/516.mp4"
+
+
+def test_a_stream_playlist_inside_a_script_is_found_with_json_slashes_undone():
+    page = '<script>var player = {"hls": "https:\\/\\/stream.example.org\\/516\\/index.m3u8"};</script>'
+    assert md.media_link_from_html(page, "https://example.org/p/516") == "https://stream.example.org/516/index.m3u8"
+
+
+def test_a_page_with_only_an_iframe_player_names_it():
+    page = '<iframe src="https://player.example.org/embed/516"></iframe>'
+    assert md.media_link_from_html(page, "https://example.org/") is None
+    assert md.player_sources(page, "https://example.org/") == ["https://player.example.org/embed/516"]
