@@ -10,37 +10,38 @@
 # the output rate. `cached_input_usd_per_1m` is the rate for input tokens the API
 # reports as served from its cache.
 #
-# SOURCE CAVEAT: Google's own pricing pages (ai.google.dev, aistudio.google.com,
-# docs.cloud.google.com) could not be reached from the session that filled these
-# in. The interactive rates below are Google Cloud's base-tier, on-demand list
-# prices as getdeploying.com republishes them, read on 2026-11-13. Gemini API
-# paid-tier rates are expected to match; confirm against Google's page and update
-# the source (#266). Batch rates are not on that page, so they stay null and batch
-# calls show no cost until they are filled in. That page also says Google closed
-# gemini-2.5-flash and gemini-2.5-flash-lite to new users in July 2026 and expects
-# to shut them down.
+# Gemini rates: Google's Gemini API pricing page, paid tier, per 1M tokens, the
+# text / image / video rate (audio costs more and isn't priced here), read on
+# 2026-11-14 (#266). `cached_input_usd_per_1m` is the page's "context caching
+# price"; context-cache storage (per 1M tokens per hour) isn't counted. The same
+# page says gemini-2.5-flash is deprecated: from 2026-12-01 its requests are routed
+# to gemini-3.5-flash-lite and billed at that model's rates.
 models:
   gemini-2.5-flash:
-    source: https://getdeploying.com/llms/gemini-2.5-flash
-    read_date: "2026-11-13"
+    source: https://ai.google.dev/gemini-api/docs/pricing
+    read_date: "2026-11-14"
     interactive: {input_usd_per_1m: 0.30, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 2.50}
-    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+    batch: {input_usd_per_1m: 0.15, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 1.25}
   gemini-2.5-flash-lite:
-    source: https://getdeploying.com/llms/gemini-2.5-flash-lite
-    read_date: "2026-11-13"
+    source: https://ai.google.dev/gemini-api/docs/pricing
+    read_date: "2026-11-14"
     interactive: {input_usd_per_1m: 0.10, cached_input_usd_per_1m: 0.01, output_usd_per_1m: 0.40}
-    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+    batch: {input_usd_per_1m: 0.05, cached_input_usd_per_1m: 0.01, output_usd_per_1m: 0.20}
   gemini-3.5-flash-lite:
-    source: https://getdeploying.com/llms/gemini-3.5-flash-lite
-    read_date: "2026-11-13"
+    source: https://ai.google.dev/gemini-api/docs/pricing
+    read_date: "2026-11-14"
     interactive: {input_usd_per_1m: 0.30, cached_input_usd_per_1m: 0.03, output_usd_per_1m: 2.50}
-    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
+    batch: {input_usd_per_1m: 0.15, cached_input_usd_per_1m: 0.015, output_usd_per_1m: 1.25}
   gemini-3.8-flash:
-    source: https://getdeploying.com/llms/gemini-3.8-flash
-    read_date: "2026-11-13"
+    source: https://ai.google.dev/gemini-api/docs/pricing
+    read_date: "2026-11-14"
     interactive: {input_usd_per_1m: 0.75, cached_input_usd_per_1m: 0.075, output_usd_per_1m: 3.75}
-    batch: {input_usd_per_1m: null, cached_input_usd_per_1m: null, output_usd_per_1m: null}
-  # Gemma (gemma-4-*) and DeepSeek: no price found yet; they show no cost.
+    batch: {input_usd_per_1m: 0.375, cached_input_usd_per_1m: 0.0375, output_usd_per_1m: 1.875}
+  # Gemma (gemma-4-*): no price found yet; it shows no cost.
+  # deepseek-chat: DeepSeek's pricing page (https://api-docs.deepseek.com/quick_start/pricing/,
+  # read 2026-11-14) no longer lists this model name. Its models are deepseek-flash and
+  # deepseek-v4-pro, priced by peak and off-peak hours, which this file can't express yet.
+  # So no price is recorded here (#328).
   deepseek-chat:
     source: null
     read_date: null
