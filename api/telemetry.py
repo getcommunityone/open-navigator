@@ -28,6 +28,7 @@ Exporter selection is driven by env:
 """
 from __future__ import annotations
 
+import contextlib
 import importlib
 import os
 
@@ -77,6 +78,12 @@ def instrument_databases(tracer_provider=None) -> list[str]:
     Tracing is optional: a missing package or driver logs a warning and the API
     carries on.
     """
+    # SQLAlchemy's asyncio extension binds create_engine when it's first imported. Imported after tracing has
+    # wrapped create_engine, create_async_engine traces each async engine twice (its own wrapper and
+    # create_engine's): every query starts two spans and ends one, and uninstrumenting raises. So import it first
+    # (#337).
+    with contextlib.suppress(ImportError):
+        importlib.import_module("sqlalchemy.ext.asyncio")
     active: list[str] = []
     for module_name, class_name, skip_dep_check in _DB_INSTRUMENTORS:
         try:
