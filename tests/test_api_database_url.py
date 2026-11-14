@@ -41,7 +41,7 @@ def test_api_imports_with_a_postgres_url() -> None:
     )
     result = subprocess.run(
         [sys.executable, "-c", "import api.database as d; print(d.engine.dialect.driver)"],
-        cwd=REPO, env=env, capture_output=True, text=True, timeout=120,
+        cwd=REPO, env=env, capture_output=True, text=True, timeout=120, check=False,
     )
     assert result.returncode == 0, result.stderr[-2000:]
     assert result.stdout.strip().splitlines()[-1] == "psycopg2"
