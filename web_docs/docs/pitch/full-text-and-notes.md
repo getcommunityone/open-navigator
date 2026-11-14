@@ -6,7 +6,7 @@ format: md
 
 # CommunityOne · Open Navigator: the pitch, full text and notes
 
-Open-source project of CommunityOne, a 501(c)(3) nonprofit. Every figure is cited on its slide; examples marked illustrative are not records. [Open the slideshow](pathname:///deck/index.html). Built from `web_docs/deck/slides/` by `web_docs/scripts/build-deck.mjs`; edit the slides, then rebuild.
+Open-source project of CommunityOne, a 501(c)(3) nonprofit. Every figure is cited on its slide; examples marked illustrative are not records. [Open the slideshow](https://www.communityone.com/docs/deck/). Built from `web_docs/deck/slides/` by `web_docs/scripts/build-deck.mjs`; edit the slides, then rebuild.
 
 ## Slide 1: Local decisions shape daily life.
 

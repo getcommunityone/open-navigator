@@ -143,7 +143,7 @@ addEventListener('resize',fit)
 `
   const md = ['---', 'title: The pitch, full text and notes', 'sidebar_label: Pitch (full text)', 'format: md', '---', '',
     '# CommunityOne · Open Navigator: the pitch, full text and notes', '',
-    `${NOTE} [Open the slideshow](pathname:///deck/index.html). Built from \`web_docs/deck/slides/\` by ` +
+    `${NOTE} [Open the slideshow](${DOCS}/deck/). Built from \`web_docs/deck/slides/\` by ` +
     '`web_docs/scripts/build-deck.mjs`; edit the slides, then rebuild.', '']
   all.forEach((s, i) => {
     md.push(`## Slide ${i + 1}: ${mdSafe(heading(s))}`, '', ...visibleText(s.section).map(mdSafe).map((l) => `${l}  `), '')
