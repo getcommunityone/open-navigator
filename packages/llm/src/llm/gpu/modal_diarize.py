@@ -140,7 +140,7 @@ if modal is not None:
                 audio = Path(where)
             result = diarize_audio_whisperx(audio, model_size=model_size, device="cuda")
             status = "ok"
-        except Exception as e:  # noqa: BLE001 - recorded on the row, then re-raised so Modal's retry applies
+        except Exception as e:
             usage = usage_row(item, DEFAULT_GPU, started, time.monotonic() - t0, "failed")
             usage["error_text"] = f"{type(e).__name__}: {str(e)[:200]}"
             print(json.dumps(usage))
