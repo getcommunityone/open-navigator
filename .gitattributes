@@ -20,3 +20,7 @@ ninja filter=lfs diff=lfs merge=lfs -text
 # Last so it wins: in .gitattributes the later matching line overrides the earlier one, and the *.png / *.jpg
 # LFS lines above would otherwise reclaim these files and show them as modified in every checkout.
 web_app/public/wikicommons/** -filter -diff -merge
+
+# The README's pitch-deck cover (~100 KB): a normal blob so it renders on GitHub and can be committed from sessions
+# that can't upload LFS objects. Last so it wins over the *.png LFS line above.
+web_docs/static/img/deck-cover.png -filter -diff -merge
