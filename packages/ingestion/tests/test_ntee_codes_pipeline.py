@@ -10,7 +10,6 @@ import pandas as pd
 import pytest
 
 
-from ingestion.ntee.codes import VENDORED_CSV  # noqa: E402
 from ingestion.ntee.codes import (  # noqa: E402
     NteeCodesPipeline,
     NteeCodesRow,
@@ -228,8 +227,6 @@ def test_extract_from_parquet_yields_validated_rows(tmp_path):
     assert extracted[0]["parent_code"] is None
 
 
-@pytest.mark.skipif(not VENDORED_CSV.exists(),
-                    reason="the vendored seed CSV was never committed (.gitignore drops *.csv): #321")
 def test_extract_vendored_seed_is_loadable():
     """The package-vendored seed CSV must be parseable and validate cleanly."""
     p = NteeCodesPipeline(path=VENDORED_CSV)
