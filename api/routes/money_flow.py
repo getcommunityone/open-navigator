@@ -16,7 +16,7 @@ is a chart magnitude, not a bare number rendered to the user.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 import asyncpg
@@ -46,10 +46,10 @@ _ACCENT = {"spending": "#ea580c", "grants": "#0d9488", "economy": "#7c3aed"}
 # web_docs/docs/development/neon-serving-scope.md). A lens whose table is absent
 # is unavailable for the life of the process: logged once, then not queried again,
 # and shown empty (placeholder), never with stand-in numbers (#284).
-_NOT_SERVED: Set[str] = set()
+_NOT_SERVED: set[str] = set()
 
 
-async def _fetch_served(conn, relation: str, sql: str, *args: Any) -> Optional[List[Any]]:
+async def _fetch_served(conn, relation: str, sql: str, *args: Any) -> list[Any] | None:
     """Rows for ``sql``, or None when ``relation`` isn't in this database."""
     if relation in _NOT_SERVED:
         return None
