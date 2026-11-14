@@ -1,4 +1,4 @@
-# Review: PR # (closes #323)
+# Review: PR #324 (closes #323)
 
 **Verdict: approve.**
 
