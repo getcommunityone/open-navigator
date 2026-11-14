@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { nominatimUsStateCode } from '../utils/stateMapping'
+import { tracedFetch } from '../lib/api'
 
 /** Smallest geographic unit the search result actually identifies. */
 export type MapAddressGranularity = 'state' | 'county' | 'place' | 'address'
@@ -126,7 +127,7 @@ export default function MapAddressSearch({
     try {
       // Same-origin proxy (api/routes/geocode.py) — avoids Nominatim CORS and
       // honors its 1 req/s policy via server-side throttle + cache.
-      const r = await fetch(
+      const r = await tracedFetch(
         `/api/geocode/search?q=${encodeURIComponent(query)}&limit=6`,
       )
       if (!r.ok) return

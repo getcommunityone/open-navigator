@@ -1,4 +1,5 @@
 /** Live drill-down for jurisdictions missing a golden YouTube channel URL. */
+import { tracedFetch } from '../lib/api'
 
 export type MissingYoutubeDrillEntity = 'cities' | 'towns' | 'counties'
 
@@ -48,7 +49,7 @@ export async function fetchMissingYoutubeChannels(
   if (params.limit != null) u.searchParams.set('limit', String(params.limit))
   if (params.offset != null) u.searchParams.set('offset', String(params.offset))
 
-  const res = await fetch(u.toString(), { credentials: 'include', signal })
+  const res = await tracedFetch(u.toString(), { credentials: 'include', signal })
   if (!res.ok) {
     let detail = `HTTP ${res.status}`
     try {

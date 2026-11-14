@@ -64,7 +64,9 @@ function initTelemetry(): void {
   // Register as the global provider. We intentionally use the default context
   // manager (no ZoneContextManager dep) and add no auto-instrumentations, to
   // keep the dependency surface minimal and avoid double-tracing the existing
-  // native-fetch client in `lib/api.ts`. All app spans are created manually.
+  // native-fetch client in `lib/api.ts`. All app spans are created manually:
+  // each API request's span, with its `traceparent` header, is opened in
+  // `lib/api.ts` (`api` and `tracedFetch`, #260).
   provider.register()
 
   if (endpoint && import.meta.env.DEV) {
