@@ -19,9 +19,10 @@ analysis in the policy cache, or one of the arms (``--reference``)::
     python -m llm.gemini.compare_models --rescore data/cache/model_comparison/20261113T210000Z
 
 An arm is ``model[:thinking_budget]``. The budget only applies to
-``gemini-2.5-flash*`` (``0`` = off, ``-1`` = the model's own default) and is
-ignored for other models: the 3.x models run at their own default thinking
-level, and Gemma does not think.
+``gemini-2.5-flash*`` (``0`` = off, ``-1`` = the model's own default). For the
+models that take a thinking level instead (3.x, 4), ``0`` (or no budget) means
+their lowest level, as the pipeline sends, and ``-1`` their own default; a
+positive budget is ignored for them. Gemma does not think.
 
 Gemma generates far slower than Gemini: a Part 1 answer takes minutes. The
 google-genai SDK sends the client's request timeout to Google as the server's
@@ -490,6 +491,9 @@ def run_arm(arm: Arm, request: Any, video_dir: Path, args: argparse.Namespace, a
                 temperature=args.temperature,
                 max_output_tokens=output_token_cap(arm.model, args.max_output_tokens),
                 thinking_budget=arm.thinking_budget,
+                # Models that take a level instead of a budget (3.x, 4): budget 0 (the
+                # default) means their lowest level, as in the pipeline; -1 their own.
+                thinking_level="lowest" if arm.thinking_budget == 0 else None,
                 json_mode=not args.no_json_mode,
             )
         answer_path.write_text(result.text, encoding="utf-8")

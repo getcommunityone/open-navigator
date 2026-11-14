@@ -37,7 +37,7 @@ def _request(video_id: str, out_dir: Path, model: str = "gemini-2.5-flash-lite")
 
 def _submit_args(**over) -> argparse.Namespace:
     base = {"temperature": 0.1, "max_output_tokens": 65536, "thinking_budget": 0, "no_json_mode": False,
-            "system_instruction": ""}  # fmt: skip
+            "system_instruction": "", "thinking_level": "lowest"}  # fmt: skip
     return argparse.Namespace(**{**base, **over})
 
 
@@ -63,6 +63,15 @@ def test_request_line_leaves_out_temperature_for_models_that_ignore_it():
                                  max_output_tokens=100, thinking_budget=0, json_mode=True)  # fmt: skip
     assert "temperature" not in line["request"]["generation_config"]
     assert "thinking_config" not in line["request"]["generation_config"]
+
+
+def test_request_line_sends_a_thinking_level_to_level_models():
+    line = bb.build_request_line("vid", "hello", model="gemini-3.8-flash", temperature=0.1, max_output_tokens=100,
+                                 thinking_budget=0, json_mode=True, thinking_level="lowest")  # fmt: skip
+    assert line["request"]["generation_config"]["thinking_config"] == {"thinking_level": "LOW"}
+    line = bb.build_request_line("vid", "hello", model="gemini-2.5-flash", temperature=0.1, max_output_tokens=100,
+                                 thinking_budget=0, json_mode=True, thinking_level="lowest")  # fmt: skip
+    assert line["request"]["generation_config"]["thinking_config"] == {"thinking_budget": 0}
 
 
 def test_request_line_leaves_out_what_does_not_apply():

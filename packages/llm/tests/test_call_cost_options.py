@@ -193,3 +193,76 @@ def test_default_flash_model_is_off_the_deprecated_25_flash(monkeypatch):
     from llm.gemini import reanalyze_decision
 
     assert reanalyze_decision.DEFAULT_MODEL == "gemini-3.5-flash-lite"
+
+
+# --------------------------------------------------------------------------- #
+# Thinking levels (#336)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    ("model", "levels"),
+    [
+        ("gemini-3.8-flash", ("low", "medium", "high")),
+        ("gemini-3.6-flash", ("minimal", "low", "medium", "high")),
+        ("models/gemini-3.5-flash-lite", ("minimal", "low", "medium", "high")),
+        ("gemini-3.1-flash-lite-image", ("minimal", "high")),
+        ("gemini-3.1-flash-lite", ("minimal", "low", "medium", "high")),
+        ("gemini-3-flash-preview", ("minimal", "low", "medium", "high")),
+        ("gemini-4-hydrogen", ("low", "medium", "high", "xhigh")),
+        ("gemini-4-argon", ("low", "medium", "high")),
+        ("gemini-2.5-flash", None),  # keeps the token budget
+        ("gemma-4-31b-it", None),
+        ("deepseek-chat", None),
+    ],
+)
+def test_thinking_levels(model, levels):
+    assert gtc.thinking_levels(model) == levels
+    assert gtc.supports_thinking_level(model) is (levels is not None)
+
+
+@pytest.mark.parametrize(
+    ("model", "asked", "sent"),
+    [
+        ("gemini-3.8-flash", "lowest", "low"),
+        ("gemini-3.5-flash-lite", "lowest", "minimal"),
+        ("gemini-3.8-flash", "minimal", "low"),  # not accepted: the nearest above
+        ("gemini-3.8-flash", "xhigh", "high"),  # nothing above: the highest
+        ("gemini-3.8-flash", "medium", "medium"),
+        ("gemini-3.8-flash", None, None),  # the model's own default
+        ("gemini-2.5-flash", "lowest", None),
+    ],
+)
+def test_resolve_thinking_level(model, asked, sent):
+    assert gtc.resolve_thinking_level(model, asked) == sent
+
+
+def test_unknown_thinking_level_is_refused():
+    with pytest.raises(ValueError):
+        gtc.resolve_thinking_level("gemini-3.8-flash", "maximum")
+
+
+def test_level_goes_to_level_models_and_budget_to_25_flash(monkeypatch):
+    models = _Models()
+    _call(monkeypatch, models, model="gemini-3.8-flash", thinking_budget=0, thinking_level="lowest")
+    assert models.configs[0].thinking_config.thinking_level.value == "LOW"
+    assert models.configs[0].thinking_config.thinking_budget is None
+    models = _Models()
+    _call(monkeypatch, models, model="gemini-2.5-flash", thinking_budget=0, thinking_level="lowest")
+    assert models.configs[0].thinking_config.thinking_budget == 0
+    assert models.configs[0].thinking_config.thinking_level is None
+
+
+def test_a_rejected_level_is_dropped_and_the_call_retried(monkeypatch):
+    models = _Models(fail_first_with=ValueError("400 INVALID_ARGUMENT. Thinking level is not supported for this model."))
+    result = _call(monkeypatch, models, model="gemini-3.8-flash", thinking_level="low")
+    assert result.text == '{"ok": true}'
+    assert models.configs[0].thinking_config is not None and models.configs[1].thinking_config is None
+
+
+def test_cli_thinking_level(monkeypatch):
+    from llm.gemini.meeting_transcript_policy import _thinking_level_arg
+
+    monkeypatch.delenv("GEMINI_THINKING_LEVEL", raising=False)
+    assert _thinking_level_arg(build_parser().parse_args([])) == "lowest"
+    assert _thinking_level_arg(build_parser().parse_args(["--thinking-level", "default"])) is None
+    assert _thinking_level_arg(build_parser().parse_args(["--thinking-level", "high"])) == "high"
+    assert _thinking_level_arg(SimpleNamespace()) == "lowest"
