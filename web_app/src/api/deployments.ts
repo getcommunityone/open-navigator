@@ -5,6 +5,7 @@
 // Every endpoint here is admin-gated on the backend (require_admin), so all
 // requests carry the bearer token via authHeaders().
 import { authHeaders } from '../lib/authHeader'
+import { tracedFetch } from '../lib/api'
 
 export type DeploymentStep = {
   key: string
@@ -77,7 +78,7 @@ async function readError(r: Response): Promise<string> {
 }
 
 export async function fetchDeployments(): Promise<DeploymentsListPayload> {
-  const r = await fetch('/api/deployments/', {
+  const r = await tracedFetch('/api/deployments/', {
     headers: authHeaders(),
     signal: AbortSignal.timeout(15_000),
   })
@@ -89,7 +90,7 @@ export async function launchDeployment(body: {
   steps?: string[]
   dry_run: boolean
 }): Promise<LaunchDeploymentResult> {
-  const r = await fetch('/api/deployments/launch', {
+  const r = await tracedFetch('/api/deployments/launch', {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -103,7 +104,7 @@ export async function stopDeployment(
   jobId: string,
   force = false,
 ): Promise<{ stopped: boolean; detail: string }> {
-  const r = await fetch(
+  const r = await tracedFetch(
     `/api/deployments/${encodeURIComponent(jobId)}/stop?force=${force ? 'true' : 'false'}`,
     { method: 'POST', headers: authHeaders(), signal: AbortSignal.timeout(15_000) },
   )
@@ -115,7 +116,7 @@ export async function fetchDeploymentLog(
   jobId: string,
   step: string,
 ): Promise<DeploymentLog> {
-  const r = await fetch(
+  const r = await tracedFetch(
     `/api/deployments/${encodeURIComponent(jobId)}/log?step=${encodeURIComponent(step)}&lines=300`,
     { headers: authHeaders(), signal: AbortSignal.timeout(10_000) },
   )

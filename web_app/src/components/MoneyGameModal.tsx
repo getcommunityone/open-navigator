@@ -396,6 +396,9 @@ function YourBill({
 
   const propRate = propQ.data?.effective_property_tax_rate ?? null
   const median = propQ.data?.median_home_value ?? null
+  // REAL ACS median household income for the same place (#137). Seeds the income
+  // slider so the user sees what we assume; null → the slider starts empty.
+  const medianIncome = propQ.data?.median_household_income ?? null
   const salesPct = salesQ.data?.combined_sales_tax_rate_pct ?? null
   const salesFrac = salesPct != null ? salesPct / 100 : null
   // The data vintage for each rate — REAL years from the API, shown so the bill
@@ -406,14 +409,20 @@ function YourBill({
   const [own, setOwn] = useState(true)
   const [homeValue, setHomeValue] = useState<number | null>(null)
   // The user's own figures — start UNSET (0) so we never show a fabricated
-  // default. Home value is the one seeded default, and it's the REAL local ACS
-  // median (a citeable figure), framed as "the median household — adjust it".
+  // default. Home value and income are the seeded defaults, and both are REAL
+  // local ACS medians (citeable figures), framed as "the median household —
+  // adjust it". With no ACS income the income slider starts empty.
   const [spend, setSpend] = useState(0)
   const [fees, setFees] = useState(0)
-  const [income, setIncome] = useState(0)
+  const [incomeValue, setIncomeValue] = useState<number | null>(null)
   useEffect(() => {
     if (median != null) setHomeValue((v) => (v == null ? median : v))
   }, [median])
+  useEffect(() => {
+    if (medianIncome != null) setIncomeValue((v) => (v == null ? medianIncome : v))
+  }, [medianIncome])
+  const income = incomeValue ?? 0
+  const incomeIsMedian = medianIncome != null && incomeValue === medianIncome
 
   const hv = homeValue ?? median ?? 0
   const homeMax = Math.max(1_000_000, Math.ceil(((median ?? 230_000) * 2.5) / 50_000) * 50_000)
@@ -463,7 +472,15 @@ function YourBill({
           )}
           <EstRow label="Your yearly spending on taxable goods" value={spend} min={0} max={100_000} step={500} onChange={setSpend} display={spend > 0 ? fmtDollars(spend) : 'add yours'} />
           <EstRow label="Your local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} />
-          <EstRow label="Your household income" value={income} min={0} max={250_000} step={1_000} onChange={setIncome} display={income > 0 ? fmtDollars(income) : 'add yours'} />
+          <EstRow
+            label={incomeIsMedian ? 'Household income · local median' : 'Your household income'}
+            value={income}
+            min={0}
+            max={Math.max(250_000, Math.ceil(((medianIncome ?? 0) * 2.5) / 10_000) * 10_000)}
+            step={1_000}
+            onChange={setIncomeValue}
+            display={income > 0 ? fmtDollars(income) : 'add yours'}
+          />
         </div>
 
         {/* Live result */}
@@ -507,11 +524,13 @@ function YourBill({
             ))}
           </div>
 
-          {(spend === 0 || income === 0) && (
+          {(spend === 0 || income === 0 || incomeIsMedian) && (
             <p className="mt-3 rounded-lg bg-[#f0faf8] px-3 py-2 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
-              Starts with {own ? `the real property tax on ${jurisdictionName}'s median home` : 'your inputs'}.
-              Add your spending, fees, and income above to build your full bill — we don&apos;t fill those in for
-              you.
+              Starts with {own ? `the real property tax on ${jurisdictionName}'s median home` : 'your inputs'}
+              {incomeIsMedian ? ` and ${jurisdictionName}'s median household income` : ''}.
+              {incomeIsMedian
+                ? ' Move the income slider to yours, and add your spending and fees, to build your own bill.'
+                : ' Add your spending, fees, and income above to build your full bill — we don\u2019t fill those in for you.'}
             </p>
           )}
           <p className="mt-3 text-[11px] leading-relaxed text-[#5d7d7d]" style={FONT}>
@@ -523,7 +542,11 @@ function YourBill({
               <>Sales: {salesPct.toFixed(2)}% combined state+local rate (Tax Foundation
                 {salesYear ? `, ${salesYear}` : ''}). </>
             )}
-            Spending, fees &amp; income are your own.
+            {medianIncome != null && (
+              <>Income: starts at {jurisdictionName}&apos;s median household income
+                {acsYear ? ` (${acsYear} Census ACS)` : ' (Census ACS)'}. </>
+            )}
+            {medianIncome != null ? 'Spending & fees are your own.' : 'Spending, fees & income are your own.'}
           </p>
         </div>
       </div>
@@ -1341,28 +1364,35 @@ function GrandkidsForecast({
   const hasLocal = localPct != null
   const localLabel = data?.cz_name || data?.scope_label || 'Your area'
   const blank = isLoading || isError || !data || natPct == null
-  const diff = !blank && hasLocal ? (localPct as number) - (natPct as number) : null
 
   const raceLabel = RACE_OPTIONS.find(([v]) => v === race && v !== 'pooled')?.[1]
   const genderLabel = GENDER_OPTIONS.find(([v]) => v === gender && v !== 'pooled')?.[1]
   const demoQual = [raceLabel, genderLabel].filter(Boolean).join(' · ')
 
-  const verdict = blank
-    ? 'Grandkids forecast'
-    : !hasLocal
-      ? 'Grandkids forecast'
-      : diff != null && Math.abs(diff) < 1
-        ? `Kids raised in ${localLabel} land about the U.S. average`
-        : diff != null && diff > 0
-          ? `Better off: kids raised in ${localLabel} reach a higher income rank than the U.S. average`
-          : `Tougher odds: kids raised in ${localLabel} reach a lower income rank than the U.S. average`
+  // One bold sentence built only from the real percentiles the chart plots (rounded
+  // the same way the chart labels them, so the sentence and the graph agree).
+  // Null while loading / on error / with no national cell: no card, no stand-in.
+  const parentQual = `${parentIncome}-income parents${demoQual ? ` (${demoQual})` : ''}`
+  let takeaway: string | null = null
+  if (!blank && natPct != null) {
+    if (hasLocal) {
+      const gap = Math.round(localPct as number) - Math.round(natPct)
+      const gapText =
+        gap === 0
+          ? 'in line with the U.S.'
+          : `${Math.abs(gap)} ${Math.abs(gap) === 1 ? 'point' : 'points'} ${gap > 0 ? 'above' : 'below'} the U.S.`
+      takeaway = `Mobility outlook: kids in ${localLabel} with ${parentQual} reach the ${ordinal(localPct as number)} income percentile, ${gapText} (${ordinal(natPct)}).`
+    } else {
+      takeaway = `Mobility outlook: kids in the U.S. with ${parentQual} reach the ${ordinal(natPct)} income percentile (no local data for ${localLabel} in this group).`
+    }
+  }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[#d4e8e8] bg-white shadow-[0_4px_20px_rgba(26,107,107,0.06)]">
       {/* Teal verdict header (real numbers only). */}
       <div className="bg-[#1a6b6b] px-5 py-3.5 text-white">
         <h3 className="text-[15.5px] font-semibold leading-snug" style={SERIF}>
-          {verdict}
+          Grandkids forecast
         </h3>
         <p className="mt-0.5 text-[12px] text-white/85" style={FONT}>
           Adult income rank for kids with <span className="font-semibold">{parentIncome}-income</span> parents
@@ -1370,12 +1400,32 @@ function GrandkidsForecast({
         </p>
       </div>
 
+      {/* Bold single-sentence takeaway above the graph (real numbers only). */}
+      {takeaway && (
+        <p
+          className="mx-5 mt-5 rounded-xl border border-[#d4e8e8] bg-[#f4fafa] px-4 py-3 text-[17px] font-bold leading-snug text-[#0f2b2b]"
+          style={SERIF}
+        >
+          {takeaway}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-start gap-5 p-5">
         {/* Dot-column selectors — REAL Atlas dimensions. */}
-        <div className="flex shrink-0 gap-5">
+        <div className="shrink-0">
           <DotColumn title={'Parent\nincome'} options={PARENT_OPTIONS} active={parentIncome} onSelect={setParentIncome} />
-          <DotColumn title={'Child\nrace'} options={RACE_OPTIONS} active={race} onSelect={setRace} />
-          <DotColumn title={'Child\ngender'} options={GENDER_OPTIONS} active={gender} onSelect={setGender} />
+          <details className="mt-2 group" open={race !== 'pooled' || gender !== 'pooled'}>
+            <summary
+              className="cursor-pointer list-none text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#1a6b6b] hover:underline"
+              style={MONO}
+            >
+              More filters
+            </summary>
+            <div className="mt-2 flex gap-5">
+              <DotColumn title={'Child\nrace'} options={RACE_OPTIONS} active={race} onSelect={setRace} />
+              <DotColumn title={'Child\ngender'} options={GENDER_OPTIONS} active={gender} onSelect={setGender} />
+            </div>
+          </details>
         </div>
 
         {/* Chart — dashed "?" while blank, else the local-vs-U.S. slope. */}
@@ -1404,29 +1454,23 @@ function GrandkidsForecast({
             We couldn&apos;t load mobility data right now. Try again, or change a filter.
           </p>
         )}
-        {!blank && !hasLocal && (
-          <p className="rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-            {local == null
-              ? 'No local mobility data matched to this place for this group yet — showing the U.S. baseline.'
-              : `Not enough local data for ${localLabel} in this group — showing the U.S. baseline.`}
-          </p>
-        )}
-        {!blank && data?.note && (
-          <p className="mt-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
-            {data.note}
-          </p>
-        )}
-        {!blank && data?.source && (
-          <p className="mt-2 border-t border-[#eef4f4] pt-2 text-[11px] text-[#5d7d7d]" style={FONT}>
-            Source:{' '}
-            {data.source_url ? (
-              <a href={data.source_url} target="_blank" rel="noopener noreferrer" className="underline decoration-[#d4e8e8] underline-offset-2 hover:text-[#1a6b6b]">
-                {data.source}
-              </a>
-            ) : (
-              data.source
+        {!blank && (data?.note || data?.source) && (
+          <details className="mt-1 text-[11.5px] text-[#5d7d7d]" style={FONT}>
+            <summary className="cursor-pointer font-semibold hover:text-[#1a6b6b]">About this data</summary>
+            {data?.note && <p className="mt-1.5 leading-relaxed text-[#6b8a8a]">{data.note}</p>}
+            {data?.source && (
+              <p className="mt-1.5">
+                Source:{' '}
+                {data.source_url ? (
+                  <a href={data.source_url} target="_blank" rel="noopener noreferrer" className="underline decoration-[#d4e8e8] underline-offset-2 hover:text-[#1a6b6b]">
+                    {data.source}
+                  </a>
+                ) : (
+                  data.source
+                )}
+              </p>
             )}
-          </p>
+          </details>
         )}
       </div>
     </div>
@@ -1468,7 +1512,16 @@ function ModalSkeleton() {
 // full street address. All three resolve to a REAL place via /api/geocode.
 type GateMode = 'zip' | 'place' | 'address'
 
-function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }) {
+function WhereIsHome({
+  onResolved,
+  knownPlace,
+  knownLabel,
+}: {
+  onResolved: (loc: LocationData) => void
+  /** A real saved place (from the site-wide location), used for the no-address fallback. */
+  knownPlace?: LocationData | null
+  knownLabel?: string
+}) {
   const [mode, setMode] = useState<GateMode>('zip')
   const [zip, setZip] = useState('')
   // Free-text query for the 'place' (city/county) and 'address' modes.
@@ -1577,10 +1630,10 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
       </h3>
       <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-[#6b8a8a]" style={FONT}>
         {mode === 'zip'
-          ? 'Every town reaches into your pocket a little differently. Just the ZIP — nothing stored.'
+          ? 'Local taxes depend on where you live, so all we need is your ZIP: no street address, no apartment number. Nothing stored.'
           : mode === 'place'
-            ? 'Type your city or county — we’ll find your community. Nothing stored.'
-            : 'Type your full address — we only use it to find your community. Nothing stored.'}
+            ? 'Local taxes depend on where you live, so a city or county is enough: no street address or apartment number. Nothing stored.'
+            : 'Local taxes depend on where you live. A street address is optional and we only use it to find your community (no apartment number needed). Nothing stored.'}
       </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
@@ -1627,6 +1680,32 @@ function WhereIsHome({ onResolved }: { onResolved: (loc: LocationData) => void }
         >
           {busy ? 'Finding…' : needsChoice ? 'Pick your area' : 'Show me my money'}
         </button>
+      </div>
+
+      {/* Trust line: the reassurance that moves hesitant users to enter a location,
+          so it stays right under the box at readable size, with a clickable
+          no-address path. The fallback only appears when a real place is already
+          known (never a made-up area). */}
+      <div className="mt-3 flex flex-col items-center gap-1" style={FONT}>
+        <p className="text-[14px] font-semibold text-[#0f766e]">
+          Takes about 15 seconds · No data stored
+        </p>
+        {knownPlace ? (
+          <p className="text-[13.5px] text-[#4d6b6b]">
+            No address?{' '}
+            <button
+              type="button"
+              onClick={() => onResolved(knownPlace)}
+              className="font-semibold text-[#1a6b6b] underline underline-offset-2 hover:text-[#155757]"
+            >
+              We&apos;ll use the median for {knownLabel || 'your area'}
+            </button>
+          </p>
+        ) : (
+          <p className="text-[13.5px] text-[#4d6b6b]">
+            No address? A city or county works too — use the links below.
+          </p>
+        )}
       </div>
 
       {/* Real geography: this ZIP spans places / city limits, and city rates stack
@@ -1956,7 +2035,11 @@ export default function MoneyGameModal({
                 <div className="mt-2 sm:mt-3">
                   {!hasPlace ? (
                     /* ── Tab 1 gate: resolve a real place before any bill ── */
-                    <WhereIsHome onResolved={onResolvePlace} />
+                    <WhereIsHome
+                      onResolved={onResolvePlace}
+                      knownPlace={stateCode ? { state: stateCode, city: city ?? '', county: county ?? '' } : null}
+                      knownLabel={requestedLabel || city || county || stateCode}
+                    />
                   ) : stage === 'grandkids' ? (
                     /* Income-mobility forecast — independent of the finance fetch,
                        so it loads even when this place has no tax-bill data. */
@@ -1979,6 +2062,9 @@ export default function MoneyGameModal({
                       {/* ── Stage 1: Your bill ── */}
                       {stage === 'estimate' && (
                         <YourBill
+                          // Remount per place so the seeded ACS medians (home
+                          // value, household income) never carry over to another place.
+                          key={`${scopeState ?? ''}|${scopeCity ?? ''}|${scopeCounty ?? ''}`}
                           open={open}
                           stateCode={scopeState as string}
                           city={scopeCity}

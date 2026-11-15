@@ -57,6 +57,16 @@ def collect_pipeline_outputs(
                 )
             )
 
+    for p in sorted(summaries_root.rglob("_meeting_summary_technical.md")):
+        if p.is_file():
+            found.append(
+                OutputArtifact(
+                    kind="meeting_summary_technical",
+                    path=p,
+                    rel=_rel_to(pipe_root, p),
+                )
+            )
+
     for pattern, kind in (
         ("**/policy_drift.json", "policy_drift"),
         ("**/policy_drift.mmd", "policy_drift_mmd"),
@@ -142,16 +152,6 @@ def print_pipeline_output_index(
         flush=True,
     )
     print("", flush=True)
-
-    for p in sorted(summaries_root.rglob("_meeting_summary_technical.md")):
-        if p.is_file():
-            found.append(
-                OutputArtifact(
-                    kind="meeting_summary_technical",
-                    path=p,
-                    rel=_rel_to(pipe_root, p),
-                )
-            )
 
     order = (
         ("meeting_summary", "Meeting summaries for judges (start here)"),

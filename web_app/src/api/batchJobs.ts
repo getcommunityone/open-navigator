@@ -1,5 +1,6 @@
 import { apiTyped } from '../lib/apiClient'
 import { authHeaders } from '../lib/authHeader'
+import { tracedFetch } from '../lib/api'
 
 export type BatchJobsTotals = {
   batches: number
@@ -121,7 +122,7 @@ export type LaunchLog = {
 }
 
 export async function fetchLaunchLog(step: string): Promise<LaunchLog> {
-  const r = await fetch(
+  const r = await tracedFetch(
     `/api/batch-jobs/launch/log?step=${encodeURIComponent(step)}&lines=150`,
     { headers: authHeaders(), signal: AbortSignal.timeout(10_000) },
   )
@@ -163,7 +164,7 @@ export type LaunchResult = {
 }
 
 export async function fetchLaunchStatus(): Promise<LaunchStatus> {
-  const r = await fetch('/api/batch-jobs/launch', {
+  const r = await tracedFetch('/api/batch-jobs/launch', {
     signal: AbortSignal.timeout(10_000),
   })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -176,7 +177,7 @@ export async function launchPipeline(body: {
   n?: number
   parallel?: number
 }): Promise<LaunchResult> {
-  const r = await fetch('/api/batch-jobs/launch', {
+  const r = await tracedFetch('/api/batch-jobs/launch', {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -207,7 +208,7 @@ export async function stopPipeline(body: {
   step?: string
   force?: boolean
 } = {}): Promise<StopResult> {
-  const r = await fetch('/api/batch-jobs/launch/stop', {
+  const r = await tracedFetch('/api/batch-jobs/launch/stop', {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
