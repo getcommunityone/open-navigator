@@ -268,7 +268,17 @@ jurisdiction_counts AS (
     SELECT
         state_code,
         COUNT(*) FILTER (WHERE jurisdiction_type <> 'state') AS jurisdictions_count,
-        COUNT(*) FILTER (WHERE jurisdiction_type = 'school_district') AS school_districts_count
+        COUNT(*) FILTER (WHERE jurisdiction_type = 'school_district') AS school_districts_count,
+        -- governments_count (#351): local governments, not Census geographies.
+        -- Places and county subdivisions count only with Census FUNCSTAT A/B/C
+        -- (active government; partially / fully consolidated). FUNCSTAT S
+        -- (statistical: CDPs, CCDs), F, I, N and G are excluded. Counties and
+        -- school districts carry no FUNCSTAT in bronze, so all are counted.
+        COUNT(*) FILTER (
+            WHERE jurisdiction_type IN ('county', 'school_district')
+               OR (jurisdiction_type IN ('municipality', 'township')
+                   AND funcstat IN ('A', 'B', 'C'))
+        ) AS governments_count
     FROM {{ ref('int_jurisdictions') }}
     WHERE state_code IS NOT NULL
     GROUP BY state_code
@@ -368,6 +378,7 @@ national_stats AS (
         
         COALESCE((SELECT SUM(jurisdictions_count) FROM jurisdiction_counts), 0)::INTEGER as jurisdictions_count,
         COALESCE((SELECT SUM(school_districts_count) FROM jurisdiction_counts), 0)::INTEGER as school_districts_count,
+        COALESCE((SELECT SUM(governments_count) FROM jurisdiction_counts), 0)::INTEGER as governments_count,
         -- COALESCE every SUM to 0: an empty source set makes SUM() return NULL, which
         -- would violate the not_null grain test (a jurisdiction with zero of X reads 0, not NULL).
         COALESCE((SELECT SUM(nonprofits_count) FROM nonprofit_stats), 0)::INTEGER as nonprofits_count,
@@ -406,6 +417,7 @@ state_stats AS (
         
         COALESCE((SELECT jurisdictions_count FROM jurisdiction_counts WHERE state_code = nps.state_code), 0)::INTEGER as jurisdictions_count,
         COALESCE((SELECT school_districts_count FROM jurisdiction_counts WHERE state_code = nps.state_code), 0)::INTEGER as school_districts_count,
+        COALESCE((SELECT governments_count FROM jurisdiction_counts WHERE state_code = nps.state_code), 0)::INTEGER as governments_count,
         SUM(nps.nonprofits_count)::INTEGER as nonprofits_count,
         COALESCE((SELECT SUM(events_count) FROM event_stats WHERE state_code = nps.state_code), 0)::INTEGER as events_count,
         COALESCE((SELECT bills_count FROM bill_stats WHERE state_code = nps.state_code), 0)::INTEGER as bills_count,
@@ -438,6 +450,7 @@ county_stats AS (
         
         0 as jurisdictions_count,
         0 as school_districts_count,
+        0 as governments_count,
         nps.nonprofits_count::INTEGER,
         COALESCE(ces.events_count, 0)::INTEGER as events_count,
         0 as bills_count,
@@ -504,6 +517,7 @@ city_stats AS (
 
         0 as jurisdictions_count,
         0 as school_districts_count,
+        0 as governments_count,
         COALESCE(ncs.nonprofits_count, 0)::INTEGER as nonprofits_count,
         COALESCE(es.events_count, 0)::INTEGER as events_count,
         0 as bills_count,
