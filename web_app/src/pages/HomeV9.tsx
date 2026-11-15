@@ -1269,13 +1269,16 @@ export default function HomeV9() {
             return (
               <div className="v9-trending" style={{ maxWidth: 760, margin: '14px auto 0', textAlign: 'left' }}>
                 <div className="font-mono-x" style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#ea580c', marginBottom: 8 }}>
-                  🔥 Trending questions · {stateCode ? stateCode : 'Nationwide'}
+                  <span aria-hidden="true">🔥 </span>Trending questions · {stateCode ? stateCode : 'Nationwide'}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {trending.map((q) => {
+                    // Carry the ACTIVE scope (the one the label names), not the
+                    // saved location: a "Nationwide" row must not land the user
+                    // on a city-filtered page. Same rule as runSearch.
                     const p = new URLSearchParams()
-                    if (locState) p.set('state', locState)
-                    if (locCity) p.set('city', locCity)
+                    if (stateCode) p.set('state', stateCode)
+                    if (stateCode && city) p.set('city', city)
                     p.set('question_id', q.entity_id)
                     return (
                       <Link
