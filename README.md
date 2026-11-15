@@ -32,6 +32,7 @@ the site is a made-up number: when data is missing, it says so.
 | **Advocates and nonprofit leaders** | [guide for advocates](web_docs/docs/for-advocates.md) · [accountability strategy](web_docs/docs/guides/accountability-strategy.md) |
 | **Researchers and data analysts** | [data sources](web_docs/docs/data-sources/overview.md) · [data model](web_docs/docs/data-sources/data-model-erd.md) · [citations](CITATIONS.md) |
 | **Developers and data engineers** | [code walkthrough](web_docs/docs/development/code-walkthrough.md) · [quick start](web_docs/docs/quickstart.md) · [architecture](web_docs/docs/architecture.md) · [how we work](AGENTS.md) |
+| **Data platform and DataOps engineers** | [DataOps walkthrough](web_docs/docs/development/dataops-walkthrough.md): retries, recovery, data quality, AI observability, two real incidents, and what isn't built yet |
 
 **This quarter: data center accountability** (planned, not built yet). Residents ask what's being built near them,
 who approved it, what it does to their bill and whether the jobs are real. The plan, October to December 2026:
@@ -101,6 +102,32 @@ To edit the deck, change a slide in `web_docs/deck/slides/` and run `node web_do
 - **Sources and licences**: [data sources overview](web_docs/docs/data-sources/overview.md), [CITATIONS.md](CITATIONS.md).
   Meeting data follows the Council Data Project's model; places use Open Civic Data IDs.
 - **AI assistants**: an MCP server lets Claude and other assistants query the data. [MCP guide](web_docs/docs/integrations/mcp-server.md).
+</details>
+
+<details>
+<summary><b>Data platform and DataOps engineers</b>: how the pipelines fail, recover and get checked</summary>
+
+**Start with the [DataOps walkthrough](web_docs/docs/development/dataops-walkthrough.md):** each capability with what
+it does, the code, why it's built that way and how to see it run.
+
+| Capability | In short | Code |
+|---|---|---|
+| Failure detection and retry | Errors classified by cause: retry transient ones with backoff and jitter, stop at a quota wall, rotate off an overloaded model | [HTTP client](packages/core-lib/src/core_lib/http/client.py) · [Gemini client](packages/llm/src/llm/gemini/genai_text_client.py) |
+| Stuck-run recovery | Batch runs with no activity are cancelled and their units marked failed for a rerun | [batch_job_status.py](api/batch_jobs/batch_job_status.py) |
+| Safe, repeatable reruns | A second run changes nothing; a file is deleted only if it's byte-identical | [transcript_cache_paths.py](packages/llm/src/llm/gemini/transcript_cache_paths.py) |
+| Data quality and contracts | dbt tests, coverage-bias models, enforced model contracts, ODCS contracts in CI, `null` instead of a made-up number | [dbt tests](dbt_project/tests) · [odcs.py](packages/datamodels/models/odcs.py) |
+| AI in production | Every model call recorded (tokens, attempts, latency); output validated; summaries checked against official minutes; human exclusions | [usage](packages/llm/src/llm/usage) · [gap analysis](packages/llm/src/llm/gemini/meeting_gap_analysis.py) |
+| Observability | OpenTelemetry spans from the browser through the API | [telemetry.py](api/telemetry.py) · [api.ts](web_app/src/lib/api.ts) |
+| Standards | Issue-first rule enforced in CI, one review rubric for every PR, decisions written down | [AGENTS.md](AGENTS.md) · [pr_conventions.py](.github/scripts/pr_conventions.py) |
+
+**Two real incidents (November 2026):** a cache cleanup that never converged
+([#347](https://github.com/getcommunityone/open-navigator/pull/347),
+[#215](https://github.com/getcommunityone/open-navigator/pull/215)), and sign-in down on Neon's pooled endpoint
+([#368](https://github.com/getcommunityone/open-navigator/pull/368)).
+
+**Not built yet:** paging an on-call person, telling a table's users when its refresh fails, learned anomaly detection,
+AI root-cause assessment, and health checks for each database connection.
+
 </details>
 
 <details>
