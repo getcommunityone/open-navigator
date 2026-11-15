@@ -2062,6 +2062,9 @@ export default function MoneyGameModal({
                       {/* ── Stage 1: Your bill ── */}
                       {stage === 'estimate' && (
                         <YourBill
+                          // Remount per place so the seeded ACS medians (home
+                          // value, household income) never carry over to another place.
+                          key={`${scopeState ?? ''}|${scopeCity ?? ''}|${scopeCounty ?? ''}`}
                           open={open}
                           stateCode={scopeState as string}
                           city={scopeCity}
