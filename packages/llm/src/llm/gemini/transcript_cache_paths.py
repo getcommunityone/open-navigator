@@ -19,6 +19,7 @@ Legacy flat ``<jurisdiction_id>/`` at the cache root is still read. Reorganize w
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import os
 import re
@@ -27,6 +28,8 @@ from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+from loguru import logger
 
 DIR_TRANSCRIPTS = "01_transcripts"
 DIR_ANALYSIS = "02_analysis"
@@ -1922,6 +1925,66 @@ def _safe_move(src: Path, dest: Path, *, dry_run: bool) -> str:
     return "moved"
 
 
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _safe_policy_move(
+    src: Path,
+    dest: Path,
+    *,
+    dry_run: bool,
+    claimed: Dict[Path, Path],
+) -> str:
+    """
+    Move ``src`` to ``dest`` for the date cleanup without ever losing data (#48).
+
+    Unlike :func:`_safe_move` (which keeps the newer file by modification time),
+    this deletes ``src`` only when the file already at ``dest`` is byte-identical.
+    If the two differ, both are kept: ``src`` stays where it is and the collision
+    is counted and logged for a person to resolve.
+
+    ``claimed`` maps destinations taken earlier in the same pass to the file that
+    took them, so a dry run predicts collisions between two sources that collapse
+    onto a destination that doesn't exist yet. Every action is logged.
+    """
+    if dest.resolve() == src.resolve():
+        return "same"
+    competitor: Optional[Path] = None
+    if dest.is_file():
+        competitor = dest
+    elif dry_run and dest in claimed:
+        competitor = claimed[dest]
+    if competitor is not None:
+        if _sha256(src) == _sha256(competitor):
+            if dry_run:
+                logger.info("Would remove identical duplicate {} (same bytes as {})", src, dest)
+                return "would_remove_identical_duplicate"
+            src.unlink()
+            logger.info("Removed identical duplicate {} (same bytes as {})", src, dest)
+            return "removed_identical_duplicate"
+        logger.warning(
+            "Name collision kept both files: {} would become {}, which already holds "
+            "different content. Resolve by hand.",
+            src,
+            dest,
+        )
+        return "would_skip_collision" if dry_run else "skipped_collision"
+    if dry_run:
+        claimed[dest] = src
+        logger.info("Would move {} -> {}", src, dest)
+        return "would_move"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(src), str(dest))
+    claimed[dest] = dest
+    logger.info("Moved {} -> {}", src, dest)
+    return "moved"
+
+
 def migrate_policy_cache_layout(
     folder: Path,
     *,
@@ -2476,6 +2539,9 @@ def fix_policy_cache_dates_from_title(
     folder = folder.resolve()
     ensure_jurisdiction_layout(folder)
     stats: Dict[str, int] = defaultdict(int)
+    # Destinations taken in this pass (dest -> file that took it), so the dry run
+    # predicts collisions the real run would hit (#215 review, finding 3).
+    claimed: Dict[Path, Path] = {}
 
     for sub in _POLICY_SUBDIRS:
         subdir = folder / sub
@@ -2495,13 +2561,15 @@ def fix_policy_cache_dates_from_title(
             dest = _policy_file_dest(folder, sub, path, title, event_date)
             work_path: Optional[Path] = path
             if dest.resolve() != path.resolve():
-                action = _safe_move(path, dest, dry_run=dry_run)
+                action = _safe_policy_move(path, dest, dry_run=dry_run, claimed=claimed)
                 stats[action] += 1
-                if action in ("removed_older_duplicate", "would_remove_older_duplicate"):
+                if action in ("removed_identical_duplicate", "would_remove_identical_duplicate"):
                     work_path = None
-                elif not dry_run:
+                elif action == "moved":
                     work_path = dest
-                if sub == DIR_TRANSCRIPTS:
+                # A skipped collision leaves the transcript where it is, so its
+                # sidecars stay with it.
+                if sub == DIR_TRANSCRIPTS and action in ("moved", "would_move"):
                     dest_stem, _ = _split_policy_filename_stem_and_suffix(dest.name)
                     src_stem, _ = _split_policy_filename_stem_and_suffix(path.name)
                     for suffix in (".caption_raw_data.json", ".caption_formatted.json"):
@@ -2514,16 +2582,12 @@ def fix_policy_cache_dates_from_title(
                                 orphan.is_file()
                                 and orphan.resolve() != target_sidecar.resolve()
                             ):
-                                sidecar_action = _safe_move(
-                                    orphan, target_sidecar, dry_run=dry_run
+                                sidecar_action = _safe_policy_move(
+                                    orphan, target_sidecar, dry_run=dry_run, claimed=claimed
                                 )
-                                if sidecar_action in ("moved", "replaced_newer"):
-                                    stats["moved_sidecar"] += 1
-                                elif sidecar_action in (
-                                    "would_move",
-                                    "would_replace_newer",
-                                ):
-                                    stats["would_move_sidecar"] += 1
+                                # Count every sidecar action, deletions and
+                                # collisions included (#215 review, finding 1).
+                                stats[f"{sidecar_action}_sidecar"] += 1
             else:
                 stats["already_named"] += 1
             if (
@@ -2549,7 +2613,7 @@ def fix_policy_cache_dates_from_title(
         if dest.resolve() == path.resolve():
             stats["already_named"] += 1
             continue
-        action = _safe_move(path, dest, dry_run=dry_run)
+        action = _safe_policy_move(path, dest, dry_run=dry_run, claimed=claimed)
         stats[action] += 1
 
     return dict(stats)
