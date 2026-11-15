@@ -22,10 +22,12 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 # treated as stalled/timed-out, so the dashboard re-enables launching.
 _LAUNCH_STALL_SECONDS = 3600
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
+
+from api.auth import require_admin
 
 router = APIRouter(prefix="/batch-jobs", tags=["batch-jobs"])
 
@@ -382,12 +384,14 @@ def _repo_root() -> Path:
 
 
 def _launch_enabled() -> bool:
-    # Opt-out kill switch — set BATCH_JOBS_ALLOW_LAUNCH=0 on any exposed deploy.
-    return os.getenv("BATCH_JOBS_ALLOW_LAUNCH", "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
+    # Opt-in: disabled unless BATCH_JOBS_ALLOW_LAUNCH is explicitly truthy on this
+    # deploy (defaults off, matching deployments.py). The mutating endpoints are
+    # additionally gated by require_admin.
+    return os.getenv("BATCH_JOBS_ALLOW_LAUNCH", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
     )
 
 
@@ -546,7 +550,11 @@ async def launch_status() -> LaunchStatusResponse:
     )
 
 
-@router.post("/launch", response_model=LaunchResponse)
+@router.post(
+    "/launch",
+    response_model=LaunchResponse,
+    dependencies=[Depends(require_admin)],
+)
 async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     """(Re)launch a pipeline step. Refuses if a run is already active."""
     if not _launch_enabled():
@@ -712,7 +720,11 @@ class StopResponse(BaseModel):
     detail: str = ""
 
 
-@router.post("/launch/stop", response_model=StopResponse)
+@router.post(
+    "/launch/stop",
+    response_model=StopResponse,
+    dependencies=[Depends(require_admin)],
+)
 async def stop_pipeline(req: StopRequest) -> StopResponse:
     """Stop running pipeline launch(es). Signals the detached process group so the
     whole subtree exits. ``step`` targets one step; omit it to stop everything."""
@@ -810,7 +822,11 @@ class LaunchLogResponse(BaseModel):
     current_since: str = ""
 
 
-@router.get("/launch/log", response_model=LaunchLogResponse)
+@router.get(
+    "/launch/log",
+    response_model=LaunchLogResponse,
+    dependencies=[Depends(require_admin)],
+)
 async def launch_log(
     step: str = Query(..., description="Pipeline step whose latest log to tail"),
     lines: int = Query(120, ge=1, le=1000),

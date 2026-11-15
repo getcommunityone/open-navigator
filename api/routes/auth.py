@@ -18,7 +18,8 @@ from pydantic import BaseModel
 
 from api.database import get_db
 from api.models import User, OAuthState
-from api.auth import create_access_token, generate_state_token
+from api.auth import create_access_token, generate_state_token, is_admin_email
+from api.origins import is_safe_redirect
 
 # Load environment variables from .env file
 load_dotenv()
@@ -124,6 +125,7 @@ def get_or_create_user(
     full_name: Optional[str] = None,
     avatar_url: Optional[str] = None,
     username: Optional[str] = None,
+    email_verified: bool = False,
 ) -> User:
     """Get existing user or create new one from OAuth data"""
     
@@ -133,19 +135,40 @@ def get_or_create_user(
         User.oauth_id == oauth_id
     ).first()
     
+    # Admin status is derived from the ADMIN_EMAILS allowlist and re-evaluated on
+    # every login, so promoting/demoting an admin is a config change, not a DB edit.
+    admin = is_admin_email(email)
+
     if user:
-        # Update user info if changed
+        # Update user info if changed. Keep email in sync with the provider: it
+        # is the identity `is_admin`/`require_admin` key off, so letting it drift
+        # would silently lock out an admin whose provider email changed.
+        user.email = email
         user.full_name = full_name or user.full_name
         user.avatar_url = avatar_url or user.avatar_url
         user.username = username or user.username
         user.last_login = datetime.utcnow()
+        user.is_admin = admin
         db.commit()
         return user
-    
+
     # Try to find by email
     user = db.query(User).filter(User.email == email).first()
-    
+
     if user:
+        # Merging a new OAuth identity into a pre-existing account (matched only
+        # by email, not by this provider's own oauth_id) is an account-takeover
+        # vector unless the provider attests the email is verified. Refuse
+        # otherwise — email is unique, so a separate account isn't possible.
+        if not email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "An account with this email already exists. Sign in with the "
+                    "method you used originally, then link this provider from "
+                    "settings."
+                ),
+            )
         # Link OAuth account to existing user
         user.oauth_provider = provider
         user.oauth_id = oauth_id
@@ -154,9 +177,10 @@ def get_or_create_user(
         user.username = username or user.username
         user.last_login = datetime.utcnow()
         user.is_verified = True  # OAuth emails are verified
+        user.is_admin = admin
         db.commit()
         return user
-    
+
     # Create new user
     user = User(
         email=email,
@@ -167,6 +191,7 @@ def get_or_create_user(
         oauth_id=oauth_id,
         is_verified=True,
         is_active=True,
+        is_admin=admin,
         last_login=datetime.utcnow(),
     )
     db.add(user)
@@ -190,6 +215,14 @@ async def oauth_login(
     """
     if provider not in OAUTH_PROVIDERS:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+
+    # The callback appends the freshly minted JWT to redirect_uri, so an
+    # attacker-controlled target would exfiltrate the token. Drop anything not
+    # provably safe (an allowlisted origin or a same-origin relative path) and
+    # fall back to the trusted default — never hard-fail login over it.
+    if redirect_uri and not is_safe_redirect(redirect_uri):
+        logger.warning("Dropping unsafe OAuth redirect_uri: {}", redirect_uri)
+        redirect_uri = None
 
     config = OAUTH_PROVIDERS[provider]
     client_id = os.getenv(config['client_id_env'])
@@ -249,6 +282,22 @@ async def oauth_login(
     
     auth_url = f"{config['authorize_url']}?{urlencode(params)}"
     return RedirectResponse(url=auth_url)
+
+
+def _safe_error_redirect_base(oauth_state) -> str:
+    """Base URL for an OAuth *error* redirect, re-validated against the allowlist.
+
+    ``redirect_uri`` is validated at ``/login`` before it is stored, but a stale
+    ``OAuthState`` row (one written before a deploy, or by any future code path
+    that skips that check) could still carry an unsafe target. An error redirect
+    echoes attacker-controllable text in the query string, so never bounce it to
+    anything not provably safe — fall back to a same-origin ``/``.
+    """
+    frontend_url = os.getenv('FRONTEND_URL', '')
+    redirect_url = oauth_state.redirect_uri or (
+        frontend_url if frontend_url and 'localhost' not in frontend_url else '/'
+    )
+    return redirect_url if is_safe_redirect(redirect_url) else '/'
 
 
 @router.get("/callback/{provider}", name="oauth_callback")
@@ -340,8 +389,7 @@ async def oauth_callback(
                 logger.error(f"OAuth token exchange failed for {provider}: {token_response.text}")
                 
                 # Redirect to frontend with error
-                frontend_url = os.getenv('FRONTEND_URL', '')
-                redirect_url = oauth_state.redirect_uri or (frontend_url if frontend_url and 'localhost' not in frontend_url else '/')
+                redirect_url = _safe_error_redirect_base(oauth_state)
                 params = urlencode({'error': f'{provider.title()} login failed: {error_msg}'})
                 return RedirectResponse(url=f"{redirect_url}?{params}")
             
@@ -352,8 +400,7 @@ async def oauth_callback(
             if not access_token:
                 logger.error(f"❌ [{provider.upper()}] No access token in response!")
                 logger.error(f"No access token in response from {provider}: {token_data}")
-                frontend_url = os.getenv('FRONTEND_URL', '')
-                redirect_url = oauth_state.redirect_uri or (frontend_url if frontend_url and 'localhost' not in frontend_url else '/')
+                redirect_url = _safe_error_redirect_base(oauth_state)
                 params = urlencode({'error': f'{provider.title()} login failed: No access token received'})
                 return RedirectResponse(url=f"{redirect_url}?{params}")
             
@@ -368,29 +415,35 @@ async def oauth_callback(
         if not user_info:
             logger.error(f"❌ [{provider.upper()}] Could not retrieve user info! Check API response logs above.")
             logger.error(f"Could not retrieve user info from {provider}. Check API response logs above.")
-            frontend_url = os.getenv('FRONTEND_URL', '')
-            redirect_url = oauth_state.redirect_uri or (frontend_url if frontend_url and 'localhost' not in frontend_url else '/')
+            redirect_url = _safe_error_redirect_base(oauth_state)
             params = urlencode({'error': f'{provider.title()} login failed: Could not retrieve user information'})
             return RedirectResponse(url=f"{redirect_url}?{params}")
     
     except Exception as e:
         logger.error(f"Unexpected error during {provider} OAuth: {str(e)}")
-        frontend_url = os.getenv('FRONTEND_URL', '')
-        redirect_url = oauth_state.redirect_uri or (frontend_url if frontend_url and 'localhost' not in frontend_url else '/')
+        redirect_url = _safe_error_redirect_base(oauth_state)
         params = urlencode({'error': f'{provider.title()} login failed: {str(e)}'})
         return RedirectResponse(url=f"{redirect_url}?{params}")
     
-    # Get or create user
-    user = get_or_create_user(
-        db=db,
-        email=user_info['email'],
-        provider=provider,
-        oauth_id=user_info['oauth_id'],
-        full_name=user_info.get('full_name'),
-        avatar_url=user_info.get('avatar_url'),
-        username=user_info.get('username'),
-    )
-    
+    # Get or create user. A verified-email conflict (an existing account owns
+    # this email under a different identity) surfaces as a friendly error
+    # redirect rather than a raw 409.
+    try:
+        user = get_or_create_user(
+            db=db,
+            email=user_info['email'],
+            provider=provider,
+            oauth_id=user_info['oauth_id'],
+            full_name=user_info.get('full_name'),
+            avatar_url=user_info.get('avatar_url'),
+            username=user_info.get('username'),
+            email_verified=bool(user_info.get('email_verified')),
+        )
+    except HTTPException as exc:
+        redirect_url = _safe_error_redirect_base(oauth_state)
+        params = urlencode({'error': exc.detail})
+        return RedirectResponse(url=f"{redirect_url}?{params}")
+
     # Clean up state token
     db.delete(oauth_state)
     db.commit()
@@ -411,6 +464,12 @@ async def oauth_callback(
         # Use absolute URL for separate frontend server
         redirect_url = oauth_state.redirect_uri or frontend_url
     
+    # Defense-in-depth: redirect_uri was validated at /login, but never append
+    # the token to a target that isn't provably safe.
+    if not is_safe_redirect(redirect_url):
+        logger.warning("Refusing token redirect to unsafe target: {}", redirect_url)
+        redirect_url = '/'
+
     # Append token as URL parameter
     params = urlencode({'token': jwt_token})
     full_redirect_url = f"{redirect_url}?{params}" if '?' not in redirect_url else f"{redirect_url}&{params}"
@@ -431,6 +490,9 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
             data = resp.json()
             user_info = {
                 'email': data.get('email'),
+                # whoami-v2 returns camelCase `emailVerified`; the OIDC
+                # /oauth/userinfo endpoint uses snake_case. Accept either.
+                'email_verified': bool(data.get('emailVerified') or data.get('email_verified')),
                 'oauth_id': str(data.get('id')),
                 'full_name': data.get('fullname') or data.get('name'),
                 'avatar_url': data.get('avatarUrl'),
@@ -442,6 +504,11 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
             data = resp.json()
             user_info = {
                 'email': data.get('email'),
+                # Google v2 userinfo returns `verified_email`; OIDC returns
+                # `email_verified`. Accept either.
+                'email_verified': bool(
+                    data.get('verified_email') or data.get('email_verified')
+                ),
                 'oauth_id': data.get('id'),
                 'full_name': data.get('name'),
                 'avatar_url': data.get('picture'),
@@ -509,6 +576,10 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
                 
                 user_info = {
                     'email': email,
+                    # Graph API exposes no email-verification flag, and the email
+                    # may be a synthetic placeholder — never treat it as verified
+                    # for the purpose of merging into an existing account.
+                    'email_verified': False,
                     'oauth_id': str(data.get('id')),
                     'full_name': data.get('name'),
                     'avatar_url': data.get('picture', {}).get('data', {}).get('url') if isinstance(data.get('picture'), dict) else None,
@@ -528,15 +599,28 @@ async def get_user_info(provider: str, access_token: str, config: dict) -> dict:
             resp = await client.get(config['userinfo_url'], headers=headers)
             data = resp.json()
             
-            # Get user email if not public
-            email = data.get('email')
-            if not email:
-                resp_emails = await client.get('https://api.github.com/user/emails', headers=headers)
+            # Resolve the primary email and its verified status from
+            # /user/emails — the /user profile email alone carries no
+            # verification signal.
+            email = None
+            email_verified = False
+            resp_emails = await client.get('https://api.github.com/user/emails', headers=headers)
+            if resp_emails.status_code == 200:
                 emails = resp_emails.json()
-                email = next((e['email'] for e in emails if e.get('primary')), emails[0]['email'] if emails else None)
-            
+                primary = next(
+                    (e for e in emails if e.get('primary')),
+                    emails[0] if emails else None,
+                )
+                if primary:
+                    email = primary.get('email')
+                    email_verified = bool(primary.get('verified'))
+            if not email:
+                # Fallback to the profile email; verification stays unknown.
+                email = data.get('email')
+
             user_info = {
                 'email': email,
+                'email_verified': email_verified,
                 'oauth_id': str(data.get('id')),
                 'full_name': data.get('name'),
                 'avatar_url': data.get('avatar_url'),

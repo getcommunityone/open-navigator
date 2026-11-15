@@ -114,10 +114,14 @@ from api.telemetry import setup_telemetry
 
 setup_telemetry(app)
 
-# Add CORS middleware
+# Add CORS middleware. Origins come from an explicit env-driven allowlist
+# (api/origins.py), never "*": with allow_credentials=True, Starlette reflects
+# the caller's Origin, so "*" would trust every site on the internet.
+from api.origins import allowed_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(allowed_origins()),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
