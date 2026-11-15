@@ -56,7 +56,7 @@ tiktoken>=0.5.0
 databricks-sdk==0.18.0
 # Spark + Delta Lake live in requirements-spark.txt (optional, requires Java).
 # Install with: pip install -r requirements-spark.txt
-pandas==2.1.4
+pandas==2.2.3
 pyreadr>=0.5.0
 polars==0.20.2
 pyarrow==26.0.1
@@ -67,7 +67,7 @@ geopandas>=1.0.0
 shapely>=2.0.0
 
 # NLP & Text Analysis
-spacy==3.7.2
+spacy==3.8.7
 # Bumped to clear High Dependabot deserialization advisory + fix CI pip-install
 # conflict (sentence-transformers 2.2.2 capped transformers<5.0.0).
 transformers==5.10.2
@@ -107,7 +107,7 @@ asyncpg==0.29.0                    # Async PostgreSQL driver (for Neon)
 # Visualization
 plotly==5.18.0
 folium==0.15.1
-matplotlib==3.8.2
+matplotlib==3.11.2
 seaborn==0.13.1
 
 # Utilities

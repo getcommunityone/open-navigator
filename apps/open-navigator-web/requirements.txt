@@ -52,7 +52,7 @@ opentelemetry-exporter-otlp-proto-http==1.45.2
 # --- Eagerly imported at startup ----------------------------------------
 # api.main imports scripts.visualization.heatmap (pandas + folium + plotly), and
 # agents/ingestion modules that touch pandas/bs4 at module load.
-pandas==2.1.4
+pandas==2.2.3
 folium==0.15.1
 plotly==5.18.0
 beautifulsoup4==4.12.2
