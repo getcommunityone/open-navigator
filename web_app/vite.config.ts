@@ -10,7 +10,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
-        navigateFallbackDenylist: [/^\/api/, /^\/docs/]
+        navigateFallbackDenylist: [/^\/api/, /^\/docs/],
+        // The main bundle is ~3 MB; vite-plugin-pwa 2.x fails the build when a
+        // precached asset exceeds its 2 MB default. 5 MB leaves headroom.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       devOptions: {
         enabled: false

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -5,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pandas as pd
 import pytest
-from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import ingestion.municipal_generic as municipal_generic
@@ -21,6 +21,33 @@ from ingestion.municipal_generic import (
 )
 from models.meeting_event import Classification, EventStatus
 from models.proximity_alert import ProximityAlertCreate
+
+
+class TestClient:
+    """Minimal sync client over httpx.ASGITransport.
+
+    starlette's TestClient passes ``app=`` to httpx.Client, which httpx 0.28
+    removed, so it fails in CI ("unexpected keyword argument 'app'").
+    """
+
+    __test__ = False
+
+    def __init__(self, asgi_app):
+        self._app = asgi_app
+
+    def request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        async def go() -> httpx.Response:
+            transport = httpx.ASGITransport(app=self._app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+                return await client.request(method, url, **kwargs)
+
+        return asyncio.run(go())
+
+    def get(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("POST", url, **kwargs)
 
 
 @pytest.fixture()
