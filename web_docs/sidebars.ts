@@ -54,6 +54,7 @@ const sidebars: SidebarsConfig = {
         'quickstart',
         'development/code-walkthrough',
         'development/dataops-walkthrough',
+        'for-students',
         'quick-reference',
       ],
     },
