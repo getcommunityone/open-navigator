@@ -49,6 +49,7 @@ _TABLE_COLUMN_FALLBACKS: Dict[str, frozenset] = {
             "city",
             "jurisdictions_count",
             "school_districts_count",
+            "governments_count",
             "nonprofits_count",
             "events_count",
             "bills_count",
@@ -374,6 +375,7 @@ async def get_stats(
                 'city': city,
                 'jurisdictions': 0,
                 'school_districts': 0,
+                'governments': None,
                 'nonprofits': 0,
                 'events': 0,
                 'bills': 0,
@@ -397,6 +399,10 @@ async def get_stats(
                 'city': city,
                 'jurisdictions': stats.get('jurisdictions_count', 0),
                 'school_districts': stats.get('school_districts_count', 0),
+                # Local governments (#351): Census geographies minus statistical
+                # areas (CDPs, CCDs). None — never a stand-in 0 — when the
+                # serving table predates the column or the row is a fallback.
+                'governments': stats.get('governments_count'),
                 'nonprofits': stats.get('nonprofits_count', 0),
                 'events': stats.get('events_count', 0),
                 'bills': stats.get('bills_count', 0),

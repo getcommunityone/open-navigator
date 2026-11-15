@@ -46,6 +46,8 @@ models:
         description: "School districts from int_jurisdictions (jurisdiction_type = 'school_district'). Populated on national and state rows; 0 on county/city rows."
         tests:
           - not_null
+      - name: governments_count
+        description: "Local governments (#351): counties, school districts, and places / county subdivisions with Census FUNCSTAT A, B or C (active governments). Excludes statistical areas (census-designated places, CCDs; FUNCSTAT S) and fictitious, inactive, nonfunctioning or subordinate units. Counties and school districts have no FUNCSTAT in bronze, so all are counted, including a few county equivalents with no government (Alaska census areas, Connecticut planning regions) and dependent school districts. Populated on national and state rows; 0 on county/city rows."
       - name: nonprofits_count
         description: "Number of nonprofits in the geography."
         tests:
