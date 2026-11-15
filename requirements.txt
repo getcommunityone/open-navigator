@@ -56,7 +56,7 @@ tiktoken>=0.5.0
 databricks-sdk==0.18.0
 # Spark + Delta Lake live in requirements-spark.txt (optional, requires Java).
 # Install with: pip install -r requirements-spark.txt
-pandas==2.1.4
+pandas==2.2.3
 pyreadr>=0.5.0
 polars==0.20.2
 pyarrow==26.0.1
@@ -67,7 +67,7 @@ geopandas>=1.0.0
 shapely>=2.0.0
 
 # NLP & Text Analysis
-spacy==3.7.2
+spacy==3.8.7
 # Bumped to clear High Dependabot deserialization advisory + fix CI pip-install
 # conflict (sentence-transformers 2.2.2 capped transformers<5.0.0).
 transformers==5.10.2
@@ -89,13 +89,13 @@ python-multipart==0.0.32
 
 # Observability (OpenTelemetry tracing for FastAPI — see api/telemetry.py)
 opentelemetry-api==1.45.2
-opentelemetry-sdk==1.42.0
-opentelemetry-instrumentation-fastapi==0.63b0
-opentelemetry-exporter-otlp-proto-http==1.42.0
+opentelemetry-sdk==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2
+opentelemetry-exporter-otlp-proto-http==1.45.2
 # Database query spans (asyncpg, psycopg2, SQLAlchemy), same 0.63b0 line as the FastAPI one (#258)
-opentelemetry-instrumentation-asyncpg==0.63b0
-opentelemetry-instrumentation-psycopg2==0.63b0
-opentelemetry-instrumentation-sqlalchemy==0.63b0
+opentelemetry-instrumentation-asyncpg==0.66b2
+opentelemetry-instrumentation-psycopg2==0.66b2
+opentelemetry-instrumentation-sqlalchemy==0.66b2
 
 # Authentication & OAuth
 python-jose[cryptography]==3.5.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 algo confusion + CVE-2024-33664 JWT bomb)
@@ -107,7 +107,7 @@ asyncpg==0.29.0                    # Async PostgreSQL driver (for Neon)
 # Visualization
 plotly==5.18.0
 folium==0.15.1
-matplotlib==3.8.2
+matplotlib==3.11.2
 seaborn==0.13.1
 
 # Utilities

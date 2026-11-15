@@ -16,7 +16,7 @@ dependencies = [
     # municipal_generic.py imports from the models namespace (proximity_alert, meeting_event)
     "communityone-datamodels",
     "pandas>=2.1",
-    "pyarrow>=14",
+    "pyarrow>=26.0.1",
     "zipfile-deflate64>=0.2",
     # MDM entity resolution (ingestion.mdm) — Splink on the Postgres warehouse
     "splink>=4.0",

@@ -56,9 +56,9 @@ python-multipart>=0.0.32
 # installs (install.sh / install.ps1 prefer this file) don't break on
 # `import opentelemetry.instrumentation.fastapi`.
 opentelemetry-api==1.45.2
-opentelemetry-sdk==1.42.0
-opentelemetry-instrumentation-fastapi==0.63b0
-opentelemetry-exporter-otlp-proto-http==1.42.0
+opentelemetry-sdk==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2
+opentelemetry-exporter-otlp-proto-http==1.45.2
 
 # Visualization
 plotly>=5.18.0
