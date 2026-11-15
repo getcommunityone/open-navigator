@@ -11,7 +11,7 @@ playwright>=1.49.0
 httpx>=0.25.0
 crawl4ai>=0.4.0
 litellm>=1.40.0
-aiohttp>=3.14.3
+aiohttp>=3.14.4
 youtube-transcript-api>=0.6.2
 
 # AI & LLM (CPU versions)
@@ -26,14 +26,14 @@ tiktoken>=0.5.0
 
 # Databricks Agent Framework (Mosaic AI)
 databricks-sdk>=0.18.0
-mlflow>=3.17.0
+mlflow>=3.17.2
 databricks-agents>=0.1.0
 databricks-vectorsearch>=0.22.0
 # Spark + Delta Lake live in requirements-spark.txt (optional, requires Java).
 # Install with: pip install -r requirements-spark.txt
 pandas>=2.1.0
 polars>=0.20.0
-pyarrow>=14.0.0
+pyarrow>=26.0.1
 
 # NLP - CPU-only versions (much lighter)
 # Note: Omitting spacy, transformers, sentence-transformers, torch to save ~2GB
@@ -55,10 +55,10 @@ python-multipart>=0.0.32
 # Required at API startup; keep in sync with requirements.txt so CPU-only
 # installs (install.sh / install.ps1 prefer this file) don't break on
 # `import opentelemetry.instrumentation.fastapi`.
-opentelemetry-api==1.42.0
-opentelemetry-sdk==1.42.0
-opentelemetry-instrumentation-fastapi==0.63b0
-opentelemetry-exporter-otlp-proto-http==1.42.0
+opentelemetry-api==1.45.2
+opentelemetry-sdk==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2
+opentelemetry-exporter-otlp-proto-http==1.45.2
 
 # Visualization
 plotly>=5.18.0

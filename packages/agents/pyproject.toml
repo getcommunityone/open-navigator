@@ -10,7 +10,7 @@ dependencies = [
     "duckdb>=0.9.0",
     "langchain>=0.1.0",
     "loguru>=0.7.2",
-    "mlflow>=3.17.0",
+    "mlflow>=3.17.2",
     "pandas>=2.1.4",
     "pydantic>=2.5.0",
 ]
