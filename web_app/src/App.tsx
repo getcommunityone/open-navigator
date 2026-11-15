@@ -10,6 +10,7 @@ import PolicyQuestionsPage from './pages/PolicyQuestionsPage'
 import PolicyQuestionPage from './pages/PolicyQuestionPage'
 import BrowseTopics from './pages/BrowseTopics'
 import BrowseCauses from './pages/BrowseCauses'
+import DataCenters from './pages/DataCenters'
 import MoneyTalk from './pages/MoneyTalk'
 import Dashboard from './pages/Dashboard'
 import Analytics from './pages/Analytics'
@@ -168,6 +169,7 @@ function App() {
         <Route path="policy-question/:questionId" element={<PolicyQuestionPage />} />
         <Route path="browse-topics" element={<BrowseTopics />} />
         <Route path="browse-causes" element={<BrowseCauses />} />
+        <Route path="data-centers" element={<DataCenters />} />
         <Route path="money-and-talk" element={<MoneyTalk />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
         <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />

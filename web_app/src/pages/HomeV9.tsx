@@ -230,7 +230,8 @@ interface BrowseTopItem {
   entity_id: string
   entity_name: string
   transcript_count: number
-  state_code?: string
+  // Nullable, as the API's BrowseTopItem: question/cause items have none; place/topic carry one.
+  state_code?: string | null
 }
 
 // Maps each browse card's stable `key` to the API's entity_type so cards can
@@ -322,7 +323,7 @@ function MoneyHookBanner() {
             How much of <span style={{ color: TEAL }}>your money</span> is on the line?
           </div>
           <div style={{ fontSize: 14, color: '#57534e', marginTop: 4 }}>
-            Four governments, one wallet. 90 seconds, mildly humbling, grandkids included.
+            See what you pay in local taxes, where it goes, and what it means for your grandkids. About 90 seconds.
           </div>
         </div>
         <button
@@ -469,6 +470,14 @@ export default function HomeV9() {
   const national = level === 'national' || !locState
   const stateCode = national ? undefined : locState
   const city = level === 'city' ? locCity : undefined
+  // URL params for the ACTIVE scope (the one the scope label names), never the
+  // saved location: with National selected, links carry no place at all (#350).
+  const activeScopeParams = (): URLSearchParams => {
+    const p = new URLSearchParams()
+    if (stateCode) p.set('state', stateCode)
+    if (stateCode && city) p.set('city', city)
+    return p
+  }
   const placeLabel =
     level === 'national' || !locState
       ? 'the U.S.'
@@ -740,10 +749,6 @@ export default function HomeV9() {
       <SiteHeader />
 
       <main className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
-        {/* ── Money hook (compact teal banner; REAL geocode + REAL modal) — sits
-            above the search hero ── */}
-        <MoneyHookBanner />
-
         {/* ── Hero: thesis + search + trending ── */}
         <section className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center' }}>
           <h1
@@ -1261,6 +1266,43 @@ export default function HomeV9() {
             )}
           </div>
 
+          {/* ── Trending questions (#151): the concrete, named policy questions
+              lead the page — reviewers found them a stronger hook than the money
+              banner. Same REAL /api/browse/top-items data as the Browse
+              questions flyout; the row is hidden when there are none, and its
+              label names the scope actually applied (state or nationwide). ── */}
+          {(() => {
+            const trending = (browseTopItems?.question ?? []).filter((q) => !!q.entity_name).slice(0, 5)
+            if (trending.length === 0) return null
+            return (
+              <div className="v9-trending" style={{ maxWidth: 760, margin: '14px auto 0', textAlign: 'left' }}>
+                <div className="font-mono-x" style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#ea580c', marginBottom: 8 }}>
+                  <span aria-hidden="true">🔥 </span>Trending questions · {stateCode ? stateCode : 'Nationwide'}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {trending.map((q) => {
+                    // Carry exactly the scope the label names: the list comes
+                    // from a state-scoped query, so the link carries the state
+                    // (never the saved city) — a "Nationwide" row carries none.
+                    const p = new URLSearchParams()
+                    if (stateCode) p.set('state', stateCode)
+                    p.set('question_id', q.entity_id)
+                    return (
+                      <Link
+                        key={q.entity_id}
+                        to={`/policy-questions?${p.toString()}`}
+                        state={{ fromHome: true }}
+                        style={{ display: 'inline-block', padding: '8px 14px', borderRadius: 999, background: '#fff', border: '1px solid #fed7aa', color: INK, fontSize: 14, fontWeight: 600, lineHeight: 1.35, textDecoration: 'none' }}
+                      >
+                        {q.entity_name}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* ── Browse pills: dropdown flyout previews, right under the search.
               Each pill previews its top ~5 items (questions/topics/causes) from
               the warehouse — no fabricated rows. ── */}
@@ -1284,9 +1326,7 @@ export default function HomeV9() {
                     label: q.entity_name,
                     transcripts: q.transcript_count,
                     onSelect: () => {
-                      const p = new URLSearchParams()
-                      if (locState) p.set('state', locState)
-                      if (locCity) p.set('city', locCity)
+                      const p = activeScopeParams()
                       p.set('question_id', q.entity_id)
                       navigate(`/policy-questions?${p.toString()}`, { state: { fromHome: true } })
                     },
@@ -1299,14 +1339,11 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location into the Topics browse so it lands
-                // scoped to that place — the city when we have one (so e.g.
-                // Atlanta filters to Atlanta, not all of GA), else the state.
-                // No location set → the full national catalog.
-                to: locState
-                  ? `/browse-topics?state=${encodeURIComponent(locState)}${
-                      locCity ? `&city=${encodeURIComponent(locCity)}` : ''
-                    }`
+                // Carry the ACTIVE scope into the Topics browse: city level
+                // filters to the city, state level to the state, National (or
+                // no location) → the full national catalog (#350).
+                to: activeScopeParams().toString()
+                  ? `/browse-topics?${activeScopeParams().toString()}`
                   : '/browse-topics',
                 seeAllLabel: 'topics',
                 desc: 'Everything discussed in public meetings.',
@@ -1316,9 +1353,7 @@ export default function HomeV9() {
                   label: t.entity_name,
                   transcripts: t.transcript_count,
                   onSelect: () => {
-                    const p = new URLSearchParams()
-                    if (locState) p.set('state', locState)
-                    if (locCity) p.set('city', locCity)
+                    const p = activeScopeParams()
                     p.set('topic_id', t.entity_id)
                     navigate(`/browse-topics?${p.toString()}`, { state: { fromHome: true } })
                   },
@@ -1331,12 +1366,10 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location into Browse Causes (same as Topics)
-                // so the cause pills + decision cards land scoped to that place.
-                to: locState
-                  ? `/browse-causes?state=${encodeURIComponent(locState)}${
-                      locCity ? `&city=${encodeURIComponent(locCity)}` : ''
-                    }`
+                // Carry the ACTIVE scope into Browse Causes (same as Topics) so
+                // the cause pills + decision cards land on the scope the user sees.
+                to: activeScopeParams().toString()
+                  ? `/browse-causes?${activeScopeParams().toString()}`
                   : '/browse-causes',
                 seeAllLabel: 'causes',
                 desc: 'Local nonprofits, grants & charitable work.',
@@ -1346,9 +1379,7 @@ export default function HomeV9() {
                   label: c.entity_name,
                   transcripts: c.transcript_count,
                   onSelect: () => {
-                    const p = new URLSearchParams()
-                    if (locState) p.set('state', locState)
-                    if (locCity) p.set('city', locCity)
+                    const p = activeScopeParams()
                     p.set('cause_id', c.entity_id)
                     navigate(`/browse-causes?${p.toString()}`, { state: { fromHome: true } })
                   },
@@ -1361,16 +1392,11 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location into the Places browse so it lands
-                // pre-filtered (e.g. "Atlanta" → ?state=GA&city=Atlanta). City
-                // takes precedence over county; state is included to disambiguate.
-                // No location set → plain /jurisdictions browse.
+                // Carry the ACTIVE scope into the Places browse so it lands
+                // pre-filtered (e.g. city level "Atlanta" → ?state=GA&city=Atlanta).
+                // National scope → plain /jurisdictions browse (#350).
                 to: (() => {
-                  const p = new URLSearchParams()
-                  if (locState) p.set('state', locState)
-                  if (locCity) p.set('city', locCity)
-                  else if (location?.county) p.set('county', location.county)
-                  const qs = p.toString()
+                  const qs = activeScopeParams().toString()
                   return qs ? `/jurisdictions?${qs}` : '/jurisdictions'
                 })(),
                 seeAllLabel: 'places',
@@ -1557,6 +1583,10 @@ export default function HomeV9() {
           </div>
 
         </section>
+
+        {/* ── Money hook (compact teal banner; REAL modal) — now the secondary
+            CTA, below the hero and its trending questions (#151). ── */}
+        <MoneyHookBanner />
 
         {/* ── Contested + Raised Eyebrows — two dedicated lens sections (REAL
             lens cards). The Contested header carries the single shared

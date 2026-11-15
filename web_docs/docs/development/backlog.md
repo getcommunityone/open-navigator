@@ -468,6 +468,10 @@ Analyze public comments:
 - 🔲 Constituent communication tools
 - 🔲 API v2 launch
 
+### Q1 2027
+- 🔲 Pipeline reliability, phase 1: log every pipeline run, triage failures, monthly report (read-only) ([#220](https://github.com/getcommunityone/open-navigator/issues/220))
+- 🔲 Pipeline reliability, phase 2 (if phase 1 is useful): run logging in CI and jobs; one issue per recurring failure
+
 ### 2027+
 - 🔲 Predictive analytics
 - 🔲 Causal analysis research

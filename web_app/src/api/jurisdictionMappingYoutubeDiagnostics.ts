@@ -1,4 +1,5 @@
 /** Live YouTube channel / bronze video diagnostics per jurisdiction. */
+import { tracedFetch } from '../lib/api'
 
 export type YoutubeDiagnosticsEntity = 'counties' | 'cities' | 'towns'
 
@@ -93,7 +94,7 @@ export async function fetchYoutubeStateRollup(
 ): Promise<YoutubeStateRollupResponse> {
   const u = new URL('/api/jurisdiction-mapping/youtube-state-rollup', window.location.origin)
   u.searchParams.set('entity', entity)
-  const res = await fetch(u.toString(), { credentials: 'include', signal })
+  const res = await tracedFetch(u.toString(), { credentials: 'include', signal })
   if (!res.ok) {
     let detail = `HTTP ${res.status}`
     try {
@@ -115,7 +116,7 @@ export async function fetchYoutubeChannelCoverage(
   u.searchParams.set('entity', params.entity)
   if (params.state_code?.trim()) u.searchParams.set('state_code', params.state_code.trim().toUpperCase())
 
-  const res = await fetch(u.toString(), { credentials: 'include', signal })
+  const res = await tracedFetch(u.toString(), { credentials: 'include', signal })
   if (!res.ok) {
     let detail = `HTTP ${res.status}`
     try {
@@ -139,7 +140,7 @@ export async function fetchYoutubeChannelDiagnostics(
   if (params.name_search) u.searchParams.set('name_search', params.name_search)
   if (params.limit != null) u.searchParams.set('limit', String(params.limit))
 
-  const res = await fetch(u.toString(), { credentials: 'include', signal })
+  const res = await tracedFetch(u.toString(), { credentials: 'include', signal })
   if (!res.ok) {
     let detail = `HTTP ${res.status}`
     try {

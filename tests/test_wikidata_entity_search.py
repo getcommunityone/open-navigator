@@ -21,9 +21,17 @@ if str(_root) not in sys.path:
 
 from scrapers.wikidata import wikidata_entity_search as wes
 from scrapers.wikidata import wikidata_hybrid_sql
-from scrapers.wikidata.load_jurisdictions_wikidata import (
-    _batched_sorted_literals,
-    _municipality_wd_literal_sets,
+try:  # the loader moved to archive/ (not shipped); only the two tests of its helpers need it
+    from scrapers.wikidata.load_jurisdictions_wikidata import (
+        _batched_sorted_literals,
+        _municipality_wd_literal_sets,
+    )
+    _ARCHIVED_LOADER = True
+except ImportError:
+    _ARCHIVED_LOADER = False
+
+needs_archived_loader = pytest.mark.skipif(
+    not _ARCHIVED_LOADER, reason="archive/datasources/wikidata/load_jurisdictions_wikidata.py is not in this checkout"
 )
 
 
@@ -82,6 +90,7 @@ def test_municipality_mapping_sparql_property_led_union_no_p17() -> None:
     assert "wdt:P590" in q2
 
 
+@needs_archived_loader
 def test_batched_sorted_literals_chunk_size() -> None:
     s = {str(i).zfill(3) for i in range(25)}
     batches = _batched_sorted_literals(s, 10)
@@ -90,6 +99,7 @@ def test_batched_sorted_literals_chunk_size() -> None:
     assert all(len(b) <= 10 for b in batches)
 
 
+@needs_archived_loader
 def test_municipality_wd_literal_sets_hyphen_geoid_and_padding() -> None:
     ff1, _ = _municipality_wd_literal_sets("01-00100", None)
     assert "0100100" in ff1

@@ -12,6 +12,11 @@ Source-of-truth resolution order:
     4. Vendored seed CSV (``seed_ntee_codes.csv``) — 26-row major-group subset,
        sufficient for local smoke tests but NOT the full 196-code production
        taxonomy.
+       Its rows are the 26 major groups A-Z from NCCS's NTEE code table
+       (https://nccsdata.s3.amazonaws.com/lookups/bmf/latest/ntee_code.csv, linked from
+       https://nccs.urban.org/nccs/datasets/ntee/, read 2026-11-14): each group's name is
+       the one its codes' descriptions give ("within the ... major group area"), and Z is
+       Z99's definition, "Unknown" (#321).
 
 Provenance: IRS Publication 557 + NCCS (National Center for Charitable
 Statistics), curated and republished on HuggingFace. NCCS does not publish

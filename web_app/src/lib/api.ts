@@ -1,6 +1,18 @@
 // Native fetch-based API client - No axios dependency!
 // Handles relative URLs correctly without HTTP/HTTPS conversion issues
 
+import {
+  context,
+  defaultTextMapSetter,
+  propagation,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+  type Span,
+  type TextMapSetter,
+} from '@opentelemetry/api'
+import { TRACER_NAME } from '../instrumentation'
+
 /** Set `VITE_DEBUG_API=true` in `.env.local` to log every request in dev. */
 const DEBUG_API = import.meta.env.VITE_DEBUG_API === 'true'
 
@@ -23,6 +35,79 @@ if (import.meta.env.PROD) {
 } else {
   API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
   apiLog('[API] Development base URL:', API_BASE_URL)
+}
+
+// --- Tracing (#260) ----------------------------------------------------------------------------------------------
+// Every request to our API gets one `api.request` client span, opened here and nowhere else, and carries a W3C
+// `traceparent` header, so the API's request span and its query spans join the browser's trace. The span keeps the
+// path only, never the full URL or the query string: an address search sends the typed address as `q`. Requests to
+// any other host get no span and no header.
+
+/** The page's origin, to resolve relative URLs against (a placeholder outside a browser). */
+function pageOrigin(): string {
+  const origin = typeof location !== 'undefined' ? location.origin : undefined
+  return origin && origin !== 'null' ? origin : 'http://localhost'
+}
+
+/** Is `url` a request to our API: under the configured base URL, or under `/api` on the page's own origin
+ *  (where code calling `fetch` directly sends it; the dev server proxies it)? */
+function isApiUrl(url: URL): boolean {
+  return [API_BASE_URL, '/api'].some((root) => {
+    const base = new URL(root, pageOrigin())
+    const basePath = base.pathname.replace(/\/+$/, '')
+    return url.origin === base.origin && (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`))
+  })
+}
+
+const headersSetter: TextMapSetter<Headers> = { set: (carrier, key, value) => carrier.set(key, value) }
+
+/** Open the `api.request` span for a request to our API and add `traceparent` to its headers. Returns undefined,
+ *  and touches nothing, for any other URL. */
+function startApiSpan(
+  method: string,
+  input: string | URL,
+  headers: Headers | Record<string, string>,
+): Span | undefined {
+  const url = new URL(String(input), pageOrigin())
+  if (!isApiUrl(url)) return undefined
+  const span = trace.getTracer(TRACER_NAME).startSpan('api.request', {
+    kind: SpanKind.CLIENT,
+    attributes: { 'http.request.method': method.toUpperCase(), 'url.path': url.pathname },
+  })
+  const withSpan = trace.setSpan(context.active(), span)
+  if (headers instanceof Headers) propagation.inject(withSpan, headers, headersSetter)
+  else propagation.inject(withSpan, headers, defaultTextMapSetter)
+  return span
+}
+
+function recordStatus(span: Span | undefined, status: number): void {
+  span?.setAttribute('http.response.status_code', status)
+  if (status >= 400) span?.setStatus({ code: SpanStatusCode.ERROR })
+}
+
+/** A request that got no usable response. Only the error's type goes on the span: a message can quote the URL. */
+function recordFailure(span: Span | undefined, error: unknown): void {
+  span?.setStatus({ code: SpanStatusCode.ERROR, message: error instanceof Error ? error.name : 'error' })
+}
+
+/**
+ * `fetch`, traced, for code that calls `fetch` directly instead of `api`: a request to our API gets the same span
+ * and `traceparent` header as `api`'s requests. It returns the native `Response`, unchanged.
+ */
+export async function tracedFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers)
+  const span = startApiSpan(init.method || 'GET', input, headers)
+  if (!span) return fetch(input, init)
+  try {
+    const response = await fetch(input, { ...init, headers })
+    recordStatus(span, response.status)
+    return response
+  } catch (error) {
+    recordFailure(span, error)
+    throw error
+  } finally {
+    span.end()
+  }
 }
 
 // Response type that matches axios structure
@@ -73,6 +158,9 @@ class APIClient {
       headers['Authorization'] = `Bearer ${token}`
     }
 
+    const span = startApiSpan(options.method || 'GET', fullUrl, headers)
+    let statusError = false
+
     // Hard request timeout so a slow/hung backend never leaves the UI spinning
     // forever — the request aborts and rejects, letting callers (React Query)
     // render an error/empty state instead.
@@ -94,6 +182,8 @@ class APIClient {
         signal,
       })
 
+      recordStatus(span, response.status)
+
       // Handle 401 unauthorized
       if (response.status === 401) {
         localStorage.removeItem('auth_token')
@@ -109,6 +199,7 @@ class APIClient {
       }
 
       if (!response.ok) {
+        statusError = true // already on the span, from the status code
         throw {
           response: {
             data,
@@ -126,6 +217,7 @@ class APIClient {
         statusText: response.statusText,
       }
     } catch (error) {
+      if (!statusError) recordFailure(span, error)
       // Normalize an aborted/timed-out request into a clear, finite error so the
       // UI shows "try again" rather than spinning indefinitely.
       if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
@@ -140,6 +232,7 @@ class APIClient {
       throw error
     } finally {
       clearTimeout(timeoutId)
+      span?.end()
     }
   }
 

@@ -5,6 +5,7 @@ import { nominatimUsStateCode } from '../utils/stateMapping'
 import { resolveZipToChoices } from '../utils/resolvePlace'
 import { useLocation as useLocationContext, type LocationData, type LocationGranularity } from '../contexts/LocationContext'
 import { LAUNCH_CITIES, isLocationCovered } from '../lib/launchCoverage'
+import { tracedFetch } from '../lib/api'
 
 interface AddressLookupProps {
   onLocationFound: (location: LocationData) => void
@@ -71,7 +72,7 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
   const [uncovered, setUncovered] = useState<LocationData | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
-  const debounceTimer = useRef<number | null>(null)
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const zipValid = /^\d{5}$/.test(zip)
@@ -159,7 +160,7 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
       // honors its rate-limit policy server-side. In place mode we ask for more
       // rows than we show, because we filter POIs/streets out below.
       const limit = mode === 'place' ? 12 : 5
-      const response = await fetch(
+      const response = await tracedFetch(
         `/api/geocode/search?q=${encodeURIComponent(query)}&limit=${limit}`,
       )
 
@@ -210,7 +211,7 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
     }
 
     // Set new timer
-    debounceTimer.current = window.setTimeout(() => {
+    debounceTimer.current = setTimeout(() => {
       fetchSuggestions(value)
     }, 300)
   }
@@ -240,7 +241,7 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
       // honors its rate-limit policy server-side. In place mode over-fetch then
       // filter to real places (see fetchSuggestions).
       const limit = mode === 'place' ? 12 : 5
-      const response = await fetch(
+      const response = await tracedFetch(
         `/api/geocode/search?q=${encodeURIComponent(addressToLookup)}&limit=${limit}`,
       )
 
@@ -424,7 +425,7 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
 
         try {
           // Reverse geocode via same-origin proxy (api/routes/geocode.py).
-          const response = await fetch(
+          const response = await tracedFetch(
             `/api/geocode/reverse?lat=${latitude}&lon=${longitude}`,
           )
 

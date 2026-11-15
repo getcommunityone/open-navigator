@@ -11,7 +11,8 @@
     "type-check": "tsc --noEmit",
     "gen:api:schema": "python ../scripts/frontend/export_openapi.py --out openapi.json",
     "gen:api:types": "openapi-typescript openapi.json --output src/lib/api.types.ts",
-    "gen:api": "npm run gen:api:schema && npm run gen:api:types"
+    "gen:api": "npm run gen:api:schema && npm run gen:api:types",
+    "test": "vitest run"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
@@ -42,7 +43,7 @@
     "react-pdf": "^9.2.1",
     "react-player": "^2.16.1",
     "react-query": "^3.39.3",
-    "react-router-dom": "^7.18.0",
+    "react-router-dom": "^7.18.2",
     "react-select": "^5.10.2",
     "react-simple-maps": "^3.0.0",
     "recharts": "^2.10.3",
@@ -68,20 +69,18 @@
     "eslint-plugin-react-refresh": "^0.4.5",
     "openapi-typescript": "^7.13.0",
     "playwright": "^1.60.0",
-    "postcss": "^8.5.16",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.2.2",
     "vite": "^8.0.16",
-    "vite-plugin-pwa": "^0.17.0"
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "minimatch": "^9.0.7",
     "d3-color": "^3.1.0",
     "d3-interpolate": "^3.0.1",
     "d3-transition": "^3.0.1",
-    "d3-zoom": "^3.0.0",
-    "vite-plugin-pwa": {
-      "vite": "$vite"
-    }
+    "d3-zoom": "^3.0.0"
   }
 }

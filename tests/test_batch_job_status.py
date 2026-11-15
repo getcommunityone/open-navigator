@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 import tempfile
 from pathlib import Path
 
@@ -218,7 +219,9 @@ def test_state_progress_started_and_completed():
         jurisdictions=[
             JurisdictionRun(state_code="AL", jurisdiction_id="a_1", status="completed"),
             JurisdictionRun(state_code="AL", jurisdiction_id="a_2", status="pending"),
-            JurisdictionRun(state_code="GA", jurisdiction_id="g_1", status="running"),
+            # A running row records its progress; without a timestamp the batch reads as idle and is stale-cancelled.
+            JurisdictionRun(state_code="GA", jurisdiction_id="g_1", status="running",
+                            updated_at=datetime.now(timezone.utc).isoformat()),
             JurisdictionRun(state_code="IN", jurisdiction_id="i_1", status="pending"),
         ],
     )
