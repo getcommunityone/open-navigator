@@ -52,12 +52,14 @@ interface PlaceHit {
   county?: string
   state?: string
   state_code?: string
+  postal_code?: string
   latitude: number
   longitude: number
 }
 
 interface LocationChip {
   name: string
+  city?: string
   shared_level: SharedLevel
   is_primary: boolean
   state_code?: string
@@ -78,10 +80,12 @@ interface FeedConfigOut {
 }
 
 function placeHitToChip(hit: PlaceHit, isPrimary: boolean): LocationChip {
-  const display = hit.name || [hit.city, hit.state_code].filter(Boolean).join(', ')
+  const shortLabel = [hit.city || hit.county, hit.state_code].filter(Boolean).join(', ')
+  const display = shortLabel || hit.name
   return {
     name: display,
-    shared_level: 'city',
+    city: hit.city,
+    shared_level: hit.city ? 'city' : hit.county ? 'county' : 'city',
     is_primary: isPrimary,
     state_code: hit.state_code,
     state: hit.state,
@@ -253,6 +257,7 @@ export default function FeedSetup() {
     const body = {
       locations: locations.map((l) => ({
         name: l.name,
+        city: l.city,
         shared_level: l.shared_level || 'city',
         is_primary: l.is_primary,
         state_code: l.state_code,
@@ -350,7 +355,7 @@ export default function FeedSetup() {
             <h2 className="text-xl font-semibold text-gray-900">Where do you live?</h2>
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            Search for your city or town. The first place you add is your primary location.
+            Search for your city, town, or 5-digit ZIP code. The first place you add is your primary location.
           </p>
         </div>
         <div className="px-6 py-4">
@@ -386,7 +391,7 @@ export default function FeedSetup() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g., Tuscaloosa, AL"
+              placeholder="e.g., Tuscaloosa, AL or 35401"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a6b6b]/40"
             />
             {query.trim().length >= 3 && (
