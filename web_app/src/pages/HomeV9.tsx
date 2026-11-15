@@ -1333,8 +1333,8 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location into Browse Causes (same as Topics)
-                // so the cause pills + decision cards land scoped to that place.
+                // Carry the ACTIVE scope into Browse Causes (same as Topics) so
+                // the cause pills + decision cards land on the scope the user sees.
                 to: activeScopeParams().toString()
                   ? `/browse-causes?${activeScopeParams().toString()}`
                   : '/browse-causes',
