@@ -44,6 +44,7 @@ def test_jurisdiction_website_back_links_from_description_host():
 
 
 @pytest.mark.integration
+@pytest.mark.live
 def test_fetch_latest_upload_from_rss():
     latest = fetch_latest_upload_date_from_rss("UCjQLzllGnzicLNiMMzcLwKQ")
     assert latest

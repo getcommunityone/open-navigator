@@ -82,12 +82,15 @@ def enrich_payload(
                 f"WhisperX requires --audio-path or audio under {DEFAULT_YOUTUBE_AUDIO_ROOT}"
             )
         names = [k.get("person_name", "") for k in known]
-        diarize_meta = diarize_audio_whisperx(
-            audio_path,
-            model_size=whisper_model,
-            device=device,
-            known_names=names,
-        )
+        from llm.usage.gpu import gpu_run
+
+        with gpu_run("whisperx_diarization", device=device, video_id=payload.get("video_id")):
+            diarize_meta = diarize_audio_whisperx(
+                audio_path,
+                model_size=whisper_model,
+                device=device,
+                known_names=names,
+            )
         segments = merge_caption_speakers(segments, diarize_meta["segments"])
         label_segments_from_contacts(segments, known)
     else:

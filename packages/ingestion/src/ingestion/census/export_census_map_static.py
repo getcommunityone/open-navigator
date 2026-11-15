@@ -41,7 +41,10 @@ import zipfile
 from pathlib import Path
 from typing import Any, Optional
 
-import geopandas as gpd
+try:
+    import geopandas as gpd
+except ImportError:
+    gpd = None
 import httpx
 import pandas as pd
 from loguru import logger
@@ -231,6 +234,67 @@ TIGER_PLACE_ZIP = (
     "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_{statefp}_place_500k.zip"
 )
 
+# Connecticut: the 2022+ ACS vintages report by planning region (FIPS 091xx), not by the 8 legacy
+# counties (090xx) that the county basemap (us-atlas counties-10m) still draws (Issue #71).
+# Planning regions do not nest inside counties, and medians and rates cannot be averaged across
+# regions, so we never convert one into the other: legacy counties get null metrics and a note.
+CONNECTICUT_LEGACY_COUNTY_NAMES: dict[str, str] = {
+    "09001": "Fairfield County",
+    "09003": "Hartford County",
+    "09005": "Litchfield County",
+    "09007": "Middlesex County",
+    "09009": "New Haven County",
+    "09011": "New London County",
+    "09013": "Tolland County",
+    "09015": "Windham County",
+}
+CONNECTICUT_PLANNING_REGION_NOTE = (
+    "Connecticut reports by planning region since 2022; no county figure"
+)
+
+
+def mark_connecticut_legacy_counties_unavailable(
+    county_values: dict[str, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """Emit each legacy Connecticut county (090xx) with null metrics and a note when the vintage has planning regions.
+
+    A legacy county that already carries real values (pre-2022 vintages) is left as is.
+    Nothing is computed from the planning regions.
+    """
+    if not any(k.startswith("091") for k in county_values):
+        return county_values
+
+    for legacy_fips, name in CONNECTICUT_LEGACY_COUNTY_NAMES.items():
+        existing = county_values.get(legacy_fips)
+        if existing and any(existing.get(m["slug"]) is not None for m in METRICS):
+            continue
+        row: dict[str, Any] = {"NAME": name, "GEOID": legacy_fips}
+        for m in METRICS:
+            row[m["slug"]] = None
+        row["data_note"] = CONNECTICUT_PLANNING_REGION_NOTE
+        county_values[legacy_fips] = row
+    return county_values
+
+
+def mark_connecticut_county_trends_unavailable(
+    by_geoid: dict[str, dict[str, Any]],
+    vintages: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Add the planning-region note to each legacy Connecticut county's trend block.
+
+    Real legacy-county years are kept; years that only exist as planning regions get no value.
+    """
+    if not any(k.startswith("091") for k in by_geoid):
+        return by_geoid
+
+    for legacy_fips, name in CONNECTICUT_LEGACY_COUNTY_NAMES.items():
+        block = by_geoid.setdefault(legacy_fips, {"GEOID": legacy_fips, "NAME": name})
+        if not block.get("NAME"):
+            block["NAME"] = name
+        block["data_note"] = CONNECTICUT_PLANNING_REGION_NOTE
+    return by_geoid
+
+
 # States + DC + PR (two-digit FIPS) for optional county trend sidecars.
 _CENSUS_STATE_FIPS_ALL: tuple[str, ...] = (
     "01", "02", "04", "05", "06", "08", "09", "10", "11", "12", "13", "15", "16", "17",
@@ -380,6 +444,8 @@ def build_county_trends_for_state(acs_dir: Path, state_fips: str, years: list[in
                     nm = row.get("NAME")
                     if isinstance(nm, str) and nm.strip():
                         block["NAME"] = nm.strip()
+    if stp == "09":
+        by_geoid = mark_connecticut_county_trends_unavailable(by_geoid, vintages)
     return {"geography": "county", "state": stp, "vintages": vintages, "byGeoid": by_geoid}
 
 
@@ -426,7 +492,7 @@ def build_county_values(acs_dir: Path, year: int) -> dict[str, dict[str, Optiona
                 nm = row.get("NAME")
                 if isinstance(nm, str) and nm.strip():
                     out[gid]["NAME"] = nm.strip()
-    return out
+    return mark_connecticut_legacy_counties_unavailable(out)
 
 
 def build_state_values(acs_dir: Path, year: int) -> dict[str, dict[str, Optional[float]]]:
@@ -686,6 +752,8 @@ def export_place_geojson(
     except Exception as e:
         logger.error(f"Tiger download/read failed for {state_fips}: {e}")
         return False
+    if gpd is None:
+        raise RuntimeError("geopandas is required to export place boundaries GeoJSON")
     gdf = gpd.read_file(shp)
     if gdf.crs is not None and gdf.crs.to_string() != "EPSG:4326":
         gdf = gdf.to_crs(4326)

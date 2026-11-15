@@ -235,15 +235,20 @@ async def detect_platform_async(url: str, fetch_html: bool = True) -> Dict[str, 
     return result
 
 
-def get_platform_capabilities(platform: str) -> Dict[str, any]:
+def get_platform_capabilities(platform: str, *, jurisdiction_name: str = "") -> Dict[str, any]:
     """
     Get capabilities and scraping strategies for a platform.
     
     Args:
         platform: Platform name
+        jurisdiction_name: Named in the error when the platform is unknown
         
     Returns:
         Dictionary describing platform capabilities
+
+    Raises:
+        ingestion.meetings.UnsupportedPlatformError: for a platform this table doesn't describe. There is no generic
+        scraper to fall back on, so callers record the gap instead of reporting no meetings (#252).
     """
     capabilities = {
         'legistar': {
@@ -274,51 +279,32 @@ def get_platform_capabilities(platform: str) -> Dict[str, any]:
             'requires_html_parsing': True,
             'scraper_class': 'scrapers.civicplus.CivicPlusScraper'
         },
-        'generic': {
-            'has_api': False,
-            'supports_bulk_download': False,
-            'requires_html_parsing': True,
-            'scraper_class': 'scrapers.generic.GenericScraper'
-        }
     }
     
-    return capabilities.get(platform, {
-        'has_api': False,
-        'supports_bulk_download': False,
-        'requires_html_parsing': True,
-        'scraper_class': 'scrapers.generic.GenericScraper'
-    })
+    if platform not in capabilities:
+        from ingestion.meetings import UnsupportedPlatformError
+        raise UnsupportedPlatformError(platform, jurisdiction_name or "unknown")
+    return capabilities[platform]
 
 
-def get_scraper_class(platform: str):
+def get_scraper_class(platform: str, *, jurisdiction_name: str = ""):
     """
-    Get appropriate scraper class for a platform.
+    Get the meeting adapter class for a platform, from ``ingestion.meetings`` (CORE-3.1).
     
     Args:
         platform: Platform name
+        jurisdiction_name: Named in the error when no adapter exists
         
     Returns:
-        Scraper class (dynamically imported)
+        The registered adapter class (``ingestion.meetings.adapter_for``)
+
+    Raises:
+        ingestion.meetings.UnsupportedPlatformError: when no adapter exists for the platform. Report it as a gap
+        (``ingestion.meetings.coverage_report``), never as a council with no meetings (#252).
     """
-    # Note: This assumes you'll create these scraper classes
-    # For now, returns None to avoid import errors
-    
-    scraper_map = {
-        'legistar': 'scrapers.legistar.LegistarScraper',
-        'granicus': 'scrapers.granicus.GranicusScraper',
-        'civicplus': 'scrapers.civicplus.CivicPlusScraper',
-        'generic': 'scrapers.generic.GenericScraper'
-    }
-    
-    scraper_path = scraper_map.get(platform, 'scrapers.generic.GenericScraper')
-    
-    # TODO: Dynamic import when scrapers are implemented
-    # module_path, class_name = scraper_path.rsplit('.', 1)
-    # module = importlib.import_module(module_path)
-    # return getattr(module, class_name)
-    
-    logger.warning(f"Scraper class not yet implemented: {scraper_path}")
-    return None
+    from ingestion.meetings import adapter_for
+
+    return adapter_for(platform, jurisdiction_name=jurisdiction_name or "unknown")
 
 
 # Example usage

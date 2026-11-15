@@ -7,8 +7,8 @@
 
 /*
 staging.stg_acs_property_tax — cleaned ACS property-tax inputs per geography,
-from bronze.bronze_acs_property_tax (Census ACS 5-year B25103 + B25077, landed
-by ingestion.census.property_tax).
+from bronze.bronze_acs_property_tax (Census ACS 5-year B25103 + B25077 + B19013,
+landed by ingestion.census.property_tax).
 
 GRAIN: one row per (geography_type, geoid, acs_vintage_year). geography_type is
 'place' (city/town) or 'county'.
@@ -19,7 +19,17 @@ WHAT THIS DOES
   - Keeps the two dollar amounts as integers; the bronze loader already
     coerced ACS jumbo-negative suppression sentinels to NULL (honest missing).
   - The effective RATE itself is computed downstream in the mart, not here.
+  - median_household_income (B19013, #137) is read only if the bronze table has
+    the column. A table loaded before #137 lacks it until the loader is re-run,
+    so it comes through as NULL (honest missing) rather than failing the build.
 */
+
+{%- set bronze_rel = source('bronze', 'bronze_acs_property_tax') -%}
+{%- set has_income = false -%}
+{%- if execute -%}
+  {%- set bronze_cols = adapter.get_columns_in_relation(bronze_rel) | map(attribute='name') | map('lower') | list -%}
+  {%- set has_income = 'median_household_income' in bronze_cols -%}
+{%- endif %}
 
 select
     geography_type,
@@ -29,5 +39,10 @@ select
     acs_vintage_year::integer                       as acs_vintage_year,
     median_real_estate_taxes_paid::integer          as median_real_estate_taxes_paid,
     median_home_value::integer                      as median_home_value,
+    {% if has_income -%}
+    median_household_income::integer                as median_household_income,
+    {%- else -%}
+    null::integer                                   as median_household_income,
+    {%- endif %}
     loaded_at
-from {{ source('bronze', 'bronze_acs_property_tax') }}
+from {{ bronze_rel }}

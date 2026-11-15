@@ -13,6 +13,7 @@ dependencies = [
     "openai>=1.0",  # DeepSeek (OpenAI-compatible Chat Completions) analysis provider
     "python-dotenv>=1.0",
     "loguru>=0.7",
+    "pyyaml>=6",  # usage/prices.yaml (llm.usage.prices)
     "psycopg2-binary>=2.9",
     # policy_questions registry pipeline (embed + cluster + label)
     "sentence-transformers>=2.2",
@@ -23,6 +24,9 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"llm.usage" = ["prices.yaml"]
 
 [tool.uv.sources]
 core-lib = { workspace = true }

@@ -69,7 +69,7 @@ def _dict_from_results(results: Any) -> Dict[str, Any]:
 
 
 def _lhr_from_row(row_results: Any) -> Optional[Dict[str, Any]]:
-    blob = _dict_from_row(row_results)
+    blob = _dict_from_results(row_results)
     lhr = blob.get("lhr")
     if isinstance(lhr, dict):
         return lhr

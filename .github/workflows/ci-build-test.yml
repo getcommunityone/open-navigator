@@ -43,6 +43,11 @@ jobs:
           cd web_app
           npx tsc --noEmit
 
+      - name: Run frontend unit tests
+        run: |
+          cd web_app
+          npm test
+
       - name: Build frontend
         run: |
           cd web_app
@@ -77,6 +82,9 @@ jobs:
         run: |
           cd web_docs
           npm ci
+
+      - name: Check the pitch slideshow is built from its slides
+        run: node web_docs/scripts/build-deck.mjs --check
 
       - name: Build documentation
         run: |
@@ -116,6 +124,10 @@ jobs:
           # (formerly the root `pipeline/` tree). llm is needed since the
           # meeting_comparison route imports `llm.gemini.*`.
           pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion -e packages/llm
+          # What the tests import that requirements.txt doesn't list (#305): dependencies the workspace packages declare
+          # (core-lib: aiolimiter, h2 for httpx[http2]; ingestion: zipfile-deflate64; llm: google-genai), and aiosqlite
+          # for the SQLite engine in the core-lib session tests.
+          pip install aiolimiter aiosqlite h2 zipfile-deflate64 google-genai
 
       - name: Check Python syntax
         run: |
@@ -127,6 +139,22 @@ jobs:
         run: |
           python -c "import main; print('✅ Main module imports successfully')"
           python -c "from api.app import app; print('✅ API app imports successfully')"
+
+      # Every relation the public API serves has an ODCS v3.1.0 data contract generated
+      # from its dbt schema.yml (#270). Fails when a contract is stale, missing, extra or
+      # invalid, or a served relation without one isn't listed in
+      # web_docs/docs/development/data-contracts.md; fix with
+      # `python -m models.odcs --write` and commit the result.
+      - name: Data contracts are current
+        run: |
+          python -m models.odcs --check
+          python -m pytest -q -p no:cacheprovider packages/datamodels/tests
+
+      # The root tests/ folder and every package's tests (pytest.ini testpaths), not only datamodels (#305). Tests
+      # marked `live` (real websites, local services) skip unless RUN_LIVE_TESTS=1, and tests that need local crawl
+      # files under data/cache/ skip when those aren't in the checkout.
+      - name: Tests (root and packages)
+        run: python -m pytest -q -p no:cacheprovider
 
   # Test 5: API contract types (OpenAPI -> TypeScript)
   # Regenerates web_app/src/lib/api.types.ts from the live FastAPI schema
