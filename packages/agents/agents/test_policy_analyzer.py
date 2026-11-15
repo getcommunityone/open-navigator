@@ -1,3 +1,5 @@
+
+import pytest
 #!/usr/bin/env python3
 """
 Test the Policy Reasoning Analyzer with a sample bill
@@ -16,6 +18,7 @@ from agents.policy_reasoning_analyzer import PolicyReasoningAnalyzer
 import duckdb
 from loguru import logger
 
+@pytest.mark.live  # needs data/gold/bills_bills.parquet and a local Llama model
 def test_analyzer():
     """Test analyzer with a real bill"""
     

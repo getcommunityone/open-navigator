@@ -1,5 +1,7 @@
 """CivicPlus Gulf Shores mayor/council roster and bio detail extraction."""
 
+import pytest
+
 from pathlib import Path
 
 from scrapers.discovery.contact_extract_from_html import (
@@ -16,6 +18,10 @@ _MAYOR_COUNCIL = (
 )
 
 
+@pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[1] / "data/cache/scraped_meetings/AL/municipality/gulf_shores_0132272").is_dir(),
+    reason="needs the local crawl cache under data/cache/scraped_meetings (not in git)",
+)
 def test_gulf_shores_mayor_council_roster_and_eid_links():
     html = _MAYOR_COUNCIL.read_text(encoding="utf-8", errors="replace")
     url = "https://gulfshoresal.gov/400/Mayor-Council"

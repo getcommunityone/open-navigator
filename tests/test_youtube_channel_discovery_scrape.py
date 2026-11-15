@@ -33,6 +33,7 @@ def test_collect_followup_includes_commission_page():
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_scrape_chilton_home_finds_commission_channel():
     async with YouTubeChannelDiscovery() as discovery:
         channels = await discovery._scrape_website_for_channels("https://chiltoncounty.org/")
@@ -51,6 +52,7 @@ def test_extract_whitley_county_handle_from_homepage_link():
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_scrape_whitley_county_in_home_finds_government_handle():
     async with YouTubeChannelDiscovery() as discovery:
         channels = await discovery._scrape_website_for_channels(

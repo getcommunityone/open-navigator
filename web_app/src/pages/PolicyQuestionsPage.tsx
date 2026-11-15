@@ -662,9 +662,11 @@ const MEETING_PAGE = 24
 function QuestionMeetingList({
   question,
   state,
+  city,
 }: {
   question: PolicyQuestionSummary
   state?: string
+  city?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const total = question.discussion_meeting_count ?? 0
@@ -676,11 +678,19 @@ function QuestionMeetingList({
     enabled: total > 0,
   })
 
-  // Optional place scoping carried over from the homepage (?state=…).
+  // Optional place scoping carried over from the homepage (?state=…&city=…): the list honours the same
+  // scope the page's label shows (CLAUDE.md, scope label must match the active filter).
   const meetings = useMemo(() => {
-    const all = data ?? []
-    return state ? all.filter((m) => (m.state_code ?? '').toUpperCase() === state) : all
-  }, [data, state])
+    const wantCity = (city ?? '').trim().toLowerCase()
+    return (data ?? []).filter((m) => {
+      if (state && (m.state_code ?? '').toUpperCase() !== state) return false
+      if (wantCity) {
+        const names = [m.city, m.jurisdiction_name].map((n) => (n ?? '').trim().toLowerCase())
+        if (!names.includes(wantCity)) return false
+      }
+      return true
+    })
+  }, [data, state, city])
 
   if (total === 0) return null
 
@@ -707,7 +717,7 @@ function QuestionMeetingList({
         </div>
       ) : meetings.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
-          No meetings here yet{state ? ` for ${state}` : ''}.
+          No meetings here yet{city || state ? ` for ${[city, state].filter(Boolean).join(', ')}` : ''}.
         </div>
       ) : (
         <>

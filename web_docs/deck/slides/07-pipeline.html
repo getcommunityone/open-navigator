@@ -1,0 +1,17 @@
+<section id="pipeline" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">How it works</p>
+<h2>How a meeting becomes a searchable decision</h2></div>
+<div class="flow">
+<div class="card"><h3>Discover</h3><p>Government websites, video channels, meeting portals, Open States</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Collect</h3><p>Agendas, minutes, transcripts, budgets, IRS nonprofit filings, Census data</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Extract</h3><p>AI reads transcripts into decisions, votes, speakers and quotes</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Model</h3><p>dbt layers: bronze, staging, intermediate, marts; records matched across sources</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Serve</h3><p>PostgreSQL, a FastAPI API, the React app, open datasets, an MCP server</p></div>
+</div>
+<p class="foot">Architecture: web_docs/docs/architecture.md · data sources: CITATIONS.md · 7</p>
+<aside>Five steps. Discover finds where each government posts its records. Collect pulls in agendas, minutes, transcripts and budgets, plus IRS nonprofit filings and Census data. Extract uses AI to turn long transcripts into structured decisions, votes, speakers and quotes. Model is where the data gets cleaned and joined, in dbt, in layers from raw to ready, including matching the same city or nonprofit across different sources. Serve puts it in a Postgres database behind an API, the web app, open datasets anyone can download, and an MCP server so AI assistants can query it directly.</aside>
+</section>

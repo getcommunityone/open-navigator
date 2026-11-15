@@ -1,5 +1,7 @@
 """CivicPlus Alabaster city council table roster extraction."""
 
+import pytest
+
 from pathlib import Path
 
 from scrapers.discovery.contact_extract_from_html import (
@@ -8,6 +10,11 @@ from scrapers.discovery.contact_extract_from_html import (
     extract_civicplus_directory_detail_urls_from_html,
     extract_structured_contacts_from_html,
     is_city_council_person_row,
+)
+
+pytestmark = pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[1] / "data/cache/scraped_meetings/AL/municipality/alabaster_0100820").is_dir(),
+    reason="needs the local crawl cache under data/cache/scraped_meetings (not in git)",
 )
 
 _REPO = Path(__file__).resolve().parents[1]

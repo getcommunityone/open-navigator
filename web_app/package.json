@@ -11,7 +11,8 @@
     "type-check": "tsc --noEmit",
     "gen:api:schema": "python ../scripts/frontend/export_openapi.py --out openapi.json",
     "gen:api:types": "openapi-typescript openapi.json --output src/lib/api.types.ts",
-    "gen:api": "npm run gen:api:schema && npm run gen:api:types"
+    "gen:api": "npm run gen:api:schema && npm run gen:api:types",
+    "test": "vitest run"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
@@ -67,7 +68,8 @@
     "postcss": "^8.5.26",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.2.2",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "minimatch": "^9.0.7",

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatCurrency, formatCityState } from '../utils/formatters'
+import { tracedFetch } from '../lib/api'
 
 interface Nonprofit {
   source: string
@@ -47,7 +48,7 @@ export default function Nonprofits() {
       if (searchParams.state) params.append('state', searchParams.state)
       if (searchParams.nteeCode) params.append('ntee_code', searchParams.nteeCode)
       
-      const response = await fetch(`/api/nonprofits?${params}`)
+      const response = await tracedFetch(`/api/nonprofits?${params}`)
       if (!response.ok) throw new Error('Failed to fetch nonprofits')
       
       const data = await response.json()

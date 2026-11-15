@@ -1,5 +1,10 @@
 # Monorepo Architecture & Rules — Open Navigator
 
+@AGENTS.md
+
+The rules above (in `AGENTS.md`) apply to every agent: every change starts from a logged issue, and every
+branch and pull request names it. This file adds the architecture, data, UX, documentation and commit rules.
+
 ## Tech Stack
 - **Backend:** FastAPI (Python 3.11+)
 - **Data:** dbt Core + SQL (PostgreSQL — local warehouse on `localhost:5433`)
@@ -66,7 +71,8 @@
 ## Documentation Rules (Docusaurus)
 - **MANDATORY:** ALL docs go in `web_docs/docs/` subdirectories.
 - **Formatting:** kebab-case filenames, YAML frontmatter included, lowercase only.
-- **Root:** No `.md` files in root except `README`, `LICENSE`, and `CONTRIBUTING`.
+- **Root:** No `.md` files in root except `README`, `LICENSE`, `CONTRIBUTING`, and the agent rule files
+  `AGENTS.md` and `CLAUDE.md`.
 
 ## Frontend UX — Scope Label Must Match the Active Filter (MANDATORY, SITE-WIDE)
 This rule governs every scoped/browse/list/search surface in `web_app/` — not just Browse Causes.
@@ -112,9 +118,9 @@ When a result tile/card is shown **because of a topic, keyword, cause, question,
 - **Every change goes through a PR.** Branch off the latest `main`, commit there, push the branch, and open a PR against `main`:
   ```bash
   git checkout main && git pull
-  git checkout -b <type>/<short-topic>        # e.g. feat/money-flow-sankey
+  git checkout -b <type>/<issue>-<slug>       # e.g. feat/137-money-game-income (AGENTS.md: issue first)
   # ... commit work (Conventional Commits) ...
-  git push -u origin <type>/<short-topic>
+  git push -u origin <type>/<issue>-<slug>
   gh pr create --base main
   ```
 - **A PR must be green before merge.** Required CI checks (Frontend Build, Documentation Build, Backend Tests, API Types) must pass; resolve all conversations. The Docker Build Test is **not** required (it self-skips when no Docker files change).
