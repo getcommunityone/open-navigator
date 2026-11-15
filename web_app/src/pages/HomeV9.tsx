@@ -1273,12 +1273,11 @@ export default function HomeV9() {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {trending.map((q) => {
-                    // Carry the ACTIVE scope (the one the label names), not the
-                    // saved location: a "Nationwide" row must not land the user
-                    // on a city-filtered page. Same rule as runSearch.
+                    // Carry exactly the scope the label names: the list comes
+                    // from a state-scoped query, so the link carries the state
+                    // (never the saved city) — a "Nationwide" row carries none.
                     const p = new URLSearchParams()
                     if (stateCode) p.set('state', stateCode)
-                    if (stateCode && city) p.set('city', city)
                     p.set('question_id', q.entity_id)
                     return (
                       <Link

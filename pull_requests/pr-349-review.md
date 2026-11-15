@@ -46,10 +46,11 @@ Closes #151. On the live homepage (`HomeV9.tsx`), a "Trending questions · {stat
 None.
 ### 🟡 Should fix (Important, non-blocking)
 - ~~`HomeV9.tsx:1277-1278`: the links carried `locState` / `locCity` while the label and data used `stateCode`, and `/policy-questions` starts on city scope (`PolicyQuestionsPage.tsx:75`).~~ **Fixed in 9b897dd.** Verified by tracing the code: `national` (`:470`) makes `stateCode` undefined, and the new code sets `state` only from `stateCode` and `city` only when `city` is set (`:472`, city level). The Browse flyouts have the same pattern and predate this PR; filed as #350.
+- **Rendered check (coordinator, after the review):** rendered on a local Vite dev server with a throwaway mock API (questions labelled `TEST ·`, nothing committed) in headless Chrome. Desktop (1280px) and mobile (390px) lay out cleanly, and the chips wrap. With no location the label reads `NATIONWIDE` and the links carry no place. With a saved city (Tuscaloosa, AL) the label read `AL` but 9b897dd still added `city=Tuscaloosa`, because city is the active level while the list is a state-scoped query. **Fixed in the follow-up commit:** the links now carry only `state`, matching the label, and the re-check gives `/policy-questions?state=AL&question_id=…`.
 ### 🔵 Nits / suggestions (Minor)
 - ~~The 🔥 emoji would be read aloud by screen readers.~~ **Fixed in 9b897dd** (`aria-hidden`).
 - There are no tests for `HomeV9` anywhere in `web_app/src`. A test is out of scope for this PR; the behaviour is a small render guarded by real data.
-- Not looked at in a browser: the API isn't reachable from the review session, so the row would be hidden. Check the Vercel/preview build before merging.
+- Checked in headless Chrome against a mock API (see above). It has not been seen with real data; check after deploy.
 
 ## Repo-Rule Compliance
 | Rule | Pass? | Notes |
@@ -70,7 +71,7 @@ None.
 ## Test Coverage
 - `cd web_app && npx tsc --noEmit`: clean on 9b897dd.
 - `npx eslint src/pages/HomeV9.tsx`: one `react-hooks/exhaustive-deps` warning at line ~702, there before this PR.
-- No automated UI test. Manual check needed on the preview.
+- No automated UI test. Rendered at desktop and mobile widths in headless Chrome against a mock API; links checked with and without a saved location.
 
 ## Verdict
-**approve-with-nits.** Look at the homepage on the preview (with a state set, and with National) before merging.
+**approve-with-nits.** Rendered and link-checked locally. Merge when CI is green.
