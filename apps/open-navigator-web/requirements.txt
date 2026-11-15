@@ -33,7 +33,7 @@ asyncpg==0.29.0               # async pools for the data/read routes (Neon)
 psycopg2-binary==2.9.9        # sync ORM/auth engine
 
 # --- Auth ----------------------------------------------------------------
-python-jose[cryptography]==3.4.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 itsdangerous==2.1.2
 

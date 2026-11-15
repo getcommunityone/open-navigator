@@ -11,7 +11,7 @@ playwright>=1.49.0
 httpx>=0.25.0
 crawl4ai>=0.4.0
 litellm>=1.40.0
-aiohttp>=3.14.4
+aiohttp>=3.14.5
 youtube-transcript-api>=0.6.2
 
 # AI & LLM (CPU versions)
@@ -90,7 +90,7 @@ pre-commit>=3.6.0
 # Authentication & DB drivers (required at API startup — see api/auth.py, api/routes/*)
 # Kept in sync with requirements.txt so CPU-only installs (install.sh prefers this
 # file) don't break on `import jose` / `import asyncpg` at import time.
-python-jose[cryptography]==3.4.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 + CVE-2024-33664)
+python-jose[cryptography]==3.5.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 + CVE-2024-33664)
 passlib[bcrypt]==1.7.4            # Password hashing
 psycopg2-binary==2.9.9           # PostgreSQL driver
 asyncpg==0.29.0                  # Async PostgreSQL driver (for Neon)
