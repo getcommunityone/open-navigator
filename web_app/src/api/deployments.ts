@@ -1,6 +1,7 @@
 // Client for the prod-deployment batch-job kind (database → Neon prod,
 // web → HuggingFace). These endpoints aren't in the generated OpenAPI types, so
 // we use plain fetch (matching the launch helpers in ./batchJobs.ts).
+import { tracedFetch } from '../lib/api'
 
 export type DeploymentStep = {
   key: string
@@ -73,7 +74,7 @@ async function readError(r: Response): Promise<string> {
 }
 
 export async function fetchDeployments(): Promise<DeploymentsListPayload> {
-  const r = await fetch('/api/deployments/', { signal: AbortSignal.timeout(15_000) })
+  const r = await tracedFetch('/api/deployments/', { signal: AbortSignal.timeout(15_000) })
   if (!r.ok) throw new Error(await readError(r))
   return (await r.json()) as DeploymentsListPayload
 }
@@ -82,7 +83,7 @@ export async function launchDeployment(body: {
   steps?: string[]
   dry_run: boolean
 }): Promise<LaunchDeploymentResult> {
-  const r = await fetch('/api/deployments/launch', {
+  const r = await tracedFetch('/api/deployments/launch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -96,7 +97,7 @@ export async function stopDeployment(
   jobId: string,
   force = false,
 ): Promise<{ stopped: boolean; detail: string }> {
-  const r = await fetch(
+  const r = await tracedFetch(
     `/api/deployments/${encodeURIComponent(jobId)}/stop?force=${force ? 'true' : 'false'}`,
     { method: 'POST', signal: AbortSignal.timeout(15_000) },
   )
@@ -108,7 +109,7 @@ export async function fetchDeploymentLog(
   jobId: string,
   step: string,
 ): Promise<DeploymentLog> {
-  const r = await fetch(
+  const r = await tracedFetch(
     `/api/deployments/${encodeURIComponent(jobId)}/log?step=${encodeURIComponent(step)}&lines=300`,
     { signal: AbortSignal.timeout(10_000) },
   )

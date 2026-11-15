@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import requests
 
 from scrapers.discovery.county_municipality_websites import (
@@ -10,6 +12,8 @@ from scrapers.discovery.county_municipality_websites import (
     scrape_county_municipality_websites,
 )
 from scrapers.discovery.http_fetch import BROWSER_USER_AGENT
+
+pytestmark = pytest.mark.live  # fetches live county sites
 
 _HEADERS = {"User-Agent": BROWSER_USER_AGENT}
 _SHELBY_MUNI = "https://www.shelbyal.com/185/Municipalities"

@@ -20,3 +20,26 @@ ninja filter=lfs diff=lfs merge=lfs -text
 # Last so it wins: in .gitattributes the later matching line overrides the earlier one, and the *.png / *.jpg
 # LFS lines above would otherwise reclaim these files and show them as modified in every checkout.
 web_app/public/wikicommons/** -filter -diff -merge
+
+# The README's pitch-deck cover (~100 KB): a normal blob so it renders on GitHub and can be committed from sessions
+# that can't upload LFS objects. Last so it wins over the *.png LFS line above.
+web_docs/static/img/deck-cover.png -filter -diff -merge
+
+# Small site icons, logos and bug screenshots committed as normal blobs (#257). Kept plain so a checkout matches the
+# commit (otherwise git status lists them as modified and `git add -A` moves them into LFS) and sessions that can't
+# upload LFS objects can still commit next to them. Last so they win over the *.png / *.jpg / *.svg / *.ico lines above.
+apps/rag-chat-app/client/public/apple-touch-icon.png -filter -diff -merge
+apps/rag-chat-app/client/public/favicon-16x16.png -filter -diff -merge
+apps/rag-chat-app/client/public/favicon-32x32.png -filter -diff -merge
+apps/rag-chat-app/client/public/favicon-48x48.png -filter -diff -merge
+apps/rag-chat-app/client/public/favicon-192x192.png -filter -diff -merge
+apps/rag-chat-app/client/public/favicon-512x512.png -filter -diff -merge
+apps/rag-chat-app/client/public/favicon.svg -filter -diff -merge
+web_app/public/communityone_logo.jpg -filter -diff -merge
+web_app/public/communityone_logo.svg -filter -diff -merge
+web_app/public/communityone_logo_64.png -filter -diff -merge
+web_app/public/favicon.ico -filter -diff -merge
+web_app/public/bugs/bug_connecticut_blank.png -filter -diff -merge
+web_app/public/bugs/bug_map_year_play.png -filter -diff -merge
+web_app/policy-dashboards/public/communityone_logo.jpg -filter -diff -merge
+web_app/policy-dashboards/public/communityone_logo.svg -filter -diff -merge

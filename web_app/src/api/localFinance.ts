@@ -74,6 +74,9 @@ export interface PropertyTaxRate {
   /** ACS median home value — a sensible default for the slider. */
   median_home_value: number | null
   median_real_estate_taxes_paid: number | null
+  /** ACS B19013 median household income (same place/county + vintage) — the
+   * money modal's starting income. null when suppressed or not loaded (#137). */
+  median_household_income?: number | null
   source: string
   note: string
 }

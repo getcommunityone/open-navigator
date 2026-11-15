@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../lib/api'
 import { extractKeywords, findBestMatch } from '../lib/transcriptMatch'
+import { formatTimestamp } from '../lib/timestamp'
 
 /**
  * Embedded meeting recording (react-player) plus a timed, clickable transcript.
@@ -45,25 +46,21 @@ interface MeetingPlayerProps {
    * in the transcript and offers a "jump to this moment" seek + cue highlighting.
    */
   targetText?: string
+  /**
+   * Seconds to start the recording at, from a citation's deep link (`/meetings/:id?t=…`, CORE-2.1 #240).
+   * The player seeks there once it's ready.
+   */
+  startAt?: number | null
 }
 
-/** Seconds -> H:MM:SS (or M:SS for sub-hour) for the cue timestamp chips. */
-function formatTimestamp(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds))
-  const hours = Math.floor(s / 3600)
-  const minutes = Math.floor((s % 3600) / 60)
-  const seconds = s % 60
-  const mm = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes)
-  const ss = String(seconds).padStart(2, '0')
-  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`
-}
 
-export default function MeetingPlayer({ videoId, caption, targetText }: MeetingPlayerProps) {
+export default function MeetingPlayer({ videoId, caption, targetText, startAt }: MeetingPlayerProps) {
   const playerRef = useRef<ReactPlayer>(null)
   const activeCueRef = useRef<HTMLButtonElement>(null)
   const [playedSeconds, setPlayedSeconds] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [query, setQuery] = useState('')
+  const startedAtRef = useRef(false)
 
   const { data, isLoading } = useQuery<MeetingTranscript>({
     queryKey: ['meeting-transcript', videoId],
@@ -146,6 +143,14 @@ export default function MeetingPlayer({ videoId, caption, targetText }: MeetingP
           height="100%"
           controls
           playing={playing}
+          onReady={() => {
+            // A deep link starts the recording at the cited moment, once.
+            if (startAt != null && startAt >= 0 && !startedAtRef.current) {
+              startedAtRef.current = true
+              playerRef.current?.seekTo(startAt, 'seconds')
+              setPlayedSeconds(startAt)
+            }
+          }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           progressInterval={500}
@@ -155,6 +160,17 @@ export default function MeetingPlayer({ videoId, caption, targetText }: MeetingP
       </div>
 
       {caption && <p className="mt-3 text-sm text-gray-600">{caption}</p>}
+
+      {startAt != null && startAt >= 0 && (
+        <button
+          onClick={() => seekTo(startAt)}
+          className="mt-3 inline-flex items-center gap-2 rounded-md bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 ring-1 ring-inset ring-teal-200 transition-colors hover:bg-teal-100"
+        >
+          <PlayIcon className="h-4 w-4" />
+          Starting at the cited moment
+          <span className="font-mono text-xs tabular-nums text-teal-600">{formatTimestamp(startAt)}</span>
+        </button>
+      )}
 
       {/* Auto-located moment for this specific decision/bill */}
       {match && (

@@ -1,0 +1,70 @@
+# Speech-to-text and speaker separation on a Modal GPU (#314), on demand, so it can be started from a phone.
+# Needs secrets in the GitHub environment `dev`: MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (modal.com > Settings > API tokens), and HF_TOKEN
+# (copied into the Modal secret `huggingface` each run; web_docs/docs/deployment/modal-gpu.md). Without the Modal token it skips.
+# Each run is capped (`limit`), writes one estimated-cost row per item, and uploads the outputs as an artifact.
+name: GPU diarization on Modal
+on:
+  workflow_dispatch:
+    inputs:
+      items:
+        description: Comma-separated paths in the Modal volume open-navigator-audio (meetings/a.opus) or direct media URLs
+        required: true
+      limit:
+        description: Most items to run (each is a GPU job on Modal's monthly credit)
+        default: "3"
+      model_size:
+        description: WhisperX model (small fits a T4; medium is slower and more accurate)
+        default: small
+
+permissions:
+  contents: read
+
+jobs:
+  diarize:
+    runs-on: ubuntu-latest
+    environment: dev  # MODAL_TOKEN_ID, MODAL_TOKEN_SECRET and HF_TOKEN live here
+    timeout-minutes: 120
+    concurrency:
+      group: gpu-diarize-modal
+      cancel-in-progress: false
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - name: Stop if the Modal token isn't set
+        if: env.MODAL_TOKEN_SECRET == ''
+        run: echo "::notice::No MODAL_TOKEN_ID / MODAL_TOKEN_SECRET; skipping (see web_docs/docs/deployment/modal-gpu.md)."
+      - uses: actions/checkout@v4
+        if: env.MODAL_TOKEN_SECRET != ''
+      - uses: actions/setup-python@v5
+        if: env.MODAL_TOKEN_SECRET != ''
+        with:
+          python-version: "3.11"
+      - name: Install Modal and the llm package (the image ships llm's source)
+        if: env.MODAL_TOKEN_SECRET != ''
+        run: pip install modal python-dotenv && pip install --no-deps -e packages/llm
+      # Lets the token live in GitHub (easy from a phone) instead of Modal's dashboard (#323). The value goes to Modal
+      # through a temporary file, never a command-line argument; with no HF_TOKEN here, Modal's own secret is kept.
+      - name: Put the Hugging Face token into Modal
+        if: env.MODAL_TOKEN_SECRET != ''
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then echo "No HF_TOKEN in GitHub; using Modal's existing 'huggingface' secret."; exit 0; fi
+          f=$(mktemp); chmod 600 "$f"; printf 'HF_TOKEN=%s\n' "$HF_TOKEN" > "$f"
+          modal secret create --force huggingface --from-dotenv "$f" > /dev/null
+          rm -f "$f"; echo "Modal secret 'huggingface' updated from GitHub."
+      - name: Run the batch on Modal
+        if: env.MODAL_TOKEN_SECRET != ''
+        env:
+          ITEMS: ${{ github.event.inputs.items }}
+          LIMIT: ${{ github.event.inputs.limit }}
+          MODEL_SIZE: ${{ github.event.inputs.model_size }}
+        run: modal run packages/llm/src/llm/gpu/modal_diarize.py --items "$ITEMS" --limit "$LIMIT" --model-size "$MODEL_SIZE" --out modal_out
+      - name: Upload the outputs and usage rows
+        if: env.MODAL_TOKEN_SECRET != '' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: modal-diarization-${{ github.run_id }}
+          path: modal_out/
+          if-no-files-found: warn

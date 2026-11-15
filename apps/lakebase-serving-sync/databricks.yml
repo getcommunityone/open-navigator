@@ -81,6 +81,9 @@ targets:
   # Same workspace for both targets today; `dev` auto-prefixes + auto-pauses
   # schedules (mode: development), `prod` deploys the real job.
   dev:
+    presets:
+      tags:
+        project: open-navigator   # pipeline-doctor cost view (conventions 0.3.0)
     mode: development
     default: true
     workspace:
@@ -88,6 +91,9 @@ targets:
       profile: opennav-prod
 
   prod:
+    presets:
+      tags:
+        project: open-navigator   # pipeline-doctor cost view (conventions 0.3.0)
     mode: production
     workspace:
       host: https://adb-7405608833986267.7.azuredatabricks.net

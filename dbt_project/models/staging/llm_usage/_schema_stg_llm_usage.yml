@@ -1,0 +1,109 @@
+version: 2
+
+# Usage records for the LLM pipelines (#262, #268): what each model call and GPU step used.
+# Cost is not a column anywhere: it is derived from these counts and
+# packages/llm/src/llm/usage/prices.yaml, so a corrected price reprices history.
+
+models:
+  - name: stg_llm__call
+    description: >
+      One row per model call after its retries (bronze.bronze_llm_call). Token counts are
+      what the API reported, null where it reported none. Empty until
+      `python -m llm.usage.load_bronze` creates the bronze table.
+    config:
+      materialized: view
+      tags: ['staging', 'llm_usage']
+    columns:
+      - name: llm_call_id
+        description: "Primary key: the id llm.usage gave the call."
+        tests: [unique, not_null]
+      - name: called_at
+        description: "When the call was made (UTC)."
+        tests: [not_null]
+      - name: provider
+        description: "gemini, deepseek or huggingface_local."
+        tests:
+          - accepted_values:
+              values: ['gemini', 'deepseek', 'huggingface_local']
+              config: {severity: warn}
+      - name: model
+        description: "Model id as sent (e.g. gemini-2.5-flash)."
+        tests: [not_null]
+      - name: api_mode
+        description: "interactive, batch or local."
+        tests:
+          - accepted_values:
+              values: ['interactive', 'batch', 'local']
+              config: {severity: warn}
+      - name: stage
+        description: "What the call was for: part1, part2, compare, gatekeeper, demo1 to demo4, shield, governance."
+      - name: video_id
+        description: "bronze.bronze_event_youtube.video_id when the call was about a video; not enforced (bronze)."
+      - name: jurisdiction_id
+        description: "Jurisdiction the call was about, when known."
+      - name: run_id
+        description: "Groups the calls of one process run."
+      - name: input_token_count
+        description: "Prompt tokens, including cached ones."
+      - name: cached_input_token_count
+        description: "Prompt tokens the API served from its cache."
+      - name: output_token_count
+        description: "Answer tokens, without thinking tokens."
+      - name: thinking_token_count
+        description: "Thinking tokens (billed at the output rate)."
+      - name: total_token_count
+        description: "Total as the API reported it."
+      - name: latency_seconds
+        description: "Wall time including retries; null for batch calls."
+      - name: attempt_count
+        description: "Tries, including the last."
+      - name: is_ok
+        description: "Whether the call returned an answer."
+        tests: [not_null]
+      - name: error_type
+        description: "Exception type of a failed call."
+      - name: host_name
+        description: "Machine that made the call."
+
+  - name: stg_llm__gpu_run
+    description: >
+      One row per GPU step (bronze.bronze_gpu_run): wall time, GPU-hours (wall time by GPU
+      count), and what nvidia-smi sampled. Empty until the bronze table is loaded.
+    config:
+      materialized: view
+      tags: ['staging', 'llm_usage']
+    columns:
+      - name: gpu_run_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: step_name
+        description: "e.g. whisperx_diarization, gemma_hf_generate."
+        tests: [not_null]
+      - name: started_at
+        description: "Step start (UTC)."
+      - name: ended_at
+        description: "Step end (UTC)."
+      - name: wall_seconds
+        description: "Step duration."
+      - name: gpu_count
+        description: "GPUs on the machine."
+      - name: gpu_name
+        description: "Name nvidia-smi reports (e.g. Tesla T4)."
+      - name: gpu_hours
+        description: "wall_seconds / 3600 × gpu_count."
+      - name: gpu_sample_count
+        description: "nvidia-smi samples inside the step; null when none."
+      - name: avg_gpu_utilization_pct
+        description: "Mean utilization over the samples."
+      - name: max_gpu_memory_used_mb
+        description: "Peak memory over the samples."
+      - name: energy_wh
+        description: "Each GPU's mean power × the step's hours, summed; null without power readings."
+      - name: video_id
+        description: "Video the step was for, when known."
+      - name: jurisdiction_id
+        description: "Jurisdiction the step was for, when known."
+      - name: run_id
+        description: "Groups the steps of one process run."
+      - name: host_name
+        description: "Machine that ran the step."

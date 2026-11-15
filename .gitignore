@@ -124,6 +124,8 @@ data/
 !web_app/policy-dashboards/src/data/**
 .migration_backup/
 *.csv
+# The vendored NTEE seed is package data the loader falls back to (#321).
+!packages/ingestion/src/ingestion/ntee/seed_ntee_codes.csv
 # dbt seeds are source, not data dumps — must be tracked
 !dbt_project/seeds/*.csv
 *.parquet
@@ -162,7 +164,12 @@ youtube_cookies.txt
 cookies.txt
 *.cookies
 , psycopg2
-.claude/
+# Claude Code: local state stays out of git; the shared agent files are tracked (AGENTS.md, issue #225)
+.claude/*
+!.claude/agents/
+!.claude/commands/
+!.claude/review-rubric.md
+!.claude/settings.json
 
 # transcript-analysis backfill runtime log
 analyze_backlog.out
