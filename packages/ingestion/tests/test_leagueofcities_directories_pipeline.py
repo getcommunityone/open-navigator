@@ -60,7 +60,9 @@ def test_norm_placename_strips_suffixes_and_saint():
     assert _norm_placename("City of Springfield") == "springfield"
     assert _norm_placename("Springfield City") == "springfield"
     assert _norm_placename("St. Louis") == "saint louis"
-    assert _norm_placename("Orleans Parish") == "orleans county"
+    # Same order as dbt normalize_jurisdiction_label_for_match: the parish and county suffixes go first, so a parish
+    # and a county of the same name normalize alike and match each other.
+    assert _norm_placename("Orleans Parish") == "orleans" == _norm_placename("Orleans County")
 
 
 def test_row_key_is_stable_and_case_normalizes_state():

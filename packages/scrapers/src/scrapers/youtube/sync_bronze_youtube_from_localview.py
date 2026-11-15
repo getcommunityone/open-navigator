@@ -11,7 +11,7 @@ YouTube events from ``intermediate.int_youtube__events`` rather than re-running 
 script. Kept for now only as an operational fallback; remove once consumers point
 at the model.
 
-After ``bronze.bronze_events_localview`` is refreshed (e.g. ``load_localview_to_postgres.py``),
+After ``bronze.bronze_events_localview`` is refreshed (e.g. ``python -m ingestion.localview.events``),
 run this to push matching geography and channel identifiers onto existing YouTube rows
 where ``y.video_id = lv.datasource_id`` (LocalView rows use ``datasource = 'localview'``).
 
@@ -149,7 +149,7 @@ def sync_from_localview(conn, *, states: list[str] | None, dry_run: bool) -> tup
     else:
         logger.warning(
             "Skipped channel_id sync: intermediate.int_localview_youtube_video_channels "
-            "not found (run LocalView load / backfill_localview_youtube_channel_map.py)."
+            "not found (run python -m ingestion.localview.events or python -m ingestion.localview.channel_map)."
         )
 
     cur.close()

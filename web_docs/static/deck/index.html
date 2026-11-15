@@ -1,0 +1,243 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CommunityOne · Open Navigator: the pitch</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Source+Sans+3:wght@400..700&family=IBM+Plex+Mono:wght@700&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" integrity="sha384-YgvgKeZJykuztG+iQPoZHNZENTFZvOcOJ/uRzmJTje6GHYN9zAw+y5rx/L8MQKA/" crossorigin="anonymous">
+<style>html,body{height:100%}body{margin:0;background:#292524;font-family:'Source Sans 3',Arial,sans-serif}*{box-sizing:border-box;margin:0}
+.topnav{position:fixed;top:0;left:0;right:0;z-index:50;height:56px;background:#1c1917;border-bottom:1px solid rgba(250,250,249,.12);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px}
+.home{display:flex;align-items:center;gap:10px;font:700 16px 'Playfair Display',Georgia,serif;color:#fafaf9;text-decoration:none;white-space:nowrap}
+.home .mark{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:#0d9488;color:#fafaf9;font-size:15px}
+.links{display:flex;flex:1 1 auto;justify-content:flex-end;align-items:center;gap:4px;min-width:0}
+.links a,.topnav button{color:#d6d3d1;text-decoration:none;font:600 14px 'Source Sans 3',Arial,sans-serif;padding:7px 11px;border-radius:8px;background:none;border:0;cursor:pointer;white-space:nowrap}
+.links a:hover,.topnav button:hover{color:#fafaf9;background:rgba(255,255,255,.07)}.topnav button[aria-pressed=true]{color:#5eead4}
+.links a.cta{background:#0d9488;color:#fafaf9;margin-left:6px}.links a.cta:hover{background:#14b8a6}
+.pager{display:flex;align-items:center;gap:4px;min-width:0}.pager button{background:#0d9488;color:#fafaf9}.pager button:disabled{opacity:.35;cursor:default}
+.topnav select{width:280px;max-width:280px;min-width:72px;font:600 14px 'Source Sans 3',Arial,sans-serif;color:#fafaf9;background:#292524;border:1px solid rgba(250,250,249,.3);border-radius:8px;padding:6px 8px}
+.topnav button:focus-visible,.topnav select:focus-visible{outline:2px solid #fafaf9;outline-offset:2px}
+.disclaimer{position:fixed;top:56px;left:0;right:0;z-index:40;padding:6px 16px;background:#292524;color:#d6d3d1;font:13px/1.45 'Source Sans 3',Arial,sans-serif}
+.reveal-viewport,.reveal{background:#292524}.reveal{position:fixed;top:84px;left:0;right:0;bottom:0;width:auto;height:auto}
+.reveal .slides{text-align:left}.reveal .progress{color:#14b8a6}
+.reveal .controls{color:#14b8a6}.reveal .slide-number{font:600 14px 'Source Sans 3',Arial,sans-serif;background:rgba(28,25,23,.8);color:#fafaf9}
+.notes-panel{position:fixed;left:0;right:0;bottom:0;z-index:45;max-height:35vh;overflow:auto;background:#f5f5f4;color:#1c1917;padding:16px 20px 28px;font-size:16px;line-height:1.5;box-shadow:0 -8px 24px rgba(0,0,0,.3)}
+.notes-panel[hidden]{display:none}
+@media (max-width:1100px){.home .name,.links a.doc{display:none}}
+@media (max-width:560px){.pager .lbl,.links a.cta{display:none}}
+/* slide styles: every slide is 1920 x 1080 */
+.reveal .slides>section.s{height:1080px;padding:112px 128px 150px;background:#fafaf9;color:#1c1917;display:flex;flex-direction:column;gap:40px;font-family:'Source Sans 3',Arial,sans-serif}
+.reveal .slides>section.s.dark{background:#1c1917;color:#fafaf9;justify-content:space-between}
+.s .eyebrow{font:700 24px 'IBM Plex Mono',monospace;letter-spacing:3px;text-transform:uppercase;color:#0f766e}
+.s.dark .eyebrow{color:#5eead4}
+.s h1{font:700 88px/1.1 'Playfair Display',Georgia,serif}.s h1.accent{color:#5eead4}
+.s h2{font:700 60px/1.12 'Playfair Display',Georgia,serif}
+.s h3{font:700 40px/1.2 'Playfair Display',Georgia,serif;color:#0f766e}
+.s p,.s li{font-size:34px;line-height:1.4}.s .lead{font-size:40px;line-height:1.3;color:#44403c;max-width:1560px}
+.s.dark .lead{color:#d6d3d1}.s b{font-weight:700}
+.s .row{display:flex;gap:32px;align-items:stretch}
+.s .card{flex:1;display:flex;flex-direction:column;gap:16px;background:#fff;border:1px solid #e7e5e4;border-left:8px solid #0d9488;border-radius:16px;padding:36px}
+.s .card p{font-size:32px}
+.s table{border-collapse:collapse;font-size:32px;line-height:1.3;background:#fff;border:1px solid #e7e5e4}
+.s th{background:#1c1917;color:#fafaf9;text-align:left}.s th,.s td{padding:16px 20px;border-bottom:1px solid #e7e5e4;vertical-align:top}
+.s .flow{display:flex;gap:16px;align-items:stretch}.s .flow .card{border-left-width:1px;border-top:8px solid #0d9488;padding:28px}.s .flow .card p{font-size:28px}
+.s .flow .arrow{align-self:center;font-size:48px;color:#0d9488}
+.s .callout{font-size:34px;line-height:1.4;background:#0f766e;color:#fafaf9;border-radius:16px;padding:24px 40px}
+.s .tag{display:inline-block;font:700 22px 'IBM Plex Mono',monospace;letter-spacing:2px;text-transform:uppercase;background:#0d9488;color:#fafaf9;border-radius:8px;padding:8px 20px}
+.s .foot{position:absolute;left:128px;bottom:56px;width:1664px;font-size:22px;color:#78716c}
+.s.dark .foot{position:static;color:#a8a29e}
+.s ul{padding-left:1.1em;display:flex;flex-direction:column;gap:14px}</style></head><body>
+<!-- Built by web_docs/scripts/build-deck.mjs from web_docs/deck/slides/. Edit the slides, then rebuild. -->
+<nav class="topnav" aria-label="Main">
+<a class="home" href="https://www.communityone.com/" title="Back to CommunityOne"><span class="mark" aria-hidden="true">←</span><span class="name">CommunityOne</span></a>
+<div class="links"><a class="doc" href="https://www.communityone.com/docs/">Docs</a><span class="pager"><button id="deck-prev" aria-label="Previous slide" title="Previous slide (←)">‹<span class="lbl"> Previous</span></button>
+<select id="deck-jump" aria-label="Go to slide"><option value="cover">1. Local decisions shape daily life.</option><option value="audience">2. Four kinds of people, one record</option><option value="problem">3. 91,438 local governments. No common record.</option><option value="solution">4. Find it, read it, follow it</option><option value="lenses">5. Five ways to spot what matters in the record</option><option value="policy-model">6. From one vote to the question behind it</option><option value="pipeline">7. How a meeting becomes a searchable decision</option><option value="trust">8. Rules that keep it honest</option><option value="open">9. Anyone can check it, use it or build on it</option><option value="data-centers">10. Data centers: what’s coming, and whether the jobs are real</option><option value="status">11. Live, useful, and still uneven</option><option value="close">12. One map for every community.</option></select>
+<button id="deck-next" aria-label="Next slide" title="Next slide (→)"><span class="lbl">Next </span>›</button></span>
+<button id="deck-notes-btn" aria-pressed="false" title="Speaker notes (N)">Notes</button>
+<a class="cta" href="https://github.com/getcommunityone/open-navigator" target="_blank" rel="noopener">GitHub ↗</a></div></nav>
+<p class="disclaimer" id="deck-disclaimer">Open-source project of CommunityOne, a 501(c)(3) nonprofit. Every figure is cited on its slide; examples marked illustrative are not records.</p>
+<div class="reveal"><div class="slides">
+<section id="cover" class="s dark" data-transition="fade">
+<p class="eyebrow">CommunityOne · Open Navigator</p>
+<div style="display:flex;flex-direction:column;gap:36px">
+<div><h1>Local decisions shape daily life.</h1><h1 class="accent">Most people never see them.</h1></div>
+<p class="lead">Open Navigator reads public meeting records, budgets and nonprofit filings, and shows what local governments decided, with the passage from the record that says so.</p>
+<p><span class="tag">Open source · Apache 2.0</span></p>
+</div>
+<p class="foot">John Bowyer · Founder, CommunityOne, a 501(c)(3) nonprofit · communityone.com</p>
+<aside class="notes">Local governments decide property taxes, school start times, policing budgets and zoning. Those decisions are public, but they are buried in agendas, minutes and meeting videos that few people have time to read. Open Navigator is the open-source engine behind CommunityOne. It reads those public records and shows what was decided, and every result carries the passage from the record that backs it up. CommunityOne is a nonprofit I founded; the code is Apache 2.0, so anyone can check it or build on it.</aside>
+</section>
+
+<section id="audience" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">Who it’s for</p>
+<h2>Four kinds of people, one record</h2></div>
+<table>
+<tr><th style="width:24%">Who</th><th style="width:38%">Their question</th><th style="width:38%">What Open Navigator gives them</th></tr>
+<tr><td><b>Residents</b></td><td>What did my city or school board decide, and what is coming up?</td><td>Search by place and topic; each decision with the quote from the record</td></tr>
+<tr><td><b>Advocates and nonprofit leaders</b></td><td>Where is my issue moving, and what arguments are being made?</td><td>Policy questions tracked across places, contested votes, the arguments for and against</td></tr>
+<tr><td><b>Journalists and researchers</b></td><td>What does the record say, across many places at once?</td><td>Cited, downloadable data; open datasets; an API and an AI-assistant connection (MCP)</td></tr>
+<tr><td><b>Funders and civic leaders</b></td><td>Where are needs and resources out of step?</td><td>Budgets and nonprofit filings next to what officials said in meetings</td></tr>
+</table>
+<p class="foot">2</p>
+<aside class="notes">Four audiences, and they ask different questions of the same public record. Residents want to know what was decided near them and what is coming up. Advocates and nonprofit leaders want to follow an issue across places and see the arguments. Journalists and researchers want the record itself, cited and downloadable, at scale. Funders and civic leaders want to see where money and stated priorities line up and where they don't. The rest of the deck shows how one platform serves all four without making anything up.</aside>
+</section>
+
+<section id="problem" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">The problem</p>
+<h2>91,438 local governments. No common record.</h2></div>
+<div class="row">
+<div class="card"><h3>Scattered</h3><p>Each county, city, township, school district and special district publishes agendas, minutes, video and budgets its own way: PDFs, vendor portals, video channels.</p></div>
+<div class="card"><h3>Slow to read</h3><p>One meeting’s minutes can run dozens of pages. Following one issue across a state by hand is not realistic for a resident or a small nonprofit.</p></div>
+<div class="card"><h3>Easy to miss</h3><p>By the time most people hear about a decision, the vote is over and the window to speak has closed.</p></div>
+</div>
+<p class="foot">Source: U.S. Census Bureau, Government Organization Summary Report: 2022 &amp; 2025 (91,438 local governments in 2025) · 3</p>
+<aside class="notes">The U.S. Census Bureau counted 91,438 local governments in 2025: counties, cities, townships, school districts and special districts. Each one publishes its records its own way. Some post PDFs, some use vendor portals, some only post video. There is no common format and no single place to look. Reading one city's minutes takes real time; following an issue across a whole state by hand isn't realistic for a resident or a small nonprofit. So most people find out about a decision after the vote, when the chance to speak has passed.</aside>
+</section>
+
+<section id="solution" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">What it does</p>
+<h2>Find it, read it, follow it</h2></div>
+<div class="row">
+<div class="card"><h3>Find</h3><p>One search across meetings, documents, decisions, bills, officials and nonprofits, filtered by place and topic. The label on the page always names the place the results are filtered to.</p></div>
+<div class="card"><h3>Read</h3><p>Every filtered result shows the passage from the record that matched, with the search term highlighted. A quote, never a paraphrase standing in for evidence.</p></div>
+<div class="card"><h3>Follow</h3><p>Story lenses surface what is worth a look, and a personal <b>Close to Home</b> feed follows the places and issues you choose.</p></div>
+</div>
+<p class="callout"><b>Try it:</b> communityone.com · search a topic, pick your state or city, and open any result to see its source.</p>
+<p class="foot">4</p>
+<aside class="notes">Three verbs. Find: one search box across meetings, documents, decisions, bills, officials and nonprofits, narrowed by place and topic, and the label on the page always tells you exactly what the results are filtered to, so you never read national results thinking they are local. Read: when a result shows up because of your search term, the tile shows the actual passage from the record with the term highlighted, so you can see why it matched without clicking in. Follow: story lenses, on the next slide, and a Close to Home feed for the places and issues you pick.</aside>
+</section>
+
+<section id="lenses" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">Story lenses</p>
+<h2>Five ways to spot what matters in the record</h2></div>
+<table>
+<tr><th style="width:26%">Lens</th><th>What it shows</th></tr>
+<tr><td><b>🔥 Contested</b></td><td>Split votes and heated debate among officials or residents</td></tr>
+<tr><td><b>💵 Money Moves</b></td><td>Contracts, grants and budget changes pulled from the record</td></tr>
+<tr><td><b>🤨 Raised Eyebrows</b></td><td>Unusual patterns, such as sole-source contracts, reversals and late additions. Flagged for a person to review, not a finding</td></tr>
+<tr><td><b>⚡ Moving Fast</b></td><td>Items moving quicker than the usual process</td></tr>
+<tr><td><b>👀 Watch Next</b></td><td>Upcoming votes worth keeping on your radar</td></tr>
+</table>
+<p class="foot">Lens names and descriptions as shown in the app (web_app/src/pages/HomeV9.tsx) · 5</p>
+<aside class="notes">Most of the public record is routine. The lenses help people find the parts worth reading. Contested shows split votes and heated debate. Money Moves pulls out contracts, grants and budget changes. Raised Eyebrows flags unusual patterns, like a sole-source contract or a late addition to the agenda; it is a prompt for a person to look, never an accusation, and the app says so. Moving Fast shows items moving quicker than usual. Watch Next shows votes coming up, which is where residents can still act.</aside>
+</section>
+
+<section id="policy-model" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">The policy model</p>
+<h2>From one vote to the question behind it</h2></div>
+<div class="flow">
+<div class="card"><h3>Decision</h3><p>One vote, in one place, on one date, with the speakers and the quotes.</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Policy question</h3><p>The question that vote answers, which comes up in many places over time.</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Arguments</h3><p>The arguments made for and against it, gathered into one library and linked back to where each was said.</p></div>
+</div>
+<p class="callout"><b>Illustrative example, not a record:</b> a school board vote on later start times is one instance of the question “Should schools start later?”, which links to every place it has come up and the arguments made there.</p>
+<p class="foot">Approach draws on Key Point Analysis and the Policy Frames Codebook · 6</p>
+<aside class="notes">This is what lets an advocate follow an issue rather than a single meeting. Every decision is one vote in one place. Behind it is a policy question that comes up again and again in different places. And behind the question is a library of the arguments people make for and against it, each linked back to where it was said. The example on the slide is illustrative, not a real record. The approach borrows from research methods: Key Point Analysis, for grouping many arguments into a few key points, and the Policy Frames Codebook, for how issues get framed.</aside>
+</section>
+
+<section id="pipeline" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">How it works</p>
+<h2>How a meeting becomes a searchable decision</h2></div>
+<div class="flow">
+<div class="card"><h3>Discover</h3><p>Government websites, video channels, meeting portals, Open States</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Collect</h3><p>Agendas, minutes, transcripts, budgets, IRS nonprofit filings, Census data</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Extract</h3><p>AI reads transcripts into decisions, votes, speakers and quotes</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Model</h3><p>dbt layers: bronze, staging, intermediate, marts; records matched across sources</p></div>
+<div class="arrow">→</div>
+<div class="card"><h3>Serve</h3><p>PostgreSQL, a FastAPI API, the React app, open datasets, an MCP server</p></div>
+</div>
+<p class="foot">Architecture: web_docs/docs/architecture.md · data sources: CITATIONS.md · 7</p>
+<aside class="notes">Five steps. Discover finds where each government posts its records. Collect pulls in agendas, minutes, transcripts and budgets, plus IRS nonprofit filings and Census data. Extract uses AI to turn long transcripts into structured decisions, votes, speakers and quotes. Model is where the data gets cleaned and joined, in dbt, in layers from raw to ready, including matching the same city or nonprofit across different sources. Serve puts it in a Postgres database behind an API, the web app, open datasets anyone can download, and an MCP server so AI assistants can query it directly.</aside>
+</section>
+
+<section id="trust" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">Trust</p>
+<h2>Rules that keep it honest</h2></div>
+<div class="row">
+<div class="card"><h3>No made-up numbers</h3><p>If data is missing, the app says it is missing. No placeholder figures, ever, and above all no invented dollar amounts or vote counts.</p></div>
+<div class="card"><h3>Evidence on every match</h3><p>A filtered result shows the real passage that matched. No passage, no result.</p></div>
+</div>
+<div class="row">
+<div class="card"><h3>The label matches the filter</h3><p>The place named on the page is the place the data is filtered to, and the filter carries across pages.</p></div>
+<div class="card"><h3>Every source cited</h3><p>Datasets, standards and research are credited with licences in CITATIONS.md.</p></div>
+</div>
+<p class="foot">These are written rules for every contributor and coding agent (CLAUDE.md) · 8</p>
+<aside class="notes">Civic data only works if people can trust it, so these are written rules in the repository, for every contributor and every AI coding agent. First, no made-up numbers: when data is missing the app shows that it's missing, because a made-up dollar amount is worse than nothing. Second, evidence on every match: if a result shows up because of a search term, the tile shows the real passage. Third, the label on the page always matches the filter actually applied. Fourth, every dataset and method is cited with its licence.</aside>
+</section>
+
+<section id="open" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">Open by design</p>
+<h2>Anyone can check it, use it or build on it</h2></div>
+<ul>
+<li><b>Open code.</b> Apache 2.0 on GitHub, with issues, pull requests and reviews in the open.</li>
+<li><b>Open data.</b> Datasets published on Hugging Face for download and reuse.</li>
+<li><b>Open to AI assistants.</b> An MCP server lets assistants such as Claude query the data directly.</li>
+<li><b>Open standards.</b> Meeting data compatible with the Council Data Project; place IDs from the Open Civic Data standard (OCD-ID).</li>
+</ul>
+<p class="callout">Public records should stay public when they are made easier to use.</p>
+<p class="foot">github.com/getcommunityone/open-navigator · 9</p>
+<aside class="notes">Everything is open. The code is Apache 2.0, and the work happens in public issues and pull requests. The datasets are published on Hugging Face. There is an MCP server, so an AI assistant can query the data directly instead of guessing. And the data follows existing civic standards, like the Council Data Project's meeting model and Open Civic Data identifiers, so it can connect to other civic tools rather than becoming another silo.</aside>
+</section>
+
+<section id="data-centers" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">This quarter</p>
+<h2>Data centers: what’s coming, and whether the jobs are real</h2></div>
+<p class="lead">What is being built near me, who approved it, what it does to my bill, and are the jobs real? This quarter starts with the first and the last.</p>
+<div class="row">
+<div class="card"><h3>Job promises, on the record</h3><p>Construction and permanent jobs shown separately, each with its dates and who promised it, linked to that moment in the recording. Unknown says “not stated”, never zero.</p></div>
+<div class="card"><h3>The pipeline near me</h3><p>Proposed sites before the vote, matched to the agenda where they’ll come up, with alerts ranked by how much local concern the record shows.</p></div>
+</div>
+<p class="callout"><b>Status:</b> six stories planned for October to December 2026; none built yet.</p>
+<p class="foot">Plan: github.com/getcommunityone/open-navigator/issues/236 · 10</p>
+<aside class="notes">This quarter, most of the work goes to data centers, because that's where residents are asking the hardest questions: what's being built near me, who approved it, what it will do to my power bill, and whether the promised jobs are real. We start with two of those. First, job promises on the record: when someone at a meeting promises jobs, we show construction jobs and permanent jobs separately, each with its dates, because a two-year build isn't a career. Every number says who said it, at which meeting, and links to that moment in the recording, and if a number was never stated we say so instead of showing zero. Second, the pipeline near me: proposed sites before the vote, matched to the agenda where they'll come up, with alerts ranked by local concern. To be clear, this is planned work for October through December; none of it is built yet, and it builds on the meeting citations planned in the core work.</aside>
+</section>
+
+<section id="status" class="s" data-transition="fade">
+<div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">Where it stands</p>
+<h2>Live, useful, and still uneven</h2></div>
+<table>
+<tr><th>Nonprofits</th><th>Meetings and events</th><th>Government officials</th><th>Decisions extracted by AI</th></tr>
+<tr><td><b>1,926,908</b></td><td><b>153,235</b></td><td><b>34,289</b></td><td><b>4,495</b></td></tr>
+</table>
+<div class="row">
+<div class="card"><h3>Working today</h3><p>The app, docs and API are live at communityone.com. Nationwide directories of jurisdictions and nonprofits; search, lenses, maps and policy questions.</p></div>
+<div class="card"><h3>Not there yet</h3><p>Meeting analysis is deep in a few states and thin elsewhere. Jurisdiction counts in the stats aren&rsquo;t right yet and are left out. Older scripts are being moved into tested packages.</p></div>
+</div>
+<p class="callout">A small nonprofit project with one maintainer. Help with data, review and pilot communities moves it fastest.</p>
+<p class="foot">Figures: communityone.com/api/stats, snapshot dated June 5, 2026, read November 14, 2026 · 11</p>
+<aside class="notes">An honest status. It's live: the app, the docs and the API at communityone.com, with nationwide directories and the search, lenses, maps and policy questions you've seen. It is not finished. Meeting analysis is deep in a few states and thin elsewhere, so coverage is uneven. The figures at the top come straight from the live stats endpoint; that snapshot is from June, and its jurisdiction count is wrong, so I leave that one out until it's fixed. And older scripts are being moved into tested packages. It's a small nonprofit project with one maintainer, which is why help matters.</aside>
+</section>
+
+<section id="close" class="s dark" data-transition="fade">
+<p class="eyebrow">The ask</p>
+<div style="display:flex;flex-direction:column;gap:40px">
+<h1>One map for every community.</h1>
+<div class="row" style="gap:48px">
+<div style="flex:1"><h3 style="color:#5eead4">Try it</h3><p class="lead" style="font-size:32px">Search your city or county at communityone.com and tell us what’s missing.</p></div>
+<div style="flex:1"><h3 style="color:#5eead4">Contribute</h3><p class="lead" style="font-size:32px">Pick up an issue on GitHub: data sources, scrapers, the app, the docs.</p></div>
+<div style="flex:1"><h3 style="color:#5eead4">Partner</h3><p class="lead" style="font-size:32px">Bring data, funding or a pilot community that wants its record readable.</p></div>
+</div>
+</div>
+<p class="foot">johnbowyer@communityone.com · github.com/getcommunityone/open-navigator</p>
+<aside class="notes">CommunityOne's goal is one map for every community: residents, leaders and funders looking at the same record of what is happening on the ground. Three ways to help. Try it, and tell us where your community is missing or wrong. Contribute on GitHub, where every task is a logged issue. Or partner with us: data, funding, or a community that wants to pilot a readable public record. Thank you.</aside>
+</section>
+</div></div>
+<div class="notes-panel" id="deck-notes" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js" integrity="sha384-M/JtqCVlLcK9lwVnBnMXP0V577CBULkjodKsR/PITOe4MSKNbbwqCemEyluOw0+5" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js" integrity="sha384-vGIe90H8q0nlnrw/zr9vn+r39OtjvzBfai9voOybn5Bx+KmKLtSxhM+YIfcrsfI3" crossorigin="anonymous"></script>
+<script>
+document.querySelectorAll('.slides a[href^="http"]').forEach(a=>{a.target='_blank';a.rel='noopener'})
+var jump=document.getElementById('deck-jump'),prev=document.getElementById('deck-prev'),next=document.getElementById('deck-next'),panel=document.getElementById('deck-notes'),btn=document.getElementById('deck-notes-btn'),bar=document.getElementById('deck-disclaimer'),deck=document.querySelector('.reveal')
+function sync(){var s=Reveal.getCurrentSlide();if(!s)return;var i=Reveal.getIndices().h;jump.selectedIndex=i;prev.disabled=Reveal.isFirstSlide();next.disabled=Reveal.isLastSlide();var n=s.querySelector('aside.notes');panel.innerHTML='<b>Slide '+(i+1)+' notes:</b> '+(n?n.innerHTML:'');if(!panel.hidden)fit()}
+function fit(){deck.style.top=(56+bar.offsetHeight)+'px';deck.style.bottom=(panel.hidden?0:panel.offsetHeight)+'px';if(Reveal.isReady())Reveal.layout()}
+function toggleNotes(){var on=panel.hidden;panel.hidden=!on;btn.setAttribute('aria-pressed',on);fit()}
+jump.addEventListener('change',()=>{Reveal.slide(jump.selectedIndex);jump.blur()})
+btn.addEventListener('click',toggleNotes)
+prev.addEventListener('click',e=>{Reveal.prev();if(e.detail)prev.blur()})
+next.addEventListener('click',e=>{Reveal.next();if(e.detail)next.blur()})
+fit()
+Reveal.initialize({width:1920,height:1080,margin:0.03,center:false,display:'flex',hash:true,history:false,slideNumber:'c/t',scrollActivationWidth:null,
+  controls:true,controlsLayout:'edges',controlsTutorial:false,progress:true,transition:'fade',transitionSpeed:'fast',
+  keyboard:{78:toggleNotes},keyboardCondition:e=>!e.target.closest('.topnav'),plugins:[RevealNotes]}).then(sync)
+Reveal.on('slidechanged',sync)
+addEventListener('resize',fit)
+</script></body></html>

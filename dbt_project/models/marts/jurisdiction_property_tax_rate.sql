@@ -71,6 +71,8 @@ select
     k.acs_vintage_year,
     k.median_real_estate_taxes_paid,
     k.median_home_value,
+    -- B19013 median household income (#137): the money modal's starting income.
+    k.median_household_income,
     round(
         k.median_real_estate_taxes_paid::numeric / nullif(k.median_home_value, 0),
         6

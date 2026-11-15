@@ -189,7 +189,12 @@ _PROPTAX_COLS = """
     acs_vintage_year,
     median_real_estate_taxes_paid,
     median_home_value,
-    effective_property_tax_rate
+    effective_property_tax_rate,
+    -- B19013 median household income (#137). Read through to_jsonb so a serving
+    -- table synced before the column existed returns NULL instead of erroring
+    -- (which would take the whole property-tax card down until the next sync).
+    (to_jsonb(jurisdiction_property_tax_rate) ->> 'median_household_income')::bigint
+        AS median_household_income
 """
 
 # Place (city) lookup: exact name-stem match first, then tolerant of the stored
@@ -235,6 +240,9 @@ class PropertyTaxRateResponse(BaseModel):
     effective_property_tax_rate: Optional[float] = None
     median_home_value: Optional[int] = None  # ACS median, a sensible slider default
     median_real_estate_taxes_paid: Optional[int] = None
+    # ACS B19013 median household income for the same place/county + vintage —
+    # the money modal's starting income (#137). None when suppressed / not loaded.
+    median_household_income: Optional[int] = None
     source: str = _PROPTAX_SOURCE
     note: str = ""
 
@@ -317,6 +325,7 @@ async def get_property_tax_rate(
             median_real_estate_taxes_paid=_int_or_none(
                 row["median_real_estate_taxes_paid"]
             ),
+            median_household_income=_int_or_none(row["median_household_income"]),
             source=_PROPTAX_SOURCE,
             note=note,
         )

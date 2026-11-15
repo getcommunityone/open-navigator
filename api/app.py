@@ -708,6 +708,11 @@ from api.routes import deployments as deployments_routes
 
 app.include_router(deployments_routes.router, prefix="/api")
 
+# Data-center job claims by phase (#246): GET /api/data-centers/job-claims
+from api.routes import data_centers as data_centers_routes
+
+app.include_router(data_centers_routes.router, prefix="/api")
+
 # Serve React frontend
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():

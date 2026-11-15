@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { tracedFetch } from '../lib/api'
 
 const DEFAULT_WEBSITE_URL = 'https://www.communityone.com/'
 
@@ -136,7 +137,7 @@ async function fetchReport(websiteUrl: string, batchId?: string): Promise<Lighth
   const u = new URL('/api/lighthouse/report', window.location.origin)
   u.searchParams.set('website_url', websiteUrl.trim())
   if (batchId?.trim()) u.searchParams.set('batch_id', batchId.trim())
-  const res = await fetch(u.toString(), { credentials: 'include' })
+  const res = await tracedFetch(u.toString(), { credentials: 'include' })
   if (!res.ok) {
     let body: unknown = null
     try {

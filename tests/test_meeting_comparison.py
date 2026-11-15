@@ -82,7 +82,7 @@ def test_summary_text_omits_empty_sections():
 def test_routes_registered_at_api_paths():
     from api.main import app
 
-    paths = {
+    paths = set(app.openapi().get("paths", {}).keys()) | {
         getattr(r, "path", None) or getattr(r, "path_format", None) for r in app.routes
     }
     assert "/api/meeting/{event_meeting_id}/comparison" in paths

@@ -1718,7 +1718,7 @@ def call_google_genai_multimodal(
             return _generate(stripped)
 
     response = call_with_genai_quota_retry(
-        _generate_with_thinking_fallback, label=f"genai {model}"
+        _generate_with_thinking_fallback, label=f"genai {model}", model=model, stage="governance"
     )
 
     if isinstance(response, _StreamGenAIResponse):
@@ -2083,7 +2083,9 @@ def shield_review_text(
             ),
         )
 
-    response = call_with_genai_quota_retry(_generate, label=f"shield {model}")
+    response = call_with_genai_quota_retry(
+        _generate, label=f"shield {model}", model=model, stage="shield"
+    )
 
     raw = ""
     for cand in getattr(response, "candidates", None) or []:

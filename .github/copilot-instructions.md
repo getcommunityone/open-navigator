@@ -1,5 +1,8 @@
 # GitHub Copilot Instructions for Open Navigator
 
+> **Read `AGENTS.md` first:** every change starts from a logged GitHub issue (Problem, Done when, Contract,
+> Read first), the branch is `<type>/<issue>-<slug>`, and the PR says `Closes #<issue>`.
+
 ## 🚨 CRITICAL: Documentation Standards
 
 ### ⚠️ ALWAYS Use Docusaurus Format - NO EXCEPTIONS

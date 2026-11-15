@@ -1,5 +1,7 @@
 """Tests for YouTube channel purpose classification."""
 
+import pytest
+
 from scripts.discovery.youtube_channel_purpose import (
     classify_channel_purpose,
     has_meeting_purpose_signal,
@@ -50,33 +52,31 @@ def test_tv_public_channel():
     assert purpose == "tv-public"
 
 
-def test_county_general_rejected_without_meeting_signal():
-    row = {
-        "youtube_channel_url": "https://www.youtube.com/channel/UCexample",
-        "channel_title": "Walton County Georgia Government",
-        "channel_description": "News about services, programs and events for citizens.",
-        "discovery_method": "website_search",
-        "official_meeting_confidence": 0.9,
-        "back_links_to_jurisdiction_website": True,
-        "channel_purpose": "county-general",
-    }
-    assert not qualifies_for_bronze_jurisdiction_youtube(
-        row,
-        jurisdiction_type="county",
-        jurisdiction_name="Walton County",
-        jurisdiction_state_code="GA",
-        jurisdiction_homepage="https://waltoncountyga.gov",
-    )
-    assert (
-        rejection_reason_for_channel(
-            row,
-            jurisdiction_type="county",
-            jurisdiction_name="Walton County",
-            jurisdiction_state_code="GA",
-            jurisdiction_homepage="https://waltoncountyga.gov",
-        )
-        == "channel_purpose_not_meeting_focused"
-    )
+WALTON = {
+    "youtube_channel_url": "https://www.youtube.com/channel/UCexample",
+    "channel_title": "Walton County Georgia Government",
+    "channel_description": "News about services, programs and events for citizens.",
+    "discovery_method": "website_search",
+    "official_meeting_confidence": 0.9,
+    "back_links_to_jurisdiction_website": True,
+    "channel_purpose": "county-general",
+}
+WALTON_COUNTY = dict(jurisdiction_type="county", jurisdiction_name="Walton County", jurisdiction_state_code="GA",
+                     jurisdiction_homepage="https://waltoncountyga.gov")
+
+
+def test_county_general_qualifies_when_the_county_website_links_it():
+    """The owner's decision on #322 (November 15, 2026): a county-general channel found through the county's own
+    website, or linking back to it, qualifies without a meeting signal, as ffe865a5 made it
+    (web_docs/docs/development/youtube-channel-rules.md)."""
+    assert qualifies_for_bronze_jurisdiction_youtube(WALTON, **WALTON_COUNTY)
+    assert rejection_reason_for_channel(WALTON, **WALTON_COUNTY) is None
+
+
+def test_county_general_without_a_website_link_still_needs_a_meeting_signal():
+    unlinked = {**WALTON, "discovery_method": "youtube_search", "back_links_to_jurisdiction_website": False}
+    assert not qualifies_for_bronze_jurisdiction_youtube(unlinked, **WALTON_COUNTY)
+    assert rejection_reason_for_channel(unlinked, **WALTON_COUNTY) == "channel_purpose_not_meeting_focused"
 
 
 def test_tv_public_with_meetings_can_qualify_at_high_confidence():

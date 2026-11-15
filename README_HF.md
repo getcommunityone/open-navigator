@@ -17,16 +17,16 @@ tags:
 
 # 🏛️ CommunityOne - Open Navigator
 
-**Track 90,000+ jurisdictions. Monitor 1.8M nonprofits. Amplify your voice.**
+**See what your local government decided, with the record to prove it.**
 
 CommunityOne is a civic engagement platform that helps you discover advocacy opportunities, track policy changes, and connect with organizations working on the causes you care about.
 
 ## ✨ Features
 
 - **🔍 Unified Search**: Find contacts, meetings, organizations, and causes across the entire United States
-- **📊 Real-time Stats**: Track policy activity across 90,000+ cities, counties, and states
-- **🏢 Nonprofit Discovery**: Explore 1.8M organizations from IRS data enriched with Every.org
-- **📅 Meeting Minutes**: Search 250,000+ government meeting transcripts and agendas
+- **📊 Real-time Stats**: Live counts for the nation, a state, a county or a city ([/api/stats](https://www.communityone.com/api/stats))
+- **🏢 Nonprofit Discovery**: Explore tax-exempt organizations from IRS data, enriched with Every.org
+- **📅 Meeting Minutes**: Search government meeting transcripts and agendas
 - **🎯 Geographic Filtering**: Browse by state, county, or city to find local opportunities
 - **🔐 OAuth Login**: Sign in with HuggingFace, GitHub, or Google to save your preferences
 
@@ -62,16 +62,16 @@ All services are reverse-proxied through nginx on port 7860.
 
 - **Frontend**: React 18 + TypeScript + Vite + TailwindCSS + shadcn/ui
 - **Backend**: Python 3.11 + FastAPI + Pydantic
-- **Data**: Delta Lake + Parquet (90GB+ of civic data)
+- **Data**: PostgreSQL (Neon), built by dbt
 - **Docs**: Docusaurus v3
 - **Infrastructure**: nginx + supervisor + Docker
 
 ## 📊 Data Sources
 
-- **IRS BMF**: 1.8M tax-exempt organizations
+- **IRS BMF**: tax-exempt organizations
 - **Every.org**: Nonprofit enrichment (logos, causes, revenue)
-- **Open States**: State legislators and bills (7,300+ officials)
-- **Census**: Jurisdictions and boundaries (90,000+)
+- **Open States**: state legislators and bills
+- **Census**: jurisdictions and boundaries
 - **CityScrapers**: Local government meetings
 - **OpenCivicData**: Standardized government data
 

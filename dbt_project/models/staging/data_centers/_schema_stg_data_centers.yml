@@ -1,0 +1,60 @@
+version: 2
+
+# DC-1.1 (#246): jobs claims split by phase. Rows the job_claim mart can't keep (no quote,
+# a phase outside construction/operations, a meeting not in event_meeting) are filtered
+# there; these warn-level tests count them so the gap is reported in every run.
+
+models:
+  - name: stg_job_claim_ai
+    description: >
+      Jobs claims from the Part 1 meeting analysis
+      (bronze.bronze_events_analysis_ai.structured_analysis -> 'job_claims'), one row per
+      array element per analysis. Headcounts, dates and timestamps are cast only when the
+      model wrote a clean value; anything else is null, never guessed.
+    columns:
+      - name: job_claim_id
+        description: "md5(analysis id | start_seconds | phase | quote)."
+      - name: event_meeting_id
+        description: "The analysis id (bronze_events_analysis_ai.id) = event_meeting.event_meeting_id."
+        tests:
+          - relationships:
+              to: ref('event_meeting')
+              field: event_meeting_id
+              config:
+                severity: warn
+      - name: phase
+        description: "construction or operations, as the model wrote it (lower-cased, trimmed)."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - accepted_values:
+              values: ['construction', 'operations']
+              config:
+                severity: warn
+      - name: headcount_low
+        description: "Low end of the jobs figure; null when absent or not a clean whole number."
+      - name: headcount_high
+        description: "High end of the jobs figure; null when absent or not a clean whole number."
+      - name: starts_on
+        description: "When the jobs start (ISO date), null when absent or free text."
+      - name: ends_on
+        description: "When the jobs end (ISO date), null when absent or free text."
+      - name: project_name
+        description: "The project the claim is about, as named in the meeting."
+      - name: project_type
+        description: "data_center or another project type (lower-cased, trimmed)."
+      - name: speaker_name
+        description: "Who made the claim, as the analysis names them."
+      - name: start_seconds
+        description: "Offset into the meeting video where the quote starts."
+      - name: quote
+        description: "The claim, verbatim from the transcript."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: source_ai_model
+        description: "The model that produced the analysis."
+      - name: extracted_at
+        description: "When the analysis was produced (bronze_events_analysis_ai.created_at)."

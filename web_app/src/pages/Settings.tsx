@@ -9,6 +9,7 @@ import {
   ExclamationCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
+import { tracedFetch } from '../lib/api'
 
 export default function Settings() {
   const { user, refreshUser } = useAuth()
@@ -99,7 +100,7 @@ export default function Settings() {
 
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch(`${API_URL}/auth/profile`, {
+      const response = await tracedFetch(`${API_URL}/auth/profile`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

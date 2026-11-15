@@ -55,7 +55,7 @@ import re
 import random
 import os
 import json
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 from datetime import datetime
 from pathlib import Path
 import httpx
@@ -1402,7 +1402,7 @@ class BallotpediaDiscovery:
         self,
         data: List[Dict],
         table_name: str,
-        spark: Optional[SparkSession] = None
+        spark: Optional["SparkSession"] = None
     ) -> Dict[str, int]:
         """
         Save discovered data to Bronze layer (Delta Lake).
