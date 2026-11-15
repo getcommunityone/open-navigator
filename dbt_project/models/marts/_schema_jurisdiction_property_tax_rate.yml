@@ -90,6 +90,9 @@ models:
       - name: median_home_value
         description: "B25077_001E — median home value (whole dollars). NULL if suppressed."
         data_type: integer
+      - name: median_household_income
+        description: "B19013_001E — median household income (whole dollars), same geography and vintage. NULL if suppressed or not yet loaded. Seeds the money modal's income slider (#137)."
+        data_type: integer
       - name: effective_property_tax_rate
         description: "taxes / value, a fraction (0.0048 = 0.48%). NULL when value missing/zero."
         data_type: numeric

@@ -396,6 +396,9 @@ function YourBill({
 
   const propRate = propQ.data?.effective_property_tax_rate ?? null
   const median = propQ.data?.median_home_value ?? null
+  // REAL ACS median household income for the same place (#137). Seeds the income
+  // slider so the user sees what we assume; null → the slider starts empty.
+  const medianIncome = propQ.data?.median_household_income ?? null
   const salesPct = salesQ.data?.combined_sales_tax_rate_pct ?? null
   const salesFrac = salesPct != null ? salesPct / 100 : null
   // The data vintage for each rate — REAL years from the API, shown so the bill
@@ -406,14 +409,20 @@ function YourBill({
   const [own, setOwn] = useState(true)
   const [homeValue, setHomeValue] = useState<number | null>(null)
   // The user's own figures — start UNSET (0) so we never show a fabricated
-  // default. Home value is the one seeded default, and it's the REAL local ACS
-  // median (a citeable figure), framed as "the median household — adjust it".
+  // default. Home value and income are the seeded defaults, and both are REAL
+  // local ACS medians (citeable figures), framed as "the median household —
+  // adjust it". With no ACS income the income slider starts empty.
   const [spend, setSpend] = useState(0)
   const [fees, setFees] = useState(0)
-  const [income, setIncome] = useState(0)
+  const [incomeValue, setIncomeValue] = useState<number | null>(null)
   useEffect(() => {
     if (median != null) setHomeValue((v) => (v == null ? median : v))
   }, [median])
+  useEffect(() => {
+    if (medianIncome != null) setIncomeValue((v) => (v == null ? medianIncome : v))
+  }, [medianIncome])
+  const income = incomeValue ?? 0
+  const incomeIsMedian = medianIncome != null && incomeValue === medianIncome
 
   const hv = homeValue ?? median ?? 0
   const homeMax = Math.max(1_000_000, Math.ceil(((median ?? 230_000) * 2.5) / 50_000) * 50_000)
@@ -463,7 +472,15 @@ function YourBill({
           )}
           <EstRow label="Your yearly spending on taxable goods" value={spend} min={0} max={100_000} step={500} onChange={setSpend} display={spend > 0 ? fmtDollars(spend) : 'add yours'} />
           <EstRow label="Your local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} />
-          <EstRow label="Your household income" value={income} min={0} max={250_000} step={1_000} onChange={setIncome} display={income > 0 ? fmtDollars(income) : 'add yours'} />
+          <EstRow
+            label={incomeIsMedian ? 'Household income · local median' : 'Your household income'}
+            value={income}
+            min={0}
+            max={Math.max(250_000, Math.ceil(((medianIncome ?? 0) * 2.5) / 10_000) * 10_000)}
+            step={1_000}
+            onChange={setIncomeValue}
+            display={income > 0 ? fmtDollars(income) : 'add yours'}
+          />
         </div>
 
         {/* Live result */}
@@ -507,11 +524,13 @@ function YourBill({
             ))}
           </div>
 
-          {(spend === 0 || income === 0) && (
+          {(spend === 0 || income === 0 || incomeIsMedian) && (
             <p className="mt-3 rounded-lg bg-[#f0faf8] px-3 py-2 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
-              Starts with {own ? `the real property tax on ${jurisdictionName}'s median home` : 'your inputs'}.
-              Add your spending, fees, and income above to build your full bill — we don&apos;t fill those in for
-              you.
+              Starts with {own ? `the real property tax on ${jurisdictionName}'s median home` : 'your inputs'}
+              {incomeIsMedian ? ` and ${jurisdictionName}'s median household income` : ''}.
+              {incomeIsMedian
+                ? ' Move the income slider to yours, and add your spending and fees, to build your own bill.'
+                : ' Add your spending, fees, and income above to build your full bill — we don\u2019t fill those in for you.'}
             </p>
           )}
           <p className="mt-3 text-[11px] leading-relaxed text-[#5d7d7d]" style={FONT}>
@@ -523,7 +542,11 @@ function YourBill({
               <>Sales: {salesPct.toFixed(2)}% combined state+local rate (Tax Foundation
                 {salesYear ? `, ${salesYear}` : ''}). </>
             )}
-            Spending, fees &amp; income are your own.
+            {medianIncome != null && (
+              <>Income: starts at {jurisdictionName}&apos;s median household income
+                {acsYear ? ` (${acsYear} Census ACS)` : ' (Census ACS)'}. </>
+            )}
+            {medianIncome != null ? 'Spending & fees are your own.' : 'Spending, fees & income are your own.'}
           </p>
         </div>
       </div>
