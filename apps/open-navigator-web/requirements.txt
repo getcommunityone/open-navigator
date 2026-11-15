@@ -33,7 +33,7 @@ asyncpg==0.29.0               # async pools for the data/read routes (Neon)
 psycopg2-binary==2.9.9        # sync ORM/auth engine
 
 # --- Auth ----------------------------------------------------------------
-python-jose[cryptography]==3.4.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 itsdangerous==2.1.2
 
@@ -44,7 +44,7 @@ aiolimiter>=1.1              # core-lib rate limiter
 tenacity>=8.2.3
 
 # --- Observability (api/telemetry.py instruments at startup) -------------
-opentelemetry-api==1.42.0
+opentelemetry-api==1.45.2
 opentelemetry-sdk==1.42.0
 opentelemetry-instrumentation-fastapi==0.63b0
 opentelemetry-exporter-otlp-proto-http==1.42.0
