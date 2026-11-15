@@ -67,3 +67,18 @@ asked.
   Agents without slash commands read those files and follow the same steps. Every PR gets a review before it merges.
 - Everything in `CLAUDE.md`, "Branch & PR Workflow" still applies: never push to `main`, never force-push, required
   checks green before merge.
+
+## GPU and paid compute
+
+GPU steps (WhisperX diarization, local Gemma generation; #262, #297) run on paid or shared machines. The decision and
+its reasons: [GPU compute decisions](web_docs/docs/development/gpu-compute-decisions.md) (#357).
+
+- **GPU runs go to the owner's Colab, never the Kaggle account.** The Kaggle GPU pool is kept for
+  health-transformation-lab-nlp's competition work. The Colab compute units are one subscription shared with that
+  project, so one project's run can leave the other short.
+- **A paid GPU run starts only on the owner's explicit yes** for that run, given in the session that starts it; "do
+  what you recommend" doesn't.
+- **Read usage before and after every GPU run** (its `gpu_run` rows, `packages/llm/src/llm/usage/gpu.py`, and the
+  compute units Colab shows) and put the cost in the run's issue or PR.
+- **Recorded outputs and CPU come first.** Re-run a question on outputs already saved, or on CPU, before asking for a
+  GPU; a GPU run is for what they can't answer.
