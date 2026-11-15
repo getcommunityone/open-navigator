@@ -207,7 +207,7 @@
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
     'policy_question_relation', 'policy_question_trend', 'question_transcript_link',
     'meeting_browse', 'meeting_topic_link', 'meeting_question_link',
-    'job_claim'
+    'job_claim', 'data_center_site'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

@@ -276,3 +276,151 @@ async def list_job_claims(
             "🏗️ Data-center job claims -> {} rows (scope={})", len(items), scope.level
         )
         return JobClaimsResponse(scope=scope, totals=totals, items=items)
+
+
+# --- Data center sites (DC-4.1, #249) -----------------------------------------
+#
+# Backed by the dbt mart ``data_center_site`` (Epoch AI, CC BY 4.0): one row per site,
+# with a status derived from Epoch's dated timeline rows and the credit on every row.
+# A site that left Epoch's list stays, as status 'no_longer_listed'. Epoch has no city
+# field, so only ``state`` narrows the list; the response says so in ``city_applied``.
+
+SiteStatus = Literal["planned", "under_construction", "operating", "no_longer_listed"]
+SITE_STATUSES: tuple[str, ...] = ("planned", "under_construction", "operating", "no_longer_listed")
+
+
+class DataCenterSite(BaseModel):
+    """One data center site; unknown values are null."""
+
+    data_center_site_id: str
+    site_name: str
+    owner: str | None = None
+    users: str | None = None
+    project: str | None = None
+    address: str | None = None
+    country: str | None = None
+    state_code: str | None = None
+    state: str | None = None
+    status: SiteStatus | None = Field(
+        None, description="Derived from Epoch's dated rows; null when Epoch has none for the site."
+    )
+    last_known_status: SiteStatus | None = None
+    status_as_of: date | None = None
+    construction_note: str | None = None
+    it_power_mw: float | None = None
+    first_seen_on: date | None = None
+    last_seen_on: date | None = None
+    is_listed: bool
+    source_name: str
+    source_url: str
+    license: str
+    attribution: str
+
+
+class DataCenterSiteCounts(BaseModel):
+    """Sites per status for the whole scope (before ``status`` and ``limit``): 0 means none."""
+
+    planned: int = 0
+    under_construction: int = 0
+    operating: int = 0
+    no_longer_listed: int = 0
+    status_not_published: int = 0
+
+
+class DataCenterSitesResponse(BaseModel):
+    scope: JobClaimScope
+    city_applied: bool = Field(
+        ..., description="Always false: the source has no city field, so a city filter can't narrow sites."
+    )
+    counts: DataCenterSiteCounts = Field(default_factory=DataCenterSiteCounts)
+    items: list[DataCenterSite]
+
+
+_SITE_COLUMNS = (
+    "data_center_site_id, site_name, owner, users, project, address, country, state_code, state, "
+    "status, last_known_status, status_as_of, construction_note, it_power_mw, first_seen_on, "
+    "last_seen_on, is_listed, source_name, source_url, license, attribution"
+)
+
+_SITE_ORDER = (
+    "CASE status WHEN 'planned' THEN 0 WHEN 'under_construction' THEN 1 "
+    "WHEN 'operating' THEN 2 WHEN 'no_longer_listed' THEN 3 ELSE 4 END, site_name"
+)
+
+
+def build_sites_queries(
+    scope: JobClaimScope, status: str | None, limit: int
+) -> tuple[str, list[Any], str, list[Any]]:
+    """(items SQL, params, counts SQL, params). Values are bound, never inlined."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"state_code = ${len(params)}")
+    counts_where = " AND ".join(where) or "TRUE"
+    counts_params = list(params)
+    if status:
+        params.append(status)
+        where.append(f"status = ${len(params)}")
+    params.append(limit)
+    items_sql = (
+        f"SELECT {_SITE_COLUMNS} FROM data_center_site "
+        f"WHERE {' AND '.join(where) or 'TRUE'} ORDER BY {_SITE_ORDER} LIMIT ${len(params)}"
+    )
+    counts_sql = (
+        "SELECT coalesce(status, 'status_not_published') AS status, count(*)::int AS n "
+        f"FROM data_center_site WHERE {counts_where} GROUP BY 1"
+    )
+    return items_sql, params, counts_sql, counts_params
+
+
+@router.get("/sites", response_model=DataCenterSitesResponse)
+async def list_data_center_sites(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(
+        None, description="Accepted so a page's scope can be passed through; it can't narrow sites."
+    ),
+    status: SiteStatus | None = Query(None, description="Only sites with this status."),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+) -> DataCenterSitesResponse:
+    """
+    Data center sites (Epoch AI, CC BY 4.0) with status and source; sites no longer
+    listed by the source stay in the list.
+
+    Example:
+        GET /api/data-centers/sites?state=TX
+    """
+    scope = build_scope(state, city, None)
+    # Sites narrow by state only; echo the scope that was actually applied.
+    applied = JobClaimScope(
+        level="state" if scope.state_code else "national",
+        state_code=scope.state_code,
+        state=scope.state,
+    )
+    items_sql, params, counts_sql, counts_params = build_sites_queries(applied, status, limit)
+    with tracer.start_as_current_span("data-centers.sites") as span:
+        span.set_attribute("sites.scope_level", applied.level)
+        span.set_attribute("sites.status", status or "")
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(items_sql, *params)
+                count_rows = await conn.fetch(counts_sql, *counts_params)
+        except asyncpg.exceptions.UndefinedTableError as e:
+            span.set_attribute("sites.relation_missing", True)
+            logger.warning("data-centers: relation 'data_center_site' isn't here yet ({}); empty list", e)
+            return DataCenterSitesResponse(scope=applied, city_applied=False, items=[])
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers sites error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load data center sites")
+        counts = DataCenterSiteCounts(
+            **{r["status"]: r["n"] for r in count_rows if r["status"] in DataCenterSiteCounts.model_fields}
+        )
+        span.set_attribute("sites.count", len(rows))
+        return DataCenterSitesResponse(
+            scope=applied,
+            city_applied=False,
+            counts=counts,
+            items=[DataCenterSite(**dict(r)) for r in rows],
+        )

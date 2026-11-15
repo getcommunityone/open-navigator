@@ -90,3 +90,31 @@ export function verifiedLabel(lastVerifiedAt: string | null | undefined, isStale
   if (when) return `Not verified in the last 30 days (last verified ${when})`
   return 'Not verified yet'
 }
+
+/**
+ * Plain words for a site's status (DC-4.1, #249). A site the source stopped listing
+ * keeps its last known status and last-seen date rather than disappearing.
+ */
+export function siteStatusLabel(
+  status: string | null | undefined,
+  lastKnownStatus: string | null | undefined,
+  lastSeenOn: string | null | undefined,
+): string {
+  const words: Record<string, string> = {
+    planned: 'Planned',
+    under_construction: 'Under construction',
+    operating: 'Operating',
+  }
+  if (status === 'no_longer_listed') {
+    const seen = formatIsoDate(lastSeenOn)
+    const last = lastKnownStatus ? words[lastKnownStatus] : null
+    return [
+      'No longer listed by the source',
+      seen ? `last seen ${seen}` : null,
+      last ? `last known: ${last.toLowerCase()}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  }
+  return (status && words[status]) || 'Status not published'
+}

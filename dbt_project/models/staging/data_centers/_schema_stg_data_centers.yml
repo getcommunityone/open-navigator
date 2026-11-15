@@ -62,3 +62,51 @@ models:
         description: "The model that produced the analysis."
       - name: extracted_at
         description: "When the analysis was produced (bronze_events_analysis_ai.created_at)."
+  - name: stg_epoch_data_center
+    description: >
+      Epoch AI data center sites (CC BY 4.0), one row per site name from the newest snapshot
+      that lists it (DC-4.1, #249). is_listed is false for a site missing from the newest
+      download, so it stays visible downstream.
+    columns:
+      - name: name
+        description: "Site name; unique."
+        tests:
+          - unique
+          - not_null
+      - name: owner
+        description: "Owner, with Epoch's confidence tags turned into words."
+      - name: users
+        description: "Users, with the same confidence wording."
+      - name: project
+        description: "Broader project, if any."
+      - name: address
+        description: "Street address as given."
+      - name: country
+        description: "Country as given."
+      - name: state_code
+        description: "US state code parsed from the end of the address; null otherwise."
+      - name: selected_sources
+        description: "Epoch's main sources for the record."
+      - name: source_url
+        description: "The Epoch AI file URL the row came from."
+      - name: first_seen_on
+        description: "First snapshot that listed the site."
+      - name: last_seen_on
+        description: "Latest snapshot that listed the site."
+      - name: is_listed
+        description: "Listed in the newest snapshot."
+  - name: stg_epoch_data_center_timeline
+    description: >
+      Epoch AI timeline rows (CC BY 4.0): one row per site per as-of date, from the site's
+      newest snapshot (DC-4.1, #249). Numbers are guarded casts.
+    columns:
+      - name: name
+        description: "Site name."
+      - name: as_of_on
+        description: "As-of date."
+      - name: construction_note
+        description: "Free-text construction status on that date."
+      - name: buildings_operational
+        description: "Buildings operational by that date."
+      - name: it_power_mw
+        description: "IT power capacity (MW)."

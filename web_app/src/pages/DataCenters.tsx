@@ -2,13 +2,20 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import CitationLink from '../components/CitationLink'
 import { meetingMomentPath } from '../lib/timestamp'
-import { fetchJobClaims, type JobClaim, type JobClaimPhase } from '../api/dataCenters'
+import {
+  fetchDataCenterSites,
+  fetchJobClaims,
+  type DataCenterSite,
+  type JobClaim,
+  type JobClaimPhase,
+} from '../api/dataCenters'
 import { fetchApplicationLinks, type ApplicationLink } from '../api/applicationLinks'
 import {
   formatDateRange,
   formatHeadcount,
   meetingAttribution,
   placeScope,
+  siteStatusLabel,
   verifiedLabel,
 } from '../lib/dataCenterJobs'
 import { expandStateName } from '../utils/formatters'
@@ -105,9 +112,102 @@ export default function DataCenters() {
           )}
         </section>
 
+        <SitesSection rawState={rawState} cityName={cityName} />
+
         <ApplySection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
       </div>
     </div>
+  )
+}
+
+/**
+ * "Sites" (DC-4.1, #249): data center sites from Epoch AI (CC BY 4.0), with status and
+ * source. Sites the source stopped listing stay, labeled. The source has no city field,
+ * so this section narrows by state only, and its own label says which scope it shows
+ * (CLAUDE.md, scope label rule) instead of borrowing the page's city.
+ */
+function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['data-centers', 'sites', rawState ?? null],
+    queryFn: () => fetchDataCenterSites({ state: rawState }),
+  })
+  const sites = data?.items ?? []
+  const stateName = data?.scope?.state ?? (rawState ? expandStateName(rawState) || rawState : undefined)
+  const sitesScope = stateName ?? 'National'
+  const counts = data?.counts
+  return (
+    <section aria-labelledby="sites-heading" className="mt-6">
+      <h2 id="sites-heading" className="mb-1 text-xl font-semibold text-gray-900">
+        Sites <span className="font-normal text-gray-400">· {sitesScope}</span>
+      </h2>
+      <p className="mb-2 text-sm text-gray-600">
+        Large AI data center sites tracked by Epoch AI, with each site&apos;s status. Sites the source stops listing
+        stay here, marked, so they don&apos;t quietly disappear.
+      </p>
+      {cityName && (
+        <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          This source doesn&apos;t give cities, so these are all tracked sites in {sitesScope}, not just {cityName}.
+        </p>
+      )}
+      {counts && sites.length > 0 && (
+        <p className="mb-3 text-xs text-gray-600">
+          {counts.planned} planned · {counts.under_construction} under construction · {counts.operating} operating
+          {counts.no_longer_listed > 0 && ` · ${counts.no_longer_listed} no longer listed`}
+        </p>
+      )}
+      {isLoading ? (
+        <div role="status" className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+          Loading sites for {sitesScope}…
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Couldn&apos;t load sites.{' '}
+          <button type="button" onClick={() => refetch()} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      ) : sites.length === 0 ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          No tracked sites for {sitesScope} yet.
+        </div>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {sites.map((site) => (
+            <SiteCard key={site.data_center_site_id} site={site} />
+          ))}
+        </ul>
+      )}
+      {sites.length > 0 && (
+        <p className="mt-2 text-xs text-gray-500">
+          Source:{' '}
+          <a href={sites[0].source_url} target="_blank" rel="noopener noreferrer" className="underline">
+            {sites[0].attribution}
+          </a>
+        </p>
+      )}
+    </section>
+  )
+}
+
+function SiteCard({ site }: { site: DataCenterSite }) {
+  const gone = site.status === 'no_longer_listed'
+  const place = [site.address, site.state_code && !site.address?.includes(site.state_code) ? site.state_code : null]
+    .filter(Boolean)
+    .join(', ')
+  return (
+    <li className={`rounded-lg border bg-white p-4 shadow-sm ${gone ? 'border-dashed border-gray-300 opacity-90' : 'border-gray-200'}`}>
+      <p className="font-semibold text-gray-900">{site.site_name}</p>
+      {(site.owner || site.users) && (
+        <p className="text-sm text-gray-600">
+          {[site.owner && `Owner: ${site.owner}`, site.users && `Used by: ${site.users}`].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      {place && <p className="text-xs text-gray-500">{place}</p>}
+      <p className={`mt-2 text-sm font-medium ${gone ? 'text-gray-600' : 'text-gray-900'}`}>
+        {siteStatusLabel(site.status, site.last_known_status, site.last_seen_on)}
+      </p>
+      {site.construction_note && <p className="mt-1 text-xs italic text-gray-600">“{site.construction_note}”</p>}
+    </li>
   )
 }
 

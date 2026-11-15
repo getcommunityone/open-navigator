@@ -1,0 +1,98 @@
+version: 2
+
+# DC-4.1 (#249): data center sites from Epoch AI (CC BY 4.0), with status and source.
+# Built into gold and published to public (publish_public_serving's served list). Small
+# (one row per tracked site), so it is served whole, without a state subset filter.
+
+models:
+  - name: data_center_site
+    description: >
+      One row per data center site (PK data_center_site_id), from Epoch AI's "AI data
+      centers" dataset, credited on every row (source_name, source_url, license,
+      attribution). status is derived from Epoch's dated timeline rows, because Epoch
+      publishes no status field. A site that leaves Epoch's list stays here as
+      'no_longer_listed' with its last known status and last-seen date. Nothing is marked
+      cancelled: Epoch has no such flag.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: data_center_site_id
+        description: "Primary key: md5('epoch|' || site name)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: site_name
+        description: "The site or campus name, as Epoch AI gives it."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: owner
+        description: "Owner of the AI hardware. Epoch's #likely / #speculative tags shown as (likely) / (speculative)."
+        data_type: text
+      - name: users
+        description: "AI labs using the site, with the same confidence wording."
+        data_type: text
+      - name: project
+        description: "The broader project the site belongs to, if any."
+        data_type: text
+      - name: address
+        description: "Street address from public records, as Epoch AI gives it."
+        data_type: text
+      - name: country
+        description: "Country, as Epoch AI gives it."
+        data_type: text
+      - name: state_code
+        description: "2-letter US state code, when the address ends in one; else null."
+        data_type: text
+      - name: state
+        description: "Full state name for state_code."
+        data_type: text
+      - name: status
+        description: "planned, under_construction, operating or no_longer_listed; null when Epoch has no dated rows for the site."
+        data_type: text
+        constraints:
+          - type: check
+            expression: "status is null or status in ('planned', 'under_construction', 'operating', 'no_longer_listed')"
+        tests:
+          - accepted_values:
+              values: ['planned', 'under_construction', 'operating', 'no_longer_listed']
+      - name: last_known_status
+        description: "The status from the dated rows, kept when status is no_longer_listed."
+        data_type: text
+      - name: status_as_of
+        description: "Date of the timeline row the status comes from."
+        data_type: date
+      - name: construction_note
+        description: "Epoch's free-text construction status on that date."
+        data_type: text
+      - name: it_power_mw
+        description: "IT power capacity (MW) on the latest dated row on or before today; null when not given."
+        data_type: double precision
+      - name: first_seen_on
+        description: "First Epoch download that listed the site."
+        data_type: date
+      - name: last_seen_on
+        description: "Latest Epoch download that listed the site."
+        data_type: date
+      - name: is_listed
+        description: "True when the newest Epoch download lists the site."
+        data_type: boolean
+      - name: source_name
+        description: "Always 'Epoch AI'."
+        data_type: text
+      - name: source_url
+        description: "The Epoch AI dataset page."
+        data_type: text
+      - name: license
+        description: "Always 'CC BY 4.0'."
+        data_type: text
+      - name: attribution
+        description: "The credit line to show with the data."
+        data_type: text

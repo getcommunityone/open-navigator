@@ -245,3 +245,8 @@ outputPorts:
   contractId: open-navigator-public-job_claim
   type: table
   description: 'One row per jobs claim per meeting (PK job_claim_id): what a speaker said about the jobs a project will bring, split into construction and operations, with the headcount range, dates, the verbatim quote and where it starts in the video.'
+- name: data_center_site
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_site
+  type: table
+  description: One row per data center site (PK data_center_site_id), from Epoch AI's "AI data centers" dataset, credited on every row (source_name, source_url, license, attribution).
