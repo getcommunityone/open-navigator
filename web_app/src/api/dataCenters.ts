@@ -17,6 +17,8 @@ export type JobClaimsResponse = Schemas['JobClaimsResponse']
 export type DataCenterSite = Schemas['DataCenterSite']
 export type DataCenterSiteStatus = NonNullable<DataCenterSite['status']>
 export type DataCenterSitesResponse = Schemas['DataCenterSitesResponse']
+export type DataCenterAgendaItem = Schemas['DataCenterAgendaItem']
+export type DataCenterAgendaItemsResponse = Schemas['DataCenterAgendaItemsResponse']
 
 export async function fetchJobClaims(params: {
   state?: string
@@ -50,5 +52,25 @@ export async function fetchDataCenterSites(params: { state?: string }): Promise<
       return res.data
     },
     { 'data_centers.scope_level': params.state ? 'state' : 'national' },
+  )
+}
+
+/** Agendas that mention a data center (DC-4.2, #250), upcoming meetings first. */
+export async function fetchDataCenterAgendaItems(params: {
+  state?: string
+  city?: string
+}): Promise<DataCenterAgendaItemsResponse> {
+  const q: Record<string, string> = {}
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.agenda-items.load',
+    async (span) => {
+      const res = await api.get<DataCenterAgendaItemsResponse>('/data-centers/agenda-items', { params: q })
+      span.setAttribute('data_centers.agenda_items.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
   )
 }
