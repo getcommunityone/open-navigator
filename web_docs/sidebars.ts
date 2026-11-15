@@ -53,6 +53,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'quickstart',
         'development/code-walkthrough',
+        'development/dataops-walkthrough',
         'quick-reference',
       ],
     },
