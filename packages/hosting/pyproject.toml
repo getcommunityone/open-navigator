@@ -11,7 +11,7 @@ dependencies = [
     "huggingface-hub>=0.23",
     "datasets>=2.18",
     "pandas>=2.1",
-    "pyarrow>=14",
+    "pyarrow>=26.0.1",
     "loguru>=0.7",
     "python-dotenv>=1.0",
     # hosting.neon — load/sync gold + bronze into Neon cloud Postgres
