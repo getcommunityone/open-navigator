@@ -1,7 +1,8 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 import api.routes.feed as feed_module
 from api.auth import get_current_user
@@ -9,6 +10,32 @@ from api.database import get_db
 from api.main import app
 from api.models import User
 from api.routes.feed import LocationIn, _derive_state_code, _extract_primary_city
+
+
+class TestClient:
+    """Minimal sync client over httpx.ASGITransport.
+
+    starlette's TestClient passes ``app=`` to httpx.Client, which httpx 0.28
+    removed (CI fails with "unexpected keyword argument 'app'"). The repo's other
+    API tests use ASGITransport the same way.
+    """
+
+    def __init__(self, asgi_app):
+        self._app = asgi_app
+
+    def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        async def go() -> httpx.Response:
+            transport = httpx.ASGITransport(app=self._app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+                return await client.request(method, url, **kwargs)
+
+        return asyncio.run(go())
+
+    def get(self, url: str, **kwargs) -> httpx.Response:
+        return self._request("GET", url, **kwargs)
+
+    def put(self, url: str, **kwargs) -> httpx.Response:
+        return self._request("PUT", url, **kwargs)
 
 
 def test_derive_state_code_supports_iso_abbr_and_full_name():
