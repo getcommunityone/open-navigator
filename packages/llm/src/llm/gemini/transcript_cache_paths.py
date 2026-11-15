@@ -19,6 +19,7 @@ Legacy flat ``<jurisdiction_id>/`` at the cache root is still read. Reorganize w
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import os
 import re
@@ -27,6 +28,8 @@ from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+from loguru import logger
 
 DIR_TRANSCRIPTS = "01_transcripts"
 DIR_ANALYSIS = "02_analysis"
@@ -820,81 +823,107 @@ def strip_meeting_date_from_title(
     if not t:
         return "untitled"
 
-    month_matches = list(_MONTH_DAY_YEAR_RE.finditer(t))
-    if month_matches:
+    target_iso = (
+        str(resolved_date)[:10]
+        if resolved_date and resolved_date != "unknown-date"
+        else None
+    )
+
+    valid_month_matches = [
+        (match, parsed)
+        for match in _MONTH_DAY_YEAR_RE.finditer(t)
+        if (parsed := _parse_month_day_year_match(match)) is not None
+    ]
+    if valid_month_matches:
         remove_match: Optional[re.Match[str]] = None
-        if resolved_date and resolved_date != "unknown-date":
-            for match in reversed(month_matches):
-                if _parse_month_day_year_match(match) == str(resolved_date)[:10]:
+        if target_iso:
+            for match, parsed in reversed(valid_month_matches):
+                if parsed == target_iso:
                     remove_match = match
                     break
         if remove_match is None:
-            remove_match = month_matches[-1]
+            remove_match = valid_month_matches[-1][0]
         t = (t[: remove_match.start()] + t[remove_match.end() :]).strip()
     else:
-        for pattern in _DATE_IN_TITLE_PATTERNS:
-            match = re.search(pattern, t)
-            if match:
-                t = (t[: match.start()] + t[match.end() :]).strip()
-                break
+        valid_4y = _valid_title_pattern_matches(t, _DATE_IN_TITLE_PATTERNS)
+        if valid_4y:
+            remove_match = _select_date_match_to_strip(valid_4y, target_iso)
+            t = (t[: remove_match.start()] + t[remove_match.end() :]).strip()
         else:
-            for pattern in _DATE_IN_TITLE_PATTERNS_2Y:
-                match = re.search(pattern, t)
-                if match:
-                    t = (t[: match.start()] + t[match.end() :]).strip()
-                    break
+            valid_2y = _valid_title_pattern_matches(
+                t, _DATE_IN_TITLE_PATTERNS_2Y, two_digit_year=True
+            )
+            if valid_2y:
+                remove_match = _select_date_match_to_strip(valid_2y, target_iso)
+                t = (t[: remove_match.start()] + t[remove_match.end() :]).strip()
             else:
-                compact = re.search(r"(?<!\d)(\d{8})(?!\d)", t)
-                if compact:
-                    t = (t[: compact.start()] + t[compact.end() :]).strip()
+                valid_compact: List[Tuple[re.Match[str], str]] = []
+                for match in re.finditer(r"(?<!\d)(\d{8})(?!\d)", t):
+                    parsed = _parse_compact_eight_digit_date(match.group(1))
+                    if parsed:
+                        valid_compact.append((match, parsed))
+                if valid_compact:
+                    remove_match = _select_date_match_to_strip(
+                        valid_compact, target_iso
+                    )
+                    t = (t[: remove_match.start()] + t[remove_match.end() :]).strip()
 
-    if resolved_date and resolved_date != "unknown-date":
+    if target_iso:
         compact_lead = re.match(r"^(?<!\d)(\d{8})(?!\d)", t)
         if compact_lead:
-            try:
-                if (
-                    datetime.strptime(compact_lead.group(1), "%Y%m%d").strftime("%Y-%m-%d")
-                    == str(resolved_date)[:10]
-                ):
-                    t = t[compact_lead.end() :].strip()
-            except ValueError:
-                pass
+            if _parse_compact_eight_digit_date(compact_lead.group(1)) == target_iso:
+                t = t[compact_lead.end() :].strip()
         try:
-            d = datetime.strptime(str(resolved_date)[:10], "%Y-%m-%d")
+            d = datetime.strptime(target_iso, "%Y-%m-%d")
         except ValueError:
             d = None
         if d is not None:
             yy = d.year % 100
             variants = list(
-                _month_day_year_text_variants(d)
-                + (
-                    f"{d.month}/{d.day}/{d.year}",
-                    f"{d.month}-{d.day}-{d.year}",
-                    f"{d.month:02d}/{d.day:02d}/{d.year}",
-                    f"{d.month:02d}-{d.day:02d}-{d.year}",
-                    f"{d.month}/{d.day}/{yy:02d}",
-                    f"{d.month}-{d.day}-{yy:02d}",
-                    f"{d.month:02d}/{d.day:02d}/{yy:02d}",
-                    f"{d.month:02d}-{d.day:02d}-{yy:02d}",
-                    f"{d.month} {d.day} {d.year}",
-                    f"{d.month:02d} {d.day:02d} {d.year}",
-                    f"{d.month} {d.day} {yy:02d}",
-                    f"{d.month:02d} {d.day:02d} {yy:02d}",
-                    f"{d.month}{d.day}{d.year}",
-                    f"{d.month:02d}{d.day:02d}{d.year}",
+                dict.fromkeys(
+                    _month_day_year_text_variants(d)
+                    + (
+                        f"{d.year}-{d.month:02d}-{d.day:02d}",
+                        f"{d.year}-{d.month}-{d.day}",
+                        f"{d.year}.{d.month:02d}.{d.day:02d}",
+                        f"{d.year}.{d.month}.{d.day}",
+                        f"{d.month:02d}/{d.day:02d}/{d.year}",
+                        f"{d.month:02d}-{d.day:02d}-{d.year}",
+                        f"{d.month:02d}.{d.day:02d}.{d.year}",
+                        f"{d.month}/{d.day}/{d.year}",
+                        f"{d.month}-{d.day}-{d.year}",
+                        f"{d.month}.{d.day}.{d.year}",
+                        f"{d.month:02d}/{d.day:02d}/{yy:02d}",
+                        f"{d.month:02d}-{d.day:02d}-{yy:02d}",
+                        f"{d.month:02d}.{d.day:02d}.{yy:02d}",
+                        f"{d.month}/{d.day}/{yy:02d}",
+                        f"{d.month}-{d.day}-{yy:02d}",
+                        f"{d.month}.{d.day}.{yy:02d}",
+                        f"{d.month:02d} {d.day:02d} {d.year}",
+                        f"{d.month} {d.day} {d.year}",
+                        f"{d.month:02d} {d.day:02d} {yy:02d}",
+                        f"{d.month} {d.day} {yy:02d}",
+                        f"{d.year}{d.month:02d}{d.day:02d}",
+                        f"{d.month:02d}{d.day:02d}{d.year}",
+                        f"{d.month}{d.day}{d.year}",
+                    )
                 )
             )
             for fragment in variants:
                 if t.endswith(fragment):
                     t = t[: -len(fragment)].strip()
-                    break
+                    continue
                 if fragment in t:
-                    t = t.replace(fragment, " ", 1).strip()
-                    break
+                    t = re.sub(
+                        rf"(?<!\d){re.escape(fragment)}(?!\d)",
+                        " ",
+                        t,
+                        count=1,
+                    ).strip()
+                    continue
                 hyphenated = fragment.replace("/", "-")
                 if hyphenated != fragment and t.endswith(hyphenated):
                     t = t[: -len(hyphenated)].strip()
-                    break
 
     t = re.sub(r"[\s\-–—]+$", "", t)
     t = re.sub(r"\s+", " ", t).strip()
@@ -993,6 +1022,76 @@ def _parse_mdy_groups(month: int, day: int, year: int) -> Optional[str]:
         return None
 
 
+def _parse_compact_eight_digit_date(fragment: str) -> Optional[str]:
+    """Parse ``YYYYMMDD`` or ``MMDDYYYY`` when valid in ``1990..2035``."""
+    if not re.fullmatch(r"\d{8}", fragment or ""):
+        return None
+    for fmt in ("%Y%m%d", "%m%d%Y"):
+        try:
+            parsed = datetime.strptime(fragment, fmt)
+        except ValueError:
+            continue
+        if 1990 <= parsed.year <= 2035:
+            return parsed.strftime("%Y-%m-%d")
+    return None
+
+
+def _parse_title_pattern_match(
+    match: re.Match[str],
+    *,
+    two_digit_year: bool = False,
+) -> Optional[str]:
+    try:
+        if two_digit_year:
+            month, day, yy = (
+                int(match.group(1)),
+                int(match.group(2)),
+                int(match.group(3)),
+            )
+            return _parse_mdy_groups(month, day, _full_year_from_two_digit(yy))
+        groups = match.groups()
+        if len(groups[0]) == 4:
+            year, month, day = int(groups[0]), int(groups[1]), int(groups[2])
+        else:
+            month, day, year = int(groups[0]), int(groups[1]), int(groups[2])
+        return _parse_mdy_groups(month, day, year)
+    except (ValueError, IndexError):
+        return None
+
+
+def _valid_title_pattern_matches(
+    text: str,
+    patterns: tuple[str, ...],
+    *,
+    two_digit_year: bool = False,
+) -> List[Tuple[re.Match[str], str]]:
+    """Return validated ``(match, iso_date)`` pairs ordered by text position."""
+    matches: List[Tuple[re.Match[str], str]] = []
+    seen_spans: set[Tuple[int, int]] = set()
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            span = (match.start(), match.end())
+            if span in seen_spans:
+                continue
+            parsed = _parse_title_pattern_match(match, two_digit_year=two_digit_year)
+            if parsed:
+                seen_spans.add(span)
+                matches.append((match, parsed))
+    matches.sort(key=lambda item: (item[0].start(), item[0].end()))
+    return matches
+
+
+def _select_date_match_to_strip(
+    matches: Sequence[Tuple[re.Match[str], str]],
+    target_iso: Optional[str],
+) -> re.Match[str]:
+    if target_iso:
+        for match, parsed in reversed(matches):
+            if parsed == target_iso:
+                return match
+    return matches[-1][0]
+
+
 def _last_date_from_title_patterns(
     text: str,
     patterns: tuple[str, ...],
@@ -1000,29 +1099,10 @@ def _last_date_from_title_patterns(
     two_digit_year: bool = False,
 ) -> Optional[str]:
     """Return the last valid M/D/Y match (trailing title dates win over earlier numbers)."""
-    found: Optional[str] = None
-    for pattern in patterns:
-        for match in re.finditer(pattern, text):
-            try:
-                if two_digit_year:
-                    month, day, yy = (
-                        int(match.group(1)),
-                        int(match.group(2)),
-                        int(match.group(3)),
-                    )
-                    parsed = _parse_mdy_groups(month, day, _full_year_from_two_digit(yy))
-                else:
-                    groups = match.groups()
-                    if len(groups[0]) == 4:
-                        year, month, day = int(groups[0]), int(groups[1]), int(groups[2])
-                    else:
-                        month, day, year = int(groups[0]), int(groups[1]), int(groups[2])
-                    parsed = _parse_mdy_groups(month, day, year)
-                if parsed:
-                    found = parsed
-            except (ValueError, IndexError):
-                continue
-    return found
+    matches = _valid_title_pattern_matches(
+        text, patterns, two_digit_year=two_digit_year
+    )
+    return matches[-1][1] if matches else None
 
 
 def _normalize_title_for_date_parse(title: str) -> str:
@@ -1134,8 +1214,12 @@ def media_filename(
     event_date: Optional[Union[str, datetime]] = None,
     *,
     suffix: str = ".json",
+    media_basename: Optional[str] = None,
 ) -> str:
-    return f"{meeting_media_basename(title, event_date)}{suffix}"
+    return (
+        f"{meeting_media_basename(title, event_date, media_basename=media_basename)}"
+        f"{suffix}"
+    )
 
 
 def jurisdiction_root(
@@ -1283,8 +1367,15 @@ def runs_dir(
 def transcript_cache_filename(
     title: str,
     event_date: Optional[Union[str, datetime]] = None,
+    *,
+    media_basename: Optional[str] = None,
 ) -> str:
-    return media_filename(title, event_date, suffix=".json")
+    return media_filename(
+        title,
+        event_date,
+        suffix=".json",
+        media_basename=media_basename,
+    )
 
 
 def transcript_cache_path(
@@ -1480,37 +1571,88 @@ _LEGACY_RUN_STEM_RE = re.compile(
 _YOUTUBE_ID_IN_NAME_RE = re.compile(r"_([A-Za-z0-9_-]{11})_")
 
 
-def _strip_unknown_prefixes(name: str) -> str:
-    stem = Path(name).stem
-    while stem.startswith("unknown-date_"):
-        stem = stem[len("unknown-date_") :]
-    return stem + Path(name).suffix
-
-
-# Multi-part suffixes the policy cache writes. ``Path.stem`` only drops the last
-# one, so ``x.diagrams.md`` would parse to the title ``x.diagrams`` and the
-# cleanup would append ``.diagrams.md`` again on every run (#48).
-#
-# Caption sidecars (``.caption_raw_data.json`` / ``.caption_formatted.json``) are
-# deliberately NOT listed: their parsed title must keep the sidecar marker so
-# their destination stays the sidecar's own name. Stripping it would point a
-# sidecar at its main transcript and ``_safe_move`` would overwrite (or delete)
-# one with the other.
-_POLICY_COMPOUND_SUFFIXES = (
+_COMPOUND_POLICY_SUFFIXES = (
+    "_.caption_raw_data.json",
+    ".caption_raw_data.json",
+    "_.caption_formatted.json",
+    ".caption_formatted.json",
+    ".md.mermaid-errors.json",
+    ".mermaid-errors.json",
+    "_part1_response_raw.md",
+    "_part2_response_raw.md",
+    "_response_raw.md",
     ".diagrams.md",
+    "_diagrams.md",
     ".meta.json",
+    "_meta.json",
+    "_analysis.json",
+    "_report.md",
+    "_transcript.json",
 )
 
 
-def _strip_policy_suffix(filename: str) -> str:
-    for suffix in _POLICY_COMPOUND_SUFFIXES:
-        if filename.endswith(suffix):
-            return filename[: -len(suffix)]
-    return Path(filename).stem
+def _is_caption_sidecar_filename(name: str) -> bool:
+    return ".caption_raw_data." in name or ".caption_formatted." in name
+
+
+def _split_policy_filename_stem_and_suffix(name: str) -> Tuple[str, str]:
+    """
+    Split a policy cache filename into ``(meeting_stem, full_suffix)``.
+
+    Handles multi-part suffixes such as ``.diagrams.md``, ``.meta.json``,
+    ``.caption_raw_data.json``, and ``.mermaid-errors.json``, and collapses
+    repeated ``.diagrams`` / ``.meta`` segments left by earlier non-idempotent runs.
+    """
+    raw_name = Path(name).name
+    lower_name = raw_name.lower()
+    matched_suffix = ""
+    stem = ""
+    for suffix in _COMPOUND_POLICY_SUFFIXES:
+        if lower_name.endswith(suffix):
+            stem = raw_name[: len(raw_name) - len(suffix)]
+            matched_suffix = raw_name[len(raw_name) - len(suffix) :]
+            break
+    if not matched_suffix:
+        p = Path(raw_name)
+        stem, matched_suffix = p.stem, p.suffix
+
+    # Collapse repeated compound segments (e.g. ``foo.diagrams.diagrams.md``).
+    while True:
+        lower_stem = stem.lower()
+        stripped_repeat = False
+        for repeat_token in (
+            ".diagrams",
+            "_diagrams",
+            ".meta",
+            "_meta",
+            ".md.mermaid-errors",
+            ".mermaid-errors",
+            "_.caption_raw_data",
+            ".caption_raw_data",
+            "_.caption_formatted",
+            ".caption_formatted",
+        ):
+            if lower_stem.endswith(repeat_token):
+                stem = stem[: len(stem) - len(repeat_token)]
+                stripped_repeat = True
+                break
+        if not stripped_repeat:
+            break
+
+    return stem, matched_suffix
+
+
+def _strip_unknown_prefixes(name: str) -> str:
+    stem, suffix = _split_policy_filename_stem_and_suffix(name)
+    while stem.startswith("unknown-date_"):
+        stem = stem[len("unknown-date_") :]
+    return f"{stem}{suffix}"
 
 
 def _parse_dated_basename(filename: str) -> Tuple[Optional[str], str]:
-    stem = _strip_policy_suffix(_strip_unknown_prefixes(filename))
+    stem, _suffix = _split_policy_filename_stem_and_suffix(
+        _strip_unknown_prefixes(filename)
+    )
     match = re.match(r"^(\d{4}-\d{2}-\d{2})_(.+)$", stem)
     if match:
         return match.group(1), match.group(2)
@@ -1596,18 +1738,26 @@ def _read_json_metadata(path: Path) -> Tuple[str, Optional[Any], str]:
             if not video_id:
                 video_id = str(meeting.get("video_id") or "").strip()
             if not event_date:
-                event_date = meeting.get("event_date") or meeting.get("date")
+                event_date = (
+                    meeting.get("event_date")
+                    or meeting.get("meeting_date")
+                    or meeting.get("date")
+                )
         transcript = data.get("transcript")
         if isinstance(transcript, dict):
             if not title:
                 title = str(transcript.get("title") or "").strip()
             if not event_date:
                 event_date = transcript.get("event_date")
+        if not video_id:
+            video_id = video_id_from_analysis(data)
     return title, event_date, video_id
 
 
 def _lookup_run_meta(folder: Path, *, video_id: str = "", run_prefix: str = "") -> Tuple[str, Optional[Any], str]:
     """Find title/date from ``04_runs/*.meta.json`` by video id or legacy run id."""
+    if not video_id and not run_prefix:
+        return "", None, ""
     runs = folder / DIR_RUNS
     if not runs.is_dir():
         return "", None, ""
@@ -1618,11 +1768,12 @@ def _lookup_run_meta(folder: Path, *, video_id: str = "", run_prefix: str = "") 
         except (json.JSONDecodeError, OSError):
             continue
         mid = str(meta.get("video_id") or "").strip()
-        if video_id and mid:
+        if video_id:
             if mid != video_id:
                 continue
-        elif run_prefix and not meta_path.name.startswith(run_prefix):
-            continue
+        elif run_prefix:
+            if not meta_path.name.startswith(run_prefix):
+                continue
         title = str(meta.get("title") or "").strip()
         event_date = meta.get("event_date")
         if not title:
@@ -1654,13 +1805,33 @@ def metadata_for_policy_file(path: Path, *, folder: Optional[Path] = None) -> Tu
     title, event_date, video_id = _read_json_metadata(path)
     if not video_id:
         video_id = _video_id_from_name(path.name)
+    parsed_date, parsed_title = _parse_dated_basename(path.name)
+    if not event_date and parsed_date:
+        event_date = parsed_date
     if not title:
-        parsed_date, parsed_title = _parse_dated_basename(path.name)
+        stem, _suffix = _split_policy_filename_stem_and_suffix(
+            _strip_unknown_prefixes(path.name)
+        )
+        if stem:
+            for sibling in (
+                jid_root / DIR_RUNS / f"{stem}.meta.json",
+                jid_root / DIR_TRANSCRIPTS / f"{stem}.json",
+            ):
+                if sibling.is_file() and sibling.resolve() != path.resolve():
+                    sib_title, sib_date, sib_vid = _read_json_metadata(sibling)
+                    if sib_title:
+                        title = sib_title
+                        event_date = event_date or sib_date
+                        video_id = video_id or sib_vid
+                        break
+    if not title:
         if parsed_date and parsed_title:
             title = parsed_title
             event_date = event_date or parsed_date
     if not title:
-        stripped = Path(_strip_unknown_prefixes(path.name)).stem
+        stripped, _suffix = _split_policy_filename_stem_and_suffix(
+            _strip_unknown_prefixes(path.name)
+        )
         inferred = _extract_date_from_title(stripped)
         if inferred:
             title = stripped
@@ -1690,6 +1861,8 @@ def metadata_for_policy_file(path: Path, *, folder: Optional[Path] = None) -> Tu
         title = meta_title or title
         event_date = event_date or meta_date
         video_id = video_id or meta_vid
+    if not title and parsed_title and not _YOUTUBE_ID_RE.fullmatch(parsed_title):
+        title = parsed_title
     return title, event_date, video_id
 
 
@@ -1728,16 +1901,8 @@ def destination_for_policy_file(
     title, event_date, _vid = metadata_for_policy_file(path, folder=folder)
     if not title:
         return None
-    if kind == DIR_TRANSCRIPTS:
-        return folder / DIR_TRANSCRIPTS / transcript_cache_filename(title, event_date)
-    if kind == DIR_ANALYSIS:
-        return folder / DIR_ANALYSIS / media_filename(title, event_date, suffix=".json")
-    if kind == DIR_REPORTS:
-        return folder / DIR_REPORTS / media_filename(title, event_date, suffix=".md")
-    if kind == DIR_RUNS:
-        if path.name.endswith(".diagrams.md") or "_diagrams.md" in path.name:
-            return folder / DIR_RUNS / media_filename(title, event_date, suffix=".diagrams.md")
-        return folder / DIR_RUNS / media_filename(title, event_date, suffix=".meta.json")
+    if kind in _POLICY_SUBDIRS:
+        return _policy_file_dest(folder, kind, path, title, event_date)
     return None
 
 
@@ -1757,6 +1922,66 @@ def _safe_move(src: Path, dest: Path, *, dry_run: bool) -> str:
     if dry_run:
         return "would_move"
     shutil.move(str(src), str(dest))
+    return "moved"
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _safe_policy_move(
+    src: Path,
+    dest: Path,
+    *,
+    dry_run: bool,
+    claimed: Dict[Path, Path],
+) -> str:
+    """
+    Move ``src`` to ``dest`` for the date cleanup without ever losing data (#48).
+
+    Unlike :func:`_safe_move` (which keeps the newer file by modification time),
+    this deletes ``src`` only when the file already at ``dest`` is byte-identical.
+    If the two differ, both are kept: ``src`` stays where it is and the collision
+    is counted and logged for a person to resolve.
+
+    ``claimed`` maps destinations taken earlier in the same pass to the file that
+    took them, so a dry run predicts collisions between two sources that collapse
+    onto a destination that doesn't exist yet. Every action is logged.
+    """
+    if dest.resolve() == src.resolve():
+        return "same"
+    competitor: Optional[Path] = None
+    if dest.is_file():
+        competitor = dest
+    elif dry_run and dest in claimed:
+        competitor = claimed[dest]
+    if competitor is not None:
+        if _sha256(src) == _sha256(competitor):
+            if dry_run:
+                logger.info("Would remove identical duplicate {} (same bytes as {})", src, dest)
+                return "would_remove_identical_duplicate"
+            src.unlink()
+            logger.info("Removed identical duplicate {} (same bytes as {})", src, dest)
+            return "removed_identical_duplicate"
+        logger.warning(
+            "Name collision kept both files: {} would become {}, which already holds "
+            "different content. Resolve by hand.",
+            src,
+            dest,
+        )
+        return "would_skip_collision" if dry_run else "skipped_collision"
+    if dry_run:
+        claimed[dest] = src
+        logger.info("Would move {} -> {}", src, dest)
+        return "would_move"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(src), str(dest))
+    claimed[dest] = dest
+    logger.info("Moved {} -> {}", src, dest)
     return "moved"
 
 
@@ -1830,7 +2055,9 @@ def repair_policy_cache_basenames(folder: Path, *, dry_run: bool = False) -> Dic
         if not subdir.is_dir():
             continue
         for path in subdir.iterdir():
-            if not path.is_file():
+            if not path.is_file() or path.name == README_NAME:
+                continue
+            if _is_caption_sidecar_filename(path.name):
                 continue
             if _is_junk_policy_artifact(path):
                 if not dry_run:
@@ -2108,13 +2335,56 @@ def _policy_file_dest(
 ) -> Path:
     """Target path using title-first meeting date (``meeting_media_basename``)."""
     subdir = folder / sub
+    _stem, compound_suffix = _split_policy_filename_stem_and_suffix(path.name)
     if sub == DIR_TRANSCRIPTS:
-        return subdir / transcript_cache_filename(title, event_date)
+        return subdir / transcript_cache_filename(
+            title, event_date, media_basename=path.name
+        )
+    if sub == DIR_ANALYSIS:
+        return subdir / media_filename(
+            title, event_date, suffix=".json", media_basename=path.name
+        )
+    if sub == DIR_REPORTS:
+        if compound_suffix in (".md.mermaid-errors.json", ".mermaid-errors.json"):
+            return subdir / media_filename(
+                title,
+                event_date,
+                suffix=compound_suffix,
+                media_basename=path.name,
+            )
+        return subdir / media_filename(
+            title,
+            event_date,
+            suffix=".md" if path.suffix == ".md" else compound_suffix,
+            media_basename=path.name,
+        )
     if sub == DIR_RUNS:
-        if path.name.endswith(".diagrams.md"):
-            return subdir / media_filename(title, event_date, suffix=".diagrams.md")
-        return subdir / media_filename(title, event_date, suffix=".meta.json")
-    return subdir / media_filename(title, event_date, suffix=path.suffix)
+        if path.name.endswith(".diagrams.md") or "_diagrams.md" in path.name:
+            return subdir / media_filename(
+                title,
+                event_date,
+                suffix=".diagrams.md",
+                media_basename=path.name,
+            )
+        if path.name.endswith(".meta.json") or path.name.endswith("_meta.json"):
+            return subdir / media_filename(
+                title,
+                event_date,
+                suffix=".meta.json",
+                media_basename=path.name,
+            )
+        return subdir / media_filename(
+            title,
+            event_date,
+            suffix=compound_suffix or path.suffix,
+            media_basename=path.name,
+        )
+    return subdir / media_filename(
+        title,
+        event_date,
+        suffix=compound_suffix or path.suffix,
+        media_basename=path.name,
+    )
 
 
 def _patch_json_event_date_field(
@@ -2269,6 +2539,9 @@ def fix_policy_cache_dates_from_title(
     folder = folder.resolve()
     ensure_jurisdiction_layout(folder)
     stats: Dict[str, int] = defaultdict(int)
+    # Destinations taken in this pass (dest -> file that took it), so the dry run
+    # predicts collisions the real run would hit (#215 review, finding 3).
+    claimed: Dict[Path, Path] = {}
 
     for sub in _POLICY_SUBDIRS:
         subdir = folder / sub
@@ -2277,6 +2550,8 @@ def fix_policy_cache_dates_from_title(
         for path in sorted(subdir.iterdir()):
             if not path.is_file() or path.name == README_NAME:
                 continue
+            if _is_caption_sidecar_filename(path.name):
+                continue
             if _is_junk_policy_artifact(path):
                 continue
             title, event_date, _vid = metadata_for_policy_file(path, folder=folder)
@@ -2284,32 +2559,43 @@ def fix_policy_cache_dates_from_title(
                 stats["skipped_no_title"] += 1
                 continue
             dest = _policy_file_dest(folder, sub, path, title, event_date)
-            work_path = path
+            work_path: Optional[Path] = path
             if dest.resolve() != path.resolve():
-                action = _safe_move(path, dest, dry_run=dry_run)
+                action = _safe_policy_move(path, dest, dry_run=dry_run, claimed=claimed)
                 stats[action] += 1
-                work_path = dest
-                if sub == DIR_TRANSCRIPTS:
+                if action in ("removed_identical_duplicate", "would_remove_identical_duplicate"):
+                    work_path = None
+                elif action == "moved":
+                    work_path = dest
+                # A skipped collision leaves the transcript where it is, so its
+                # sidecars stay with it.
+                if sub == DIR_TRANSCRIPTS and action in ("moved", "would_move"):
+                    dest_stem, _ = _split_policy_filename_stem_and_suffix(dest.name)
+                    src_stem, _ = _split_policy_filename_stem_and_suffix(path.name)
                     for suffix in (".caption_raw_data.json", ".caption_formatted.json"):
+                        target_sidecar = dest.parent / f"{dest_stem}{suffix}"
                         for orphan in (
-                            path.parent / f"{path.stem}{suffix}",
-                            path.parent / f"{path.stem}_{suffix}",
+                            path.parent / f"{src_stem}{suffix}",
+                            path.parent / f"{src_stem}_{suffix}",
                         ):
-                            if orphan.is_file() and orphan.resolve() != (
-                                work_path.parent
-                                / f"{work_path.stem}{suffix}"
-                            ).resolve():
-                                if dry_run:
-                                    stats["would_move_sidecar"] += 1
-                                else:
-                                    orphan.rename(
-                                        work_path.parent
-                                        / f"{work_path.stem}{suffix}"
-                                    )
-                                    stats["moved_sidecar"] += 1
+                            if (
+                                orphan.is_file()
+                                and orphan.resolve() != target_sidecar.resolve()
+                            ):
+                                sidecar_action = _safe_policy_move(
+                                    orphan, target_sidecar, dry_run=dry_run, claimed=claimed
+                                )
+                                # Count every sidecar action, deletions and
+                                # collisions included (#215 review, finding 1).
+                                stats[f"{sidecar_action}_sidecar"] += 1
             else:
                 stats["already_named"] += 1
-            if sub in (DIR_TRANSCRIPTS, DIR_ANALYSIS) and work_path.suffix == ".json":
+            if (
+                work_path is not None
+                and work_path.is_file()
+                and sub in (DIR_TRANSCRIPTS, DIR_ANALYSIS, DIR_RUNS)
+                and work_path.suffix == ".json"
+            ):
                 if _patch_json_event_date_field(work_path, title, dry_run=dry_run):
                     stats["json_event_date_patched"] += 1
 
@@ -2327,7 +2613,7 @@ def fix_policy_cache_dates_from_title(
         if dest.resolve() == path.resolve():
             stats["already_named"] += 1
             continue
-        action = _safe_move(path, dest, dry_run=dry_run)
+        action = _safe_policy_move(path, dest, dry_run=dry_run, claimed=claimed)
         stats[action] += 1
 
     return dict(stats)
