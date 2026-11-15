@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
+import pytest
+
+from api.batch_jobs import batch_job_status
 from api.batch_jobs.batch_job_status import (
     BatchJob,
     JurisdictionRun,
     expand_batch_job_plan,
     fetch_batch_plan_jurisdictions,
 )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_plan_cache():
+    # expand_batch_job_plan reads the plan through an lru_cache keyed by the states: without this, a test sees the plan
+    # the previous test cached and gets that test's rows.
+    batch_job_status._fetch_batch_plan_cached.cache_clear()
+    yield
+    batch_job_status._fetch_batch_plan_cached.cache_clear()
 
 
 def test_expand_batch_job_plan_merges_pending(monkeypatch):
@@ -111,7 +123,7 @@ def test_expand_upgrades_legacy_prefixed_row_from_plan(monkeypatch):
         "api.batch_jobs.batch_job_status._lookup_jurisdiction_name_from_db",
         lambda *_a, **_k: "Chilton County",
     )
-    from scrapers.youtube import batch_job_status as mod
+    from api.batch_jobs import batch_job_status as mod
 
     mod._fetch_batch_plan_cached.cache_clear()
     job = BatchJob(

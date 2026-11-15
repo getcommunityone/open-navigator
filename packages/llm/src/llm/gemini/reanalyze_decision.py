@@ -31,8 +31,8 @@ Usage::
     # Re-analyze one decision's video (Rule 2C example)
     python -m llm.gemini.reanalyze_decision --video-id CMbzuxL6CWc
 
-    # Pick the model explicitly (default is the healthy gemini-2.5-flash)
-    python -m llm.gemini.reanalyze_decision --video-id CMbzuxL6CWc --model gemini-2.5-flash
+    # Pick the model explicitly (default is gemini-3.5-flash-lite)
+    python -m llm.gemini.reanalyze_decision --video-id CMbzuxL6CWc --model gemini-3.8-flash
 
     # See what it would do — lists the video, no API calls / no writes
     python -m llm.gemini.reanalyze_decision --video-id CMbzuxL6CWc --dry-run
@@ -50,10 +50,10 @@ from typing import Optional
 
 from loguru import logger
 
-# Default analysis model. gemini-2.5-flash is the healthy lead model; flash-lite
-# is 504-congested and gemini-2.0-flash-lite is retired (404), so we do NOT
-# default to either.
-DEFAULT_MODEL = "gemini-2.5-flash"
+# Default analysis model (#333): gemini-3.5-flash-lite. gemini-2.5-flash is deprecated
+# and from December 1, 2026 routes to this model at the same price;
+# gemini-2.0-flash-lite is retired (404).
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
 # dbt selector: the AI-extraction bronze model and everything downstream of it
 # (notably public.event_decision, which carries competing_views.held_by).

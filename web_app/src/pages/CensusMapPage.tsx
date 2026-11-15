@@ -45,6 +45,9 @@ import {
   minMaxExtent,
   quantileExtent,
   type CensusScaleId,
+  CT_PLANNING_REGION_UNAVAILABLE_TEXT,
+  hasPlanningRegionNote,
+  isConnecticutPlanningRegionGap,
 } from '../utils/censusMapTransforms'
 import { giniLetterSuffix } from '../utils/giniLetterGrade'
 import {
@@ -188,7 +191,7 @@ interface StateMetricsPayload {
 interface CountyMetricsPayload {
   geography: string
   vintage: string
-  values: Record<string, Record<string, number | null | undefined>>
+  values: Record<string, Record<string, number | string | null | undefined>>
 }
 
 /** Multi-year state series from ``state_trends.json`` */
@@ -237,14 +240,15 @@ function countyMetricsFromTrends(
   metricSlugs: string[],
   stateFips: string,
 ): CountyMetricsPayload {
-  const values: Record<string, Record<string, number | null | undefined>> = {}
+  const values: Record<string, Record<string, number | string | null | undefined>> = {}
   const stp = stateFips.padStart(2, '0')
   for (const [gid, row] of Object.entries(trends.byGeoid)) {
     if (!gid.startsWith(stp)) continue
-    const cell: Record<string, number | null | undefined> = {}
+    const cell: Record<string, number | string | null | undefined> = {}
     const nm = row.NAME
     if (typeof nm === 'string' && nm.trim()) cell.NAME = nm.trim()
     cell.GEOID = gid
+    if (hasPlanningRegionNote(row)) cell.data_note = String(row.data_note)
     for (const slug of metricSlugs) {
       const series = row[slug]
       if (series && typeof series === 'object' && !Array.isArray(series)) {
@@ -2326,6 +2330,19 @@ function CensusMapPage() {
     statePayload,
   ])
 
+  /** True when a Connecticut county on the map has no figure because the source reports by planning region: shown once in the legend. */
+  const connecticutPlanningRegionNote = useMemo(
+    () =>
+      stateFips === '09' &&
+      Boolean(
+        stateCountyGeo?.features?.some((f) => {
+          const gid = countyGeoidFromFeature(f as GeoJSON.Feature)
+          return countyDisplayByGeoid[gid] == null && isConnecticutPlanningRegionGap(gid, f.properties as Record<string, unknown>)
+        }),
+      ),
+    [stateFips, stateCountyGeo, countyDisplayByGeoid],
+  )
+
   const focusPinnedCountyNarrative = useMemo(() => {
     if (
       mode !== 'stateCounty' ||
@@ -3394,15 +3411,20 @@ function CensusMapPage() {
                           const rankLine = rk
                             ? `<br/><span style="font-size:11px;color:#475569;">Ranked #${rk.rank} of ${rk.total}</span>`
                             : ''
-                          layer.bindPopup(
-                            `<div><strong>${name}</strong><br/>${metricValueTooltipLine(
+                          const noDataLine =
+                            disp == null && stateFips === '09' && isConnecticutPlanningRegionGap(gid, p)
+                              ? CT_PLANNING_REGION_UNAVAILABLE_TEXT
+                              : null
+                          const valueLine =
+                            noDataLine ??
+                            metricValueTooltipLine(
                               currentMetricMeta?.label ?? metricSlug,
                               metricSlug,
                               disp,
                               metrics,
                               valueMode,
-                            )}${rankLine}</div>`,
-                          )
+                            )
+                          layer.bindPopup(`<div><strong>${name}</strong><br/>${valueLine}${rankLine}</div>`)
                           layer.on('mouseover', () => {
                             setCountyHover({ id: gid, name, value: disp })
                           })
@@ -3494,6 +3516,12 @@ function CensusMapPage() {
                 semantics={choroLegendSemantics}
                 letterGradeLegend={giniRawLetterLegend}
               />
+            )}
+            {connecticutPlanningRegionNote && (
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: colorFromT(null) }} aria-hidden />
+                {CT_PLANNING_REGION_UNAVAILABLE_TEXT}. Connecticut&apos;s planning regions are not drawn on this county map.
+              </p>
             )}
             {viz === 'bubble' && (
               <BubbleLegend

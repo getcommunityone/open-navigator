@@ -7,14 +7,14 @@ Each step's stdout/stderr is streamed to the terminal AND saved to a timestamped
 log file under logs/load_bronze/<run_id>/.
 
 Loaders (run in order):
-  1. census           — Jurisdictions     → scripts/datasources/census/load_census_gazetteer.py
-  2. gsa              — Gov Websites      → scripts/datasources/gsa/load_gsa_domains_to_postgres.py
-  3. localview        — Meetings (Old)    → scripts/datasources/localview/load_localview_to_postgres.py
-  4. irs              — Non-Profits       → scripts/datasources/irs/load_irs_bmf.py
+  1. census           — Jurisdictions     → packages/ingestion/src/ingestion/census/gazetteer.py
+  2. gsa              — Gov Websites      → packages/ingestion/src/ingestion/gsa/domains.py
+  3. localview        — Meetings (Old)    → packages/ingestion/src/ingestion/localview/events.py
+  4. irs              — Non-Profits       → packages/ingestion/src/ingestion/irs/bmf.py
   5. enrich_ai        — AI Meeting Analysis (Gemini) → packages/llm/src/llm/enrichment/load_enriched_events_ai.py --only analyze
   6. hud_zip_county   — ZIP-County Crosswalk (HUD)   → packages/ingestion/src/ingestion/hud/zip_county.py
-  7. shapefiles       — Geometry Shapefiles (Census TIGER) → scripts/datasources/census/load_census_shapefiles.py
-  8. place_crosswalks — Place → County / ZCTA Crosswalks  → scripts/datasources/census/load_place_crosswalks.py
+  7. shapefiles       — Geometry Shapefiles (Census TIGER) → packages/ingestion/src/ingestion/census/shapefiles.py
+  8. place_crosswalks — Place → County / ZCTA Crosswalks  → packages/ingestion/src/ingestion/census/place_crosswalks.py
 
 Usage:
     python scripts/load_bronze.py                        # run all loaders + dbt bronze
@@ -54,7 +54,7 @@ LOADERS = [
     {
         "key": "census",
         "label": "Jurisdictions (Census Gazetteer)",
-        "script": "scripts/datasources/census/load_census_gazetteer.py",
+        "script": "packages/ingestion/src/ingestion/census/gazetteer.py",
         "supports_truncate": False,
         "supports_dry_run": False,
         "tables": [
@@ -68,7 +68,7 @@ LOADERS = [
     {
         "key": "gsa",
         "label": "Gov Websites (GSA Domains)",
-        "script": "scripts/datasources/gsa/load_gsa_domains_to_postgres.py",
+        "script": "packages/ingestion/src/ingestion/gsa/domains.py",
         "supports_truncate": True,
         "supports_dry_run": True,
         "tables": ["bronze.bronze_gov_domains"],
@@ -76,7 +76,7 @@ LOADERS = [
     {
         "key": "localview",
         "label": "Meetings (LocalView)",
-        "script": "scripts/datasources/localview/load_localview_to_postgres.py",
+        "script": "packages/ingestion/src/ingestion/localview/events.py",
         "supports_truncate": False,
         "supports_dry_run": False,
         "tables": ["bronze.bronze_events_localview"],
@@ -84,7 +84,7 @@ LOADERS = [
     {
         "key": "irs",
         "label": "Non-Profits (IRS BMF)",
-        "script": "scripts/datasources/irs/load_irs_bmf.py",
+        "script": "packages/ingestion/src/ingestion/irs/bmf.py",
         "supports_truncate": False,
         "supports_dry_run": False,
         "tables": ["bronze.bronze_organizations_nonprofits_irs"],
@@ -109,7 +109,7 @@ LOADERS = [
     {
         "key": "shapefiles",
         "label": "Geometry Shapefiles (Census TIGER)",
-        "script": "scripts/datasources/census/load_census_shapefiles.py",
+        "script": "packages/ingestion/src/ingestion/census/shapefiles.py",
         "supports_truncate": True,
         "supports_dry_run": True,
         "tables": [
@@ -126,7 +126,7 @@ LOADERS = [
         # can run independently of the `shapefiles` step having succeeded.
         "key": "place_crosswalks",
         "label": "Place → County / ZCTA Crosswalks",
-        "script": "scripts/datasources/census/load_place_crosswalks.py",
+        "script": "packages/ingestion/src/ingestion/census/place_crosswalks.py",
         "supports_truncate": True,
         "supports_dry_run": True,
         "tables": [

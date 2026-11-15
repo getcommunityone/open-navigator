@@ -1,5 +1,7 @@
 """Tests for remapping city YouTube channels off counties."""
 
+import pytest
+
 from scripts.discovery.youtube_city_channel_remap import (
     _pick_best_place_match,
     parse_municipality_name_from_channel,
@@ -41,13 +43,15 @@ def test_pick_nantucket_town_over_cdp():
     assert picked["jurisdiction_id"] == "nantucket_2501943790"
 
 
-def test_nantucket_town_channel_is_county_mismatch():
+def test_nantucket_town_channel_counts_as_the_countys():
+    """The owner's decision on #322 (November 15, 2026): the town and county of Nantucket cover the same area, so the
+    town's channel is the county's, not a city channel under it (web_docs/docs/development/youtube-channel-rules.md)."""
     row = {
         "youtube_channel_url": "https://www.youtube.com/channel/UC-sgxA1fdoxteLNzRAUHIxA",
         "channel_title": "Town of Nantucket",
         "channel_description": "Nantucket Government TV ... town meetings ...",
     }
-    assert _looks_like_city_channel_for_county(row, jurisdiction_name="Nantucket County")
+    assert not _looks_like_city_channel_for_county(row, jurisdiction_name="Nantucket County")
 
 
 def test_parse_city_name_from_title():

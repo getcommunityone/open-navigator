@@ -1,24 +1,26 @@
 """
 Census ACS property-tax ingestion.
 
-Collects two ACS 5-year variables at **place** and **county** grain and lands
+Collects three ACS 5-year variables at **place** and **county** grain and lands
 them *wide* into ``bronze.bronze_acs_property_tax``:
 
     B25103_001E  Median real estate taxes paid (dollars)
     B25077_001E  Median home value (dollars)
+    B19013_001E  Median household income (dollars) -- seeds the money modal's
+                 income slider with the real local median (#137)
 
 The downstream **effective property-tax rate** (taxes ÷ value) is computed in
 dbt (``marts/jurisdiction_property_tax_rate``), not here -- per repo rule, all
 transformation / ratio logic lives in dbt, ingestion only lands raw values.
 
 This is a focused companion to ``ingestion.census.acs`` (which melts every
-cached ACS table into an EAV bronze table). Here we issue exactly the two-column
-request the feature needs, e.g.:
+cached ACS table into an EAV bronze table). Here we issue exactly the columns
+the feature needs, e.g.:
 
     https://api.census.gov/data/2023/acs/acs5
-        ?get=NAME,B25103_001E,B25077_001E&for=county:*&in=state:01
+        ?get=NAME,B25103_001E,B25077_001E,B19013_001E&for=county:*&in=state:01
     https://api.census.gov/data/2023/acs/acs5
-        ?get=NAME,B25103_001E,B25077_001E&for=place:*&in=state:01
+        ?get=NAME,B25103_001E,B25077_001E,B19013_001E&for=place:*&in=state:01
 
 Target database: the **local warehouse** (``OPEN_NAVIGATOR_DATABASE_URL`` ->
 localhost:5433 open_navigator). We deliberately do NOT use the shared
@@ -45,9 +47,11 @@ from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-# ACS detail variables we collect (median real estate taxes paid, median home value).
+# ACS detail variables we collect (median real estate taxes paid, median home
+# value, median household income).
 TAXES_VAR = "B25103_001E"
 VALUE_VAR = "B25077_001E"
+INCOME_VAR = "B19013_001E"
 
 # U.S. states + DC + PR (two-digit FIPS) -- place pulls require a parent state.
 STATE_FIPS: tuple[str, ...] = (
@@ -116,10 +120,17 @@ _CREATE_TABLE_SQL = text(
         acs_vintage_year               INTEGER     NOT NULL,
         median_real_estate_taxes_paid  INTEGER,                -- B25103_001E, NULL if suppressed
         median_home_value              INTEGER,                -- B25077_001E, NULL if suppressed
+        median_household_income        INTEGER,                -- B19013_001E, NULL if suppressed
         loaded_at                      TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (geography_type, geoid, acs_vintage_year)
     )
     """
+)
+
+# Tables created before #137 lack the income column; add it in place.
+_ADD_INCOME_COLUMN_SQL = text(
+    "ALTER TABLE bronze.bronze_acs_property_tax "
+    "ADD COLUMN IF NOT EXISTS median_household_income INTEGER"
 )
 
 _CREATE_INDEXES_SQL = (
@@ -136,15 +147,16 @@ _UPSERT_SQL = text(
     """
     INSERT INTO bronze.bronze_acs_property_tax
         (geography_type, geoid, state_fips, name, acs_vintage_year,
-         median_real_estate_taxes_paid, median_home_value)
+         median_real_estate_taxes_paid, median_home_value, median_household_income)
     VALUES
         (:geography_type, :geoid, :state_fips, :name, :acs_vintage_year,
-         :median_real_estate_taxes_paid, :median_home_value)
+         :median_real_estate_taxes_paid, :median_home_value, :median_household_income)
     ON CONFLICT (geography_type, geoid, acs_vintage_year) DO UPDATE SET
         state_fips                    = EXCLUDED.state_fips,
         name                          = EXCLUDED.name,
         median_real_estate_taxes_paid = EXCLUDED.median_real_estate_taxes_paid,
         median_home_value             = EXCLUDED.median_home_value,
+        median_household_income       = EXCLUDED.median_household_income,
         loaded_at                     = NOW()
     """
 )
@@ -170,13 +182,13 @@ async def _fetch(
     client: httpx.AsyncClient, year: int, geography: str, state: str | None, key: str | None
 ) -> list[dict[str, Any]]:
     """
-    Fetch (NAME, taxes, value) for one geography/state and return tidy bronze rows.
+    Fetch (NAME, taxes, value, income) for one geography/state and return tidy bronze rows.
 
     ``state`` is required for ``place`` (Census nests places under a state);
     ``county`` is pulled nationally in one request when ``state`` is None.
     """
     params: dict[str, str] = {
-        "get": f"NAME,{TAXES_VAR},{VALUE_VAR}",
+        "get": f"NAME,{TAXES_VAR},{VALUE_VAR},{INCOME_VAR}",
         "for": f"{geography}:*",
     }
     if state is not None:
@@ -217,6 +229,7 @@ async def _fetch(
                 "acs_vintage_year": year,
                 "median_real_estate_taxes_paid": _clean_dollar(r[idx[TAXES_VAR]]),
                 "median_home_value": _clean_dollar(r[idx[VALUE_VAR]]),
+                "median_household_income": _clean_dollar(r[idx[INCOME_VAR]]),
             }
         )
     return rows
@@ -244,6 +257,7 @@ async def collect(
         async with engine.begin() as conn:
             await conn.execute(_CREATE_SCHEMA_SQL)
             await conn.execute(_CREATE_TABLE_SQL)
+            await conn.execute(_ADD_INCOME_COLUMN_SQL)
             for idx_sql in _CREATE_INDEXES_SQL:
                 await conn.execute(idx_sql)
             if truncate:
@@ -256,7 +270,7 @@ async def collect(
             for grain in grains:
                 if grain == "county":
                     # National county pull in a single request.
-                    logger.info("Fetching county B25103/B25077 (national, {})", year)
+                    logger.info("Fetching county B25103/B25077/B19013 (national, {})", year)
                     rows = await _fetch(client, year, "county", None, key)
                     total += await _write(engine, rows)
                     logger.success("county: {} rows", len(rows))
@@ -284,8 +298,9 @@ async def _write(engine: Any, rows: list[dict[str, Any]]) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Collect ACS median real estate taxes (B25103) + median home "
-        "value (B25077) at place + county grain into bronze.bronze_acs_property_tax."
+        description="Collect ACS median real estate taxes (B25103), median home "
+        "value (B25077) and median household income (B19013) at place + county "
+        "grain into bronze.bronze_acs_property_tax."
     )
     p.add_argument("--year", type=int, default=2023, help="ACS 5-year vintage (default 2023)")
     p.add_argument(

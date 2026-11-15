@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CheckCircleIcon, XCircleIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline'
+import { tracedFetch } from '../lib/api'
 
 interface DebateGrade {
   dimensions: {
@@ -44,7 +45,7 @@ export default function DebateFinder() {
       params.set('text', text)
       if (title) params.set('title', title)
 
-      const response = await fetch(`/api/debate-grade?${params.toString()}`, {
+      const response = await tracedFetch(`/api/debate-grade?${params.toString()}`, {
         method: 'POST'
       })
 
