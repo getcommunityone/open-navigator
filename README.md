@@ -33,6 +33,7 @@ the site is a made-up number: when data is missing, it says so.
 | **Researchers and data analysts** | [data sources](web_docs/docs/data-sources/overview.md) · [data model](web_docs/docs/data-sources/data-model-erd.md) · [citations](CITATIONS.md) |
 | **Developers and data engineers** | [code walkthrough](web_docs/docs/development/code-walkthrough.md) · [quick start](web_docs/docs/quickstart.md) · [architecture](web_docs/docs/architecture.md) · [how we work](AGENTS.md) |
 | **Data platform and DataOps engineers** | [DataOps walkthrough](web_docs/docs/development/dataops-walkthrough.md): retries, recovery, data quality, AI observability, two real incidents, and what isn't built yet |
+| **Students** | [learning path](web_docs/docs/for-students.md): statistics, logistic regression, master data management, clustering, embeddings, LLMs, dbt, Databricks, MLOps, GitHub Actions, ontologies, data contracts and data products, each with a code walkthrough |
 
 **This quarter: data center accountability** (planned, not built yet). Residents ask what's being built near them,
 who approved it, what it does to their bill and whether the jobs are real. The plan, October to December 2026:
@@ -102,6 +103,29 @@ To edit the deck, change a slide in `web_docs/deck/slides/` and run `node web_do
 - **Sources and licences**: [data sources overview](web_docs/docs/data-sources/overview.md), [CITATIONS.md](CITATIONS.md).
   Meeting data follows the Council Data Project's model; places use Open Civic Data IDs.
 - **AI assistants**: an MCP server lets Claude and other assistants query the data. [MCP guide](web_docs/docs/integrations/mcp-server.md).
+</details>
+
+<details>
+<summary><b>Students</b>: learn AI and data engineering from a real system</summary>
+
+**Start with the [learning path](web_docs/docs/for-students.md):** each topic gives the idea in plain words, the code to
+read, why it's built that way, and something to try. Topics don't depend on each other.
+
+| Topic | Learn it from |
+|---|---|
+| Basic statistics | Median vs mean, p90, outliers and minimum sample sizes in [minutes publish lag](dbt_project/models/marts/jurisdiction_minutes_publish_lag.sql) |
+| dbt and medallion layers | [dbt_project/models/](dbt_project/models): bronze → staging → intermediate → marts, with tests and seeds |
+| Master data management | Golden records and entity resolution with Splink in [mdm/linker.py](packages/ingestion/src/ingestion/mdm/linker.py) |
+| Logistic regression | Log-odds and the logistic function, as Splink uses them in [mdm/settings.py](packages/ingestion/src/ingestion/mdm/settings.py); a trained example is a good first issue ([#373](https://github.com/getcommunityone/open-navigator/issues/373)) |
+| Clustering | HDBSCAN with a noise bucket in [cluster.py](packages/llm/src/llm/policy_questions/cluster.py) |
+| Embeddings and RAG | [encoder.py](packages/llm/src/llm/policy_questions/encoder.py) and the [RAG chat app](apps/rag-chat-app) |
+| LLMs | Extraction, grounding against minutes, LLM-as-judge: [meeting_gap_analysis.py](packages/llm/src/llm/gemini/meeting_gap_analysis.py) |
+| Databricks | `ai_query` batch inference in dbt and asset bundles: [agent-analysis-sync](apps/agent-analysis-sync) |
+| MLOps and LLMOps | Per-call usage and cost records: [llm/usage](packages/llm/src/llm/usage) |
+| GitHub Actions | [.github/workflows](.github/workflows): CI, a custom PR check, deploys, on-demand GPU |
+| Ontologies | NTEE closure table, CAP topics, Policy Frames, COFOG: [int_tags__closure.sql](dbt_project/models/intermediate/int_tags__closure.sql), [seeds](dbt_project/seeds) |
+| Data contracts and products | ODCS contracts and an ODPS product: [dbt_project/contracts](dbt_project/contracts) |
+
 </details>
 
 <details>
