@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { expandStateName } from '../utils/formatters'
 import MeetingPlayer from '../components/MeetingPlayer'
+import { parseTimestamp } from '../lib/timestamp'
 import { MeetingVideoProvider, EvidenceLink } from '../components/MeetingVideoContext'
 import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
 import {
@@ -116,6 +117,7 @@ function MeetingDetailBody() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const highlightItem = searchParams.get('item') // financial_item_id to spotlight
+  const startAt = parseTimestamp(searchParams.get('t')) // a citation's moment in the recording (#240)
   const navigate = useNavigate()
   const routerLoc = useLocation()
   const goBack = () => {
@@ -232,7 +234,7 @@ function MeetingDetailBody() {
         {data.video_id && (
           <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <h2 className="text-lg font-bold text-gray-900 mb-4">Watch the meeting</h2>
-            <MeetingPlayer videoId={data.video_id} caption={caption} targetText={playerTargetText} />
+            <MeetingPlayer videoId={data.video_id} caption={caption} targetText={playerTargetText} startAt={startAt} />
           </div>
         )}
 

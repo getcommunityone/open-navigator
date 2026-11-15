@@ -6,6 +6,7 @@ Imported by ``jurisdiction_pipeline`` and optionally by ``02_run_meeting_llm.ipy
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import time
@@ -294,6 +295,23 @@ def pick_demo3_pdfs_for_inventory(
     return selected
 
 
+def _usage_stage(stage: str):
+    """Label every model call a demo makes with its stage in the usage log (#268)."""
+
+    def wrap(fn):
+        @functools.wraps(fn)
+        def inner(*args, **kwargs):
+            from llm.usage.calls import llm_call_context
+
+            with llm_call_context(stage=stage):
+                return fn(*args, **kwargs)
+
+        return inner
+
+    return wrap
+
+
+@_usage_stage("demo1")
 def run_demo1(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     j = inv.jurisdiction
     pdfs = inv.pdfs[: ctx.max_pdfs_per_jur]
@@ -401,6 +419,7 @@ def run_demo1(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     return report
 
 
+@_usage_stage("demo2")
 def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     j = inv.jurisdiction
     pdfs = inv.pdfs[: ctx.max_pdfs_per_jur]
@@ -685,6 +704,7 @@ def run_supplemental_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict
     return report
 
 
+@_usage_stage("demo3")
 def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     from .theme_audit import audit_decision_themes
 
@@ -918,6 +938,7 @@ def _run_demo3_one_pdf(
     )
 
 
+@_usage_stage("demo4")
 def run_demo4(
     inv: MeetingInventory,
     ctx: DemoContext,

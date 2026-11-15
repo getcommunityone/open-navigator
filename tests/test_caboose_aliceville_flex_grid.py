@@ -1,5 +1,7 @@
 """Caboose flex-grid council roster (City of Aliceville)."""
 
+import pytest
+
 from pathlib import Path
 
 from scrapers.discovery.contact_extract_from_html import (
@@ -7,6 +9,11 @@ from scrapers.discovery.contact_extract_from_html import (
     extract_caboose_flex_grid_profile_jobs,
 )
 from scripts.discovery.contact_profile_images import contact_profile_image_stem_from_name
+
+pytestmark = pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[1] / "data/cache/scraped_meetings/AL/municipality/aliceville_0101228").is_dir(),
+    reason="needs the local crawl cache under data/cache/scraped_meetings (not in git)",
+)
 
 _REPO = Path(__file__).resolve().parents[1]
 _COUNCIL = (

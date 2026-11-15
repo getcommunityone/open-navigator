@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "communityone-erd"
+version = "0.1.0"
+description = "Data-dictionary ERDs (draw.io) from dbt schema.yml files: a full view and an entity view in one arrangement."
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6",
+    "numpy>=1.26",
+    "loguru>=0.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+erd = ["drawio_render.js"]

@@ -1,0 +1,60 @@
+version: 2
+
+# LLM usage rollup (#268). Built into gold like every mart; not published to public (no API
+# reads it yet), so it needs no foreign keys: it references nothing but its own columns.
+
+models:
+  - name: llm_usage_daily
+    description: >
+      One row per day (UTC), model and API mode: calls, failed and retried calls, the token
+      sums the APIs reported, and mean latency. Token sums are null when no call reported that
+      count. Cost is derived from these sums and prices.yaml, never stored.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['llm_usage']
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [usage_date, model, api_mode]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [usage_date, model, api_mode]
+    columns:
+      - name: usage_date
+        description: "Day of the calls, UTC."
+        data_type: date
+        constraints: [{type: not_null}]
+      - name: model
+        description: "Model id as sent."
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: api_mode
+        description: "interactive, batch or local."
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: call_count
+        description: "Model calls that day."
+        data_type: integer
+      - name: failed_call_count
+        description: "Calls that returned no answer."
+        data_type: integer
+      - name: retried_call_count
+        description: "Calls that needed more than one try."
+        data_type: integer
+      - name: input_token_count
+        description: "Prompt tokens, cached included; null when none reported."
+        data_type: bigint
+      - name: cached_input_token_count
+        description: "Prompt tokens served from the API's cache."
+        data_type: bigint
+      - name: output_token_count
+        description: "Answer tokens, thinking excluded."
+        data_type: bigint
+      - name: thinking_token_count
+        description: "Thinking tokens (billed at the output rate)."
+        data_type: bigint
+      - name: avg_latency_seconds
+        description: "Mean wall time per call including retries; null for batch calls."
+        data_type: double precision

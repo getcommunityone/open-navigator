@@ -25,7 +25,22 @@ DATABASE_URL = os.getenv(
     )
 )
 
-# Handle PostgreSQL URL format for SQLAlchemy 2.0+
+def sqlalchemy_url(url: str) -> str:
+    """The URL the ORM engine uses: PostgreSQL always names the psycopg2 driver.
+
+    SQLAlchemy 2.1 changed the default driver for ``postgresql://`` from psycopg2 to
+    psycopg 3, which isn't installed (only ``psycopg2-binary`` is), so an implicit
+    driver made ``api.main`` fail at import (#282). ``postgres://`` and
+    ``postgresql://`` get ``+psycopg2``; a URL that already names a driver, and
+    SQLite, are left as they are.
+    """
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
+    return url
+
+
+# The asyncpg pools elsewhere read the plain URL; only the ORM engine gets the driver.
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -67,7 +82,7 @@ if "sqlite" in DATABASE_URL:
 else:
     # PostgreSQL configuration
     engine = create_engine(
-        DATABASE_URL,
+        sqlalchemy_url(DATABASE_URL),
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20,

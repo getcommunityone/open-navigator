@@ -19,6 +19,8 @@ from scrapers.discovery.contact_extract_from_html import (
     extract_structured_contacts_from_html,
 )
 
+pytestmark = pytest.mark.live  # fetches live Shelby County sites
+
 
 _COMMISSION_URL = "https://www.shelbyal.com/93/County-Commission"
 _HOME = "https://www.shelbyal.com/"

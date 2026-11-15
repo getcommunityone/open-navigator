@@ -1,0 +1,26 @@
+# Every pull request belongs to a logged issue (AGENTS.md, "Issues first"; issue #225). Pull requests opened before
+# November 14, 2026 and tool branches (dependabot/, renovate/) are not checked. Not a required check until the owner
+# makes it one in the branch protection settings.
+name: PR conventions
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+  issues: read
+
+jobs:
+  pr-conventions:
+    name: PR conventions (linked issue)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check the branch, the description and the linked issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python .github/scripts/pr_conventions.py
