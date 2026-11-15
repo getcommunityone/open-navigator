@@ -6,6 +6,7 @@ import {
   hearItUrl,
   meetingAttribution,
   placeScope,
+  verifiedLabel,
 } from './dataCenterJobs'
 
 describe('formatHeadcount', () => {
@@ -55,5 +56,17 @@ describe('meetingAttribution (DC-1.2)', () => {
   it('never guesses a body', () => {
     expect(meetingAttribution(null)).toBe('Meeting record')
     expect(meetingAttribution('   ')).toBe('Meeting record')
+  })
+})
+
+describe('verifiedLabel (DC-1.3)', () => {
+  it('shows the verified date when fresh', () => {
+    expect(verifiedLabel('2026-11-15T14:00:00Z', false)).toBe('Verified Nov 15, 2026')
+  })
+  it('flags a stale link and keeps its last date', () => {
+    expect(verifiedLabel('2026-09-01T00:00:00Z', true)).toBe('Not verified in the last 30 days (last verified Sep 1, 2026)')
+  })
+  it('says when a link was never verified', () => {
+    expect(verifiedLabel(null, true)).toBe('Not verified yet')
   })
 })

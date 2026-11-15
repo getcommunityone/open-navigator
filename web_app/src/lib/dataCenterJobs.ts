@@ -79,3 +79,14 @@ export function placeScope(state: string | undefined, city: string | undefined):
 export function dataCentersTitle(scope: PlaceScope): string {
   return `Data centers · ${scope.label}`
 }
+
+/**
+ * When an application link was last confirmed working (DC-1.3, #248).
+ * Fresh: "Verified Nov 15, 2026". Stale: says so, with the last date when there is one.
+ */
+export function verifiedLabel(lastVerifiedAt: string | null | undefined, isStale: boolean): string {
+  const when = formatIsoDate(lastVerifiedAt)
+  if (!isStale && when) return `Verified ${when}`
+  if (when) return `Not verified in the last 30 days (last verified ${when})`
+  return 'Not verified yet'
+}

@@ -716,6 +716,11 @@ app.include_router(deployments_routes.router, prefix="/api")
 from api.routes import data_centers as data_centers_routes
 
 app.include_router(data_centers_routes.router, prefix="/api")
+# Data-center job-application links (#248): public list + admin screen.
+from api.routes import application_links as application_links_routes
+
+app.include_router(application_links_routes.public_router, prefix="/api")
+app.include_router(application_links_routes.admin_router, prefix="/api")
 
 # Serve React frontend
 static_dir = Path(__file__).parent / "static"

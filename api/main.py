@@ -419,6 +419,11 @@ app.include_router(alerts_routes.router, prefix="/api")
 app.include_router(feed_routes.router, prefix="/api")
 # Data-center job claims by phase (#246). Router prefix is "/data-centers".
 app.include_router(data_centers_routes.router, prefix="/api")
+# Data-center job-application links (#248): public list + admin screen.
+from api.routes import application_links as application_links_routes
+
+app.include_router(application_links_routes.public_router, prefix="/api")
+app.include_router(application_links_routes.admin_router, prefix="/api")
 
 # Custom Swagger UI with logo.
 # Served at /api/docs (not /docs) so the /docs/ path is free for the Docusaurus

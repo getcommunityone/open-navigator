@@ -34,6 +34,7 @@ import Support from './pages/Support'
 import JurisdictionMappingQualityPage from './pages/JurisdictionMappingQualityPage'
 import LighthouseReportPage from './pages/LighthouseReportPage'
 import BatchJobStatusPage from './pages/BatchJobStatusPage'
+import ApplicationLinksAdminPage from './pages/ApplicationLinksAdminPage'
 import Hackathons from './pages/Hackathons'
 import OpenSource from './pages/OpenSource'
 import AdvocacyTopics from './pages/AdvocacyTopics'
@@ -197,6 +198,7 @@ function App() {
           <Route index element={<Navigate to="/admin/lighthouse-report" replace />} />
           <Route path="lighthouse-report" element={<LighthouseReportPage />} />
           <Route path="batch-jobs" element={<BatchJobStatusPage />} />
+          <Route path="application-links" element={<ApplicationLinksAdminPage />} />
         </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="grants/:id" element={<GrantDetail />} />

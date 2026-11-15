@@ -3,11 +3,13 @@ import { Link, useSearchParams } from 'react-router-dom'
 import CitationLink from '../components/CitationLink'
 import { meetingMomentPath } from '../lib/timestamp'
 import { fetchJobClaims, type JobClaim, type JobClaimPhase } from '../api/dataCenters'
+import { fetchApplicationLinks, type ApplicationLink } from '../api/applicationLinks'
 import {
   formatDateRange,
   formatHeadcount,
   meetingAttribution,
   placeScope,
+  verifiedLabel,
 } from '../lib/dataCenterJobs'
 import { expandStateName } from '../utils/formatters'
 
@@ -102,8 +104,79 @@ export default function DataCenters() {
             </div>
           )}
         </section>
+
+        <ApplySection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
       </div>
     </div>
+  )
+}
+
+/**
+ * "Apply for jobs" (DC-1.3, #248): application links admins keep, for the same
+ * scope as the page. Links whose page is gone are left out by the API; each link
+ * says when it was last verified, and links not verified in 30 days are flagged.
+ */
+function ApplySection({ rawState, cityName, scopeLabel }: { rawState?: string; cityName?: string; scopeLabel: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['data-centers', 'application-links', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchApplicationLinks({ state: rawState, city: cityName }),
+  })
+  const links = data?.items ?? []
+  return (
+    <section aria-labelledby="apply-heading" className="mt-6">
+      <h2 id="apply-heading" className="mb-1 text-xl font-semibold text-gray-900">
+        Apply for jobs
+      </h2>
+      <p className="mb-4 text-sm text-gray-600">
+        Application links for data center projects, checked so you aren&apos;t sent to a posting that closed.
+      </p>
+      {isLoading ? (
+        <div role="status" className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+          Loading application links for {scopeLabel}…
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Couldn&apos;t load application links.{' '}
+          <button type="button" onClick={() => refetch()} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      ) : links.length === 0 ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          No application links for {scopeLabel} yet.
+        </div>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {links.map((link) => (
+            <ApplyLinkCard key={link.job_application_link_id} link={link} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function ApplyLinkCard({ link }: { link: ApplicationLink }) {
+  const place = [link.city, link.state ?? link.state_code].filter(Boolean).join(', ')
+  return (
+    <li className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="font-semibold text-gray-900">{link.project_name}</p>
+      {(link.employer || place) && (
+        <p className="text-sm text-gray-600">{[link.employer, place].filter(Boolean).join(' · ')}</p>
+      )}
+      <a
+        href={link.url}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="mt-2 inline-block rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
+      >
+        Apply
+      </a>
+      <p className={`mt-2 text-xs ${link.is_stale ? 'font-medium text-amber-700' : 'text-gray-500'}`}>
+        {link.is_stale && <span aria-hidden="true">⚠ </span>}
+        {verifiedLabel(link.last_verified_at, link.is_stale)}
+      </p>
+    </li>
   )
 }
 

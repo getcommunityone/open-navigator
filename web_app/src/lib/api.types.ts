@@ -4,6 +4,82 @@
  */
 
 export interface paths {
+    "/api/admin/application-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List */
+        get: operations["admin_list_api_admin_application_links_get"];
+        put?: never;
+        /** Admin Create */
+        post: operations["admin_create_api_admin_application_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/application-links/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Admin Delete */
+        delete: operations["admin_delete_api_admin_application_links__link_id__delete"];
+        options?: never;
+        head?: never;
+        /** Admin Update */
+        patch: operations["admin_update_api_admin_application_links__link_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/application-links/{link_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Check
+         * @description Request the page now; a live answer counts as verifying it.
+         */
+        post: operations["admin_check_api_admin_application_links__link_id__check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/application-links/{link_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Verify
+         * @description An admin opened the page and confirmed the posting is open.
+         */
+        post: operations["admin_verify_api_admin_application_links__link_id__verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/advocacy/email/{opportunity_id}": {
         parameters: {
             query?: never;
@@ -212,6 +288,26 @@ export interface paths {
          * @description Get dashboard statistics and recent opportunities.
          */
         get: operations["get_dashboard_stats_api_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data-centers/application-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Application Links
+         * @description Application links for the scope; dead links are left out, stale ones are flagged.
+         */
+        get: operations["list_application_links_api_data_centers_application_links_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -706,6 +802,132 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdminApplicationLink
+         * @description A link with everything the admin screen needs.
+         */
+        AdminApplicationLink: {
+            /** City */
+            city?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Employer */
+            employer?: string | null;
+            /**
+             * Is Stale
+             * @description Never verified, or not verified in the last 30 days.
+             */
+            is_stale: boolean;
+            /** Job Application Link Id */
+            job_application_link_id: number;
+            /** Last Check Status */
+            last_check_status?: ("live" | "dead" | "error") | null;
+            /** Last Checked At */
+            last_checked_at?: string | null;
+            /** Last Http Status */
+            last_http_status?: number | null;
+            /**
+             * Last Verified At
+             * @description When a check or an admin last confirmed the page works; null if never.
+             */
+            last_verified_at?: string | null;
+            /** Project Name */
+            project_name: string;
+            /** Source Note */
+            source_note?: string | null;
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code: string;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Url */
+            url: string;
+        };
+        /** AdminApplicationLinksResponse */
+        AdminApplicationLinksResponse: {
+            /** Items */
+            items: components["schemas"]["AdminApplicationLink"][];
+            /**
+             * Stale
+             * @description Of those, how many are stale.
+             */
+            stale: number;
+            /**
+             * Total
+             * @description Links in the list (after the stale filter).
+             */
+            total: number;
+        };
+        /**
+         * ApplicationLink
+         * @description A link as the public page shows it.
+         */
+        ApplicationLink: {
+            /** City */
+            city?: string | null;
+            /** Employer */
+            employer?: string | null;
+            /**
+             * Is Stale
+             * @description Never verified, or not verified in the last 30 days.
+             */
+            is_stale: boolean;
+            /** Job Application Link Id */
+            job_application_link_id: number;
+            /**
+             * Last Verified At
+             * @description When a check or an admin last confirmed the page works; null if never.
+             */
+            last_verified_at?: string | null;
+            /** Project Name */
+            project_name: string;
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code: string;
+            /** Url */
+            url: string;
+        };
+        /** ApplicationLinkIn */
+        ApplicationLinkIn: {
+            /** City */
+            city?: string | null;
+            /** Employer */
+            employer?: string | null;
+            /** Project Name */
+            project_name: string;
+            /** Source Note */
+            source_note?: string | null;
+            /**
+             * State Code
+             * @description 2-letter state code (a full name is normalized).
+             */
+            state_code: string;
+            /** Url */
+            url: string;
+        };
+        /** ApplicationLinkPatch */
+        ApplicationLinkPatch: {
+            /** City */
+            city?: string | null;
+            /** Employer */
+            employer?: string | null;
+            /** Project Name */
+            project_name?: string | null;
+            /** Source Note */
+            source_note?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Url */
+            url?: string | null;
+        };
+        /** ApplicationLinksResponse */
+        ApplicationLinksResponse: {
+            /** Items */
+            items: components["schemas"]["ApplicationLink"][];
+            scope: components["schemas"]["JobClaimScope"];
+        };
         /** BatchJobModel */
         BatchJobModel: {
             /** Batch Id */
@@ -1460,6 +1682,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -1520,6 +1746,197 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    admin_list_api_admin_application_links_get: {
+        parameters: {
+            query?: {
+                /** @description Only links not verified in the last 30 days. */
+                stale?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminApplicationLinksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_api_admin_application_links_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationLinkIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminApplicationLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_api_admin_application_links__link_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_api_admin_application_links__link_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationLinkPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminApplicationLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_check_api_admin_application_links__link_id__check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminApplicationLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_verify_api_admin_application_links__link_id__verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminApplicationLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     generate_advocacy_email_api_advocacy_email__opportunity_id__post: {
         parameters: {
             query?: never;
@@ -1880,6 +2297,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_application_links_api_data_centers_application_links_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring. */
+                city?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationLinksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

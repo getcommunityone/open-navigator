@@ -2,7 +2,7 @@
 Database models for authentication, user management, and social features
 """
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Index, text
+from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Index, text
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -224,3 +224,55 @@ class ProximityAlert(Base):
     
     def __repr__(self):
         return f"<ProximityAlert user:{self.user_id} radius:{self.target_radius_meters}m>"
+
+
+# ============================================================================
+# DATA CENTER ACCOUNTABILITY
+# ============================================================================
+
+class JobApplicationLink(Base):
+    """A job-application link for a data center project, kept by admins (DC-1.3, #248).
+
+    Grain: one row per application URL. App-owned like ``user``: created by
+    ``Base.metadata.create_all``, not dbt. The place is carried as text
+    (state_code / state / city) rather than a FK to ``jurisdictions``, because dbt
+    drops and rebuilds that relation. ``last_verified_at`` is set only by a check
+    that reached a live page or by an admin confirming it by hand; a link is stale
+    when it is null or more than 30 days old.
+    """
+
+    __tablename__ = "job_application_link"
+    __table_args__ = (
+        CheckConstraint(
+            "last_check_status IN ('live', 'dead', 'error')",
+            name="ck_job_application_link_check_status",
+        ),
+        CheckConstraint("length(state_code) = 2", name="ck_job_application_link_state_code"),
+        Index("ix_job_application_link_place", "state_code", "city"),
+    )
+
+    job_application_link_id = Column(Integer, primary_key=True)
+    project_name = Column(Text, nullable=False)
+    employer = Column(Text, nullable=True)
+    state_code = Column(String(2), nullable=False)
+    state = Column(Text, nullable=True)
+    city = Column(Text, nullable=True)
+    url = Column(Text, nullable=False, unique=True)
+    source_note = Column(Text, nullable=True)
+    last_verified_at = Column(DateTime(timezone=True), nullable=True)
+    last_checked_at = Column(DateTime(timezone=True), nullable=True)
+    last_check_status = Column(String(5), nullable=True)
+    last_http_status = Column(Integer, nullable=True)
+    created_by_user_id = Column(
+        Integer, ForeignKey("user.user_id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    def __repr__(self):
+        return f"<JobApplicationLink {self.job_application_link_id} {self.url}>"
