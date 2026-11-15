@@ -106,6 +106,12 @@ schema:
     physicalType: text
     description: Verbatim ts_headline excerpt of the agenda; matched words wrapped in <mark>.
     required: true
+  - id: concerns
+    name: concerns
+    logicalType: array
+    physicalType: text[]
+    description: Local concerns (water, electricity, noise, land, taxes, traffic, pollution) named within ~250 characters of a data center mention (DC-4.3); empty when none.
+    required: true
   - id: data_center_site_id
     name: data_center_site_id
     logicalType: string

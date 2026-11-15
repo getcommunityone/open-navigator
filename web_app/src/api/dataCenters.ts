@@ -19,6 +19,8 @@ export type DataCenterSiteStatus = NonNullable<DataCenterSite['status']>
 export type DataCenterSitesResponse = Schemas['DataCenterSitesResponse']
 export type DataCenterAgendaItem = Schemas['DataCenterAgendaItem']
 export type DataCenterAgendaItemsResponse = Schemas['DataCenterAgendaItemsResponse']
+export type AreaConcern = Schemas['AreaConcern']
+export type AreaConcernsResponse = Schemas['AreaConcernsResponse']
 
 export async function fetchJobClaims(params: {
   state?: string
@@ -73,4 +75,13 @@ export async function fetchDataCenterAgendaItems(params: {
     },
     { 'data_centers.scope_level': scopeLevel },
   )
+}
+
+/** What residents object to in their meetings (DC-4.3, #251), for the area and nationally. */
+export async function fetchAreaConcerns(params: { state?: string; city?: string }): Promise<AreaConcernsResponse> {
+  const q: Record<string, string> = {}
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const res = await api.get<AreaConcernsResponse>('/data-centers/concerns', { params: q })
+  return res.data
 }

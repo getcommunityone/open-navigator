@@ -78,6 +78,11 @@ models:
         data_type: text
         constraints:
           - type: not_null
+      - name: concerns
+        description: "Local concerns (water, electricity, noise, land, taxes, traffic, pollution) named within ~250 characters of a data center mention (DC-4.3); empty when none."
+        data_type: text[]
+        constraints:
+          - type: not_null
       - name: data_center_site_id
         description: "A tracked site the agenda names (FK to data_center_site); null when none."
         data_type: text

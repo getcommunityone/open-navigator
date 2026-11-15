@@ -340,6 +340,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/concerns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Area Concerns
+         * @description What residents object to in their own meetings, by concern, for the area and nationally.
+         *
+         *     Example:
+         *         GET /api/data-centers/concerns?state=AL&city=Tuscaloosa
+         */
+        get: operations["list_area_concerns_api_data_centers_concerns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/job-claims": {
         parameters: {
             query?: never;
@@ -976,6 +999,39 @@ export interface components {
             items: components["schemas"]["ApplicationLink"][];
             scope: components["schemas"]["JobClaimScope"];
         };
+        /** AreaConcern */
+        AreaConcern: {
+            /** Concern */
+            concern: string;
+            /** Concern Rank */
+            concern_rank: number;
+            /** Is Dominant */
+            is_dominant: boolean;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /** Last Meeting On */
+            last_meeting_on?: string | null;
+            /** Mention Count */
+            mention_count: number;
+            /** Objection Count */
+            objection_count: number;
+            /** Share */
+            share?: number | null;
+        };
+        /** AreaConcernsResponse */
+        AreaConcernsResponse: {
+            /**
+             * Items
+             * @description The area's concerns, most mentioned first.
+             */
+            items: components["schemas"]["AreaConcern"][];
+            /**
+             * National
+             * @description The same, across all recorded objections.
+             */
+            national: components["schemas"]["AreaConcern"][];
+            scope: components["schemas"]["JobClaimScope"];
+        };
         /** BatchJobModel */
         BatchJobModel: {
             /** Batch Id */
@@ -1188,6 +1244,11 @@ export interface components {
         DataCenterAgendaItem: {
             /** Body Name */
             body_name?: string | null;
+            /**
+             * Concerns
+             * @description Local concerns named near the data center mention (DC-4.3).
+             */
+            concerns?: string[];
             /** Data Center Agenda Item Id */
             data_center_agenda_item_id: string;
             /** Data Center Site Id */
@@ -1212,6 +1273,17 @@ export interface components {
             jurisdiction_id?: string | null;
             /** Jurisdiction Name */
             jurisdiction_name?: string | null;
+            /**
+             * Local Concern
+             * @description What residents of this jurisdiction object to most (area_concern), if known.
+             */
+            local_concern?: string | null;
+            /**
+             * Matches Local Concern
+             * @description The item names the jurisdiction's dominant concern; ranked first.
+             * @default false
+             */
+            matches_local_concern: boolean;
             /** Meeting Title */
             meeting_title?: string | null;
             /** Mentions Zoning Or Utility */
@@ -2564,6 +2636,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApplicationLinksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_area_concerns_api_data_centers_concerns_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaConcernsResponse"];
                 };
             };
             /** @description Validation Error */

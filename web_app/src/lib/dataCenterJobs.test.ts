@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  concernLabel,
+  concernSummary,
   dataCentersTitle,
   formatDateRange,
   formatHeadcount,
@@ -82,5 +84,19 @@ describe('siteStatusLabel (DC-4.1)', () => {
     expect(siteStatusLabel('no_longer_listed', 'operating', '2026-10-01')).toBe(
       'No longer listed by the source · last seen Oct 1, 2026 · last known: operating',
     )
+  })
+})
+
+describe('concerns (DC-4.3)', () => {
+  it('puts concern keys in plain words', () => {
+    expect(concernLabel('electricity')).toBe('electricity costs')
+    expect(concernLabel('water')).toBe('water')
+  })
+  it('summarizes real counts and stays silent without them', () => {
+    expect(concernSummary({ concern: 'water', mention_count: 3, objection_count: 4 })).toBe(
+      'water in 3 of 4 objections (75%)',
+    )
+    expect(concernSummary(null)).toBeNull()
+    expect(concernSummary({ concern: 'water', mention_count: 0, objection_count: 0 })).toBeNull()
   })
 })
