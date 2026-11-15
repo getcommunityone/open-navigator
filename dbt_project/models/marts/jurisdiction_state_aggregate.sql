@@ -257,14 +257,18 @@ decision_stats AS (
 
 -- Jurisdiction + school-district counts from the canonical jurisdiction list
 -- (#291: the national/state rows were hardcoded 0 though the data exists).
--- jurisdictions_count = every local government unit (county, municipality,
--- township, school district) — state rows themselves are excluded.
+-- jurisdictions_count = every Census geography in int_jurisdictions below the
+-- state: counties, Census places (INCLUDING census-designated places, which
+-- have no government of their own), county subdivisions and school districts.
+-- It is a count of mapped geographies, not of governments (see #351).
 -- school_districts_count = the school_district subset.
+-- int_jurisdictions has one row per geography (geoid is tested unique/not null),
+-- so COUNT(*) is exact and doesn't silently drop a NULL id.
 jurisdiction_counts AS (
     SELECT
         state_code,
-        COUNT(DISTINCT jurisdiction_id) FILTER (WHERE jurisdiction_type <> 'state') AS jurisdictions_count,
-        COUNT(DISTINCT jurisdiction_id) FILTER (WHERE jurisdiction_type = 'school_district') AS school_districts_count
+        COUNT(*) FILTER (WHERE jurisdiction_type <> 'state') AS jurisdictions_count,
+        COUNT(*) FILTER (WHERE jurisdiction_type = 'school_district') AS school_districts_count
     FROM {{ ref('int_jurisdictions') }}
     WHERE state_code IS NOT NULL
     GROUP BY state_code
@@ -378,6 +382,8 @@ national_stats AS (
         -- distinct counts. NOTE: officer_person_uid is name + EIN, so this counts
         -- leadership positions (person-at-org pairs), not resolved people — officers
         -- are not yet resolved into mdm_person. It can exceed persons_count.
+        -- The state rows drop bridge rows with no state_code and an org that moved
+        -- states can appear in two, so the state rows need not sum to this figure.
         COALESCE((SELECT COUNT(DISTINCT officer_person_uid) FROM {{ ref('mdm_bridge_person_organization') }}
                   WHERE is_officer OR is_director_trustee OR is_key_employee OR is_institutional_trustee), 0)::INTEGER as nonprofit_leaders_count,
         COALESCE((SELECT SUM(decisions_count) FROM decision_stats), 0)::INTEGER as decisions_count,

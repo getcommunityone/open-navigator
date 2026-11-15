@@ -39,7 +39,7 @@ models:
       - name: city
         description: "City name. Natural-key component. Populated only for the city level; NULL otherwise."
       - name: jurisdictions_count
-        description: "Local government units (county, municipality, township, school district) from int_jurisdictions, excluding state rows. Populated on national and state rows; 0 on county/city rows (not yet computed at that grain)."
+        description: "Census geographies below the state in int_jurisdictions: counties, Census places (including census-designated places, which have no government), county subdivisions and school districts. A count of mapped geographies, not of governments. Populated on national and state rows; 0 on county/city rows (not yet computed at that grain)."
         tests:
           - not_null
       - name: school_districts_count
