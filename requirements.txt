@@ -14,7 +14,7 @@ httpx>=0.25.0
 crawl4ai>=0.4.0          # AI-friendly crawler (browser + LLM extraction); needs `crawl4ai-setup` once after install
 litellm>=1.40.0          # crawl4ai backend for non-OpenAI providers (Groq, Gemini, Anthropic, ...)
 socksio>=1.0.0  # needed for httpx SOCKS proxies (socks5://...)
-aiohttp==3.14.4
+aiohttp==3.14.5
 youtube-transcript-api>=0.6.2
 google-api-python-client>=2.100.0  # YouTube Data API v3
 
@@ -98,7 +98,7 @@ opentelemetry-instrumentation-psycopg2==0.66b2
 opentelemetry-instrumentation-sqlalchemy==0.66b2
 
 # Authentication & OAuth
-python-jose[cryptography]==3.4.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 algo confusion + CVE-2024-33664 JWT bomb)
+python-jose[cryptography]==3.5.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 algo confusion + CVE-2024-33664 JWT bomb)
 passlib[bcrypt]==1.7.4            # Password hashing
 itsdangerous==2.1.2                # Secure tokens
 psycopg2-binary==2.9.9             # PostgreSQL driver
