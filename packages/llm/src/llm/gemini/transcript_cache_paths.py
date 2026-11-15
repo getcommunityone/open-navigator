@@ -1487,8 +1487,26 @@ def _strip_unknown_prefixes(name: str) -> str:
     return stem + Path(name).suffix
 
 
+# Multi-part suffixes the policy cache writes. ``Path.stem`` only drops the last
+# one, so ``x.diagrams.md`` would parse to the title ``x.diagrams`` and the
+# cleanup would append ``.diagrams.md`` again on every run (#48).
+_POLICY_COMPOUND_SUFFIXES = (
+    ".caption_raw_data.json",
+    ".caption_formatted.json",
+    ".diagrams.md",
+    ".meta.json",
+)
+
+
+def _strip_policy_suffix(filename: str) -> str:
+    for suffix in _POLICY_COMPOUND_SUFFIXES:
+        if filename.endswith(suffix):
+            return filename[: -len(suffix)]
+    return Path(filename).stem
+
+
 def _parse_dated_basename(filename: str) -> Tuple[Optional[str], str]:
-    stem = Path(_strip_unknown_prefixes(filename)).stem
+    stem = _strip_policy_suffix(_strip_unknown_prefixes(filename))
     match = re.match(r"^(\d{4}-\d{2}-\d{2})_(.+)$", stem)
     if match:
         return match.group(1), match.group(2)
