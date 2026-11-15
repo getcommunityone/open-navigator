@@ -12,6 +12,9 @@
     incentive or utility word sits within ~250 characters of a data center mention.
     data_center_site_id links a tracked site when the agenda names it (site name or
     project of 6+ characters) in the same state; otherwise null.
+    concerns (DC-4.3, #251) lists the local concerns (local_concern_patterns) named
+    within ~250 characters of a data center mention, so the feed can rank items that
+    match what residents in the area object to most.
 */
 
 {%- set dc_regex = "(data[ -]?cent(er|re)s?|hyperscale|server farms?)" -%}
@@ -46,7 +49,14 @@ with_evidence as (
         (
             a.content ~* '{{ dc_regex }}.{0,250}{{ context_regex }}'
             or a.content ~* '{{ context_regex }}.{0,250}{{ dc_regex }}'
-        ) as mentions_zoning_or_utility
+        ) as mentions_zoning_or_utility,
+        array_remove(array[
+        {%- for concern, regex in local_concern_patterns() %}
+            case when a.content ~* '{{ dc_regex }}.{0,250}{{ regex }}'
+                   or a.content ~* '{{ regex }}.{0,250}{{ dc_regex }}'
+                 then '{{ concern }}' end{{ "," if not loop.last }}
+        {%- endfor %}
+        ], null) as concerns
     from agendas as a
 ),
 
@@ -89,6 +99,7 @@ select
     e.document_url::text                              as document_url,
     e.mentions_zoning_or_utility::boolean             as mentions_zoning_or_utility,
     e.evidence::text                                  as evidence,
+    e.concerns::text[]                                as concerns,
     m.data_center_site_id::text                       as data_center_site_id
 from with_evidence as e
 left join known_jurisdictions as j on j.jurisdiction_id = e.jurisdiction_id

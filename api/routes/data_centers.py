@@ -452,6 +452,15 @@ class DataCenterAgendaItem(BaseModel):
     data_center_site_id: str | None = None
     site_name: str | None = Field(None, description="The tracked site the agenda names, if any.")
     is_upcoming: bool = Field(..., description="The meeting is today or later.")
+    concerns: list[str] = Field(
+        default_factory=list, description="Local concerns named near the data center mention (DC-4.3)."
+    )
+    local_concern: str | None = Field(
+        None, description="What residents of this jurisdiction object to most (area_concern), if known."
+    )
+    matches_local_concern: bool = Field(
+        False, description="The item names the jurisdiction's dominant concern; ranked first."
+    )
 
 
 class DataCenterAgendaCounts(BaseModel):
@@ -484,15 +493,27 @@ def build_agenda_queries(
     elif when == "past":
         where.append("a.doc_date < current_date")
     params.append(limit)
+    # DC-4.3 (#251): each item's jurisdiction's dominant concern (area_concern); items
+    # naming it rank first within upcoming and within past.
     items_sql = (
         "SELECT a.data_center_agenda_item_id, a.event_meeting_document_id, a.jurisdiction_id, "
         "a.jurisdiction_name, a.state_code, a.state, a.body_name, a.meeting_title, a.doc_date, "
         "a.document_url, a.mentions_zoning_or_utility, a.evidence, a.data_center_site_id, "
-        "s.site_name, coalesce(a.doc_date >= current_date, false) AS is_upcoming "
+        "s.site_name, coalesce(a.doc_date >= current_date, false) AS is_upcoming, "
+        "coalesce(a.concerns, ARRAY[]::text[]) AS concerns, "
+        "c.concern AS local_concern, "
+        "coalesce(c.concern = ANY(a.concerns), false) AS matches_local_concern "
         "FROM data_center_agenda_item a "
         "LEFT JOIN data_center_site s ON s.data_center_site_id = a.data_center_site_id "
+        "LEFT JOIN LATERAL ("
+        "  SELECT ac.concern FROM area_concern ac "
+        "  WHERE ac.area_level = 'jurisdiction' AND ac.is_dominant "
+        "    AND ac.state_code = a.state_code AND ac.jurisdiction_name = a.jurisdiction_name "
+        "  ORDER BY ac.mention_count DESC, ac.concern LIMIT 1"
+        ") c ON TRUE "
         f"WHERE {' AND '.join(where) or 'TRUE'} "
         "ORDER BY (a.doc_date >= current_date) DESC NULLS LAST, "
+        "coalesce(c.concern = ANY(a.concerns), false) DESC, "
         "CASE WHEN a.doc_date >= current_date THEN a.doc_date END ASC, "
         "a.doc_date DESC NULLS LAST, a.data_center_agenda_item_id "
         f"LIMIT ${len(params)}"
@@ -547,4 +568,95 @@ async def list_data_center_agenda_items(
         span.set_attribute("agenda_items.count", len(rows))
         return DataCenterAgendaItemsResponse(
             scope=applied, counts=counts, items=[DataCenterAgendaItem(**dict(r)) for r in rows]
+        )
+
+
+
+# --- What residents object to (DC-4.3, #251) -----------------------------------
+#
+# Backed by the dbt mart ``area_concern``: objections recorded in an area's meetings,
+# sorted into concerns. Real counts only; an area with no recorded objections returns
+# no items, and the page says so instead of falling back to a national figure.
+
+class AreaConcern(BaseModel):
+    concern: str
+    mention_count: int
+    objection_count: int
+    share: float | None = None
+    concern_rank: int
+    is_dominant: bool
+    jurisdiction_name: str | None = None
+    last_meeting_on: date | None = None
+
+
+class AreaConcernsResponse(BaseModel):
+    scope: JobClaimScope
+    items: list[AreaConcern] = Field(..., description="The area's concerns, most mentioned first.")
+    national: list[AreaConcern] = Field(..., description="The same, across all recorded objections.")
+
+
+def build_concerns_queries(scope: JobClaimScope) -> tuple[str | None, list[Any], str]:
+    """(area SQL or None when national, params, national SQL)."""
+    columns = (
+        "concern, mention_count, objection_count, share, concern_rank, is_dominant, "
+        "jurisdiction_name, last_meeting_on"
+    )
+    national_sql = (
+        f"SELECT {columns} FROM area_concern WHERE area_level = 'national' "
+        "ORDER BY concern_rank, concern"
+    )
+    if not scope.state_code and not scope.city:
+        return None, [], national_sql
+    where = ["area_level = 'jurisdiction'"]
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"jurisdiction_name ILIKE ${len(params)}")
+    area_sql = (
+        f"SELECT {columns} FROM area_concern WHERE {' AND '.join(where)} "
+        "ORDER BY jurisdiction_name, concern_rank, concern"
+    )
+    return area_sql, params, national_sql
+
+
+@router.get("/concerns", response_model=AreaConcernsResponse)
+async def list_area_concerns(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the jurisdiction name."),
+) -> AreaConcernsResponse:
+    """
+    What residents object to in their own meetings, by concern, for the area and nationally.
+
+    Example:
+        GET /api/data-centers/concerns?state=AL&city=Tuscaloosa
+    """
+    scope = build_scope(state, city, None)
+    applied = JobClaimScope(
+        level="city" if scope.city else ("state" if scope.state_code else "national"),
+        state_code=scope.state_code,
+        state=scope.state,
+        city=scope.city,
+    )
+    area_sql, params, national_sql = build_concerns_queries(applied)
+    with tracer.start_as_current_span("data-centers.concerns") as span:
+        span.set_attribute("concerns.scope_level", applied.level)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                national_rows = await conn.fetch(national_sql)
+                area_rows = await conn.fetch(area_sql, *params) if area_sql else national_rows
+        except asyncpg.exceptions.UndefinedTableError as e:
+            logger.warning("data-centers: relation 'area_concern' isn't here yet ({}); empty", e)
+            return AreaConcernsResponse(scope=applied, items=[], national=[])
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers concerns error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load concerns")
+        return AreaConcernsResponse(
+            scope=applied,
+            items=[AreaConcern(**dict(r)) for r in area_rows],
+            national=[AreaConcern(**dict(r)) for r in national_rows],
         )

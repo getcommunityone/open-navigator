@@ -255,3 +255,8 @@ outputPorts:
   contractId: open-navigator-public-data_center_agenda_item
   type: table
   description: One row per agenda document (event_meeting_document, document_type 'agenda') that mentions a data center.
+- name: area_concern
+  version: 1.0.0
+  contractId: open-navigator-public-area_concern
+  type: table
+  description: One row per area per concern.

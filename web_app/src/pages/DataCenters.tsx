@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import CitationLink from '../components/CitationLink'
 import { meetingMomentPath } from '../lib/timestamp'
 import {
+  fetchAreaConcerns,
   fetchDataCenterAgendaItems,
   fetchDataCenterSites,
   type DataCenterAgendaItem,
@@ -15,6 +16,8 @@ import { fetchApplicationLinks, type ApplicationLink } from '../api/applicationL
 import {
   formatDateRange,
   formatHeadcount,
+  concernLabel,
+  concernSummary,
   formatIsoDate,
   meetingAttribution,
   placeScope,
@@ -137,6 +140,10 @@ function AgendaSection({ rawState, cityName, scopeLabel }: { rawState?: string; 
     queryKey: ['data-centers', 'agenda-items', rawState ?? null, cityName ?? null],
     queryFn: () => fetchDataCenterAgendaItems({ state: rawState, city: cityName }),
   })
+  const concerns = useQuery({
+    queryKey: ['data-centers', 'concerns', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchAreaConcerns({ state: rawState, city: cityName }),
+  })
   const items = data?.items ?? []
   const upcoming = items.filter((i) => i.is_upcoming)
   const past = items.filter((i) => !i.is_upcoming)
@@ -149,6 +156,13 @@ function AgendaSection({ rawState, cityName, scopeLabel }: { rawState?: string; 
         Meeting agendas in {scopeLabel} that mention a data center, quoted from the agenda. Upcoming meetings come first,
         so you can attend before the vote.
       </p>
+      <ConcernLine
+        scopeLabel={scopeLabel}
+        isNational={!rawState && !cityName}
+        area={concerns.data?.items ?? []}
+        national={concerns.data?.national ?? []}
+        loaded={concerns.isSuccess}
+      />
       {isLoading ? (
         <div role="status" className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
           Loading agendas for {scopeLabel}…
@@ -198,6 +212,50 @@ function AgendaSection({ rawState, cityName, scopeLabel }: { rawState?: string; 
   )
 }
 
+/**
+ * "What residents here raise most" (DC-4.3, #251), from objections recorded in the
+ * area's own meetings, with the national figure beside it. Real counts only; with no
+ * recorded objections it says so, and agenda items are ranked by date alone.
+ */
+function ConcernLine({
+  scopeLabel,
+  isNational,
+  area,
+  national,
+  loaded,
+}: {
+  scopeLabel: string
+  isNational: boolean
+  area: { concern: string; mention_count: number; objection_count: number; is_dominant: boolean; jurisdiction_name?: string | null }[]
+  national: { concern: string; mention_count: number; objection_count: number }[]
+  loaded: boolean
+}) {
+  if (!loaded) return null
+  const top = area.find((c) => c.is_dominant) ?? null
+  const topNational = national[0] ?? null
+  const local = concernSummary(top)
+  const nat = concernSummary(topNational)
+  if (!local && !nat) return null
+  return (
+    <p className="mb-3 rounded border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+      {isNational ? (
+        <>Across all recorded meeting objections, the top concern is {nat}.</>
+      ) : local ? (
+        <>
+          What residents{top?.jurisdiction_name ? ` of ${top.jurisdiction_name}` : ` in ${scopeLabel}`} raise most in
+          their meetings: {local}. Items that touch it are listed first.
+          {nat && <> Nationally: {nat}.</>}
+        </>
+      ) : (
+        <>
+          Not enough recorded objections in {scopeLabel} to rank by local concern, so items are listed by date.
+          {nat && <> Nationally, the top concern is {nat}.</>}
+        </>
+      )}
+    </p>
+  )
+}
+
 function AgendaCard({ item }: { item: DataCenterAgendaItem }) {
   const when = formatIsoDate(item.doc_date)
   const where = [item.jurisdiction_name, item.state_code].filter(Boolean).join(', ')
@@ -217,6 +275,11 @@ function AgendaCard({ item }: { item: DataCenterAgendaItem }) {
         {highlightSnippet(item.evidence)}
       </blockquote>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        {item.matches_local_concern && item.local_concern && (
+          <span className="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-800">
+            Matches local concern: {concernLabel(item.local_concern)}
+          </span>
+        )}
         {item.mentions_zoning_or_utility && (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">Zoning or utility item</span>
         )}

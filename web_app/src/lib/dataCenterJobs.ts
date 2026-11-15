@@ -118,3 +118,30 @@ export function siteStatusLabel(
   }
   return (status && words[status]) || 'Status not published'
 }
+
+const CONCERN_WORDS: Record<string, string> = {
+  water: 'water',
+  electricity: 'electricity costs',
+  noise: 'noise',
+  land: 'land and property',
+  taxes: 'tax breaks',
+  traffic: 'traffic',
+  pollution: 'pollution',
+}
+
+/** Plain words for a concern key (DC-4.3, #251). */
+export function concernLabel(concern: string): string {
+  return CONCERN_WORDS[concern] ?? concern
+}
+
+/**
+ * One line on what an area objects to, from real counts:
+ * "water in 3 of 4 objections (75%)". Null when there's nothing to say.
+ */
+export function concernSummary(
+  c: { concern: string; mention_count: number; objection_count: number } | null | undefined,
+): string | null {
+  if (!c || c.objection_count <= 0) return null
+  const pct = Math.round((100 * c.mention_count) / c.objection_count)
+  return `${concernLabel(c.concern)} in ${c.mention_count} of ${c.objection_count} objections (${pct}%)`
+}

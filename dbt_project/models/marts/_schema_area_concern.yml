@@ -1,0 +1,81 @@
+version: 2
+
+# DC-4.3 (#251): what residents object to, by area, from the objections recorded in their
+# own meetings. Built into gold and published to public.
+
+models:
+  - name: area_concern
+    description: >
+      One row per area per concern. Area is a jurisdiction (state_code + jurisdiction_name)
+      or the nation (area_level 'national'). Counts come from event_decision counter_views
+      (objections raised in meetings), sorted into concerns by local_concern_patterns().
+      share = mention_count / objection_count; an objection can raise more than one concern,
+      so shares can sum past 1. Areas with no recorded objections have no rows.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: area_concern_id
+        description: "Primary key: md5(area_level|state_code|jurisdiction_name|concern)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: area_level
+        description: "jurisdiction or national."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: check
+            expression: "area_level in ('jurisdiction', 'national')"
+      - name: state_code
+        description: "2-letter state code; null on the national row."
+        data_type: text
+      - name: state
+        description: "Full state name; null on the national row."
+        data_type: text
+      - name: jurisdiction_name
+        description: "Jurisdiction name as event_decision carries it; null on the national row."
+        data_type: text
+      - name: concern
+        description: "water, electricity, noise, land, taxes, traffic or pollution."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['water', 'electricity', 'noise', 'land', 'taxes', 'traffic', 'pollution']
+      - name: mention_count
+        description: "Objections in the area that mention this concern."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: objection_count
+        description: "All objections recorded in the area."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: share
+        description: "mention_count / objection_count."
+        data_type: double precision
+      - name: concern_rank
+        description: "1 = most mentioned in the area; ties share a rank."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: is_dominant
+        description: "Rank 1 with at least 3 mentions: the concern the feed ranks by."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: first_meeting_on
+        description: "Earliest meeting with an objection raising this concern."
+        data_type: date
+      - name: last_meeting_on
+        description: "Latest meeting with an objection raising this concern."
+        data_type: date

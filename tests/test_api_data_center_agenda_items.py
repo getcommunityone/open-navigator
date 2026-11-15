@@ -105,16 +105,18 @@ def test_city_scope_counts_and_evidence(get) -> None:
 def test_when_filters_items_only() -> None:
     scope = data_centers.build_scope(None, None, None)
     up, p, cnt, cp = data_centers.build_agenda_queries(scope, "upcoming", 5)
-    assert "a.doc_date >= current_date" in up.split("ORDER BY")[0] and p == [5] and cp == []
+    outer = lambda sql: sql.split(") c ON TRUE ")[1].split("ORDER BY")[0]  # noqa: E731 - the outer WHERE
+    assert "a.doc_date >= current_date" in outer(up) and p == [5] and cp == []
     past, _, _, _ = data_centers.build_agenda_queries(scope, "past", 5)
-    assert "a.doc_date < current_date" in past.split("ORDER BY")[0]
+    assert "a.doc_date < current_date" in outer(past)
     everything, _, _, _ = data_centers.build_agenda_queries(scope, "all", 5)
-    assert "current_date" not in everything.split("WHERE")[1].split("ORDER BY")[0]
+    assert "current_date" not in outer(everything)
 
 
 def test_upcoming_sorts_first_soonest_first() -> None:
     sql, _, _, _ = data_centers.build_agenda_queries(data_centers.build_scope(None, None, None), "all", 5)
-    order = sql.split("ORDER BY")[1]
+    order = sql.split("ORDER BY (a.doc_date", 1)[1]
+    order = "(a.doc_date" + order
     assert order.index("(a.doc_date >= current_date) DESC") < order.index("THEN a.doc_date END ASC") < order.index("a.doc_date DESC")
 
 
@@ -129,3 +131,23 @@ def test_missing_mart_is_an_empty_list(get) -> None:
 
 def test_other_errors_are_500(get) -> None:
     assert get(_Conn(error=RuntimeError("boom"))).status_code == 500
+
+
+def test_local_concern_ranks_within_upcoming_and_past() -> None:
+    """DC-4.3 (#251): an item naming the area's dominant concern ranks above one that doesn't."""
+    sql, _, _, _ = data_centers.build_agenda_queries(data_centers.build_scope(None, None, None), "all", 5)
+    order = "(a.doc_date" + sql.split("ORDER BY (a.doc_date", 1)[1]
+    upcoming = order.index("(a.doc_date >= current_date) DESC")
+    concern = order.index("coalesce(c.concern = ANY(a.concerns), false) DESC")
+    by_date = order.index("THEN a.doc_date END ASC")
+    assert upcoming < concern < by_date
+    assert "ac.is_dominant" in sql and "ac.area_level = 'jurisdiction'" in sql
+
+
+def test_items_carry_concern_fields(get) -> None:
+    conn = _Conn(
+        rows=[_item(concerns=["water"], local_concern="water", matches_local_concern=True)],
+        counts=[{"upcoming": 1, "past": 0}],
+    )
+    (item,) = get(conn).json()["items"]
+    assert item["concerns"] == ["water"] and item["local_concern"] == "water" and item["matches_local_concern"]
