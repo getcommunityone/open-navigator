@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform == 'darwin'",
@@ -652,6 +652,7 @@ dependencies = [
     { name = "communityone-scrapers" },
     { name = "core-lib" },
     { name = "datasets" },
+    { name = "httpx" },
     { name = "pandas" },
     { name = "psycopg2-binary" },
     { name = "pyarrow" },
@@ -667,6 +668,7 @@ requires-dist = [
     { name = "communityone-scrapers", editable = "packages/scrapers" },
     { name = "core-lib", editable = "packages/core-lib" },
     { name = "datasets", specifier = ">=2.18" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "pandas", specifier = ">=2.1" },
     { name = "psycopg2-binary", specifier = ">=2.9" },
     { name = "pyarrow", specifier = ">=26.0.1" },

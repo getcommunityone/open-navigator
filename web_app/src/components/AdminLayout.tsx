@@ -1,6 +1,6 @@
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { ADMIN_BATCH_JOBS, ADMIN_LIGHTHOUSE_REPORT } from '../utils/adminPaths'
+import { ADMIN_APPLICATION_LINKS, ADMIN_BATCH_JOBS, ADMIN_LIGHTHOUSE_REPORT } from '../utils/adminPaths'
 
 function tabCls({ isActive }: { isActive: boolean }) {
   return [
@@ -32,6 +32,7 @@ export default function AdminLayout() {
   const onLighthouseReport =
     pathname === ADMIN_LIGHTHOUSE_REPORT || pathname.startsWith(`${ADMIN_LIGHTHOUSE_REPORT}/`)
   const onBatchJobs = pathname === ADMIN_BATCH_JOBS || pathname.startsWith(`${ADMIN_BATCH_JOBS}/`)
+  const onApplicationLinks = pathname === ADMIN_APPLICATION_LINKS
 
   return (
     <div className="flex min-h-[calc(100dvh-4.25rem)] flex-1 flex-col bg-slate-200">
@@ -61,7 +62,19 @@ export default function AdminLayout() {
             >
               Batch jobs
             </NavLink>
+            <NavLink
+              to={ADMIN_APPLICATION_LINKS}
+              end
+              className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
+            >
+              Application links
+            </NavLink>
           </nav>
+          {onApplicationLinks && (
+            <p className="mt-0.5 text-[10px] leading-snug text-slate-600 sm:text-[11px]" aria-live="polite">
+              Job-application links for data center projects (`public.job_application_link`). Links not verified in 30 days are flagged Stale on the public page.
+            </p>
+          )}
           {(onLighthouseReport || onBatchJobs) && (
             <p className="mt-0.5 text-[10px] leading-snug text-slate-600 sm:text-[11px]" aria-live="polite">
               {onLighthouseReport

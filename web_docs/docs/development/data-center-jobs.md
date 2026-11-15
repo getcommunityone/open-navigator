@@ -31,6 +31,8 @@ meeting, split by phase, with the speaker and the words they used. It is part of
 - **The moment.** Each claim uses the shared `CitationLink` from [CORE-2.1](https://github.com/getcommunityone/open-navigator/issues/240): "Said by Dana Ruiz, applicant · Mar 2, 2026 · ▶ 12:34". The link opens `/meetings/<event_meeting_id>?t=754`, the meeting page with the recording started at that second. Without a timestamp it opens the meeting and says "time not recorded"; without a speaker it says "Speaker not identified".
 - **Re-analysis needed.** Meetings analyzed before this change have no `speaker_role` or `speaker_person_id`, so their claims show the name only until they are re-analyzed with the updated prompt.
 
+Job-application links for these projects, and how they're kept current: [Data center application links](./data-center-application-links.md) (DC-1.3).
+
 ## Rules
 
 - **Never one combined jobs number.** A claim of "1,200 during construction and 50 permanent" is two rows, one per

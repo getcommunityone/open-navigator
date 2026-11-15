@@ -22,6 +22,8 @@ dependencies = [
     "splink>=4.0",
     "sqlalchemy>=2.0",
     "psycopg2-binary>=2.9",
+    # ingestion.data_centers checks job-application links (DC-1.3)
+    "httpx>=0.27",
     # ingestion.argkp pulls the IBM-Debater ArgKP key-point dataset from HF
     "datasets>=2.18",
 ]
