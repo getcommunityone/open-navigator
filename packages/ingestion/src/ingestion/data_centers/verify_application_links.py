@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
 
     counts = {"live": 0, "dead": 0, "error": 0}
     with psycopg2.connect(dsn) as conn, httpx.Client(
-        follow_redirects=True, timeout=TIMEOUT_SECONDS, headers={"User-Agent": USER_AGENT}
+        timeout=TIMEOUT_SECONDS, headers={"User-Agent": USER_AGENT}
     ) as client:
         with conn.cursor() as cur:
             cur.execute(DUE_SQL, (args.limit,))

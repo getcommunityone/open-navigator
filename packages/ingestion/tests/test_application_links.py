@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
+import ingestion.data_centers.application_links as al
 from ingestion.data_centers.application_links import (
     check_link,
     classify,
@@ -18,7 +19,20 @@ NOW = datetime(2026, 11, 15, 12, 0, tzinfo=timezone.utc)
 
 
 def _client(handler) -> httpx.Client:
-    return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+@pytest.fixture(autouse=True)
+def _public_dns(monkeypatch):
+    """Test hosts don't resolve here: treat example.com names as public, IPs by their class."""
+    real = al.host_is_public
+
+    def fake(host):
+        if host and host.endswith("example.com"):
+            return True
+        return real(host)
+
+    monkeypatch.setattr(al, "host_is_public", fake)
 
 
 @pytest.mark.parametrize(
@@ -79,3 +93,41 @@ def test_non_http_url_is_never_requested() -> None:
         raise AssertionError("requested a non-http URL")
 
     assert check_link("ftp://example.com/x", client=_client(handler)).status == "error"
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["http://127.0.0.1/admin", "http://169.254.169.254/latest/meta-data/", "http://10.0.0.5/", "http://localhost:8001/"],
+)
+def test_private_hosts_are_refused_without_a_request(url) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover - must not run
+        raise AssertionError(f"requested {request.url}")
+
+    assert check_link(url, client=_client(handler)).status == "error"
+
+
+def test_redirect_to_a_private_host_is_refused() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(302, headers={"location": "http://169.254.169.254/"})
+
+    result = check_link("https://jobs.example.com/a", client=_client(handler))
+    assert result.status == "error" and seen == ["https://jobs.example.com/a"]
+
+
+def test_public_redirects_are_followed() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/old":
+            return httpx.Response(301, headers={"location": "/new"})
+        return httpx.Response(200)
+
+    assert check_link("https://jobs.example.com/old", client=_client(handler)).status == "live"
+
+
+def test_redirect_loop_is_an_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": "https://jobs.example.com/loop"})
+
+    assert check_link("https://jobs.example.com/loop", client=_client(handler)).status == "error"
