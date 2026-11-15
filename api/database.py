@@ -2,6 +2,9 @@
 Database connection and session management
 """
 import os
+from urllib.parse import urlparse
+
+from loguru import logger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -71,6 +74,28 @@ DATA_SEARCH_PATH = DB_SCHEMA if DB_SCHEMA == "public" else f"{DB_SCHEMA},public"
 #: search_path for the ORM/auth engine: public FIRST so operational tables stay in public.
 _ORM_SEARCH_PATH = "public" if DB_SCHEMA == "public" else f"public,{DB_SCHEMA}"
 
+def orm_connect_args(url: str) -> dict:
+    """libpq connect args for the ORM/auth engine (#367).
+
+    Pins ``search_path`` (public first) with a startup ``options`` parameter, except
+    on a Neon *pooled* endpoint (host contains ``-pooler``): PgBouncer rejects
+    startup ``options`` ("unsupported startup parameter in options: search_path"),
+    which failed every ORM connection and took sign-in down. There the server
+    default ``"$user", public`` already resolves the ORM tables to ``public``.
+    """
+    host = urlparse(url).hostname or ""
+    if "-pooler" in host:
+        if _ORM_SEARCH_PATH != "public":
+            logger.warning(
+                "Neon pooled host {}: search_path pin {!r} not applied (pooler rejects "
+                "startup options); ORM tables resolve via the default search_path.",
+                host,
+                _ORM_SEARCH_PATH,
+            )
+        return {}
+    return {"options": f"-csearch_path={_ORM_SEARCH_PATH}"}
+
+
 # Create engine
 if "sqlite" in DATABASE_URL:
     # SQLite needs special handling for concurrent access
@@ -88,7 +113,7 @@ else:
         max_overflow=20,
         # Pin the ORM/auth search_path (public-first) so Base.metadata.create_all
         # always targets public even when a private instance serves data from gold.
-        connect_args={"options": f"-csearch_path={_ORM_SEARCH_PATH}"},
+        connect_args=orm_connect_args(DATABASE_URL),
     )
 
 # Create session factory
