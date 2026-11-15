@@ -296,6 +296,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/agenda-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Center Agenda Items
+         * @description Agendas that mention a data center, upcoming meetings first, each with a quoted,
+         *     highlighted excerpt.
+         *
+         *     Example:
+         *         GET /api/data-centers/agenda-items?state=AL&city=Tuscaloosa&when=upcoming
+         */
+        get: operations["list_data_center_agenda_items_api_data_centers_agenda_items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/application-links": {
         parameters: {
             query?: never;
@@ -1146,6 +1170,68 @@ export interface components {
             jurisdictions?: components["schemas"]["JurisdictionRunModel"][];
             /** State Code */
             state_code: string;
+        };
+        /** DataCenterAgendaCounts */
+        DataCenterAgendaCounts: {
+            /**
+             * Past
+             * @default 0
+             */
+            past: number;
+            /**
+             * Upcoming
+             * @default 0
+             */
+            upcoming: number;
+        };
+        /** DataCenterAgendaItem */
+        DataCenterAgendaItem: {
+            /** Body Name */
+            body_name?: string | null;
+            /** Data Center Agenda Item Id */
+            data_center_agenda_item_id: string;
+            /** Data Center Site Id */
+            data_center_site_id?: string | null;
+            /** Doc Date */
+            doc_date?: string | null;
+            /** Document Url */
+            document_url?: string | null;
+            /** Event Meeting Document Id */
+            event_meeting_document_id: string;
+            /**
+             * Evidence
+             * @description Verbatim agenda excerpt; matched words wrapped in <mark>.
+             */
+            evidence: string;
+            /**
+             * Is Upcoming
+             * @description The meeting is today or later.
+             */
+            is_upcoming: boolean;
+            /** Jurisdiction Id */
+            jurisdiction_id?: string | null;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /** Meeting Title */
+            meeting_title?: string | null;
+            /** Mentions Zoning Or Utility */
+            mentions_zoning_or_utility: boolean;
+            /**
+             * Site Name
+             * @description The tracked site the agenda names, if any.
+             */
+            site_name?: string | null;
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code?: string | null;
+        };
+        /** DataCenterAgendaItemsResponse */
+        DataCenterAgendaItemsResponse: {
+            counts?: components["schemas"]["DataCenterAgendaCounts"];
+            /** Items */
+            items: components["schemas"]["DataCenterAgendaItem"][];
+            scope: components["schemas"]["JobClaimScope"];
         };
         /**
          * DataCenterSite
@@ -2415,6 +2501,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_data_center_agenda_items_api_data_centers_agenda_items_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+                /** @description upcoming (today or later), past, or all. */
+                when?: "upcoming" | "past" | "all";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataCenterAgendaItemsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

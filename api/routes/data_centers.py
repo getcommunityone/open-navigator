@@ -424,3 +424,127 @@ async def list_data_center_sites(
             counts=counts,
             items=[DataCenterSite(**dict(r)) for r in rows],
         )
+
+
+# --- Data center items on agendas (DC-4.2, #250) --------------------------------
+#
+# Backed by the dbt mart ``data_center_agenda_item``: one row per agenda that mentions a
+# data center, with a verbatim highlighted excerpt (``evidence``) and whether a zoning,
+# land-use, tax-incentive or utility word sits near the mention. Upcoming vs past is
+# worked out here from today, so a stale table can't call a past meeting upcoming.
+
+AgendaWhen = Literal["upcoming", "past", "all"]
+
+
+class DataCenterAgendaItem(BaseModel):
+    data_center_agenda_item_id: str
+    event_meeting_document_id: str
+    jurisdiction_id: str | None = None
+    jurisdiction_name: str | None = None
+    state_code: str | None = None
+    state: str | None = None
+    body_name: str | None = None
+    meeting_title: str | None = None
+    doc_date: date | None = None
+    document_url: str | None = None
+    mentions_zoning_or_utility: bool
+    evidence: str = Field(..., description="Verbatim agenda excerpt; matched words wrapped in <mark>.")
+    data_center_site_id: str | None = None
+    site_name: str | None = Field(None, description="The tracked site the agenda names, if any.")
+    is_upcoming: bool = Field(..., description="The meeting is today or later.")
+
+
+class DataCenterAgendaCounts(BaseModel):
+    upcoming: int = 0
+    past: int = 0
+
+
+class DataCenterAgendaItemsResponse(BaseModel):
+    scope: JobClaimScope
+    counts: DataCenterAgendaCounts = Field(default_factory=DataCenterAgendaCounts)
+    items: list[DataCenterAgendaItem]
+
+
+def build_agenda_queries(
+    scope: JobClaimScope, when: str, limit: int
+) -> tuple[str, list[Any], str, list[Any]]:
+    """(items SQL, params, counts SQL, params). Upcoming first (soonest), then past (newest)."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"a.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"a.jurisdiction_name ILIKE ${len(params)}")
+    counts_where = " AND ".join(where) or "TRUE"
+    counts_params = list(params)
+    if when == "upcoming":
+        where.append("a.doc_date >= current_date")
+    elif when == "past":
+        where.append("a.doc_date < current_date")
+    params.append(limit)
+    items_sql = (
+        "SELECT a.data_center_agenda_item_id, a.event_meeting_document_id, a.jurisdiction_id, "
+        "a.jurisdiction_name, a.state_code, a.state, a.body_name, a.meeting_title, a.doc_date, "
+        "a.document_url, a.mentions_zoning_or_utility, a.evidence, a.data_center_site_id, "
+        "s.site_name, coalesce(a.doc_date >= current_date, false) AS is_upcoming "
+        "FROM data_center_agenda_item a "
+        "LEFT JOIN data_center_site s ON s.data_center_site_id = a.data_center_site_id "
+        f"WHERE {' AND '.join(where) or 'TRUE'} "
+        "ORDER BY (a.doc_date >= current_date) DESC NULLS LAST, "
+        "CASE WHEN a.doc_date >= current_date THEN a.doc_date END ASC, "
+        "a.doc_date DESC NULLS LAST, a.data_center_agenda_item_id "
+        f"LIMIT ${len(params)}"
+    )
+    counts_sql = (
+        "SELECT count(*) FILTER (WHERE a.doc_date >= current_date)::int AS upcoming, "
+        "count(*) FILTER (WHERE a.doc_date < current_date)::int AS past "
+        f"FROM data_center_agenda_item a WHERE {counts_where}"
+    )
+    return items_sql, params, counts_sql, counts_params
+
+
+@router.get("/agenda-items", response_model=DataCenterAgendaItemsResponse)
+async def list_data_center_agenda_items(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the jurisdiction name."),
+    when: AgendaWhen = Query("all", description="upcoming (today or later), past, or all."),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+) -> DataCenterAgendaItemsResponse:
+    """
+    Agendas that mention a data center, upcoming meetings first, each with a quoted,
+    highlighted excerpt.
+
+    Example:
+        GET /api/data-centers/agenda-items?state=AL&city=Tuscaloosa&when=upcoming
+    """
+    scope = build_scope(state, city, None)
+    applied = JobClaimScope(
+        level="city" if scope.city else ("state" if scope.state_code else "national"),
+        state_code=scope.state_code,
+        state=scope.state,
+        city=scope.city,
+    )
+    items_sql, params, counts_sql, counts_params = build_agenda_queries(applied, when, limit)
+    with tracer.start_as_current_span("data-centers.agenda-items") as span:
+        span.set_attribute("agenda_items.scope_level", applied.level)
+        span.set_attribute("agenda_items.when", when)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(items_sql, *params)
+                count_rows = await conn.fetch(counts_sql, *counts_params)
+        except asyncpg.exceptions.UndefinedTableError as e:
+            span.set_attribute("agenda_items.relation_missing", True)
+            logger.warning("data-centers: agenda-item relations aren't here yet ({}); empty list", e)
+            return DataCenterAgendaItemsResponse(scope=applied, items=[])
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers agenda-items error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load agenda items")
+        counts = DataCenterAgendaCounts(**dict(count_rows[0])) if count_rows else DataCenterAgendaCounts()
+        span.set_attribute("agenda_items.count", len(rows))
+        return DataCenterAgendaItemsResponse(
+            scope=applied, counts=counts, items=[DataCenterAgendaItem(**dict(r)) for r in rows]
+        )

@@ -3,7 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import CitationLink from '../components/CitationLink'
 import { meetingMomentPath } from '../lib/timestamp'
 import {
+  fetchDataCenterAgendaItems,
   fetchDataCenterSites,
+  type DataCenterAgendaItem,
   fetchJobClaims,
   type DataCenterSite,
   type JobClaim,
@@ -13,12 +15,14 @@ import { fetchApplicationLinks, type ApplicationLink } from '../api/applicationL
 import {
   formatDateRange,
   formatHeadcount,
+  formatIsoDate,
   meetingAttribution,
   placeScope,
   siteStatusLabel,
   verifiedLabel,
 } from '../lib/dataCenterJobs'
 import { expandStateName } from '../utils/formatters'
+import { highlightSnippet } from '../lib/highlight'
 
 /**
  * /data-centers — "Jobs promised" panel (issue #246, DC-1.1).
@@ -112,11 +116,118 @@ export default function DataCenters() {
           )}
         </section>
 
+        <AgendaSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
+
         <SitesSection rawState={rawState} cityName={cityName} />
 
         <ApplySection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
       </div>
     </div>
+  )
+}
+
+/**
+ * "On the agenda" (DC-4.2, #250): agendas that mention a data center, upcoming meetings
+ * first so residents can attend before the vote. Each item quotes the agenda with the
+ * matched words highlighted (the site-wide match-evidence rule), from the server's
+ * ts_headline excerpt rendered by highlightSnippet (React-escaped, no innerHTML).
+ */
+function AgendaSection({ rawState, cityName, scopeLabel }: { rawState?: string; cityName?: string; scopeLabel: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['data-centers', 'agenda-items', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchDataCenterAgendaItems({ state: rawState, city: cityName }),
+  })
+  const items = data?.items ?? []
+  const upcoming = items.filter((i) => i.is_upcoming)
+  const past = items.filter((i) => !i.is_upcoming)
+  return (
+    <section aria-labelledby="agenda-heading" className="mt-6">
+      <h2 id="agenda-heading" className="mb-1 text-xl font-semibold text-gray-900">
+        On the agenda
+      </h2>
+      <p className="mb-3 text-sm text-gray-600">
+        Meeting agendas in {scopeLabel} that mention a data center, quoted from the agenda. Upcoming meetings come first,
+        so you can attend before the vote.
+      </p>
+      {isLoading ? (
+        <div role="status" className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+          Loading agendas for {scopeLabel}…
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Couldn&apos;t load agendas.{' '}
+          <button type="button" onClick={() => refetch()} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          No agendas mentioning a data center for {scopeLabel} yet.
+        </div>
+      ) : (
+        <>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700">
+            Coming up{data?.counts ? ` (${data.counts.upcoming})` : ''}
+          </h3>
+          {upcoming.length === 0 ? (
+            <p className="mb-4 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
+              No upcoming agendas mention a data center for {scopeLabel}.
+            </p>
+          ) : (
+            <ul className="mb-4 space-y-3">
+              {upcoming.map((item) => (
+                <AgendaCard key={item.data_center_agenda_item_id} item={item} />
+              ))}
+            </ul>
+          )}
+          {past.length > 0 && (
+            <>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700">
+                Earlier meetings{data?.counts ? ` (${data.counts.past})` : ''}
+              </h3>
+              <ul className="space-y-3">
+                {past.map((item) => (
+                  <AgendaCard key={item.data_center_agenda_item_id} item={item} />
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+function AgendaCard({ item }: { item: DataCenterAgendaItem }) {
+  const when = formatIsoDate(item.doc_date)
+  const where = [item.jurisdiction_name, item.state_code].filter(Boolean).join(', ')
+  return (
+    <li className={`rounded-lg border bg-white p-4 shadow-sm ${item.is_upcoming ? 'border-primary-200' : 'border-gray-200'}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold text-gray-900">
+          {item.meeting_title || 'Meeting'}
+          {where && <span className="font-normal text-gray-600"> · {where}</span>}
+        </p>
+        <p className={`text-sm ${item.is_upcoming ? 'font-semibold text-primary-700' : 'text-gray-500'}`}>
+          {when ?? 'Date not listed'}
+          {!item.is_upcoming && when && ' · already met'}
+        </p>
+      </div>
+      <blockquote className="mt-2 line-clamp-4 border-l-4 border-primary-300 pl-3 text-sm text-gray-800">
+        {highlightSnippet(item.evidence)}
+      </blockquote>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        {item.mentions_zoning_or_utility && (
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">Zoning or utility item</span>
+        )}
+        {item.site_name && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700">Site: {item.site_name}</span>}
+        {item.document_url && (
+          <a href={item.document_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-700 hover:underline">
+            Read the agenda
+          </a>
+        )}
+      </div>
+    </li>
   )
 }
 

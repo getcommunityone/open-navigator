@@ -1,0 +1,83 @@
+version: 2
+
+# DC-4.2 (#250): data center items on meeting agendas, so residents hear about them
+# before the vote. Built into gold and published to public.
+
+models:
+  - name: data_center_agenda_item
+    description: >
+      One row per agenda document (event_meeting_document, document_type 'agenda') that
+      mentions a data center. evidence is a verbatim excerpt with the matched words in
+      <mark>; mentions_zoning_or_utility flags a zoning, land-use, tax-incentive or
+      utility word near the mention; data_center_site_id links a tracked site the agenda
+      names. Upcoming vs past is worked out by the API from doc_date and today.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [event_meeting_document_id]
+        to: ref('event_meeting_document')
+        to_columns: [event_meeting_document_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+      - type: foreign_key
+        columns: [data_center_site_id]
+        to: ref('data_center_site')
+        to_columns: [data_center_site_id]
+    columns:
+      - name: data_center_agenda_item_id
+        description: "Primary key (= event_meeting_document_id: one row per agenda)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_meeting_document_id
+        description: "The agenda document (FK to event_meeting_document)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction_id
+        description: "The jurisdiction (FK to jurisdictions); null when not in jurisdictions."
+        data_type: text
+      - name: jurisdiction_name
+        description: "Jurisdiction name, from jurisdictions."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: body_name
+        description: "The body that meets (council, planning, finance...)."
+        data_type: text
+      - name: meeting_title
+        description: "The meeting title as the source lists it."
+        data_type: text
+      - name: doc_date
+        description: "The meeting date the agenda is for."
+        data_type: date
+      - name: document_url
+        description: "Link to the agenda document."
+        data_type: text
+      - name: mentions_zoning_or_utility
+        description: "A zoning, land-use, tax-incentive or utility word within ~250 characters of a data center mention."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: evidence
+        description: "Verbatim ts_headline excerpt of the agenda; matched words wrapped in <mark>."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: data_center_site_id
+        description: "A tracked site the agenda names (FK to data_center_site); null when none."
+        data_type: text

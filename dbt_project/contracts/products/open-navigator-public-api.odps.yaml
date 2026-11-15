@@ -250,3 +250,8 @@ outputPorts:
   contractId: open-navigator-public-data_center_site
   type: table
   description: One row per data center site (PK data_center_site_id), from Epoch AI's "AI data centers" dataset, credited on every row (source_name, source_url, license, attribution).
+- name: data_center_agenda_item
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_agenda_item
+  type: table
+  description: One row per agenda document (event_meeting_document, document_type 'agenda') that mentions a data center.
