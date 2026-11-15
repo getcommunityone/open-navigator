@@ -7,9 +7,11 @@ cover the validators in isolation; these tests assert the routes themselves are
 actually gated (401 anonymous, 403 non-admin) and that an unsafe `redirect_uri` is
 dropped before it is ever persisted.
 """
+import asyncio
+
+import httpx
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -19,6 +21,42 @@ from api.database import get_db
 from api.models import Base, OAuthState, User
 from api.routes import auth as auth_routes
 from api.routes import batch_jobs, deployments
+
+
+class TestClient:
+    """Minimal sync client over httpx.ASGITransport (same API as starlette's).
+
+    starlette's TestClient passes ``app=`` to httpx.Client, which httpx 0.28
+    removed, so it fails in CI with "unexpected keyword argument 'app'". Like
+    starlette's client, this follows redirects unless told otherwise.
+    """
+
+    __test__ = False  # not a pytest test class
+
+    def __init__(self, asgi_app):
+        self._app = asgi_app
+
+    def request(self, method: str, url: str, follow_redirects: bool = True, **kwargs) -> httpx.Response:
+        async def go() -> httpx.Response:
+            transport = httpx.ASGITransport(app=self._app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver", follow_redirects=follow_redirects
+            ) as client:
+                return await client.request(method.upper(), url, **kwargs)
+
+        return asyncio.run(go())
+
+    def get(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("POST", url, **kwargs)
+
+    def put(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("PUT", url, **kwargs)
+
+    def delete(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("DELETE", url, **kwargs)
 
 
 # Every mutating control-plane route that must be admin-gated. (method, path).
