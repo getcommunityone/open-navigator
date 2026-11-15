@@ -1490,9 +1490,13 @@ def _strip_unknown_prefixes(name: str) -> str:
 # Multi-part suffixes the policy cache writes. ``Path.stem`` only drops the last
 # one, so ``x.diagrams.md`` would parse to the title ``x.diagrams`` and the
 # cleanup would append ``.diagrams.md`` again on every run (#48).
+#
+# Caption sidecars (``.caption_raw_data.json`` / ``.caption_formatted.json``) are
+# deliberately NOT listed: their parsed title must keep the sidecar marker so
+# their destination stays the sidecar's own name. Stripping it would point a
+# sidecar at its main transcript and ``_safe_move`` would overwrite (or delete)
+# one with the other.
 _POLICY_COMPOUND_SUFFIXES = (
-    ".caption_raw_data.json",
-    ".caption_formatted.json",
     ".diagrams.md",
     ".meta.json",
 )

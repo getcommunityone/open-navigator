@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -61,3 +63,33 @@ def test_diagrams_suffix_is_not_repeated(tmp_path: Path) -> None:
         fix_policy_cache_dates_from_title(root)
     names = [p.name for p in (root / DIR_RUNS).glob("*.diagrams.md")]
     assert names and all(n.count(".diagrams") == 1 for n in names), names
+
+
+def _snapshot(root: Path) -> dict[str, str]:
+    return {
+        str(p.relative_to(root)): p.read_text(encoding="utf-8")
+        for p in sorted(root.rglob("*"))
+        if p.is_file()
+    }
+
+
+@pytest.mark.parametrize("sidecar_newer", [True, False])
+def test_caption_sidecars_are_never_merged_into_the_transcript(tmp_path: Path, sidecar_newer: bool) -> None:
+    """A caption sidecar must not overwrite, or be deleted as a duplicate of, its transcript."""
+    root = tmp_path / "UCchannel"
+    _seed(root)
+    transcripts = root / DIR_TRANSCRIPTS
+    for main in list(transcripts.glob("*.json")):
+        for suffix in (".caption_raw_data.json", ".caption_formatted.json"):
+            side = transcripts / f"{main.stem}{suffix}"
+            side.write_text(json.dumps([{"text": "raw"}]), encoding="utf-8")
+            offset = 60 if sidecar_newer else -60
+            os.utime(side, (time.time() + offset, time.time() + offset))
+    fix_policy_cache_dates_from_title(root)
+    before = _snapshot(root)
+    assert len([n for n in before if ".caption_" in n]) == 2 * len(TITLES)
+    for name, text in before.items():
+        if name.startswith(DIR_TRANSCRIPTS) and ".caption_" not in name:
+            assert json.loads(text)["title"] in TITLES, name
+    fix_policy_cache_dates_from_title(root)
+    assert _snapshot(root) == before
