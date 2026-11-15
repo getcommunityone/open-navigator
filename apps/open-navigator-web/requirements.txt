@@ -44,7 +44,7 @@ aiolimiter>=1.1              # core-lib rate limiter
 tenacity>=8.2.3
 
 # --- Observability (api/telemetry.py instruments at startup) -------------
-opentelemetry-api==1.42.0
+opentelemetry-api==1.45.2
 opentelemetry-sdk==1.42.0
 opentelemetry-instrumentation-fastapi==0.63b0
 opentelemetry-exporter-otlp-proto-http==1.42.0
