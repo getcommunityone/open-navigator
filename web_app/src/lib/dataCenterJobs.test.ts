@@ -6,6 +6,7 @@ import {
   hearItUrl,
   meetingAttribution,
   placeScope,
+  siteStatusLabel,
   verifiedLabel,
 } from './dataCenterJobs'
 
@@ -68,5 +69,18 @@ describe('verifiedLabel (DC-1.3)', () => {
   })
   it('says when a link was never verified', () => {
     expect(verifiedLabel(null, true)).toBe('Not verified yet')
+  })
+})
+
+describe('siteStatusLabel (DC-4.1)', () => {
+  it('names each status in plain words', () => {
+    expect(siteStatusLabel('planned', 'planned', null)).toBe('Planned')
+    expect(siteStatusLabel('under_construction', null, null)).toBe('Under construction')
+    expect(siteStatusLabel(null, null, null)).toBe('Status not published')
+  })
+  it('keeps a site the source dropped, with when it was last seen', () => {
+    expect(siteStatusLabel('no_longer_listed', 'operating', '2026-10-01')).toBe(
+      'No longer listed by the source · last seen Oct 1, 2026 · last known: operating',
+    )
   })
 })

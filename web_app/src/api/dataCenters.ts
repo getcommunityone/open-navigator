@@ -14,6 +14,9 @@ export type JobClaim = Schemas['JobClaim']
 export type JobClaimPhase = JobClaim['phase']
 export type JobClaimsScope = Schemas['JobClaimScope']
 export type JobClaimsResponse = Schemas['JobClaimsResponse']
+export type DataCenterSite = Schemas['DataCenterSite']
+export type DataCenterSiteStatus = NonNullable<DataCenterSite['status']>
+export type DataCenterSitesResponse = Schemas['DataCenterSitesResponse']
 
 export async function fetchJobClaims(params: {
   state?: string
@@ -32,5 +35,20 @@ export async function fetchJobClaims(params: {
       return res.data
     },
     { 'data_centers.scope_level': scopeLevel },
+  )
+}
+
+/** Data center sites (DC-4.1, #249): Epoch AI, CC BY 4.0. Narrows by state only. */
+export async function fetchDataCenterSites(params: { state?: string }): Promise<DataCenterSitesResponse> {
+  const q: Record<string, string> = {}
+  if (params.state) q.state = params.state
+  return withSpan(
+    'data-centers.sites.load',
+    async (span) => {
+      const res = await api.get<DataCenterSitesResponse>('/data-centers/sites', { params: q })
+      span.setAttribute('data_centers.sites.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': params.state ? 'state' : 'national' },
   )
 }

@@ -339,6 +339,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Center Sites
+         * @description Data center sites (Epoch AI, CC BY 4.0) with status and source; sites no longer
+         *     listed by the source stay in the list.
+         *
+         *     Example:
+         *         GET /api/data-centers/sites?state=TX
+         */
+        get: operations["list_data_center_sites_api_data_centers_sites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data/ingest/census": {
         parameters: {
             query?: never;
@@ -1122,6 +1146,100 @@ export interface components {
             jurisdictions?: components["schemas"]["JurisdictionRunModel"][];
             /** State Code */
             state_code: string;
+        };
+        /**
+         * DataCenterSite
+         * @description One data center site; unknown values are null.
+         */
+        DataCenterSite: {
+            /** Address */
+            address?: string | null;
+            /** Attribution */
+            attribution: string;
+            /** Construction Note */
+            construction_note?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Data Center Site Id */
+            data_center_site_id: string;
+            /** First Seen On */
+            first_seen_on?: string | null;
+            /** Is Listed */
+            is_listed: boolean;
+            /** It Power Mw */
+            it_power_mw?: number | null;
+            /** Last Known Status */
+            last_known_status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+            /** Last Seen On */
+            last_seen_on?: string | null;
+            /** License */
+            license: string;
+            /** Owner */
+            owner?: string | null;
+            /** Project */
+            project?: string | null;
+            /** Site Name */
+            site_name: string;
+            /** Source Name */
+            source_name: string;
+            /** Source Url */
+            source_url: string;
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /**
+             * Status
+             * @description Derived from Epoch's dated rows; null when Epoch has none for the site.
+             */
+            status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+            /** Status As Of */
+            status_as_of?: string | null;
+            /** Users */
+            users?: string | null;
+        };
+        /**
+         * DataCenterSiteCounts
+         * @description Sites per status for the whole scope (before ``status`` and ``limit``): 0 means none.
+         */
+        DataCenterSiteCounts: {
+            /**
+             * No Longer Listed
+             * @default 0
+             */
+            no_longer_listed: number;
+            /**
+             * Operating
+             * @default 0
+             */
+            operating: number;
+            /**
+             * Planned
+             * @default 0
+             */
+            planned: number;
+            /**
+             * Status Not Published
+             * @default 0
+             */
+            status_not_published: number;
+            /**
+             * Under Construction
+             * @default 0
+             */
+            under_construction: number;
+        };
+        /** DataCenterSitesResponse */
+        DataCenterSitesResponse: {
+            /**
+             * City Applied
+             * @description Always false: the source has no city field, so a city filter can't narrow sites.
+             */
+            city_applied: boolean;
+            counts?: components["schemas"]["DataCenterSiteCounts"];
+            /** Items */
+            items: components["schemas"]["DataCenterSite"][];
+            scope: components["schemas"]["JobClaimScope"];
         };
         /** DeploymentJobModel */
         DeploymentJobModel: {
@@ -2361,6 +2479,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobClaimsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_data_center_sites_api_data_centers_sites_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description Accepted so a page's scope can be passed through; it can't narrow sites. */
+                city?: string | null;
+                /** @description Only sites with this status. */
+                status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataCenterSitesResponse"];
                 };
             };
             /** @description Validation Error */

@@ -1782,6 +1782,41 @@ sources:
           - name: scraped_at
             description: "When the row was scraped."
 
+      - name: bronze_epoch_data_centers
+        description: >
+          Epoch AI "AI data centers" CSV rows (CC BY 4.0; credit Epoch AI), one per row per
+          downloaded file, as raw JSONB. Loaded by `python -m ingestion.data_centers.epoch_sites`
+          (DC-4.1, #249). Old snapshots are kept so a site that leaves the list stays visible.
+        columns:
+          - name: file_sha256
+            description: "SHA-256 of the downloaded file; with row_number, the primary key."
+          - name: row_number
+            description: "1-based row in that file."
+          - name: snapshot_on
+            description: "Date the file was downloaded."
+          - name: source_url
+            description: "The Epoch AI URL the file came from."
+          - name: name
+            description: "The site's Name column, trimmed."
+          - name: record
+            description: "The whole CSV row, header -> value."
+      - name: bronze_epoch_data_center_timelines
+        description: >
+          Epoch AI "AI data center timelines" CSV rows (CC BY 4.0): dated construction status and
+          capacity per site, as raw JSONB, one per row per downloaded file (DC-4.1, #249).
+        columns:
+          - name: file_sha256
+            description: "SHA-256 of the downloaded file; with row_number, the primary key."
+          - name: row_number
+            description: "1-based row in that file."
+          - name: snapshot_on
+            description: "Date the file was downloaded."
+          - name: source_url
+            description: "The Epoch AI URL the file came from."
+          - name: data_center
+            description: "The site name this timeline row belongs to (Epoch's 'Data center' link)."
+          - name: record
+            description: "The whole CSV row, header -> value."
       - name: bronze_events_analysis_ai
         description: "Gemini AI analysis results from meeting videos - structured entity extraction"
         columns:
