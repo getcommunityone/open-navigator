@@ -190,6 +190,18 @@ leader_board_stats AS (
     GROUP BY state_code, city_norm
 ),
 
+-- One scan of the bridge for the state rows (#291), instead of a correlated
+-- COUNT(DISTINCT) per state or a SUM of per-city distinct counts.
+leader_board_state_stats AS (
+    SELECT
+        state_code,
+        COUNT(DISTINCT officer_person_uid) as board_count
+    FROM {{ ref('mdm_bridge_person_organization') }}
+    WHERE state_code IS NOT NULL
+      AND (is_officer OR is_director_trustee OR is_key_employee OR is_institutional_trustee)
+    GROUP BY state_code
+),
+
 bill_stats AS (
     -- Count bills by state
     SELECT
@@ -241,6 +253,25 @@ decision_stats AS (
             WHEN j.jurisdiction_type = 'county' THEN j.name
             ELSE {{ normalize_place_key('j.name') }}
         END
+),
+
+-- Jurisdiction + school-district counts from the canonical jurisdiction list
+-- (#291: the national/state rows were hardcoded 0 though the data exists).
+-- jurisdictions_count = every Census geography in int_jurisdictions below the
+-- state: counties, Census places (INCLUDING census-designated places, which
+-- have no government of their own), county subdivisions and school districts.
+-- It is a count of mapped geographies, not of governments (see #351).
+-- school_districts_count = the school_district subset.
+-- int_jurisdictions has one row per geography (geoid is tested unique/not null),
+-- so COUNT(*) is exact and doesn't silently drop a NULL id.
+jurisdiction_counts AS (
+    SELECT
+        state_code,
+        COUNT(*) FILTER (WHERE jurisdiction_type <> 'state') AS jurisdictions_count,
+        COUNT(*) FILTER (WHERE jurisdiction_type = 'school_district') AS school_districts_count
+    FROM {{ ref('int_jurisdictions') }}
+    WHERE state_code IS NOT NULL
+    GROUP BY state_code
 ),
 
 -- Trending causes aggregated by jurisdiction (from dbt intermediate model)
@@ -335,8 +366,8 @@ national_stats AS (
         NULL::VARCHAR(100) as county,
         NULL::VARCHAR(100) as city,
         
-        0 as jurisdictions_count,
-        0 as school_districts_count,
+        COALESCE((SELECT SUM(jurisdictions_count) FROM jurisdiction_counts), 0)::INTEGER as jurisdictions_count,
+        COALESCE((SELECT SUM(school_districts_count) FROM jurisdiction_counts), 0)::INTEGER as school_districts_count,
         -- COALESCE every SUM to 0: an empty source set makes SUM() return NULL, which
         -- would violate the not_null grain test (a jurisdiction with zero of X reads 0, not NULL).
         COALESCE((SELECT SUM(nonprofits_count) FROM nonprofit_stats), 0)::INTEGER as nonprofits_count,
@@ -347,7 +378,14 @@ national_stats AS (
         -- search "Leaders" drilldown. The nonprofit board population is a disjoint
         -- id namespace and is exposed separately as nonprofit_leaders_count.
         COALESCE((SELECT SUM(officials_count) FROM leader_official_stats), 0)::INTEGER as leaders_count,
-        COALESCE((SELECT SUM(board_count) FROM leader_board_stats), 0)::INTEGER as nonprofit_leaders_count,
+        -- #291: one DISTINCT over the whole bridge rather than a SUM of per-city
+        -- distinct counts. NOTE: officer_person_uid is name + EIN, so this counts
+        -- leadership positions (person-at-org pairs), not resolved people — officers
+        -- are not yet resolved into mdm_person. It can exceed persons_count.
+        -- The state rows drop bridge rows with no state_code and an org that moved
+        -- states can appear in two, so the state rows need not sum to this figure.
+        COALESCE((SELECT COUNT(DISTINCT officer_person_uid) FROM {{ ref('mdm_bridge_person_organization') }}
+                  WHERE is_officer OR is_director_trustee OR is_key_employee OR is_institutional_trustee), 0)::INTEGER as nonprofit_leaders_count,
         COALESCE((SELECT SUM(decisions_count) FROM decision_stats), 0)::INTEGER as decisions_count,
         (SELECT SUM(total_revenue) FROM nonprofit_stats) as total_revenue,
         (SELECT SUM(total_assets) FROM nonprofit_stats) as total_assets,
@@ -366,8 +404,8 @@ state_stats AS (
         NULL::VARCHAR(100) as county,
         NULL::VARCHAR(100) as city,
         
-        0 as jurisdictions_count,
-        0 as school_districts_count,
+        COALESCE((SELECT jurisdictions_count FROM jurisdiction_counts WHERE state_code = nps.state_code), 0)::INTEGER as jurisdictions_count,
+        COALESCE((SELECT school_districts_count FROM jurisdiction_counts WHERE state_code = nps.state_code), 0)::INTEGER as school_districts_count,
         SUM(nps.nonprofits_count)::INTEGER as nonprofits_count,
         COALESCE((SELECT SUM(events_count) FROM event_stats WHERE state_code = nps.state_code), 0)::INTEGER as events_count,
         COALESCE((SELECT bills_count FROM bill_stats WHERE state_code = nps.state_code), 0)::INTEGER as bills_count,
@@ -375,7 +413,7 @@ state_stats AS (
         -- leaders_count = civic officials ONLY (matches search drilldown);
         -- nonprofit board exposed separately as nonprofit_leaders_count.
         COALESCE((SELECT SUM(officials_count) FROM leader_official_stats WHERE state_code = nps.state_code), 0)::INTEGER as leaders_count,
-        COALESCE((SELECT SUM(board_count) FROM leader_board_stats WHERE state_code = nps.state_code), 0)::INTEGER as nonprofit_leaders_count,
+        COALESCE((SELECT board_count FROM leader_board_state_stats WHERE state_code = nps.state_code), 0)::INTEGER as nonprofit_leaders_count,
         COALESCE((SELECT SUM(decisions_count) FROM decision_stats WHERE state_code = nps.state_code), 0)::INTEGER as decisions_count,
         SUM(nps.total_revenue) as total_revenue,
         SUM(nps.total_assets) as total_assets,
