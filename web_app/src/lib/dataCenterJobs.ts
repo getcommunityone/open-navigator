@@ -48,6 +48,15 @@ export function hearItUrl(videoId: string | null | undefined, startSeconds: numb
   return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.floor(startSeconds)}s`
 }
 
+/**
+ * Which meeting a claim was made at (DC-1.2, #247): the governing body when the
+ * record names it, else a plain "Meeting record" — never a guessed body.
+ */
+export function meetingAttribution(bodyName: string | null | undefined): string {
+  const body = bodyName?.trim()
+  return body ? `At the ${body} meeting` : 'Meeting record'
+}
+
 export type ScopeLevel = 'national' | 'state' | 'city'
 
 export interface PlaceScope {

@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import CitationLink from '../components/CitationLink'
+import { meetingMomentPath } from '../lib/timestamp'
 import { fetchJobClaims, type JobClaim, type JobClaimPhase } from '../api/dataCenters'
 import {
   formatDateRange,
   formatHeadcount,
-  formatIsoDate,
-  hearItUrl,
+  meetingAttribution,
   placeScope,
 } from '../lib/dataCenterJobs'
 import { expandStateName } from '../utils/formatters'
@@ -193,8 +194,8 @@ function PhaseColumn({ phase, claims, total, scopeLabel }: PhaseColumnProps) {
 function ClaimCard({ claim }: { claim: JobClaim }) {
   const headcount = formatHeadcount(claim.headcount_low, claim.headcount_high)
   const unknownHeadcount = claim.headcount_low == null && claim.headcount_high == null
-  const meetingDate = formatIsoDate(claim.meeting_date)
-  const hearIt = hearItUrl(claim.video_id, claim.start_seconds)
+  const meetingId = String(claim.event_meeting_id)
+  const atMeeting = meetingAttribution(claim.body_name)
   return (
     <article className="rounded-lg border border-gray-100 bg-gray-50 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -205,30 +206,26 @@ function ClaimCard({ claim }: { claim: JobClaim }) {
       <blockquote className="mt-2 border-l-4 border-primary-300 pl-3 text-sm italic text-gray-800">
         {claim.quote}
       </blockquote>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
-        {claim.speaker_name &&
-          (claim.person_id ? (
-            <span>
-              Said by{' '}
-              <Link to={`/person/${encodeURIComponent(claim.person_id)}`} className="font-medium text-primary-700 hover:underline">
-                {claim.speaker_name}
-              </Link>
-            </span>
-          ) : (
-            <span>Said by {claim.speaker_name}</span>
-          ))}
-        {meetingDate && <span>Meeting of {meetingDate}</span>}
-        {hearIt && (
-          <a
-            href={hearIt}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-primary-700 hover:underline"
-          >
-            Hear it
-          </a>
-        )}
+      {/* DC-1.2 (#247): who said it (with role), when, and the moment in the recording. */}
+      <div className="mt-2">
+        <CitationLink
+          meetingId={meetingId}
+          startSeconds={claim.start_seconds ?? null}
+          speakerName={claim.speaker_name}
+          speakerRole={claim.speaker_role}
+          meetingDate={claim.meeting_date}
+        />
       </div>
+      <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-gray-600">
+        <Link to={meetingMomentPath(meetingId, null)} className="font-medium text-primary-700 hover:underline">
+          {atMeeting}
+        </Link>
+        {claim.person_id && claim.speaker_name && (
+          <Link to={`/person/${encodeURIComponent(claim.person_id)}`} className="font-medium text-primary-700 hover:underline">
+            More from {claim.speaker_name}
+          </Link>
+        )}
+      </p>
     </article>
   )
 }

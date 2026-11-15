@@ -9,6 +9,10 @@
     becomes NULL, never a guess. Rows the job_claim mart can't keep (no quote, a phase
     outside construction/operations) stay here so the warn-level tests in
     _schema_stg_data_centers.yml count them in every run.
+
+    Attribution (DC-1.2, #247): speaker_role is the role said in the meeting. When the
+    claim binds its speaker to the analysis's people[] (speaker_person_id), a missing
+    speaker_name or speaker_role is filled from that entry. Nothing else is inferred.
 */
 
 with source_analyses as (
@@ -30,6 +34,7 @@ claims as (
         a.id,
         a.ai_model,
         a.created_at,
+        a.structured_analysis -> 'people'                            as people,
         c.claim
     from source_analyses as a
     cross join lateral jsonb_array_elements(a.structured_analysis -> 'job_claims') as c(claim)
@@ -45,13 +50,36 @@ typed as (
         {{ safe_iso_date("btrim(claim ->> 'ends_on')") }}            as ends_on,
         nullif(btrim(claim ->> 'project_name'), '')                  as project_name,
         nullif(lower(btrim(claim ->> 'project_type')), '')           as project_type,
-        nullif(btrim(claim ->> 'speaker_name'), '')                  as speaker_name,
+        nullif(btrim(claim ->> 'speaker_name'), '')                  as claim_speaker_name,
+        nullif(btrim(claim ->> 'speaker_role'), '')                  as claim_speaker_role,
+        nullif(btrim(claim ->> 'speaker_person_id'), '')             as speaker_person_ref,
+        people,
         {{ safe_nonnegative_double("claim ->> 'start_seconds'") }}   as start_seconds,
         -- verbatim: not trimmed or rewritten
         claim ->> 'quote'                                            as quote,
         cast(ai_model as text)                                       as source_ai_model,
         cast(created_at as timestamptz)                              as extracted_at
     from claims
+),
+
+-- The people[] entry the claim names as its speaker (the first with that person_id).
+attributed as (
+    select
+        t.*,
+        p.full_name as person_full_name,
+        p.role      as person_role
+    from typed as t
+    left join lateral (
+        select
+            nullif(btrim(e ->> 'full_name'), '') as full_name,
+            nullif(btrim(e ->> 'role'), '')      as role
+        from jsonb_array_elements(
+            case when jsonb_typeof(t.people) = 'array' then t.people else '[]'::jsonb end
+        ) as e
+        where t.speaker_person_ref is not null
+          and e ->> 'person_id' = t.speaker_person_ref
+        limit 1
+    ) as p on true
 )
 
 select
@@ -69,9 +97,11 @@ select
     ends_on,
     project_name,
     project_type,
-    speaker_name,
+    coalesce(claim_speaker_name, person_full_name) as speaker_name,
+    coalesce(claim_speaker_role, person_role)      as speaker_role,
+    speaker_person_ref,
     start_seconds,
     quote,
     source_ai_model,
     extracted_at
-from typed
+from attributed

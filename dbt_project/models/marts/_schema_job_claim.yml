@@ -74,6 +74,9 @@ models:
       - name: city
         description: "City of the meeting's event, from event_meeting (the API's ?city= matches it or jurisdiction_name)."
         data_type: text
+      - name: body_name
+        description: "The governing body that met (city council, county commission, planning board), from event_meeting.body_name; null when not recorded."
+        data_type: text
       - name: person_id
         description: >
           The speaker as a resolved person. Always null for now: speaker names from the
@@ -110,7 +113,10 @@ models:
         description: "data_center or another project type, lower-cased."
         data_type: text
       - name: speaker_name
-        description: "Who made the claim, as the analysis names them."
+        description: "Who made the claim, as the analysis names them (or as its people[] entry names them)."
+        data_type: text
+      - name: speaker_role
+        description: "The speaker's role as said in the meeting (applicant, council member, staff, resident), or from the analysis's people[] entry; null when not said, never inferred."
         data_type: text
       - name: start_seconds
         description: "Offset into the meeting video where the quote starts."

@@ -1,5 +1,6 @@
 """
-Data-center job claims, split by phase (issue #246, DC-1.1).
+Data-center job claims, split by phase (issue #246, DC-1.1), each attributed to its
+speaker and meeting (issue #247, DC-1.2: ``speaker_role``, ``body_name``).
 
 Backed by the dbt mart ``job_claim`` (published to ``public``): one row per
 jobs claim a speaker made in a meeting, tagged ``construction`` or
@@ -82,11 +83,17 @@ class JobClaim(BaseModel):
         ..., description="Verbatim words of the claim; the mart drops rows without one."
     )
     speaker_name: str | None = None
+    speaker_role: str | None = Field(
+        None, description="The speaker's role as said in the meeting (DC-1.2); null when not said."
+    )
     person_id: str | None = None
     event_meeting_id: int = Field(
         ..., description="FK to event_meeting (the mart's NOT NULL integer key)."
     )
     meeting_date: date | None = None
+    body_name: str | None = Field(
+        None, description="The governing body that met (e.g. city council), from event_meeting."
+    )
     video_id: str | None = None
     start_seconds: float | None = None
 
@@ -115,9 +122,11 @@ _SELECT_SQL = """
         project_name,
         quote,
         speaker_name,
+        speaker_role,
         person_id,
         event_meeting_id,
         meeting_date,
+        body_name,
         video_id,
         start_seconds
     FROM job_claim
