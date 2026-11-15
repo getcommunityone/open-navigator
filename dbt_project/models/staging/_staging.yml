@@ -76,8 +76,9 @@ sources:
             description: "When the loader wrote the row."
       - name: bronze_acs_property_tax
         description: |
-          ACS 5-year median real estate taxes paid (B25103_001E) and median home
-          value (B25077_001E) at place and county grain, landed wide by
+          ACS 5-year median real estate taxes paid (B25103_001E), median home
+          value (B25077_001E) and median household income (B19013_001E) at place
+          and county grain, landed wide by
           ingestion.census.property_tax. One row per
           (geography_type, geoid, acs_vintage_year). Dollar amounts are whole
           dollars; ACS jumbo-negative suppression sentinels are coerced to NULL
@@ -97,6 +98,8 @@ sources:
             description: "B25103_001E (whole dollars). NULL when source-suppressed."
           - name: median_home_value
             description: "B25077_001E (whole dollars). NULL when source-suppressed."
+          - name: median_household_income
+            description: "B19013_001E (whole dollars). NULL when source-suppressed. Added for #137; absent on tables loaded before then until the loader is re-run (the loader adds it in place)."
           - name: loaded_at
             description: "When the row was upserted."
 

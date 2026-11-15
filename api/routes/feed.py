@@ -17,7 +17,8 @@ data (CLAUDE.md).
 """
 from __future__ import annotations
 
-from typing import List, Optional
+import re
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from loguru import logger
@@ -33,6 +34,8 @@ from api.routes.geocode import _throttled_get
 router = APIRouter(prefix="/feed", tags=["feed"])
 
 tracer = trace.get_tracer(__name__)
+
+_US_ZIP_RE = re.compile(r"^(\d{5})(?:-\d{4})?$")
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +69,7 @@ ALLOWED_SHARED_LEVELS = frozenset({"street", "district", "city", "county", "stat
 class LocationIn(BaseModel):
     """A location as submitted on save (resolved geo all optional)."""
     name: str
+    city: Optional[str] = None
     shared_level: str = "city"
     is_primary: bool = False
     state_code: Optional[str] = None
@@ -140,6 +144,7 @@ class PlaceHit(BaseModel):
     county: Optional[str] = None
     state: Optional[str] = None
     state_code: Optional[str] = None
+    postal_code: Optional[str] = None
     latitude: float
     longitude: float
 
@@ -221,6 +226,22 @@ _STATE_CODE_TO_NAME = {
     "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia",
     "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia",
 }
+
+_STATE_NAME_TO_CODE = {name.lower(): code for code, name in _STATE_CODE_TO_NAME.items()}
+
+
+def _extract_primary_city(primary_loc: LocationIn) -> Optional[str]:
+    """Derive a clean city label from LocationIn for User.city synchronization."""
+    if primary_loc.city and primary_loc.city.strip():
+        return primary_loc.city.strip()
+    city = (primary_loc.name or "").strip()
+    if not city:
+        return None
+    if primary_loc.state_code and city.endswith(f", {primary_loc.state_code}"):
+        city = city[: -len(f", {primary_loc.state_code}")].strip()
+    if "," in city:
+        city = city.split(",", 1)[0].strip()
+    return city or None
 
 
 # ---------------------------------------------------------------------------
@@ -308,13 +329,7 @@ def put_feed_config(
                     )
                 user.county = primary_loc.county
                 user.state = resolved_state
-                # The primary's "city" — prefer an explicit city-ish name. The
-                # location `name` is the display label (e.g. "Tuscaloosa, AL");
-                # strip a trailing ", ST" so the header reads cleanly.
-                city = primary_loc.name
-                if primary_loc.state_code and city.endswith(f", {primary_loc.state_code}"):
-                    city = city[: -len(f", {primary_loc.state_code}")]
-                user.city = city.strip() or None
+                user.city = _extract_primary_city(primary_loc)
 
             user.profile_completed = True
 
@@ -330,31 +345,116 @@ def put_feed_config(
 
 
 def _derive_state_code(address: dict) -> Optional[str]:
-    """Pull a 2-letter state code from a Nominatim address block.
+    """Pull a 2-letter US state code from a Nominatim address block.
 
-    Prefers ISO3166-2-lvl4 ("US-AL" -> "AL"); falls back to a bare `state` only
-    when it is already a 2-letter code (never invents one).
+    Prefers ISO3166-2-lvl4 ("US-AL" -> "AL"); falls back to `state` when it is
+    either a known 2-letter USPS code or a full US state name (never invents one).
     """
     iso = address.get("ISO3166-2-lvl4")
-    if iso and "-" in iso:
+    if isinstance(iso, str) and "-" in iso:
         code = iso.split("-", 1)[1].strip().upper()
-        if len(code) == 2:
+        if code in _STATE_CODE_TO_NAME:
             return code
     state = address.get("state")
-    if isinstance(state, str) and len(state) == 2:
-        return state.upper()
+    if isinstance(state, str):
+        cleaned = state.strip()
+        if len(cleaned) == 2 and cleaned.upper() in _STATE_CODE_TO_NAME:
+            return cleaned.upper()
+        mapped = _STATE_NAME_TO_CODE.get(cleaned.lower())
+        if mapped:
+            return mapped
     return None
+
+
+def _extract_municipality(address: dict) -> Optional[str]:
+    """Extract municipality/place name from a Nominatim address dictionary."""
+    return (
+        address.get("city")
+        or address.get("town")
+        or address.get("village")
+        or address.get("hamlet")
+        or address.get("municipality")
+        or address.get("suburb")
+    )
+
+
+async def _fetch_nominatim_candidates(query: str) -> tuple[List[dict[str, Any]], Optional[str]]:
+    """Fetch Nominatim candidate items for a free-text or US ZIP query."""
+    zip_match = _US_ZIP_RE.match(query)
+    if not zip_match:
+        payload = await _throttled_get(
+            "/search",
+            {
+                "q": query,
+                "format": "json",
+                "addressdetails": "1",
+                "countrycodes": "us",
+                "limit": "6",
+            },
+        )
+        return (payload if isinstance(payload, list) else []), None
+
+    zip5 = zip_match.group(1)
+    payload = await _throttled_get(
+        "/search",
+        {
+            "postalcode": zip5,
+            "format": "json",
+            "addressdetails": "1",
+            "countrycodes": "us",
+            "limit": "6",
+        },
+    )
+    items: List[dict[str, Any]] = payload if isinstance(payload, list) else []
+    if not items:
+        fallback = await _throttled_get(
+            "/search",
+            {
+                "q": zip5,
+                "format": "json",
+                "addressdetails": "1",
+                "countrycodes": "us",
+                "limit": "6",
+            },
+        )
+        items = fallback if isinstance(fallback, list) else []
+
+    # Nominatim's forward postalcode boundary often omits the municipality name;
+    # reverse-geocoding the centroid recovers the city/town for the ZIP.
+    first_with_coords = next(
+        (item for item in items if isinstance(item, dict) and item.get("lat") and item.get("lon")),
+        None,
+    )
+    if first_with_coords is not None:
+        first_addr = first_with_coords.get("address") or {}
+        if not _extract_municipality(first_addr):
+            try:
+                rev = await _throttled_get(
+                    "/reverse",
+                    {
+                        "lat": str(first_with_coords["lat"]),
+                        "lon": str(first_with_coords["lon"]),
+                        "format": "json",
+                        "addressdetails": "1",
+                    },
+                )
+                rev_items = rev if isinstance(rev, list) else ([rev] if isinstance(rev, dict) else [])
+                items = [*rev_items, *items]
+            except Exception as rev_exc:  # noqa: BLE001 — reverse enrichment is best-effort
+                logger.debug("Best-effort reverse geocode for ZIP {} failed: {}", zip5, rev_exc)
+
+    return items, zip5
 
 
 @router.get("/places", response_model=PlacesResponse)
 async def feed_places(
-    q: str = Query("", description="Free-text place query (min 3 chars)."),
+    q: str = Query("", description="Free-text place or 5-digit US ZIP query (min 3 chars)."),
 ) -> PlacesResponse:
     """Place typeahead backed by the Nominatim proxy — real hits only.
 
     Maps each geocoder result to a clean {name, city, county, state,
-    state_code, latitude, longitude}. Short/empty queries (<3 chars) return an
-    empty result set; no fabricated/placeholder suggestions (CLAUDE.md).
+    state_code, postal_code, latitude, longitude}. Short/empty queries (<3 chars)
+    return an empty result set; no fabricated/placeholder suggestions (CLAUDE.md).
     """
     query = (q or "").strip()
     if len(query) < 3:
@@ -363,19 +463,7 @@ async def feed_places(
     with tracer.start_as_current_span("feed.places") as span:
         span.set_attribute("feed.places.q_len", len(query))
         try:
-            # Reuse the geocode proxy's throttled+cached Nominatim call directly
-            # (geocode_search enforces min_length=3 at the param layer, which we
-            # already handle above).
-            payload = await _throttled_get(
-                "/search",
-                {
-                    "q": query,
-                    "format": "json",
-                    "addressdetails": "1",
-                    "countrycodes": "us",
-                    "limit": "6",
-                },
-            )
+            items, zip5 = await _fetch_nominatim_candidates(query)
         except HTTPException:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -384,26 +472,39 @@ async def feed_places(
             raise HTTPException(status_code=502, detail="Geocoder error.")
 
         results: List[PlaceHit] = []
-        for item in payload or []:
+        seen_places: set[tuple[str, str, str]] = set()
+        for item in items:
+            if not isinstance(item, dict):
+                continue
             address = item.get("address") or {}
-            city = (
-                address.get("city")
-                or address.get("town")
-                or address.get("village")
-                or address.get("hamlet")
-                or address.get("municipality")
-            )
+            city = _extract_municipality(address)
+            county = address.get("county")
+            state_code = _derive_state_code(address)
+            state = address.get("state") or (_STATE_CODE_TO_NAME.get(state_code) if state_code else None)
+            postal_code = address.get("postcode") or zip5
             try:
                 lat = float(item["lat"])
                 lon = float(item["lon"])
             except (KeyError, TypeError, ValueError):
                 continue  # no usable coordinates -> skip (no fabricated geo)
+
+            dedupe_key = (
+                (city or "").strip().lower(),
+                (county or "").strip().lower(),
+                (state_code or "").strip().upper(),
+            )
+            if any(dedupe_key):
+                if dedupe_key in seen_places:
+                    continue
+                seen_places.add(dedupe_key)
+
             results.append(PlaceHit(
                 name=item.get("display_name") or city or query,
                 city=city,
-                county=address.get("county"),
-                state=address.get("state"),
-                state_code=_derive_state_code(address),
+                county=county,
+                state=state,
+                state_code=state_code,
+                postal_code=postal_code,
                 latitude=lat,
                 longitude=lon,
             ))

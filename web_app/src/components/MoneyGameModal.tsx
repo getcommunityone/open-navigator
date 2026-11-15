@@ -214,6 +214,7 @@ function EstRow({
   onChange,
   display,
   log,
+  sweepDelayMs = 0,
 }: {
   label: string
   value: number
@@ -223,6 +224,7 @@ function EstRow({
   onChange: (v: number) => void
   display: string
   log?: boolean
+  sweepDelayMs?: number
 }) {
   const toT = (v: number) => Math.round(1000 * (Math.log(v / min) / Math.log(max / min)))
   const fromT = (t: number) => {
@@ -231,7 +233,7 @@ function EstRow({
   }
   const filled = log ? toT(value) / 10 : ((value - min) / (max - min)) * 100
   return (
-    <div className="mb-3">
+    <div className="mb-3 mgm-fade" style={{ animationDelay: `${sweepDelayMs}ms` }}>
       <div className="mb-1 flex items-baseline justify-between gap-2 text-[13px]" style={FONT}>
         <span className="min-w-0 truncate font-medium text-[#0f2b2b]">{label}</span>
         <span className="shrink-0 font-semibold tabular-nums text-[#0f766e]">{display}</span>
@@ -247,9 +249,10 @@ function EstRow({
           {
             '--tc': '#0d9488',
             background: `linear-gradient(to right, #0d9488 ${filled}%, ${SLIDER_UNFILLED} ${filled}%)`,
+            animationDelay: `${sweepDelayMs + 60}ms`,
           } as React.CSSProperties
         }
-        className="range-x"
+        className="range-x mgm-sweep"
         aria-label={label}
       />
     </div>
@@ -396,6 +399,9 @@ function YourBill({
 
   const propRate = propQ.data?.effective_property_tax_rate ?? null
   const median = propQ.data?.median_home_value ?? null
+  // REAL ACS median household income for the same place (#137). Seeds the income
+  // slider so the user sees what we assume; null → the slider starts empty.
+  const medianIncome = propQ.data?.median_household_income ?? null
   const salesPct = salesQ.data?.combined_sales_tax_rate_pct ?? null
   const salesFrac = salesPct != null ? salesPct / 100 : null
   // The data vintage for each rate — REAL years from the API, shown so the bill
@@ -406,14 +412,20 @@ function YourBill({
   const [own, setOwn] = useState(true)
   const [homeValue, setHomeValue] = useState<number | null>(null)
   // The user's own figures — start UNSET (0) so we never show a fabricated
-  // default. Home value is the one seeded default, and it's the REAL local ACS
-  // median (a citeable figure), framed as "the median household — adjust it".
+  // default. Home value and income are the seeded defaults, and both are REAL
+  // local ACS medians (citeable figures), framed as "the median household —
+  // adjust it". With no ACS income the income slider starts empty.
   const [spend, setSpend] = useState(0)
   const [fees, setFees] = useState(0)
-  const [income, setIncome] = useState(0)
+  const [incomeValue, setIncomeValue] = useState<number | null>(null)
   useEffect(() => {
     if (median != null) setHomeValue((v) => (v == null ? median : v))
   }, [median])
+  useEffect(() => {
+    if (medianIncome != null) setIncomeValue((v) => (v == null ? medianIncome : v))
+  }, [medianIncome])
+  const income = incomeValue ?? 0
+  const incomeIsMedian = medianIncome != null && incomeValue === medianIncome
 
   const hv = homeValue ?? median ?? 0
   const homeMax = Math.max(1_000_000, Math.ceil(((median ?? 230_000) * 2.5) / 50_000) * 50_000)
@@ -454,16 +466,25 @@ function YourBill({
           </div>
 
           {own ? (
-            <EstRow label="Home value" value={hv} min={50_000} max={homeMax} step={5_000} onChange={setHomeValue} display={fmtDollars(hv)} log />
+            <EstRow label="Home value" value={hv} min={50_000} max={homeMax} step={5_000} onChange={setHomeValue} display={fmtDollars(hv)} log sweepDelayMs={0} />
           ) : (
             <p className="mb-3 rounded-lg bg-[#f7fafb] px-3 py-2 text-[12px] leading-relaxed text-[#6b8a8a]" style={FONT}>
               Renters pay property tax through rent — your landlord remits it. We don&apos;t fabricate
               that split, so your visible bill below is local sales tax + fees.
             </p>
           )}
-          <EstRow label="Your yearly spending on taxable goods" value={spend} min={0} max={100_000} step={500} onChange={setSpend} display={spend > 0 ? fmtDollars(spend) : 'add yours'} />
-          <EstRow label="Your local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} />
-          <EstRow label="Your household income" value={income} min={0} max={250_000} step={1_000} onChange={setIncome} display={income > 0 ? fmtDollars(income) : 'add yours'} />
+          <EstRow label="Your yearly spending on taxable goods" value={spend} min={0} max={100_000} step={500} onChange={setSpend} display={spend > 0 ? fmtDollars(spend) : 'add yours'} sweepDelayMs={90} />
+          <EstRow label="Your local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} sweepDelayMs={180} />
+          <EstRow
+            label={incomeIsMedian ? 'Household income · local median' : 'Your household income'}
+            value={income}
+            min={0}
+            max={Math.max(250_000, Math.ceil(((medianIncome ?? 0) * 2.5) / 10_000) * 10_000)}
+            step={1_000}
+            onChange={setIncomeValue}
+            display={income > 0 ? fmtDollars(income) : 'add yours'}
+            sweepDelayMs={270}
+          />
         </div>
 
         {/* Live result */}
@@ -507,11 +528,13 @@ function YourBill({
             ))}
           </div>
 
-          {(spend === 0 || income === 0) && (
+          {(spend === 0 || income === 0 || incomeIsMedian) && (
             <p className="mt-3 rounded-lg bg-[#f0faf8] px-3 py-2 text-[12px] leading-relaxed text-[#2a5a52]" style={FONT}>
-              Starts with {own ? `the real property tax on ${jurisdictionName}'s median home` : 'your inputs'}.
-              Add your spending, fees, and income above to build your full bill — we don&apos;t fill those in for
-              you.
+              Starts with {own ? `the real property tax on ${jurisdictionName}'s median home` : 'your inputs'}
+              {incomeIsMedian ? ` and ${jurisdictionName}'s median household income` : ''}.
+              {incomeIsMedian
+                ? ' Move the income slider to yours, and add your spending and fees, to build your own bill.'
+                : ' Add your spending, fees, and income above to build your full bill — we don\u2019t fill those in for you.'}
             </p>
           )}
           <p className="mt-3 text-[11px] leading-relaxed text-[#5d7d7d]" style={FONT}>
@@ -523,7 +546,11 @@ function YourBill({
               <>Sales: {salesPct.toFixed(2)}% combined state+local rate (Tax Foundation
                 {salesYear ? `, ${salesYear}` : ''}). </>
             )}
-            Spending, fees &amp; income are your own.
+            {medianIncome != null && (
+              <>Income: starts at {jurisdictionName}&apos;s median household income
+                {acsYear ? ` (${acsYear} Census ACS)` : ' (Census ACS)'}. </>
+            )}
+            {medianIncome != null ? 'Spending & fees are your own.' : 'Spending, fees & income are your own.'}
           </p>
         </div>
       </div>
@@ -917,6 +944,7 @@ function GuessingGame({
   const [hintDismissed, setHintDismissed] = useState(false)
   // The "Other" slider can be expanded to reveal its real constituents (read-only).
   const [otherExpanded, setOtherExpanded] = useState(false)
+  const sliderRefs = useRef<(HTMLInputElement | null)[]>([])
 
   // Normalize the guesses to sum to 100 for display/scoring (auto-balance).
   const guessTotal = guesses.reduce((s, g) => s + g, 0)
@@ -983,13 +1011,13 @@ function GuessingGame({
           <div className="mx-auto mt-3 flex max-w-[640px] flex-wrap items-center justify-center gap-x-5 gap-y-3">
             <GuessDonut game={game} guesses={guesses} touched={touched} />
 
-            <div className="min-w-[200px] max-w-[440px] flex-1 space-y-2">
+<div className="min-w-[200px] max-w-[440px] flex-1 space-y-2">
               {game.map((c, i) => {
                 const color = CAT_PALETTE[i % CAT_PALETTE.length]
                 const fill = touched[i] ? Math.round(guesses[i]) : 0
                 return (
-                  <div key={c.category}>
-                    <div className="mb-1 flex items-center justify-between text-[13px]" style={FONT}>
+                  <div key={c.category} className="mgm-fade" style={{ animationDelay: `${i * 70}ms` }}>
+                    <div className="mb-1 flex items-baseline justify-between text-[13px]" style={FONT}>
                       <span className="flex items-center gap-1.5 font-medium text-[#0f2b2b]">
                         <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
                         {c.category}
@@ -1014,6 +1042,9 @@ function GuessingGame({
                       step={1}
                       value={Math.round(guesses[i])}
                       onChange={(e) => setOne(i, Number(e.target.value))}
+                      ref={(el) => {
+                        sliderRefs.current[i] = el
+                      }}
                       style={
                         {
                           '--tc': color,
@@ -1058,10 +1089,13 @@ function GuessingGame({
 
           <button
             type="button"
-            onClick={() => allGuessed && onReveal()}
-            disabled={!allGuessed}
-            className={`mt-4 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
-              allGuessed ? 'mgm-pulse bg-[#1a6b6b] text-white hover:bg-[#155757]' : 'cursor-default bg-[#eef4f4] text-[#5d7d7d]'
+            onClick={() => {
+              if (allGuessed) onReveal()
+              else sliderRefs.current[firstUntouched]?.focus()
+            }}
+            aria-disabled={!allGuessed}
+            className={`mgm-pulse mt-4 w-full rounded-xl px-5 py-3 text-[15px] font-semibold transition-colors ${
+              allGuessed ? 'bg-[#1a6b6b] text-white hover:bg-[#155757]' : 'cursor-default bg-[#eef4f4] text-[#5d7d7d]'
             }`}
             style={FONT}
           >
@@ -1638,7 +1672,7 @@ function WhereIsHome({
               setChoices(null)
             }}
             onKeyDown={(e) => e.key === 'Enter' && handleShow()}
-            placeholder={mode === 'place' ? 'e.g. Tuscaloosa, AL' : 'e.g. 123 Main St, Tuscaloosa, AL'}
+            placeholder={mode === 'place' ? 'e.g. Tuscaloosa, AL' : 'Try 123 Main St, Tuscaloosa'}
             autoFocus
             className="w-72 max-w-full rounded-full border-[1.5px] px-4 py-3 text-center text-[15px] outline-none transition-colors"
             style={{ ...FONT, borderColor: textValid ? '#1a6b6b' : '#d4e8e8' }}
@@ -2039,6 +2073,9 @@ export default function MoneyGameModal({
                       {/* ── Stage 1: Your bill ── */}
                       {stage === 'estimate' && (
                         <YourBill
+                          // Remount per place so the seeded ACS medians (home
+                          // value, household income) never carry over to another place.
+                          key={`${scopeState ?? ''}|${scopeCity ?? ''}|${scopeCounty ?? ''}`}
                           open={open}
                           stateCode={scopeState as string}
                           city={scopeCity}
