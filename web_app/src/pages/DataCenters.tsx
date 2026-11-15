@@ -216,10 +216,15 @@ function ClaimCard({ claim }: { claim: JobClaim }) {
           meetingDate={claim.meeting_date}
         />
       </div>
-      <p className="mt-1 text-xs text-gray-600">
+      <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-gray-600">
         <Link to={meetingMomentPath(meetingId, null)} className="font-medium text-primary-700 hover:underline">
           {atMeeting}
         </Link>
+        {claim.person_id && claim.speaker_name && (
+          <Link to={`/person/${encodeURIComponent(claim.person_id)}`} className="font-medium text-primary-700 hover:underline">
+            More from {claim.speaker_name}
+          </Link>
+        )}
       </p>
     </article>
   )
