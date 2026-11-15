@@ -470,6 +470,14 @@ export default function HomeV9() {
   const national = level === 'national' || !locState
   const stateCode = national ? undefined : locState
   const city = level === 'city' ? locCity : undefined
+  // URL params for the ACTIVE scope (the one the scope label names), never the
+  // saved location: with National selected, links carry no place at all (#350).
+  const activeScopeParams = (): URLSearchParams => {
+    const p = new URLSearchParams()
+    if (stateCode) p.set('state', stateCode)
+    if (stateCode && city) p.set('city', city)
+    return p
+  }
   const placeLabel =
     level === 'national' || !locState
       ? 'the U.S.'
@@ -1318,9 +1326,7 @@ export default function HomeV9() {
                     label: q.entity_name,
                     transcripts: q.transcript_count,
                     onSelect: () => {
-                      const p = new URLSearchParams()
-                      if (locState) p.set('state', locState)
-                      if (locCity) p.set('city', locCity)
+                      const p = activeScopeParams()
                       p.set('question_id', q.entity_id)
                       navigate(`/policy-questions?${p.toString()}`, { state: { fromHome: true } })
                     },
@@ -1333,14 +1339,11 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.topics]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location into the Topics browse so it lands
-                // scoped to that place — the city when we have one (so e.g.
-                // Atlanta filters to Atlanta, not all of GA), else the state.
-                // No location set → the full national catalog.
-                to: locState
-                  ? `/browse-topics?state=${encodeURIComponent(locState)}${
-                      locCity ? `&city=${encodeURIComponent(locCity)}` : ''
-                    }`
+                // Carry the ACTIVE scope into the Topics browse: city level
+                // filters to the city, state level to the state, National (or
+                // no location) → the full national catalog (#350).
+                to: activeScopeParams().toString()
+                  ? `/browse-topics?${activeScopeParams().toString()}`
                   : '/browse-topics',
                 seeAllLabel: 'topics',
                 desc: 'Everything discussed in public meetings.',
@@ -1350,9 +1353,7 @@ export default function HomeV9() {
                   label: t.entity_name,
                   transcripts: t.transcript_count,
                   onSelect: () => {
-                    const p = new URLSearchParams()
-                    if (locState) p.set('state', locState)
-                    if (locCity) p.set('city', locCity)
+                    const p = activeScopeParams()
                     p.set('topic_id', t.entity_id)
                     navigate(`/browse-topics?${p.toString()}`, { state: { fromHome: true } })
                   },
@@ -1365,12 +1366,10 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.causes]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location into Browse Causes (same as Topics)
-                // so the cause pills + decision cards land scoped to that place.
-                to: locState
-                  ? `/browse-causes?state=${encodeURIComponent(locState)}${
-                      locCity ? `&city=${encodeURIComponent(locCity)}` : ''
-                    }`
+                // Carry the ACTIVE scope into Browse Causes (same as Topics) so
+                // the cause pills + decision cards land on the scope the user sees.
+                to: activeScopeParams().toString()
+                  ? `/browse-causes?${activeScopeParams().toString()}`
                   : '/browse-causes',
                 seeAllLabel: 'causes',
                 desc: 'Local nonprofits, grants & charitable work.',
@@ -1380,9 +1379,7 @@ export default function HomeV9() {
                   label: c.entity_name,
                   transcripts: c.transcript_count,
                   onSelect: () => {
-                    const p = new URLSearchParams()
-                    if (locState) p.set('state', locState)
-                    if (locCity) p.set('city', locCity)
+                    const p = activeScopeParams()
                     p.set('cause_id', c.entity_id)
                     navigate(`/browse-causes?${p.toString()}`, { state: { fromHome: true } })
                   },
@@ -1395,16 +1392,11 @@ export default function HomeV9() {
                 count: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.transcript_count ?? null,
                 hasTranscripts: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.has_transcripts ?? true,
                 order: directoryCounts?.byType[BROWSE_CARD_ENTITY_TYPE.places]?.order ?? Number.MAX_SAFE_INTEGER,
-                // Carry the saved location into the Places browse so it lands
-                // pre-filtered (e.g. "Atlanta" → ?state=GA&city=Atlanta). City
-                // takes precedence over county; state is included to disambiguate.
-                // No location set → plain /jurisdictions browse.
+                // Carry the ACTIVE scope into the Places browse so it lands
+                // pre-filtered (e.g. city level "Atlanta" → ?state=GA&city=Atlanta).
+                // National scope → plain /jurisdictions browse (#350).
                 to: (() => {
-                  const p = new URLSearchParams()
-                  if (locState) p.set('state', locState)
-                  if (locCity) p.set('city', locCity)
-                  else if (location?.county) p.set('county', location.county)
-                  const qs = p.toString()
+                  const qs = activeScopeParams().toString()
                   return qs ? `/jurisdictions?${qs}` : '/jurisdictions'
                 })(),
                 seeAllLabel: 'places',
