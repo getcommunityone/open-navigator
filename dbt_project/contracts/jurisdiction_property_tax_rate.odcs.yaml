@@ -124,6 +124,11 @@ schema:
     logicalType: integer
     physicalType: integer
     description: B25077_001E — median home value (whole dollars). NULL if suppressed.
+  - id: median_household_income
+    name: median_household_income
+    logicalType: integer
+    physicalType: integer
+    description: B19013_001E — median household income (whole dollars), same geography and vintage. NULL if suppressed or not yet loaded. Seeds the money modal's income slider (#137).
   - id: effective_property_tax_rate
     name: effective_property_tax_rate
     logicalType: number
