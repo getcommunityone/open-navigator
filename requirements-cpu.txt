@@ -55,7 +55,7 @@ python-multipart>=0.0.32
 # Required at API startup; keep in sync with requirements.txt so CPU-only
 # installs (install.sh / install.ps1 prefer this file) don't break on
 # `import opentelemetry.instrumentation.fastapi`.
-opentelemetry-api==1.45.2
+opentelemetry-api==1.42.0
 opentelemetry-sdk==1.42.0
 opentelemetry-instrumentation-fastapi==0.63b0
 opentelemetry-exporter-otlp-proto-http==1.42.0
