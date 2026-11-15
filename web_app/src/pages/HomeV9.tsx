@@ -749,10 +749,6 @@ export default function HomeV9() {
       <SiteHeader />
 
       <main className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
-        {/* ── Money hook (compact teal banner; REAL geocode + REAL modal) — sits
-            above the search hero ── */}
-        <MoneyHookBanner />
-
         {/* ── Hero: thesis + search + trending ── */}
         <section className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center' }}>
           <h1
@@ -1270,6 +1266,43 @@ export default function HomeV9() {
             )}
           </div>
 
+          {/* ── Trending questions (#151): the concrete, named policy questions
+              lead the page — reviewers found them a stronger hook than the money
+              banner. Same REAL /api/browse/top-items data as the Browse
+              questions flyout; the row is hidden when there are none, and its
+              label names the scope actually applied (state or nationwide). ── */}
+          {(() => {
+            const trending = (browseTopItems?.question ?? []).filter((q) => !!q.entity_name).slice(0, 5)
+            if (trending.length === 0) return null
+            return (
+              <div className="v9-trending" style={{ maxWidth: 760, margin: '14px auto 0', textAlign: 'left' }}>
+                <div className="font-mono-x" style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#ea580c', marginBottom: 8 }}>
+                  <span aria-hidden="true">🔥 </span>Trending questions · {stateCode ? stateCode : 'Nationwide'}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {trending.map((q) => {
+                    // Carry exactly the scope the label names: the list comes
+                    // from a state-scoped query, so the link carries the state
+                    // (never the saved city) — a "Nationwide" row carries none.
+                    const p = new URLSearchParams()
+                    if (stateCode) p.set('state', stateCode)
+                    p.set('question_id', q.entity_id)
+                    return (
+                      <Link
+                        key={q.entity_id}
+                        to={`/policy-questions?${p.toString()}`}
+                        state={{ fromHome: true }}
+                        style={{ display: 'inline-block', padding: '8px 14px', borderRadius: 999, background: '#fff', border: '1px solid #fed7aa', color: INK, fontSize: 14, fontWeight: 600, lineHeight: 1.35, textDecoration: 'none' }}
+                      >
+                        {q.entity_name}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* ── Browse pills: dropdown flyout previews, right under the search.
               Each pill previews its top ~5 items (questions/topics/causes) from
               the warehouse — no fabricated rows. ── */}
@@ -1550,6 +1583,10 @@ export default function HomeV9() {
           </div>
 
         </section>
+
+        {/* ── Money hook (compact teal banner; REAL modal) — now the secondary
+            CTA, below the hero and its trending questions (#151). ── */}
+        <MoneyHookBanner />
 
         {/* ── Contested + Raised Eyebrows — two dedicated lens sections (REAL
             lens cards). The Contested header carries the single shared
