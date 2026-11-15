@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Shared data models for CommunityOne."
 requires-python = ">=3.11"
 dependencies = [
+    # models.proximity_alert (#205): Pydantic request/response schemas.
+    "pydantic>=2.0",
     # models.odcs (#270): reads dbt schema.yml, validates ODCS contracts, logs.
     "PyYAML>=6",
     "jsonschema>=4.18",

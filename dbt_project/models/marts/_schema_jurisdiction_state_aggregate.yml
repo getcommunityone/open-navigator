@@ -75,12 +75,15 @@ models:
           - not_null
       - name: nonprofit_leaders_count
         description: >
-          Nonprofit board members / leaders in the geography: DISTINCT
-          officer_person_uid from mdm_bridge_person_organization holding a
-          leadership flag (officer / director-trustee / key-employee /
-          institutional-trustee). A separate, additive population from
-          leaders_count (civic officials); the two namespaces cannot be deduped
-          against each other.
+          Nonprofit LEADERSHIP POSITIONS in the geography, not people (#291,
+          decided 2026-11-15): DISTINCT officer_person_uid from
+          mdm_bridge_person_organization holding a leadership flag (officer /
+          director-trustee / key-employee / institutional-trustee).
+          officer_person_uid is name + EIN, so one person on three boards counts
+          three times, and board members are not yet resolved into mdm_person —
+          this figure can exceed persons_count and must not be labelled or
+          compared as a count of people. A separate population from leaders_count
+          (civic officials); the two cannot be deduped against each other.
         tests:
           - not_null
       - name: decisions_count

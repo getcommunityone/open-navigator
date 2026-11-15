@@ -1,4 +1,5 @@
 import { apiTyped } from '../lib/apiClient'
+import { authHeaders } from '../lib/authHeader'
 import { tracedFetch } from '../lib/api'
 
 export type BatchJobsTotals = {
@@ -123,7 +124,7 @@ export type LaunchLog = {
 export async function fetchLaunchLog(step: string): Promise<LaunchLog> {
   const r = await tracedFetch(
     `/api/batch-jobs/launch/log?step=${encodeURIComponent(step)}&lines=150`,
-    { signal: AbortSignal.timeout(10_000) },
+    { headers: authHeaders(), signal: AbortSignal.timeout(10_000) },
   )
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return (await r.json()) as LaunchLog
@@ -178,7 +179,7 @@ export async function launchPipeline(body: {
 }): Promise<LaunchResult> {
   const r = await tracedFetch('/api/batch-jobs/launch', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   })
@@ -209,7 +210,7 @@ export async function stopPipeline(body: {
 } = {}): Promise<StopResult> {
   const r = await tracedFetch('/api/batch-jobs/launch/stop', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   })

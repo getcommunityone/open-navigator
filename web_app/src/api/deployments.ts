@@ -1,6 +1,10 @@
 // Client for the prod-deployment batch-job kind (database → Neon prod,
 // web → HuggingFace). These endpoints aren't in the generated OpenAPI types, so
 // we use plain fetch (matching the launch helpers in ./batchJobs.ts).
+//
+// Every endpoint here is admin-gated on the backend (require_admin), so all
+// requests carry the bearer token via authHeaders().
+import { authHeaders } from '../lib/authHeader'
 import { tracedFetch } from '../lib/api'
 
 export type DeploymentStep = {
@@ -74,7 +78,10 @@ async function readError(r: Response): Promise<string> {
 }
 
 export async function fetchDeployments(): Promise<DeploymentsListPayload> {
-  const r = await tracedFetch('/api/deployments/', { signal: AbortSignal.timeout(15_000) })
+  const r = await tracedFetch('/api/deployments/', {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(15_000),
+  })
   if (!r.ok) throw new Error(await readError(r))
   return (await r.json()) as DeploymentsListPayload
 }
@@ -85,7 +92,7 @@ export async function launchDeployment(body: {
 }): Promise<LaunchDeploymentResult> {
   const r = await tracedFetch('/api/deployments/launch', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   })
@@ -99,7 +106,7 @@ export async function stopDeployment(
 ): Promise<{ stopped: boolean; detail: string }> {
   const r = await tracedFetch(
     `/api/deployments/${encodeURIComponent(jobId)}/stop?force=${force ? 'true' : 'false'}`,
-    { method: 'POST', signal: AbortSignal.timeout(15_000) },
+    { method: 'POST', headers: authHeaders(), signal: AbortSignal.timeout(15_000) },
   )
   if (!r.ok) throw new Error(await readError(r))
   return (await r.json()) as { stopped: boolean; detail: string }
@@ -111,7 +118,7 @@ export async function fetchDeploymentLog(
 ): Promise<DeploymentLog> {
   const r = await tracedFetch(
     `/api/deployments/${encodeURIComponent(jobId)}/log?step=${encodeURIComponent(step)}&lines=300`,
-    { signal: AbortSignal.timeout(10_000) },
+    { headers: authHeaders(), signal: AbortSignal.timeout(10_000) },
   )
   if (!r.ok) throw new Error(await readError(r))
   return (await r.json()) as DeploymentLog

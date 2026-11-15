@@ -411,7 +411,10 @@ async def get_stats(
                 # former single `contacts` metric — see migration 105.)
                 'persons': stats.get('persons_count', 0),
                 'leaders': stats.get('leaders_count', 0),
-                # `nonprofit_leaders` = nonprofit board members / officers rollup
+                # `nonprofit_leaders` = nonprofit LEADERSHIP POSITIONS (#291): one
+                # per person-at-an-org (name + EIN), NOT distinct people — someone
+                # on three boards counts three times, so it can exceed `persons`.
+                # Label it "positions" wherever it is shown. Rollup
                 # (added to public.jurisdiction_state_aggregate as
                 # nonprofit_leaders_count). Distinct from `leaders`, which now
                 # means civic/government officials only.

@@ -47,6 +47,7 @@ None.
 ### 🟡 Should fix (Important, non-blocking)
 - ~~`jurisdiction_state_aggregate.sql` (`jurisdiction_counts`) and the schema description: "local government units" while `int_jurisdictions` also holds census-designated places and non-governmental county subdivisions.~~ **Fixed in ab651eb (relabelled).** The government-only count is tracked in #351. Verified: the municipalities CTE in `int_jurisdictions.sql` strips a `cdp` suffix without filtering those rows out. Note for #351: the repo labels LSAD `37` as CDP, while the Census Gazetteer uses `57`, so check the code against the data.
 - ~~No regression test.~~ **Fixed in ab651eb:** `dbt_project/tests/assert_national_stats_jurisdiction_counts.sql` checks the national counts against a direct count, and that no state with jurisdictions reports 0.
+- **Addendum 2026-11-15:** the maintainer chose to keep the `nonprofit_leaders` name and label it as leadership positions (#291). Done in the latest commit on this branch: the schema description, the API comment, and `/home-original`'s Nonprofit leaders tab, which no longer shows the positions count next to a list of people. `tsc --noEmit` clean.
 ### 🔵 Nits / suggestions (Minor)
 - ~~The national leader count (no `state_code` filter) and the state rows (filtered; an org that moved states can appear twice) don't reconcile.~~ **Documented in a comment in ab651eb.**
 - `COUNT(DISTINCT jurisdiction_id)` would silently drop NULL IDs, and `jurisdiction_id` is untested. **Fixed in ab651eb:** now `COUNT(*)`, which is exact because `geoid` is tested unique and not null (`_intermediate.yml`).
@@ -76,3 +77,11 @@ None.
 
 ## Verdict
 **approve-with-nits.** Run `dbt build --select jurisdiction_state_aggregate assert_national_stats_jurisdiction_counts` locally before merging. #291 stays open for the leaders field (rename or redefine — the maintainer's call) and for the Neon refresh.
+
+## Verification addendum, 2026-11-15 (coordinator)
+The warehouse still isn't reachable here, so this replaces "not run" with what could be checked:
+- **Compiled with dbt:** `dbt compile -s jurisdiction_state_aggregate assert_national_stats_jurisdiction_counts`, using dbt-postgres against a throwaway local PostgreSQL, with `dbt_utils` / `dbt_expectations` / `dbt_date` cloned from their GitHub tags. Both compile.
+- **SQL syntax:** both compiled files parse with `pglast` (PostgreSQL's own parser), including `FILTER (WHERE …)` and the UNION ALL branches.
+- **Upstream columns exist:** `int_jurisdictions` exposes `jurisdiction_id`, `jurisdiction_type`, `state_code`, `funcstat`; `mdm_bridge_person_organization` exposes `officer_person_uid`, `state_code` and the four leadership flags.
+- **Logic run on sample rows:** the compiled `jurisdiction_counts` CTE ran against an 8-row stub of `int_jurisdictions`. AL: 6 jurisdictions (state row excluded), 1 school district, 4 governments (CDP `S` and nonfunctioning `N` excluded). GA: a consolidated city (`C`) counted.
+- **Still unverified:** results on the full warehouse and the Neon refresh. Run `dbt build --select jurisdiction_state_aggregate assert_national_stats_jurisdiction_counts` and the Neon sync after merging.

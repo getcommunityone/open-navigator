@@ -471,7 +471,9 @@ export default function Home() {
   }
   const HERO_COUNT_STAT_FIELD: Partial<Record<HeroSearchCategoryTab, keyof LocationStats>> = {
     leaders: 'leaders',
-    nonprofit_leaders: 'nonprofit_leaders',
+    // nonprofit_leaders is deliberately NOT mapped: the stat counts leadership
+    // POSITIONS (person-at-an-org, #291), while this tab lists people, so the
+    // number would overstate them. The tab shows no rollup count.
     persons: 'persons',
     nonprofits: 'nonprofits',
     decisions: 'decisions',
