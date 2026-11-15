@@ -11,7 +11,7 @@ verdict: approve
 # PR Review: docs(students): add a students' learning path with code walkthroughs
 
 ## Summary
-Adds `web_docs/docs/for-students.md` (13 topics), a "Students" row and drill-down in the README, and a sidebar entry under Tutorials. The topics are: basic statistics, dbt, master data management (Splink), logistic regression, clustering, embeddings/RAG, LLMs, Databricks, MLOps, GitHub Actions, ontologies, data contracts and data products. Each gives the concept in plain words, code links, the reason it's built that way, and a command to try. Docs only.
+Adds `web_docs/docs/for-students.md` (18 topics), a "Students" row and drill-down in the README, and a sidebar entry under Tutorials. The topics are: basic statistics, SQL and window functions, data modeling, dbt, master data management (Splink), logistic regression, clustering, embeddings/RAG, LLMs, Databricks (including asset bundles), MLOps, GitHub Actions, AWS, Azure, security and secrets, ontologies, data contracts and data products. Each gives the concept in plain words, code links, the reason it's built that way, and a command to try. Docs only.
 
 ## Checks made
 - **Code claims verified against the files:**
@@ -23,6 +23,13 @@ Adds `web_docs/docs/for-students.md` (13 topics), a "Students" row and drill-dow
   - the CI jobs, the PR-conventions check, Databricks deploy skipping without secrets, the GPU workflow cap and cost rows;
   - the closure table and vocabulary seeds;
   - ODCS generator and ODPS product.
+- **Added after the first draft, verified:**
+  - SQL: `row_number()` de-duplication with `rn = 1` in `int_master__domain_registry.sql`; `row_number` and `lag` in the `sequenced` CTE and `ntile(4)` in `int_civic__item_signals.sql`; `with recursive` in the NTEE and tag models.
+  - Data modeling: the bridge's `NOT VALID` FK trade-off (6.6M rows vs a 13.8M-row parent, about 5 minutes) is quoted from the model's comment.
+  - DABs: `dev` / `free` / `prod` targets and their modes in `databricks.yml`.
+  - AWS: the sharded Lambda handler; unsigned `boto3` reads of the public `gt990datalake-rawdata` bucket.
+  - Azure: Terraform with `plan` on PR and `apply` on main; the budget-is-an-alert comment.
+  - Security: OIDC with no client secret in `azure-subscriptions.yml`; service principal first in `databricks-signin`; `.env` in `.gitignore`; #361.
 - **Logistic regression taught honestly:** the repo has no trained `LogisticRegression`. The section explains log-odds and the logistic function through Splink's match weights (`match_probability = 2^w / (1 + 2^w)`), says how that differs from a fitted model (unsupervised EM vs labelled fitting), and links #373 (`good first issue`) for a trained example.
 - **Commands exist:** `python -m ingestion.mdm person --dry-run`, `python -m llm.policy_questions.run_pipeline`, `python -m llm.policy_questions.embed_instances`, `python -m llm.usage.report --by stage`, `python -m models.odcs --write`, the `dbt ls` / `dbt seed` selections. The SQL example's columns (`median_lag_days`, `p90_lag_days`, `sample_n`) exist.
 - **Links:** every GitHub link resolves to a file in the repo, as do the doc-relative links and the README's relative links.

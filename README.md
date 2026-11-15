@@ -33,7 +33,7 @@ the site is a made-up number: when data is missing, it says so.
 | **Researchers and data analysts** | [data sources](web_docs/docs/data-sources/overview.md) · [data model](web_docs/docs/data-sources/data-model-erd.md) · [citations](CITATIONS.md) |
 | **Developers and data engineers** | [code walkthrough](web_docs/docs/development/code-walkthrough.md) · [quick start](web_docs/docs/quickstart.md) · [architecture](web_docs/docs/architecture.md) · [how we work](AGENTS.md) |
 | **Data platform and DataOps engineers** | [DataOps walkthrough](web_docs/docs/development/dataops-walkthrough.md): retries, recovery, data quality, AI observability, two real incidents, and what isn't built yet |
-| **Students** | [learning path](web_docs/docs/for-students.md): statistics, logistic regression, master data management, clustering, embeddings, LLMs, dbt, Databricks, MLOps, GitHub Actions, ontologies, data contracts and data products, each with a code walkthrough |
+| **Students** | [learning path](web_docs/docs/for-students.md): statistics, SQL and window functions, data modeling, dbt, master data management, logistic regression, clustering, embeddings, LLMs, Databricks, MLOps, GitHub Actions, AWS, Azure, security and secrets, ontologies, data contracts and data products, each with a code walkthrough |
 
 **This quarter: data center accountability** (planned, not built yet). Residents ask what's being built near them,
 who approved it, what it does to their bill and whether the jobs are real. The plan, October to December 2026:
@@ -114,15 +114,20 @@ read, why it's built that way, and something to try. Topics don't depend on each
 | Topic | Learn it from |
 |---|---|
 | Basic statistics | Median vs mean, p90, outliers and minimum sample sizes in [minutes publish lag](dbt_project/models/marts/jurisdiction_minutes_publish_lag.sql) |
+| SQL and window functions | `row_number`, `lag`, `ntile`, recursive CTEs in [int_civic__item_signals.sql](dbt_project/models/intermediate/int_civic__item_signals.sql) |
+| Data modeling | Grain, keys and a many-to-many bridge in [mdm_bridge_person_jurisdiction.sql](dbt_project/models/marts/mdm_bridge_person_jurisdiction.sql) |
 | dbt and medallion layers | [dbt_project/models/](dbt_project/models): bronze → staging → intermediate → marts, with tests and seeds |
 | Master data management | Golden records and entity resolution with Splink in [mdm/linker.py](packages/ingestion/src/ingestion/mdm/linker.py) |
 | Logistic regression | Log-odds and the logistic function, as Splink uses them in [mdm/settings.py](packages/ingestion/src/ingestion/mdm/settings.py); a trained example is a good first issue ([#373](https://github.com/getcommunityone/open-navigator/issues/373)) |
 | Clustering | HDBSCAN with a noise bucket in [cluster.py](packages/llm/src/llm/policy_questions/cluster.py) |
 | Embeddings and RAG | [encoder.py](packages/llm/src/llm/policy_questions/encoder.py) and the [RAG chat app](apps/rag-chat-app) |
 | LLMs | Extraction, grounding against minutes, LLM-as-judge: [meeting_gap_analysis.py](packages/llm/src/llm/gemini/meeting_gap_analysis.py) |
-| Databricks | `ai_query` batch inference in dbt and asset bundles: [agent-analysis-sync](apps/agent-analysis-sync) |
+| Databricks | Asset bundles (DABs) with dev/free/prod targets, `ai_query` batch inference in dbt: [agent-analysis-sync](apps/agent-analysis-sync) |
 | MLOps and LLMOps | Per-call usage and cost records: [llm/usage](packages/llm/src/llm/usage) |
 | GitHub Actions | [.github/workflows](.github/workflows): CI, a custom PR check, deploys, on-demand GPU |
+| AWS | Sharded Lambda scans and public S3 reads without credentials: [lambda_handler.py](packages/accessibility/src/accessibility/lambda_handler.py) |
+| Azure | Terraform for subscriptions, budgets and a Databricks workspace: [infra/azure](infra/azure) |
+| Security and secrets | OIDC sign-in with no stored secret, service principals, where secrets live, and an app-security fix ([#361](https://github.com/getcommunityone/open-navigator/pull/361)) |
 | Ontologies | NTEE closure table, CAP topics, Policy Frames, COFOG: [int_tags__closure.sql](dbt_project/models/intermediate/int_tags__closure.sql), [seeds](dbt_project/seeds) |
 | Data contracts and products | ODCS contracts and an ODPS product: [dbt_project/contracts](dbt_project/contracts) |
 

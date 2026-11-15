@@ -15,18 +15,23 @@ try. Pick any topic; they don't depend on each other.
 | Topic | What you'll learn | Start reading |
 |---|---|---|
 | [1. Basic statistics](#1-basic-statistics) | Median vs mean, percentiles, outliers, minimum sample sizes, precision and recall | [`jurisdiction_minutes_publish_lag.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/marts/jurisdiction_minutes_publish_lag.sql) |
-| [2. dbt and the medallion layers](#2-dbt-and-the-medallion-layers) | SQL transformations in layers, tests, seeds, macros | [`dbt_project/models/`](https://github.com/getcommunityone/open-navigator/tree/main/dbt_project/models) |
-| [3. Master data management](#3-master-data-management) | One record per real-world person or place; entity resolution with Splink | [`mdm/linker.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/ingestion/src/ingestion/mdm/linker.py) |
-| [4. Logistic regression](#4-logistic-regression) | Log-odds, the logistic function, odds ratios, and how Splink uses the same math | [`mdm/settings.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/ingestion/src/ingestion/mdm/settings.py) |
-| [5. Classic ML: clustering](#5-classic-ml-clustering) | HDBSCAN, noise, centroids, TF-IDF + SVD | [`policy_questions/cluster.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/llm/src/llm/policy_questions/cluster.py) |
-| [6. Embeddings and retrieval (RAG)](#6-embeddings-and-retrieval-rag) | Sentence embeddings, cosine similarity, pgvector search | [`policy_questions/encoder.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/llm/src/llm/policy_questions/encoder.py) |
-| [7. LLMs in a pipeline](#7-llms-in-a-pipeline) | Prompted extraction, grounding, LLM-as-judge, triage | [`meeting_transcript_policy.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/llm/src/llm/gemini/meeting_transcript_policy.py) |
-| [8. Databricks](#8-databricks) | `ai_query` batch inference in dbt, Unity Catalog, Lakebase, asset bundles | [`apps/agent-analysis-sync/`](https://github.com/getcommunityone/open-navigator/tree/main/apps/agent-analysis-sync) |
-| [9. MLOps and LLMOps](#9-mlops-and-llmops) | MLflow tracing, usage and cost records, GPU runs, evaluation | [`llm/usage/`](https://github.com/getcommunityone/open-navigator/tree/main/packages/llm/src/llm/usage) |
-| [10. GitHub Actions](#10-github-actions) | CI checks, a custom PR check, deploys, on-demand GPU jobs | [`.github/workflows/`](https://github.com/getcommunityone/open-navigator/tree/main/.github/workflows) |
-| [11. Ontologies and taxonomies](#11-ontologies-and-taxonomies) | Hierarchies, closure tables, controlled vocabularies | [`int_tags__closure.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_tags__closure.sql) |
-| [12. Data contracts](#12-data-contracts) | Promising a table's shape to its users, checked in CI | [`dbt_project/contracts/`](https://github.com/getcommunityone/open-navigator/tree/main/dbt_project/contracts) |
-| [13. Data products](#13-data-products) | Packaging tables, contracts and owners as one product | [`open-navigator-public-api.odps.yaml`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/contracts/products/open-navigator-public-api.odps.yaml) |
+| [2. SQL and window functions](#2-sql-and-window-functions) | CTEs, `row_number`, `lag`, `ntile`, `percentile_cont`, recursive CTEs | [`int_civic__item_signals.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_civic__item_signals.sql) |
+| [3. Data modeling](#3-data-modeling) | Grain, primary and foreign keys, bridge tables, naming | [`mdm_bridge_person_jurisdiction.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/marts/mdm_bridge_person_jurisdiction.sql) |
+| [4. dbt and the medallion layers](#4-dbt-and-the-medallion-layers) | SQL transformations in layers, tests, seeds, macros | [`dbt_project/models/`](https://github.com/getcommunityone/open-navigator/tree/main/dbt_project/models) |
+| [5. Master data management](#5-master-data-management) | One record per real-world person or place; entity resolution with Splink | [`mdm/linker.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/ingestion/src/ingestion/mdm/linker.py) |
+| [6. Logistic regression](#6-logistic-regression) | Log-odds, the logistic function, odds ratios, and how Splink uses the same math | [`mdm/settings.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/ingestion/src/ingestion/mdm/settings.py) |
+| [7. Classic ML: clustering](#7-classic-ml-clustering) | HDBSCAN, noise, centroids, TF-IDF + SVD | [`policy_questions/cluster.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/llm/src/llm/policy_questions/cluster.py) |
+| [8. Embeddings and retrieval (RAG)](#8-embeddings-and-retrieval-rag) | Sentence embeddings, cosine similarity, pgvector search | [`policy_questions/encoder.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/llm/src/llm/policy_questions/encoder.py) |
+| [9. LLMs in a pipeline](#9-llms-in-a-pipeline) | Prompted extraction, grounding, LLM-as-judge, triage | [`meeting_transcript_policy.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/llm/src/llm/gemini/meeting_transcript_policy.py) |
+| [10. Databricks](#10-databricks) | Asset bundles (DABs), `ai_query` batch inference in dbt, Unity Catalog, Lakebase | [`apps/agent-analysis-sync/`](https://github.com/getcommunityone/open-navigator/tree/main/apps/agent-analysis-sync) |
+| [11. MLOps and LLMOps](#11-mlops-and-llmops) | MLflow tracing, usage and cost records, GPU runs, evaluation | [`llm/usage/`](https://github.com/getcommunityone/open-navigator/tree/main/packages/llm/src/llm/usage) |
+| [12. GitHub Actions](#12-github-actions) | CI checks, a custom PR check, deploys, on-demand GPU jobs | [`.github/workflows/`](https://github.com/getcommunityone/open-navigator/tree/main/.github/workflows) |
+| [13. AWS](#13-aws) | Lambda with sharding, public S3 reads without credentials, managed Postgres | [`lambda_handler.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/accessibility/src/accessibility/lambda_handler.py) |
+| [14. Azure](#14-azure) | Terraform for subscriptions, budgets and a Databricks workspace | [`infra/azure/`](https://github.com/getcommunityone/open-navigator/tree/main/infra/azure) |
+| [15. Security and secrets](#15-security-and-secrets) | OIDC with no stored secret, service principals, where secrets live, an app-security fix | [`azure-subscriptions.yml`](https://github.com/getcommunityone/open-navigator/blob/main/.github/workflows/azure-subscriptions.yml) · [#361](https://github.com/getcommunityone/open-navigator/pull/361) |
+| [16. Ontologies and taxonomies](#16-ontologies-and-taxonomies) | Hierarchies, closure tables, controlled vocabularies | [`int_tags__closure.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_tags__closure.sql) |
+| [17. Data contracts](#17-data-contracts) | Promising a table's shape to its users, checked in CI | [`dbt_project/contracts/`](https://github.com/getcommunityone/open-navigator/tree/main/dbt_project/contracts) |
+| [18. Data products](#18-data-products) | Packaging tables, contracts and owners as one product | [`open-navigator-public-api.odps.yaml`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/contracts/products/open-navigator-public-api.odps.yaml) |
 
 **Before you start:** the [quick start](./quickstart.md) sets up the repo. The [code walkthrough](./development/code-walkthrough.md)
 shows how the pieces connect in run order, and the [DataOps walkthrough](./development/dataops-walkthrough.md) covers
@@ -69,7 +74,78 @@ order by sample_n desc limit 10;` and compare each median with its p90.
 
 </details>
 
-## 2. dbt and the medallion layers
+## 2. SQL and window functions
+
+<details>
+<summary><b>Ask questions of data in SQL, including window functions that look across rows</b></summary>
+
+**The idea.** SQL is how almost every data team reads and shapes data. Beyond `select`, `join` and `group by`:
+- **CTEs** (`with name as (...)`) name each step, so a long query reads top to bottom;
+- **window functions** compute across related rows *without* collapsing them the way `group by` does:
+  - `row_number()`: number rows within a group (keep only the first, to de-duplicate);
+  - `lag()` / `lead()`: look at the previous or next row (to spot a change);
+  - `ntile(n)`: split rows into n equal buckets (quartiles);
+  - `percentile_cont`: the median or any percentile;
+- **recursive CTEs** walk a hierarchy of unknown depth.
+
+**Read:**
+- de-duplicate, keeping the best row: [`int_master__domain_registry.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_master__domain_registry.sql)
+  uses `row_number() over (partition by domain order by source_rank, source_id)` and keeps `rn = 1`. The second sort
+  key makes the winner deterministic when ranks tie;
+- spot a reversal over time: [`int_civic__item_signals.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_civic__item_signals.sql)
+  (the `sequenced` CTE) uses `row_number()` to count how many times a subject has come up in a state, and `lag()` to
+  compare a decision's outcome with the previous one on the same subject;
+- buckets: the same file uses `ntile(4) over (order by population)` to put cities into population quartiles, so each
+  city is compared with peers of a similar size;
+- percentiles: `percentile_cont(0.5) within group (order by lag_days)` in
+  [`jurisdiction_minutes_publish_lag.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/marts/jurisdiction_minutes_publish_lag.sql);
+- recursion: [`int_ntee__breadcrumb.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_ntee__breadcrumb.sql) and
+  [`int_tags__closure.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_tags__closure.sql) use `with recursive` to walk a
+  category tree.
+
+**Why this way.** Window functions keep each row's detail while adding context from its neighbours, which a
+`group by` would throw away.
+
+**Try it:** `select state_code, jurisdiction_id, row_number() over (partition by state_code order by jurisdiction_id) as n
+from public.jurisdictions limit 20;`, then change `row_number()` to `rank()` and to `ntile(4)` and compare.
+
+</details>
+
+## 3. Data modeling
+
+<details>
+<summary><b>Decide what one row means, how tables connect, and make the database enforce it</b></summary>
+
+**The idea.** A data model decides what tables exist and how they relate:
+- **grain:** what one row stands for ("one row per jurisdiction", "one row per person per jurisdiction"); every other
+  choice follows from it;
+- **primary key:** the column(s) that identify a row; **foreign key:** a column pointing at another table's key;
+- **many-to-many:** a person can serve in many places and a place has many people, so a **bridge table** holds one row
+  per pair;
+- **naming:** this repo names tables by the entity they hold (`jurisdictions`, `event_meeting`, `mdm_person`), not
+  star-schema `dim_`/`fact_` prefixes.
+
+**Read:**
+- a bridge table: [`mdm_bridge_person_jurisdiction.sql`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/marts/mdm_bridge_person_jurisdiction.sql),
+  one row per (person, jurisdiction). Its comment explains a real trade-off: the foreign keys are added `NOT VALID`,
+  because checking 6.6 million rows against a 13.8 million-row parent took about 5 minutes, while new writes are
+  still checked;
+- keys the database enforces: [`_schema_jurisdiction_property_tax_rate.yml`](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/marts/_schema_jurisdiction_property_tax_rate.yml)
+  declares the grain, a primary key and a foreign key in a dbt model contract;
+- one model for many sources: [one meeting model across platforms](./development/meeting-model.md) is a short decision
+  record on modelling meetings from YouTube, agenda sites and others in one shape;
+- the overall picture: [data model and entity relationship diagram](./data-sources/data-model-erd.md), and the
+  naming rules in [dbt conventions](./dbt/conventions.md).
+
+**Why this way.** Writing the grain down stops the most common bug in analytics: a join that silently duplicates rows
+and inflates every total.
+
+**Try it:** pick any mart in [`dbt_project/models/marts/`](https://github.com/getcommunityone/open-navigator/tree/main/dbt_project/models/marts), find its grain comment, then
+check it: `select <key>, count(*) from public.<table> group by 1 having count(*) > 1;` should return nothing.
+
+</details>
+
+## 4. dbt and the medallion layers
 
 <details>
 <summary><b>Turn raw data into trustworthy tables, one layer at a time</b></summary>
@@ -99,7 +175,7 @@ downstream of it, which is what you check before changing a model. More: [dbt ov
 
 </details>
 
-## 3. Master data management
+## 5. Master data management
 
 <details>
 <summary><b>One trusted record per real person, organisation and address, built with Splink</b></summary>
@@ -138,7 +214,7 @@ says where each layer lives.
 
 </details>
 
-## 4. Logistic regression
+## 6. Logistic regression
 
 <details>
 <summary><b>Turn evidence into a probability: log-odds, the logistic function, and odds ratios</b></summary>
@@ -150,7 +226,7 @@ says where each layer lives.
 
 Normally you fit the coefficients to labelled examples.
 
-**See the same math in this repo.** Splink's Fellegi–Sunter scoring ([topic 3](#3-master-data-management)) works the
+**See the same math in this repo.** Splink's Fellegi–Sunter scoring ([topic 5](#5-master-data-management)) works the
 same way:
 - each compared field adds a **match weight**: the log (base 2) of how much more likely that agreement is for a true
   match than by chance;
@@ -172,7 +248,7 @@ scikit-learn's `LogisticRegression` on real data here, report odds ratios and te
 
 </details>
 
-## 5. Classic ML: clustering
+## 7. Classic ML: clustering
 
 <details>
 <summary><b>Group similar decisions into recurring policy questions without knowing how many there are</b></summary>
@@ -196,7 +272,7 @@ method with an honest "doesn't fit" answer wins.
 
 </details>
 
-## 6. Embeddings and retrieval (RAG)
+## 8. Embeddings and retrieval (RAG)
 
 <details>
 <summary><b>Turn text into vectors so "similar meaning" becomes "close together"</b></summary>
@@ -218,7 +294,7 @@ generation) finds the closest documents and hands them to an LLM, so its answer 
 
 </details>
 
-## 7. LLMs in a pipeline
+## 9. LLMs in a pipeline
 
 <details>
 <summary><b>Get structured, checkable output from a language model, and catch it when it's wrong</b></summary>
@@ -247,10 +323,10 @@ things. Production use needs fixed prompts, structured output, validation, and a
 
 </details>
 
-## 8. Databricks
+## 10. Databricks
 
 <details>
-<summary><b>Run LLM batch inference as dbt models, govern tables in Unity Catalog, serve from Lakebase</b></summary>
+<summary><b>Run LLM batch inference as dbt models, deploy with asset bundles, govern in Unity Catalog, serve from Lakebase</b></summary>
 
 **The idea.** Databricks puts storage (Delta tables in Unity Catalog), compute and model serving in one place.
 `ai_query` calls a model from SQL, so a dbt model can run batch LLM inference over a whole table.
@@ -260,12 +336,19 @@ things. Production use needs fixed prompts, structured output, validation, and a
   transcript analysis as dbt on Databricks, bronze → silver → gold. Start with
   [`bronze_transcript_analysis.sql`](https://github.com/getcommunityone/open-navigator/blob/main/apps/agent-analysis-sync/dbt/models/bronze/bronze_transcript_analysis.sql)
   (incremental, batched `ai_query` calls), then the silver models that parse the JSON;
-- the bundle that deploys it: [`databricks.yml`](https://github.com/getcommunityone/open-navigator/blob/main/apps/agent-analysis-sync/databricks.yml)
-  and [`resources/analysis.job.yml`](https://github.com/getcommunityone/open-navigator/blob/main/apps/agent-analysis-sync/resources/analysis.job.yml)
-  (Databricks Asset Bundles: infrastructure as code);
 - loading data into Unity Catalog through a Volume: [`load_transcripts_to_uc.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/ingestion/src/ingestion/databricks/load_transcripts_to_uc.py);
 - serving: [`apps/lakebase-serving-sync/`](https://github.com/getcommunityone/open-navigator/tree/main/apps/lakebase-serving-sync),
   a scheduled job that pulls tables into Unity Catalog and syncs them to Lakebase Postgres.
+
+**Databricks Asset Bundles (DABs).** A bundle describes Databricks resources (jobs, schemas, volumes, apps) in YAML,
+version-controlled with the code, and deploys them with one command, the way infrastructure as code works elsewhere.
+- [`apps/agent-analysis-sync/databricks.yml`](https://github.com/getcommunityone/open-navigator/blob/main/apps/agent-analysis-sync/databricks.yml) defines three **targets**:
+  - `dev` uses `mode: development`, which prefixes every name with the user and keeps schedules paused;
+  - `free` targets Databricks Free Edition, deployed by CI;
+  - `prod` uses `mode: production`.
+- [`resources/analysis.job.yml`](https://github.com/getcommunityone/open-navigator/blob/main/apps/agent-analysis-sync/resources/analysis.job.yml) defines the job that runs dbt.
+- [`apps/lakebase-serving-sync/`](https://github.com/getcommunityone/open-navigator/tree/main/apps/lakebase-serving-sync) is a second bundle: a scheduled Lakeflow job.
+- Commands: `databricks bundle validate`, `databricks bundle deploy -t dev`, `databricks bundle run agent_analysis_sync -t dev`.
 
 **Try it:** the README in `apps/agent-analysis-sync/` walks through deploying with `databricks bundle deploy` and
 running with `databricks bundle run`. The [Databricks Free Edition](./deployment/databricks-free-edition.md) guide
@@ -273,7 +356,7 @@ covers a free workspace.
 
 </details>
 
-## 9. MLOps and LLMOps
+## 11. MLOps and LLMOps
 
 <details>
 <summary><b>Know what every model call cost, how long it took, and whether it worked</b></summary>
@@ -295,7 +378,7 @@ to roll back.
 
 </details>
 
-## 10. GitHub Actions
+## 12. GitHub Actions
 
 <details>
 <summary><b>Automate checks and deploys so the rules enforce themselves</b></summary>
@@ -318,7 +401,97 @@ checks block a merge until they pass.
 
 </details>
 
-## 11. Ontologies and taxonomies
+## 13. AWS
+
+<details>
+<summary><b>Run code without servers, and read public data straight from S3</b></summary>
+
+**The idea.** AWS offers storage (S3), functions that run on demand without a server to manage (Lambda), and
+workflows that fan work out across many functions (Step Functions). Many public datasets live in S3 buckets anyone can
+read.
+
+**Read:**
+- a Lambda function: [`accessibility/lambda_handler.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/accessibility/src/accessibility/lambda_handler.py)
+  runs accessibility scans of government websites in **shards** (one state, an offset and a limit per call), so a Step
+  Functions workflow can run many shards in parallel;
+- reading a public S3 bucket without credentials: [`enrich_nonprofits_gt990.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/scrapers/src/scrapers/irs/enrich_nonprofits_gt990.py)
+  uses `boto3` with `UNSIGNED` (no signature, so no AWS account needed), and
+  [`givingtuesday/efile.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/ingestion/src/ingestion/givingtuesday/efile.py) fetches the same public IRS
+  e-file data over plain HTTPS;
+- managed Postgres on AWS: production data is served from Neon, which runs on AWS (`us-east-1`); see
+  [Neon deployment](./deployment/neon-deployment.md).
+
+**Why this way.** Sharding keeps each Lambda call well inside its time limit. Unsigned reads mean public data needs no
+keys, so no keys can leak.
+
+</details>
+
+## 14. Azure
+
+<details>
+<summary><b>Create cloud subscriptions, budgets and a Databricks workspace from code</b></summary>
+
+**The idea.** Terraform describes cloud resources in files; `terraform plan` shows what would change and
+`terraform apply` makes it so. Azure organises resources into subscriptions; a **budget** emails people when spending
+crosses a threshold.
+
+**Read:**
+- [`infra/azure/`](https://github.com/getcommunityone/open-navigator/tree/main/infra/azure): Terraform for subscriptions
+  ([`subscriptions.tf`](https://github.com/getcommunityone/open-navigator/blob/main/infra/azure/subscriptions.tf)), a Databricks workspace
+  ([`databricks.tf`](https://github.com/getcommunityone/open-navigator/blob/main/infra/azure/databricks.tf)) and a monthly budget ([`budget.tf`](https://github.com/getcommunityone/open-navigator/blob/main/infra/azure/budget.tf)).
+  The comment in `budget.tf` makes an important point: an Azure budget is an alert, not a hard cap. It does not stop
+  spending;
+- the workflow: [`azure-subscriptions.yml`](https://github.com/getcommunityone/open-navigator/blob/main/.github/workflows/azure-subscriptions.yml) runs `plan` on a pull
+  request and `apply` on merge;
+- conventions: [Azure naming conventions](./deployment/azure-naming-conventions.md),
+  [Azure subscriptions setup](./deployment/azure-subscriptions-setup.md).
+
+**Why this way.** Infrastructure in code gets the same review as application code, and a pull request shows exactly
+what will change before it does.
+
+</details>
+
+## 15. Security and secrets
+
+<details>
+<summary><b>Keep secrets out of code, sign in without stored passwords, and lock down what the public can reach</b></summary>
+
+**The idea.**
+- A **secret** is anything that grants access: an API key, a database password, a token. It never goes in code or git.
+- Store it in a secret manager or the platform's secret settings, give each system the least access it needs, and
+  prefer sign-in methods that don't need a stored secret at all.
+
+**Read:**
+- **no secret at all, with OIDC:** [`azure-subscriptions.yml`](https://github.com/getcommunityone/open-navigator/blob/main/.github/workflows/azure-subscriptions.yml) signs
+  in to Azure with GitHub's OpenID Connect token and a federated credential on a service principal. No client secret
+  is stored anywhere; only non-secret IDs sit in repository variables;
+- **service principals over personal tokens:** [`.github/actions/databricks-signin/action.yml`](https://github.com/getcommunityone/open-navigator/blob/main/.github/actions/databricks-signin/action.yml)
+  prefers a service principal's OAuth credentials (made by
+  [`create_service_principal.sh`](https://github.com/getcommunityone/open-navigator/blob/main/apps/agent-analysis-sync/setup/create_service_principal.sh)) and accepts a
+  personal access token only as a fallback. It also trims stray spaces and Windows line endings from pasted secrets,
+  and later steps skip cleanly when no credential is set;
+- **where secrets live:** GitHub environment secrets for workflows, the hosting platform's secret settings in
+  production, and a local `.env` that `.gitignore` keeps out of git. [`.env.example`](https://github.com/getcommunityone/open-navigator/blob/main/.env.example) lists every
+  setting with placeholder values only;
+- **catching leaks in review:** every pull request review scans the full diff for keys, tokens and credentialed URLs
+  ([`review-rubric.md`](https://github.com/getcommunityone/open-navigator/blob/main/.claude/review-rubric.md));
+- **application security:** [#361](https://github.com/getcommunityone/open-navigator/pull/361) is a good case study:
+  - an open redirect that could leak a sign-in token, fixed with an allowlist in [`api/origins.py`](https://github.com/getcommunityone/open-navigator/blob/main/api/origins.py);
+  - admin-only routes now checked against an email allowlist on every request ([`api/auth.py`](https://github.com/getcommunityone/open-navigator/blob/main/api/auth.py));
+  - CORS (which websites may call the API) narrowed from "everyone" to the real sites;
+  - tests that prove the routes are actually locked ([`tests/test_route_gating.py`](https://github.com/getcommunityone/open-navigator/blob/main/tests/test_route_gating.py));
+- **personal data:** the public API reads a `public` schema that leaves out the full person graph; the complete data
+  stays in a separate schema (comment at the top of [`api/database.py`](https://github.com/getcommunityone/open-navigator/blob/main/api/database.py)).
+
+**Why this way.** A secret that's never stored can't leak, and a secret that's stored should be scoped narrowly and
+easy to rotate.
+
+**Try it:** read [`.env.example`](https://github.com/getcommunityone/open-navigator/blob/main/.env.example), sort each setting into "secret" or "not secret", then check where
+the workflow files read each secret from.
+
+</details>
+
+## 16. Ontologies and taxonomies
 
 <details>
 <summary><b>Give things agreed names and a hierarchy, so data from different sources lines up</b></summary>
@@ -345,7 +518,7 @@ Using published standards means other people's data uses the same labels as your
 
 </details>
 
-## 12. Data contracts
+## 17. Data contracts
 
 <details>
 <summary><b>Promise the shape of a table to the people who use it, and check the promise automatically</b></summary>
@@ -366,7 +539,7 @@ changed. More: [data contracts](./development/data-contracts.md).
 
 </details>
 
-## 13. Data products
+## 18. Data products
 
 <details>
 <summary><b>Treat a set of tables as a product with an owner, a purpose and its contracts</b></summary>
