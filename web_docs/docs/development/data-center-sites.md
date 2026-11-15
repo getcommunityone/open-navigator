@@ -40,7 +40,8 @@ their status and source. It is part of the
 Epoch's timeline file has one row per site per date, with free-text construction status, buildings operational and
 IT power. For each site:
 
-1. The latest row on or before today has buildings operational → **operating**.
+1. The latest row on or before today has buildings operational → **operating**. If that count is blank but the row
+   reports IT power above zero, it also counts as operating.
 2. A row on or before today, but nothing operational → **under construction**.
 3. Only future-dated rows → **planned**.
 4. No dated rows → no status ("Status not published").

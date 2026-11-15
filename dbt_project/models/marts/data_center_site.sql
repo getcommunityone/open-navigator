@@ -4,7 +4,8 @@
     Every row carries the credit (source_name, source_url, license, attribution).
 
     Status comes from Epoch's dated timeline rows; Epoch publishes no status field:
-      operating           latest row on or before today has a building operational
+      operating           latest row on or before today has a building operational (or, when
+                          that count is blank, reports IT power above zero)
       under_construction  a dated row on or before today, nothing operational yet
       planned             only future-dated rows
       null                no timeline rows at all (shown as "Status not published")
@@ -42,7 +43,9 @@ classified as (
     select
         s.*,
         case
-            when p.name is not null and coalesce(p.buildings_operational, 0) > 0 then 'operating'
+            when p.name is not null
+             and (coalesce(p.buildings_operational, 0) > 0
+                  or (p.buildings_operational is null and coalesce(p.it_power_mw, 0) > 0)) then 'operating'
             when p.name is not null then 'under_construction'
             when f.name is not null then 'planned'
         end                                            as known_status,
