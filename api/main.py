@@ -363,6 +363,7 @@ from api.routes import browse as browse_routes
 from api.routes import decision_browse as decision_browse_routes
 from api.routes import meeting_browse as meeting_browse_routes
 from api.routes import feed as feed_routes
+from api.routes import alerts as alerts_routes
 from api.routes import data_centers as data_centers_routes
 from api.database import init_db
 
@@ -414,6 +415,7 @@ app.include_router(decision_browse_routes.router, prefix="/api")
 # Flat meeting-browse list. Router prefix is "/meetings"; add the shared "/api"
 # prefix (meeting-grain analogue of decision_browse_routes).
 app.include_router(meeting_browse_routes.router, prefix="/api")
+app.include_router(alerts_routes.router, prefix="/api")
 app.include_router(feed_routes.router, prefix="/api")
 # Data-center job claims by phase (#246). Router prefix is "/data-centers".
 app.include_router(data_centers_routes.router, prefix="/api")
