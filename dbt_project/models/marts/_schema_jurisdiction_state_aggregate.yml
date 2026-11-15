@@ -39,11 +39,11 @@ models:
       - name: city
         description: "City name. Natural-key component. Populated only for the city level; NULL otherwise."
       - name: jurisdictions_count
-        description: "Placeholder count (currently 0 - not yet populated)."
+        description: "Local government units (county, municipality, township, school district) from int_jurisdictions, excluding state rows. Populated on national and state rows; 0 on county/city rows (not yet computed at that grain)."
         tests:
           - not_null
       - name: school_districts_count
-        description: "Placeholder count (currently 0 - not yet populated)."
+        description: "School districts from int_jurisdictions (jurisdiction_type = 'school_district'). Populated on national and state rows; 0 on county/city rows."
         tests:
           - not_null
       - name: nonprofits_count
