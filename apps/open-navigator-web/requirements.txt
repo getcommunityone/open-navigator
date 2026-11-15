@@ -45,9 +45,9 @@ tenacity>=8.2.3
 
 # --- Observability (api/telemetry.py instruments at startup) -------------
 opentelemetry-api==1.45.2
-opentelemetry-sdk==1.42.0
-opentelemetry-instrumentation-fastapi==0.63b0
-opentelemetry-exporter-otlp-proto-http==1.42.0
+opentelemetry-sdk==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2
+opentelemetry-exporter-otlp-proto-http==1.45.2
 
 # --- Eagerly imported at startup ----------------------------------------
 # api.main imports scripts.visualization.heatmap (pandas + folium + plotly), and
