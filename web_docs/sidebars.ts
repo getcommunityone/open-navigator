@@ -53,6 +53,8 @@ const sidebars: SidebarsConfig = {
       items: [
         'quickstart',
         'development/code-walkthrough',
+        'development/dataops-walkthrough',
+        'for-students',
         'quick-reference',
       ],
     },

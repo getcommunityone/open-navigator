@@ -37,13 +37,13 @@ class EventStatus(str, Enum):
 @dataclass
 class Location:
     """Meeting location information"""
-    name: str
+    name: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     
     def __str__(self):
-        parts = [self.name]
+        parts = [self.name] if self.name else []
         if self.address:
             parts.append(self.address)
         if self.city and self.state:
