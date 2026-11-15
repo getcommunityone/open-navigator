@@ -124,3 +124,25 @@ experiments on throwaway trees (never a real `data/cache`) reproduced findings 1
 Request-changes. Keep the idempotency fix. Before merging: make `_safe_move` and the sidecar branch never delete a
 file that isn't byte-identical, count and log every removal, make the dry run predict collisions, and add the
 collision tests (findings 1 to 4). Finding 2 may move to its own issue.
+
+## Re-review, 2026-11-15 (coordinator, after the maintainer's follow-up commits)
+
+**Verdict: approve.** Merged `main` into the branch (68e46cbb) and fixed the findings in e031146d (`fix(llm): the date cleanup deletes a file only when it is byte-identical`).
+
+| Finding | Status |
+|---|---|
+| 1. Healing a name deletes a different file by mtime | **Fixed.** New `_safe_policy_move` (used by `fix_policy_cache_dates_from_title` for files and sidecars) deletes the source only when the destination's SHA-256 matches; otherwise both are kept, counted as `skipped_collision` and logged with a warning. `_safe_move` is unchanged for `migrate_policy_cache_layout`, whose newest-wins collapse of legacy runs is intentional. |
+| 2. Two meetings mapping to one name lose one | **Fixed by the same rule.** Different content means a skipped collision; both files survive. Test added. |
+| 3. Dry run under-reports deletions | **Fixed.** The pass tracks claimed destinations, so the dry run reports `would_skip_collision` where the real run hits one. Test asserts dry and real counts match. |
+| 4. Test gaps | **Fixed** for clean + doubled sibling (different and identical bytes), sidecar target collision, two meetings, and dry-run parity: `packages/llm/tests/test_policy_cache_cleanup_collisions.py` (5 tests; all 5 fail on the pre-fix head, pass now). The `_lookup_run_meta` case is not covered yet. |
+| 5. `remove_redundant_transcript_files` deletes `.caption_formatted.json` unchecked | Out of scope; filed as #359. |
+| 6. Dead `"replaced_newer"` check | **Removed;** every sidecar action is now counted as `<action>_sidecar`. |
+| 7. No logging | **Fixed:** every move, deletion and collision is logged with `loguru`. |
+
+**Merge with #347:** this branch's `_split_policy_filename_stem_and_suffix` replaces #347's `_strip_policy_suffix`; #347's regression tests (including caption sidecars never merging into their transcript) pass.
+
+**Tests:** `packages/llm/tests` + `tests/test_meeting_date_from_title.py`, `tests/test_policy_transcript_cache.py`, `tests/test_transcript_cache_geography.py`: 226 passed, 2 failed (`test_meeting_gap_analysis.py`, same failures on `main`). `ruff` clean on the new test file.
+
+**Minor, not blocking:** `_split_policy_filename_stem_and_suffix` also strips a trailing `_diagrams` / `_meta` from a stem, so a meeting title ending in "meta" would lose it. Rare; noted here.
+
+**Before the first real run:** `python -m llm.gemini.cleanup_policy_transcript_cache --dry-run` twice on the real cache; the second run should report ~0 moves. Any `skipped_collision` lines in the log need a person to look at them.
