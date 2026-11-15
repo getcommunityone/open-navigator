@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { dataCentersTitle, formatDateRange, formatHeadcount, hearItUrl, placeScope } from './dataCenterJobs'
+import {
+  dataCentersTitle,
+  formatDateRange,
+  formatHeadcount,
+  hearItUrl,
+  meetingAttribution,
+  placeScope,
+} from './dataCenterJobs'
 
 describe('formatHeadcount', () => {
   it('says "Not stated" when both bounds are unknown (never 0)', () => {
@@ -38,5 +45,15 @@ describe('formatDateRange / hearItUrl', () => {
     expect(hearItUrl('abc123', 754.9)).toBe('https://www.youtube.com/watch?v=abc123&t=754s')
     expect(hearItUrl(null, 10)).toBeNull()
     expect(hearItUrl('abc123', null)).toBeNull()
+  })
+})
+
+describe('meetingAttribution (DC-1.2)', () => {
+  it('names the governing body when the record has one', () => {
+    expect(meetingAttribution('Tuscaloosa City Council')).toBe('At the Tuscaloosa City Council meeting')
+  })
+  it('never guesses a body', () => {
+    expect(meetingAttribution(null)).toBe('Meeting record')
+    expect(meetingAttribution('   ')).toBe('Meeting record')
   })
 })

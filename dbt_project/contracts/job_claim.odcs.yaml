@@ -92,6 +92,11 @@ schema:
     logicalType: string
     physicalType: text
     description: City of the meeting's event, from event_meeting (the API's ?city= matches it or jurisdiction_name).
+  - id: body_name
+    name: body_name
+    logicalType: string
+    physicalType: text
+    description: The governing body that met (city council, county commission, planning board), from event_meeting.body_name; null when not recorded.
   - id: person_id
     name: person_id
     logicalType: string
@@ -156,7 +161,12 @@ schema:
     name: speaker_name
     logicalType: string
     physicalType: text
-    description: Who made the claim, as the analysis names them.
+    description: Who made the claim, as the analysis names them (or as its people[] entry names them).
+  - id: speaker_role
+    name: speaker_role
+    logicalType: string
+    physicalType: text
+    description: The speaker's role as said in the meeting (applicant, council member, staff, resident), or from the analysis's people[] entry; null when not said, never inferred.
   - id: start_seconds
     name: start_seconds
     logicalType: number

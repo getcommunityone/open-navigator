@@ -45,7 +45,11 @@ models:
       - name: project_type
         description: "data_center or another project type (lower-cased, trimmed)."
       - name: speaker_name
-        description: "Who made the claim, as the analysis names them."
+        description: "Who made the claim, as the analysis names them; else the full_name of the people[] entry the claim binds to."
+      - name: speaker_role
+        description: "The speaker's role as said in the meeting (DC-1.2); else the role of the people[] entry the claim binds to; null when neither says."
+      - name: speaker_person_ref
+        description: "The claim's speaker_person_id: a people[].person_id local to this analysis, not a key."
       - name: start_seconds
         description: "Offset into the meeting video where the quote starts."
       - name: quote

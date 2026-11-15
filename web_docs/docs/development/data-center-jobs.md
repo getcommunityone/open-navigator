@@ -1,7 +1,7 @@
 ---
 sidebar_position: 32
 title: Data center jobs claims
-description: How jobs promised in public meetings are extracted, stored, served and shown (DC-1.1).
+description: How jobs promised in public meetings are extracted, stored, served and shown, and who promised them (DC-1.1, DC-1.2).
 ---
 
 # Data center jobs claims
@@ -19,8 +19,17 @@ meeting, split by phase, with the speaker and the words they used. It is part of
 | Bronze | `bronze.bronze_events_analysis_ai.structured_analysis` | The analysis JSON, as for every other `*_from_ai` extraction |
 | Staging | `staging.stg_job_claim_ai` (view) | Each claim typed, with guarded casts; rows that break the rules are kept so warn tests count them |
 | Mart | `job_claim` (gold, published to `public`) | One row per claim per meeting. PK `job_claim_id`; FK `jurisdiction_id` → `jurisdictions` |
-| API | `GET /api/data-centers/job-claims?state=&city=&jurisdiction_id=&limit=` | The data center claims for the scope (newest first), the scope echoed back, and the claims per phase for the whole scope (`totals`). `city` matches a substring of the city or the jurisdiction name, as the browse routes do |
-| UI | `/data-centers?state=&city=` | Construction and operations side by side, with the quote, speaker and a link to the moment |
+| API | `GET /api/data-centers/job-claims?state=&city=&jurisdiction_id=&limit=` | Each claim with `speaker_role` and `body_name` (DC-1.2). The data center claims for the scope (newest first), the scope echoed back, and the claims per phase for the whole scope (`totals`). `city` matches a substring of the city or the jurisdiction name, as the browse routes do |
+| UI | `/data-centers?state=&city=` | Construction and operations side by side, with the quote, who said it (with role), the meeting body, and a link to the moment on the meeting page |
+
+## Who promised it (DC-1.2)
+
+[DC-1.2](https://github.com/getcommunityone/open-navigator/issues/247) attributes each claim, so a resident can hold the right person to it.
+
+- **Speaker and role.** The extraction adds `speaker_role` (the role said in the meeting: "applicant", "District 3 council member", "resident") and `speaker_person_id` (the speaker's entry in the same analysis's `people[]`). Staging fills a missing name or role from that `people[]` entry. Otherwise the role stays null; it's never inferred from a name.
+- **Which meeting.** `job_claim.body_name` comes from `event_meeting.body_name` (for example "Tuscaloosa City Council"). The page says "At the Tuscaloosa City Council meeting", or "Meeting record" when the body isn't recorded.
+- **The moment.** Each claim uses the shared `CitationLink` from [CORE-2.1](https://github.com/getcommunityone/open-navigator/issues/240): "Said by Dana Ruiz, applicant · Mar 2, 2026 · ▶ 12:34". The link opens `/meetings/<event_meeting_id>?t=754`, the meeting page with the recording started at that second. Without a timestamp it opens the meeting and says "time not recorded"; without a speaker it says "Speaker not identified".
+- **Re-analysis needed.** Meetings analyzed before this change have no `speaker_role` or `speaker_person_id`, so their claims show the name only until they are re-analyzed with the updated prompt.
 
 ## Rules
 

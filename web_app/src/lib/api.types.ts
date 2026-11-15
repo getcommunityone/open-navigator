@@ -1061,6 +1061,11 @@ export interface components {
          * @description One jobs claim from a meeting; unknown values are null, never 0.
          */
         JobClaim: {
+            /**
+             * Body Name
+             * @description The governing body that met (e.g. city council), from event_meeting.
+             */
+            body_name?: string | null;
             /** Ends On */
             ends_on?: string | null;
             /**
@@ -1093,6 +1098,11 @@ export interface components {
             quote: string;
             /** Speaker Name */
             speaker_name?: string | null;
+            /**
+             * Speaker Role
+             * @description The speaker's role as said in the meeting (DC-1.2); null when not said.
+             */
+            speaker_role?: string | null;
             /** Start Seconds */
             start_seconds?: number | null;
             /** Starts On */

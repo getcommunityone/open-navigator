@@ -11,6 +11,7 @@
     jurisdiction_id comes from the meeting's video (event_youtube_with_jurisdiction) and
     is kept only when it exists in jurisdictions; otherwise null, so the FK holds.
     person_id is null until speaker resolution lands (see the schema description).
+    speaker_role and body_name (DC-1.2, #247) say who the speaker is and which body met.
 */
 
 with claims as (
@@ -35,7 +36,8 @@ meetings as (
         state_code,
         state,
         jurisdiction_name,
-        city
+        city,
+        body_name
     from {{ ref('event_meeting') }}
 ),
 
@@ -65,6 +67,7 @@ select
     j.jurisdiction_id::text                                as jurisdiction_id,
     m.jurisdiction_name::text                              as jurisdiction_name,
     m.city::text                                           as city,
+    nullif(btrim(m.body_name), '')::text                   as body_name,
     null::text                                             as person_id,
     c.phase::text                                          as phase,
     c.headcount_low::integer                               as headcount_low,
@@ -74,6 +77,7 @@ select
     c.project_name::text                                   as project_name,
     c.project_type::text                                   as project_type,
     c.speaker_name::text                                   as speaker_name,
+    c.speaker_role::text                                   as speaker_role,
     c.start_seconds::double precision                      as start_seconds,
     c.quote::text                                          as quote,
     c.source_ai_model::text                                as source_ai_model,

@@ -100,9 +100,11 @@ def _row(**overrides: Any) -> dict[str, Any]:
         "project_name": None,
         "quote": "This will bring jobs.",
         "speaker_name": None,
+        "speaker_role": None,
         "person_id": None,
         "event_meeting_id": 9,
         "meeting_date": date(2026, 3, 2),
+        "body_name": None,
         "video_id": "vid123",
         "start_seconds": 754.5,
     }
@@ -287,7 +289,9 @@ def test_unknown_values_stay_null_and_dates_are_iso(make_client) -> None:
         "ends_on",
         "project_name",
         "speaker_name",
+        "speaker_role",
         "person_id",
+        "body_name",
     ):
         assert first[key] is None, key
     assert first["meeting_date"] == "2026-03-02"
@@ -306,12 +310,42 @@ def test_unknown_values_stay_null_and_dates_are_iso(make_client) -> None:
         "project_name",
         "quote",
         "speaker_name",
+        "speaker_role",
         "person_id",
         "event_meeting_id",
         "meeting_date",
+        "body_name",
         "video_id",
         "start_seconds",
     }
+
+
+def test_claim_names_speaker_role_and_meeting_body(make_client) -> None:
+    """DC-1.2 (#247): who said it, in what role, at which body's meeting, and when."""
+    rows = [
+        _row(
+            speaker_name="Dana Ruiz",
+            speaker_role="applicant",
+            body_name="Tuscaloosa City Council",
+            start_seconds=754.0,
+        )
+    ]
+    resp = make_client(_FakeConn(rows=rows)).get(PATH)
+    assert resp.status_code == 200
+    (item,) = resp.json()["items"]
+    assert item["speaker_name"] == "Dana Ruiz"
+    assert item["speaker_role"] == "applicant"
+    assert item["body_name"] == "Tuscaloosa City Council"
+    assert item["event_meeting_id"] == 9
+    assert item["meeting_date"] == "2026-03-02"
+    assert item["start_seconds"] == 754.0
+
+
+def test_select_reads_the_attribution_columns() -> None:
+    from api.routes.data_centers import build_job_claims_query, build_scope
+
+    sql, _ = build_job_claims_query(build_scope(None, None, None), 10)
+    assert "speaker_role" in sql and "body_name" in sql
 
 
 # --- missing relation / errors ------------------------------------------------

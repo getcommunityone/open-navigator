@@ -117,6 +117,8 @@ Record every claim made in the meeting about **how many jobs** a project will cr
 - `starts_on` / `ends_on`: ISO `YYYY-MM-DD` only when a full date is stated for that phase. A year or month alone ("construction runs through 2028") → null. Never guess.
 - `project_name`: as named in the meeting, else null. `project_type`: `data_center` when the project is a data center or server campus, otherwise a short lowercase noun (`factory`, `warehouse`, `other`).
 - `speaker_name`: who made the claim, as named; `start_seconds`: the timestamp of the claim from the transcript cue, else null.
+- `speaker_role`: the speaker's role **as said or shown in the meeting** ("applicant", "applicant's attorney", "District 3 council member", "economic development director", "resident"), else null. Never infer a role from the name alone.
+- `speaker_person_id`: the `people[].person_id` of the speaker, using the same binding cues as `held_by`. Add the speaker to `people[]` first if they aren't there. Null when the claim can't be bound to one person; never guess.
 - `quote`: the **verbatim** words of the claim from the transcript (≤40 words). No quote, no row.
 - No jobs claim in the meeting → `"job_claims": []`.
 
@@ -252,6 +254,8 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
       "project_name": "string or null",
       "project_type": "data_center | factory | warehouse | other",
       "speaker_name": "string or null",
+      "speaker_role": "string or null — role as said in the meeting",
+      "speaker_person_id": "string or null — people[].person_id of the speaker",
       "start_seconds": "number or null — from the transcript cue",
       "quote": "string — verbatim words of the claim (≤40 words)"
     }
