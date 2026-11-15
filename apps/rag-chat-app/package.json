@@ -3,8 +3,8 @@
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",
     "@ai-sdk/react": "^3.0.140",
-    "@databricks/appkit": "0.43.0",
-    "@databricks/appkit-ui": "0.43.0",
+    "@databricks/appkit": "0.95.0",
+    "@databricks/appkit-ui": "0.95.0",
     "@databricks/sdk-experimental": "0.17.0",
     "ai": "^6.0.138",
     "clsx": "2.1.1",
@@ -15,12 +15,12 @@
     "react-dom": "19.2.4",
     "react-resizable-panels": "3.0.6",
     "react-router": "7.18.2",
-    "streamdown": "^2.5.0",
+    "streamdown": "^2.7.1",
     "tailwind-merge": "3.3.1",
     "tailwindcss-animate": "1.0.7",
     "tslib": "2.8.1",
     "tw-animate-css": "1.4.0",
-    "zod": "4.1.13"
+    "zod": "4.6.6"
   },
   "description": "Streaming RAG chat app with pgvector retrieval and Lakebase-backed chat history",
   "devDependencies": {

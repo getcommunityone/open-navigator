@@ -14,8 +14,8 @@
   "dependencies": {
     "@axe-core/puppeteer": "^4.10.2",
     "chrome-launcher": "^1.2.1",
-    "lighthouse": "^12.8.2",
-    "pa11y-ci": "^4.1.1",
-    "puppeteer": "^24.2.0"
+    "lighthouse": "^13.6.0",
+    "pa11y-ci": "^5.0.0",
+    "puppeteer": "^25.17.0"
   }
 }
