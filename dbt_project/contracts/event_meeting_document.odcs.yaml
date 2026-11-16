@@ -19,7 +19,7 @@ schema:
   name: event_meeting_document
   physicalName: public.event_meeting_document
   logicalType: object
-  description: 'public.event_meeting_document — scraped meeting AGENDA / MINUTES PDFs linked to the meeting they belong to (public.event_meeting), so the API can show document links on a decision / meeting. One row per document. Matched on jurisdiction (census geoid embedded in event_meeting.jurisdiction) + date + canonical body key. event_meeting_id is NULL for orphan documents and for meetings whose agenda/minutes is not yet published. Source: the SuiteOne municipal-calendar crawl in bronze (general — driven only by meeting_date_source=''suiteone_listing'', not city-specific).'
+  description: 'public.event_meeting_document — scraped meeting AGENDA / MINUTES PDFs linked to the meeting they belong to (public.event_meeting), so the API can show document links on a decision / meeting. One row per document. Matched on jurisdiction (census geoid embedded in event_meeting.jurisdiction) + date + canonical body key. event_meeting_id is NULL for orphan documents and for meetings whose agenda/minutes is not yet published. Sources: the SuiteOne municipal-calendar crawl (source=''suiteone'') and the nationwide jurisdiction homepage crawl''s day-dated agenda/minutes PDFs for counties and municipalities in every state (source=''scraped_meetings'', #392).'
   dataGranularityDescription: One row per document.
   properties:
   - id: event_meeting_document_id
@@ -95,12 +95,12 @@ schema:
     name: meeting_title
     logicalType: string
     physicalType: text
-    description: Original SuiteOne meeting title (e.g. '3:00 p.m. Finance Committee').
+    description: 'Original meeting title: the SuiteOne listing title (e.g. ''3:00 p.m. Finance Committee'') or, for crawled docs, the PDF link text or filename title.'
   - id: content
     name: content
     logicalType: string
     physicalType: text
-    description: Extracted PDF text body (from bronze.bronze_meeting_document_text, joined on jurisdiction_id + url_sha256). NULLABLE — populated only where text was extracted (~497 Tuscaloosa agenda/minutes today); NULL for non-Tuscaloosa docs and attachments.
+    description: Extracted PDF text body (from bronze.bronze_meeting_document_text, joined on jurisdiction_id + url_sha256). NULLABLE — populated only where text has been extracted (scrapers.suiteone.doctext / scrapers.meetings.doctext); NULL otherwise.
   - id: word_count
     name: word_count
     logicalType: integer
@@ -115,8 +115,18 @@ schema:
     name: source
     logicalType: string
     physicalType: text
-    description: Constant 'suiteone' — the scrape source.
+    description: Scrape source — 'suiteone' (SuiteOne portal listing) or 'scraped_meetings' (nationwide homepage crawl).
     required: true
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - suiteone
+        - scraped_meetings
+      mustBe: 0
+      dimension: conformity
+      severity: error
   - id: created_at
     name: created_at
     logicalType: timestamp

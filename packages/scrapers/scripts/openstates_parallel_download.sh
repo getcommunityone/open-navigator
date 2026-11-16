@@ -2,7 +2,11 @@
 # Parallel OpenStates Document Downloader
 # Downloads documents for multiple states simultaneously
 
-cd /home/developer/projects/open-navigator
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+cd "$PROJECT_ROOT"
 
 # Create log directory
 mkdir -p /tmp/openstates_parallel
@@ -21,13 +25,13 @@ download_batch() {
     local batch_num=$1
     local states=$2
     local log_file="/tmp/openstates_parallel/batch_${batch_num}.log"
-    
+
     echo "Starting batch $batch_num: $states"
-    python scripts/datasources/openstates/download_documents.py \
+    python -m scrapers.openstates.load_openstates_documents \
         --states "$states" \
         --resume \
         > "$log_file" 2>&1 &
-    
+
     echo "Batch $batch_num PID: $!"
 }
 
@@ -52,7 +56,7 @@ echo "Monitor progress:"
 echo "  tail -f /tmp/openstates_parallel/batch_*.log"
 echo ""
 echo "Check running processes:"
-echo "  ps aux | grep download_documents.py | grep -v grep"
+echo "  ps aux | grep load_openstates_documents | grep -v grep"
 echo ""
 echo "Stop all downloads:"
-echo "  pkill -f download_documents.py"
+echo "  pkill -f scrapers.openstates.load_openstates_documents"

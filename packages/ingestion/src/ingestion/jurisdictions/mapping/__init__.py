@@ -12,4 +12,7 @@ Modules:
 - ``export_quality_json`` — CLI that writes the dashboard
   ``jurisdiction_mapping_quality.json`` (run: ``python -m
   ingestion.jurisdictions.mapping.export_quality_json``).
+- ``publish_hf`` — CLI that exports ``public.jurisdiction_mapping_analysis`` to
+  Parquet and publishes on Hugging Face (run: ``python -m
+  ingestion.jurisdictions.mapping.publish_hf``).
 """

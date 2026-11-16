@@ -78,6 +78,13 @@ models:
       cached_input_usd_per_1m: 0.044
       output_usd_per_1m: 3.96
       off_peak: {input_usd_per_1m: 0.66, cached_input_usd_per_1m: 0.022, output_usd_per_1m: 1.98}
+  # TypeSafe Jev (transcript screening, llm.typesafe): $0.042 per 1M input tokens, and
+  # output tokens are free. The page gives the same price for jev-1.14.0 and
+  # jev-1.13.0. Responses name the versioned model, so the "jev-" prefix matches both.
+  jev-:
+    source: https://docs.typesafe.ai/models.md
+    read_date: "2026-11-15"
+    interactive: {input_usd_per_1m: 0.042, output_usd_per_1m: 0.0}
 
 # GPU prices in USD per GPU-hour, matched against the name `nvidia-smi` reports
 # (the key is searched for in the name, so "T4" matches "Tesla T4"). These are

@@ -6,7 +6,7 @@ set -e  # Exit on error
 
 STATES="AL,GA,IN,MA,MT,WA,WI"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 echo "=========================================================================="
 echo "🏛️  MEETING DATA LOADER FOR PRIORITY STATES"
@@ -26,7 +26,7 @@ fi
 echo "=========================================================================="
 echo "Step 1: Checking Current Data Status"
 echo "=========================================================================="
-python "$PROJECT_ROOT/scripts/localview/check_meeting_data.py" --states "$STATES"
+python "$PROJECT_ROOT/scripts/datasources/localview/check_meeting_data.py" --states "$STATES"
 
 echo ""
 echo "=========================================================================="
@@ -38,7 +38,7 @@ echo ""
 echo "1. Download LocalView Historical Data (2006-2023)"
 echo "   - Visit: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NJTBEM"
 echo "   - Download CSV files to: $PROJECT_ROOT/data/cache/localview/"
-echo "   - Then run: python scripts/datasources/localview/localview_ingestion.py"
+echo "   - Then run: python -m ingestion.localview.events"
 echo ""
 echo "2. Scrape Recent Meetings from YouTube (2024-2026)"
 echo "   - Get YouTube API key: https://console.cloud.google.com/apis/credentials"
@@ -77,7 +77,7 @@ if [[ "$1" == "--scrape" ]]; then
     # Scrape YouTube channels
     echo "Scraping municipal YouTube channels..."
     # --since-days 850 covers from Jan 1, 2024 to now (May 2026)
-    python "$PROJECT_ROOT/scripts/localview/scrape_youtube_channels.py" \
+    python -m scrapers.youtube.scrape_youtube_channels \
         --states "$STATES" \
         --since-days 850
     
@@ -89,7 +89,7 @@ if [[ "$1" == "--scrape" ]]; then
     echo "=========================================================================="
     echo "Extracting Transcripts"
     echo "=========================================================================="
-    python "$PROJECT_ROOT/scripts/localview/extract_transcripts.py" \
+    python "$PROJECT_ROOT/scripts/datasources/localview/extract_transcripts.py" \
         --states "$STATES"
     
     echo ""
@@ -112,7 +112,7 @@ if [[ "$1" == "--scrape" ]]; then
     echo "=========================================================================="
     echo "Final Data Status"
     echo "=========================================================================="
-    python "$PROJECT_ROOT/scripts/localview/check_meeting_data.py" --states "$STATES"
+    python "$PROJECT_ROOT/scripts/datasources/localview/check_meeting_data.py" --states "$STATES"
 fi
 
 if [[ "$1" == "--localview" ]]; then
@@ -140,7 +140,7 @@ if [[ "$1" == "--localview" ]]; then
     echo ""
     
     # Run ingestion
-    python "$PROJECT_ROOT/scripts/datasources/localview/localview_ingestion.py"
+    python -m ingestion.localview.events
     
     echo ""
     echo "✅ LocalView ingestion complete!"
@@ -159,7 +159,7 @@ if [[ "$1" == "--localview" ]]; then
     echo "=========================================================================="
     echo "Final Data Status"
     echo "=========================================================================="
-    python "$PROJECT_ROOT/scripts/localview/check_meeting_data.py" --states "$STATES"
+    python "$PROJECT_ROOT/scripts/datasources/localview/check_meeting_data.py" --states "$STATES"
 fi
 
 echo ""

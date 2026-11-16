@@ -18,7 +18,7 @@ Open Navigator provides comprehensive coverage across the United States:
 
 | Data Type | Count | Coverage |
 |-----------|-------|----------|
-| **Government Jurisdictions** | 90,000+ | All U.S. local governments |
+| **U.S. Local Governments (national total)** | About 91,000 | Census Bureau, 2025. Open Navigator does not include special districts (about 40%) |
 | **Counties** | 3,144 | 100% of U.S. counties |
 | **Municipalities** | 19,500+ | Cities, towns, villages |
 | **Townships** | 36,000+ | County subdivisions |
@@ -83,21 +83,21 @@ domains_df = await gsa.download_domain_list()
 
 **Source:** U.S. Census Bureau, Government Statistics  
 **URL:** https://www.census.gov/programs-surveys/gus.html  
-**Dataset:** 2022 Census of Governments
+**Dataset:** 2022 Census of Governments ([summary slides](https://www.fdlp.gov/sites/default/files/training/20231212-wn-census-govts-slides.pdf)); 2025 update ([Government Organization Summary](https://www.census.gov/library/publications/2026/econ/govtorg2225.html))
 
 **What It Contains:**
-- **90,735 total government units**
-  - 3,143 counties
-  - 19,495 municipalities (cities/towns)
-  - 16,504 townships
-  - 13,051 school districts
-  - 38,542 special districts
+- **90,837 local governments in 2022** (91,438 in the 2025 update)
+  - 3,031 counties
+  - 19,491 municipalities (cities/towns)
+  - 16,214 townships
+  - 12,546 independent school districts
+  - 39,555 special districts (not included in Open Navigator)
 - FIPS codes (standardized IDs)
 - Population data
 - Geographic hierarchy (state, county, place)
 
 **Why We Use It:**
-> "The Census Bureau GID provides a list of all 90,000+ legal government units. You can join this against the CISA list to find 'missing' URLs that your agent needs to hunt for."
+> "The Census Bureau GID provides a list of all U.S. local governments, about 91,000 in 2025. You can join this against the CISA list to find 'missing' URLs that your agent needs to hunt for."
 
 **How We Use It:**
 ```python

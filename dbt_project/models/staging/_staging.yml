@@ -561,6 +561,12 @@ sources:
           - name: loaded_at
       
       - name: bronze_event_youtube
+        config:
+          # Freshness (context-engineering.md, principle 5): `dbt source freshness`
+          loaded_at_field: last_updated  # loaded_at wasn't set on new rows until #429; NULL on older ones
+          freshness:
+            warn_after: {count: 2, period: day}
+            error_after: {count: 7, period: day}
         description: |
           Raw YouTube video data from government channels. Landed by the LAND
           loader ingestion.youtube.events (pre-collected JSON/JSONL out of
@@ -1692,6 +1698,12 @@ sources:
             description: "When record was loaded"
       
       - name: bronze_event_youtube_transcript
+        config:
+          # Freshness (context-engineering.md, principle 5): `dbt source freshness`
+          loaded_at_field: last_updated
+          freshness:
+            warn_after: {count: 2, period: day}
+            error_after: {count: 7, period: day}
         description: |
           Video transcripts and AI-extracted meeting text. YouTube captions are
           landed here by the LAND loader ingestion.youtube.events (second-table
@@ -1783,6 +1795,12 @@ sources:
             description: "When the row was scraped."
 
       - name: bronze_epoch_data_centers
+        config:
+          # Freshness (context-engineering.md, principle 5): `dbt source freshness`
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 8, period: day}
+            error_after: {count: 31, period: day}
         description: >
           Epoch AI "AI data centers" CSV rows (CC BY 4.0; credit Epoch AI), one per row per
           downloaded file, as raw JSONB. Loaded by `python -m ingestion.data_centers.epoch_sites`
@@ -1818,6 +1836,12 @@ sources:
           - name: record
             description: "The whole CSV row, header -> value."
       - name: bronze_events_analysis_ai
+        config:
+          # Freshness (context-engineering.md, principle 5): `dbt source freshness`
+          loaded_at_field: updated_at
+          freshness:
+            warn_after: {count: 7, period: day}
+            error_after: {count: 30, period: day}
         description: "Gemini AI analysis results from meeting videos - structured entity extraction"
         columns:
           - name: id
@@ -2213,6 +2237,22 @@ sources:
           - name: loaded_at
             description: "Ingestion timestamp."
 
+  - name: intermediate_runtime
+    description: >
+      Runtime-owned tables in the intermediate schema that scripts write, not dbt.
+      Declared only so `dbt source freshness` can check them.
+    database: open_navigator
+    schema: intermediate
+    tables:
+      - name: int_events_channels
+        description: >
+          Verified county and municipality YouTube channels (migration 071), read by the
+          YouTube catalog. Written by the channel discovery scripts, not by dbt.
+        config:
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 30, period: day}
+            error_after: {count: 90, period: day}
   - name: civic_core
     description: |
       Canonical OCD/Popolo civic entity tables in the GOLD schema (the `civic_*`
@@ -2369,6 +2409,72 @@ models:
         description: "'agenda' or 'minutes'."
         tests:
           - not_null
+
+  - name: stg_scraped_meeting_documents
+    description: >
+      Agenda/minutes PDFs from the nationwide jurisdiction homepage crawl
+      (bronze.bronze_events_meetings_{counties,municipalities}_scraped), every
+      state. Day-dated only (manifest_year_only dates are excluded), no
+      SuiteOne portal links, and disjoint from stg_suiteone_meeting_documents.
+      School districts are excluded until documents carry a type-aware key.
+      One row per (jurisdiction_id, url_sha256). Feeds event_meeting_document
+      (#392).
+    columns:
+      - name: event_meeting_document_id
+        description: "Stable surrogate — md5(jurisdiction_id || '|' || url_sha256), same formula as the SuiteOne model."
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "Canonical jurisdiction id (e.g. 'birmingham_0107000')."
+        tests:
+          - not_null
+      - name: jurisdiction_type
+        description: "'county' or 'municipality' (the bronze table the row came from)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['county', 'municipality']
+      - name: census_geoid
+        description: "Census GEOID of the jurisdiction (5-digit county, 7-digit place)."
+        tests:
+          - not_null
+      - name: url_sha256
+        description: "sha256 of the raw document URL; with jurisdiction_id, the natural key (joins to bronze_meeting_document_text)."
+        tests:
+          - not_null
+      - name: state_code
+        description: "2-letter state code."
+        tests:
+          - not_null
+      - name: state
+        description: "Full state name."
+      - name: document_type
+        description: "'agenda' or 'minutes'."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['agenda', 'minutes']
+      - name: document_url
+        description: "Agenda/minutes PDF URL."
+        tests:
+          - not_null
+      - name: doc_date
+        description: "Meeting date parsed from the link text, filename or URL (a real day, never a year placeholder)."
+        tests:
+          - not_null
+      - name: meeting_date_source
+        description: "Which parser produced doc_date (e.g. 'anchor_text', 'filename')."
+      - name: meeting_title
+        description: "The PDF's link text or filename title, as the crawl saw it."
+      - name: body_key
+        description: "Canonical body category from meeting_title (macro normalize_meeting_body_key); NULL when unrecognized."
+      - name: source
+        description: "Constant 'scraped_meetings'."
+      - name: created_at
+        description: "When the row was loaded into bronze."
 
   - name: stg_bronze_events_cdp
     description: |

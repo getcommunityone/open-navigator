@@ -90,7 +90,7 @@ await pipeline.run_full_pipeline(discovery_limit=None)
 
 - **Speed**: ~2-4 hours for 30k jurisdictions (with 4 workers)
 - **Cost**: ~$8-15 per run (Databricks cluster)
-- **Scale**: Full 90k+ jurisdiction coverage
+- **Scale**: Every jurisdiction loaded in the warehouse
 
 ### Scheduling
 

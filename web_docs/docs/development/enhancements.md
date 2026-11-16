@@ -37,7 +37,7 @@ districts_df = await nces.ingest_school_districts()
 | Source | Coverage | Cost | Update Frequency |
 |--------|----------|------|------------------|
 | **CISA .gov Domains** | 15,000+ domains | $0 | Daily |
-| **Census Bureau GID** | 90,735 jurisdictions | $0 | Annual |
+| **Census of Governments** | About 91,000 local governments (2025) | $0 | Annual |
 | **NCES CCD** | 13,000+ school districts | $0 | Annual |
 
 **Total API costs: $0** 🎉
@@ -75,7 +75,7 @@ districts_df = await nces.ingest_school_districts()
 **Maintained By:** U.S. Census Bureau
 
 **Why:**
-> "The Census Bureau GID provides a list of all 90,000+ legal government units. You can join this against the CISA list to find 'missing' URLs."
+> "The Census Bureau GID provides a list of all U.S. local governments, about 91,000 in 2025. You can join this against the CISA list to find 'missing' URLs."
 
 **Implementation:** ✅ Already using in [census_ingestion.py](../discovery/census_ingestion.py)
 
@@ -227,7 +227,7 @@ Use Databricks notebook with all three data sources integrated.
 All official data sources now integrated:
 
 - [x] CISA .gov Domain Master List (cisagov/dotgov-data)
-- [x] Census Bureau GID (90,735 jurisdictions)
+- [x] Census of Governments (about 91,000 local governments, 2025)
 - [x] NCES Common Core of Data (13,000+ school districts)
 - [x] Non-.gov domain patterns (.org, .net, .us)
 - [x] Complete documentation of sources
@@ -250,4 +250,4 @@ This system now uses **exactly the sources recommended by professional data engi
 
 ---
 
-**Ready to discover 90,000+ government websites using authoritative sources with $0 in API costs!** 🚀
+**Discovers government websites using authoritative sources, with $0 in API costs.**

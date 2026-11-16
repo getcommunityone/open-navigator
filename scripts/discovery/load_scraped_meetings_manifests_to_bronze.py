@@ -465,6 +465,7 @@ INSERT INTO {table} (
 ) VALUES (
     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
 )
+ON CONFLICT (jurisdiction_id, url_sha256) DO NOTHING
 """
 
 
@@ -481,7 +482,26 @@ def _dedupe_rows_by_url_sha256(rows: List[Tuple[Any, ...]]) -> List[Tuple[Any, .
     return out
 
 
+# Rows another loader owns in the same table. ``scrapers.suiteone.scrape`` writes
+# ``manifest_relative_path = 'suiteone:<jurisdiction_id>'`` and
+# ``meeting_date_source = 'suiteone_listing'`` (its upsert can also re-tag a row this
+# loader inserted first, leaving the manifest path in place), so either marker means
+# "not ours". Reloading a manifest must never delete them (#393).
+_FOREIGN_ROW_SQL = (
+    "(COALESCE(manifest_relative_path, '') LIKE 'suiteone:%%' "
+    "OR COALESCE(meeting_date_source, '') = 'suiteone_listing')"
+)
+
+_DELETE_OWN_ROWS_SQL = "DELETE FROM {table} WHERE jurisdiction_id = %s AND NOT " + _FOREIGN_ROW_SQL
+
+
 def _load_manifest_to_table(conn: Any, table: str, manifest: Dict[str, Any], manifest_path: Path, repo_root: Path) -> int:
+    """Replace this manifest's rows for one jurisdiction, keeping rows other loaders own.
+
+    The crawl also downloads SuiteOne agenda links, so a manifest row can share
+    ``(jurisdiction_id, url_sha256)`` with a SuiteOne row. The SuiteOne row wins (it
+    carries the real meeting date from the portal listing); the insert skips it.
+    """
     jid = str(manifest.get("jurisdiction_id") or "").strip()
     rows = _granular_rows_for_manifest(manifest, manifest_path, repo_root)
     if rows is None:
@@ -489,7 +509,7 @@ def _load_manifest_to_table(conn: Any, table: str, manifest: Dict[str, Any], man
     rows = _dedupe_rows_by_url_sha256(rows)
     sql = _INSERT_SQL.format(table=table)
     with conn.cursor() as cur:
-        cur.execute(f"DELETE FROM {table} WHERE jurisdiction_id = %s", (jid,))
+        cur.execute(_DELETE_OWN_ROWS_SQL.format(table=table), (jid,))
         if rows:
             execute_batch(cur, sql, rows, page_size=500)
     return len(rows)

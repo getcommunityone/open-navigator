@@ -17,7 +17,7 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 
 _MAX_LIMIT = 50_000
 
-# Common organization_type values from load_hifld_to_postgres.py
+# Common organization_type values from ingestion.hifld.locations
 KNOWN_ORG_TYPES = frozenset(
     {
         "place_of_worship",
@@ -130,7 +130,7 @@ async def list_locations(
                     status_code=503,
                     detail=(
                         "bronze.bronze_locations not found. "
-                        "Run: python scripts/datasources/hifld/load_hifld_to_postgres.py"
+                        "Run: python -m ingestion.hifld.locations"
                     ),
                 )
 

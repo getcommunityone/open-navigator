@@ -111,7 +111,10 @@ bootstraps add the same. Unit tests under `packages/core-lib/tests/test_gdrive_p
   pipeline (`run_scrape_priority_states_*.sh`). Porting it cleanly requires first porting those `scripts/discovery`
   persist modules (DB-writing — route via the data/ingestion lens); `website_elections` is deferred too (→ needs
   `election_extract_from_html`). The two big orchestrators (`jurisdiction_discovery_pipeline`,
-  `comprehensive_discovery_pipeline_jurisdiction`) stay in `scripts/` for now. The remaining `jurisdiction_pilot`
+  `comprehensive_discovery_pipeline_jurisdiction`) stay in `scripts/` for now. So does the meetings manifest loader
+  (`load_scraped_meetings_manifests_to_bronze`); it was fixed in place to keep SuiteOne rows (#393), and when it is
+  ported its delete must stay scoped to its own rows (the `_FOREIGN_ROW_SQL` markers) with the regression test
+  `tests/test_scraped_meetings_loader_keeps_suiteone.py` moving with it. The remaining `jurisdiction_pilot`
   internal helpers (`vendor_detection`, `legistar_scraper`, `google_civic_youtube`, `website_civicplus_meetings`,
   `load_ocd_jurisdictions`, `debug_youtube_discovery`) are used only by the hub — port them together with it.
 

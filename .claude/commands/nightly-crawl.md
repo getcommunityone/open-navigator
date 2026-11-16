@@ -74,13 +74,22 @@ without `--dry-run`.
 ## 4. Rebuild
 
 ```bash
-cd dbt_project && uv run dbt build --select +meeting_browse +event_decision +event_meeting_document \
+cd dbt_project && .venv_dbt/bin/dbt build --select +meeting_browse +event_decision +event_meeting_document \
   +job_claim +data_center_site +data_center_agenda_item +area_concern
 ```
 
 If a model or an error-severity test fails, **stop before publishing**. Report the failing node and its error line,
 and open a `bug` issue (AGENTS.md) unless tonight's data obviously caused it. Warn-severity tests are fine; give
 their count.
+
+Then check freshness (see `web_docs/docs/development/data-freshness.md`):
+
+```bash
+cd dbt_project && .venv_dbt/bin/dbt source freshness; .venv_dbt/bin/dbt test --select tag:freshness
+```
+
+A stale table doesn't block publishing: report each stale source or warning by name, with how old it is. If the same
+table was stale last night too, open an `action-item` issue for it.
 
 ## 5. Publish to Neon (production stays on Neon; the free tier caps the project at 512 MB)
 

@@ -104,6 +104,15 @@ models:
         tests:
           - not_null
     tests:
+      - dbt_utils.recency:
+          # Freshness (context-engineering.md, principle 5): stats rollup older than 7 days
+          arguments:
+            datepart: day
+            field: last_updated
+            interval: 7
+          config:
+            severity: warn
+            tags: ['freshness']
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
             - level

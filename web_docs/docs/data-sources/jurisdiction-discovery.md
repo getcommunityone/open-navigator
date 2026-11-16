@@ -6,7 +6,7 @@ displayed_sidebar: developersSidebar
 
 ## Overview
 
-The **Jurisdiction Discovery System** automatically identifies and tracks over 90,000 local government units across the United States, discovering their official websites and meeting minutes URLs using **pattern-based matching** and **public datasets**.
+The **Jurisdiction Discovery System** finds the official websites and meeting minutes URLs of local governments across the United States using **pattern-based matching** and **public datasets**. The U.S. has about 91,000 local governments ([Census Bureau, 2025](https://www.census.gov/library/publications/2026/econ/govtorg2225.html)). About 40% are special districts, which Open Navigator does not include.
 
 ## ✅ Sustainable Approach (No Deprecated APIs)
 
@@ -35,7 +35,7 @@ This system uses **vendor-neutral, production-ready methods**:
 ┌─────────────────────────────────────────────────────────┐
 │            BRONZE LAYER (Public Datasets)                │
 ├─────────────────────────────────────────────────────────┤
-│  Census Bureau GID: 90,735 jurisdictions               │
+│  Census of Governments 2022: 90,837 local govts        │
 │  GSA .gov Registry: 12,000+ validated domains          │
 └─────────────────────────────────────────────────────────┘
                           │
@@ -119,7 +119,7 @@ For detailed documentation, see [JURISDICTION_DISCOVERY_SETUP.md](JURISDICTION_D
 
 ## Overview
 
-The **Jurisdiction Discovery System** automatically identifies and tracks over 90,000 local government units across the United States, discovering their official websites and meeting minutes URLs.
+The **Jurisdiction Discovery System** finds the official websites and meeting minutes URLs of local governments across the United States.
 
 ## Architecture
 
@@ -131,14 +131,14 @@ The **Jurisdiction Discovery System** automatically identifies and tracks over 9
 │              (Raw Data Ingestion)                        │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
-│  Census Bureau Data:                                    │
-│  • 3,143 counties                                       │
-│  • 19,495 municipalities                                │
-│  • 16,504 townships                                     │
-│  • 13,051 school districts                              │
-│  • 38,542 special districts                             │
+│  Census of Governments (2022):                          │
+│  • 3,031 counties                                       │
+│  • 19,491 municipalities                                │
+│  • 16,214 townships                                     │
+│  • 12,546 independent school districts                  │
+│  • 39,555 special districts                             │
 │  ────────────────                                       │
-│  Total: ~90,735 jurisdictions                           │
+│  Total: 90,837 local governments                        │
 │                                                          │
 │  GSA .gov Domain List:                                  │
 │  • 12,000+ validated .gov domains                       │

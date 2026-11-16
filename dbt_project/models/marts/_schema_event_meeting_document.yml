@@ -20,13 +20,14 @@ models:
       document links on a decision / meeting. One row per document. Matched on
       jurisdiction (census geoid embedded in event_meeting.jurisdiction) + date +
       canonical body key. event_meeting_id is NULL for orphan documents and for
-      meetings whose agenda/minutes is not yet published. Source: the SuiteOne
-      municipal-calendar crawl in bronze (general — driven only by
-      meeting_date_source='suiteone_listing', not city-specific).
+      meetings whose agenda/minutes is not yet published. Sources: the SuiteOne
+      municipal-calendar crawl (source='suiteone') and the nationwide
+      jurisdiction homepage crawl's day-dated agenda/minutes PDFs for counties and municipalities in every state
+      (source='scraped_meetings', #392).
     config:
       materialized: table
       on_schema_change: fail
-      tags: ['marts', 'meetings', 'documents', 'suiteone', 'production']
+      tags: ['marts', 'meetings', 'documents', 'suiteone', 'scraped_meetings', 'production']
       contract:
         enforced: true
     columns:
@@ -90,14 +91,14 @@ models:
         description: "Canonical body category (key) the document/meeting belongs to (e.g. 'finance', 'council', 'projects')."
         data_type: text
       - name: meeting_title
-        description: "Original SuiteOne meeting title (e.g. '3:00 p.m. Finance Committee')."
+        description: "Original meeting title: the SuiteOne listing title (e.g. '3:00 p.m. Finance Committee') or, for crawled docs, the PDF link text or filename title."
         data_type: text
       - name: content
         description: >
           Extracted PDF text body (from bronze.bronze_meeting_document_text,
           joined on jurisdiction_id + url_sha256). NULLABLE — populated only where
-          text was extracted (~497 Tuscaloosa agenda/minutes today); NULL for
-          non-Tuscaloosa docs and attachments.
+          text has been extracted (scrapers.suiteone.doctext /
+          scrapers.meetings.doctext); NULL otherwise.
         data_type: text
       - name: word_count
         description: "Word count of the extracted PDF text. NULLABLE — present only where content is."
@@ -109,10 +110,48 @@ models:
           index (see model post_hook).
         data_type: tsvector
       - name: source
-        description: "Constant 'suiteone' — the scrape source."
+        description: "Scrape source — 'suiteone' (SuiteOne portal listing) or 'scraped_meetings' (nationwide homepage crawl)."
         data_type: text
         constraints:
           - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['suiteone', 'scraped_meetings']
       - name: created_at
         description: "When the document row was landed in bronze."
         data_type: timestamp
+
+unit_tests:
+  # #392 review: canonical county ids drop "County" ('tuscaloosa_01125'), so a
+  # county document's name slug equals the same-named city's normalized name.
+  # County documents must link by geoid only; the name fallback is for
+  # geoid-less meetings and non-county documents.
+  - name: county_document_never_links_to_same_named_city_meeting
+    model: event_meeting_document
+    given:
+      - input: ref('stg_suiteone_meeting_documents')
+        rows: []
+      - input: ref('stg_scraped_meeting_documents')
+        rows:
+          # County planning agenda, same day + body as a geoid-less city meeting.
+          - {event_meeting_document_id: county-same-day-as-freetext-city, jurisdiction_id: tuscaloosa_01125, census_geoid: '01125', url_sha256: a1, state_code: AL, document_type: agenda, document_url: 'https://example.invalid/a1.pdf', doc_date: '2026-03-03', meeting_title: Planning Commission Agenda, body_key: planning, source: scraped_meetings}
+          # City planning agenda, same day + body: links to the city meeting by name.
+          - {event_meeting_document_id: city-same-day-as-freetext-city, jurisdiction_id: tuscaloosa_0177256, census_geoid: '0177256', url_sha256: a2, state_code: AL, document_type: agenda, document_url: 'https://example.invalid/a2.pdf', doc_date: '2026-03-03', meeting_title: Planning Commission Agenda, body_key: planning, source: scraped_meetings}
+          # County planning agenda, same day + body as a city meeting that carries its geoid.
+          - {event_meeting_document_id: county-same-day-as-geoid-city, jurisdiction_id: tuscaloosa_01125, census_geoid: '01125', url_sha256: a3, state_code: AL, document_type: agenda, document_url: 'https://example.invalid/a3.pdf', doc_date: '2026-03-04', meeting_title: Planning Commission Agenda, body_key: planning, source: scraped_meetings}
+          # County planning agenda for the county's own meeting: links by geoid.
+          - {event_meeting_document_id: county-own-meeting, jurisdiction_id: tuscaloosa_01125, census_geoid: '01125', url_sha256: a4, state_code: AL, document_type: agenda, document_url: 'https://example.invalid/a4.pdf', doc_date: '2026-03-05', meeting_title: Planning Commission Agenda, body_key: planning, source: scraped_meetings}
+      - input: ref('event_meeting')
+        rows:
+          - {event_meeting_id: 1, jurisdiction: 'City of Tuscaloosa, Alabama', jurisdiction_name: 'City of Tuscaloosa', state_code: AL, meeting_date: '2026-03-03', body_name: Planning Commission}
+          - {event_meeting_id: 2, jurisdiction: tuscaloosa_0177256, jurisdiction_name: Tuscaloosa, state_code: AL, meeting_date: '2026-03-04', body_name: Planning Commission}
+          - {event_meeting_id: 3, jurisdiction: tuscaloosa_01125, jurisdiction_name: Tuscaloosa County, state_code: AL, meeting_date: '2026-03-05', body_name: Planning Commission}
+      - input: source('bronze', 'bronze_meeting_document_text')
+        rows: []
+    expect:
+      rows:
+        - {event_meeting_document_id: county-same-day-as-freetext-city, event_meeting_id: null}
+        - {event_meeting_document_id: city-same-day-as-freetext-city, event_meeting_id: 1}
+        - {event_meeting_document_id: county-same-day-as-geoid-city, event_meeting_id: null}
+        - {event_meeting_document_id: county-own-meeting, event_meeting_id: 3}
