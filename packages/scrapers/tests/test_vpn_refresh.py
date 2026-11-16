@@ -70,3 +70,18 @@ def test_off_without_a_tunnel_or_when_disabled(monkeypatch):
     assert vr.refresh_enabled() is True
     monkeypatch.setenv("YOUTUBE_VPN_REFRESH", "0")
     assert vr.refresh_enabled() is False
+
+
+def test_unknown_starting_ip_is_not_a_change():
+    """If the first IP lookup fails, the next reading is the baseline, not a new IP."""
+    ips = iter([None, "1.1.1.1", "1.1.1.1", "1.1.1.1"])
+    clock = _Clock()
+    res = vr.refresh_exit_ip(
+        wait_seconds=60,
+        poll_seconds=30,
+        command="",
+        get_ip=lambda: next(ips),
+        sleep=clock.sleep,
+        clock=clock,
+    )
+    assert not res.changed and res.old_ip == "1.1.1.1"

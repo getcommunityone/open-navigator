@@ -46,7 +46,7 @@ class RefreshResult:
 
     @property
     def changed(self) -> bool:
-        return bool(self.new_ip) and self.new_ip != self.old_ip
+        return bool(self.old_ip) and bool(self.new_ip) and self.new_ip != self.old_ip
 
 
 def refresh_enabled() -> bool:
@@ -105,7 +105,10 @@ def refresh_exit_ip(
     new_ip: Optional[str] = None
     while True:
         new_ip = get_ip()
-        if new_ip and new_ip != old_ip:
+        if new_ip and old_ip is None:
+            # The IP lookup failed before; this reading is the baseline, not a change.
+            old_ip = new_ip
+        elif new_ip and new_ip != old_ip:
             break
         if clock() - start >= wait_seconds:
             break
