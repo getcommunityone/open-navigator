@@ -4,6 +4,12 @@ sidebar_position: 8
 
 # Loading Meeting Data for Priority States
 
+:::caution Outdated
+This page describes an older LocalView and parquet workflow, and several of the scripts it names no longer
+exist. For the current nationwide agenda and YouTube crawl, see
+[Crawling meetings nationwide](./crawling-meetings-nationwide.md).
+:::
+
 Guide to loading existing LocalView meeting data and updating with recent scraping for AL, GA, IN, MA, WA, WI.
 
 ## 📊 Current Meeting Data Status
