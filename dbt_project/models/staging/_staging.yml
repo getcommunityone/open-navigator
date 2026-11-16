@@ -561,6 +561,12 @@ sources:
           - name: loaded_at
       
       - name: bronze_event_youtube
+        config:
+          # Freshness (context-engineering.md, principle 5): `dbt source freshness`
+          loaded_at_field: last_updated  # loaded_at wasn't set on new rows until #429; NULL on older ones
+          freshness:
+            warn_after: {count: 2, period: day}
+            error_after: {count: 7, period: day}
         description: |
           Raw YouTube video data from government channels. Landed by the LAND
           loader ingestion.youtube.events (pre-collected JSON/JSONL out of
@@ -1692,6 +1698,12 @@ sources:
             description: "When record was loaded"
       
       - name: bronze_event_youtube_transcript
+        config:
+          # Freshness (context-engineering.md, principle 5): `dbt source freshness`
+          loaded_at_field: last_updated
+          freshness:
+            warn_after: {count: 2, period: day}
+            error_after: {count: 7, period: day}
         description: |
           Video transcripts and AI-extracted meeting text. YouTube captions are
           landed here by the LAND loader ingestion.youtube.events (second-table
@@ -1783,6 +1795,12 @@ sources:
             description: "When the row was scraped."
 
       - name: bronze_epoch_data_centers
+        config:
+          # Freshness (context-engineering.md, principle 5): `dbt source freshness`
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 8, period: day}
+            error_after: {count: 31, period: day}
         description: >
           Epoch AI "AI data centers" CSV rows (CC BY 4.0; credit Epoch AI), one per row per
           downloaded file, as raw JSONB. Loaded by `python -m ingestion.data_centers.epoch_sites`
@@ -1818,6 +1836,12 @@ sources:
           - name: record
             description: "The whole CSV row, header -> value."
       - name: bronze_events_analysis_ai
+        config:
+          # Freshness (context-engineering.md, principle 5): `dbt source freshness`
+          loaded_at_field: updated_at
+          freshness:
+            warn_after: {count: 7, period: day}
+            error_after: {count: 30, period: day}
         description: "Gemini AI analysis results from meeting videos - structured entity extraction"
         columns:
           - name: id
@@ -2213,6 +2237,22 @@ sources:
           - name: loaded_at
             description: "Ingestion timestamp."
 
+  - name: intermediate_runtime
+    description: >
+      Runtime-owned tables in the intermediate schema that scripts write, not dbt.
+      Declared only so `dbt source freshness` can check them.
+    database: open_navigator
+    schema: intermediate
+    tables:
+      - name: int_events_channels
+        description: >
+          Verified county and municipality YouTube channels (migration 071), read by the
+          YouTube catalog. Written by the channel discovery scripts, not by dbt.
+        config:
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 30, period: day}
+            error_after: {count: 90, period: day}
   - name: civic_core
     description: |
       Canonical OCD/Popolo civic entity tables in the GOLD schema (the `civic_*`
