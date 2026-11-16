@@ -231,6 +231,7 @@ run_catalog() {
     echo "--- Catalog: $st — $name ($jid) [channel-source=$ch_src] ---"
     local -a cat_argv=(
       --jurisdiction-id "$jid"
+      --states "$st"
       --max-videos "$MAX_VIDEOS"
       --skip-transcripts
       --channel-source "$ch_src"
@@ -412,6 +413,7 @@ run_each_jurisdiction() {
         echo "--- Catalog: $st — $name ($jid) [channel-source=$ch_src] ---"
         local -a cat_argv=(
           --jurisdiction-id "$jid"
+          --states "$st"
           --max-videos "$MAX_VIDEOS"
           --skip-transcripts
           --channel-source "$ch_src"
