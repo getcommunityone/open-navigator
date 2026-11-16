@@ -205,3 +205,24 @@ def test_fetch_batch_plan_drops_legacy_prefixed_ids(monkeypatch):
     ids = {r.jurisdiction_id for r in runs}
     assert "c-AL-01021" not in ids
     assert "chilton_01021" in ids
+
+
+def test_batch_plan_sql_has_no_stray_percent_signs():
+    """A bare % in the SQL (e.g. LIKE '%_x') breaks psycopg2's %s parameters; the
+    error was swallowed and every plan silently came from the fallback query."""
+    import ast
+    import inspect
+    import textwrap
+
+    from api.batch_jobs import batch_job_status as b
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(b.fetch_batch_plan_jurisdictions)))
+    sql = next(
+        n.args[0].value
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "execute"
+    )
+    # psycopg2 formats like Python's % operator: four parameters, nothing else.
+    rendered = sql % ("'S'", "'S'", "true", "false")
+    assert "%" not in rendered.replace("%%", "")
+    assert "include_homepage_channels" in inspect.signature(b.fetch_batch_plan_jurisdictions).parameters

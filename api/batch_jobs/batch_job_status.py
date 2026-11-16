@@ -247,10 +247,17 @@ def fetch_batch_plan_jurisdictions(
     *,
     round_robin: bool = True,
     database_url: Optional[str] = None,
+    include_homepage_channels: bool = False,
 ) -> List[JurisdictionRun]:
     """
     Canonical jurisdictions for the batch plan (``pending``), aligned with
     ``intermediate.int_jurisdictions`` — not legacy ``c-AL-*`` ids on bronze video rows.
+
+    By default only jurisdictions that already have videos in ``bronze_event_youtube``.
+    ``include_homepage_channels=True`` also lists cities and counties whose primary
+    channel was found as a link on their own website
+    (``youtube_channel_selection_method = 'website_scrape'`` on the scraped tables),
+    so a newly found channel gets its first crawl.
     """
     from core_lib.jurisdictions.jurisdiction_id import (
         _PREFIXED_USPS_GEOID_RE,
@@ -278,29 +285,60 @@ def fetch_batch_plan_jurisdictions(
         ) as cur:
             cur.execute(
                 """
+                WITH yt AS MATERIALIZED (
+                    -- Each video jurisdiction id once, with the GEOID after its last
+                    -- underscore. The matches below are equality joins (hashable), not a
+                    -- LIKE or an OR per jurisdiction, which took minutes per state.
+                    SELECT DISTINCT
+                        y.state_code,
+                        y.jurisdiction_id,
+                        substring(y.jurisdiction_id FROM '_([0-9]+)$') AS geoid_suffix
+                    FROM bronze.bronze_event_youtube y
+                    WHERE y.state_code = ANY(%s)
+                ),
+                j AS MATERIALIZED (
+                    SELECT j.state_code, j.jurisdiction_id, j.name, j.geoid, j.jurisdiction_type::text AS jurisdiction_type
+                    FROM intermediate.int_jurisdictions j
+                    WHERE j.state_code = ANY(%s)
+                      AND j.jurisdiction_id IS NOT NULL
+                      AND BTRIM(j.jurisdiction_id) <> ''
+                ),
+                with_videos AS (
+                    SELECT j.jurisdiction_id FROM j JOIN yt ON yt.jurisdiction_id = j.jurisdiction_id
+                    UNION
+                    SELECT j.jurisdiction_id FROM j JOIN yt
+                      ON yt.jurisdiction_id = 'c-' || j.state_code || '-' || j.geoid
+                    UNION
+                    SELECT j.jurisdiction_id FROM j JOIN yt
+                      ON yt.jurisdiction_id = 'municipality_' || j.geoid AND yt.state_code = j.state_code
+                    UNION
+                    SELECT j.jurisdiction_id FROM j JOIN yt
+                      ON yt.geoid_suffix = j.geoid AND yt.state_code = j.state_code
+                ),
+                with_homepage_channel AS (
+                    SELECT j.jurisdiction_id FROM j
+                    JOIN bronze.bronze_jurisdictions_municipalities_scraped s ON s.geoid = j.geoid
+                    WHERE %s AND j.jurisdiction_type = 'municipality'
+                      AND s.youtube_channel_selection_method = 'website_scrape'
+                      AND BTRIM(COALESCE(s.youtube_channel_url, '')) <> ''
+                    UNION
+                    SELECT j.jurisdiction_id FROM j
+                    JOIN bronze.bronze_jurisdictions_counties_scraped s ON s.geoid = j.geoid
+                    WHERE %s AND j.jurisdiction_type = 'county'
+                      AND s.youtube_channel_selection_method = 'website_scrape'
+                      AND BTRIM(COALESCE(s.youtube_channel_url, '')) <> ''
+                )
                 SELECT
                     j.state_code,
                     j.jurisdiction_id,
                     j.name AS jurisdiction_name,
-                    j.jurisdiction_type::text AS jurisdiction_type
-                FROM intermediate.int_jurisdictions j
-                WHERE j.state_code = ANY(%s)
-                  AND j.jurisdiction_id IS NOT NULL
-                  AND BTRIM(j.jurisdiction_id) <> ''
-                  AND EXISTS (
-                      SELECT 1
-                      FROM bronze.bronze_event_youtube y
-                      WHERE y.state_code = j.state_code
-                        AND (
-                          y.jurisdiction_id = j.jurisdiction_id
-                          OR y.jurisdiction_id = 'c-' || j.state_code || '-' || j.geoid
-                          OR y.jurisdiction_id = 'municipality_' || j.geoid
-                          OR y.jurisdiction_id LIKE '%\\_' || j.geoid ESCAPE '\\'
-                        )
-                  )
+                    j.jurisdiction_type
+                FROM j
+                WHERE j.jurisdiction_id IN (SELECT jurisdiction_id FROM with_videos)
+                   OR j.jurisdiction_id IN (SELECT jurisdiction_id FROM with_homepage_channel)
                 ORDER BY j.state_code, j.name, j.jurisdiction_id
                 """,
-                (st_list,),
+                (st_list, st_list, include_homepage_channels, include_homepage_channels),
             )
             rows = list(cur.fetchall())
     except Exception:
