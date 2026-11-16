@@ -49,5 +49,8 @@ Check it: as `agent_reader`, `SELECT 1 FROM public.jurisdictions LIMIT 1` works 
   so the role doesn't lose access after a build. Run the migration as the role that runs dbt.
 - **No grant on `gold`.** A view in `public` reads `gold` with its owner's rights, so readers see what the view exposes
   (including the PII-light projections) and nothing more.
+- **`PUBLIC` must stay empty on the private schemas.** Members also get anything granted to `PUBLIC`, and revoking
+  from `public_reader` can't remove that. On November 16, 2026 `PUBLIC` had no access to any of them; check with
+  `SELECT nspname, nspacl FROM pg_namespace;` after changing grants.
 
 </details>
