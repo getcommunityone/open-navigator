@@ -131,6 +131,8 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 _CHANNEL_ID_RE = re.compile(r"/channel/((?:UC)[A-Za-z0-9_-]{20,})", re.I)
 _HANDLE_RE = re.compile(r"youtube\.com/@([^/?#]+)", re.I)
+# Older channel URLs: /user/Name and /c/Name. No API lookup for these; the page has the id.
+_LEGACY_CHANNEL_RE = re.compile(r"youtube\.com/(user|c)/([^/?#]+)", re.I)
 _UC_ID_CAPTURE = r"((?:UC)[A-Za-z0-9_-]{22})"
 # ytInitialData / player response embeds (incl. subscribeEndpoint.channelIds)
 _HTML_CHANNEL_ID_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
@@ -749,6 +751,14 @@ class YouTubeEventsLoader:
         """GET ``/@handle`` (and /videos) and scrape embedded channel id from page source."""
         if not handle:
             return None
+        return self._resolve_channel_page_html(f"https://www.youtube.com/@{handle}", f"@{handle}")
+
+    def _resolve_channel_page_html(self, base_url: str, label: str) -> Optional[str]:
+        """GET a channel page (``/@handle``, ``/user/Name``, ``/c/Name``; also /videos and
+        /about) and scrape the embedded UC channel id from the page source."""
+        base_url = (base_url or "").strip().rstrip("/")
+        if not base_url:
+            return None
         try:
             import httpx
         except ImportError:
@@ -766,7 +776,7 @@ class YouTubeEventsLoader:
             headers["Cookie"] = cookie_header
 
         for suffix in ("", "/videos", "/about"):
-            page_url = f"https://www.youtube.com/@{handle}{suffix}"
+            page_url = f"{base_url}{suffix}"
             try:
                 with httpx.Client(
                     follow_redirects=True,
@@ -781,14 +791,14 @@ class YouTubeEventsLoader:
                 )
                 if cid:
                     logger.info(
-                        "Resolved @{} → {} from page HTML ({})",
-                        handle,
+                        "Resolved {} → {} from page HTML ({})",
+                        label,
                         cid,
                         suffix or "/",
                     )
                     return cid
             except Exception as exc:
-                logger.debug("Page fetch failed for @{}{}: {}", handle, suffix, exc)
+                logger.debug("Page fetch failed for {}{}: {}", label, suffix, exc)
         return None
 
     def _resolve_handle_without_api(self, handle: str) -> Optional[str]:
@@ -809,7 +819,7 @@ class YouTubeEventsLoader:
         return self._resolve_handle_via_page_html(handle)
 
     def resolve_channel_id_from_url(self, channel_url: str) -> Tuple[Optional[str], str]:
-        """Resolve a UC channel id from ``/channel/UC…`` or ``@handle`` URLs."""
+        """Resolve a UC channel id from ``/channel/UC…``, ``@handle``, ``/user/`` or ``/c/`` URLs."""
         url = (channel_url or "").strip()
         if not url:
             return None, url
@@ -854,6 +864,16 @@ class YouTubeEventsLoader:
                         logger.debug("forHandle lookup failed for @{}: {}", handle, exc)
 
             logger.debug("Could not resolve channel id for @{} (yt-dlp + page HTML + API)", handle)
+
+        legacy_match = _LEGACY_CHANNEL_RE.search(url)
+        if legacy_match:
+            kind, name = legacy_match.group(1).lower(), legacy_match.group(2)
+            channel_id = self._resolve_channel_page_html(
+                f"https://www.youtube.com/{kind}/{name}", f"/{kind}/{name}"
+            )
+            if channel_id:
+                return channel_id, f"https://www.youtube.com/channel/{channel_id}"
+            logger.debug("Could not resolve channel id for /{}/{} (page HTML)", kind, name)
 
         return None, url
 
