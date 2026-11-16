@@ -10,44 +10,80 @@ from loguru import logger
 import os
 from datetime import datetime
 
-# Database connections
-OPENSTATES_DB = os.getenv("OPENSTATES_DATABASE_URL", "postgresql://postgres:password@localhost:5433/openstates")
-OPEN_NAVIGATOR_DB = os.getenv("NEON_DATABASE_URL_DEV", "postgresql://postgres:password@localhost:5433/open_navigator")
+def _normalize_pg_url(url: str) -> str:
+    """Normalize legacy ``postgres://`` schemes to ``postgresql://`` for asyncpg."""
+    cleaned = url.strip()
+    if cleaned.startswith("postgres://"):
+        return "postgresql://" + cleaned[len("postgres://") :]
+    return cleaned
 
 
-async def regenerate_map_aggregates():
+def _resolve_openstates_db_url() -> str:
+    url = os.getenv("OPENSTATES_DATABASE_URL", "").strip()
+    if url:
+        return _normalize_pg_url(url)
+    return "postgresql://postgres:password@localhost:5433/openstates"
+
+
+def _resolve_open_navigator_db_url() -> str:
+    for var in (
+        "OPEN_NAVIGATOR_DATABASE_URL",
+        "NEON_DATABASE_URL_DEV",
+        "NEON_DATABASE_URL",
+        "DATABASE_URL",
+    ):
+        val = os.getenv(var, "").strip()
+        if val:
+            return _normalize_pg_url(val)
+    return "postgresql://postgres:password@localhost:5433/open_navigator"
+
+
+# Database connections (kept at module level for compatibility; resolved dynamically at runtime)
+OPENSTATES_DB = _resolve_openstates_db_url()
+OPEN_NAVIGATOR_DB = _resolve_open_navigator_db_url()
+
+
+_AGGREGATE_QUERY = """
+    SELECT
+        SUBSTRING(s.jurisdiction_id FROM 'ocd-jurisdiction/country:us/state:([a-z]{2})') as state,
+        COUNT(*) as total_bills,
+        (ARRAY_AGG(
+            jsonb_build_object(
+                'title', b.title,
+                'bill_number', b.identifier,
+                'latest_action_date', b.latest_action_date
+            )
+            ORDER BY b.latest_action_date DESC NULLS LAST
+        ))[1:3] as sample_bills
+    FROM opencivicdata_bill b
+    JOIN opencivicdata_legislativesession s ON b.legislative_session_id = s.id
+    WHERE s.jurisdiction_id LIKE 'ocd-jurisdiction/country:us/state:%'
+    GROUP BY state
+    ORDER BY state
+"""
+
+
+async def regenerate_map_aggregates(
+    openstates_db_url: str | None = None,
+    navigator_db_url: str | None = None,
+):
     """Generate bills map aggregates for all 50 states from PostgreSQL."""
-    
-    logger.info("🔄 Regenerating rpt_bill_map_aggregate from OpenStates PostgreSQL...")
-    
-    # Connect to both databases
-    openstates_conn = await asyncpg.connect(OPENSTATES_DB)
-    navigator_conn = await asyncpg.connect(OPEN_NAVIGATOR_DB)
-    
+
+    logger.info("Regenerating rpt_bill_map_aggregate from OpenStates PostgreSQL...")
+
+    openstates_dsn = _normalize_pg_url(openstates_db_url) if openstates_db_url else _resolve_openstates_db_url()
+    navigator_dsn = _normalize_pg_url(navigator_db_url) if navigator_db_url else _resolve_open_navigator_db_url()
+
+    openstates_conn = None
+    navigator_conn = None
+
     try:
+        openstates_conn = await asyncpg.connect(openstates_dsn)
+        navigator_conn = await asyncpg.connect(navigator_dsn)
+
         # Get all states with bill counts
-        logger.info("📊 Querying OpenStates database for all states...")
-        query = """
-            SELECT 
-                SUBSTRING(s.jurisdiction_id FROM 'ocd-jurisdiction/country:us/state:([a-z]{2})') as state,
-                COUNT(*) as total_bills,
-                ARRAY_AGG(
-                    jsonb_build_object(
-                        'title', b.title,
-                        'bill_number', b.identifier,
-                        'latest_action_date', b.latest_action_date
-                    ) 
-                    ORDER BY b.latest_action_date DESC
-                    LIMIT 3
-                ) as sample_bills
-            FROM opencivicdata_bill b
-            JOIN opencivicdata_legislativesession s ON b.legislative_session_id = s.id
-            WHERE s.jurisdiction_id LIKE 'ocd-jurisdiction/country:us/state:%'
-            GROUP BY state
-            ORDER BY state
-        """
-        
-        states_data = await openstates_conn.fetch(query)
+        logger.info("Querying OpenStates database for all states...")
+        states_data = await openstates_conn.fetch(_AGGREGATE_QUERY)
         logger.info(f"✅ Found {len(states_data)} states")
         
         # Clear existing aggregates
@@ -95,8 +131,14 @@ async def regenerate_map_aggregates():
         logger.info(f"\n✅ Successfully populated rpt_bill_map_aggregate with {len(states_data)} states!")
         
     finally:
-        await openstates_conn.close()
-        await navigator_conn.close()
+        if navigator_conn is not None:
+            try:
+                await navigator_conn.close()
+            finally:
+                if openstates_conn is not None:
+                    await openstates_conn.close()
+        elif openstates_conn is not None:
+            await openstates_conn.close()
 
 
 if __name__ == "__main__":
