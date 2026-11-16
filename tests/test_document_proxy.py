@@ -7,9 +7,20 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from api.routes import documents
+
+
+_REAL_ASYNC_CLIENT = httpx.AsyncClient
+
+
+@asynccontextmanager
+async def _asgi_client(app: FastAPI):
+    async with _REAL_ASYNC_CLIENT(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        yield client
 
 
 class _FakeConn:
@@ -70,17 +81,19 @@ def _no_retry_sleep(monkeypatch):
     monkeypatch.setattr(documents.asyncio, "sleep", _fast_sleep)
 
 
-def test_unknown_document_returns_404(monkeypatch):
+@pytest.mark.asyncio
+async def test_unknown_document_returns_404(monkeypatch):
     async def _fake_pool():
         return _FakePool(known=False)
 
     monkeypatch.setattr(documents, "get_db_pool", _fake_pool)
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://example.gov/unknown.pdf"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://example.gov/unknown.pdf"})
     assert resp.status_code == 404
 
 
-def test_valid_pdf_served_inline_with_nosniff(monkeypatch):
+@pytest.mark.asyncio
+async def test_valid_pdf_served_inline_with_nosniff(monkeypatch):
     async def _fake_pool():
         return _FakePool(known=True)
 
@@ -95,8 +108,8 @@ def test_valid_pdf_served_inline_with_nosniff(monkeypatch):
         ),
     )
 
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://portal.example.gov/agenda.pdf"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://portal.example.gov/agenda.pdf"})
     assert resp.status_code == 200
     assert resp.content == b"%PDF-1.4\nhello"
     assert resp.headers["content-type"].startswith("application/pdf")
@@ -104,8 +117,9 @@ def test_valid_pdf_served_inline_with_nosniff(monkeypatch):
     assert resp.headers["x-content-type-options"] == "nosniff"
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("upstream_ct", ["text/html", "image/svg+xml", "application/xhtml+xml"])
-def test_unsafe_content_type_forced_to_attachment(monkeypatch, upstream_ct: str):
+async def test_unsafe_content_type_forced_to_attachment(monkeypatch, upstream_ct: str):
     async def _fake_pool():
         return _FakePool(known=True)
 
@@ -120,15 +134,16 @@ def test_unsafe_content_type_forced_to_attachment(monkeypatch, upstream_ct: str)
         ),
     )
 
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://portal.example.gov/page.html"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://portal.example.gov/page.html"})
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/octet-stream"
     assert resp.headers["content-disposition"] == "attachment"
     assert resp.headers["x-content-type-options"] == "nosniff"
 
 
-def test_oversized_content_length_returns_413_without_retry(monkeypatch):
+@pytest.mark.asyncio
+async def test_oversized_content_length_returns_413_without_retry(monkeypatch):
     async def _fake_pool():
         return _FakePool(known=True)
 
@@ -146,13 +161,14 @@ def test_oversized_content_length_returns_413_without_retry(monkeypatch):
         ),
     )
 
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://portal.example.gov/huge.pdf"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://portal.example.gov/huge.pdf"})
     assert resp.status_code == 413
     assert len(requested) == 1
 
 
-def test_oversized_stream_aborts_with_413(monkeypatch):
+@pytest.mark.asyncio
+async def test_oversized_stream_aborts_with_413(monkeypatch):
     async def _fake_pool():
         return _FakePool(known=True)
 
@@ -174,12 +190,13 @@ def test_oversized_stream_aborts_with_413(monkeypatch):
         ),
     )
 
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://portal.example.gov/stream.pdf"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://portal.example.gov/stream.pdf"})
     assert resp.status_code == 413
     assert len(requested) == 1
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "redirect_target",
     [
@@ -189,7 +206,7 @@ def test_oversized_stream_aborts_with_413(monkeypatch):
         "file:///etc/passwd",
     ],
 )
-def test_redirect_to_private_or_disallowed_target_blocked(monkeypatch, redirect_target: str):
+async def test_redirect_to_private_or_disallowed_target_blocked(monkeypatch, redirect_target: str):
     async def _fake_pool():
         return _FakePool(known=True)
 
@@ -206,13 +223,14 @@ def test_redirect_to_private_or_disallowed_target_blocked(monkeypatch, redirect_
         lambda _req: httpx.Response(302, headers={"Location": redirect_target}),
     )
 
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://portal.example.gov/redir.pdf"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://portal.example.gov/redir.pdf"})
     assert resp.status_code == 403
     assert requested == ["https://portal.example.gov/redir.pdf"]
 
 
-def test_redirect_to_public_host_succeeds(monkeypatch):
+@pytest.mark.asyncio
+async def test_redirect_to_public_host_succeeds(monkeypatch):
     async def _fake_pool():
         return _FakePool(known=True)
 
@@ -235,13 +253,14 @@ def test_redirect_to_public_host_succeeds(monkeypatch):
         )
 
     _patch_httpx(monkeypatch, _handler)
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://portal.example.gov/redir.pdf"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://portal.example.gov/redir.pdf"})
     assert resp.status_code == 200
     assert resp.content == b"%PDF-1.7\nok"
 
 
-def test_too_many_redirects_returns_502(monkeypatch):
+@pytest.mark.asyncio
+async def test_too_many_redirects_returns_502(monkeypatch):
     async def _fake_pool():
         return _FakePool(known=True)
 
@@ -252,12 +271,13 @@ def test_too_many_redirects_returns_502(monkeypatch):
         lambda _req: httpx.Response(302, headers={"Location": "https://portal.example.gov/loop"}),
     )
 
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://portal.example.gov/loop"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://portal.example.gov/loop"})
     assert resp.status_code == 502
 
 
-def test_empty_200_retries_then_succeeds(monkeypatch):
+@pytest.mark.asyncio
+async def test_empty_200_retries_then_succeeds(monkeypatch):
     async def _fake_pool():
         return _FakePool(known=True)
 
@@ -272,8 +292,8 @@ def test_empty_200_retries_then_succeeds(monkeypatch):
         return httpx.Response(200, content=b"%PDF-1.4\nwarmed", headers={"Content-Type": "application/pdf"})
 
     _patch_httpx(monkeypatch, _handler)
-    client = TestClient(_make_app())
-    resp = client.get("/api/document/proxy", params={"url": "https://portal.example.gov/cold.pdf"})
+    async with _asgi_client(_make_app()) as client:
+        resp = await client.get("/api/document/proxy", params={"url": "https://portal.example.gov/cold.pdf"})
     assert resp.status_code == 200
     assert resp.content == b"%PDF-1.4\nwarmed"
     assert calls["n"] == 2
