@@ -30,4 +30,4 @@
 delta-spark==3.0.0
 # 3.5.2 patches CVE GHSA (Spark inadequate encryption strength); stays on the
 # 3.5 line for delta-spark 3.0.0 compatibility.
-pyspark==3.5.2
+pyspark==4.3.0
