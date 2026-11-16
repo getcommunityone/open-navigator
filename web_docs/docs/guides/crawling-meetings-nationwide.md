@@ -24,13 +24,22 @@ Tracked in [#391](https://github.com/getcommunityone/open-navigator/issues/391).
 
 | Crawl | Lands in | Reaches `public` / Neon |
 |---|---|---|
-| Agenda and minutes crawl, all states | `data/cache/scraped_meetings/` then `bronze.bronze_events_meetings_*_scraped` | Yes, from [#392](https://github.com/getcommunityone/open-navigator/issues/392): agendas and minutes with a real meeting day go to `event_meeting_document` (`source = 'scraped_meetings'`). Its YouTube channel links also feed the YouTube crawl |
+| Agenda and minutes crawl, all states | `data/cache/scraped_meetings/` then `bronze.bronze_events_meetings_*_scraped` | Counties and municipalities, from [#392](https://github.com/getcommunityone/open-navigator/issues/392): agendas and minutes with a real meeting day go to `event_meeting_document` (`source = 'scraped_meetings'`). School-district documents stay in bronze. Its YouTube channel links also feed the YouTube crawl |
 | SuiteOne (Tuscaloosa) | `bronze.bronze_events_meetings_municipalities_scraped` (`suiteone:` rows) | Yes: `event_meeting_document` and the data center agenda items |
 | YouTube crawl, all states | `bronze.bronze_event_youtube*` | Meetings, decisions and job claims: yes. Transcript text: only for the launch states (`LAUNCH_STATES`, default AL, GA, MA, WA) unless you pass `--no-launch-scope` (step 6) |
 
-A crawled PDF is published only if the crawl classified it as an agenda or minutes and found a real meeting
-day in its link text, filename or URL. PDFs dated only by their folder year, and unclassified PDFs, stay in
-bronze. Text for search and the data center agenda items comes from step 3b.
+A crawled PDF is published only if all of these hold:
+
+- It belongs to a **county or municipality**. School-district documents are crawled and loaded, but they stay
+  in bronze: a district's 7-digit NCES id can equal a city's 7-digit place geoid, and the mart and the
+  `/api/jurisdiction/{id}/meeting-documents` lookup both match on that geoid, so a district's agenda would show
+  under a city. They need a type-aware key before they can be published.
+- The crawl classified it as an **agenda or minutes**.
+- The crawl found a **real meeting day** in its link text, filename or URL.
+- It isn't a link into a SuiteOne portal (`*.suiteonemedia.com`). The SuiteOne scraper publishes those.
+
+PDFs dated only by their folder year, unclassified PDFs and school-district PDFs stay in bronze. Text for search
+and the data center agenda items comes from step 3b.
 
 ## Before you start
 
@@ -45,6 +54,9 @@ pg_isready -h localhost -p 5433
 .venv/bin/python -m playwright install chromium   # once; on WSL also: sudo .venv/bin/python -m playwright install-deps
 ```
 
+dbt runs from the dbt project's own environment, `dbt_project/.venv_dbt` (the commands below call
+`.venv_dbt/bin/dbt` from `dbt_project/`).
+
 Optional tools the crawl uses when they are on `PATH`: `ffmpeg` (meeting audio to Opus), `libreoffice`
 (Word to PDF), and `poppler-utils` (PDF page images).
 
@@ -58,7 +70,7 @@ source, so count distinct jurisdictions. A jurisdiction missing from it is never
 jurisdictions each state has a homepage for:
 
 ```bash
-(cd dbt_project && uv run dbt build --select +int_jurisdiction_websites)
+(cd dbt_project && .venv_dbt/bin/dbt build --select +int_jurisdiction_websites)
 psql -h localhost -p 5433 -U postgres open_navigator -c "
   select state_code, jurisdiction_category, count(distinct jurisdiction_id)
   from intermediate.int_jurisdiction_websites
@@ -66,12 +78,14 @@ psql -h localhost -p 5433 -U postgres open_navigator -c "
 ```
 
 To fix a wrong or missing homepage, add a row to the `jurisdiction_website_url_overrides` seed and run
-`dbt seed --select jurisdiction_website_url_overrides`, then rebuild `int_jurisdiction_websites` as above. See
+`.venv_dbt/bin/dbt seed --select jurisdiction_website_url_overrides` from `dbt_project/`, then rebuild `int_jurisdiction_websites` as above. See
 [Jurisdiction website enrichment](./jurisdiction-website-enrichment.md).
 
 ## Step 2: crawl agendas and minutes
 
-One state, every jurisdiction type (counties, cities, school districts, townships):
+One state, every jurisdiction type (counties, cities, school districts, townships). School-district documents
+are crawled and loaded into bronze, but only county and municipality documents are published (see
+[What reaches production today](#what-reaches-production-today)):
 
 ```bash
 .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \
@@ -141,20 +155,24 @@ data center agenda items match on. It is also the biggest thing this adds to Neo
 The crawl records the YouTube channels linked from official sites. Promote them into the channel table:
 
 ```bash
-(cd dbt_project && uv run dbt run --select int_jurisdictions int_jurisdiction_meetings_scrape_youtube_channels)
+(cd dbt_project && .venv_dbt/bin/dbt run --select int_jurisdictions int_jurisdiction_meetings_scrape_youtube_channels)
 .venv/bin/python scripts/discovery/sync_bronze_jurisdiction_youtube_from_meetings_scrape.py --states AL --dry-run
 .venv/bin/python scripts/discovery/sync_bronze_jurisdiction_youtube_from_meetings_scrape.py --states AL
 ```
 
-The national runner in step 5 doesn't pick these up yet. It only plans places that already have videos in
-`bronze.bronze_event_youtube`, so a channel found for a place with no videos yet is never cataloged
-([#402](https://github.com/getcommunityone/open-navigator/issues/402)).
+Until [#431](https://github.com/getcommunityone/open-navigator/pull/431) merges, the national runner in step 5
+doesn't pick these up. It only plans places that already have videos in `bronze.bronze_event_youtube`, so a
+channel found for a place with no videos yet is never cataloged
+([#402](https://github.com/getcommunityone/open-navigator/issues/402)). Once #431 merges, the runner also plans
+cities and counties whose only channel is one linked from their website. That is on by default
+(`HOMEPAGE_CHANNELS=1`); set `HOMEPAGE_CHANNELS=0` to plan only places that already have videos.
 
 ## Step 5: crawl YouTube for every state
 
 `youtube_run_priority_states_last_n.sh` covers only AL, GA, IN, MA, MT, WA and WI. For the whole country, use
-the national runner. It plans the jurisdictions that already have videos in `bronze.bronze_event_youtube`, in
-every state that has any, and takes a few from each state in turn:
+the national runner. It plans the jurisdictions that already have videos in `bronze.bronze_event_youtube` (and,
+once #431 merges, those with a channel linked from their website; see step 4), in every state that has any, and
+takes a few from each state in turn:
 
 ```bash
 MAX_JURISDICTIONS=100 ./packages/scrapers/scripts/youtube_run_all_jurisdictions.sh
@@ -178,7 +196,7 @@ place by default). Keep the conservative defaults:
 ## Step 6: rebuild and publish
 
 ```bash
-(cd dbt_project && uv run dbt build --select +meeting_browse +event_decision +event_meeting_document+ +job_claim)
+(cd dbt_project && .venv_dbt/bin/dbt build --select +meeting_browse +event_decision +event_meeting_document+ +job_claim)
 .venv/bin/python -m hosting.neon.sync_event_documents_to_neon --dry-run
 .venv/bin/python -m hosting.neon.sync_event_documents_to_neon
 .venv/bin/python -m hosting.neon.sync_public_to_neon --dry-run
