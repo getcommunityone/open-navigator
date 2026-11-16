@@ -26,7 +26,7 @@ Tracked in [#391](https://github.com/getcommunityone/open-navigator/issues/391).
 |---|---|---|
 | Agenda and minutes crawl, all states | `data/cache/scraped_meetings/` then `bronze.bronze_events_meetings_*_scraped` | Yes, from [#392](https://github.com/getcommunityone/open-navigator/issues/392): agendas and minutes with a real meeting day go to `event_meeting_document` (`source = 'scraped_meetings'`). Its YouTube channel links also feed the YouTube crawl |
 | SuiteOne (Tuscaloosa) | `bronze.bronze_events_meetings_municipalities_scraped` (`suiteone:` rows) | Yes: `event_meeting_document` and the data center agenda items |
-| YouTube crawl, all states | `bronze.bronze_event_youtube*` | Yes: meetings, decisions, job claims |
+| YouTube crawl, all states | `bronze.bronze_event_youtube*` | Meetings, decisions and job claims: yes. Transcript text: only for the launch states (`LAUNCH_STATES`, default AL, GA, MA, WA) unless you pass `--no-launch-scope` (step 6) |
 
 A crawled PDF is published only if the crawl classified it as an agenda or minutes and found a real meeting
 day in its link text, filename or URL. PDFs dated only by their folder year, and unclassified PDFs, stay in
@@ -53,19 +53,20 @@ Never delete `data/cache/`. The crawl resumes from the manifests stored there.
 ## Step 1: check the homepage list
 
 Every crawl starts from `intermediate.int_jurisdiction_websites`, the warehouse's list of official homepages
-(GSA .gov domains, USCM, state leagues, NCES, NACo and curated overrides). A jurisdiction missing from it is never
-crawled. Refresh it and see how many homepages each state has:
+(GSA .gov domains, USCM, state leagues, NCES, NACo, Wikidata and curated overrides). It has one row per website
+source, so count distinct jurisdictions. A jurisdiction missing from it is never crawled. Refresh it and see how many
+jurisdictions each state has a homepage for:
 
 ```bash
 (cd dbt_project && uv run dbt build --select +int_jurisdiction_websites)
 psql -h localhost -p 5433 -U postgres open_navigator -c "
-  select state_code, jurisdiction_type, count(*)
+  select state_code, jurisdiction_category, count(distinct jurisdiction_id)
   from intermediate.int_jurisdiction_websites
   group by 1, 2 order by 1, 2;"
 ```
 
 To fix a wrong or missing homepage, add a row to the `jurisdiction_website_url_overrides` seed and run
-`dbt seed --select jurisdiction_website_url_overrides`. See
+`dbt seed --select jurisdiction_website_url_overrides`, then rebuild `int_jurisdiction_websites` as above. See
 [Jurisdiction website enrichment](./jurisdiction-website-enrichment.md).
 
 ## Step 2: crawl agendas and minutes
@@ -93,11 +94,15 @@ Useful flags:
 | Flag | Use |
 |---|---|
 | `--type county` / `municipality` / `school` / `all` | Limit the batch to one jurisdiction type (default `county`) |
-| `--retry-failed-shallow` | Re-crawl only sites whose last manifest fetched 0 pages (failed) or fewer than `--shallow-max-pages` (default 6) |
 | `--resume --max-pages 500 --max-pdfs 800` | Go deeper on one site, merging with its cached manifest |
-| `--geoid 0177256 --type municipality --from-db` | Crawl a single jurisdiction |
-| `--meeting-seed-urls URL,...` | Start from a known meetings page when the homepage hides it |
-| `--civicclerk-tenant <slug>` | Also sync a CivicClerk portal through its OData API |
+| `--state AL --geoid 0177256 --type municipality --from-db` | Crawl a single jurisdiction |
+| `--meeting-seed-urls URL,...` | Single-jurisdiction runs only: start from a known meetings page when the homepage hides it |
+| `--civicclerk-tenant <slug>` | Single-jurisdiction runs only: also sync a CivicClerk portal through its OData API |
+
+`--retry-failed-shallow` (re-crawl only failed or shallow sites) doesn't find folders named by the current
+jurisdiction ids yet, so it retries nothing for recent crawls
+([#401](https://github.com/getcommunityone/open-navigator/issues/401)). Until that's fixed, re-run the batch for
+the state, or use `--resume` on a single site.
 
 Defaults are 80 pages and 80 PDFs per jurisdiction. The crawl writes one folder per jurisdiction, with a
 `_manifest.json` plus the PDFs, under
@@ -133,8 +138,7 @@ data center agenda items match on. It is also the biggest thing this adds to Neo
 
 ## Step 4: add the channels the crawl found
 
-The crawl records the YouTube channels linked from official sites. Promote them into the channel list the YouTube
-crawl reads:
+The crawl records the YouTube channels linked from official sites. Promote them into the channel table:
 
 ```bash
 (cd dbt_project && uv run dbt run --select int_jurisdictions int_jurisdiction_meetings_scrape_youtube_channels)
@@ -142,11 +146,15 @@ crawl reads:
 .venv/bin/python scripts/discovery/sync_bronze_jurisdiction_youtube_from_meetings_scrape.py --states AL
 ```
 
+The national runner in step 5 doesn't pick these up yet. It only plans places that already have videos in
+`bronze.bronze_event_youtube`, so a channel found for a place with no videos yet is never cataloged
+([#402](https://github.com/getcommunityone/open-navigator/issues/402)).
+
 ## Step 5: crawl YouTube for every state
 
 `youtube_run_priority_states_last_n.sh` covers only AL, GA, IN, MA, MT, WA and WI. For the whole country, use
-the national runner. It reads the states that have channels in `bronze.bronze_event_youtube` and takes a few
-jurisdictions from each state in turn:
+the national runner. It plans the jurisdictions that already have videos in `bronze.bronze_event_youtube`, in
+every state that has any, and takes a few from each state in turn:
 
 ```bash
 MAX_JURISDICTIONS=100 ./packages/scrapers/scripts/youtube_run_all_jurisdictions.sh
@@ -163,17 +171,24 @@ place by default). Keep the conservative defaults:
   older than a week), the Webshare proxy (`PROXY_USER_NAME` / `PROXY_PASSWORD` in `.env`), or a VPN reachable
   from WSL at the Windows host IP (`ip route | awk '/default/ {print $3}'`). Blocked videos aren't tombstoned, so
   the next night retries them.
-- **Gemini is paid.** Each new video is one analysis call, so cost grows with jurisdictions × `N`. Record the
+- **Gemini is paid.** Each new video takes two analysis calls (the report and its second part), so cost grows
+  with jurisdictions × `N`. Record the
   analyzed-video count (and cost, from the `packages/llm` usage rows) in the run's issue.
 
 ## Step 6: rebuild and publish
 
 ```bash
-(cd dbt_project && uv run dbt build --select +meeting_browse +event_decision +event_meeting_document +job_claim)
+(cd dbt_project && uv run dbt build --select +meeting_browse +event_decision +event_meeting_document+ +job_claim)
 .venv/bin/python -m hosting.neon.sync_event_documents_to_neon --dry-run
+.venv/bin/python -m hosting.neon.sync_event_documents_to_neon
 .venv/bin/python -m hosting.neon.sync_public_to_neon --dry-run
 .venv/bin/python -m hosting.neon.sync_public_to_neon
 ```
+
+The trailing `+` on `event_meeting_document+` also rebuilds `data_center_agenda_item`, which reads the agenda text.
+Run the real transcript sync only when its dry run keeps Neon within budget. It loads the launch states
+(`LAUNCH_STATES`, default AL, GA, MA, WA). Set `LAUNCH_STATES` or pass `--no-launch-scope` to publish more,
+and expect most of the size to come from here.
 
 Production Neon is capped at 512 MB for the whole project, and the sync keeps it under 480 MB. If it exits 4,
 nothing has changed. Don't raise `--max-mb`. Slim or drop the largest table in the dry-run listing instead. More
@@ -197,7 +212,7 @@ add more cities by copying these commands. Improve the nationwide crawl instead.
 
 ## Suggested nightly order
 
-1. Agenda crawl for one or two states (step 2), or `--retry-failed-shallow` for states already crawled.
+1. Agenda crawl for one or two states (step 2).
 2. Load those states' manifests (step 3), extract their text (step 3b), and run the SuiteOne scrape.
 3. Promote new channels (step 4).
 4. YouTube national runner with `MAX_JURISDICTIONS` (step 5).
