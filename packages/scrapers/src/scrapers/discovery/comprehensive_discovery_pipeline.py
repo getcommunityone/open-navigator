@@ -24,6 +24,7 @@ Usage:
 """
 import asyncio
 import argparse
+from contextvars import ContextVar
 from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime, timezone
 import json
@@ -46,14 +47,39 @@ import httpx
 
 from .scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
 
+# The jurisdiction being discovered, per asyncio task. See
+# ``ComprehensiveDiscoveryPipeline._discovery_context``.
+_DISCOVERY_CONTEXT: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
+    "discovery_context", default=None
+)
+
 
 class ComprehensiveDiscoveryPipeline:
     """
     Master pipeline for discovering all data sources for U.S. jurisdictions.
-    
+
     Designed to scale to 22,000+ cities and counties nationwide.
     """
-    
+
+    @property
+    def _discovery_context(self) -> Optional[Dict[str, Any]]:
+        """The jurisdiction whose discovery is running in the current asyncio task.
+
+        Subclasses set it before calling ``discover_jurisdiction`` so hooks such as
+        ``_discover_website`` can see the full jurisdiction record. It used to be a
+        plain instance attribute, shared by every concurrent task: while one city
+        waited on the semaphore, another set it or cleared it, so
+        ``_discover_website`` usually got nothing. Steps 3 to 6 (other video,
+        meeting platforms, social media, agenda portals) then never ran, and
+        YouTube discovery fell back to handle guesses. A ``ContextVar`` keeps one
+        value per task.
+        """
+        return _DISCOVERY_CONTEXT.get()
+
+    @_discovery_context.setter
+    def _discovery_context(self, value: Optional[Dict[str, Any]]) -> None:
+        _DISCOVERY_CONTEXT.set(value)
+
     def __init__(
         self,
         youtube_api_key: Optional[str] = None,
