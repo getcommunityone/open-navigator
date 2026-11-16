@@ -44,3 +44,16 @@ before it copies anything ([#387](https://github.com/getcommunityone/open-naviga
 
 The data center tables (`job_claim`, `data_center_site`, `data_center_agenda_item`, `area_concern`) are on the
 allow-list. `job_application_link` is written by the production admin screen, so it is runtime-owned and never copied.
+
+## Decision: production serving stays on Neon (November 15, 2026)
+
+The owner decided to keep production serving on Neon and not move it to Databricks Lakebase
+([#389](https://github.com/getcommunityone/open-navigator/issues/389)).
+
+- **Why:** Neon's free tier costs nothing, and the size check above keeps each sync under its 512 MB cap. Lakebase
+  would remove the cap but bills for compute and storage, and the public API would keep it awake.
+- **What Databricks can still do:** processing that shouldn't depend on the laptop (the analysis bundle and the
+  [Free Edition target](../deployment/databricks-free-edition.md)), never production serving.
+- **YouTube captions** stay on a residential connection or proxy either way; cloud IP addresses are blocked more.
+- **Revisit** if the civic serving set can't fit under the budget without cutting what users need, or if a paid
+  database becomes affordable.
