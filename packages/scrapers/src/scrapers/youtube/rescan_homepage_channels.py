@@ -9,11 +9,12 @@ that the channel verification gate rejects.
 This revisits each city's ``homepage_url`` with ``YouTubeChannelDiscovery``: links
 and embeds on the homepage, then same-site meeting and video pages, then site
 search. Each channel found is added to ``payload.youtube_channels`` with
-``discovery_method = 'website_scrape'``. When the row's primary channel is empty or
-a pattern guess, the first link found becomes the primary
-(``youtube_channel_selection_method = 'website_scrape'``). A channel chosen any
-other way is never replaced. No YouTube request is made, so the YouTube Data API
-quota and YouTube's bot checks don't apply.
+``discovery_method = 'website_scrape'``. When the row's primary channel is empty, a
+pattern guess or a search hit (``REPLACEABLE_METHODS``), the first link found
+becomes the primary (``youtube_channel_selection_method = 'website_scrape'``). A
+channel chosen any other way (an earlier homepage link, a hand pick) is never
+replaced. No YouTube request is made, so the YouTube Data API quota and YouTube's
+bot checks don't apply.
 
 Dry run by default::
 
