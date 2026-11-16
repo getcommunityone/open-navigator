@@ -39,6 +39,7 @@ from typing import Any, Iterable, Sequence
 from loguru import logger
 
 from llm.typesafe.client import JevClient, JevError, JevResponse, choice, noul
+from llm.usage.calls import llm_call_context
 
 TABLE = "bronze.bronze_transcript_screen_jev"
 
@@ -250,8 +251,10 @@ def screen_transcript(
         return None
     picked = pick_chunks(chunks, max_chunks)
     responses: list[JevResponse] = []
-    for index in picked:
-        responses.append(client.system_one(state=chunks[index], questions=QUESTIONS))
+    # Label the usage rows so the cost report can tell the screen apart, per video.
+    with llm_call_context(stage="jev_screen", video_id=video_id):
+        for index in picked:
+            responses.append(client.system_one(state=chunks[index], questions=QUESTIONS))
     tokens = [r.input_tokens for r in responses]
     combined = aggregate(responses)
     return ScreenResult(

@@ -257,3 +257,19 @@ def test_batch_backlog_flag_parses():
     args = build_parser().parse_args(["submit", "--skip-jev-below", "0.2"])
     assert args.skip_jev_below == pytest.approx(0.2)
     assert build_parser().parse_args(["submit"]).skip_jev_below is None
+
+
+def test_screen_usage_rows_name_the_stage_and_video(usage_dir):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=OK_BODY)
+
+    with _client(handler) as c:
+        screen.screen_transcript(c, "vid9", ["seg"] * 10, chunk_chars=20, max_chunks=2)
+    rows = [
+        json.loads(line)
+        for f in usage_dir.rglob("*.jsonl")
+        for line in f.read_text().splitlines()
+    ]
+    assert rows and all(
+        r["stage"] == "jev_screen" and r["video_id"] == "vid9" for r in rows
+    )
