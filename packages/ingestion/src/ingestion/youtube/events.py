@@ -327,15 +327,18 @@ _UPSERT_YOUTUBE_SQL = text(
         jurisdiction_name, jurisdiction_type, state_code, state, city,
         location, location_description, meeting_type,
         video_url, view_count, duration_minutes, like_count,
-        language, channel_type, datasource, datasource_id, last_updated
+        language, channel_type, datasource, datasource_id, last_updated,
+        loaded_at
     ) VALUES (
         :event_id, :video_id, :jurisdiction_id, :channel_id, :channel_url,
         :title, :description, :published_at,
         :jurisdiction_name, :jurisdiction_type, :state_code, :state, :city,
         :location, :location_description, :meeting_type,
         :video_url, :view_count, :duration_minutes, :like_count,
-        :language, :channel_type, :datasource, :datasource_id, NOW()
+        :language, :channel_type, :datasource, :datasource_id, NOW(),
+        NOW()
     )
+    -- loaded_at is when the video was first loaded: set on insert, never on update.
     ON CONFLICT (video_id) DO UPDATE SET
         jurisdiction_id   = COALESCE(EXCLUDED.jurisdiction_id,   y.jurisdiction_id),
         jurisdiction_name = COALESCE(EXCLUDED.jurisdiction_name, y.jurisdiction_name),
