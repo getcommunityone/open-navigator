@@ -6,9 +6,11 @@ officer's name lands in a <BusinessName> wrapper rather than <PersonNm>.
 """
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from ingestion.givingtuesday.efile import (
+    fetch_990_xml,
     parse_990_xml,
     xml_url_for_object,
 )
@@ -83,6 +85,13 @@ def test_url_builder():
     )
 
 
+def test_url_builder_rejects_invalid_object_id():
+    with pytest.raises(ValueError, match="Invalid 990 object_id"):
+        xml_url_for_object("../../etc/passwd")
+    with pytest.raises(ValueError, match="Invalid 990 object_id"):
+        xml_url_for_object("12345")
+
+
 def test_header_and_filer(doc):
     h = doc["header"]
     assert h["return_type"] == "990"
@@ -94,6 +103,8 @@ def test_header_and_filer(doc):
     assert h["filer"]["ein"] == "396094742"
     assert h["filer"]["address"]["state"] == "WI"
     assert h["officer"]["name"] == "Jane Treasurer"
+    # When <PreparerFirmGrp> is absent, preparer.firm must be None, not the Filer's name.
+    assert h["preparer"]["firm"] is None
 
 
 def test_summary_amounts_are_numeric(doc):
@@ -139,3 +150,31 @@ def test_schedules_and_generic_sections(doc):
 def test_rejects_non_return_xml():
     with pytest.raises(ValueError):
         parse_990_xml("<NotAReturn/>")
+
+
+def test_rejects_dtd_and_oversized_xml():
+    dtd_xml = """<?xml version="1.0"?>
+    <!DOCTYPE Return [<!ENTITY lol "lol">]>
+    <Return xmlns="http://www.irs.gov/efile"></Return>
+    """
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        parse_990_xml(dtd_xml)
+
+    with pytest.raises(ValueError, match="exceeds max allowed"):
+        parse_990_xml(_SAMPLE_990, max_bytes=128)
+
+
+@pytest.mark.asyncio
+async def test_fetch_990_xml_enforces_max_bytes():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            content=_SAMPLE_990.encode("utf-8"),
+            headers={"Content-Length": str(len(_SAMPLE_990))},
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(ValueError, match="exceeds maximum allowed"):
+            await fetch_990_xml("201602229349300615", client=client, max_bytes=100)
+        data = await fetch_990_xml("201602229349300615", client=client, max_bytes=100_000)
+        assert b"<Return" in data

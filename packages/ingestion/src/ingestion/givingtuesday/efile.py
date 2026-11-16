@@ -1,36 +1,29 @@
-#!/usr/bin/env python3
-"""IRS 990 e-file XML reader for the GivingTuesday raw Data Lake.
+"""Fetch and parse IRS Form 990 e-file XML returns from the GivingTuesday raw lake.
 
-The curated CSV datamarts (see :mod:`ingestion.givingtuesday.download`) are the
-bulk-load path. This module is the complement for the *raw* per-return XML that
-GivingTuesday mirrors at ``gt990datalake-rawdata`` — it fetches a single filing
-by its object id and parses the namespaced IRS e-file XML into a clean,
-viewer-friendly dict (headline financials + officers + grants + a generic,
-loss-less section tree).
+Every row in ``bronze.bronze_irs990_efile`` (and the downstream ``organization`` /
+``grant`` marts) carries an ``object_id`` — the GivingTuesday Data Lake key for
+the filing. The raw XML for any ``object_id`` is publicly readable, with no
+credentials, at::
 
-It is a proper library port of the parsing logic in the legacy
-``scripts/enrichment/enrich_nonprofits_gt990.py`` script (stdlib ``xml.etree``
-instead of ``xmltodict``; no boto3 — anonymous HTTPS like ``download.py``).
+    https://gt990datalake-rawdata.s3.amazonaws.com/EfileData/XmlFiles/{object_id}_public.xml
 
-Raw lake (public S3, no credentials)::
+Wait-free alternative to bulk-downloading 600k XML files: fetch on demand when a
+user opens a nonprofit's 990 in the UI, parse the IRS e-file XML into a clean
+JSON document (header + Part I summary + Part VIII revenue + Part IX expenses +
+Part X balance sheet + Part VII officers + Schedule I grants + a generic tree of
+every schedule present), and return it.
 
-    https://gt990datalake-rawdata.s3.amazonaws.com/EfileData/XmlFiles/<object_id>_public.xml
+CLI usage (for quick inspection / debugging)::
 
-Usage::
-
-    # Library
-    from ingestion.givingtuesday.efile import fetch_990_xml, parse_990_xml
-    xml = await fetch_990_xml("201602229349300615")
-    doc = parse_990_xml(xml, object_id="201602229349300615")
-
-    # CLI (prints the parsed JSON)
     python -m ingestion.givingtuesday.efile 201602229349300615
+    python -m ingestion.givingtuesday.efile 201602229349300615 --section IRS990ScheduleI
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
 import json
+import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -40,6 +33,8 @@ from loguru import logger
 RAW_BUCKET_HOST = "https://gt990datalake-rawdata.s3.amazonaws.com"
 XML_KEY_PREFIX = "EfileData/XmlFiles/"
 _EFILE_NS = "{http://www.irs.gov/efile}"
+_OBJECT_ID_RE = re.compile(r"^\d{8,32}$")
+MAX_990_XML_BYTES = 25 * 1024 * 1024  # 25 MB safety ceiling per filing
 
 # Headline financial fields, keyed by the label the viewer shows. Each value is
 # an ordered list of candidate IRS e-file tag names — the return version varies
@@ -68,9 +63,18 @@ _SUMMARY_FIELDS: dict[str, list[str]] = {
 }
 
 
+def validate_object_id(object_id: str) -> str:
+    """Validate that ``object_id`` is an 8-to-32 digit numeric identifier."""
+    cleaned = (object_id or "").strip()
+    if not _OBJECT_ID_RE.match(cleaned):
+        raise ValueError(f"Invalid 990 object_id: {object_id!r}")
+    return cleaned
+
+
 def xml_url_for_object(object_id: str) -> str:
     """Public S3 URL for a raw 990 return given its GT object id."""
-    return f"{RAW_BUCKET_HOST}/{XML_KEY_PREFIX}{object_id}_public.xml"
+    clean_id = validate_object_id(object_id)
+    return f"{RAW_BUCKET_HOST}/{XML_KEY_PREFIX}{clean_id}_public.xml"
 
 
 def _strip_ns(tag: str) -> str:
@@ -116,8 +120,10 @@ def _elem_to_obj(elem: ET.Element) -> Any:
     return out
 
 
-def _find_first_text(root: ET.Element, tagname: str) -> str | None:
+def _find_first_text(root: ET.Element | None, tagname: str) -> str | None:
     """First text value for ``tagname`` anywhere in the tree, else None."""
+    if root is None:
+        return None
     el = root.find(f".//{_EFILE_NS}{tagname}")
     if el is not None and el.text and el.text.strip():
         return el.text.strip()
@@ -145,6 +151,9 @@ def _parse_header(header: ET.Element) -> dict[str, Any]:
     filer = header.find(f"{_EFILE_NS}Filer")
     officer = header.find(f"{_EFILE_NS}BusinessOfficerGrp")
     preparer = header.find(f"{_EFILE_NS}PreparerPersonGrp")
+    preparer_firm = header.find(f"{_EFILE_NS}PreparerFirmGrp")
+    if preparer_firm is None:
+        preparer_firm = header.find(f"{_EFILE_NS}PreparerFirm")
     return {
         "return_type": _find_first_text(header, "ReturnTypeCd"),
         "tax_year": _find_first_text(header, "TaxYr"),  # wire: year stays a string
@@ -164,7 +173,10 @@ def _parse_header(header: ET.Element) -> dict[str, Any]:
         },
         "preparer": {
             "name": _find_first_text(preparer, "PreparerPersonNm") if preparer is not None else None,
-            "firm": _find_first_text(header, "PreparerFirmName") or _find_first_text(header, "BusinessNameLine1Txt"),
+            "firm": (
+                _find_first_text(preparer_firm, "BusinessNameLine1Txt")
+                or _find_first_text(header, "PreparerFirmName")
+            ),
         },
     }
 
@@ -172,10 +184,16 @@ def _parse_header(header: ET.Element) -> dict[str, Any]:
 def _to_amount(text: str | None) -> int | None:
     if text is None:
         return None
-    try:
-        return int(text)
-    except (TypeError, ValueError):
+    cleaned = text.strip()
+    if not cleaned:
         return None
+    try:
+        return int(cleaned)
+    except (TypeError, ValueError):
+        try:
+            return int(round(float(cleaned)))
+        except (TypeError, ValueError, OverflowError):
+            return None
 
 
 def _parse_summary(root: ET.Element) -> dict[str, Any]:
@@ -230,7 +248,12 @@ def _parse_grants(root: ET.Element) -> list[dict[str, Any]]:
     return grants
 
 
-def parse_990_xml(xml_bytes: bytes | str, *, object_id: str | None = None) -> dict[str, Any]:
+def parse_990_xml(
+    xml_bytes: bytes | str,
+    *,
+    object_id: str | None = None,
+    max_bytes: int = MAX_990_XML_BYTES,
+) -> dict[str, Any]:
     """Parse a raw IRS 990 e-file return into a viewer-friendly dict.
 
     Returns a dict with ``object_id``, ``source_url``, ``return_version``,
@@ -238,10 +261,20 @@ def parse_990_xml(xml_bytes: bytes | str, *, object_id: str | None = None) -> di
     schedule element names present) and ``sections`` (a generic, loss-less tree
     of every form/schedule under ``ReturnData``).
 
-    Raises ``ValueError`` if the document is not a recognizable e-file Return.
+    Raises ``ValueError`` if the document is not a recognizable e-file Return,
+    exceeds ``max_bytes``, or contains DTD/entity declarations.
     """
     if isinstance(xml_bytes, str):
         xml_bytes = xml_bytes.encode("utf-8")
+    if not xml_bytes:
+        raise ValueError("Empty XML payload")
+    if len(xml_bytes) > max_bytes:
+        raise ValueError(f"XML payload size ({len(xml_bytes)} bytes) exceeds max allowed ({max_bytes} bytes)")
+
+    head_upper = xml_bytes[:4096].upper()
+    if b"<!DOCTYPE" in head_upper or b"<!ENTITY" in head_upper:
+        raise ValueError("XML DTD and entity declarations are not permitted")
+
     try:
         root = ET.fromstring(xml_bytes)
     except ET.ParseError as exc:
@@ -271,7 +304,12 @@ def parse_990_xml(xml_bytes: bytes | str, *, object_id: str | None = None) -> di
     }
 
 
-async def fetch_990_xml(object_id: str, *, client: httpx.AsyncClient | None = None) -> bytes:
+async def fetch_990_xml(
+    object_id: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+    max_bytes: int = MAX_990_XML_BYTES,
+) -> bytes:
     """Download the raw XML for a return id from the GT raw lake (anonymous)."""
     url = xml_url_for_object(object_id)
     owns_client = client is None
@@ -279,7 +317,17 @@ async def fetch_990_xml(object_id: str, *, client: httpx.AsyncClient | None = No
     try:
         resp = await client.get(url)
         resp.raise_for_status()
-        return resp.content
+        content_length = resp.headers.get("content-length")
+        if content_length and content_length.isdigit() and int(content_length) > max_bytes:
+            raise ValueError(
+                f"990 XML Content-Length ({content_length} bytes) exceeds maximum allowed ({max_bytes} bytes)"
+            )
+        content = resp.content
+        if len(content) > max_bytes:
+            raise ValueError(
+                f"990 XML payload ({len(content)} bytes) exceeds maximum allowed ({max_bytes} bytes)"
+            )
+        return content
     finally:
         if owns_client:
             await client.aclose()
