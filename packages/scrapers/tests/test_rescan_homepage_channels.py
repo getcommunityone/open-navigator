@@ -57,7 +57,8 @@ def test_primary_replaces_only_guesses_or_blanks():
         == found[0]
     )
     assert (
-        r.choose_primary("https://www.youtube.com/@api", "youtube_api", found) is None
+        r.choose_primary("https://www.youtube.com/@site", "website_scrape", found)
+        is None
     )
     assert (
         r.choose_primary("https://www.youtube.com/@guess", "pattern_match", []) is None
@@ -76,3 +77,13 @@ def test_select_sql():
     )
     sql, params = r.select_sql([], include_rescanned=True)
     assert params == [] and "homepage_rescan_at" not in sql
+
+
+def test_primary_replaces_search_picks():
+    found = ["https://www.youtube.com/@real"]
+    assert (
+        r.choose_primary(
+            "https://www.youtube.com/channel/UCnews", "domain_search", found
+        )
+        == found[0]
+    )

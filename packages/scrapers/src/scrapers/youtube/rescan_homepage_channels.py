@@ -36,8 +36,9 @@ from loguru import logger
 TABLE = "bronze.bronze_jurisdictions_municipalities_scraped"
 METHOD = "website_scrape"  # the name youtube_primary_channel ranks highest
 CONFIDENCE = 0.9
-# A primary chosen by one of these may be replaced by a homepage link.
-REPLACEABLE_METHODS = frozenset({"", "pattern_match"})
+# A primary chosen by one of these may be replaced by a homepage link: guesses and
+# search hits (4 of 4 Alabama search picks were wrong on November 16, 2026).
+REPLACEABLE_METHODS = frozenset({"", "pattern_match", "domain_search", "youtube_api"})
 
 
 @dataclass
