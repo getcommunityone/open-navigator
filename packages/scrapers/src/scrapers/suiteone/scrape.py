@@ -104,6 +104,7 @@ INSERT INTO {_TABLE} (
     is_likely_meeting, meeting_date, meeting_date_source, meeting_title, raw_resource
 ) VALUES %s
 ON CONFLICT (jurisdiction_id, url_sha256) DO UPDATE SET
+    manifest_relative_path = EXCLUDED.manifest_relative_path,  -- claim a row the crawl loaded first (#393)
     doc_type             = EXCLUDED.doc_type,
     anchor_or_link_text  = EXCLUDED.anchor_or_link_text,
     is_likely_meeting    = EXCLUDED.is_likely_meeting,
