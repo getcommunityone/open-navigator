@@ -29,6 +29,11 @@ def test_meta_with_hash(tmp_path):
     assert pv.prompt_file_sha256(tmp_path / "missing.md") is None
 
 
-def test_long_names_fit_the_column():
+def test_long_names_fit_the_column_and_keep_the_hash():
     label = pv.prompt_version_label("x" * 80, "a" * 64)
     assert len(label) == pv.MAX_LEN
+    assert label.endswith("@" + "a" * 12)
+    other = pv.prompt_version_label("x" * 80, "b" * 64)
+    assert other != label
+    unrecorded = pv.prompt_version_label("x" * 80, None)
+    assert len(unrecorded) == pv.MAX_LEN and unrecorded.endswith("@unrecorded")

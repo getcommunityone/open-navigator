@@ -36,10 +36,13 @@ def prompt_version_label(name: Optional[str], sha256: Optional[str]) -> Optional
     """
     stem = (name or "").strip() or None
     sha = (sha256 or "").strip().lower() or None
+    # Shorten the name, never the suffix: a cut hash would stop the label changing with the text.
     if sha:
-        return f"{stem or 'prompt'}@{sha[:12]}"[:MAX_LEN]
+        suffix = f"@{sha[:12]}"
+        return f"{(stem or 'prompt')[:MAX_LEN - len(suffix)]}{suffix}"
     if stem:
-        return f"{stem}@{UNRECORDED}"[:MAX_LEN]
+        suffix = f"@{UNRECORDED}"
+        return f"{stem[:MAX_LEN - len(suffix)]}{suffix}"
     return None
 
 
