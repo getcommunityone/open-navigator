@@ -171,6 +171,7 @@ from llm.gemini.transcript_cache_paths import (  # noqa: E402
     transcript_cache_path,
 )
 from llm.gemini.transcript_fetch import fetch_youtube_transcript  # noqa: E402
+from llm.prompt_version import prompt_file_sha256  # noqa: E402
 from llm.usage.calls import llm_call_context  # noqa: E402
 from llm.usage.gpu import gpu_run  # noqa: E402
 
@@ -464,6 +465,7 @@ def save_transcript_policy_output(
     title = video.title or ""
     event_date = video.event_date
     prompt_name = prompt_path.stem
+    prompt_hash = prompt_file_sha256(prompt_path)
     rel = lambda p: str(p.relative_to(_REPO_ROOT))
 
     analysis_path = analysis_cache_path(
@@ -636,6 +638,8 @@ def save_transcript_policy_output(
         "jurisdiction_id": video.jurisdiction_id,
         "prompt_name": prompt_name,
         "prompt_file": str(prompt_path.relative_to(_REPO_ROOT)),
+        # Content hash of the prompt used, so each analysis shows which wording made it.
+        "prompt_sha256": prompt_hash,
         "gemini_model": model,
         "generation_source": "ai_studio_api",
         "pipeline": "transcript_flash_lite",
