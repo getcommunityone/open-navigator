@@ -13,13 +13,16 @@ def test_aggregate_query_uses_array_slice_not_limit_inside_array_agg():
     assert re.search(r"\(ARRAY_AGG\s*\(.*?\)\)\[1:3\]", mod._AGGREGATE_QUERY, re.DOTALL)
 
 
+_NAV_VARS = (
+    "OPEN_NAVIGATOR_DATABASE_URL",
+    "NEON_DATABASE_URL_DEV",
+    "NEON_DATABASE_URL",
+    "DATABASE_URL",
+)
+
+
 def test_resolve_open_navigator_db_url_priority_and_normalization(monkeypatch):
-    for var in (
-        "OPEN_NAVIGATOR_DATABASE_URL",
-        "NEON_DATABASE_URL_DEV",
-        "NEON_DATABASE_URL",
-        "DATABASE_URL",
-    ):
+    for var in _NAV_VARS:
         monkeypatch.delenv(var, raising=False)
 
     assert mod._resolve_open_navigator_db_url() == "postgresql://postgres:password@localhost:5433/open_navigator"
@@ -27,14 +30,56 @@ def test_resolve_open_navigator_db_url_priority_and_normalization(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "  postgres://u:p@db.example/nav?sslmode=require  ")
     assert mod._resolve_open_navigator_db_url() == "postgresql://u:p@db.example/nav?sslmode=require"
 
-    monkeypatch.setenv("NEON_DATABASE_URL", "postgres://u:p@neon.example/nav")
-    assert mod._resolve_open_navigator_db_url() == "postgresql://u:p@neon.example/nav"
-
     monkeypatch.setenv("NEON_DATABASE_URL_DEV", "postgresql://dev@localhost/nav")
     assert mod._resolve_open_navigator_db_url() == "postgresql://dev@localhost/nav"
 
     monkeypatch.setenv("OPEN_NAVIGATOR_DATABASE_URL", "postgres://primary@neon.example/nav")
     assert mod._resolve_open_navigator_db_url() == "postgresql://primary@neon.example/nav"
+
+
+def test_default_target_never_falls_back_to_production(monkeypatch):
+    for var in _NAV_VARS:
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("NEON_DATABASE_URL", "postgres://u:p@prod.neon.example/nav")
+
+    assert mod._resolve_open_navigator_db_url() == "postgresql://postgres:password@localhost:5433/open_navigator"
+
+    # A SQLite DATABASE_URL (legacy user DB) is skipped, not handed to asyncpg.
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./data/users.db")
+    assert mod._resolve_open_navigator_db_url() == "postgresql://postgres:password@localhost:5433/open_navigator"
+
+
+def test_prod_target_requires_explicit_flag_and_variable(monkeypatch):
+    for var in _NAV_VARS:
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("NEON_DATABASE_URL_DEV", "postgresql://dev@localhost/nav")
+
+    with pytest.raises(RuntimeError, match="NEON_DATABASE_URL"):
+        mod._resolve_open_navigator_db_url("prod")
+
+    monkeypatch.setenv("NEON_DATABASE_URL", "postgres://u:p@prod.neon.example/nav")
+    assert mod._resolve_open_navigator_db_url("prod") == "postgresql://u:p@prod.neon.example/nav"
+
+    with pytest.raises(ValueError):
+        mod._resolve_open_navigator_db_url("production")
+
+
+def test_main_defaults_to_dev_target(monkeypatch):
+    seen: dict[str, str] = {}
+
+    async def _fake_regen(**kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr(mod, "regenerate_map_aggregates", _fake_regen)
+    mod.main([])
+    assert seen == {"target": "dev"}
+    mod.main(["--target", "prod"])
+    assert seen == {"target": "prod"}
+
+
+def test_dsn_host_strips_credentials():
+    assert mod._dsn_host("postgresql://u:secret@prod.neon.example:5432/nav") == "prod.neon.example:5432"
+    assert mod._dsn_host("postgresql://u:p@db.example/nav") == "db.example"
 
 
 def test_resolve_openstates_db_url_normalization(monkeypatch):

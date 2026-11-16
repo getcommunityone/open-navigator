@@ -7,8 +7,10 @@ from the local OpenStates PostgreSQL database.
 import asyncio
 import asyncpg
 from loguru import logger
+import argparse
 import os
 from datetime import datetime
+from urllib.parse import urlparse
 
 def _normalize_pg_url(url: str) -> str:
     """Normalize legacy ``postgres://`` schemes to ``postgresql://`` for asyncpg."""
@@ -25,22 +27,45 @@ def _resolve_openstates_db_url() -> str:
     return "postgresql://postgres:password@localhost:5433/openstates"
 
 
-def _resolve_open_navigator_db_url() -> str:
-    for var in (
-        "OPEN_NAVIGATOR_DATABASE_URL",
-        "NEON_DATABASE_URL_DEV",
-        "NEON_DATABASE_URL",
-        "DATABASE_URL",
-    ):
+# Local warehouse / dev targets, in priority order. ``NEON_DATABASE_URL`` is the
+# production Neon database and is deliberately NOT in this chain: this job
+# TRUNCATEs rpt_bill_map_aggregate, so production must be asked for explicitly.
+_DEV_NAVIGATOR_ENV_VARS = (
+    "OPEN_NAVIGATOR_DATABASE_URL",
+    "NEON_DATABASE_URL_DEV",
+    "DATABASE_URL",
+)
+_PROD_NAVIGATOR_ENV_VAR = "NEON_DATABASE_URL"
+_LOCAL_NAVIGATOR_DB_URL = "postgresql://postgres:password@localhost:5433/open_navigator"
+
+
+def _resolve_open_navigator_db_url(target: str = "dev") -> str:
+    """Resolve the open_navigator DSN to write to.
+
+    ``target="dev"`` (the default) only ever resolves to the local warehouse or a
+    dev database; it never falls back to production. ``target="prod"`` reads
+    ``NEON_DATABASE_URL`` and fails if it is unset.
+    """
+    if target == "prod":
+        val = os.getenv(_PROD_NAVIGATOR_ENV_VAR, "").strip()
+        if not val:
+            raise RuntimeError(f"--target prod requires {_PROD_NAVIGATOR_ENV_VAR} to be set")
+        return _normalize_pg_url(val)
+    if target != "dev":
+        raise ValueError(f"unknown target {target!r} (expected 'dev' or 'prod')")
+    for var in _DEV_NAVIGATOR_ENV_VARS:
         val = os.getenv(var, "").strip()
-        if val:
+        # DATABASE_URL may point at the legacy SQLite user DB; only accept Postgres.
+        if val and val.startswith(("postgres://", "postgresql://")):
             return _normalize_pg_url(val)
-    return "postgresql://postgres:password@localhost:5433/open_navigator"
+    return _LOCAL_NAVIGATOR_DB_URL
 
 
-# Database connections (kept at module level for compatibility; resolved dynamically at runtime)
-OPENSTATES_DB = _resolve_openstates_db_url()
-OPEN_NAVIGATOR_DB = _resolve_open_navigator_db_url()
+def _dsn_host(dsn: str) -> str:
+    """Host[:port] of a DSN, for logging without credentials."""
+    parsed = urlparse(dsn)
+    host = parsed.hostname or "localhost"
+    return f"{host}:{parsed.port}" if parsed.port else host
 
 
 _AGGREGATE_QUERY = """
@@ -66,13 +91,17 @@ _AGGREGATE_QUERY = """
 async def regenerate_map_aggregates(
     openstates_db_url: str | None = None,
     navigator_db_url: str | None = None,
+    target: str = "dev",
 ):
     """Generate bills map aggregates for all 50 states from PostgreSQL."""
 
     logger.info("Regenerating rpt_bill_map_aggregate from OpenStates PostgreSQL...")
 
     openstates_dsn = _normalize_pg_url(openstates_db_url) if openstates_db_url else _resolve_openstates_db_url()
-    navigator_dsn = _normalize_pg_url(navigator_db_url) if navigator_db_url else _resolve_open_navigator_db_url()
+    navigator_dsn = (
+        _normalize_pg_url(navigator_db_url) if navigator_db_url else _resolve_open_navigator_db_url(target)
+    )
+    logger.info("Writing rpt_bill_map_aggregate to {} (target={})", _dsn_host(navigator_dsn), target)
 
     openstates_conn = None
     navigator_conn = None
@@ -141,5 +170,18 @@ async def regenerate_map_aggregates(
             await openstates_conn.close()
 
 
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--target",
+        choices=("dev", "prod"),
+        default="dev",
+        help="dev (default): local warehouse / NEON_DATABASE_URL_DEV only. "
+        "prod: write to production Neon via NEON_DATABASE_URL.",
+    )
+    args = parser.parse_args(argv)
+    asyncio.run(regenerate_map_aggregates(target=args.target))
+
+
 if __name__ == "__main__":
-    asyncio.run(regenerate_map_aggregates())
+    main()
