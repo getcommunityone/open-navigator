@@ -6,16 +6,29 @@ traffic through a VPN or SOCKS listener, some ``.gov`` sites fail (403, timeouts
 Set ``SCRAPE_VPN_BYPASS_RETRY=true`` (default) to automatically retry once on **direct
 egress** (``trust_env=False``, no proxy) before callers fall back to Playwright.
 
+A full-tunnel VPN (Surfshark, on Windows or in WSL's mirrored networking) is not a
+proxy: turning proxies off still leaves through the tunnel. When the route table
+has a VPN split-default route (``0.0.0.0/1``), the direct retry binds its socket to
+the interface of the ordinary default route instead (the home connection, e.g.
+``eth3``), so it really leaves outside the VPN. A host that answered only that way
+is remembered for the rest of the process and tried direct first after that.
+
 Environment:
   SCRAPE_VPN_BYPASS_RETRY — ``true`` / ``false`` (default ``true``)
   SCRAPE_HTTPS_PROXY — optional explicit proxy for the *first* attempt only
   DISCOVERY_HTTPS_PROXY — alias for SCRAPE_HTTPS_PROXY
+  SCRAPE_DIRECT_INTERFACE — interface for direct egress (default: detected when a
+    VPN tunnel is up; ``off`` disables binding)
 """
 
 from __future__ import annotations
 
 import os
+import socket
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Union
+from urllib.parse import urlsplit
 
 import httpx
 from loguru import logger
@@ -44,6 +57,133 @@ def scrape_explicit_proxy_url() -> Optional[str]:
         if v:
             return v
     return None
+
+
+_ROUTE_TABLE = Path("/proc/net/route")
+# Hosts that answered only outside the VPN in this process; tried direct first.
+_DIRECT_FIRST_HOSTS: set[str] = set()
+
+
+def parse_direct_interface(route_table: str) -> Optional[str]:
+    """The ordinary default route's interface when a VPN split-default route is up.
+
+    A VPN client that captures all traffic usually adds ``0.0.0.0/1`` and
+    ``128.0.0.0/1`` routes, which beat the ``0.0.0.0/0`` default without removing
+    it. Returns ``None`` when there is no such tunnel (direct already means direct).
+    """
+    tunnel_ifaces: set[str] = set()
+    defaults: list[tuple[int, str]] = []
+    for line in route_table.splitlines()[1:]:
+        cols = line.split()
+        if len(cols) < 8:
+            continue
+        iface, dest, gateway, metric, mask = cols[0], cols[1], cols[2], cols[6], cols[7]
+        if dest == "00000000" and mask == "00000080":  # 0.0.0.0/1 (little-endian hex)
+            tunnel_ifaces.add(iface)
+        elif dest == "00000000" and mask == "00000000" and gateway != "00000000":
+            try:
+                defaults.append((int(metric), iface))
+            except ValueError:
+                continue
+    if not tunnel_ifaces:
+        return None
+    for _metric, iface in sorted(defaults):
+        if iface not in tunnel_ifaces:
+            return iface
+    return None
+
+
+@lru_cache(maxsize=1)
+def direct_egress_interface() -> Optional[str]:
+    """Interface the direct retry binds to, or ``None`` to just turn proxies off."""
+    configured = (os.getenv("SCRAPE_DIRECT_INTERFACE") or "").strip()
+    if configured.lower() in ("off", "none", "0", "false"):
+        return None
+    if configured:
+        return configured
+    if not hasattr(socket, "SO_BINDTODEVICE"):
+        return None
+    try:
+        iface = parse_direct_interface(_ROUTE_TABLE.read_text())
+    except OSError:
+        return None
+    if iface:
+        logger.info("scrape_direct_interface detected VPN tunnel; direct egress via {}", iface)
+    return iface
+
+
+class _InterfaceBoundBackend:
+    """httpcore network backend that binds each socket to ``iface`` *before* connecting.
+
+    httpx's own ``socket_options`` are applied after the connection is made, so the
+    connection has already gone through the VPN. This binds first, as
+    ``curl --interface`` does.
+    """
+
+    def __init__(self, iface: str) -> None:
+        import httpcore
+
+        self._iface = iface.encode()
+        self._fallback = httpcore.AnyIOBackend()
+
+    async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        import asyncio
+
+        import anyio
+        import anyio.abc
+        import httpcore
+        from httpcore._backends.anyio import AnyIOStream
+
+        loop = asyncio.get_running_loop()
+        try:
+            with anyio.fail_after(timeout):
+                infos = await loop.getaddrinfo(host, port, family=socket.AF_INET, type=socket.SOCK_STREAM)
+                last: Optional[BaseException] = None
+                for family, type_, proto, _canon, addr in infos:
+                    sock = socket.socket(family, type_, proto)
+                    try:
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, self._iface)
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                        sock.setblocking(False)
+                        await loop.sock_connect(sock, addr)
+                    except OSError as exc:
+                        sock.close()
+                        last = exc
+                        continue
+                    return AnyIOStream(await anyio.abc.SocketStream.from_socket(sock))
+                raise last or OSError(f"no IPv4 address for {host}")
+        except TimeoutError as exc:
+            raise httpcore.ConnectTimeout(str(exc)) from exc
+        except OSError as exc:
+            raise httpcore.ConnectError(str(exc)) from exc
+
+    async def connect_unix_socket(self, *args, **kwargs):
+        return await self._fallback.connect_unix_socket(*args, **kwargs)
+
+    async def sleep(self, seconds: float) -> None:
+        await self._fallback.sleep(seconds)
+
+
+def interface_bound_transport(iface: str) -> httpx.AsyncHTTPTransport:
+    """An httpx transport whose connections leave through ``iface``."""
+    transport = httpx.AsyncHTTPTransport()
+    # httpx has no public hook for the network backend; the pool's is swapped.
+    transport._pool._network_backend = _InterfaceBoundBackend(iface)  # type: ignore[attr-defined]
+    return transport
+
+
+def _host(url: str) -> str:
+    return (urlsplit(url).hostname or "").lower()
+
+
+def remember_direct_host(url: str) -> None:
+    host = _host(url)
+    if host:
+        _DIRECT_FIRST_HOSTS.add(host)
+
+
+def prefers_direct(url: str) -> bool:
+    return _host(url) in _DIRECT_FIRST_HOSTS
 
 
 def env_proxy_is_configured() -> bool:
@@ -128,6 +268,9 @@ def make_scrape_async_client(
     if direct_egress:
         kw["trust_env"] = False
         kw["proxy"] = None
+        iface = direct_egress_interface()
+        if iface:
+            kw["transport"] = interface_bound_transport(iface)
     else:
         explicit = scrape_explicit_proxy_url()
         if explicit:
@@ -165,6 +308,12 @@ async def async_get_with_vpn_bypass(
     if not scrape_vpn_bypass_retry_enabled():
         return await client.get(url, **kwargs)
 
+    if prefers_direct(url):
+        try:
+            return await _direct_get(client, url, kwargs)
+        except Exception as exc:  # noqa: BLE001 - fall back to the normal route
+            logger.debug("scrape_direct_first failed url={!r}: {!r}", url, exc)
+
     try:
         response = await client.get(url, **kwargs)
     except Exception as exc:
@@ -175,7 +324,10 @@ async def async_get_with_vpn_bypass(
             url=url,
             detail=exc,
         )
-        return await _direct_get(client, url, kwargs)
+        bypass_resp = await _direct_get(client, url, kwargs)
+        if bypass_resp.status_code < 400:
+            remember_direct_host(url)
+        return bypass_resp
 
     if is_scrape_transport_or_vpn_failure(status_code=response.status_code):
         logger.info(
@@ -196,6 +348,8 @@ async def async_get_with_vpn_bypass(
                 before=response.status_code,
                 after=bypass_resp.status_code,
             )
+            if bypass_resp.status_code < 400:
+                remember_direct_host(url)
             return bypass_resp
         return response
 
