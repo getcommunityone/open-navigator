@@ -285,3 +285,27 @@ def test_channel_only_jurisdiction_is_planned_when_homepage_channels_included(mo
     seen.clear()
     fetch_batch_plan_jurisdictions(["DE"], round_robin=False, database_url="postgresql://fake")
     assert seen[0][1] == (["DE"], ["DE"], False, False)
+
+
+def test_failed_plan_query_is_reported_not_silent(monkeypatch, capsys):
+    """The main query's error used to be swallowed; it must reach stderr before the fallback."""
+    import psycopg2
+
+    from api.batch_jobs.batch_job_status import fetch_batch_plan_jurisdictions
+
+    calls: list = []
+
+    class _Boom(_FakeCursor):
+        def execute(self, sql, params=None):
+            calls.append(sql)
+            if len(calls) == 1:
+                raise psycopg2.ProgrammingError("bad format")
+
+    class _Conn(_FakeConn):
+        def cursor(self, cursor_factory=None):
+            return _Boom(self._rows, self._seen)
+
+    monkeypatch.setattr(psycopg2, "connect", lambda url: _Conn([], []))
+    fetch_batch_plan_jurisdictions(["DE"], round_robin=False, database_url="postgresql://fake")
+    assert len(calls) == 2  # main query, then the fallback
+    assert "batch plan query failed" in capsys.readouterr().err

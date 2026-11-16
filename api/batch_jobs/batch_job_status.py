@@ -341,7 +341,13 @@ def fetch_batch_plan_jurisdictions(
                 (st_list, st_list, include_homepage_channels, include_homepage_channels),
             )
             rows = list(cur.fetchall())
-    except Exception:
+    except Exception as exc:
+        # Say so: a silent failure here once sent every plan to the fallback query.
+        print(
+            f"WARN: batch plan query failed ({type(exc).__name__}: {exc}); "
+            "using the bronze_event_youtube fallback",
+            file=sys.stderr,
+        )
         rows = []
 
     if not rows:
