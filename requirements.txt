@@ -71,7 +71,7 @@ spacy==3.8.7
 # Bumped to clear High Dependabot deserialization advisory + fix CI pip-install
 # conflict (sentence-transformers 2.2.2 capped transformers<5.0.0).
 transformers==5.10.2
-sentence-transformers==5.5.1
+sentence-transformers==6.3.0
 nltk==3.10.4
 datasets>=2.16.0
 huggingface-hub>=0.20.0
