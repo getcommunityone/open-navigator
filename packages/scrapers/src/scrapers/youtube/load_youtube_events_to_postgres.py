@@ -108,10 +108,15 @@ from scrapers.youtube.youtube_loader_logging import (
     log_progress,
 )
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
-from scripts.datasources.jurisdiction_pilot.scrape_priority_states import DEFAULT_PRIORITY_STATES
 
-# Load environment variables
-load_dotenv(_root := Path(__file__).resolve().parents[3])
+# Pilot priority states. Must equal DEFAULT_PRIORITY_STATES in
+# scripts/datasources/jurisdiction_pilot/scrape_priority_states.py (checked by
+# tests/test_priority_states_default.py); defined here so the package does not
+# import from the legacy scripts/ tree.
+DEFAULT_PRIORITY_STATES = ("AL", "GA", "IN", "MA", "WA", "WI")
+
+# Load environment variables from repo root (5 levels up from packages/scrapers/src/scrapers/youtube/)
+_root = Path(__file__).resolve().parents[5]
 load_dotenv(_root / ".env")
 
 
