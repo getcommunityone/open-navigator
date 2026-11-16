@@ -34,6 +34,15 @@ from typing import Any, Sequence
 from loguru import logger
 
 TABLE = "bronze.bronze_jurisdictions_municipalities_scraped"
+# Scraped table per jurisdiction type. School districts' table has no channel
+# columns, so their links are kept in ``payload`` only.
+TABLES = {
+    "municipality": TABLE,
+    "county": "bronze.bronze_jurisdictions_counties_scraped",
+    "school_district": "bronze.bronze_jurisdictions_school_districts_scraped",
+}
+CHANNEL_COLUMN_TABLES = frozenset({TABLES["municipality"], TABLES["county"]})
+WEBSITES = "intermediate.int_jurisdiction_websites"
 METHOD = "website_scrape"  # the name youtube_primary_channel ranks highest
 CONFIDENCE = 0.9
 # A primary chosen by one of these may be replaced by a homepage link: guesses and
@@ -43,7 +52,7 @@ REPLACEABLE_METHODS = frozenset({"", "pattern_match", "domain_search", "youtube_
 
 @dataclass
 class RescanResult:
-    geoid: str
+    key: str
     homepage_url: str
     channels: list[str] = field(default_factory=list)
     error: str | None = None
@@ -114,20 +123,66 @@ def _channel_id(url: str) -> str | None:
     return None
 
 
+def normalize_homepage(url: str | None) -> str | None:
+    """A fetchable homepage URL: scheme added when the source stored a bare domain."""
+    u = (url or "").strip()
+    if not u:
+        return None
+    return (
+        u
+        if u.lower().startswith(("http://", "https://"))
+        else f"https://{u.lstrip('/')}"
+    )
+
+
 def select_sql(
-    states: Sequence[str], *, include_rescanned: bool
+    states: Sequence[str],
+    *,
+    include_rescanned: bool,
+    jtype: str = "municipality",
+    source: str = "scraped",
 ) -> tuple[str, list[Any]]:
-    where = ["homepage_url IS NOT NULL", "BTRIM(homepage_url) <> ''"]
+    """Rows to scan for one jurisdiction type.
+
+    ``source="scraped"``: the homepage the scraped table saved.
+    ``source="websites"``: every jurisdiction with a website in
+    ``int_jurisdiction_websites`` (one per jurisdiction, ``.gov`` first), including
+    those whose scraped row has no homepage; the homepage is filled in on write.
+    """
+    table = TABLES[jtype]
+    yt_cols = (
+        "s.youtube_channel_url, s.youtube_channel_selection_method"
+        if table in CHANNEL_COLUMN_TABLES
+        else "NULL::text AS youtube_channel_url, NULL::text AS youtube_channel_selection_method"
+    )
+    where: list[str] = []
     params: list[Any] = []
+    if source == "websites":
+        params.append(jtype)
+        homepage = "COALESCE(s.homepage_final_url, s.homepage_url, w.website_url)"
+        from_sql = (
+            f"FROM {table} s "
+            "JOIN intermediate.int_jurisdictions j ON j.geoid = s.geoid AND j.jurisdiction_type::text = %s "
+            f"JOIN LATERAL (SELECT ws.website_url FROM {WEBSITES} ws "
+            "WHERE ws.jurisdiction_id = j.jurisdiction_id AND BTRIM(COALESCE(ws.website_url, '')) <> '' "
+            "ORDER BY (ws.domain_name ILIKE '%%.gov') DESC, ws.website_url LIMIT 1) w ON TRUE"
+        )
+    elif source == "scraped":
+        homepage = "COALESCE(s.homepage_final_url, s.homepage_url)"
+        from_sql = f"FROM {table} s"
+        where.append("BTRIM(COALESCE(s.homepage_url, '')) <> ''")
+    else:
+        raise ValueError(f"unknown source {source!r}")
     if states:
-        where.append("usps = ANY(%s)")
-        params.append([s.upper() for s in states])
+        where.append("s.usps = ANY(%s)")
+        params.append([st.upper() for st in states])
     if not include_rescanned:
-        where.append("NOT (payload ? 'homepage_rescan_at')")
+        where.append("NOT (COALESCE(s.payload, '{}'::jsonb) ? 'homepage_rescan_at')")
+    where_sql = f"WHERE {' AND '.join(where)} " if where else ""
     sql = (
-        f"SELECT geoid, usps, COALESCE(homepage_final_url, homepage_url) AS homepage_url, payload, "
-        f"youtube_channel_url, youtube_channel_selection_method FROM {TABLE} "
-        f"WHERE {' AND '.join(where)} ORDER BY usps, geoid LIMIT %s"
+        f"SELECT DISTINCT ON (s.geoid) s.geoid, s.usps, {homepage} AS homepage_url, "
+        f"(BTRIM(COALESCE(s.homepage_url, '')) = '') AS fill_homepage, s.payload, {yt_cols} "
+        f"{from_sql} {where_sql}ORDER BY s.geoid LIMIT %s"
     )
     return sql, params
 
@@ -142,7 +197,7 @@ async def scan_all(
     async with YouTubeChannelDiscovery(youtube_api_key=None) as discovery:
 
         async def one(i: int, row: dict[str, Any]) -> None:
-            res = RescanResult(geoid=row["geoid"], homepage_url=row["homepage_url"])
+            res = RescanResult(key=row["key"], homepage_url=row["homepage_url"])
             async with sem:
                 try:
                     found = await asyncio.wait_for(
@@ -171,44 +226,51 @@ def write_results(
     conn: Any, rows: dict[str, dict[str, Any]], results: list[RescanResult]
 ) -> dict[str, int]:
     now = datetime.now(UTC).replace(microsecond=0).isoformat()
-    counts = {"rows_with_links": 0, "new_links": 0, "primary_set": 0}
+    counts = {
+        "rows_with_links": 0,
+        "new_links": 0,
+        "primary_set": 0,
+        "homepages_filled": 0,
+    }
     with conn.cursor() as cur:
         for res in results:
-            row = rows[res.geoid]
+            row = rows[res.key]
+            table = row["table"]
             payload, added = merge_channels(row["payload"], res.channels, now=now)
             payload["homepage_rescan_at"] = now
             if res.error:
                 payload["homepage_rescan_error"] = res.error
             else:
                 payload.pop("homepage_rescan_error", None)
-            primary = choose_primary(
-                row["youtube_channel_url"],
-                row["youtube_channel_selection_method"],
-                res.channels,
-            )
+            sets = ["payload = %s"]
+            values: list[Any] = [json.dumps(payload)]
+            if row.get("fill_homepage") and row["homepage_url"]:
+                sets.append("homepage_url = %s")
+                values.append(row["homepage_url"])
+                counts["homepages_filled"] += 1
             if res.channels:
                 counts["rows_with_links"] += 1
                 counts["new_links"] += added
+            primary = None
+            if table in CHANNEL_COLUMN_TABLES:
+                primary = choose_primary(
+                    row["youtube_channel_url"],
+                    row["youtube_channel_selection_method"],
+                    res.channels,
+                )
             if primary:
                 counts["primary_set"] += 1
-                cur.execute(
-                    f"UPDATE {TABLE} SET payload = %s, youtube_channel_url = %s, youtube_channel_id = %s, "
-                    "youtube_channel_selection_method = %s, youtube_channel_selection_confidence = %s "
-                    "WHERE geoid = %s",
-                    [
-                        json.dumps(payload),
-                        primary,
-                        _channel_id(primary),
-                        METHOD,
-                        CONFIDENCE,
-                        res.geoid,
-                    ],
-                )
-            else:
-                cur.execute(
-                    f"UPDATE {TABLE} SET payload = %s WHERE geoid = %s",
-                    [json.dumps(payload), res.geoid],
-                )
+                sets += [
+                    "youtube_channel_url = %s",
+                    "youtube_channel_id = %s",
+                    "youtube_channel_selection_method = %s",
+                    "youtube_channel_selection_confidence = %s",
+                ]
+                values += [primary, _channel_id(primary), METHOD, CONFIDENCE]
+            cur.execute(
+                f"UPDATE {table} SET {', '.join(sets)} WHERE geoid = %s",
+                [*values, row["geoid"]],
+            )
     conn.commit()
     return counts
 
@@ -232,12 +294,24 @@ def _database_url(explicit: str) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Find the YouTube channels that city websites link to."
+        description="Find the YouTube channels that jurisdiction websites link to."
     )
     p.add_argument(
         "--states", default="", help="Comma-separated USPS codes (default: all)"
     )
-    p.add_argument("--limit", type=int, default=100000)
+    p.add_argument(
+        "--types",
+        default="municipality",
+        help=f"Comma-separated jurisdiction types: {', '.join(TABLES)} (default: municipality)",
+    )
+    p.add_argument(
+        "--source",
+        choices=("scraped", "websites"),
+        default="scraped",
+        help="scraped: homepages the scraped tables saved (default); websites: every "
+        "jurisdiction with a website in int_jurisdiction_websites",
+    )
+    p.add_argument("--limit", type=int, default=100000, help="Most rows per type")
     p.add_argument(
         "--concurrency",
         type=int,
@@ -248,13 +322,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--timeout", type=float, default=90.0, help="Seconds per website (default 90)"
     )
     p.add_argument(
-        "--rescan", action="store_true", help="Also revisit cities already rescanned"
+        "--rescan", action="store_true", help="Also revisit rows already rescanned"
     )
     p.add_argument(
         "--apply", action="store_true", help="Write results (default: dry run)"
     )
     p.add_argument(
-        "--batch", type=int, default=200, help="Cities per saved batch (default 200)"
+        "--batch", type=int, default=200, help="Rows per saved batch (default 200)"
     )
     p.add_argument("--database-url", default="")
     args = p.parse_args(argv)
@@ -262,18 +336,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
-    states = [s.strip() for s in args.states.split(",") if s.strip()]
-    sql, params = select_sql(states, include_rescanned=args.rescan)
+    states = [st.strip() for st in args.states.split(",") if st.strip()]
+    types = [t.strip() for t in args.types.split(",") if t.strip()]
+    unknown = [t for t in types if t not in TABLES]
+    if unknown:
+        p.error(f"unknown type(s): {', '.join(unknown)}")
+
     conn = psycopg2.connect(_database_url(args.database_url))
     try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql, [*params, args.limit])
-            rows = {r["geoid"]: dict(r) for r in cur.fetchall()}
+        rows: dict[str, dict[str, Any]] = {}
+        for jtype in types:
+            sql, params = select_sql(
+                states, include_rescanned=args.rescan, jtype=jtype, source=args.source
+            )
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, [*params, args.limit])
+                fetched = cur.fetchall()
+            for r in fetched:
+                row = dict(r)
+                row["homepage_url"] = normalize_homepage(row["homepage_url"])
+                if not row["homepage_url"]:
+                    continue
+                row["table"] = TABLES[jtype]
+                row["key"] = f"{jtype}|{row['geoid']}"
+                rows[row["key"]] = row
+            logger.info("{}: {:,} website(s) to scan", jtype, len(fetched))
         logger.info(
-            "{:,} city homepage(s) to scan ({})",
+            "{:,} website(s) in total ({})",
             len(rows),
             "apply" if args.apply else "dry run",
         )
+
         batch = max(1, args.batch)
         ordered = list(rows.values())
         totals = {
@@ -283,6 +376,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "rows_with_links": 0,
             "new_links": 0,
             "primary_set": 0,
+            "homepages_filled": 0,
         }
         for start in range(0, len(ordered), batch):
             chunk = ordered[start : start + batch]
@@ -302,7 +396,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.apply:
             logger.success(
-                "Wrote {rows_with_links:,} rows with links ({new_links:,} new links); primary set on {primary_set:,}",
+                "Wrote {rows_with_links:,} rows with links ({new_links:,} new links); primary set on "
+                "{primary_set:,}; homepages filled on {homepages_filled:,}",
                 **totals,
             )
         else:

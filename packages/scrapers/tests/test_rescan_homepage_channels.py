@@ -87,3 +87,29 @@ def test_primary_replaces_search_picks():
         )
         == found[0]
     )
+
+
+def test_websites_source_joins_the_website_table_for_any_type():
+    sql, params = r.select_sql(
+        ["al"], include_rescanned=False, jtype="county", source="websites"
+    )
+    assert (
+        "bronze_jurisdictions_counties_scraped" in sql
+        and "int_jurisdiction_websites" in sql
+    )
+    assert params == ["county", ["AL"]]
+    assert "s.youtube_channel_url" in sql
+
+
+def test_school_districts_have_no_channel_columns():
+    sql, _ = r.select_sql(
+        [], include_rescanned=True, jtype="school_district", source="websites"
+    )
+    assert "NULL::text AS youtube_channel_url" in sql
+    assert r.TABLES["school_district"] not in r.CHANNEL_COLUMN_TABLES
+
+
+def test_normalize_homepage_adds_a_scheme():
+    assert r.normalize_homepage("cityofx.gov") == "https://cityofx.gov"
+    assert r.normalize_homepage("http://a.gov") == "http://a.gov"
+    assert r.normalize_homepage("  ") is None
