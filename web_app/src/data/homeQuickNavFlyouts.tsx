@@ -290,7 +290,7 @@ export const HOME_QUICK_NAV_FLYOUTS: Record<HomeQuickNavGroupId, HomeFlyoutItem[
       iconKey: 'calendar',
       label: 'Upcoming Meetings',
       description: 'Agendas, dates, how to attend or comment',
-      tag: '90K+ jurisdictions',
+      tag: 'Cities, counties & school districts',
       to: '/events',
     },
     {
