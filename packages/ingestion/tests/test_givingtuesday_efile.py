@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from ingestion.givingtuesday.efile import (
+    _to_amount,
     fetch_990_xml,
     parse_990_xml,
     xml_url_for_object,
@@ -178,3 +179,54 @@ async def test_fetch_990_xml_enforces_max_bytes():
             await fetch_990_xml("201602229349300615", client=client, max_bytes=100)
         data = await fetch_990_xml("201602229349300615", client=client, max_bytes=100_000)
         assert b"<Return" in data
+
+
+@pytest.mark.asyncio
+async def test_fetch_990_xml_stops_streaming_once_limit_passed():
+    """With no Content-Length, the download is aborted as soon as it passes max_bytes."""
+    chunk = b"x" * 1024
+    total_chunks = 1000  # ~1 MB on offer
+    yielded = {"n": 0}
+
+    async def body():
+        for _ in range(total_chunks):
+            yielded["n"] += 1
+            yield chunk
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=body()))
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(ValueError, match="exceeds maximum allowed"):
+            await fetch_990_xml("201602229349300615", client=client, max_bytes=10 * 1024)
+    # Stopped just past the 10 KB limit, never read the whole ~1 MB body.
+    assert yielded["n"] <= 11
+
+
+@pytest.mark.asyncio
+async def test_fetch_990_xml_rejects_on_content_length_before_reading():
+    read = {"started": False}
+
+    async def body():
+        read["started"] = True
+        yield b"<Return/>"
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, content=body(), headers={"Content-Length": "999999"})
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(ValueError, match="Content-Length"):
+            await fetch_990_xml("201602229349300615", client=client, max_bytes=100)
+    assert read["started"] is False
+
+
+def test_to_amount_rounds_decimal_strings():
+    assert (_to_amount("1234"), _to_amount("1234.56"), _to_amount(" "), _to_amount("n/a")) == (1234, 1235, None, None)
+
+
+def test_preparer_firm_read_from_preparer_firm_grp():
+    xml = _SAMPLE_990.replace(
+        "</BusinessOfficerGrp>",
+        "</BusinessOfficerGrp><PreparerFirmGrp><PreparerFirmName>"
+        "<BusinessNameLine1Txt>Audit Partners LLP</BusinessNameLine1Txt>"
+        "</PreparerFirmName></PreparerFirmGrp>",
+    )
+    assert parse_990_xml(xml)["header"]["preparer"]["firm"] == "Audit Partners LLP"

@@ -166,7 +166,9 @@ async def _get_xml(object_id: str) -> bytes:
                 _xml_cache[object_id] = (now, xml)
             return xml
     finally:
-        if not lock.locked():
+        # Remove only our own lock, and only when nobody holds it: a later request
+        # may already have installed a fresh lock under the same key.
+        if not lock.locked() and _inflight_locks.get(object_id) is lock:
             _inflight_locks.pop(object_id, None)
 
 

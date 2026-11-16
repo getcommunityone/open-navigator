@@ -1,20 +1,31 @@
 """Fetch and parse IRS Form 990 e-file XML returns from the GivingTuesday raw lake.
 
-Every row in ``bronze.bronze_irs990_efile`` (and the downstream ``organization`` /
-``grant`` marts) carries an ``object_id`` — the GivingTuesday Data Lake key for
-the filing. The raw XML for any ``object_id`` is publicly readable, with no
-credentials, at::
+The curated CSV datamarts (see :mod:`ingestion.givingtuesday.download`) are the
+bulk-load path. This module is the complement for the *raw* per-return XML:
+every filing in the downstream ``organization`` / ``grant`` marts carries an
+``object_id`` (the GivingTuesday Data Lake key), and the raw XML for any
+``object_id`` is publicly readable, with no credentials, at::
 
     https://gt990datalake-rawdata.s3.amazonaws.com/EfileData/XmlFiles/{object_id}_public.xml
 
-Wait-free alternative to bulk-downloading 600k XML files: fetch on demand when a
-user opens a nonprofit's 990 in the UI, parse the IRS e-file XML into a clean
-JSON document (header + Part I summary + Part VIII revenue + Part IX expenses +
-Part X balance sheet + Part VII officers + Schedule I grants + a generic tree of
-every schedule present), and return it.
+It fetches a single filing on demand (when a user opens a nonprofit's 990 in the
+UI) and parses the namespaced IRS e-file XML into a clean JSON document (header +
+Part I summary + Part VIII revenue + Part IX expenses + Part X balance sheet +
+Part VII officers + Schedule I grants + a loss-less generic tree of every
+schedule present).
 
-CLI usage (for quick inspection / debugging)::
+It is a library port of the parsing logic in the legacy
+``scripts/enrichment/enrich_nonprofits_gt990.py`` script (stdlib ``xml.etree``
+instead of ``xmltodict``; no boto3, anonymous HTTPS like ``download.py``).
 
+Usage::
+
+    # Library
+    from ingestion.givingtuesday.efile import fetch_990_xml, parse_990_xml
+    xml = await fetch_990_xml("201602229349300615")
+    doc = parse_990_xml(xml, object_id="201602229349300615")
+
+    # CLI (quick inspection / debugging)
     python -m ingestion.givingtuesday.efile 201602229349300615
     python -m ingestion.givingtuesday.efile 201602229349300615 --section IRS990ScheduleI
 """
@@ -310,24 +321,32 @@ async def fetch_990_xml(
     client: httpx.AsyncClient | None = None,
     max_bytes: int = MAX_990_XML_BYTES,
 ) -> bytes:
-    """Download the raw XML for a return id from the GT raw lake (anonymous)."""
+    """Download the raw XML for a return id from the GT raw lake (anonymous).
+
+    The body is streamed, so a filing larger than ``max_bytes`` is rejected from
+    its ``Content-Length`` before any of it is read, or, without a usable header,
+    as soon as the bytes read pass the limit. Either way it raises ``ValueError``
+    and never holds more than about ``max_bytes`` in memory.
+    """
     url = xml_url_for_object(object_id)
     owns_client = client is None
     client = client or httpx.AsyncClient(timeout=30.0, follow_redirects=True)
     try:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        content_length = resp.headers.get("content-length")
-        if content_length and content_length.isdigit() and int(content_length) > max_bytes:
-            raise ValueError(
-                f"990 XML Content-Length ({content_length} bytes) exceeds maximum allowed ({max_bytes} bytes)"
-            )
-        content = resp.content
-        if len(content) > max_bytes:
-            raise ValueError(
-                f"990 XML payload ({len(content)} bytes) exceeds maximum allowed ({max_bytes} bytes)"
-            )
-        return content
+        async with client.stream("GET", url) as resp:
+            resp.raise_for_status()
+            content_length = resp.headers.get("content-length")
+            if content_length and content_length.isdigit() and int(content_length) > max_bytes:
+                raise ValueError(
+                    f"990 XML Content-Length ({content_length} bytes) exceeds maximum allowed ({max_bytes} bytes)"
+                )
+            buf = bytearray()
+            async for chunk in resp.aiter_bytes():
+                buf.extend(chunk)
+                if len(buf) > max_bytes:
+                    raise ValueError(
+                        f"990 XML payload (more than {max_bytes} bytes) exceeds maximum allowed ({max_bytes} bytes)"
+                    )
+            return bytes(buf)
     finally:
         if owns_client:
             await client.aclose()
