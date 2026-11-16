@@ -24,12 +24,13 @@ Tracked in [#391](https://github.com/getcommunityone/open-navigator/issues/391).
 
 | Crawl | Lands in | Reaches `public` / Neon |
 |---|---|---|
-| Agenda and minutes crawl, all states | `data/cache/scraped_meetings/` then `bronze.bronze_events_meetings_*_scraped` | **YouTube channel links only** (they feed the YouTube crawl). The PDFs do not reach `public.event_meeting_document` yet: that model reads only SuiteOne rows. Fix: [#392](https://github.com/getcommunityone/open-navigator/issues/392) |
+| Agenda and minutes crawl, all states | `data/cache/scraped_meetings/` then `bronze.bronze_events_meetings_*_scraped` | Yes, from [#392](https://github.com/getcommunityone/open-navigator/issues/392): agendas and minutes with a real meeting day go to `event_meeting_document` (`source = 'scraped_meetings'`). Its YouTube channel links also feed the YouTube crawl |
 | SuiteOne (Tuscaloosa) | `bronze.bronze_events_meetings_municipalities_scraped` (`suiteone:` rows) | Yes: `event_meeting_document` and the data center agenda items |
 | YouTube crawl, all states | `bronze.bronze_event_youtube*` | Yes: meetings, decisions, job claims |
 
-Until #392 lands, the agenda crawl's main payoff is finding meeting channels and building the PDF archive on disk.
-Treat agenda counts outside Tuscaloosa as not yet published.
+A crawled PDF is published only if the crawl classified it as an agenda or minutes and found a real meeting
+day in its link text, filename or URL. PDFs dated only by their folder year, and unclassified PDFs, stay in
+bronze. Text for search and the data center agenda items comes from step 3b.
 
 ## Before you start
 
@@ -110,13 +111,25 @@ database. Set `SCRAPED_MEETINGS_ROOT` to put the files somewhere else, and use t
 .venv/bin/python scripts/discovery/load_scraped_meetings_manifests_to_bronze.py --state AL
 ```
 
-The loader writes one row per page, link or PDF. Two cautions:
+The loader writes one row per page, link or PDF, and replaces only its own rows for each jurisdiction. Since
+[#393](https://github.com/getcommunityone/open-navigator/issues/393) it leaves SuiteOne rows alone, so the order
+of the manifest load and the SuiteOne scrape doesn't matter.
 
-- **Never pass `--apply-ddl` on a populated warehouse.** It drops and recreates the scraped meetings tables,
-  SuiteOne rows included.
-- **Re-run the SuiteOne scrape after loading a state that has a SuiteOne city.** The loader clears every row for
-  each jurisdiction it loads, including that city's SuiteOne rows, so load manifests first and run SuiteOne
-  last. Fix: [#393](https://github.com/getcommunityone/open-navigator/issues/393).
+**Never pass `--apply-ddl` on a populated warehouse.** It drops and recreates the scraped meetings tables,
+SuiteOne rows included.
+
+### Step 3b: extract the PDF text
+
+```bash
+.venv/bin/python -m scrapers.meetings.doctext --state AL --dry-run --limit 20
+.venv/bin/python -m scrapers.meetings.doctext --state AL
+```
+
+This extracts text for the documents step 6 publishes. It reads each PDF from the crawl cache when the file is
+still there and downloads it otherwise. It skips documents that already have text, so it picks up where it
+stopped. Scanned PDFs are marked `empty_needs_ocr`. The text is what makes a document searchable and what the
+data center agenda items match on. It is also the biggest thing this adds to Neon, so run the Neon dry run
+(step 6) after each large state.
 
 ## Step 4: add the channels the crawl found
 
@@ -180,12 +193,12 @@ command, and only Tuscaloosa is set up:
 ```
 
 The nationwide crawl in step 2 already recognizes SuiteOne portals on any site and downloads their agendas. Don't
-add more cities by copying these commands. Extend the nationwide crawl and #392 instead.
+add more cities by copying these commands. Improve the nationwide crawl instead.
 
 ## Suggested nightly order
 
 1. Agenda crawl for one or two states (step 2), or `--retry-failed-shallow` for states already crawled.
-2. Load those states' manifests (step 3), then the SuiteOne scrape.
+2. Load those states' manifests (step 3), extract their text (step 3b), and run the SuiteOne scrape.
 3. Promote new channels (step 4).
 4. YouTube national runner with `MAX_JURISDICTIONS` (step 5).
 5. dbt build, Neon dry run, Neon sync (step 6).
