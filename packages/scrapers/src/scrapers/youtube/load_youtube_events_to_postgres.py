@@ -2188,15 +2188,18 @@ class YouTubeEventsLoader:
                 jurisdiction_name, jurisdiction_type, state_code, state, city,
                 location, location_description, meeting_type,
                 video_url, view_count, duration_minutes, like_count,
-                language, channel_type, datasource, datasource_id, last_updated
+                language, channel_type, datasource, datasource_id, last_updated,
+                loaded_at
             ) VALUES (
                 %(event_id)s, %(video_id)s, %(jurisdiction_id)s, %(channel_id)s, %(channel_url)s,
                 %(title)s, %(description)s, %(event_date)s, %(event_time)s, %(published_at)s,
                 %(jurisdiction_name)s, %(jurisdiction_type)s, %(state_code)s, %(state)s, %(city)s,
                 %(location)s, %(location_description)s, %(meeting_type)s,
                 %(video_url)s, %(view_count)s, %(duration_minutes)s, %(like_count)s,
-                %(language)s, %(channel_type)s, %(datasource)s, %(datasource_id)s, %(last_updated)s
+                %(language)s, %(channel_type)s, %(datasource)s, %(datasource_id)s, %(last_updated)s,
+                NOW()
             )
+            -- loaded_at is when the video was first loaded: set on insert, never on update.
             ON CONFLICT (video_id) DO UPDATE SET
                 jurisdiction_id = EXCLUDED.jurisdiction_id,
                 jurisdiction_name = EXCLUDED.jurisdiction_name,
