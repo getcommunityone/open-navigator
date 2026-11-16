@@ -282,8 +282,16 @@ def _pipeline_namespace(args: argparse.Namespace, plan: Any, database_url: str) 
     return ns
 
 
-def prepare_requests(args: argparse.Namespace, database_url: str, skip: set[str]) -> list[Any]:
-    """A ``Part1Request`` for each pending video, newest jurisdiction first, up to ``--limit``."""
+def prepare_requests(
+    args: argparse.Namespace,
+    database_url: str,
+    skip: set[str],
+    jev_skip: set[str] | None = None,
+) -> list[Any]:
+    """A ``Part1Request`` for each pending video, newest jurisdiction first, up to ``--limit``.
+
+    ``jev_skip`` holds videos the Jev screen found unlikely to record any decision
+    (``--skip-jev-below``); they are left out and counted, not stamped or changed."""
     from llm.gemini.meeting_transcript_policy import (
         _policy_state_code,
         iter_videos_to_analyze,
@@ -311,6 +319,9 @@ def prepare_requests(args: argparse.Namespace, database_url: str, skip: set[str]
                 break
             if video.video_id in skip:
                 logger.info("Skip {} — already in a batch job that has not been collected", video.video_id)
+                continue
+            if jev_skip and video.video_id in jev_skip:
+                logger.info("Skip {} — Jev screen: no decision likely (--skip-jev-below)", video.video_id)
                 continue
             try:
                 request = prepare_part1_request(video, ns, speaker_hints=speaker_hints, known=known)
@@ -360,7 +371,18 @@ def run_submit(args: argparse.Namespace) -> list[dict[str, Any]]:
     if skip:
         logger.info("{:,} video(s) are in batch jobs not yet collected and will be skipped", len(skip))
 
-    requests = prepare_requests(args, database_url, skip)
+    jev_skip: set[str] = set()
+    if getattr(args, "skip_jev_below", None) is not None:
+        from llm.typesafe.screen_transcripts import jev_skip_video_ids
+
+        jev_skip = jev_skip_video_ids(database_url, args.skip_jev_below)
+        logger.info(
+            "{:,} screened video(s) have has_decisions_p below {} and will be skipped",
+            len(jev_skip),
+            args.skip_jev_below,
+        )
+
+    requests = prepare_requests(args, database_url, skip, jev_skip)
     if not requests:
         logger.success("Nothing to submit — no pending transcript outside the jobs already running.")
         return []
@@ -641,6 +663,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Thinking level for the 3.x/4 models (lowest = each model's lowest; default = its own)")  # fmt: skip
     submit.add_argument("--no-json-mode", action="store_true")
     submit.add_argument("--dry-run", action="store_true", help="Write the job files and create no job")
+    submit.add_argument(
+        "--skip-jev-below", type=float, default=None, metavar="P",
+        help="Leave out videos the Jev screen (llm.typesafe.screen_transcripts) gives a "
+             "has_decisions probability below P; unscreened videos are never skipped",
+    )
     submit.set_defaults(func=run_submit)
 
     status = sub.add_parser("status", parents=[common], help="Print each job's state")
