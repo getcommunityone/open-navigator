@@ -253,6 +253,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument(
         "--apply", action="store_true", help="Write results (default: dry run)"
     )
+    p.add_argument(
+        "--batch", type=int, default=200, help="Cities per saved batch (default 200)"
+    )
     p.add_argument("--database-url", default="")
     args = p.parse_args(argv)
 
@@ -271,24 +274,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             len(rows),
             "apply" if args.apply else "dry run",
         )
-        results = asyncio.run(
-            scan_all(
-                list(rows.values()), concurrency=args.concurrency, timeout=args.timeout
+        batch = max(1, args.batch)
+        ordered = list(rows.values())
+        totals = {
+            "scanned": 0,
+            "found": 0,
+            "errors": 0,
+            "rows_with_links": 0,
+            "new_links": 0,
+            "primary_set": 0,
+        }
+        for start in range(0, len(ordered), batch):
+            chunk = ordered[start : start + batch]
+            results = asyncio.run(
+                scan_all(chunk, concurrency=args.concurrency, timeout=args.timeout)
             )
-        )
-        found = sum(1 for r in results if r.channels)
-        errors = sum(1 for r in results if r.error)
-        logger.info(
-            "Scanned {:,}: {:,} with YouTube links, {:,} errors",
-            len(results),
-            found,
-            errors,
-        )
+            totals["scanned"] += len(results)
+            totals["found"] += sum(1 for res in results if res.channels)
+            totals["errors"] += sum(1 for res in results if res.error)
+            if args.apply:
+                for key, value in write_results(conn, rows, results).items():
+                    totals[key] += value
+            logger.info(
+                "Progress {scanned:,}/{total:,}: {found:,} with YouTube links, {errors:,} errors",
+                total=len(ordered),
+                **totals,
+            )
         if args.apply:
-            counts = write_results(conn, rows, results)
             logger.success(
                 "Wrote {rows_with_links:,} rows with links ({new_links:,} new links); primary set on {primary_set:,}",
-                **counts,
+                **totals,
             )
         else:
             logger.success("Dry run: nothing written. Re-run with --apply to save.")
