@@ -17,7 +17,8 @@ populations of PDFs:
           meeting_date_source = 'suiteone_listing'
           AND doc_type IN ('agenda','minutes'); OR
       (b) "attachments": doc_type = 'unknown' AND resource_category = 'document'
-          (relabeled document_type = 'attachment').
+          (relabeled document_type = 'attachment'), only for jurisdictions that
+          also have SuiteOne listing rows (#392).
 This filter is deliberately the ONLY thing scoping the model — it is NOT
 Tuscaloosa-specific. Any future SuiteOne city landed with the same
 meeting_date_source flows through unchanged. Other rows in the bronze table are
@@ -46,6 +47,7 @@ with src as (
         doc_type,
         resource_category,
         meeting_date,
+        meeting_date_source,
         meeting_title,
         raw_resource,
         loaded_at
@@ -54,7 +56,18 @@ with src as (
       and nullif(btrim(url), '') is not null
       and (
            (meeting_date_source = 'suiteone_listing' and doc_type in ('agenda','minutes'))
-        or (doc_type = 'unknown' and resource_category = 'document')
+        or (
+                doc_type = 'unknown' and resource_category = 'document'
+                -- Attachments come from the homepage crawl (the SuiteOne scraper
+                -- only writes agenda/minutes). Keep them for SuiteOne cities only,
+                -- as before, so loading the nationwide crawl (#392) doesn't flood
+                -- this model with every unclassified PDF in the country.
+            and jurisdiction_id in (
+                    select s.jurisdiction_id
+                    from {{ source('bronze', 'bronze_events_meetings_municipalities_scraped') }} s
+                    where s.meeting_date_source = 'suiteone_listing'
+                )
+           )
       )
 
 )
@@ -88,7 +101,12 @@ select
         '\1\2\3',
         'i'
     )                                                      as document_url,
-    meeting_date                                           as doc_date,
+    -- 'manifest_year_only' is the crawl loader's January-1-of-the-folder-year
+    -- placeholder (attachments can carry it); never serve it as a meeting date.
+    case
+        when meeting_date_source = 'manifest_year_only' then null
+        else meeting_date
+    end                                                    as doc_date,
     meeting_title,
     -- Canonical body category for date+body matching downstream.
     {{ normalize_meeting_body_key('meeting_title') }}      as body_key,

@@ -7,15 +7,16 @@
   skipped on the neon target.
 
   content/content_tsv ARE populated: bronze.bronze_meeting_document_text holds
-  EXTRACTED PDF body text for ~497 agenda/minutes docs, LEFT JOINed in below on
-  (jurisdiction_id, url_sha256). Docs without extracted text (non-Tuscaloosa +
-  attachments) keep NULL content; content_tsv still covers title + body_name so
-  they remain searchable on metadata.
+  EXTRACTED PDF body text (scrapers.suiteone.doctext for SuiteOne docs,
+  scrapers.meetings.doctext for crawled docs), LEFT JOINed in below on
+  (jurisdiction_id, url_sha256). Docs without extracted text keep NULL content;
+  content_tsv still covers title + body_name so they remain searchable on
+  metadata.
 #}
 {{
   config(
     materialized='table',
-    tags=['marts', 'meetings', 'documents', 'suiteone', 'production'],
+    tags=['marts', 'meetings', 'documents', 'suiteone', 'scraped_meetings', 'production'],
     unique_key='event_meeting_document_id',
     indexes=[
       {'columns': ['event_meeting_id'], 'type': 'btree'},
@@ -39,9 +40,12 @@ decision / meeting view.
 
 GRAIN: one row per scraped document (a single agenda or minutes PDF).
 
-SOURCE: staging.stg_suiteone_meeting_documents (the SuiteOne municipal-calendar
-crawl in bronze; see that model for the source filter — general, not
-Tuscaloosa-specific).
+SOURCES (UNION ALL, disjoint by construction):
+  - staging.stg_suiteone_meeting_documents — the SuiteOne municipal-calendar
+    crawl (source = 'suiteone'; dates from the portal listing).
+  - staging.stg_scraped_meeting_documents — agenda/minutes PDFs from the
+    nationwide jurisdiction homepage crawl, counties and municipalities in every state,
+    day-dated only (source = 'scraped_meetings'; #392).
 
 LINK TARGET: public.event_meeting. A document is matched to a meeting on ALL
 THREE of:
@@ -58,6 +62,9 @@ THREE of:
            'tuscaloosa_0177256' -> 'tuscaloosa').
      The name fallback is the jurisdiction dimension ONLY; state_code + date +
      body_key are still required so two different cities never cross-link.
+     It applies only when the meeting has no geoid, and never to county
+     documents (county ids drop "County", so 'tuscaloosa_01125' would otherwise
+     name-match the City of Tuscaloosa's meetings); county docs link by geoid.
   2. Date — event_meeting.meeting_date::date = doc_date.
   3. Body — the canonical body_key (macro normalize_meeting_body_key) derived
      from both event_meeting.body_name and the SuiteOne meeting_title match.
@@ -102,9 +109,29 @@ with docs as (
             lower(regexp_replace(jurisdiction_id, '_[^_]*$', '')),
             '[^a-z0-9]+', ' ', 'g'
         )                                                   as juris_name_norm,
+        -- County documents (5-digit county FIPS geoid) link by geoid only; see
+        -- the name-fallback guard in `joined`.
+        coalesce(census_geoid, substring(jurisdiction_id from '_(\d+)$'))
+            ~ '^\d{5}$'                                     as is_county_doc,
         source,
         created_at
-    from {{ ref('stg_suiteone_meeting_documents') }}
+    from (
+        select
+            event_meeting_document_id, jurisdiction_id, census_geoid, url_sha256,
+            state_code, state, document_type, document_url, doc_date,
+            meeting_title, body_key, source, created_at
+        from {{ ref('stg_suiteone_meeting_documents') }}
+
+        union all
+
+        -- Nationwide homepage crawl (#392). Disjoint from the SuiteOne model by
+        -- construction (see stg_scraped_meeting_documents' filter).
+        select
+            event_meeting_document_id, jurisdiction_id, census_geoid, url_sha256,
+            state_code, state, document_type, document_url, doc_date,
+            meeting_title, body_key, source, created_at
+        from {{ ref('stg_scraped_meeting_documents') }}
+    ) all_docs
 
 ),
 
@@ -160,6 +187,16 @@ meetings as (
 -- by geoid (preferred) OR by state_code + normalized name (fallback for the
 -- geoid-less free-text rows). geoid_match flags the preferred path so the
 -- dedupe can favor it.
+--
+-- The name fallback is guarded two ways (#392 review):
+--   * m.geoid is null — a meeting that carries a geoid is matched on it alone;
+--     the name must not override a geoid that says a different government.
+--   * not d.is_county_doc — canonical county ids drop "County"
+--     ('tuscaloosa_01125'), so a county doc's name slug equals the same-named
+--     city's normalized name ('tuscaloosa'). A geoid-less county meeting
+--     normalizes to 'tuscaloosa county' and never matched that slug anyway, so
+--     a county doc's name match could only ever be a city: county documents
+--     link by geoid only. Test: assert_county_meeting_document_not_linked_to_city.
 joined as (
 
     select
@@ -177,7 +214,7 @@ joined as (
         d.body_key                                          as body_name,
         d.meeting_title,
         -- Extracted PDF text (1:1 per document on jurisdiction_id + url_sha256),
-        -- NULL where no text was extracted (~all non-Tuscaloosa + attachments).
+        -- NULL where no text has been extracted yet.
         t.content                                           as content,
         t.word_count::integer                               as word_count,
         d.source,
@@ -189,9 +226,12 @@ joined as (
        and (
                 -- (a) geoid match, preferred when event_meeting embeds the id
                 (m.geoid is not null and m.geoid = d.census_geoid)
-                -- (b) name fallback: same state + same normalized city name
+                -- (b) name fallback: same state + same normalized city name,
+                --     only for geoid-less meetings and non-county documents
              or (
-                    m.state_code = d.state_code
+                    m.geoid is null
+                and not d.is_county_doc
+                and m.state_code = d.state_code
                 and m.juris_name_norm <> ''
                 and m.juris_name_norm = d.juris_name_norm
                 )
