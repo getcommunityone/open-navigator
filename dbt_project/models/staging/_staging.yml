@@ -2370,6 +2370,53 @@ models:
         tests:
           - not_null
 
+  - name: stg_scraped_meeting_documents
+    description: >
+      Agenda/minutes PDFs from the nationwide jurisdiction homepage crawl
+      (bronze.bronze_events_meetings_{counties,municipalities,school_districts}_scraped),
+      every state and jurisdiction type. Day-dated only (manifest_year_only
+      dates are excluded) and disjoint from stg_suiteone_meeting_documents.
+      One row per (jurisdiction_id, url_sha256). Feeds event_meeting_document
+      (#392).
+    columns:
+      - name: event_meeting_document_id
+        description: "Stable surrogate — md5(jurisdiction_id || '|' || url_sha256), same formula as the SuiteOne model."
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_type
+        description: "'county', 'municipality' or 'school_district' (the bronze table the row came from)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['county', 'municipality', 'school_district']
+      - name: state_code
+        description: "2-letter state code."
+        tests:
+          - not_null
+      - name: state
+        description: "Full state name."
+      - name: document_type
+        description: "'agenda' or 'minutes'."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['agenda', 'minutes']
+      - name: document_url
+        description: "Agenda/minutes PDF URL."
+        tests:
+          - not_null
+      - name: doc_date
+        description: "Meeting date parsed from the link text, filename or URL (a real day, never a year placeholder)."
+        tests:
+          - not_null
+      - name: meeting_date_source
+        description: "Which parser produced doc_date (e.g. 'anchor_text', 'filename')."
+      - name: source
+        description: "Constant 'scraped_meetings'."
+
   - name: stg_bronze_events_cdp
     description: |
       Staged and cleaned Council Data Project (CDP) events.

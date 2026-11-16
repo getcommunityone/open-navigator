@@ -7,15 +7,16 @@
   skipped on the neon target.
 
   content/content_tsv ARE populated: bronze.bronze_meeting_document_text holds
-  EXTRACTED PDF body text for ~497 agenda/minutes docs, LEFT JOINed in below on
-  (jurisdiction_id, url_sha256). Docs without extracted text (non-Tuscaloosa +
-  attachments) keep NULL content; content_tsv still covers title + body_name so
-  they remain searchable on metadata.
+  EXTRACTED PDF body text (scrapers.suiteone.doctext for SuiteOne docs,
+  scrapers.meetings.doctext for crawled docs), LEFT JOINed in below on
+  (jurisdiction_id, url_sha256). Docs without extracted text keep NULL content;
+  content_tsv still covers title + body_name so they remain searchable on
+  metadata.
 #}
 {{
   config(
     materialized='table',
-    tags=['marts', 'meetings', 'documents', 'suiteone', 'production'],
+    tags=['marts', 'meetings', 'documents', 'suiteone', 'scraped_meetings', 'production'],
     unique_key='event_meeting_document_id',
     indexes=[
       {'columns': ['event_meeting_id'], 'type': 'btree'},
@@ -39,9 +40,12 @@ decision / meeting view.
 
 GRAIN: one row per scraped document (a single agenda or minutes PDF).
 
-SOURCE: staging.stg_suiteone_meeting_documents (the SuiteOne municipal-calendar
-crawl in bronze; see that model for the source filter — general, not
-Tuscaloosa-specific).
+SOURCES (UNION ALL, disjoint by construction):
+  - staging.stg_suiteone_meeting_documents — the SuiteOne municipal-calendar
+    crawl (source = 'suiteone'; dates from the portal listing).
+  - staging.stg_scraped_meeting_documents — agenda/minutes PDFs from the
+    nationwide jurisdiction homepage crawl, every state and jurisdiction type,
+    day-dated only (source = 'scraped_meetings'; #392).
 
 LINK TARGET: public.event_meeting. A document is matched to a meeting on ALL
 THREE of:
@@ -104,7 +108,23 @@ with docs as (
         )                                                   as juris_name_norm,
         source,
         created_at
-    from {{ ref('stg_suiteone_meeting_documents') }}
+    from (
+        select
+            event_meeting_document_id, jurisdiction_id, census_geoid, url_sha256,
+            state_code, state, document_type, document_url, doc_date,
+            meeting_title, body_key, source, created_at
+        from {{ ref('stg_suiteone_meeting_documents') }}
+
+        union all
+
+        -- Nationwide homepage crawl (#392). Disjoint from the SuiteOne model by
+        -- construction (see stg_scraped_meeting_documents' filter).
+        select
+            event_meeting_document_id, jurisdiction_id, census_geoid, url_sha256,
+            state_code, state, document_type, document_url, doc_date,
+            meeting_title, body_key, source, created_at
+        from {{ ref('stg_scraped_meeting_documents') }}
+    ) all_docs
 
 ),
 
@@ -177,7 +197,7 @@ joined as (
         d.body_key                                          as body_name,
         d.meeting_title,
         -- Extracted PDF text (1:1 per document on jurisdiction_id + url_sha256),
-        -- NULL where no text was extracted (~all non-Tuscaloosa + attachments).
+        -- NULL where no text has been extracted yet.
         t.content                                           as content,
         t.word_count::integer                               as word_count,
         d.source,
