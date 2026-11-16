@@ -226,3 +226,62 @@ def test_batch_plan_sql_has_no_stray_percent_signs():
     rendered = sql % ("'S'", "'S'", "true", "false")
     assert "%" not in rendered.replace("%%", "")
     assert "include_homepage_channels" in inspect.signature(b.fetch_batch_plan_jurisdictions).parameters
+
+
+class _FakeCursor:
+    def __init__(self, rows, seen):
+        self._rows, self._seen = rows, seen
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def execute(self, sql, params=None):
+        self._seen.append((sql, params))
+
+    def fetchall(self):
+        return self._rows
+
+
+class _FakeConn:
+    def __init__(self, rows, seen):
+        self._rows, self._seen = rows, seen
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def cursor(self, cursor_factory=None):
+        return _FakeCursor(self._rows, self._seen)
+
+
+def test_channel_only_jurisdiction_is_planned_when_homepage_channels_included(monkeypatch):
+    """#402: a place whose channel was just found (no videos yet) gets its first crawl."""
+    import psycopg2
+
+    from api.batch_jobs.batch_job_status import fetch_batch_plan_jurisdictions
+
+    seen: list = []
+    channel_only = {
+        "state_code": "DE",
+        "jurisdiction_id": "sussex_10005",
+        "jurisdiction_name": "Sussex County",
+        "jurisdiction_type": "county",
+    }
+    monkeypatch.setattr(psycopg2, "connect", lambda url: _FakeConn([channel_only], seen))
+
+    runs = fetch_batch_plan_jurisdictions(
+        ["DE"], round_robin=False, database_url="postgresql://fake", include_homepage_channels=True
+    )
+    sql, params = seen[0]
+    assert "with_homepage_channel" in sql and "website_scrape" in sql
+    assert params == (["DE"], ["DE"], True, True)
+    assert [r.jurisdiction_id for r in runs] == ["sussex_10005"]
+
+    seen.clear()
+    fetch_batch_plan_jurisdictions(["DE"], round_robin=False, database_url="postgresql://fake")
+    assert seen[0][1] == (["DE"], ["DE"], False, False)

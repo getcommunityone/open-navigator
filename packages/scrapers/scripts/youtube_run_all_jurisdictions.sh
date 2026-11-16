@@ -78,7 +78,10 @@ url = (
 )
 from api.batch_jobs.batch_job_status import fetch_batch_plan_jurisdictions
 
-runs = fetch_batch_plan_jurisdictions(states, round_robin=True, database_url=url)
+include_homepage = os.environ.get("HOMEPAGE_CHANNELS", "1").strip().lower() not in ("0", "false", "no", "off")
+runs = fetch_batch_plan_jurisdictions(
+    states, round_robin=True, database_url=url, include_homepage_channels=include_homepage
+)
 print(len(runs))
 PY
 )"
