@@ -12,6 +12,9 @@ are proxied — the client cannot make the server fetch an arbitrary URL.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
+import socket
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -28,6 +31,13 @@ tracer = trace.get_tracer(__name__)
 # Upper bound on a proxied document. Meeting agenda/minutes PDFs are well under this;
 # the cap stops a stray large upstream file from ballooning memory.
 _MAX_BYTES = 50 * 1024 * 1024
+
+_MAX_REDIRECTS = 5
+
+# Only allow inline rendering for safe, non-scriptable document types.
+# Anything else (e.g. text/html, image/svg+xml) is forced to attachment + octet-stream
+# to prevent Same-Origin XSS.
+_SAFE_INLINE_CONTENT_TYPES = frozenset({"application/pdf"})
 
 # A browser-like User-Agent. Some government portals (notably SuiteOne/IIS) behave
 # differently for non-browser agents; presenting a real browser UA is the reliable choice.
@@ -56,6 +66,86 @@ _URL_KNOWN_SQL = """
 """
 
 
+class _BlockedTargetError(Exception):
+    """Raised when a target or redirect URL points to a non-public or disallowed host."""
+
+
+def _is_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Return True only when the IP address is globally routable."""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return (
+        ip.is_global
+        and not ip.is_multicast
+        and not ip.is_private
+        and not ip.is_loopback
+        and not ip.is_link_local
+        and not ip.is_reserved
+        and not ip.is_unspecified
+    )
+
+
+async def _validate_public_url(url: str) -> None:
+    """Ensure ``url`` is an http(s) URL whose host resolves exclusively to public IPs."""
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise _BlockedTargetError("Disallowed URL scheme or missing host")
+
+    host = parsed.hostname
+    try:
+        ip_literal = ipaddress.ip_address(host)
+    except ValueError:
+        ip_literal = None
+
+    if ip_literal is not None:
+        if not _is_public_ip(ip_literal):
+            raise _BlockedTargetError(f"Non-public IP address: {host}")
+        return
+
+    try:
+        infos = await asyncio.to_thread(socket.getaddrinfo, host, None, type=socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError) as exc:
+        raise httpx.ConnectError(f"Failed to resolve host {host}: {exc}") from exc
+
+    if not infos:
+        raise _BlockedTargetError(f"Host resolved to no addresses: {host}")
+
+    for info in infos:
+        raw_addr = info[4][0].split("%", 1)[0]
+        try:
+            resolved_ip = ipaddress.ip_address(raw_addr)
+        except ValueError as exc:
+            raise _BlockedTargetError(f"Invalid resolved IP {raw_addr}") from exc
+        if not _is_public_ip(resolved_ip):
+            raise _BlockedTargetError(f"Host {host} resolved to non-public IP {raw_addr}")
+
+
+def _resolve_response_type(upstream_content_type: str | None) -> tuple[str, str]:
+    """Return a safe ``(media_type, content_disposition)`` pair for the proxied response."""
+    raw_ct = (upstream_content_type or "").split(";")[0].strip().lower()
+    if raw_ct in _SAFE_INLINE_CONTENT_TYPES:
+        return raw_ct, "inline"
+    return "application/octet-stream", "attachment"
+
+
+async def _stream_bounded_body(resp: httpx.Response) -> bytes:
+    """Stream ``resp`` up to ``_MAX_BYTES``, aborting immediately if exceeded."""
+    content_length = resp.headers.get("content-length")
+    if content_length is not None:
+        try:
+            if int(content_length) > _MAX_BYTES:
+                raise HTTPException(status_code=413, detail="Document too large to display")
+        except ValueError:
+            pass
+
+    buf = bytearray()
+    async for chunk in resp.aiter_bytes():
+        buf.extend(chunk)
+        if len(buf) > _MAX_BYTES:
+            raise HTTPException(status_code=413, detail="Document too large to display")
+    return bytes(buf)
+
+
 @router.get("/proxy")
 async def proxy_document(
     url: str = Query(..., description="Document URL to proxy (must be a known meeting document)"),
@@ -71,45 +161,81 @@ async def proxy_document(
     with tracer.start_as_current_span("document.proxy") as span:
         span.set_attribute("document.url", url)
 
-        resp: httpx.Response | None = None
+        content: bytes | None = None
+        upstream_content_type: str | None = None
+        last_status: int | None = None
         last_error: Exception | None = None
         headers = {"User-Agent": _BROWSER_UA, "Accept": "application/pdf,*/*"}
 
         async with httpx.AsyncClient(
-            follow_redirects=True, timeout=_TIMEOUT, headers=headers
+            follow_redirects=False, timeout=_TIMEOUT, headers=headers
         ) as client:
             for attempt in range(_RETRY_ATTEMPTS):
+                current_url = url
+                content = None
+                last_status = None
                 try:
-                    resp = await client.get(url)
+                    for _ in range(_MAX_REDIRECTS + 1):
+                        await _validate_public_url(current_url)
+                        async with client.stream(
+                            "GET", current_url, follow_redirects=False
+                        ) as resp:
+                            if resp.is_redirect:
+                                location = resp.headers.get("location")
+                                if not location:
+                                    last_status = resp.status_code
+                                    break
+                                current_url = urljoin(current_url, location)
+                                continue
+
+                            last_status = resp.status_code
+                            if resp.status_code != 200:
+                                logger.warning(
+                                    "Document proxy got {} for {} (attempt {}/{})",
+                                    resp.status_code, current_url, attempt + 1, _RETRY_ATTEMPTS,
+                                )
+                                break
+
+                            body = await _stream_bounded_body(resp)
+                            if not body:
+                                logger.warning(
+                                    "Document proxy got 200 (0 bytes) for {} (attempt {}/{})",
+                                    current_url, attempt + 1, _RETRY_ATTEMPTS,
+                                )
+                                content = b""
+                                break
+
+                            content = body
+                            upstream_content_type = resp.headers.get("content-type")
+                            break
+                    else:
+                        raise HTTPException(status_code=502, detail="Too many redirects")
+                except _BlockedTargetError as exc:
+                    span.set_attribute("upstream.blocked", True)
+                    logger.warning("Document proxy blocked target {}: {}", current_url, exc)
+                    raise HTTPException(status_code=403, detail="Document URL target is not allowed") from exc
                 except httpx.HTTPError as exc:
                     last_error = exc
                     logger.warning(
                         "Document proxy fetch failed for {} (attempt {}/{}): {}",
                         url, attempt + 1, _RETRY_ATTEMPTS, exc,
                     )
-                    resp = None
                 else:
-                    # Success only when we get a 200 with a non-empty body. SuiteOne
-                    # returns an empty 200 on a cold cache miss; a retry warms it.
-                    if resp.status_code == 200 and resp.content:
+                    if content:
                         break
-                    logger.warning(
-                        "Document proxy got {} ({} bytes) for {} (attempt {}/{})",
-                        resp.status_code, len(resp.content), url, attempt + 1, _RETRY_ATTEMPTS,
-                    )
+
                 if attempt < _RETRY_ATTEMPTS - 1:
                     await asyncio.sleep(_RETRY_BACKOFF_S * (attempt + 1))
 
-        if resp is None:
+        if content is None and last_status is None:
             # Every attempt raised (timeout / connection error).
             span.set_attribute("upstream.error", str(last_error))
             raise HTTPException(status_code=502, detail="Failed to fetch document") from last_error
 
-        if resp.status_code != 200:
-            span.set_attribute("upstream.status", resp.status_code)
-            raise HTTPException(status_code=502, detail=f"Upstream returned {resp.status_code}")
+        if last_status is not None and last_status != 200:
+            span.set_attribute("upstream.status", last_status)
+            raise HTTPException(status_code=502, detail=f"Upstream returned {last_status}")
 
-        content = resp.content
         if not content:
             # 200 but no bytes after retries — the source portal no longer holds this
             # file (common for purged older-meeting agendas). Signal "gone", not a 502,
@@ -118,13 +244,7 @@ async def proxy_document(
             logger.info("Document proxy: upstream served an empty document for {}", url)
             raise HTTPException(status_code=404, detail="Document not available from source")
 
-        if len(content) > _MAX_BYTES:
-            raise HTTPException(status_code=413, detail="Document too large to display")
-
-        # Trust the upstream content-type when present; default to PDF (the common case).
-        content_type = (resp.headers.get("content-type") or "application/pdf").split(";")[0].strip()
-        if not content_type:
-            content_type = "application/pdf"
+        content_type, disposition = _resolve_response_type(upstream_content_type)
         span.set_attribute("document.content_type", content_type)
 
     return Response(
@@ -132,6 +252,7 @@ async def proxy_document(
         media_type=content_type,
         headers={
             "Cache-Control": "public, max-age=3600",
-            "Content-Disposition": "inline",
+            "Content-Disposition": disposition,
+            "X-Content-Type-Options": "nosniff",
         },
     )
