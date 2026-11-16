@@ -58,10 +58,12 @@ import socket
 import sys
 import tempfile
 import time
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import psycopg2
+from psycopg2 import sql
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -84,6 +86,8 @@ RUNTIME_OWNED = frozenset(
         "user_locations",
         "user_signal_prefs",
         "meeting_document_gap_cache",
+        # job-application links kept by admins on the prod admin screen (DC-1.3, #248)
+        "job_application_link",
     }
 )
 
@@ -209,6 +213,12 @@ CIVIC_SERVING = frozenset(
         "state_sales_tax_rate",
         "opportunity_atlas_mobility",
         "opportunity_atlas_mobility_national",
+        # data center accountability (#236): small marts, one row per claim / site /
+        # agenda / area-concern. Read by /api/data-centers/* (#387).
+        "job_claim",
+        "data_center_site",
+        "data_center_agenda_item",
+        "area_concern",
         # NOTE: meeting_topic_link (60 MB) still deferred (budget headroom).
     }
 )
@@ -402,6 +412,88 @@ def _copy_one(local_conn, neon_conn, name: str) -> int:
     return rows
 
 
+
+# --- Size budget (#387) ---------------------------------------------------------
+#
+# Neon's free tier caps the WHOLE project at 512 MB. The allow-list keeps heavy
+# objects out, but allow-listed tables grow with every crawl, so before copying we
+# project the target's size and refuse when it would pass the budget:
+#   final = target size now - target size of the objects being replaced
+#           + estimated size of the incoming copies
+#   peak  = final + the largest object being replaced (each object is loaded into
+#           a staging table before the old one is dropped, so for a moment both exist)
+# Refuse when final > --max-mb (default NEON_MAX_MB or 480: headroom under 512) or
+# peak > the hard cap. Incoming size is estimated from the local rows: the summed
+# column sizes plus Postgres's per-row overhead, times a page-fill factor. Plain
+# copies carry no indexes, so that's close to what lands.
+
+NEON_HARD_CAP_MB = 512
+DEFAULT_MAX_MB = 480
+_ROW_OVERHEAD_BYTES = 28  # tuple header + line pointer
+_PAGE_FILL_FACTOR = 1.15
+_MB = 1024 * 1024
+
+
+@dataclass(frozen=True)
+class SizeProjection:
+    target_now_bytes: int
+    replaced_bytes: int
+    incoming_bytes: int
+    largest_replaced_bytes: int
+
+    @property
+    def final_bytes(self) -> int:
+        return max(0, self.target_now_bytes - self.replaced_bytes + self.incoming_bytes)
+
+    @property
+    def peak_bytes(self) -> int:
+        return self.final_bytes + self.largest_replaced_bytes
+
+
+def estimate_copy_bytes(column_bytes: int, row_count: int) -> int:
+    """Bytes a plain (index-free) copy of these rows takes in Postgres, roughly."""
+    return int((column_bytes + row_count * _ROW_OVERHEAD_BYTES) * _PAGE_FILL_FACTOR)
+
+
+def budget_problem(p: SizeProjection, max_mb: float, hard_cap_mb: float = NEON_HARD_CAP_MB) -> Optional[str]:
+    """None when the copy fits; otherwise the reason it doesn't."""
+    final_mb, peak_mb = p.final_bytes / _MB, p.peak_bytes / _MB
+    if final_mb > max_mb:
+        return f"projected size {final_mb:.0f} MB is over the {max_mb:.0f} MB budget"
+    if peak_mb > hard_cap_mb:
+        return f"peak during the swap {peak_mb:.0f} MB is over Neon's {hard_cap_mb:.0f} MB cap"
+    return None
+
+
+def _local_object_bytes(local_conn, name: str) -> int:
+    with local_conn.cursor() as cur:
+        cur.execute(
+            sql.SQL("SELECT coalesce(sum(pg_column_size(t.*)), 0)::bigint, count(*)::bigint FROM public.{} t").format(
+                sql.Identifier(name)
+            )
+        )
+        column_bytes, rows = cur.fetchone()
+    return estimate_copy_bytes(int(column_bytes), int(rows))
+
+
+def _target_sizes(neon_conn, names: List[str]) -> Tuple[int, Dict[str, int]]:
+    """(database size, {name: current size}) on the target; missing objects are 0."""
+    with neon_conn.cursor() as cur:
+        cur.execute("SELECT pg_database_size(current_database())::bigint")
+        db_bytes = int(cur.fetchone()[0])
+        cur.execute(
+            """
+            SELECT c.relname, pg_total_relation_size(c.oid)::bigint
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'm') AND c.relname = ANY(%s)
+            """,
+            (names,),
+        )
+        sizes = {r[0]: int(r[1]) for r in cur.fetchall()}
+    neon_conn.commit()
+    return db_bytes, sizes
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="Copy local public serving objects to a Neon public schema.",
@@ -431,6 +523,16 @@ def main(argv: Optional[List[str]] = None) -> int:
             "atomic swap's DROP needs AccessExclusive on public.<name>; if the "
             "live prod API is reading it the DROP would otherwise hang forever. "
             "With a timeout it fails that one object loudly and the run continues."
+        ),
+    )
+    parser.add_argument(
+        "--max-mb",
+        type=float,
+        default=float(os.getenv("NEON_MAX_MB", DEFAULT_MAX_MB)),
+        help=(
+            f"Refuse the copy when the target's projected size passes this (default "
+            f"NEON_MAX_MB or {DEFAULT_MAX_MB}; Neon's free tier caps the project at "
+            f"{NEON_HARD_CAP_MB} MB)."
         ),
     )
     args = parser.parse_args(argv)
@@ -469,9 +571,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             len(objects),
         )
 
+    incoming = {o: _local_object_bytes(local_conn, o) for o in objects}
     if args.dry_run:
         for o in objects:
-            logger.info("   • {}", o)
+            logger.info("   • {} (~{:.1f} MB)", o, incoming[o] / _MB)
+        logger.info("   total incoming ~{:.0f} MB (budget {:.0f} MB)", sum(incoming.values()) / _MB, args.max_mb)
         local_conn.close()
         return 0
 
@@ -533,6 +637,30 @@ def main(argv: Optional[List[str]] = None) -> int:
     with neon_conn.cursor() as cur:
         cur.execute("SET lock_timeout = %s", (args.lock_timeout,))
     neon_conn.commit()
+
+    # Size budget (#387): refuse before touching anything if the copy won't fit.
+    db_bytes, target_sizes = _target_sizes(neon_conn, objects)
+    projection = SizeProjection(
+        target_now_bytes=db_bytes,
+        replaced_bytes=sum(target_sizes.values()),
+        incoming_bytes=sum(incoming.values()),
+        largest_replaced_bytes=max(target_sizes.values(), default=0),
+    )
+    logger.info(
+        "📏 Neon {} now {:.0f} MB → projected {:.0f} MB (peak {:.0f} MB) · budget {:.0f} MB, cap {} MB",
+        args.target, db_bytes / _MB, projection.final_bytes / _MB, projection.peak_bytes / _MB,
+        args.max_mb, NEON_HARD_CAP_MB,
+    )
+    problem = budget_problem(projection, args.max_mb)
+    if problem:
+        biggest = sorted(incoming.items(), key=lambda kv: kv[1], reverse=True)[:8]
+        logger.error("🛑 Not copying: {}. Largest incoming objects:", problem)
+        for name, size in biggest:
+            logger.error("   • {} ~{:.1f} MB (now {:.1f} MB on target)", name, size / _MB, target_sizes.get(name, 0) / _MB)
+        logger.error("Drop or slim an object (CIVIC_SERVING), or pass --only for a targeted copy.")
+        local_conn.close()
+        neon_conn.close()
+        return 4  # distinct exit code: over the size budget
 
     ok, failed = 0, 0
     t_run = time.perf_counter()
