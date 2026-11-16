@@ -462,53 +462,39 @@ async def get_data_status():
     - NCES school districts
     - Nonprofit organizations
     - Meeting datasets (MeetingBank, LocalView, etc.)
+
+    Every count is a real warehouse value (see
+    ``stats_neon.fetch_national_reference_counts``) or ``null`` when it can't be
+    computed — never a hard-coded estimate (CLAUDE.md, "No Fabricated Data").
     """
     try:
-        from pathlib import Path
-        from datetime import datetime
-        
-        status = {
-            "census_jurisdictions": {
-                "path": "data/bronze/census_jurisdictions",
-                "status": "not_ingested",
-                "count": 0,
-                "last_updated": None
-            },
-            "nces_school_districts": {
-                "path": "data/bronze/nces_school_districts",
-                "status": "not_ingested",
-                "count": 0,
-                "last_updated": None
-            },
-            "nonprofits": {
-                "path": "data/cache/nonprofits",
-                "status": "cached",
-                "count": 0,
-                "last_updated": None
-            },
-            "meeting_datasets": {
-                "meetingbank": {"status": "available", "count": 1366},
-                "city_scrapers": {"status": "available", "count": "100-500"},
-                "open_states": {"status": "available", "count": "50+"}
+        from api.routes.stats_neon import fetch_national_reference_counts
+
+        counts = await fetch_national_reference_counts()
+        last_updated = counts.get("last_updated")
+
+        def _entry(path: str, count: Optional[int]) -> Dict[str, Any]:
+            return {
+                "path": path,
+                "status": "available" if count is not None else "unavailable",
+                "count": count,
+                "last_updated": last_updated if count is not None else None,
             }
+
+        aggregate = "public.jurisdiction_state_aggregate (national)"
+        # Per-source meeting counts are not modeled in `public`; unavailable, not guessed.
+        unavailable_meetings = {"status": "unavailable", "count": None}
+        return {
+            "census_jurisdictions": _entry(aggregate, counts["jurisdictions"]),
+            "nces_school_districts": _entry(aggregate, counts["school_districts"]),
+            "nonprofits": _entry(aggregate, counts["nonprofits"]),
+            "meeting_datasets": {
+                "meetingbank": dict(unavailable_meetings),
+                "city_scrapers": dict(unavailable_meetings),
+                "open_states": dict(unavailable_meetings),
+            },
         }
-        
-        # Check each data directory
-        for key in ["census_jurisdictions", "nces_school_districts", "nonprofits"]:
-            data_path = Path(status[key]["path"])
-            if data_path.exists():
-                files = list(data_path.glob("**/*"))
-                status[key]["count"] = len(files)
-                status[key]["status"] = "ingested" if files else "empty"
-                if files:
-                    latest_file = max(files, key=lambda f: f.stat().st_mtime if f.is_file() else 0)
-                    if latest_file.is_file():
-                        status[key]["last_updated"] = datetime.fromtimestamp(
-                            latest_file.stat().st_mtime
-                        ).isoformat()
-        
-        return status
-        
+
     except Exception as e:
         logger.error(f"Data status error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
