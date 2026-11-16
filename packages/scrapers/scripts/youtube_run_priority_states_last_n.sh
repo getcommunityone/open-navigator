@@ -95,7 +95,7 @@ batch_start() {
   if [[ "${ROUND_ROBIN:-1}" =~ ^(0|false|no|off)$ ]]; then
     rr=0
   fi
-  BATCH_JOB_ID="$("$PYTHON" packages/scrapers/src/scrapers/youtube/batch_job_status.py start \
+  BATCH_JOB_ID="$("$PYTHON" -m api.batch_jobs.batch_job_status start \
     --step "$step" \
     --states "$STATES" \
     --n "$N" \
@@ -114,7 +114,7 @@ batch_finish() {
   if [[ -z "${BATCH_JOB_ID:-}" ]]; then
     return 0
   fi
-  "$PYTHON" packages/scrapers/src/scrapers/youtube/batch_job_status.py finish \
+  "$PYTHON" -m api.batch_jobs.batch_job_status finish \
     --batch-id "$BATCH_JOB_ID" --status "$status" || true
   batch_dashboard_refresh
   echo "Dashboard: /data-explorer/batch-jobs (React app; API reads data/cache/batch_jobs/)"
@@ -231,6 +231,7 @@ run_catalog() {
     echo "--- Catalog: $st — $name ($jid) [channel-source=$ch_src] ---"
     local -a cat_argv=(
       --jurisdiction-id "$jid"
+      --states "$st"
       --max-videos "$MAX_VIDEOS"
       --skip-transcripts
       --channel-source "$ch_src"
@@ -320,7 +321,7 @@ run_captions() {
       ((success+=1))
     fi
     if [[ -n "${BATCH_JOB_ID:-}" && "$cap_ec" -ne 0 ]]; then
-      "$PYTHON" packages/scrapers/src/scrapers/youtube/batch_job_status.py jurisdiction-finish \
+      "$PYTHON" -m api.batch_jobs.batch_job_status jurisdiction-finish \
         --batch-id "$BATCH_JOB_ID" \
         --jurisdiction-id "$jid" \
         --exit-code "$cap_ec" \
@@ -412,6 +413,7 @@ run_each_jurisdiction() {
         echo "--- Catalog: $st — $name ($jid) [channel-source=$ch_src] ---"
         local -a cat_argv=(
           --jurisdiction-id "$jid"
+          --states "$st"
           --max-videos "$MAX_VIDEOS"
           --skip-transcripts
           --channel-source "$ch_src"
