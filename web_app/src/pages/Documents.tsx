@@ -55,7 +55,7 @@ export default function Documents() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Meeting Minutes</h1>
           <p className="text-gray-600">
-            Search what local governments are discussing - 90,000+ cities, counties, and school districts
+            Search what local governments are discussing: cities, counties and school districts across the U.S.
           </p>
         </div>
 

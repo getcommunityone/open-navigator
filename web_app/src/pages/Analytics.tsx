@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import api from '../lib/api'
 import {
   ChartBarIcon,
   CurrencyDollarIcon,
@@ -7,8 +9,14 @@ import {
 } from '@heroicons/react/24/outline'
 
 // Commented out for now - will be used when API is ready
-// import { useQuery } from '@tanstack/react-query'
 // import axios from 'axios'
+
+// Subset of the national GET /api/stats rollup (api/routes/stats_neon.py).
+// `governments` = local governments in the catalog (Census geographies minus
+// statistical areas); null when the serving table has no such figure.
+interface NationalStats {
+  governments?: number | null
+}
 
 // interface BudgetData {
 //   jurisdiction: string
@@ -28,6 +36,20 @@ import {
 export default function Analytics() {
   const [selectedState, setSelectedState] = useState<string>('all')
   const [fiscalYear, setFiscalYear] = useState<string>('2024')
+
+  // Live local-government count from the national /api/stats rollup — never a
+  // hard-coded figure. Shows "—" while loading or when unavailable.
+  const { data: nationalStats } = useQuery<NationalStats | null>({
+    queryKey: ['national-stats'],
+    queryFn: async () => {
+      const response = await api.get('/stats')
+      return response.data
+    },
+    staleTime: 30 * 60 * 1000,
+  })
+  const governmentsCount = nationalStats?.governments
+  const governmentsLabel =
+    governmentsCount != null && governmentsCount > 0 ? governmentsCount.toLocaleString() : '—'
 
   // Commented out for now - will be implemented when API is ready
   // const { data, isLoading } = useQuery<BudgetData[]>({
@@ -99,10 +121,10 @@ export default function Analytics() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-                  Jurisdictions Tracked
+                  Local Governments
                 </p>
                 <p className="mt-2 text-3xl font-bold" style={{ color: '#354F52' }}>
-                  90,000+
+                  {governmentsLabel}
                 </p>
               </div>
               <DocumentChartBarIcon className="h-12 w-12 text-gray-400" />

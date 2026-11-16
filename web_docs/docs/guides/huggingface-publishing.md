@@ -10,7 +10,7 @@ Share your jurisdiction discovery datasets and run outputs on HuggingFace Hub fo
 
 | Dataset | Description | Size | Update Frequency |
 |---------|-------------|------|------------------|
-| **census-gid** | Census Bureau Government Integrated Directory | 90,735 jurisdictions | Annual |
+| **census-gid** | Census of Governments list of local governments | About 91,000 (2025) | Annual |
 | **gov-domains** | CISA .gov domain master list | 15,000+ domains | Daily* |
 | **nces-schools** | NCES school district data | 13,000+ districts | Annual |
 | **discovered-urls** | Discovered government URLs with metadata | Varies | Per run |

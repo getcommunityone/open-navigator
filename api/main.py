@@ -1316,31 +1316,39 @@ async def get_data_ingestion_status():
     Get status of reference data ingestions.
     
     Shows Census jurisdictions, NCES school districts, and nonprofit cache status.
+
+    Every count is a real warehouse value (see
+    ``stats_neon.fetch_national_reference_counts``) or ``null`` when it can't be
+    computed — never a hard-coded estimate (CLAUDE.md, "No Fabricated Data").
     """
     try:
         from pathlib import Path
-        from datetime import datetime
-        
+
+        from api.routes.stats_neon import fetch_national_reference_counts
+
+        counts = await fetch_national_reference_counts()
         status = {
             "census": {
-                "jurisdictions": 90000,
-                "counties": 3144,
-                "municipalities": 19500,
-                "status": "Check data/bronze/census_jurisdictions"
+                "jurisdictions": counts["jurisdictions"],
+                "counties": counts["counties"],
+                "municipalities": counts["municipalities"],
+                "status": "public.jurisdiction_state_aggregate (national) + public.civic_jurisdiction",
             },
             "nces": {
-                "school_districts": 13000,
-                "status": "Check data/bronze/nces_school_districts"
+                "school_districts": counts["school_districts"],
+                "status": "public.jurisdiction_state_aggregate (national)",
             },
             "nonprofits": {
-                "total_available": 3000000,
+                "total_available": counts["nonprofits"],
                 "cached_searches": 0,
                 "cache_path": "data/cache/nonprofits"
             },
+            # Per-source meeting counts (MeetingBank, City Scrapers, Open States)
+            # are not modeled in `public`; unavailable rather than guessed.
             "meetings": {
-                "meetingbank": 1366,
-                "city_scrapers": "100-500",
-                "open_states": "50+"
+                "meetingbank": None,
+                "city_scrapers": None,
+                "open_states": None,
             }
         }
         

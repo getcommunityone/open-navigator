@@ -24,7 +24,7 @@ political-financial picture.
 │  • Past grants                │                          │
 │                               │                          │
 │  Jurisdictions                │      FEC API             │
-│  • 90k+ cities      ──────────┴───> • Political $$$      │
+│  • Local govts      ──────────┴───> • Political $$$      │
 │  • Meetings                         • Donor networks     │
 │  • Contacts                         • Influence          │
 │                                                          │

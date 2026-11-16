@@ -21,7 +21,7 @@ Whether you're new to town or a longtime resident, Open Navigator helps you:
 
 ### Find Local Events
 
-Open Navigator tracks thousands of public meetings, town halls, and community events across 90,000+ jurisdictions.
+Open Navigator tracks thousands of public meetings, town halls, and community events in cities, counties and school districts across the U.S.
 
 **What You Can Find:**
 - City council and county board meetings

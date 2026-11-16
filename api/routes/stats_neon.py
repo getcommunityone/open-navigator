@@ -578,6 +578,97 @@ async def fetch_stats_from_neon(
         raise
 
 
+_REFERENCE_COUNTS_CACHE: Dict[str, Any] = {}
+
+
+def _int_or_none(value: Any) -> Optional[int]:
+    """Real integer count, or None when the column/row is missing."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+async def fetch_national_reference_counts() -> Dict[str, Any]:
+    """National reference-data counts for ``GET /data/status``.
+
+    - jurisdictions / school_districts / nonprofits / events / bills come from the
+      same pre-aggregated national row ``GET /api/stats`` serves
+      (``jurisdiction_state_aggregate`` WHERE level = 'national').
+    - counties / municipalities are not in that row, so they come from one grouped
+      count over ``civic_jurisdiction`` (~85k rows; classification 'county' / 'city').
+
+    Every value is a real warehouse count or ``None`` when it can't be computed
+    (missing relation/column/row or DB error) — never a stand-in number.
+    ``last_updated`` is the aggregate row's timestamp as an ISO string, or None.
+    Cached for ``CACHE_DURATION``.
+    """
+    cached = _REFERENCE_COUNTS_CACHE.get("national")
+    if cached and datetime.now() - cached["timestamp"] < CACHE_DURATION:
+        return cached["counts"]
+
+    from api.telemetry import tracer
+
+    counts: Dict[str, Any] = {
+        "jurisdictions": None,
+        "school_districts": None,
+        "nonprofits": None,
+        "events": None,
+        "bills": None,
+        "counties": None,
+        "municipalities": None,
+        "last_updated": None,
+    }
+    ok = True
+
+    with tracer.start_as_current_span("data_status.national_aggregate"):
+        try:
+            row = await fetch_stats_from_neon("national")
+        except Exception as e:
+            logger.warning(f"data status: national aggregate unavailable: {e}")
+            row, ok = None, False
+        if row:
+            counts["jurisdictions"] = _int_or_none(row.get("jurisdictions_count"))
+            counts["school_districts"] = _int_or_none(row.get("school_districts_count"))
+            counts["nonprofits"] = _int_or_none(row.get("nonprofits_count"))
+            counts["events"] = _int_or_none(row.get("events_count"))
+            counts["bills"] = _int_or_none(row.get("bills_count"))
+            last_updated = row.get("last_updated")
+            if last_updated is not None:
+                counts["last_updated"] = (
+                    last_updated.isoformat()
+                    if hasattr(last_updated, "isoformat")
+                    else str(last_updated)
+                )
+
+    with tracer.start_as_current_span("data_status.civic_jurisdiction_counts"):
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                if await _aggregate_table_exists(conn, "civic_jurisdiction"):
+                    rows = await conn.fetch(
+                        """
+                        SELECT classification, COUNT(*) AS count
+                        FROM civic_jurisdiction
+                        WHERE classification IN ('county', 'city')
+                        GROUP BY classification
+                        """
+                    )
+                    by_class = {r["classification"]: int(r["count"]) for r in rows}
+                    counts["counties"] = by_class.get("county", 0)
+                    counts["municipalities"] = by_class.get("city", 0)
+        except Exception as e:
+            logger.warning(f"data status: civic_jurisdiction counts unavailable: {e}")
+            ok = False
+
+    # Don't pin a DB-error result in the cache; retry on the next call.
+    if ok:
+        _REFERENCE_COUNTS_CACHE["national"] = {"counts": counts, "timestamp": datetime.now()}
+    return counts
+
+
 @router.get("/stats/search")
 async def search_stats(
     query: str = Query(..., description="Search query"),

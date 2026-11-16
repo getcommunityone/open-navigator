@@ -11,7 +11,7 @@ sidebar_position: 10
 - Large search bar prominently displayed
 - Quick action cards for Opportunities, Heatmap, and Nonprofits
 - Feature showcase grid
-- Statistics section (90K+ jurisdictions, 13K+ districts, 3M+ nonprofits)
+- Statistics section (jurisdiction count, 13K+ districts, 3M+ nonprofits)
 - Links to documentation site
 
 ### 2. **Global Search Bar** (Top Navigation)
