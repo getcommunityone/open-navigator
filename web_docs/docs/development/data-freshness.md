@@ -21,8 +21,8 @@ links at all, and nothing reported any of it. These checks make staleness visibl
 
 ```bash
 cd dbt_project
-dbt source freshness                    # raw and runtime tables
-dbt test --select tag:freshness         # served tables and coverage
+.venv_dbt/bin/dbt source freshness            # raw and runtime tables
+.venv_dbt/bin/dbt test --select tag:freshness # served tables and coverage
 ```
 
 <details>
