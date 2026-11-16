@@ -6,6 +6,16 @@ version: 2
 
 models:
   - name: data_center_site
+    data_tests:
+      - dbt_utils.recency:
+          # Freshness (context-engineering.md, principle 5): no Epoch AI snapshot loaded in 14 days
+          arguments:
+            datepart: day
+            field: last_seen_on
+            interval: 14
+          config:
+            severity: warn
+            tags: ['freshness']
     description: >
       One row per data center site (PK data_center_site_id), from Epoch AI's "AI data
       centers" dataset, credited on every row (source_name, source_url, license,

@@ -82,6 +82,16 @@ If a model or an error-severity test fails, **stop before publishing**. Report t
 and open a `bug` issue (AGENTS.md) unless tonight's data obviously caused it. Warn-severity tests are fine; give
 their count.
 
+Then check freshness (see `web_docs/docs/development/data-freshness.md`):
+
+```bash
+cd dbt_project && uv run dbt source freshness
+cd dbt_project && uv run dbt test --select tag:freshness
+```
+
+A stale table doesn't block publishing: report each stale source or warning by name, with how old it is. If the same
+table was stale last night too, open an `action-item` issue for it.
+
 ## 5. Publish to Neon (production stays on Neon; the free tier caps the project at 512 MB)
 
 1. `.venv/bin/python -m hosting.neon.sync_event_documents_to_neon --dry-run`. Run the real incremental load (no

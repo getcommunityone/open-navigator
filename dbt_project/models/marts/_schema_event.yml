@@ -189,6 +189,16 @@ models:
         description: "YouTube video id the two families share (the join key)."
 
   - name: event_documents
+    data_tests:
+      - dbt_utils.recency:
+          # Freshness (context-engineering.md, principle 5): no new transcript has reached search in 7 days
+          arguments:
+            datepart: day
+            field: created_at
+            interval: 7
+          config:
+            severity: warn
+            tags: ['freshness']
     description: >
       public.event_documents — searchable documents attached to a golden-record
       event. One row per (event, document); today the only document_type is

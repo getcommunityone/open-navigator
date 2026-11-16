@@ -13,6 +13,16 @@ version: 2
 
 models:
   - name: event_meeting
+    data_tests:
+      - dbt_utils.recency:
+          # Freshness (context-engineering.md, principle 5): no newly analyzed meeting in 14 days
+          arguments:
+            datepart: day
+            field: extracted_at
+            interval: 14
+          config:
+            severity: warn
+            tags: ['freshness']
     description: "Meeting-level PARENT of the AI-extraction family — one row per analysis (analyzed meeting). Non-partitioned; child event_* tables FK into event_meeting_id. Promoted from bronze.bronze_meetings_from_ai."
     config:
       tags: ['marts', 'event-extraction', 'ai']
@@ -58,6 +68,16 @@ models:
         data_tests: [not_null]
 
   - name: event_decision
+    data_tests:
+      - dbt_utils.recency:
+          # Freshness (context-engineering.md, principle 5): no newly extracted decision in 14 days
+          arguments:
+            datepart: day
+            field: extracted_at
+            interval: 14
+          config:
+            severity: warn
+            tags: ['freshness']
     description: "AI-extracted decisions/actions (scalar cols typed, narrative blocks JSONB). One row per (analysis, decision); partitioned by extracted_at."
     config:
       tags: ['marts', 'event-extraction', 'ai']
