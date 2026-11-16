@@ -191,7 +191,7 @@ Open Navigator extends CDP's vision by:
 
 1. **Multi-source ingestion**: YouTube, LocalView, Legistar, Granicus
 2. **AI-powered transcription**: Gemini, Whisper for automatic transcripts
-3. **Nationwide coverage**: 90,000+ jurisdictions tracked
+3. **Nationwide coverage**: cities, counties, townships and school districts across the U.S.
 4. **Policy analysis**: AI models for policy opportunity detection
 
 ## 📖 Further Reading

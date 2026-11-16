@@ -262,7 +262,7 @@ python main.py discovery-stats
 ✅ **Faster processing (2x speedup)**  
 ✅ **Future-proof implementation**
 
-**Ready to discover 90,000+ government websites sustainably!** 🦷✨
+**Discovers government websites sustainably.**
 
 ---
 

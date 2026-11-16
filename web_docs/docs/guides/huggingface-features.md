@@ -19,7 +19,7 @@ python main.py publish-to-hf --dataset all
 ```
 
 ### 3. **5 Publishable Datasets**
-- `census-gid` - Census Bureau GID (90,735 jurisdictions)
+- `census-gid` - Census of Governments list of local governments (about 91,000 in 2025)
 - `gov-domains` - CISA .gov domains (15,000+)
 - `nces-schools` - NCES school districts (13,000+)
 - `discovered-urls` - Discovered URLs with metadata

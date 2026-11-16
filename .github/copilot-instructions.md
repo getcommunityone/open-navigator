@@ -495,7 +495,7 @@ async function fetchJurisdictions(stateCode: string) {
 ## Project Context
 
 This is **Open Navigator** - a civic engagement platform that:
-- Tracks 90,000+ jurisdictions (cities, counties, states)
+- Tracks cities, counties, townships, school districts and states across the U.S.
 - Monitors 1.8M nonprofit organizations
 - Analyzes meeting minutes and public records
 - Provides oral health policy tracking

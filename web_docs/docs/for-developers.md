@@ -13,7 +13,7 @@ Open Navigator processes data at scale across the United States:
 
 | Category | Count | Source |
 |----------|-------|--------|
-| **Total Jurisdictions** | 90,000+ | Census Bureau Gazetteer 2024 |
+| **U.S. Local Governments (national total)** | About 91,000 | [Census of Governments, 2025](https://www.census.gov/library/publications/2026/econ/govtorg2225.html). Includes about 40,000 special districts, which Open Navigator does not include |
 | **Counties** | 3,144 | All U.S. counties (FIPS coded) |
 | **Municipalities** | 19,500+ | Cities, towns, villages, boroughs |
 | **Townships** | 36,000+ | County subdivisions, census divisions |
@@ -28,7 +28,7 @@ Open Navigator processes data at scale across the United States:
 
 **Estimated Data Volumes:**
 - **Meeting Minutes**: 10-100 MB per municipality × 1,000+ cities = 10-100 GB
-- **Financial Documents**: 5-50 MB per jurisdiction × 90,000 = 450 GB - 4.5 TB
+- **Financial Documents**: 5-50 MB per jurisdiction × ~51,000 (2022 Census of Governments, excluding special districts) = 256 GB - 2.6 TB
 - **Nonprofit 990s**: 1-5 MB per org × 3M = 3-15 TB
 - **Video Content**: Variable (streaming recommended over storage)
 
@@ -81,7 +81,7 @@ Get the platform running:
 ### 📊 Data Sources (Technical)
 
 Technical details on data ingestion:
-- **[Jurisdiction Discovery](/docs/data-sources/jurisdiction-discovery)** - Finding 90,000+ government websites
+- **[Jurisdiction Discovery](/docs/data-sources/jurisdiction-discovery)** - Finding government websites
 - **[Census Data](/docs/data-sources/census-data)** - Ingesting Census Bureau datasets
 - **[HuggingFace Datasets](/docs/data-sources/huggingface-datasets)** - Pre-built meeting collections
 - **[YouTube Discovery](/docs/data-sources/youtube-discovery)** - Video channel scraping
@@ -201,7 +201,7 @@ python main.py discover-jurisdictions
 ### Ingest Reference Data
 
 ```bash
-# Census jurisdictions (90,000+ entities)
+# Census local governments (about 91,000 in 2025)
 python -m discovery.census_ingestion
 
 # NCES school districts (13,000+)

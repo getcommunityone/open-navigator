@@ -14,7 +14,7 @@ Open Navigator downloads and caches large datasets:
 |---------|------|---------|
 | **ACS 5-Year (All States)** | ~15 GB | 85,000 tracts |
 | **IRS Form 990s** | ~100 GB | 1.8M nonprofits |
-| **Meeting Minutes (PDFs)** | ~500 GB | 90,000 jurisdictions |
+| **Meeting Minutes (PDFs)** | ~500 GB | Cities, counties and school districts |
 | **Legislative Bills** | ~50 GB | Millions of bills |
 
 **Total potential storage**: Up to 1 TB of data!

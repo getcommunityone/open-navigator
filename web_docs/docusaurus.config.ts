@@ -134,7 +134,7 @@ const config: Config = {
     // SEO metadata
     metadata: [
       {name: 'keywords', content: 'civic engagement, policy tracking, meeting minutes, nonprofit tracking, municipal government, advocacy, open data, local government'},
-      {name: 'description', content: 'Open Navigator - Track 90,000+ jurisdictions, 1.8M nonprofits, and analyze meeting minutes with AI. The open path to everything local.'},
+      {name: 'description', content: 'Open Navigator - Track local governments, 1.8M nonprofits, and analyze meeting minutes with AI. The open path to everything local.'},
       {property: 'og:type', content: 'website'},
       {property: 'og:site_name', content: 'Open Navigator'},
       {name: 'twitter:card', content: 'summary_large_image'},
