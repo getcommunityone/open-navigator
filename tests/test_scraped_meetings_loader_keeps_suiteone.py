@@ -58,23 +58,45 @@ def test_delete_spares_suiteone_rows_and_insert_skips_conflicts(monkeypatch, tmp
 
     assert n == 1
     (delete_sql, params), = conn.cur.statements
-    assert delete_sql.startswith(f"DELETE FROM {_TABLE} WHERE jurisdiction_id = %s AND NOT")
-    assert "suiteone:" in delete_sql and "suiteone_listing" in delete_sql
+    assert delete_sql == (
+        f"DELETE FROM {_TABLE} WHERE jurisdiction_id = %s AND NOT "
+        "(COALESCE(manifest_relative_path, '') LIKE 'suiteone:%%' "
+        "OR COALESCE(meeting_date_source, '') = 'suiteone_listing')"
+    )  # %% is psycopg2's escape for a literal %, since the statement is parameterized
     assert params == (_JID,)
     (insert_sql, _rows), = batches
     assert "ON CONFLICT (jurisdiction_id, url_sha256) DO NOTHING" in insert_sql
 
 
+def test_suiteone_upsert_claims_a_row_the_crawl_loaded_first() -> None:
+    from scrapers.suiteone import scrape
+
+    assert "manifest_relative_path = EXCLUDED.manifest_relative_path" in scrape._UPSERT
+
+
+def _disposable_dsn() -> str:
+    """TEST_DATABASE_URL, only when its database name ends in 'test'.
+
+    Migration 020 commits its own DROP ... CASCADE of the scraped-meeting tables, so
+    this test must never run against a real warehouse.
+    """
+    dsn = os.getenv("TEST_DATABASE_URL", "")
+    if not dsn.rsplit("/", 1)[-1].split("?", 1)[0].endswith("test"):
+        pytest.skip("needs TEST_DATABASE_URL naming a disposable database whose name ends in 'test'")
+    return dsn
+
+
 @pytest.mark.live
-@pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="needs TEST_DATABASE_URL (a disposable Postgres)")
 def test_reload_keeps_suiteone_rows_in_postgres(tmp_path: Path) -> None:
     import psycopg2
+    from psycopg2.extras import execute_values
+    from scrapers.suiteone import scrape
 
     ddl = (
         Path(__file__).resolve().parents[1]
         / "packages/hosting/scripts/neon/migrations/020_recreate_bronze_events_meetings_scraped_link_document.sql"
     ).read_text(encoding="utf-8")
-    conn = psycopg2.connect(os.environ["TEST_DATABASE_URL"])
+    conn = psycopg2.connect(_disposable_dsn())
     try:
         with conn.cursor() as cur:
             cur.execute("CREATE SCHEMA IF NOT EXISTS bronze")
@@ -88,20 +110,32 @@ def test_reload_keeps_suiteone_rows_in_postgres(tmp_path: Path) -> None:
                     " VALUES (%s, 'AL', '0177256', %s, now(), 'document', 'pdf', %s, %s, 'suiteone_listing')",
                     (_JID, path, url, loader._sha256_url(url)),
                 )
-        manifest = _manifest([_SUITEONE_URL, "https://example.org/crawl.pdf"])
+        claimed = "https://example.org/claimed.pdf"
+        manifest = _manifest([_SUITEONE_URL, "https://example.org/crawl.pdf", claimed])
         loader._load_manifest_to_table(conn, _TABLE, manifest, tmp_path / "_manifest.json", tmp_path)
+        # The SuiteOne scraper then lands a URL the crawl loaded first (real upsert SQL).
+        with conn.cursor() as cur:
+            execute_values(cur, scrape._UPSERT, [(
+                _JID, "AL", "0177256", None, "2026-11-01T00:00:00Z", f"suiteone:{_JID}", "document", "pdf",
+                claimed, loader._sha256_url(claimed), None, None, "agenda", "agenda", "[]",
+                True, "2026-10-06", "suiteone_listing", "Finance Committee", "{}",
+            )])
         loader._load_manifest_to_table(conn, _TABLE, manifest, tmp_path / "_manifest.json", tmp_path)
         with conn.cursor() as cur:
             cur.execute(
-                f"SELECT url, meeting_date_source FROM {_TABLE} WHERE jurisdiction_id = %s ORDER BY url", (_JID,)
+                f"SELECT url, meeting_date_source, manifest_relative_path FROM {_TABLE}"
+                " WHERE jurisdiction_id = %s ORDER BY url",
+                (_JID,),
             )
             rows = cur.fetchall()
     finally:
         conn.rollback()
         conn.close()
 
+    manifest_path = "_manifest.json"  # stored relative to repo_root (tmp_path here)
     assert rows == [
-        ("https://example.org/crawl.pdf", None),
-        (_SUITEONE_URL, "suiteone_listing"),
-        ("https://x.org/retagged.pdf", "suiteone_listing"),
+        (claimed, "suiteone_listing", f"suiteone:{_JID}"),
+        ("https://example.org/crawl.pdf", None, manifest_path),
+        (_SUITEONE_URL, "suiteone_listing", f"suiteone:{_JID}"),
+        ("https://x.org/retagged.pdf", "suiteone_listing", "data/m.json"),
     ]
