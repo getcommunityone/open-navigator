@@ -237,3 +237,60 @@ async def test_contact_submit_enforces_duplicate_and_sender_rate_limits(
             )
         )
     assert exc_rate.value.status_code == 429
+
+
+def test_parse_signed_request_rejects_missing_algorithm():
+    secret = "test_fb_app_secret_123"
+    no_alg = _make_signed_request({"user_id": "12345"}, secret)
+    with pytest.raises(HTTPException) as exc:
+        data_deletion.parse_signed_request(no_alg, secret)
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["timeout", "server_error"])
+async def test_contact_submit_failed_upstream_can_be_retried_immediately(
+    monkeypatch: pytest.MonkeyPatch, failure: str
+):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_test_token_123")
+    calls = {"n": 0}
+
+    class _FlakyAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url: str, json: dict[str, Any], headers: dict[str, str], timeout: float):
+            calls["n"] += 1
+            req = httpx.Request("POST", url)
+            if calls["n"] == 1:
+                if failure == "timeout":
+                    raise httpx.TimeoutException("timed out", request=req)
+                return httpx.Response(502, text="bad gateway", request=req)
+            return httpx.Response(201, json={"html_url": "https://github.com/example/issues/2"}, request=req)
+
+    monkeypatch.setattr(contact.httpx, "AsyncClient", _FlakyAsyncClient)
+
+    req_model = contact.ContactRequest(
+        name="Carol",
+        email="carol@example.com",
+        subject="Retry after failure",
+        message="This message failed upstream the first time and is retried.",
+        category="feedback",
+    )
+
+    with pytest.raises(HTTPException) as exc_first:
+        await contact.submit_contact(req_model)
+    assert exc_first.value.status_code in (500, 504)
+
+    # The identical retry must reach GitHub, not be rejected as a duplicate.
+    resp = await contact.submit_contact(req_model)
+    assert resp.success is True
+    assert calls["n"] == 2
+
+    # Once it has succeeded, the same message is a duplicate again.
+    with pytest.raises(HTTPException) as exc_dup:
+        await contact.submit_contact(req_model)
+    assert exc_dup.value.status_code == 429

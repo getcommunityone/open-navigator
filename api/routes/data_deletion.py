@@ -62,7 +62,7 @@ def parse_signed_request(signed_request: str, app_secret: str) -> dict:
             raise ValueError("Signed request payload must be a JSON object")
 
         algorithm = data.get("algorithm")
-        if algorithm is not None and str(algorithm).upper() != "HMAC-SHA256":
+        if algorithm is None or str(algorithm).upper() != "HMAC-SHA256":
             raise ValueError(f"Unsupported signed_request algorithm: {algorithm}")
 
         expected_sig = hmac.new(

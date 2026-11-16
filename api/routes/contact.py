@@ -46,7 +46,13 @@ def _sanitize_single_line(value: str) -> str:
     return _CONTROL_CHARS_RE.sub(" ", value or "").strip()
 
 
-def _check_and_record_rate_limit(sender_key: str, fingerprint: str) -> None:
+def _check_and_record_rate_limit(sender_key: str, fingerprint: str) -> float:
+    """Check the limits and reserve this submission; return its timestamp.
+
+    The fingerprint is reserved before the GitHub call so two identical concurrent
+    submissions cannot both create issues. If the call fails, the caller must call
+    ``_release_fingerprint`` so the user can retry the same message right away.
+    """
     now = time.monotonic()
 
     # Prune expired fingerprints
@@ -96,6 +102,18 @@ def _check_and_record_rate_limit(sender_key: str, fingerprint: str) -> None:
     _sender_timestamps[sender_key] = sender_history
     _global_timestamps.append(now)
     _recent_fingerprints[fingerprint] = now
+    return now
+
+
+def _release_fingerprint(fingerprint: str, recorded_at: float) -> None:
+    """Drop a duplicate-suppression reservation after a failed submission.
+
+    The per-sender and global counters keep the attempt, so a failing upstream
+    still cannot be hammered without limit. Only the reservation made by this
+    request is removed (matched by its timestamp).
+    """
+    if _recent_fingerprints.get(fingerprint) == recorded_at:
+        _recent_fingerprints.pop(fingerprint, None)
 
 
 class ContactRequest(BaseModel):
@@ -145,7 +163,7 @@ async def submit_contact(request: ContactRequest):
     fingerprint = hashlib.sha256(
         f"{sender_key}|{clean_subject.lower()}|{clean_message}".encode("utf-8")
     ).hexdigest()
-    _check_and_record_rate_limit(sender_key, fingerprint)
+    recorded_at = _check_and_record_rate_limit(sender_key, fingerprint)
 
     norm_category = _sanitize_single_line(request.category or "feedback").lower()
     safe_category = norm_category if norm_category in CATEGORY_LABELS else "feedback"
@@ -175,6 +193,7 @@ async def submit_contact(request: ContactRequest):
         "labels": [label, "contact-form"],
     }
 
+    submitted = False
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -187,6 +206,7 @@ async def submit_contact(request: ContactRequest):
             if response.status_code == 201:
                 issue_data = response.json()
                 issue_url = issue_data.get("html_url")
+                submitted = True
                 logger.info(f"Contact form submitted successfully: {issue_url}")
                 return ContactResponse(
                     success=True,
@@ -219,3 +239,6 @@ async def submit_contact(request: ContactRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to submit contact form. Please try again later.",
         ) from exc
+    finally:
+        if not submitted:
+            _release_fingerprint(fingerprint, recorded_at)
