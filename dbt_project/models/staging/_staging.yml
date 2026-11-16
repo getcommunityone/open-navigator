@@ -2373,9 +2373,10 @@ models:
   - name: stg_scraped_meeting_documents
     description: >
       Agenda/minutes PDFs from the nationwide jurisdiction homepage crawl
-      (bronze.bronze_events_meetings_{counties,municipalities,school_districts}_scraped),
-      every state and jurisdiction type. Day-dated only (manifest_year_only
-      dates are excluded) and disjoint from stg_suiteone_meeting_documents.
+      (bronze.bronze_events_meetings_{counties,municipalities}_scraped), every
+      state. Day-dated only (manifest_year_only dates are excluded), no
+      SuiteOne portal links, and disjoint from stg_suiteone_meeting_documents.
+      School districts are excluded until documents carry a type-aware key.
       One row per (jurisdiction_id, url_sha256). Feeds event_meeting_document
       (#392).
     columns:
@@ -2384,13 +2385,25 @@ models:
         tests:
           - unique
           - not_null
+      - name: jurisdiction_id
+        description: "Canonical jurisdiction id (e.g. 'birmingham_0107000')."
+        tests:
+          - not_null
       - name: jurisdiction_type
-        description: "'county', 'municipality' or 'school_district' (the bronze table the row came from)."
+        description: "'county' or 'municipality' (the bronze table the row came from)."
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ['county', 'municipality', 'school_district']
+                values: ['county', 'municipality']
+      - name: census_geoid
+        description: "Census GEOID of the jurisdiction (5-digit county, 7-digit place)."
+        tests:
+          - not_null
+      - name: url_sha256
+        description: "sha256 of the raw document URL; with jurisdiction_id, the natural key (joins to bronze_meeting_document_text)."
+        tests:
+          - not_null
       - name: state_code
         description: "2-letter state code."
         tests:
@@ -2414,8 +2427,14 @@ models:
           - not_null
       - name: meeting_date_source
         description: "Which parser produced doc_date (e.g. 'anchor_text', 'filename')."
+      - name: meeting_title
+        description: "The PDF's link text or filename title, as the crawl saw it."
+      - name: body_key
+        description: "Canonical body category from meeting_title (macro normalize_meeting_body_key); NULL when unrecognized."
       - name: source
         description: "Constant 'scraped_meetings'."
+      - name: created_at
+        description: "When the row was loaded into bronze."
 
   - name: stg_bronze_events_cdp
     description: |

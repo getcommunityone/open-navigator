@@ -44,7 +44,7 @@ SOURCES (UNION ALL, disjoint by construction):
   - staging.stg_suiteone_meeting_documents — the SuiteOne municipal-calendar
     crawl (source = 'suiteone'; dates from the portal listing).
   - staging.stg_scraped_meeting_documents — agenda/minutes PDFs from the
-    nationwide jurisdiction homepage crawl, every state and jurisdiction type,
+    nationwide jurisdiction homepage crawl, counties and municipalities in every state,
     day-dated only (source = 'scraped_meetings'; #392).
 
 LINK TARGET: public.event_meeting. A document is matched to a meeting on ALL

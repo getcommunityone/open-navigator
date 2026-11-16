@@ -12,12 +12,20 @@ def test_select_covers_every_crawl_table_and_mirrors_the_staging_filter() -> Non
     sql = doctext.build_select_sql(with_jurisdiction=False)
     for table in doctext.SCRAPED_TABLES:
         assert f"FROM {table} s" in sql
-    assert sql.count("UNION ALL") == 2
+    assert sql.count("UNION ALL") == len(doctext.SCRAPED_TABLES) - 1
+    assert "school_districts" not in sql  # not published yet (geoid collisions with places)
     assert "meeting_date_source <> 'manifest_year_only'" in sql
+    assert "suiteonemedia" in sql  # SuiteOne portals are owned by the SuiteOne scraper
+    assert "t.extraction_method <> 'error'" in sql  # failed downloads are retried
     assert "NOT LIKE 'suiteone:%%'" in sql  # psycopg2 turns %% into a literal %
     assert "suiteone_listing" in sql
     assert "%(jurisdiction_id)s" not in sql
     assert "s.jurisdiction_id = %(jurisdiction_id)s" in doctext.build_select_sql(with_jurisdiction=True)
+
+
+def test_cli_rejects_unpublished_doc_types() -> None:
+    with pytest.raises(SystemExit):
+        doctext.main(["--state", "AL", "--doc-types", "agenda,budget"])
 
 
 def test_local_pdf_bytes_reads_only_real_pdfs(tmp_path: Path) -> None:
@@ -30,8 +38,19 @@ def test_local_pdf_bytes_reads_only_real_pdfs(tmp_path: Path) -> None:
     assert doctext.local_pdf_bytes(None, tmp_path) is None
 
 
+def _disposable_dsn() -> str:
+    """TEST_DATABASE_URL, only when its database name ends in 'test'.
+
+    The test recreates the bronze scraped-meeting tables (the migration commits its
+    own DROP ... CASCADE), so it must never point at a real warehouse.
+    """
+    dsn = os.getenv("TEST_DATABASE_URL", "")
+    if not dsn.rsplit("/", 1)[-1].split("?", 1)[0].endswith("test"):
+        pytest.skip("needs TEST_DATABASE_URL naming a disposable database whose name ends in 'test'")
+    return dsn
+
+
 @pytest.mark.live
-@pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="needs TEST_DATABASE_URL (a disposable Postgres)")
 def test_extract_writes_text_for_published_docs_only(tmp_path: Path) -> None:
     fitz = pytest.importorskip("fitz")
     import psycopg2
@@ -40,7 +59,7 @@ def test_extract_writes_text_for_published_docs_only(tmp_path: Path) -> None:
     pdf.new_page().insert_text((72, 72), "Approve data center rezoning")
     pdf.save(tmp_path / "agenda.pdf")
 
-    dsn = os.environ["TEST_DATABASE_URL"]
+    dsn = _disposable_dsn()
     ddl = (
         Path(__file__).resolve().parents[3]
         / "packages/hosting/scripts/neon/migrations/020_recreate_bronze_events_meetings_scraped_link_document.sql"
@@ -56,6 +75,8 @@ def test_extract_writes_text_for_published_docs_only(tmp_path: Path) -> None:
         ("bham_0107000", "data/m.json", "https://x.test/b.pdf", "b" * 64, "minutes", "2026-01-01", "manifest_year_only", None),
         # not ours: SuiteOne row
         ("bham_0107000", "suiteone:bham_0107000", "https://x.test/c.pdf", "c" * 64, "agenda", "2026-10-07", "suiteone_listing", None),
+        # not ours: crawl's copy of a SuiteOne portal link
+        ("bham_0107000", "data/m.json", "https://b.suiteonemedia.com/event/GetAgendaFile/1", "d" * 64, "agenda", "2026-10-07", "anchor_text", None),
     ]
     conn = psycopg2.connect(dsn)
     conn.autocommit = True

@@ -19,7 +19,7 @@ schema:
   name: event_meeting_document
   physicalName: public.event_meeting_document
   logicalType: object
-  description: 'public.event_meeting_document — scraped meeting AGENDA / MINUTES PDFs linked to the meeting they belong to (public.event_meeting), so the API can show document links on a decision / meeting. One row per document. Matched on jurisdiction (census geoid embedded in event_meeting.jurisdiction) + date + canonical body key. event_meeting_id is NULL for orphan documents and for meetings whose agenda/minutes is not yet published. Sources: the SuiteOne municipal-calendar crawl (source=''suiteone'') and the nationwide jurisdiction homepage crawl''s day-dated agenda/minutes PDFs for every state (source=''scraped_meetings'', #392).'
+  description: 'public.event_meeting_document — scraped meeting AGENDA / MINUTES PDFs linked to the meeting they belong to (public.event_meeting), so the API can show document links on a decision / meeting. One row per document. Matched on jurisdiction (census geoid embedded in event_meeting.jurisdiction) + date + canonical body key. event_meeting_id is NULL for orphan documents and for meetings whose agenda/minutes is not yet published. Sources: the SuiteOne municipal-calendar crawl (source=''suiteone'') and the nationwide jurisdiction homepage crawl''s day-dated agenda/minutes PDFs for counties and municipalities in every state (source=''scraped_meetings'', #392).'
   dataGranularityDescription: One row per document.
   properties:
   - id: event_meeting_document_id

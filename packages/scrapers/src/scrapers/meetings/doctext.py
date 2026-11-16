@@ -32,11 +32,12 @@ from loguru import logger
 from scrapers.suiteone.doctext import _DDL, _TEXT_TABLE, _UA, _UPSERT, extract_pdf_text
 from scrapers.suiteone.scrape import _resolve_dsn
 
+# School districts are not published yet (see the staging model), so not extracted.
 SCRAPED_TABLES: tuple[str, ...] = (
     "bronze.bronze_events_meetings_counties_scraped",
     "bronze.bronze_events_meetings_municipalities_scraped",
-    "bronze.bronze_events_meetings_school_districts_scraped",
 )
+PUBLISHED_DOC_TYPES: tuple[str, ...] = ("agenda", "minutes")
 
 # Keep in step with dbt_project/models/staging/stg_scraped_meeting_documents.sql.
 _PUBLISHED_FILTER = """
@@ -48,11 +49,16 @@ _PUBLISHED_FILTER = """
     AND meeting_date_source <> 'manifest_year_only'
     AND COALESCE(manifest_relative_path, '') NOT LIKE 'suiteone:%%'
     AND COALESCE(meeting_date_source, '') <> 'suiteone_listing'
+    AND url !~* '^https?://[^/]*suiteonemedia\\.com'
 """
 
 
 def build_select_sql(*, with_jurisdiction: bool) -> str:
-    """SQL for the crawled documents in one state that still need text."""
+    """SQL for the crawled documents in one state that still need text.
+
+    A document already in the text table is skipped unless its last attempt was an
+    ``error`` (a failed download), which is retried; the upsert replaces that row.
+    """
     juris = "AND s.jurisdiction_id = %(jurisdiction_id)s" if with_jurisdiction else ""
     legs = [
         f"""
@@ -64,6 +70,7 @@ def build_select_sql(*, with_jurisdiction: bool) -> str:
           AND NOT EXISTS (
               SELECT 1 FROM {_TEXT_TABLE} t
               WHERE t.jurisdiction_id = s.jurisdiction_id AND t.url_sha256 = s.url_sha256
+                AND t.extraction_method <> 'error'
           )"""
         for table in SCRAPED_TABLES
     ]
@@ -171,18 +178,23 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Extract crawled agenda/minutes PDF text into bronze.")
     p.add_argument("--state", required=True, help="2-letter state code, e.g. AL")
     p.add_argument("--jurisdiction-id", default=None, help="limit to one jurisdiction, e.g. birmingham_0107000")
-    p.add_argument("--doc-types", default="agenda,minutes", help="comma list: agenda,minutes")
+    p.add_argument("--doc-types", default="agenda,minutes",
+                   help="comma list from: agenda,minutes (the types event_meeting_document publishes)")
     p.add_argument("--limit", type=int, default=None, help="cap documents this run")
     p.add_argument("--sleep", type=float, default=0.25, help="delay between documents (politeness)")
     p.add_argument("--repo-root", type=Path, default=Path.cwd(),
                    help="root that the crawl's relative local_path values resolve against (default: cwd)")
-    p.add_argument("--dry-run", action="store_true", help="extract and log, write nothing")
+    p.add_argument("--dry-run", action="store_true",
+                   help="extract and log without writing text rows (still creates the text table if missing)")
     args = p.parse_args(argv)
 
     state = args.state.strip().upper()
     if len(state) != 2:
         p.error("--state must be a 2-letter code")
     doc_types = [d.strip() for d in args.doc_types.split(",") if d.strip()]
+    unknown = sorted(set(doc_types) - set(PUBLISHED_DOC_TYPES))
+    if unknown or not doc_types:
+        p.error(f"--doc-types must be from {','.join(PUBLISHED_DOC_TYPES)}; got {','.join(unknown) or 'nothing'}")
     processed, with_text = extract(
         state, doc_types=doc_types, dsn=_resolve_dsn(), repo_root=args.repo_root.resolve(),
         jurisdiction_id=args.jurisdiction_id, limit=args.limit, sleep=args.sleep, dry_run=args.dry_run,

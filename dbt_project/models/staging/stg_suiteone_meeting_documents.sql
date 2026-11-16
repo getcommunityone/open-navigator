@@ -47,6 +47,7 @@ with src as (
         doc_type,
         resource_category,
         meeting_date,
+        meeting_date_source,
         meeting_title,
         raw_resource,
         loaded_at
@@ -100,7 +101,12 @@ select
         '\1\2\3',
         'i'
     )                                                      as document_url,
-    meeting_date                                           as doc_date,
+    -- 'manifest_year_only' is the crawl loader's January-1-of-the-folder-year
+    -- placeholder (attachments can carry it); never serve it as a meeting date.
+    case
+        when meeting_date_source = 'manifest_year_only' then null
+        else meeting_date
+    end                                                    as doc_date,
     meeting_title,
     -- Canonical body category for date+body matching downstream.
     {{ normalize_meeting_body_key('meeting_title') }}      as body_key,
