@@ -1,6 +1,7 @@
 """Unit tests for ingestion.jurisdictions.columns, ingestion.jurisdictions.mapping.publish_hf, and legacy script path reconciliation."""
 from __future__ import annotations
 
+import importlib.util
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -140,7 +141,10 @@ def test_reconciled_runner_scripts_reference_canonical_modules():
     ).read_text(encoding="utf-8")
     assert "/home/developer/projects/open-navigator" not in openstates_sh
     assert "scripts/datasources/openstates/download_documents.py" not in openstates_sh
-    assert "python -m scrapers.openstates.download_documents" in openstates_sh
+    assert "python -m scrapers.openstates.load_openstates_documents" in openstates_sh
+    assert "scrapers.openstates.download_documents" not in openstates_sh
+    # The module the runner calls must actually exist.
+    assert importlib.util.find_spec("scrapers.openstates.load_openstates_documents") is not None
 
     locations_py = (root / "api" / "routes" / "locations.py").read_text(encoding="utf-8")
     assert "load_hifld_to_postgres.py" not in locations_py

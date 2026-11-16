@@ -27,7 +27,7 @@ download_batch() {
     local log_file="/tmp/openstates_parallel/batch_${batch_num}.log"
 
     echo "Starting batch $batch_num: $states"
-    python -m scrapers.openstates.download_documents \
+    python -m scrapers.openstates.load_openstates_documents \
         --states "$states" \
         --resume \
         > "$log_file" 2>&1 &
@@ -56,7 +56,7 @@ echo "Monitor progress:"
 echo "  tail -f /tmp/openstates_parallel/batch_*.log"
 echo ""
 echo "Check running processes:"
-echo "  ps aux | grep download_documents | grep -v grep"
+echo "  ps aux | grep load_openstates_documents | grep -v grep"
 echo ""
 echo "Stop all downloads:"
-echo "  pkill -f download_documents"
+echo "  pkill -f scrapers.openstates.load_openstates_documents"
