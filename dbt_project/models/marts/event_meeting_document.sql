@@ -62,6 +62,9 @@ THREE of:
            'tuscaloosa_0177256' -> 'tuscaloosa').
      The name fallback is the jurisdiction dimension ONLY; state_code + date +
      body_key are still required so two different cities never cross-link.
+     It applies only when the meeting has no geoid, and never to county
+     documents (county ids drop "County", so 'tuscaloosa_01125' would otherwise
+     name-match the City of Tuscaloosa's meetings); county docs link by geoid.
   2. Date — event_meeting.meeting_date::date = doc_date.
   3. Body — the canonical body_key (macro normalize_meeting_body_key) derived
      from both event_meeting.body_name and the SuiteOne meeting_title match.
@@ -106,6 +109,10 @@ with docs as (
             lower(regexp_replace(jurisdiction_id, '_[^_]*$', '')),
             '[^a-z0-9]+', ' ', 'g'
         )                                                   as juris_name_norm,
+        -- County documents (5-digit county FIPS geoid) link by geoid only; see
+        -- the name-fallback guard in `joined`.
+        coalesce(census_geoid, substring(jurisdiction_id from '_(\d+)$'))
+            ~ '^\d{5}$'                                     as is_county_doc,
         source,
         created_at
     from (
@@ -180,6 +187,16 @@ meetings as (
 -- by geoid (preferred) OR by state_code + normalized name (fallback for the
 -- geoid-less free-text rows). geoid_match flags the preferred path so the
 -- dedupe can favor it.
+--
+-- The name fallback is guarded two ways (#392 review):
+--   * m.geoid is null — a meeting that carries a geoid is matched on it alone;
+--     the name must not override a geoid that says a different government.
+--   * not d.is_county_doc — canonical county ids drop "County"
+--     ('tuscaloosa_01125'), so a county doc's name slug equals the same-named
+--     city's normalized name ('tuscaloosa'). A geoid-less county meeting
+--     normalizes to 'tuscaloosa county' and never matched that slug anyway, so
+--     a county doc's name match could only ever be a city: county documents
+--     link by geoid only. Test: assert_county_meeting_document_not_linked_to_city.
 joined as (
 
     select
@@ -209,9 +226,12 @@ joined as (
        and (
                 -- (a) geoid match, preferred when event_meeting embeds the id
                 (m.geoid is not null and m.geoid = d.census_geoid)
-                -- (b) name fallback: same state + same normalized city name
+                -- (b) name fallback: same state + same normalized city name,
+                --     only for geoid-less meetings and non-county documents
              or (
-                    m.state_code = d.state_code
+                    m.geoid is null
+                and not d.is_county_doc
+                and m.state_code = d.state_code
                 and m.juris_name_norm <> ''
                 and m.juris_name_norm = d.juris_name_norm
                 )
