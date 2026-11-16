@@ -8,10 +8,12 @@ Reads from the bronze ingestion tables landed by:
 Falls back to the public.tag mart if the bronze migration has
 not been run yet (during the Stage-2 transition).
 """
+import asyncio
 import os
+import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import psycopg2
 from fastapi import APIRouter, Query
@@ -22,15 +24,82 @@ from api.routes.search_postgres import normalize_state_input
 
 router = APIRouter(prefix="/api/trending", tags=["trending"])
 
-LOCAL_DB_URL = os.getenv(
+_DEFAULT_LOCAL_DB_URL = "postgresql://postgres:password@localhost:5433/open_navigator"
+_DB_ENV_PRIORITY = (
     "NEON_DATABASE_URL_DEV",
-    "postgresql://postgres:password@localhost:5433/open_navigator",
+    "NEON_DATABASE_URL",
+    "OPEN_NAVIGATOR_DATABASE_URL",
+    "DATABASE_URL",
 )
+
+
+def resolve_db_url() -> str:
+    """Resolve database URL across dev, Neon production, and standard env vars."""
+    for env_key in _DB_ENV_PRIORITY:
+        raw = (os.getenv(env_key) or "").strip()
+        if raw:
+            if raw.startswith("postgres://"):
+                return raw.replace("postgres://", "postgresql://", 1)
+            return raw
+    return _DEFAULT_LOCAL_DB_URL
+
+
+LOCAL_DB_URL = resolve_db_url()
+_INITIAL_LOCAL_DB_URL = LOCAL_DB_URL
+
+# Bounded in-memory TTL cache and per-key inflight lock map to prevent
+# event-loop blocking and duplicate concurrent Postgres connections.
+_CACHE_TTL_S: float = 300.0
+_MAX_CACHE_ENTRIES: int = 128
+_trending_cache: Dict[str, Tuple[float, Any]] = {}
+_inflight_locks: Dict[str, asyncio.Lock] = {}
+
+
+def clear_trending_cache() -> None:
+    """Clear in-memory trending cache and inflight locks."""
+    _trending_cache.clear()
+    _inflight_locks.clear()
+
+
+def _get_cached(key: str) -> Optional[Any]:
+    if _CACHE_TTL_S <= 0:
+        return None
+    entry = _trending_cache.get(key)
+    if entry is None:
+        return None
+    fetched_at, payload = entry
+    if time.monotonic() - fetched_at >= _CACHE_TTL_S:
+        _trending_cache.pop(key, None)
+        return None
+    return payload
+
+
+def _set_cached(key: str, payload: Any) -> None:
+    if _CACHE_TTL_S <= 0:
+        return
+    now = time.monotonic()
+    if len(_trending_cache) >= _MAX_CACHE_ENTRIES and key not in _trending_cache:
+        expired = [k for k, (ts, _) in _trending_cache.items() if now - ts >= _CACHE_TTL_S]
+        for k in expired:
+            _trending_cache.pop(k, None)
+        if len(_trending_cache) >= _MAX_CACHE_ENTRIES:
+            oldest_key = min(_trending_cache, key=lambda k: _trending_cache[k][0])
+            _trending_cache.pop(oldest_key, None)
+    _trending_cache[key] = (now, payload)
+
+
+def _active_db_url() -> str:
+    """Return runtime-patched LOCAL_DB_URL if modified, otherwise resolve from env."""
+    if LOCAL_DB_URL != _INITIAL_LOCAL_DB_URL:
+        if LOCAL_DB_URL.startswith("postgres://"):
+            return LOCAL_DB_URL.replace("postgres://", "postgresql://", 1)
+        return LOCAL_DB_URL
+    return resolve_db_url()
 
 
 @contextmanager
 def _cursor():
-    conn = psycopg2.connect(LOCAL_DB_URL)
+    conn = psycopg2.connect(_active_db_url())
     try:
         with conn.cursor() as cur:
             yield cur
@@ -130,6 +199,8 @@ def get_everyorg_causes(
     and only causes actually discussed there are returned — so Browse Causes shows
     a place-specific pill set, mirroring the Topics flow.
     """
+    if limit <= 0:
+        return []
     norm_state = normalize_state_input(state) if state else None
     norm_city = (city or "").strip() or None
     params = {"state": norm_state, "city": norm_city, "limit": limit}
@@ -141,7 +212,7 @@ def get_everyorg_causes(
                 rows = cur.fetchall()
             except psycopg2.Error:
                 # Linkage mart missing/unreadable — fall back to the plain list so
-                # causes never disappear. New cursor: the prior tx is aborted.
+                # causes never disappear. Roll back aborted transaction on same conn.
                 cur.connection.rollback()
                 cur.execute(_CAUSES_NO_COUNT_SQL, {"limit": limit})
                 rows = cur.fetchall()
@@ -171,6 +242,8 @@ def get_ntee_causes(limit: int = 20, level: Optional[int] = None) -> List[CauseI
         limit: max rows to return.
         level: 1 = major groups (single-letter codes), 2 = divisions (3-char codes).
     """
+    if limit <= 0:
+        return []
     # `level` maps directly to code length: A = level 1, A20 = level 2.
     bronze_where = ["cause_type = 'ntee'"]
     # public.tag filters NTEE rows via vocabulary; code lives in source_code.
@@ -212,6 +285,7 @@ def get_ntee_causes(limit: int = 20, level: Optional[int] = None) -> List[CauseI
     for code, name, description, category in rows:
         icon = _NTEE_ICON_MAP.get((code or 'Z')[0], '📌')
         out.append(CauseItem(
+            cause_id=code,
             name=name or code,
             icon=icon,
             category=category or 'ntee',
@@ -223,28 +297,48 @@ def get_ntee_causes(limit: int = 20, level: Optional[int] = None) -> List[CauseI
 
 
 def _query_with_legacy_fallback(primary_sql: str, legacy_sql: str, params):
-    """Try the bronze table first; fall back to the public.tag mart.
+    """Try the bronze table first; fall back to the public.tag mart on the same connection.
 
     Returns None if both fail (so the caller can render an empty response
     instead of 500ing).
     """
     try:
         with _cursor() as cur:
-            cur.execute(primary_sql, params)
-            return cur.fetchall()
-    except psycopg2.errors.UndefinedTable:
-        logger.info("bronze.bronze_ntee_codes not found, falling back to public.tag")
+            try:
+                cur.execute(primary_sql, params)
+                return cur.fetchall()
+            except psycopg2.errors.UndefinedTable:
+                logger.info("bronze.bronze_ntee_codes not found, falling back to public.tag")
+                cur.connection.rollback()
+                cur.execute(legacy_sql, params)
+                return cur.fetchall()
     except Exception as exc:
-        logger.warning(f"Primary trending query failed: {exc}")
+        logger.warning(f"Trending query with legacy fallback failed: {exc}")
         return None
 
-    try:
-        with _cursor() as cur:
-            cur.execute(legacy_sql, params)
-            return cur.fetchall()
-    except Exception as exc:
-        logger.warning(f"Legacy trending query failed: {exc}")
-        return None
+
+def _compute_trending_causes_sync(
+    norm_source: str,
+    limit: int,
+    level: Optional[int],
+    state: Optional[str],
+    city: Optional[str],
+) -> List[CauseItem]:
+    if norm_source == "ntee":
+        return get_ntee_causes(limit=limit, level=level)
+    if norm_source == "mixed":
+        everyorg_limit = (limit + 1) // 2
+        ntee_limit = max(1, limit // 2) if limit > 1 else 0
+        everyorg = get_everyorg_causes(limit=everyorg_limit, state=state, city=city)
+        ntee = get_ntee_causes(limit=ntee_limit, level=level if level in (1, 2) else 1) if ntee_limit > 0 else []
+        causes: List[CauseItem] = []
+        for i in range(max(len(everyorg), len(ntee))):
+            if i < len(everyorg):
+                causes.append(everyorg[i])
+            if i < len(ntee):
+                causes.append(ntee[i])
+        return causes[:limit]
+    return get_everyorg_causes(limit=limit, state=state, city=city)
 
 
 @router.get("", response_model=TrendingResponse)
@@ -266,42 +360,36 @@ async def get_trending_causes(
     - `ntee`: IRS nonprofit categories
     - `mixed`: Interleaved from both
     """
-    if source == "ntee":
-        causes = get_ntee_causes(limit=limit, level=level)
-    elif source == "mixed":
-        half = limit // 2
-        everyorg = get_everyorg_causes(limit=half, state=state, city=city)
-        ntee = get_ntee_causes(limit=half, level=1)
-        causes = []
-        for i in range(max(len(everyorg), len(ntee))):
-            if i < len(everyorg):
-                causes.append(everyorg[i])
-            if i < len(ntee):
-                causes.append(ntee[i])
-    else:
-        causes = get_everyorg_causes(limit=limit, state=state, city=city)
+    norm_source = (source or "everyorg").strip().lower()
+    norm_state = normalize_state_input(state) if state else None
+    norm_city = (city or "").strip().lower() or None
+    cache_key = f"causes:{norm_source}:{limit}:{level}:{norm_state}:{norm_city}"
 
-    return TrendingResponse(causes=causes, total=len(causes))
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    lock = _inflight_locks.setdefault(cache_key, asyncio.Lock())
+    async with lock:
+        cached = _get_cached(cache_key)
+        if cached is not None:
+            return cached
+
+        causes = await asyncio.to_thread(
+            _compute_trending_causes_sync,
+            norm_source,
+            limit,
+            level,
+            state,
+            city,
+        )
+        response = TrendingResponse(causes=causes, total=len(causes))
+        if causes:
+            _set_cached(cache_key, response)
+        return response
 
 
-@router.get("/topics", response_model=TrendingTopicsResponse)
-async def get_trending_topics(
-    state: Optional[str] = Query(
-        None, description="2-letter code or full state name; omit for national"
-    ),
-    limit: int = Query(12, ge=1, le=50, description="Max number of topics to return"),
-) -> TrendingTopicsResponse:
-    """
-    Get trending legislative topics for the homepage trending pills.
-
-    Reads the modeled ``public.rpt_bill_map_aggregate`` mart. The trending
-    signal is ``recent_bill_count`` (bills with recent action).
-
-    - **state** given: per-state subjects filtered by ``state_code``.
-    - **state** omitted: subjects aggregated across all jurisdictions.
-    """
-    norm_state = normalize_state_input(state)
-
+def _fetch_trending_topics_sync(norm_state: Optional[str], limit: int) -> List[TrendingTopicItem]:
     if norm_state:
         sql = """
             SELECT subject, bill_count, recent_bill_count, state_code
@@ -336,12 +424,12 @@ async def get_trending_topics(
         logger.warning(
             "public.rpt_bill_map_aggregate not found; returning empty trending topics"
         )
-        return TrendingTopicsResponse(topics=[], total=0)
+        return []
     except Exception as exc:
         logger.warning(f"Trending topics query failed: {exc}")
-        return TrendingTopicsResponse(topics=[], total=0)
+        return []
 
-    topics = [
+    return [
         TrendingTopicItem(
             name=subject,
             bill_count=int(bill_count or 0),
@@ -350,39 +438,78 @@ async def get_trending_topics(
         )
         for (subject, bill_count, recent_bill_count, state_code) in rows
     ]
-    return TrendingTopicsResponse(topics=topics, total=len(topics))
 
 
-@router.get("/stats")
-async def get_trending_stats():
-    """Get stats about available causes."""
+@router.get("/topics", response_model=TrendingTopicsResponse)
+async def get_trending_topics(
+    state: Optional[str] = Query(
+        None, description="2-letter code or full state name; omit for national"
+    ),
+    limit: int = Query(12, ge=1, le=50, description="Max number of topics to return"),
+) -> TrendingTopicsResponse:
+    """
+    Get trending legislative topics for the homepage trending pills.
+
+    Reads the modeled ``public.rpt_bill_map_aggregate`` mart. The trending
+    signal is ``recent_bill_count`` (bills with recent action).
+
+    - **state** given: per-state subjects filtered by ``state_code``.
+    - **state** omitted: subjects aggregated across all jurisdictions.
+    """
+    norm_state = normalize_state_input(state)
+    cache_key = f"topics:{norm_state}:{limit}"
+
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    lock = _inflight_locks.setdefault(cache_key, asyncio.Lock())
+    async with lock:
+        cached = _get_cached(cache_key)
+        if cached is not None:
+            return cached
+
+        topics = await asyncio.to_thread(_fetch_trending_topics_sync, norm_state, limit)
+        response = TrendingTopicsResponse(topics=topics, total=len(topics))
+        if topics:
+            _set_cached(cache_key, response)
+        return response
+
+
+def _fetch_trending_stats_sync() -> Dict[str, int]:
     everyorg_count = 0
     ntee_count = 0
 
     try:
         with _cursor() as cur:
-            cur.execute("SELECT count(*) FROM bronze.bronze_everyorg_causes")
-            everyorg_count = cur.fetchone()[0]
-    except Exception as exc:
-        logger.warning(f"EveryOrg count failed: {exc}")
+            try:
+                cur.execute("SELECT count(*) FROM bronze.bronze_everyorg_causes")
+                row = cur.fetchone()
+                everyorg_count = int(row[0] or 0) if row else 0
+            except Exception as exc:
+                logger.warning(f"EveryOrg count failed: {exc}")
+                cur.connection.rollback()
 
-    try:
-        with _cursor() as cur:
-            cur.execute(
-                "SELECT count(*) FROM bronze.bronze_ntee_codes WHERE cause_type = 'ntee'"
-            )
-            ntee_count = cur.fetchone()[0]
-    except psycopg2.errors.UndefinedTable:
-        # Stage-2 transition: bronze table not yet created, fall back to the
-        # public.tag mart (NTEE rows filtered via vocabulary).
-        try:
-            with _cursor() as cur:
-                cur.execute("SELECT count(*) FROM public.tag WHERE vocabulary = 'ntee'")
-                ntee_count = cur.fetchone()[0]
-        except Exception as exc:
-            logger.warning(f"NTEE tag-mart count failed: {exc}")
+            try:
+                cur.execute(
+                    "SELECT count(*) FROM bronze.bronze_ntee_codes WHERE cause_type = 'ntee'"
+                )
+                row = cur.fetchone()
+                ntee_count = int(row[0] or 0) if row else 0
+            except psycopg2.errors.UndefinedTable:
+                cur.connection.rollback()
+                try:
+                    cur.execute("SELECT count(*) FROM public.tag WHERE vocabulary = 'ntee'")
+                    row = cur.fetchone()
+                    ntee_count = int(row[0] or 0) if row else 0
+                except Exception as exc:
+                    logger.warning(f"NTEE tag-mart count failed: {exc}")
+                    cur.connection.rollback()
+            except Exception as exc:
+                logger.warning(f"NTEE count failed: {exc}")
+                cur.connection.rollback()
     except Exception as exc:
-        logger.warning(f"NTEE count failed: {exc}")
+        logger.warning(f"Trending stats database connection failed: {exc}")
 
     images_dir = Path("data/media/causes")
     images_count = (
@@ -395,3 +522,23 @@ async def get_trending_stats():
         "total_causes": everyorg_count + ntee_count,
         "generated_images": images_count,
     }
+
+
+@router.get("/stats")
+async def get_trending_stats():
+    """Get stats about available causes."""
+    cache_key = "stats"
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    lock = _inflight_locks.setdefault(cache_key, asyncio.Lock())
+    async with lock:
+        cached = _get_cached(cache_key)
+        if cached is not None:
+            return cached
+
+        payload = await asyncio.to_thread(_fetch_trending_stats_sync)
+        if payload["total_causes"] > 0:
+            _set_cached(cache_key, payload)
+        return payload
