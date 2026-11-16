@@ -44,7 +44,7 @@ conflicting definitions in it confuse the model.
 |---|---|
 | Transcript analysis, `prompts/policy_analysis_part_1.md` (about 35 KB) | The fixed prompt comes first and the per-meeting block last, so calls share a prefix and Gemini's implicit cache applies. See [Transcript analysis cost](./transcript-analysis-cost.md) |
 | Transcript source, `packages/llm/src/llm/gemini/transcript_db.py` | Reads timed caption segments from `bronze_event_youtube_transcript`, keeping segment boundaries and timestamps instead of one flat blob |
-| Jev screening (proposed, branch `feat/jev-transcript-screening`) | Cuts transcripts at caption-segment boundaries into chunks under Jev's 32k-token per-question limit, and screens a few evenly spaced chunks instead of switching on the slower, less accurate long-context mode |
+| Jev screening (proposed, PR #435, branch `feat/424-jev-transcript-screening`) | Cuts transcripts at caption-segment boundaries into chunks under Jev's 32k-token per-question limit, and screens a few evenly spaced chunks instead of switching on the slower, less accurate long-context mode |
 | Coding agents, `CLAUDE.md` and `.claude/agents/` | Agents are told not to read raw data files, logs or parquet dumps, and to read schemas instead. Scoped work goes to specialist agents, each with a narrow brief |
 
 **Gaps**
