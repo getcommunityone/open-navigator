@@ -29,3 +29,18 @@ add the rest. Raw OpenStates `bills` and `bill_sponsorship` are about 1.8 GB mor
 If production moves to a database without the 512 MB cap (a paid Neon plan, Lakebase or another Postgres), add the
 tables to the copy list in `sync_public_to_neon.py`, run
 `python -m hosting.neon.sync_public_to_neon --only grant nonprofit_sector_revenue`, and restart the API.
+
+## The size check before each sync
+
+Allow-listed tables still grow with every crawl, so `python -m hosting.neon.sync_public_to_neon` checks the size
+before it copies anything ([#387](https://github.com/getcommunityone/open-navigator/issues/387)):
+
+- It estimates each incoming table from the local rows (column sizes plus Postgres's per-row overhead).
+- It reads Neon's current size and projects the size after the swap, and the peak while a staging copy and the old
+  table both exist.
+- It stops with exit code **4**, before touching Neon, when the projected size passes **480 MB** (`--max-mb` or
+  `NEON_MAX_MB`) or the peak passes the 512 MB cap. The log lists the largest incoming tables.
+- `--dry-run` prints each table's estimated size and the total.
+
+The data center tables (`job_claim`, `data_center_site`, `data_center_agenda_item`, `area_concern`) are on the
+allow-list. `job_application_link` is written by the production admin screen, so it is runtime-owned and never copied.
