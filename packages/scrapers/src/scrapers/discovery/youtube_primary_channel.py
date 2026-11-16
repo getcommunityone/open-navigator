@@ -49,8 +49,23 @@ def youtube_channel_selection_confidence(ch: Dict[str, Any]) -> Optional[float]:
     return val if val >= 0.0 else None
 
 
+def _linked_from_jurisdiction_site(ch: Dict[str, Any]) -> bool:
+    """The jurisdiction's own website links to this channel."""
+    method = str(ch.get("discovery_method") or ch.get("youtube_channel_selection_method") or "")
+    return "website_scrape" in method.strip().lower()
+
+
 def _promotable_for_primary(ch: Dict[str, Any]) -> bool:
-    """Exclude weak ``pattern_match`` rows and non-meeting channel purposes."""
+    """A channel can be the primary only if the jurisdiction's site links to it, or it
+    links back to the jurisdiction's site.
+
+    Search hits (``youtube_api``, ``domain_search``) and handle guesses
+    (``pattern_match``) are kept as candidates but need that backlink. Checked on
+    November 16, 2026: four Alabama search picks were all wrong (Abbeville got a
+    newspaper's channel, Alabaster an unrelated one, Alexander City a church,
+    Albertville a watchdog page), while six channels linked from city homepages
+    were all the cities' own. Non-meeting channel purposes are also excluded.
+    """
     from scripts.discovery.youtube_channel_purpose import (  # noqa: E402
         is_meeting_primary_purpose,
     )
@@ -58,10 +73,12 @@ def _promotable_for_primary(ch: Dict[str, Any]) -> bool:
     purpose = str(ch.get("channel_purpose") or "").strip().lower()
     if purpose and not is_meeting_primary_purpose(purpose):
         return False
-    if not is_pattern_match_discovery(ch):
+    if _linked_from_jurisdiction_site(ch):
         return True
     if not ch.get("back_links_to_jurisdiction_website"):
         return False
+    if not is_pattern_match_discovery(ch):
+        return True
     conf = youtube_channel_selection_confidence(ch)
     if conf is None or conf < PATTERN_MATCH_PRIMARY_MIN_OFFICIAL_CONFIDENCE:
         return False
