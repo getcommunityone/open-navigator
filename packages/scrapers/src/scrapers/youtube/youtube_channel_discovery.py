@@ -17,9 +17,30 @@ from urllib.parse import quote_plus, urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
+
+from scrapers.discovery.browser_block import (
+    BLOCKED_PREFIX,
+    blocked_reason,
+    is_blocked_reason,
+)
+
 import os
 
 from scrapers.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+
+
+def _response_block(response: Any) -> Optional[str]:
+    """``blocked_reason`` for an httpx-like response (403 / 429 / challenge page), else ``None``."""
+    headers = getattr(response, "headers", None)
+    try:
+        header_map = dict(headers) if headers else None
+    except Exception:
+        header_map = None
+    return blocked_reason(
+        getattr(response, "status_code", None),
+        getattr(response, "text", "") or "",
+        header_map,
+    )
 
 
 class YouTubeChannelDiscovery:
@@ -740,9 +761,17 @@ class YouTubeChannelDiscovery:
         return [u for _, u in scored[:max_pages]]
 
     async def _fetch_page_html(self, url: str) -> tuple[Optional[str], str]:
-        """httpx (+ VPN bypass), then Playwright when the plain GET fails entirely."""
+        """httpx (+ VPN bypass), then Playwright when the plain GET fails entirely.
+
+        A ``403`` / ``429`` or a bot-challenge page is reported as ``blocked:<reason>`` and is
+        **not** retried through the browser (issue #443): the caller moves on.
+        """
         try:
             response = await async_get_with_vpn_bypass(self.client, url)
+            blk = _response_block(response)
+            if blk:
+                logger.info(f"YouTube scrape: {url} is blocked ({blk}); skipping")
+                return None, f"{BLOCKED_PREFIX}{blk}"
             if response.status_code == 200 and (response.text or "").strip():
                 return response.text, ""
         except Exception as exc:
@@ -776,9 +805,12 @@ class YouTubeChannelDiscovery:
         search_http_max = self._youtube_int_env("YOUTUBE_SITE_SEARCH_HTTP_MAX", 8)
         search_pw_max = self._youtube_int_env("YOUTUBE_SITE_SEARCH_PLAYWRIGHT_MAX", 2)
 
-        homepage_html, _err = await self._fetch_page_html(url)
+        homepage_html, home_err = await self._fetch_page_html(url)
         if homepage_html:
             add_channels(self._extract_youtube_links_from_html(homepage_html, base_url=url))
+        elif is_blocked_reason(home_err):
+            # The host refuses automated access: record it and move on (issue #443).
+            return channels
         else:
             logger.debug(f"Could not load homepage HTML for YouTube scrape: {url}")
 
@@ -794,7 +826,9 @@ class YouTubeChannelDiscovery:
             for follow_url in self._collect_youtube_followup_page_urls(
                 homepage_html, base_url=url, max_pages=followup_max
             ):
-                page_html, _ = await self._fetch_page_html(follow_url)
+                page_html, page_err = await self._fetch_page_html(follow_url)
+                if is_blocked_reason(page_err):
+                    return channels
                 if not page_html:
                     continue
                 add_channels(self._extract_youtube_links_from_html(page_html, base_url=follow_url))
@@ -807,6 +841,7 @@ class YouTubeChannelDiscovery:
                     return channels
 
         attempted_search_urls: list[str] = []
+        blocked_search_urls: set[str] = set()
         http_attempts = 0
 
         for query in self._SITE_SEARCH_QUERIES:
@@ -825,7 +860,10 @@ class YouTubeChannelDiscovery:
                 http_attempts += 1
                 try:
                     search_resp = await async_get_with_vpn_bypass(self.client, search_url)
-                    if search_resp.status_code == 200:
+                    if _response_block(search_resp):
+                        # Never retried through the browser below (issue #443).
+                        blocked_search_urls.add(search_url)
+                    elif search_resp.status_code == 200:
                         add_channels(
                             self._extract_youtube_links_from_html(
                                 search_resp.text, base_url=search_url
@@ -838,7 +876,8 @@ class YouTubeChannelDiscovery:
             if http_attempts >= search_http_max:
                 break
 
-        for search_url in attempted_search_urls[:search_pw_max]:
+        renderable = [u for u in attempted_search_urls if u not in blocked_search_urls]
+        for search_url in renderable[:search_pw_max]:
             html = await self._fetch_search_html_via_playwright(search_url)
             if not html:
                 continue

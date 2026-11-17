@@ -133,15 +133,6 @@ def _find_caption_tracks(obj: Any, *, found: Optional[list] = None) -> list[dict
     return found
 
 
-def _apply_stealth(page: Any) -> None:
-    try:
-        from playwright_stealth import stealth_sync
-
-        stealth_sync(page)
-    except Exception:
-        pass
-
-
 def _try_open_transcript_panel(page: Any, *, wait_ms: int) -> list[str]:
     """Click through common transcript UI paths; return notes for logging."""
     notes: list[str] = []
@@ -220,7 +211,6 @@ def fetch_transcript_via_playwright(
             logger.info("Loaded {} YouTube cookie(s) into browser context", len(cookies))
 
         page = context.new_page()
-        _apply_stealth(page)
 
         def handle_response(response: Any) -> None:
             try:
