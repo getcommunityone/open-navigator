@@ -41,6 +41,12 @@ is the share of the arm's items the reference also has; vote agreement is the
 share of matched items with the same yes/no count. Agreement is not correctness:
 the reference can be the one that is wrong, so ``summary.md`` lists every item an
 arm missed or added, for a person to check.
+
+When a meeting's folder holds its transcript (``transcript.txt``, written by the
+Colab Gemma pilot ``llm.gpu.colab_policy_analyze --pilot``, #511), every quote the
+prompt asks to be verbatim (``quote``, ``raw_text``) is also looked up in it, case
+and punctuation ignored: ``quote_verbatim_rate`` for the arm and for the reference.
+A Colab arm's call record carries its ``compute_units`` (``mean_compute_units``).
 """
 
 from __future__ import annotations
@@ -90,8 +96,12 @@ _HONORIFICS = frozenset(
 SCORE_COLUMNS = (
     "json_ok", "item_count", "reference_item_count", "decision_count", "reference_decision_count",
     "item_recall", "item_precision", "decision_recall", "vote_agreement", "people_recall",
-    "place_recall", "amount_recall",
+    "place_recall", "amount_recall", "quote_count", "quote_verbatim_rate", "reference_quote_verbatim_rate",
 )  # fmt: skip
+# Fields whose text the prompt asks to be the transcript's own words; checked when the run folder has the
+# meeting's transcript (``<video>/transcript.txt``, written by the Colab Gemma pilot, #511).
+QUOTE_FIELDS = ("quote", "verbatim_quote", "raw_text")
+MIN_QUOTE_WORDS = 3
 
 
 # --------------------------------------------------------------------------- #
@@ -337,6 +347,40 @@ def score_analysis(candidate: dict[str, Any] | None, reference: dict[str, Any]) 
     }
 
 
+def _quote_norm(text: str) -> str:
+    """Lowercase words only: captions differ from a quote in case, punctuation and line breaks, not in words."""
+    return " ".join(re.findall(r"[a-z0-9']+", (text or "").lower().replace("\u2019", "'")))
+
+
+def analysis_quotes(analysis: dict[str, Any] | None) -> list[str]:
+    """Every ``quote`` / ``verbatim_quote`` / ``raw_text`` string of at least three words, anywhere in the analysis."""
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in QUOTE_FIELDS and isinstance(value, str) and len(_quote_norm(value).split()) >= MIN_QUOTE_WORDS:
+                    found.append(value)
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(analysis or {})
+    return found
+
+
+def quote_check(analysis: dict[str, Any] | None, transcript: str) -> dict[str, Any]:
+    """How many of the analysis's quotes appear word for word in the transcript (case and punctuation ignored).
+    ``quote_verbatim_rate`` is ``None`` when there's no quote to check."""
+    quotes = analysis_quotes(analysis)
+    corpus = f" {_quote_norm(transcript)} "
+    missing = [q for q in quotes if f" {_quote_norm(q)} " not in corpus]
+    return {"quote_count": len(quotes), "quote_verbatim_rate": _ratio(len(quotes) - len(missing), len(quotes)),
+            "quotes_not_found": missing}
+
+
 def _vote_text(vote: tuple[int, int] | None) -> str:
     return f"{vote[0]}-{vote[1]}" if vote else "none"
 
@@ -384,9 +428,11 @@ def summarize(rows: list[dict[str, Any]], arm_labels: list[str], prices: dict[st
         summary["call_failed_count"] = sum(1 for r in mine if not r.get("is_ok"))
         summary["json_ok_rate"] = _mean([1.0 if r.get("json_ok") else 0.0 for r in mine])
         for column in ("item_recall", "item_precision", "decision_recall", "vote_agreement",
-                       "people_recall", "place_recall", "amount_recall"):  # fmt: skip
+                       "people_recall", "place_recall", "amount_recall", "quote_verbatim_rate",
+                       "reference_quote_verbatim_rate"):  # fmt: skip
             summary[column] = _mean([r.get(column) for r in mine])
-        for column in ("input_token_count", "output_token_count", "thinking_token_count", "latency_seconds"):
+        for column in ("input_token_count", "output_token_count", "thinking_token_count", "latency_seconds",
+                       "compute_units"):
             summary[f"mean_{column}"] = _mean([r.get(column) for r in mine])
         summary["mean_cost_usd"] = (
             round(statistics.fmean(costs), 5) if costs and all(c is not None for c in costs) else None
@@ -409,7 +455,8 @@ def render_markdown(meta: dict[str, Any], summary: list[dict[str, Any]], rows: l
     columns = ["arm", "meeting_count", "call_failed_count", "json_ok_rate", "item_recall", "item_precision",
                "decision_recall", "vote_agreement", "people_recall", "place_recall", "amount_recall",
                "mean_input_token_count", "mean_output_token_count", "mean_thinking_token_count",
-               "mean_latency_seconds", "mean_cost_usd"]  # fmt: skip
+               "mean_latency_seconds", "mean_cost_usd", "quote_verbatim_rate", "reference_quote_verbatim_rate",
+               "mean_compute_units"]  # fmt: skip
     lines = [
         "# Model comparison: transcript Part 1",
         "",
@@ -430,7 +477,8 @@ def render_markdown(meta: dict[str, Any], summary: list[dict[str, Any]], rows: l
         lines.append("| " + " | ".join(_fmt(s.get(c)) for c in columns) + " |")
     lines += ["", "## Items to check by hand", ""]
     for row in rows:
-        if not (row.get("missed") or row.get("added") or row.get("vote_mismatches") or not row.get("json_ok")):
+        if not (row.get("missed") or row.get("added") or row.get("vote_mismatches") or not row.get("json_ok")
+                or row.get("quotes_not_found")):
             continue
         lines.append(f"### {row['video_id']} · {row['arm']}")
         if not row.get("is_ok"):
@@ -440,6 +488,7 @@ def render_markdown(meta: dict[str, Any], summary: list[dict[str, Any]], rows: l
         lines += [f"- missed: {h}" for h in row.get("missed") or []]
         lines += [f"- added: {h}" for h in row.get("added") or []]
         lines += [f"- vote differs: {v}" for v in row.get("vote_mismatches") or []]
+        lines += [f"- quote not in transcript: {q}" for q in row.get("quotes_not_found") or []]
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -521,6 +570,8 @@ def score_run(run_dir: Path, arms: list[Arm], reference: str) -> list[dict[str, 
         if ref is None:
             logger.warning("No reference for {} — not scored", video_dir.name)
             continue
+        transcript_path = video_dir / "transcript.txt"
+        transcript = transcript_path.read_text(encoding="utf-8") if transcript_path.is_file() else None
         for arm in arms:
             if arm.label == reference:
                 continue
@@ -535,6 +586,9 @@ def score_run(run_dir: Path, arms: list[Arm], reference: str) -> list[dict[str, 
                 scored = score_analysis(None, ref)
             else:
                 continue
+            if transcript is not None:
+                scored.update(quote_check(parse_answer(answer) if record_path.is_file() else None, transcript))
+                scored["reference_quote_verbatim_rate"] = quote_check(ref, transcript)["quote_verbatim_rate"]
             rows.append({"video_id": video_dir.name, **record, **scored})
     return rows
 
@@ -546,7 +600,7 @@ def write_outputs(run_dir: Path, meta: dict[str, Any], rows: list[dict[str, Any]
     summary = summarize(rows, labels, load_prices())
     columns = ["video_id", "arm", "model", "is_ok", *SCORE_COLUMNS, "input_token_count",
                "cached_input_token_count", "output_token_count", "thinking_token_count",
-               "latency_seconds", "attempt_count", "error"]  # fmt: skip
+               "latency_seconds", "attempt_count", "compute_units", "error"]  # fmt: skip
     with (run_dir / "comparison.csv").open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=columns, extrasaction="ignore")
         writer.writeheader()

@@ -452,7 +452,15 @@ def save_transcript_policy_output(
     record_db_events: bool = False,
     defer_report_event: bool = False,
     usage: Optional[Dict[str, Any]] = None,
+    generation_source: str = "ai_studio_api",
+    pipeline: str = "transcript_flash_lite",
+    extra_meta: Optional[Dict[str, Any]] = None,
 ) -> Path:
+    """Write one Part 1 answer (analysis JSON, report, meta, manifest, bronze stamps).
+
+    ``generation_source`` / ``pipeline`` say where the answer came from (the Colab Gemma import passes
+    ``colab_hf``); ``extra_meta`` adds keys to the meta (model, backend, quantization, GPU, ...) and may set
+    ``prompt_sha256`` to the hash of the prompt the answer was made with (#511)."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     jid = video.jurisdiction_id
     geo = {
@@ -641,8 +649,8 @@ def save_transcript_policy_output(
         # Content hash of the prompt used, so each analysis shows which wording made it.
         "prompt_sha256": prompt_hash,
         "gemini_model": model,
-        "generation_source": "ai_studio_api",
-        "pipeline": "transcript_flash_lite",
+        "generation_source": generation_source,
+        "pipeline": pipeline,
         "generated_at": ts,
         "response_chars": len(response_text),
         # Token counts, latency and attempts as the API reported them (#262);
@@ -653,6 +661,9 @@ def save_transcript_policy_output(
         "transcript": transcript_meta,
         "files": files,
     }
+    if extra_meta:
+        # Never let extra keys replace what the run wrote about its files and transcript.
+        meta_payload.update({k: v for k, v in extra_meta.items() if k not in ("files", "transcript")})
     meta_path.write_text(
         json.dumps(meta_payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -664,8 +675,8 @@ def save_transcript_policy_output(
         "title": video.title,
         "prompt_name": prompt_name,
         "gemini_model": model,
-        "generation_source": "ai_studio_api",
-        "pipeline": "transcript_flash_lite",
+        "generation_source": generation_source,
+        "pipeline": pipeline,
         "generated_at": ts,
         "json_parsed": json_parsed,
         "files": files,
@@ -1205,6 +1216,9 @@ def save_part1_response(
     args: argparse.Namespace,
     *,
     usage: Optional[Dict[str, Any]] = None,
+    generation_source: str = "ai_studio_api",
+    pipeline: str = "transcript_flash_lite",
+    extra_meta: Optional[Dict[str, Any]] = None,
 ) -> Path:
     """Write one Part 1 response (analysis JSON, meta, bronze stamps) and return
     the analysis path. The same path whichever way the response was produced."""
@@ -1225,6 +1239,9 @@ def save_part1_response(
         record_db_events=_db_events_enabled(args),
         defer_report_event=getattr(args, "run_part_2", False),
         usage=usage,
+        generation_source=generation_source,
+        pipeline=pipeline,
+        extra_meta=extra_meta,
     )
 
 
