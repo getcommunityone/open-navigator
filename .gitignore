@@ -114,6 +114,7 @@ nohup.out
 !packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata_colab.ipynb
 !packages/scrapers/src/scrapers/wikidata/wikidata_fips_gnis_extract_colab.ipynb
 !packages/llm/src/llm/governance/02_run_meeting_llm.ipynb
+!notebooks/colab_gpu_diarize.ipynb
 
 # Data files
 data/
