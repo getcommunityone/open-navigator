@@ -9,7 +9,6 @@ ddgs>=9.14,<10  # metasearch (replaces duckduckgo-search) for jurisdiction websi
 selenium==4.16.0
 # 1.40 install-deps targets Ubuntu 22.04 package names and fails on 24.04 Noble (libicu70, libasound2, …).
 playwright==1.52.0
-playwright-stealth==2.0.3
 httpx>=0.25.0
 crawl4ai>=0.4.0          # AI-friendly crawler (browser + LLM extraction); needs `crawl4ai-setup` once after install
 litellm>=1.40.0          # crawl4ai backend for non-OpenAI providers (Groq, Gemini, Anthropic, ...)

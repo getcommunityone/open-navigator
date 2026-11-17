@@ -69,19 +69,6 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
 try:
-    from playwright_stealth import stealth_async
-    STEALTH_MODE = "legacy"
-    PLAYWRIGHT_STEALTH_AVAILABLE = True
-except ImportError:
-    try:
-        from playwright_stealth import Stealth
-        STEALTH_MODE = "class"
-        PLAYWRIGHT_STEALTH_AVAILABLE = True
-    except ImportError:
-        STEALTH_MODE = "none"
-        PLAYWRIGHT_STEALTH_AVAILABLE = False
-
-try:
     from pyspark.sql import SparkSession, DataFrame
     from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
     SPARK_AVAILABLE = True
@@ -302,16 +289,13 @@ class BallotpediaDiscovery:
         self.session = None
         self.max_retries = int(os.getenv("BALLOTPEDIA_HTTP_RETRIES", "4"))
         self.base_backoff_seconds = 2.0
-        # Ballotpedia often returns HTTP 202 (Cloudflare async) to httpx; retrying 4× wastes ~30s.
-        self.httpx_202_fast_escalate = os.getenv("BALLOTPEDIA_HTTP_202_FAST_ESCALATE", "1").strip().lower() not in {"0", "false", "no"}
-        self.use_playwright_fallback = os.getenv("BALLOTPEDIA_USE_PLAYWRIGHT", "1").strip().lower() not in {"0", "false", "no"}
-        # Ballotpedia returns HTTP 202 to httpx almost always — default to Playwright directly.
-        # Set BALLOTPEDIA_PLAYWRIGHT_ONLY=0 to probe with httpx first (usually wastes time).
+        # Fetch pages with a plain browser (Ballotpedia renders with JavaScript). Set
+        # BALLOTPEDIA_PLAYWRIGHT_ONLY=0 to use httpx instead. Either way, a 202 / 403 / 429 or a
+        # challenge page is reported as blocked and not retried through the other route (#443).
         self.playwright_only = os.getenv("BALLOTPEDIA_PLAYWRIGHT_ONLY", "1").strip().lower() not in {"0", "false", "no"}
         self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "90000"))
         self.inter_request_delay = float(os.getenv("BALLOTPEDIA_INTER_REQUEST_DELAY", "2.0"))
         self.state_scrape_delay = float(os.getenv("BALLOTPEDIA_STATE_DELAY", "10.0"))
-        self.playwright_content_retries = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_CONTENT_RETRIES", "3"))
         # Supported values: new (default), legacy, headed (or false/0/no/off)
         self.playwright_headless_mode = os.getenv("BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE", "new").strip().lower()
         if self.playwright_headless_mode in {"0", "false", "no", "off"}:
@@ -329,7 +313,6 @@ class BallotpediaDiscovery:
         self._context = None
         self._page = None
         self._playwright_lock = asyncio.Lock()
-        self._playwright_warmed_up = False
         self._last_playwright_error: str | None = None
 
     # Word-boundary-anchored markers. The substring ``captcha`` previously matched
@@ -545,14 +528,6 @@ class BallotpediaDiscovery:
                     "User-Agent": self.user_agent,
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     "Accept-Language": "en-US,en;q=0.9",
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache",
-                    "Upgrade-Insecure-Requests": "1",
-                    "Sec-Fetch-Dest": "document",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-Site": "none",
-                    "Sec-Fetch-User": "?1",
-                    "Referer": "https://ballotpedia.org/",
                 },
                 follow_redirects=True,
                 http2=False,
@@ -603,24 +578,18 @@ class BallotpediaDiscovery:
                 response = await session.get(url)
                 status_history.append({"attempt": attempt, "status": response.status_code})
 
+                # Bot protection (403 / 429 / Cloudflare 202 / a challenge page) is reported as
+                # blocked and never retried through the browser or with backoff (issue #443).
+                if response.status_code in (202, 403, 429) or self._is_challenge_html(
+                    response.text or ""
+                ):
+                    saw_challenge_status = True
+                    break
+
                 if response.status_code == 200:
-                    if self._is_challenge_html(response.text or ""):
-                        saw_challenge_status = True
-                        if self.debug_verbose:
-                            logger.debug(
-                                f"Challenge-like HTTP 200 content detected for {url}; escalating to browser fallback"
-                            )
-                        break
                     return response.text
 
-                if response.status_code in (202, 429, 503):
-                    saw_challenge_status = True
-                    if self.httpx_202_fast_escalate and response.status_code == 202 and self.use_playwright_fallback:
-                        if self.debug_verbose:
-                            logger.debug(
-                                f"HTTP 202 for {url}; fast-escalating to Playwright (skip httpx retries)"
-                            )
-                        break
+                if response.status_code == 503:
                     retry_after_raw = response.headers.get("Retry-After")
                     retry_after = float(retry_after_raw) if retry_after_raw and retry_after_raw.isdigit() else 0.0
                     backoff = max(retry_after, self.base_backoff_seconds * (2 ** (attempt - 1)))
@@ -632,7 +601,6 @@ class BallotpediaDiscovery:
                     if attempt < self.max_retries:
                         await asyncio.sleep(backoff)
                         continue
-                    # Final retryable response: let the function fall through to Playwright fallback.
                     break
 
                 report_path = self._write_fetch_debug_report(
@@ -671,73 +639,30 @@ class BallotpediaDiscovery:
                 )
                 return None
 
-        if saw_challenge_status and self.use_playwright_fallback:
-            html, pw_artifacts = await self._fetch_page_with_playwright(url)
-            if html:
-                return html
-
-            markers: List[str] = []
-            final_title = ""
-            if pw_artifacts:
-                for artifact in pw_artifacts:
-                    if artifact.suffix == ".html":
-                        try:
-                            html_text = artifact.read_text(encoding="utf-8")
-                            markers = self._challenge_markers_found(html_text)
-                            final_title = self._page_title_from_html(html_text)
-                        except Exception:
-                            pass
-
-            pw_hint = ""
-            if not PLAYWRIGHT_AVAILABLE:
-                pw_hint = " (playwright package not importable — pip install playwright && playwright install chromium)"
-            elif not pw_artifacts and self._last_playwright_error:
-                pw_hint = f" (playwright: {self._last_playwright_error})"
-
+        if saw_challenge_status:
             report_path = self._write_fetch_debug_report(
                 url=url,
-                report_type="challenge_blocked",
+                report_type="blocked",
                 status_history=status_history,
-                error=(self._last_playwright_error or "challenge_or_bot_block_after_retries") + pw_hint,
-                challenge_markers=markers,
-                final_page_title=final_title,
-                playwright_used=True,
-                playwright_succeeded=False,
-                playwright_artifacts=[str(path) for path in pw_artifacts],
+                error="blocked_by_bot_protection",
             )
             self._log_fetch_failure_summary(
                 url=url,
                 status_history=status_history,
-                reason="challenge_blocked",
-                report_path=report_path,
-                challenge_markers=markers,
-                playwright_artifacts=[str(path) for path in pw_artifacts],
-            )
-            await self._close_playwright()
-        elif saw_challenge_status and not self.use_playwright_fallback:
-            report_path = self._write_fetch_debug_report(
-                url=url,
-                report_type="challenge_no_playwright",
-                status_history=status_history,
-                error="challenge_detected_and_playwright_disabled",
-            )
-            self._log_fetch_failure_summary(
-                url=url,
-                status_history=status_history,
-                reason="challenge_no_playwright",
+                reason="blocked",
                 report_path=report_path,
             )
-        elif saw_challenge_status:
+        elif status_history:
             report_path = self._write_fetch_debug_report(
                 url=url,
-                report_type="challenge_unknown",
+                report_type="http_retries_exhausted",
                 status_history=status_history,
-                error="challenge_detected_unknown_terminal_state",
+                error="retryable_status_after_retries",
             )
             self._log_fetch_failure_summary(
                 url=url,
                 status_history=status_history,
-                reason="challenge_unknown",
+                reason="http_retries_exhausted",
                 report_path=report_path,
             )
 
@@ -758,43 +683,32 @@ class BallotpediaDiscovery:
         page = None
         try:
             page = await self._get_playwright_page()
-            content = ""
-            for attempt in range(1, max(1, self.playwright_content_retries) + 1):
-                if attempt > 1:
-                    logger.info(f"Playwright reload attempt {attempt}/{self.playwright_content_retries} for {url}")
-                    await page.reload(wait_until="commit", timeout=self.playwright_timeout_ms)
-                else:
-                    await page.goto(url, wait_until="commit", timeout=self.playwright_timeout_ms)
-                await page.wait_for_selector("body", timeout=self.playwright_timeout_ms)
-
-                for _ in range(5):
-                    try:
-                        await page.wait_for_load_state("networkidle", timeout=12000)
-                    except Exception:
-                        pass
-                    try:
-                        await page.wait_for_selector(
-                            "#mw-content-text, .mw-parser-output, #bodyContent",
-                            timeout=8000,
-                        )
-                    except Exception:
-                        pass
-                    await page.wait_for_timeout(3000)
-                    content = await page.content()
-                    if content and not self._is_challenge_html(content):
-                        break
-
-                if content and not self._is_challenge_html(content):
-                    break
+            # One plain load. A 403 / 429 or a challenge page is blocked: no reloads to wait it
+            # out, no retries through another route (issue #443).
+            resp = await page.goto(url, wait_until="domcontentloaded", timeout=self.playwright_timeout_ms)
+            status = resp.status if resp is not None else 0
+            try:
+                await page.wait_for_load_state("networkidle", timeout=12000)
+            except Exception:
+                pass
+            try:
+                await page.wait_for_selector(
+                    "#mw-content-text, .mw-parser-output, #bodyContent",
+                    timeout=8000,
+                )
+            except Exception:
+                pass
+            content = await page.content()
 
             final_url = page.url
             title = await page.title()
 
-            if self._is_challenge_html(content or ""):
+            if status in (403, 429) or self._is_challenge_html(content or ""):
                 logger.warning(
-                    f"Playwright fetched challenge page for {url} (final_url={final_url}, title={title})"
+                    f"Ballotpedia blocked the browser load for {url} "
+                    f"(status={status}, final_url={final_url}, title={title}); moving on"
                 )
-                self._last_playwright_error = f"challenge_page title={title!r}"
+                self._last_playwright_error = f"blocked status={status} title={title!r}"
                 artifacts = await self._save_playwright_artifacts(page, url, "challenge")
                 return None, artifacts
 
@@ -843,14 +757,13 @@ class BallotpediaDiscovery:
             except Exception:
                 pass
             self._pw = None
-            self._playwright_warmed_up = False
 
     async def _get_playwright_page(self):
         async with self._playwright_lock:
             if self._page:
                 return self._page
 
-            browser_args = ["--disable-blink-features=AutomationControlled", "--start-maximized"]
+            browser_args = ["--start-maximized"]
             launch_kwargs: Dict[str, Any] = {
                 "headless": self.playwright_headless_mode != "headed",
                 "args": browser_args,
@@ -867,34 +780,7 @@ class BallotpediaDiscovery:
                 viewport=None if self.playwright_headless_mode == "headed" else {"width": 1366, "height": 768},
                 locale="en-US",
             )
-            await self._context.add_init_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-            )
             self._page = await self._context.new_page()
-            if PLAYWRIGHT_STEALTH_AVAILABLE:
-                try:
-                    if STEALTH_MODE == "legacy":
-                        await stealth_async(self._page)
-                    else:
-                        await Stealth().apply_stealth_async(self._page)
-                except Exception as exc:
-                    logger.warning(f"playwright-stealth installed but failed to apply stealth patches: {exc}")
-            else:
-                logger.warning("playwright-stealth is not installed; running Playwright fallback without stealth patches")
-
-            if not self._playwright_warmed_up:
-                try:
-                    logger.info("Playwright warmup: visiting Ballotpedia main page")
-                    await self._page.goto(
-                        f"{self.BASE_URL}/Main_Page",
-                        wait_until="commit",
-                        timeout=self.playwright_timeout_ms,
-                    )
-                    await self._page.wait_for_timeout(2500)
-                    self._playwright_warmed_up = True
-                except Exception as exc:
-                    logger.warning(f"Playwright warmup failed (continuing anyway): {exc}")
-
             return self._page
     
     async def search_leader(self, name: str, state: Optional[str] = None) -> Optional[Dict]:

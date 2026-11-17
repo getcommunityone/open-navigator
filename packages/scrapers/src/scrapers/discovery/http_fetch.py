@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from typing import Optional
 
 import requests
+
+from scrapers.discovery.browser_block import BLOCKED_PREFIX, blocked_reason
 
 BROWSER_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -49,8 +50,9 @@ def fetch_page_html(
     """
     GET ``url``. Returns ``(status_code, html, block_reason)``.
 
-    ``block_reason`` is set when the response is a bot wall (HTML discarded).
-    Tries Playwright when requests returns 202/403/etc. or a captcha body.
+    ``block_reason`` is set when the response is a bot wall (HTML discarded). A ``403`` / ``429``
+    or a challenge page comes back as ``blocked:<reason>`` and is **not** retried through a
+    browser (issue #443). Playwright is tried only for a ``202`` shell that needs JavaScript.
     """
     block: Optional[str] = None
     status = 0
@@ -62,8 +64,13 @@ def fetch_page_html(
     except requests.RequestException:
         return 0, "", "request_error"
 
+    hard_block = blocked_reason(status, html, dict(resp.headers or {}))
+    if hard_block:
+        return status, "", f"{BLOCKED_PREFIX}{hard_block}"
     block = bot_wall_reason(html, status)
-    if not block and status == 200 and html:
+    if block:
+        return status, "", f"{BLOCKED_PREFIX}challenge:{block}"
+    if status == 200 and html:
         return status, html, None
 
     if try_playwright:
@@ -73,9 +80,7 @@ def fetch_page_html(
             playwright_fallback_enabled,
         )
 
-        if playwright_fallback_enabled() and (
-            block or httpx_status_should_try_playwright(status)
-        ):
+        if playwright_fallback_enabled() and httpx_status_should_try_playwright(status):
             phtml, perr, _final = asyncio.run(
                 fetch_html_via_playwright(
                     url,
@@ -87,8 +92,8 @@ def fetch_page_html(
                 pblock = bot_wall_reason(phtml, 200)
                 if not pblock:
                     return 200, phtml, None
-                block = pblock or block
-            elif perr and not block:
+                block = f"{BLOCKED_PREFIX}challenge:{pblock}"
+            elif perr:
                 block = perr
 
     if block:

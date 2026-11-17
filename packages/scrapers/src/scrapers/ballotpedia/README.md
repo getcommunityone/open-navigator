@@ -27,41 +27,24 @@ python packages/scrapers/src/scrapers/ballotpedia/load_ballotpedia_measures_to_b
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BALLOTPEDIA_PLAYWRIGHT_ONLY` | `1` | Use Playwright for every request (default). Set `0` to try httpx first |
-| `BALLOTPEDIA_USE_PLAYWRIGHT` | `1` | When httpx-first (`PLAYWRIGHT_ONLY=0`), escalate to Playwright on 202/challenge |
-| `BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE` | `new` | `new`, `legacy`, or `headed` |
+| `BALLOTPEDIA_PLAYWRIGHT_ONLY` | `1` | Fetch with a plain Playwright browser (default). Set `0` to use httpx instead |
+| `BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE` | `new` | `new`, `legacy`, or `headed` (headed is for local debugging) |
 | `BALLOTPEDIA_INTER_REQUEST_DELAY` | `2.0` | Seconds between httpx requests |
-| `BALLOTPEDIA_PLAYWRIGHT_CONTENT_RETRIES` | `3` | Reload attempts when article body is empty |
 
-If headless scrapes keep failing, try headed mode:
+## Blocked pages
+
+The browser is a plain, honest browser: no `playwright-stealth`, no fingerprint spoofing, no
+rotating user agents or IPs (decision recorded on issue #443, 2026-11-16). When Ballotpedia answers
+with HTTP 202 / 403 / 429 or a challenge page, the fetch is logged as `reason=blocked`, a report is
+written to `data/cache/ballotpedia/fetch_debug/*.json`, and the scraper moves on. It does not
+reload to wait out the challenge or retry the page through httpx. If you need Ballotpedia data at
+volume, ask Ballotpedia for access instead.
+
+If every request fails with `artifacts=[]`, Chromium is probably missing:
 
 ```bash
-BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE=headed \
-  python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py --states AL
+./.venv/bin/playwright install chromium
 ```
-
-## Troubleshooting `challenge_blocked` / HTTP 202
-
-Ballotpedia returns **HTTP 202** to httpx, so the scraper uses **Playwright by default**. If you still see `reason=challenge_blocked`:
-
-1. **Install Chromium** (most common fix when `artifacts=[]`):
-   ```bash
-   ./.venv/bin/playwright install chromium
-   ```
-
-2. **Rate limiting** — wait 10–15 minutes between bulk runs, or increase delay between states:
-   ```bash
-   BALLOTPEDIA_STATE_DELAY=30 \
-     ./.venv/bin/python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py
-   ```
-
-3. **WSL / headless blocks** — use headed mode with a display, or system Chrome:
-   ```bash
-   BALLOTPEDIA_PLAYWRIGHT_CHANNEL=chrome BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE=headed \
-     ./.venv/bin/python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py --states AL
-   ```
-
-4. **Inspect failures** — check `data/cache/ballotpedia/playwright_debug/*.html` and the matching `fetch_debug/*.json` (the `error` field now includes the Playwright exception when present).
 
 ## Cache layout
 

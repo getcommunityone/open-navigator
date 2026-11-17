@@ -1,22 +1,23 @@
 """
-Optional **Chromium (Playwright)** HTML fetch for meetings scraping when ``httpx`` gets blocked.
+Optional **Chromium (Playwright)** fetch for meetings scraping: a plain, honest browser.
 
-Typical cases: ``403`` / ``401`` / ``429`` from bot-aware CDNs, ``202`` oddities, or a ``200`` body
-that still matches :func:`comprehensive_discovery_pipeline_jurisdiction._captcha_or_bot_wall_reason`.
+It is for pages that load normally but render their links (agenda lists, site-search results)
+with JavaScript, plus a few transport cases (``httpx`` TLS/CA failures, vendor HTML printed to
+PDF). It does **not** try to get past bot protection: no ``playwright-stealth``, no fingerprint
+spoofing (``navigator.webdriver`` masking, automation-flag hiding), no rotating user agents or
+IPs. An HTTP ``403`` / ``429`` or a known challenge page (Cloudflare "Just a moment",
+"Attention Required", Akamai "Access Denied", ...) is returned as a ``blocked:<reason>`` result
+(see :mod:`scrapers.discovery.browser_block`) and the caller moves on. Decision: issue #443.
 
-Environment (defaults favor automation-friendly setups):
+Environment:
 
 - ``SCRAPED_MEETINGS_PLAYWRIGHT_FALLBACK`` — ``true`` / ``false`` (default ``true``).
 - ``SCRAPED_MEETINGS_PLAYWRIGHT_MAX_CONCURRENT`` — default ``2``.
-- ``SCRAPED_MEETINGS_PLAYWRIGHT_CHROMIUM_EXECUTABLE`` — path to Chrome/Chromium binary (WSL/Linux).
+- ``SCRAPED_MEETINGS_PLAYWRIGHT_CHROMIUM_EXECUTABLE`` — path to a Chrome/Chromium binary (WSL/Linux).
 - ``SCRAPED_MEETINGS_PLAYWRIGHT_CHANNEL`` — ``chrome`` | ``msedge`` | ``chromium`` to use that
-  browser install (often fewer Akamai false positives). If it is missing (e.g. no binary at
-  ``/opt/google/chrome/chrome``), we **fall back** to bundled Chromium. Install Chrome with the
-  distro .deb **or** run ``playwright install chrome`` from the venv.
-- ``SCRAPED_MEETINGS_PLAYWRIGHT_HEADLESS`` — ``true`` / ``false`` (default ``true``). A visible
-  window is **not** required for scraping; use headed mode only when a host blocks headless.
-- ``SCRAPED_MEETINGS_PLAYWRIGHT_STEALTH`` — ``true`` / ``false`` (default ``true``). Uses
-  ``playwright-stealth`` when importable.
+  browser install. If it is missing we **fall back** to bundled Chromium.
+- ``SCRAPED_MEETINGS_PLAYWRIGHT_HEADLESS`` — ``true`` / ``false`` (default ``true``); headed mode
+  is for local debugging only.
 
 Requires ``playwright install chromium``. On Linux/WSL often ``sudo .venv/bin/python -m playwright
 install-deps``. If ``install-deps`` fails on Ubuntu 24.04, use Playwright **1.49+** (repo pins 1.52).
@@ -31,15 +32,16 @@ from typing import Any, Dict, Optional, Tuple
 
 from loguru import logger
 
+from scrapers.discovery.browser_block import (
+    BLOCKED_PREFIX,
+    BLOCKED_STATUSES,
+    blocked_reason,
+)
+
 _missing_os_deps_logged = False
-_http_403_playwright_hint_logged = False
 
 # Lazy singleton — created on first use within a process.
 _pw_sem_instance: Optional[asyncio.Semaphore] = None
-
-_NAV_INIT_SCRIPT = """
-Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-"""
 
 
 def playwright_fallback_enabled() -> bool:
@@ -62,21 +64,37 @@ def _pw_semaphore() -> asyncio.Semaphore:
 
 
 def httpx_status_should_try_playwright(status_code: int) -> bool:
-    """Retry with a real browser when the plain HTTP client got a gate-ish status."""
-    return status_code in (401, 403, 429, 202)
+    """Whether a non-200 ``httpx`` status is worth one plain-browser load.
+
+    Only ``202`` (an accepted-but-unrendered shell some sites serve to non-JS clients). Blocks —
+    ``403`` / ``429`` and auth walls (``401``) — are never retried through a browser: the caller
+    records them and moves on (issue #443).
+    """
+    if status_code in BLOCKED_STATUSES:
+        return False
+    return status_code == 202
 
 
-def _stealth_enabled() -> bool:
-    v = (os.getenv("SCRAPED_MEETINGS_PLAYWRIGHT_STEALTH") or "true").strip().lower()
-    return v not in ("0", "false", "no", "off")
+def _blocked(reason: str) -> str:
+    return f"{BLOCKED_PREFIX}{reason}"
+
+
+def _log_blocked(url: str, reason: str) -> None:
+    logger.info("meetings_playwright_blocked url={} reason={}", url[:200], reason)
+
+
+# Plain desktop browser context: Playwright's own Chromium headers, one fixed UA from the caller.
+_CONTEXT_DEFAULTS: Dict[str, Any] = {
+    "locale": "en-US",
+    "java_script_enabled": True,
+}
 
 
 def _chromium_launch_options() -> Dict[str, Any]:
-    """Headless Chromium with light anti-automation flags; optional system Chrome / channel."""
+    """Headless Chromium (no anti-automation flags); optional system Chrome / channel."""
     headless_env = (os.getenv("SCRAPED_MEETINGS_PLAYWRIGHT_HEADLESS") or "true").strip().lower()
     headless = headless_env not in ("0", "false", "no", "off")
     args = [
-        "--disable-blink-features=AutomationControlled",
         "--disable-dev-shm-usage",
         "--no-sandbox",
     ]
@@ -162,46 +180,6 @@ def _playwright_failure_reason(exc: BaseException) -> str:
     return f"playwright_exc:{type(exc).__name__}:{exc!r}"
 
 
-def _captcha_hint(html: str, headers: Dict[str, str]) -> Optional[str]:
-    from scripts.discovery.comprehensive_discovery_pipeline_jurisdiction import (
-        _captcha_or_bot_wall_reason,
-    )
-
-    return _captcha_or_bot_wall_reason(html, headers)
-
-
-def _trivial_http_error_wall(html: str) -> bool:
-    """True when HTML is clearly an access-denied interstitial, not a real site shell."""
-    raw = html or ""
-    if len(raw) < 600:
-        return True
-    h = raw[:8000].lower()
-    needles = (
-        "access denied",
-        "you don't have permission",
-        "403 forbidden",
-        "http error 403",
-        "error 403",
-        "request blocked",
-        "forbidden: target",
-        "errors.edgesuite.net",
-    )
-    return any(n in h for n in needles)
-
-
-def _dom_looks_like_real_document(html: str) -> bool:
-    """Prefer accepting ``(status>=400)`` only when the DOM is plausibly a normal page."""
-    raw = html or ""
-    if len(raw) < 800:
-        return False
-    low = raw[:25000].lower()
-    if "<html" not in low and "<!doctype html" not in low:
-        return False
-    if _trivial_http_error_wall(raw):
-        return False
-    return True
-
-
 async def _goto_collect_html(
     page: Any, url: str, timeout_ms: int
 ) -> Tuple[Any, str, Dict[str, str], str]:
@@ -239,13 +217,7 @@ async def _goto_collect_html(
         pass
     await _snap()
 
-    st = resp.status if resp is not None else 0
-    extra_sleep = 2.1 if st >= 400 else 0.45
-    # Long sleep after a bot-wall status gives scripts time to close the tab — shorten if we
-    # already captured a full document.
-    if st >= 400 and len(best) >= 8000:
-        extra_sleep = min(extra_sleep, 0.55)
-    await asyncio.sleep(extra_sleep)
+    await asyncio.sleep(0.45)
     await _snap()
 
     html = best
@@ -256,26 +228,11 @@ async def _goto_collect_html(
     return resp, html, hdrs, final_url
 
 
-def _log_playwright_403_hint_once() -> None:
-    global _http_403_playwright_hint_logged
-    if _http_403_playwright_hint_logged:
-        return
-    _http_403_playwright_hint_logged = True
-    logger.warning(
-        "Playwright navigation returned HTTP 403 (often Akamai / bot rules vs headless). "
-        "Try, in order: install Google Chrome in WSL and set "
-        "SCRAPED_MEETINGS_PLAYWRIGHT_CHANNEL=chrome (or CHROMIUM_EXECUTABLE to its path); "
-        "SCRAPED_MEETINGS_PLAYWRIGHT_HEADLESS=false on a machine with a display (WSLg); "
-        "or run the scraper from Windows / a non-WSL network path. "
-        "Some hosts never serve real HTML to automation."
-    )
-
-
 async def fetch_resource_bytes_via_playwright(
     url: str,
     *,
     timeout_ms: int,
-    user_agent: str,
+    user_agent: Optional[str] = None,
     max_bytes: int,
 ) -> Tuple[Optional[int], str, Optional[bytes], str]:
     """
@@ -283,7 +240,8 @@ async def fetch_resource_bytes_via_playwright(
 
     Intended for **XML sitemaps** and ``robots.txt`` when ``httpx`` gets ``403`` / TLS errors.
     Returns ``(status, final_url, body_bytes, error_reason)``. ``body_bytes`` is set only when
-    ``status == 200`` and size ``<= max_bytes``; otherwise ``error_reason`` explains the miss.
+    ``status == 200`` and size ``<= max_bytes``; otherwise ``error_reason`` explains the miss
+    (``blocked:http_403`` / ``blocked:http_429`` when the host refuses automated access).
     """
     if not playwright_fallback_enabled():
         return None, url, None, "playwright_disabled"
@@ -300,30 +258,9 @@ async def fetch_resource_bytes_via_playwright(
                     ctx = await browser.new_context(
                         viewport={"width": 1920, "height": 1080},
                         user_agent=user_agent,
-                        locale="en-US",
-                        java_script_enabled=True,
-                        extra_http_headers={
-                            "Accept-Language": "en-US,en;q=0.9",
-                            "Accept": (
-                                "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                                "application/rss+xml;q=0.9,*/*;q=0.8"
-                            ),
-                            "Upgrade-Insecure-Requests": "1",
-                            "Sec-Fetch-Dest": "document",
-                            "Sec-Fetch-Mode": "navigate",
-                            "Sec-Fetch-Site": "none",
-                            "Sec-Fetch-User": "?1",
-                        },
+                        **_CONTEXT_DEFAULTS,
                     )
-                    await ctx.add_init_script(_NAV_INIT_SCRIPT)
                     page = await ctx.new_page()
-                    if _stealth_enabled():
-                        try:
-                            from playwright_stealth import Stealth
-
-                            await Stealth().apply_stealth_async(page)
-                        except Exception:
-                            pass
                     resp = await page.goto(
                         url, wait_until="domcontentloaded", timeout=timeout_ms
                     )
@@ -339,8 +276,10 @@ async def fetch_resource_bytes_via_playwright(
                     if len(raw) > max_bytes:
                         return st, final, None, f"oversize_{len(raw)}_bytes"
                     if st != 200:
-                        if st == 403:
-                            _log_playwright_403_hint_once()
+                        blk = blocked_reason(st)
+                        if blk:
+                            _log_blocked(url, blk)
+                            return st, final, None, _blocked(blk)
                         return st, final, None, f"playwright_http_{st}"
                     return st, final, raw, ""
                 finally:
@@ -353,10 +292,13 @@ async def fetch_html_via_playwright(
     url: str,
     *,
     timeout_ms: int,
-    user_agent: str,
+    user_agent: Optional[str] = None,
 ) -> Tuple[Optional[str], str, str]:
     """
     Return ``(html, "", final_url)`` on success, or ``(None, reason, final_url)``.
+
+    ``reason`` starts with ``blocked:`` (``blocked:http_403``, ``blocked:challenge:<token>``) when
+    the host answered with bot protection; callers record it and do not retry the URL elsewhere.
 
     ``final_url`` is the browser URL after redirects (same as ``url`` when navigation never ran).
 
@@ -377,54 +319,23 @@ async def fetch_html_via_playwright(
                     ctx = await browser.new_context(
                         viewport={"width": 1920, "height": 1080},
                         user_agent=user_agent,
-                        locale="en-US",
-                        java_script_enabled=True,
-                        extra_http_headers={
-                            "Accept-Language": "en-US,en;q=0.9",
-                            "Accept": (
-                                "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                                "image/avif,image/webp,image/apng,*/*;q=0.8"
-                            ),
-                            "Upgrade-Insecure-Requests": "1",
-                            "Sec-Fetch-Dest": "document",
-                            "Sec-Fetch-Mode": "navigate",
-                            "Sec-Fetch-Site": "none",
-                            "Sec-Fetch-User": "?1",
-                        },
+                        **_CONTEXT_DEFAULTS,
                     )
-                    await ctx.add_init_script(_NAV_INIT_SCRIPT)
                     page = await ctx.new_page()
-                    if _stealth_enabled():
-                        try:
-                            from playwright_stealth import Stealth
-
-                            await Stealth().apply_stealth_async(page)
-                        except Exception as exc:
-                            logger.warning(
-                                "meetings_playwright_stealth_failed detail={}",
-                                repr(exc),
-                            )
 
                     resp, html, hdrs, final_url = await _goto_collect_html(page, url, timeout_ms)
                     st = resp.status if resp is not None else 0
 
+                    blk = blocked_reason(st, html, hdrs)
+                    if blk:
+                        _log_blocked(url, blk)
+                        return None, _blocked(blk), final_url
                     if st >= 400:
-                        if _dom_looks_like_real_document(html) and not _captcha_hint(html, hdrs):
-                            logger.info(
-                                f"meetings_playwright_accepted_despite_http_status "
-                                f"url={url!r} status={st} html_chars={len(html)}",
-                            )
-                            return html, "", final_url
-                        if st == 403:
-                            _log_playwright_403_hint_once()
                         return None, f"playwright_http_{st}", final_url
 
                     n = len(html or "")
                     if n < 400:
                         return None, f"playwright_short_body_{n}", final_url
-                    cap = _captcha_hint(html or "", hdrs)
-                    if cap:
-                        return None, f"playwright_captcha:{cap}", final_url
                     return html or None, "", final_url
                 finally:
                     await browser.close()
@@ -444,7 +355,7 @@ async def print_agenda_html_page_to_pdf_via_playwright(
     *,
     referer: str,
     timeout_ms: int,
-    user_agent: str,
+    user_agent: Optional[str] = None,
 ) -> Tuple[Optional[bytes], str]:
     """
     Navigate like normal HTML scraping, then emit a **print** PDF via Chromium (Playwright).
@@ -463,66 +374,30 @@ async def print_agenda_html_page_to_pdf_via_playwright(
 
     ref = (referer or "").strip() or url
     max_b = _html_print_pdf_max_bytes()
-    try:
-        from urllib.parse import urlparse
-
-        same_site = urlparse(ref).netloc.lower().split(":")[0] == urlparse(url).netloc.lower().split(
-            ":"
-        )[0]
-        sec_fetch_site = "same-origin" if same_site else "cross-site"
-    except Exception:
-        sec_fetch_site = "cross-site"
 
     async with _pw_semaphore():
         try:
             async with async_playwright() as p:
                 browser = await _launch_chromium_browser(p)
                 try:
-                    hdrs = {
-                        "Accept-Language": "en-US,en;q=0.9",
-                        "Accept": (
-                            "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                            "image/avif,image/webp,image/apng,*/*;q=0.8"
-                        ),
-                        "Upgrade-Insecure-Requests": "1",
-                        "Referer": ref,
-                        "Sec-Fetch-Dest": "document",
-                        "Sec-Fetch-Mode": "navigate",
-                        "Sec-Fetch-Site": sec_fetch_site,
-                        "Sec-Fetch-User": "?1",
-                    }
                     ctx = await browser.new_context(
                         viewport={"width": 1280, "height": 1800},
                         user_agent=user_agent,
-                        locale="en-US",
-                        java_script_enabled=True,
-                        extra_http_headers=hdrs,
+                        # Honest Referer: the listing page the agenda link was found on.
+                        extra_http_headers={"Referer": ref},
+                        **_CONTEXT_DEFAULTS,
                     )
-                    await ctx.add_init_script(_NAV_INIT_SCRIPT)
                     page = await ctx.new_page()
-                    if _stealth_enabled():
-                        try:
-                            from playwright_stealth import Stealth
-
-                            await Stealth().apply_stealth_async(page)
-                        except Exception as exc:
-                            logger.warning(
-                                "meetings_playwright_stealth_failed html_print detail={}",
-                                repr(exc),
-                            )
 
                     resp, html_chunk, rhdrs, final_url = await _goto_collect_html(page, url, timeout_ms)
                     st = resp.status if resp is not None else 0
 
+                    blk = blocked_reason(st, html_chunk, rhdrs)
+                    if blk:
+                        _log_blocked(url, blk)
+                        return None, _blocked(blk)
                     if st >= 400:
-                        if not (_dom_looks_like_real_document(html_chunk) and not _captcha_hint(html_chunk, rhdrs)):
-                            if st == 403:
-                                _log_playwright_403_hint_once()
-                            return None, f"playwright_http_{st}"
-
-                    cap = _captcha_hint(html_chunk or "", rhdrs)
-                    if cap:
-                        return None, f"playwright_captcha:{cap}"
+                        return None, f"playwright_http_{st}"
 
                     pdf_bytes = await page.pdf(
                         format="Letter",

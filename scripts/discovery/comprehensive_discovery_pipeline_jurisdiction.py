@@ -102,18 +102,15 @@ trust store), logging ``meetings_playwright_fallback_ok_after_httpx_tls_error``.
 
 CAPTCHA / anti-bot: successful HTTP 200 responses that look like Cloudflare hCaptcha/reCAPTCHA
 interstitials (and a few other WAFs) are treated as fetch failures with reason ``captcha:…`` and
-log event ``meetings_fetch_captcha_or_bot_wall``. When ``SCRAPED_MEETINGS_PLAYWRIGHT_FALLBACK`` is
-true (default), the scraper retries the same URL with **headless Chromium (Playwright)** after
-``httpx`` gets ``401``/``403``/``429``/``202`` or a captcha-like ``200`` body. Install browsers once:
-``playwright install chromium``. Set ``SCRAPED_MEETINGS_PLAYWRIGHT_FALLBACK=false`` to skip.
-Concurrency is capped by ``SCRAPED_MEETINGS_PLAYWRIGHT_MAX_CONCURRENT`` (default ``2``).
-On WSL/Ubuntu, if Chromium fails to start, run ``sudo .venv/bin/python -m playwright install-deps``
-or set ``SCRAPED_MEETINGS_PLAYWRIGHT_CHROMIUM_EXECUTABLE``. If Playwright returns
-``playwright_http_403`` (Akamai / bot rules), try ``SCRAPED_MEETINGS_PLAYWRIGHT_CHANNEL=chrome`` with
-Google Chrome installed in WSL, ``SCRAPED_MEETINGS_PLAYWRIGHT_HEADLESS=false`` when a display is
-available, or run outside WSL. ``SCRAPED_MEETINGS_PLAYWRIGHT_STEALTH=false`` disables
-``playwright-stealth``. Also try a different network or an alternate ``website_url`` in
-``int_jurisdiction_websites``.
+log event ``meetings_fetch_captcha_or_bot_wall``. A ``403`` / ``429`` or a captcha-like body is
+reported as blocked and **not** retried through a browser (issue #443: the Playwright fallback is a
+plain browser for JavaScript-rendered pages, never a way past bot protection). When
+``SCRAPED_MEETINGS_PLAYWRIGHT_FALLBACK`` is true (default), Chromium is used for ``202`` shells,
+Simbli listings and ``httpx`` TLS/CA failures. Install browsers once: ``playwright install
+chromium``. Set ``SCRAPED_MEETINGS_PLAYWRIGHT_FALLBACK=false`` to skip. Concurrency is capped by
+``SCRAPED_MEETINGS_PLAYWRIGHT_MAX_CONCURRENT`` (default ``2``). On WSL/Ubuntu, if Chromium fails to
+start, run ``sudo .venv/bin/python -m playwright install-deps`` or set
+``SCRAPED_MEETINGS_PLAYWRIGHT_CHROMIUM_EXECUTABLE``.
 
 Timeouts: ``--timeout`` applies to **connect** and **read** (and write/pool). Optional
 ``SCRAPED_MEETINGS_FETCH_RETRIES`` (default ``1``) adds backoff retries after ``ConnectTimeout`` /
@@ -2194,17 +2191,7 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                     resp_final = str(pfinal)
             captcha_hint = _captcha_or_bot_wall_reason(text, r.headers)
             if captcha_hint:
-                phtml, perr, pfinal = await fetch_html_via_playwright(
-                    url, timeout_ms=timeout_ms, user_agent=_DEFAULT_UA
-                )
-                if phtml:
-                    logger.info(
-                        f"meetings_playwright_fallback_ok_after_captcha_signal url={url!r} signal={captcha_hint}",
-                    )
-                    return phtml, "", pfinal
-                logger.warning(
-                    f"meetings_playwright_fallback_miss_after_captcha_signal url={url!r} signal={captcha_hint} detail={perr!r}",
-                )
+                # Blocked: record it and move on; never retried through the browser (#443).
                 logfn = logger.debug if _is_probable_site_search_probe(url) else logger.warning
                 logfn(
                     "meetings_fetch_captcha_or_bot_wall url={url!r} signal={signal} html_chars={html_chars}",
