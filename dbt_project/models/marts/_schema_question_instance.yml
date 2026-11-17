@@ -58,6 +58,18 @@ models:
       - name: outcome_normalized
         description: "decisions: approved|denied|deferred|moratorium|other (moratorium = an adopted/recommended moratorium, #483); bills: enacted|vetoed|failed|carried_over|died_in_committee|pending."
         data_type: text
+      - name: outcome_family
+        description: >
+          Outcome family shared with the policy_question rollup (macro
+          question_outcome_family, #499): approved | denied | moratorium | deferred | other.
+          The API counts and filters a question's instances by state/city with it.
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['approved', 'denied', 'moratorium', 'deferred', 'other']
       - name: occurred_at
         data_type: timestamp with time zone
       - name: session

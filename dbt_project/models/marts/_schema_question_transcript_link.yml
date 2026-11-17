@@ -80,3 +80,20 @@ models:
         data_type: integer
         constraints:
           - type: not_null
+      - name: evidence
+        description: >
+          Verbatim transcript passage with the question's alias words marked by
+          ts_headline (<mark>…</mark>), #499. From the first ~3-minute caption window
+          that matches when the transcript is timed, else from the whole text. Never
+          null: a link with no marked passage is dropped.
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: start_seconds
+        description: >
+          Seconds into the video where the matched words are said (first matching cue
+          of the passage window). Null for an untimed transcript; the UI then links to
+          the meeting without a time.
+        data_type: numeric(12, 3)

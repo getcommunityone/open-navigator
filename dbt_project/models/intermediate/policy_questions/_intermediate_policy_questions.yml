@@ -13,3 +13,32 @@ models:
           Instances whose outcome family is moratorium (an adopted or recommended
           moratorium, #483); never null (0 when none).
         tests: [not_null]
+
+  - name: int_question_transcript_link__match
+    description: >
+      Curated policy question <-> meeting transcript matches by alias phrase (full-text,
+      no LLM), junk-channel gated. One row per (question_id, video_id). Feeds
+      question_transcript_link (#499 split it out so the evidence step reads a table).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [question_id, video_id]
+    columns:
+      - name: question_id
+        tests: [not_null]
+      - name: video_id
+        tests: [not_null]
+
+  - name: int_question_transcript_link__evidence
+    description: >
+      The matched passage (ts_headline with <mark>) and jump time for each match in
+      int_question_transcript_link__match (#499). One row per (question_id, video_id).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [question_id, video_id]
+    columns:
+      - name: evidence
+        description: "Verbatim passage with the alias words marked by ts_headline."
+      - name: start_seconds
+        description: "Seconds into the video of the first matching cue; null when untimed."
