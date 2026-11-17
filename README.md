@@ -195,6 +195,14 @@ More: [dbt strategy](web_docs/docs/development/dbt-etl-strategy.md), [entity res
 **Deploy.** [Hugging Face Spaces](web_docs/docs/deployment/huggingface-spaces.md) (this README's front matter configures
 the Space), [Databricks Apps](web_docs/docs/deployment/databricks-apps.md), or `docker-compose up -d`.
 
+**AI and agents.** Gemini reads meeting transcripts and extracts decisions, quotes and amounts; Jev screens
+transcripts first. Coding agents (Claude Code and others) follow [AGENTS.md](AGENTS.md). Long agent sessions get
+*compacted*: when a conversation outgrows the model's context window, older turns are replaced by a summary and exact
+details can be lost. So anything that matters goes into an issue, a PR or a docs page, never only the chat, and a
+summary is never used as evidence. More: [how Open Navigator uses AI](web_docs/docs/development/ai-overview.md)
+(including [compaction](web_docs/docs/development/ai-overview.md#compaction)) and
+[context engineering](web_docs/docs/development/context-engineering.md).
+
 **Test.** `pytest` for the backend; CI also builds the app and the docs and checks the slideshow is up to date.
 
 **Contribute.** Every change starts from a GitHub issue with four parts (Problem, Done when, Contract, Read first),
