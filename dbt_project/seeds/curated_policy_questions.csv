@@ -1,6 +1,7 @@
 canonical_text,primary_theme,topic_code,cofog_code,display_order,aliases
-Should the jurisdiction adjust its water fluoridation policy?,health,,,1,fluoridation|fluoride|water fluoridation
-Should police use automated license plate readers?,public_safety,,,2,automated license plate|license plate reader|flock safety|alpr
-Should the jurisdiction award no-bid contracts?,government_operations,,,3,no-bid contract|sole source|sole-source contract
-Should short term rentals be restricted or taxed?,housing,,,4,airbnb|vrbo|short-term rental|short term rental|vacation rental
-Should the jurisdiction cooperate with federal immigration enforcement?,public_safety,,,5,immigration enforcement|sanctuary city|287 g|ice detainer
+Should the jurisdiction approve or restrict new data centers?,economic_development,,,1,data center|data centre|data centers|hyperscale
+Should the jurisdiction adjust its water fluoridation policy?,health,,,2,fluoridation|fluoride|water fluoridation
+Should police use automated license plate readers?,public_safety,,,3,automated license plate|license plate reader|flock safety|alpr
+Should the jurisdiction award no-bid contracts?,government_operations,,,4,no-bid contract|sole source|sole-source contract
+Should short term rentals be restricted or taxed?,housing,,,5,airbnb|vrbo|short-term rental|short term rental|vacation rental
+Should the jurisdiction cooperate with federal immigration enforcement?,public_safety,,,6,immigration enforcement|sanctuary city|287 g|ice detainer
