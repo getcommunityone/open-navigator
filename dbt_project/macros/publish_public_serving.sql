@@ -216,6 +216,13 @@
 {#- Per-relation column projections. Anything not listed here is published as a
     full SELECT * pass-through. Use this to drop/redact PII before it reaches the
     public API. Applies to BOTH modes (view body / table body). -#}
+{#- Neon size trims (#493):
+    * event_place_geocoded: only rows with coordinates. The decisions map and
+      alerts read only latitude is not null; the ~84k ungeocoded mentions were
+      31.6 MB of Neon's 512 MB.
+    * event_decision: without the four diagram_* columns (13.1 MB on Neon), which
+      no API route or page reads. An explicit list, so a new gold column must be
+      added here to be served. -#}
 {%- set projections = {
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
@@ -225,7 +232,16 @@
         'select person_id, master_person_id, full_name, title, jurisdiction, '
         'jurisdiction_id, office, state_code, state, party, district, '
         'null::text as email, null::text as phone, photo_url, biography, '
-        'website_url, is_current from gold.person_government'
+        'website_url, is_current from gold.person_government',
+    'event_place_geocoded':
+        'select * from gold.event_place_geocoded where latitude is not null',
+    'event_decision':
+        'select event_decision_id, extraction_key, analysis_id, legacy_event_id, '
+        'c1_event_id, state_code, state, jurisdiction_name, jurisdiction_type, city, '
+        'decision_id, subject_id, primary_place_id, place_refs, legislation_refs, '
+        'financial_item_refs, headline, decision_statement, primary_theme, outcome, '
+        'vote_tally, human_element, competing_views, smart_brevity, source_ai_model, '
+        'extracted_at, search_tsv from gold.event_decision'
 } -%}
 
 {#- ===================================================================
@@ -475,6 +491,10 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
       {%- set kind = run_query("select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = '" ~ name ~ "'") -%}
       {%- if kind and kind.rows and kind.rows[0][0] in ('r', 'p') -%}
         {%- do run_query("drop table if exists public." ~ q ~ " cascade") -%}
+      {%- elif name in projections and kind and kind.rows and kind.rows[0][0] == 'v' -%}
+        {#- CREATE OR REPLACE VIEW can't drop columns; a projection that narrows a
+            view (#493) needs the old view gone first. -#}
+        {%- do run_query("drop view if exists public." ~ q) -%}
       {%- endif -%}
       {%- do run_query("create or replace view public." ~ q ~ " as " ~ body) -%}
       {%- if name in projections -%}{%- do redacted.append(name) -%}{%- else -%}{%- do created.append(name) -%}{%- endif -%}
