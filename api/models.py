@@ -2,7 +2,7 @@
 Database models for authentication, user management, and social features
 """
 from datetime import datetime, timezone
-from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Index, text
+from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Identity, Index, func, text
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -67,6 +67,37 @@ class OAuthState(Base):
     
     def __repr__(self):
         return f"<OAuthState {self.provider} - {self.state_token[:8]}...>"
+
+
+class ContactSubmission(Base):
+    """One contact-form submission, kept privately for follow-up (#448).
+
+    Grain: one row per accepted ``POST /api/contact/submit``. App-owned like
+    ``user``: created by ``Base.metadata.create_all``, not dbt, and never copied by
+    the local-to-Neon serving sync (see ``RUNTIME_OWNED`` in
+    ``hosting.neon.sync_public_to_neon``). The public GitHub issue carries only
+    ``contact_submission_id``; the sender's email lives here and nowhere public.
+    No foreign keys. Retention: see
+    ``web_docs/docs/development/contact-form-privacy.md``.
+    """
+
+    __tablename__ = "contact_submission"
+
+    contact_submission_id = Column(Integer, Identity(), primary_key=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
+    sender_name = Column(Text, nullable=False)
+    sender_email = Column(Text, nullable=True)  # nullable so retention can clear it
+    subject = Column(Text, nullable=False)
+    github_issue_number = Column(Integer, nullable=True)
+    github_issue_url = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<ContactSubmission {self.contact_submission_id}>"
 
 
 # ============================================================================

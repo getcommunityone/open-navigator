@@ -73,11 +73,100 @@ class _FakeSession:
         self.rolled_back = True
 
 
+class _FakeSubmissionStore:
+    """In-memory stand-in for the contact_submission table."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.fail = fail
+        self.rows: dict[int, Any] = {}
+        self._next_id = 1
+
+    def session(self) -> "_FakeSubmissionSession":
+        if self.fail:
+            raise RuntimeError("database unavailable")
+        return _FakeSubmissionSession(self)
+
+
+class _FakeSubmissionSession:
+    def __init__(self, store: _FakeSubmissionStore) -> None:
+        self._store = store
+        self._pending: list[Any] = []
+
+    def add(self, row: Any) -> None:
+        self._pending.append(row)
+
+    def commit(self) -> None:
+        for row in self._pending:
+            if row.contact_submission_id is None:
+                row.contact_submission_id = self._store._next_id
+                self._store._next_id += 1
+            self._store.rows[row.contact_submission_id] = row
+        self._pending.clear()
+
+    def refresh(self, row: Any) -> None:
+        return None
+
+    def get(self, model: Any, ident: int) -> Any:
+        return self._store.rows.get(ident)
+
+    def delete(self, row: Any) -> None:
+        self._store.rows.pop(row.contact_submission_id, None)
+
+    def rollback(self) -> None:
+        self._pending.clear()
+
+    def close(self) -> None:
+        return None
+
+
 @pytest.fixture(autouse=True)
 def _reset_rate_limits():
     contact.clear_contact_rate_limits()
     yield
     contact.clear_contact_rate_limits()
+
+
+@pytest.fixture(autouse=True)
+def submission_store(monkeypatch: pytest.MonkeyPatch) -> _FakeSubmissionStore:
+    """Keep every test off the real database; tests can inspect the stored rows."""
+    store = _FakeSubmissionStore()
+    monkeypatch.setattr(contact, "_open_session", store.session)
+    return store
+
+
+def _capturing_client(captured: dict[str, Any], status_code: int = 201, issue_number: int = 451):
+    class _FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url: str, json: dict[str, Any], headers: dict[str, str], timeout: float):
+            captured["json"] = json
+            req = httpx.Request("POST", url)
+            if status_code != 201:
+                return httpx.Response(status_code, text="upstream error", request=req)
+            return httpx.Response(
+                201,
+                json={
+                    "number": issue_number,
+                    "html_url": f"https://github.com/getcommunityone/open-navigator/issues/{issue_number}",
+                },
+                request=req,
+            )
+
+    return _FakeAsyncClient
+
+
+def _private_request() -> "contact.ContactRequest":
+    return contact.ContactRequest(
+        name="Dana",
+        email="Dana.Private@Example.org",
+        subject="Budget page question",
+        message="Where does the county budget data on the money page come from?",
+        category="question",
+    )
 
 
 def test_parse_signed_request_handles_all_base64_paddings_and_verifies_hmac():
@@ -294,3 +383,101 @@ async def test_contact_submit_failed_upstream_can_be_retried_immediately(
     with pytest.raises(HTTPException) as exc_dup:
         await contact.submit_contact(req_model)
     assert exc_dup.value.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_contact_issue_body_has_no_email_and_row_keeps_it(
+    monkeypatch: pytest.MonkeyPatch, submission_store: _FakeSubmissionStore
+):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_test_token_123")
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(contact.httpx, "AsyncClient", _capturing_client(captured, issue_number=451))
+
+    req_model = _private_request()
+    resp = await contact.submit_contact(req_model)
+
+    assert resp.success is True
+    body = captured["json"]["body"]
+    title = captured["json"]["title"]
+    for text in (body, title):
+        assert str(req_model.email).lower() not in text.lower()
+        assert "@" not in text
+    assert "Reply address kept privately (submission `#1`)" in body
+
+    row = submission_store.rows[1]
+    assert row.sender_email == str(req_model.email)
+    assert row.sender_name == "Dana"
+    assert row.subject == "Budget page question"
+    assert row.github_issue_number == 451
+    assert row.github_issue_url == "https://github.com/getcommunityone/open-navigator/issues/451"
+
+
+@pytest.mark.asyncio
+async def test_contact_db_failure_still_creates_email_free_issue(
+    monkeypatch: pytest.MonkeyPatch, submission_store: _FakeSubmissionStore
+):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_test_token_123")
+    submission_store.fail = True
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(contact.httpx, "AsyncClient", _capturing_client(captured))
+
+    messages: list[str] = []
+    sink_id = contact.logger.add(lambda m: messages.append(str(m)), level="DEBUG")
+    try:
+        req_model = _private_request()
+        resp = await contact.submit_contact(req_model)
+    finally:
+        contact.logger.remove(sink_id)
+
+    assert resp.success is True
+    body = captured["json"]["body"]
+    assert str(req_model.email).lower() not in body.lower()
+    assert "@" not in body
+    assert "Reply address not kept" in body
+    assert messages, "expected a warning about the unavailable store"
+    assert all(str(req_model.email).lower() not in m.lower() for m in messages)
+
+
+@pytest.mark.asyncio
+async def test_contact_failed_issue_discards_stored_email(
+    monkeypatch: pytest.MonkeyPatch, submission_store: _FakeSubmissionStore
+):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_test_token_123")
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(contact.httpx, "AsyncClient", _capturing_client(captured, status_code=502))
+
+    with pytest.raises(HTTPException):
+        await contact.submit_contact(_private_request())
+    assert submission_store.rows == {}
+
+
+@pytest.mark.asyncio
+async def test_facebook_data_deletion_log_has_no_email(monkeypatch: pytest.MonkeyPatch):
+    secret = "fb_secret_key"
+    monkeypatch.setenv("FACEBOOK_APP_SECRET", secret)
+    sr = _make_signed_request({"algorithm": "HMAC-SHA256", "user_id": "fb_user_77"}, secret)
+
+    email = "erase.me@example.com"
+    messages: list[str] = []
+    sink_id = data_deletion.logger.add(lambda m: messages.append(str(m)), level="DEBUG")
+    try:
+        for db in (
+            _FakeSession(user=SimpleNamespace(user_id=7, email=email, oauth_provider="facebook")),
+            _FakeSession(
+                user=SimpleNamespace(user_id=7, email=email, oauth_provider="facebook"),
+                fail_commit=True,
+            ),
+        ):
+            try:
+                await data_deletion.facebook_data_deletion_callback(
+                    _build_json_request({"signed_request": sr}), db=db
+                )
+            except HTTPException:
+                pass
+    finally:
+        data_deletion.logger.remove(sink_id)
+
+    joined = "\n".join(messages)
+    assert "Deleting user account: user_id=7 (Facebook ID: fb_user_77)" in joined
+    assert email not in joined
+    assert "@" not in joined
