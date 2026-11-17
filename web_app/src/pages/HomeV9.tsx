@@ -29,6 +29,7 @@ import AddressLookup from '../components/AddressLookup'
 import SiteHeader from '../components/SiteHeader'
 import { LensCarousel, type ApiCard } from '../components/StoryLenses'
 import MeetingThumbnail from '../components/MeetingThumbnail'
+import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 import { fetchMeetings, type MeetingCard } from '../api/meetings'
 import { LAUNCH_CITIES } from '../lib/launchCoverage'
 
@@ -1656,7 +1657,15 @@ export default function HomeV9() {
                         onClick={() => navigate(`/meetings/${m.meeting_id}`, { state: { fromHome: true } })}
                         style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 0, overflow: 'hidden', cursor: 'pointer', fontFamily: 'inherit' }}
                       >
-                        {m.video_id && <MeetingThumbnail videoId={m.video_id} alt={m.title ?? undefined} />}
+                        {m.video_id && (
+                          <MeetingThumbnail
+                            videoId={m.video_id}
+                            alt={m.title ?? undefined}
+                            place={place}
+                            date={m.date}
+                            kind={inferThumbnailKind(m.title)}
+                          />
+                        )}
                         <div style={{ padding: '14px 16px' }}>
                           <div className="clamp2" style={{ fontSize: 15, fontWeight: 700, color: INK, lineHeight: 1.3 }}>
                             {m.title || 'Untitled meeting'}

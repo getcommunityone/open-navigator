@@ -30,6 +30,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { formatCurrency, formatCityState, titleCaseCity, expandStateName } from '../utils/formatters'
 import MeetingThumbnail from '../components/MeetingThumbnail'
+import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 import { StoryCard, CONTESTED_LENS, TRANSCRIPT_LENS, type RenderCard } from '../components/StoryLenses'
 import { parseSpeaker } from '../lib/speakers'
 import { getLaunchCounty } from '../lib/launchCounties'
@@ -1118,6 +1119,8 @@ function UnifiedSearchInner() {
       url: result.url || undefined,
       stateCode: (md.state_code as string) || undefined,
       videoId: (md.video_id as string) || (md.meeting_video_id as string) || undefined,
+      date: dateStr || undefined,
+      kind: inferThumbnailKind(`${result.title} ${(result.description ?? '').replace(/<\/?mark>/g, '')}`, result.type === 'decision' ? 'decision' : 'meeting'),
       // Matched-passage excerpt so a decision/meeting tile shows *why* it surfaced
       // for the active query/filter. The backend wraps the matched terms in literal
       // <mark>…</mark> markers (ts_headline) which highlightSnippet renders as
@@ -1167,6 +1170,8 @@ function UnifiedSearchInner() {
       url: result.url || undefined,
       stateCode: (md.state_code as string) || undefined,
       videoId: (md.video_id as string) || undefined,
+      date: dateStr || undefined,
+      kind: inferThumbnailKind(`${result.title} ${(result.description ?? '').replace(/<\/?mark>/g, '')}`, 'meeting'),
       excerpt: result.description ? highlightSnippet(result.description) : undefined,
     }
   }
@@ -1582,6 +1587,16 @@ function UnifiedSearchInner() {
           <MeetingThumbnail
             videoId={meetingVideoId}
             alt={result.title}
+            place={[
+              (result.metadata?.jurisdiction as string | undefined) || '',
+              (result.metadata?.state_code as string | undefined) || '',
+            ].filter(Boolean).join(', ')}
+            date={
+              (result.metadata?.meeting_date ?? result.metadata?.date ?? result.metadata?.event_date) as
+                | string
+                | undefined
+            }
+            kind={inferThumbnailKind(result.title, resultType === 'decision' ? 'decision' : 'meeting')}
             className="hidden w-40 shrink-0 self-start rounded-md sm:block"
           />
         )}

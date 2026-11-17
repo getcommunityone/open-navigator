@@ -10,6 +10,7 @@ import {
 import { fetchMeetings, type MeetingSort, type MeetingCard } from '../api/meetings'
 import DecisionCardList from './DecisionCardList'
 import MeetingThumbnail from './MeetingThumbnail'
+import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 
 /**
  * MeetingCardList — a reusable, meeting-grain browser.
@@ -88,6 +89,9 @@ function MeetingRow({ meeting }: { meeting: MeetingCard }) {
               videoId={meeting.video_id}
               alt={meeting.title ?? undefined}
               className="rounded-lg"
+              place={placeLabel(meeting)}
+              date={meeting.date}
+              kind={inferThumbnailKind(meeting.title)}
             />
           </div>
         )}

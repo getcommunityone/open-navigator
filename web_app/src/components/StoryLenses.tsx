@@ -14,6 +14,7 @@ import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
 import FollowTheMoney from './FollowTheMoney'
 import MeetingThumbnail from './MeetingThumbnail'
+import { inferThumbnailKind, type ThumbnailKind } from '../lib/youtubeThumbnail'
 import PersonalizeFeedModal from './PersonalizeFeedModal'
 import { useAuth } from '../contexts/AuthContext'
 import { fromSignalSlug } from '../lib/feedSlugs'
@@ -227,6 +228,10 @@ export interface RenderCard {
   stateCode?: string
   /** Bare YouTube id for the optional card thumbnail (undefined when none). */
   videoId?: string
+  /** ISO yyyy-mm-dd date, shown on the "no video preview" cover. */
+  date?: string
+  /** Icon family for the "no video preview" cover (from the card's own text). */
+  kind?: ThumbnailKind
   /** Optional matched-passage excerpt (e.g. a highlighted transcript snippet).
    *  Rendered under the title, clamped to a few lines. Pre-built React nodes so
    *  callers can pass <mark>-highlighted segments without dangerouslySetInnerHTML. */
@@ -348,7 +353,20 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
           overflow-hidden + rounded-2xl clips its top corners (no double-round).
           Renders nothing when there's no video, so cards without a recording
           look exactly as before. */}
-      {c.videoId && <MeetingThumbnail videoId={c.videoId} alt={c.h} />}
+      {c.videoId && (
+        <MeetingThumbnail
+          videoId={c.videoId}
+          alt={c.h}
+          place={
+            c.stateCode && !new RegExp(`,\\s*${c.stateCode}$`).test(c.juris)
+              ? [c.juris, c.stateCode].filter(Boolean).join(', ')
+              : c.juris
+          }
+          date={c.date || c.when}
+          kind={c.kind ?? inferThumbnailKind(c.h, 'decision')}
+          accent={lens.clr}
+        />
+      )}
       <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
       <div className="flex flex-1 flex-col p-[18px]">
         <div className="mb-2.5 flex items-center justify-between gap-2">
@@ -600,6 +618,13 @@ export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCar
     url: c.url,
     stateCode: c.state_code || undefined,
     videoId: c.video_id ?? undefined,
+    date: c.date || undefined,
+    // Glyph for the no-preview cover, from the card's own headline + matched
+    // passage (tags stripped so "data <mark>center</mark>" still matches).
+    kind: inferThumbnailKind(
+      `${c.headline} ${(c.description ?? '').replace(/<\/?mark>/g, '')}`,
+      'decision',
+    ),
     // Raw speaker slugs → parsed Speakers; empty/absent ⇒ undefined so the
     // "Voices" row stays hidden (never fabricated).
     speakers: c.speakers && c.speakers.length > 0 ? c.speakers.map(parseSpeaker) : undefined,
