@@ -94,7 +94,7 @@ schema:
     name: outcome_normalized
     logicalType: string
     physicalType: text
-    description: 'decisions: approved|denied|deferred|other; bills: pending (Phase 2 extends).'
+    description: 'decisions: approved|denied|deferred|moratorium|other (moratorium = an adopted/recommended moratorium, #483); bills: enacted|vetoed|failed|carried_over|died_in_committee|pending.'
   - id: occurred_at
     name: occurred_at
     logicalType: timestamp

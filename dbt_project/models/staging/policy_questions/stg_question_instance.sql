@@ -2,6 +2,23 @@
 -- free-text source outcome into a small controlled vocabulary in dbt (no Python
 -- SQL logic). Decision outcomes are hundreds of free-text strings; bills (Phase 2)
 -- get their own branch keyed on source_type.
+--
+-- Local-decision outcome families, matched in this order (first hit wins):
+--   deferred   — deferral/tabling/continuance/first reading/referral wording.
+--   denied     — denial/rejection/failure wording.
+--   moratorium — (#483) an ADOPTED or RECOMMENDED moratorium: outcome_raw names
+--                a moratorium, or the decision's own headline/statement says a
+--                moratorium was adopted/approved/enacted/imposed/extended/
+--                recommended; AND outcome_raw is approval-family wording (or
+--                "recommend"). Matched before `approved`, because an adopted
+--                moratorium pauses the thing — counting it as "approved" inverts
+--                the meaning. A moratorium only proposed, considered or discussed
+--                (e.g. "Moratorium proposed") is NOT moratorium: it falls through
+--                to deferred/other by its outcome wording. Lifting, ending,
+--                repealing or rescinding a moratorium is never moratorium.
+--   approved   — approval/adoption/passage wording.
+--   other      — everything else (discussion, information, public comment).
+-- The decision text comes from event_decision (source_id = event_decision_id).
 with src as (
     select
         instance_id, question_id, source_type, source_id, state_code,
@@ -27,6 +44,31 @@ with src as (
         null::text                                                      as session,
         1.0::double precision                                           as assign_score
     from {{ ref('curated_question_instance') }}
+),
+-- Headline + statement of the underlying local decision, for the moratorium
+-- family only. One row per event_decision_id; null for bills.
+decision_text as (
+    select distinct on (event_decision_id)
+        event_decision_id,
+        coalesce(headline, '') || ' ' || coalesce(decision_statement, '') as txt
+    from {{ ref('event_decision') }}
+    order by event_decision_id, extracted_at desc
+),
+flagged as (
+    select
+        s.*,
+        (
+            s.outcome_raw ~* 'moratori'
+            or dt.txt ~* '(adopt|approv|enact|impos|establish|exten|recommend|pass|plac|declar)\w*\s+(\S+\s+){0,6}moratori'
+            or dt.txt ~* 'moratori\w*\s+(\S+\s+){0,6}(adopt|approv|enact|pass|exten|impos)'
+        )
+        and coalesce(s.outcome_raw, '') !~* '\m(lift|ends?|ending|ended|repeal|rescind|terminat)\w*\s+(\S+\s+){0,3}moratori'
+        and coalesce(dt.txt, '') !~* '\m(lift|ends?|ending|ended|repeal|rescind|terminat)\w*\s+(\S+\s+){0,3}moratori'
+            as names_moratorium
+    from src s
+    left join decision_text dt
+      on s.source_type = 'local_decision'
+     and dt.event_decision_id = s.source_id
 ),
 normalized as (
     select
@@ -58,6 +100,13 @@ normalized as (
                          or outcome_raw ilike '%defeat%' or outcome_raw ilike '%fail%'
                          or outcome_raw ilike '%disallow%' or outcome_raw ilike '%not to proceed%'
                          or outcome_raw ilike '%revoked%' or outcome_raw ilike '%upheld denial%' then 'denied'
+                    when names_moratorium and (
+                         outcome_raw ilike '%recommend%'
+                         or outcome_raw ilike '%approv%' or outcome_raw ilike '%adopt%'
+                         or outcome_raw ilike '%pass%' or outcome_raw ilike '%enact%'
+                         or outcome_raw ilike '%authoriz%' or outcome_raw ilike '%ratif%'
+                         or outcome_raw ilike '%carried%' or outcome_raw ilike '%ordained%'
+                    ) then 'moratorium'
                     when outcome_raw ilike '%approv%' or outcome_raw ilike '%adopt%'
                          or outcome_raw ilike '%pass%' or outcome_raw ilike '%grant%'
                          or outcome_raw ilike '%authoriz%' or outcome_raw ilike '%award%'
@@ -83,7 +132,7 @@ normalized as (
                 end
             else 'pending'
         end as outcome_normalized
-    from src
+    from flagged
 )
 select * from normalized
 where instance_id is not null

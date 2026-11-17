@@ -125,7 +125,12 @@ seeds:
       - name: city
         description: "City of the decision (verbatim from event_decision; may be empty)."
       - name: outcome_raw
-        description: "Free-text decision outcome (verbatim); normalized in stg_question_instance."
+        description: >
+          Short factual decision outcome taken from the record: event_decision.outcome
+          verbatim, or (when that alone is ambiguous, e.g. "Adopted" for a moratorium)
+          a short phrase from the decision's own headline/statement such as
+          "Moratorium adopted", "Moratorium proposed", "Regulations adopted",
+          "Discussed". Never an invented outcome. Normalized in stg_question_instance.
       - name: occurred_at
         description: "When the decision was recorded (event_decision.extracted_at)."
 
