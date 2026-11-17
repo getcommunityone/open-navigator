@@ -270,3 +270,8 @@ outputPorts:
   contractId: open-navigator-public-data_center_meeting_mention
   type: table
   description: One row per (transcript video, passage) where the meeting's own words say "data center" (or data centre / datacenter / hyperscale).
+- name: recent_transcribed_meeting
+  version: 1.0.0
+  contractId: open-navigator-public-recent_transcribed_meeting
+  type: table
+  description: 'One row per video_id: a meeting from the last 180 days (and not later than today) that has a transcript in event_documents, passes the junk-channel gate (event_youtube_with_jurisdiction), has a title that names a public meeting (meeting_title_regex) and has NOT been AI-analyzed (not in event_meeting).'
