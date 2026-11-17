@@ -19,14 +19,14 @@ schema:
   name: civicsearch_topic
   physicalName: public.civicsearch_topic
   logicalType: object
-  description: 'public.civicsearch_topic — the CivicSearch policy-topic taxonomy CivicSearch uses to tag meeting transcript snippets. One row per topic_id. A FLAT topic -> keyword-cluster dictionary (NOT hierarchical): keyword_stats holds the cluster''s representative keyword strings as a JSONB array. Source: staging.stg_civicsearch__topic (bronze.bronze_events_civicsearch_topic).'
+  description: 'public.civicsearch_topic — the CivicSearch policy-topic taxonomy CivicSearch uses to tag meeting transcript snippets. One row per topic_id. A FLAT topic -> keyword-cluster dictionary (NOT hierarchical): keyword_stats holds the cluster''s representative keyword strings as a JSONB array. Source: staging.stg_civicsearch__topic (bronze.bronze_events_civicsearch_topic), plus hand-authored curated topics from the curated_topics seed (source = ''curated'', topic_id >= 100000, e.g. "Data centers"; issue #500).'
   dataGranularityDescription: One row per topic_id.
   properties:
   - id: topic_id
     name: topic_id
     logicalType: integer
     physicalType: integer
-    description: Primary key — CivicSearch topic id.
+    description: Primary key — CivicSearch topic id, or a curated topic id (>= 100000, never collides).
     required: true
     unique: true
     primaryKey: true
@@ -69,11 +69,32 @@ schema:
     name: transcript_occurrences
     logicalType: integer
     physicalType: integer
-    description: Count of CivicSearch transcript snippets tagged with this topic_id (from staging.stg_civicsearch__snippet). 0 for topics with no snippet matches (coalesced, never NULL). Lets the API rank topics by how often they occur across meeting transcripts.
+    description: 'Count of CivicSearch transcript snippets tagged with this topic_id (from staging.stg_civicsearch__snippet). 0 for topics with no snippet matches (coalesced, never NULL), which includes every curated topic: their meeting counts come from browse_transcript_count. Lets the API rank topics by how often they occur across meeting transcripts.'
     required: true
     quality:
     - type: library
       metric: nullValues
       mustBe: 0
       dimension: completeness
+      severity: error
+  - id: source
+    name: source
+    logicalType: string
+    physicalType: text
+    description: '''civicsearch'' (CivicSearch taxonomy) or ''curated'' (curated_topics seed). Curated keywords are specific phrases, so the keyword models match them at 1 phrase hit instead of CivicSearch''s 2.'
+    required: true
+    quality:
+    - type: library
+      metric: nullValues
+      mustBe: 0
+      dimension: completeness
+      severity: error
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - civicsearch
+        - curated
+      mustBe: 0
+      dimension: conformity
       severity: error

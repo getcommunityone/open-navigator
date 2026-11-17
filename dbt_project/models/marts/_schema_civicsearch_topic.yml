@@ -14,7 +14,9 @@ models:
       uses to tag meeting transcript snippets. One row per topic_id. A FLAT
       topic -> keyword-cluster dictionary (NOT hierarchical): keyword_stats holds
       the cluster's representative keyword strings as a JSONB array. Source:
-      staging.stg_civicsearch__topic (bronze.bronze_events_civicsearch_topic).
+      staging.stg_civicsearch__topic (bronze.bronze_events_civicsearch_topic),
+      plus hand-authored curated topics from the curated_topics seed (source =
+      'curated', topic_id >= 100000, e.g. "Data centers"; issue #500).
     config:
       materialized: table
       on_schema_change: fail
@@ -23,7 +25,7 @@ models:
         enforced: true
     columns:
       - name: topic_id
-        description: "Primary key — CivicSearch topic id."
+        description: "Primary key — CivicSearch topic id, or a curated topic id (>= 100000, never collides)."
         data_type: integer
         constraints:
           - type: not_null
@@ -50,10 +52,24 @@ models:
         description: >
           Count of CivicSearch transcript snippets tagged with this topic_id
           (from staging.stg_civicsearch__snippet). 0 for topics with no snippet
-          matches (coalesced, never NULL). Lets the API rank topics by how often
+          matches (coalesced, never NULL), which includes every curated topic:
+          their meeting counts come from browse_transcript_count. Lets the API rank topics by how often
           they occur across meeting transcripts.
         data_type: integer
         constraints:
           - type: not_null
         data_tests:
           - not_null
+      - name: source
+        description: >
+          'civicsearch' (CivicSearch taxonomy) or 'curated' (curated_topics seed).
+          Curated keywords are specific phrases, so the keyword models match them
+          at 1 phrase hit instead of CivicSearch's 2.
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['civicsearch', 'curated']

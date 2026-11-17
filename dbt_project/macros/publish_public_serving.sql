@@ -173,6 +173,7 @@
     'meeting_question_link':               "_s.state_code in {{states}}",
     'question_instance':                   "_s.state_code in {{states}}",
     'question_transcript_link':            "_s.state_code in {{states}}",
+    'topic_transcript_link':               "_s.state_code in {{states}}",
     'grant':                               "(_s.grantee_state_code in {{states}} or _s.grantor_state_code in {{states}})",
     'mdm_organization':                    "_s.state_code in {{states}}",
     'bills':                               "_s.state_code in {{states}}",
@@ -209,6 +210,7 @@
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
     'policy_question_relation', 'policy_question_trend', 'question_transcript_link',
     'meeting_browse', 'meeting_topic_link', 'meeting_question_link',
+    'topic_transcript_link',
     'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
     'data_center_meeting_mention'
 ] -%}

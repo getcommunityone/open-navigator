@@ -58,6 +58,44 @@ seeds:
       - name: domain
         description: "FQDN to exclude, e.g. wilcoxcountyal.gov"
 
+  - name: curated_topics
+    description: >
+      Hand-authored, editorial topics unioned into the CivicSearch topic
+      taxonomy (stg_civicsearch__topic -> public.civicsearch_topic, source =
+      'curated'), so Browse Topics, topic pills, meeting_topic_link and the
+      topic counts treat them like the CivicSearch topics (issue #500).
+      topic_id RANGE: curated ids start at 100000. CivicSearch ids are small
+      integers (max 121 today), so a curated id can never collide with one;
+      the next curated topic takes the next free id (100002, ...).
+      keywords are SPECIFIC phrases (unlike CivicSearch's generic keyword_stats),
+      so the transcript keyword models count a single phrase hit as a match for
+      a curated topic (CivicSearch topics need >= 2 distinct phrases), the same
+      rule question_transcript_link uses for curated question aliases.
+      After editing: dbt seed --select curated_topics && dbt build --select stg_civicsearch__topic+.
+    columns:
+      - name: topic_id
+        description: "Curated topic id. Integer, unique, >= 100000 (never collides with a CivicSearch topic_id)."
+        tests:
+          - unique
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 100000
+      - name: name
+        description: "Topic label shown on Browse Topics (e.g. 'Data centers')."
+        tests:
+          - unique
+          - not_null
+      - name: query_id
+        description: "URL-safe slug for the topic (e.g. 'data-centers')."
+        tests:
+          - unique
+          - not_null
+      - name: keywords
+        description: "Pipe-delimited keyword phrases matched against transcripts and decisions (e.g. 'data center|data centre|hyperscale')."
+        tests:
+          - not_null
+
   - name: curated_policy_questions
     description: >
       Hand-authored, editorial "featured" policy questions unioned into

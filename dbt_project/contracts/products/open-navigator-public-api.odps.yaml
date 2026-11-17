@@ -240,6 +240,11 @@ outputPorts:
   contractId: open-navigator-public-meeting_question_link
   type: table
   description: One row per (event_meeting_id, question_id).
+- name: topic_transcript_link
+  version: 1.0.0
+  contractId: open-navigator-public-topic_transcript_link
+  type: table
+  description: 'One row per (topic_id, video_id): a curated topic (civicsearch_topic.source = ''curated'', e.g. "Data centers") whose keyword phrase(s) matched a real meeting transcript, with a verbatim ts_headline passage marking the matched words.'
 - name: job_claim
   version: 1.0.0
   contractId: open-navigator-public-job_claim
