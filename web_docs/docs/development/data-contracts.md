@@ -56,7 +56,7 @@ them out of `served`. A test fails when a served relation has no contract and is
 
 ### Foreign keys left out
 
-A foreign key points at a column in its parent's contract, so these 13 are left out of their contracts while the parent
+A foreign key points at a column in its parent's contract, so these 16 are left out of their contracts while the parent
 has none. Each one comes back by itself once the parent's contract holds the column: the generator writes every
 foreign key it can resolve. `python -m models.odcs --write` lists the ones it leaves out, and a test fails when one is
 left out but isn't listed here.
@@ -73,6 +73,9 @@ left out but isn't listed here.
 | `event_decision_place.event_decision_id` | `event_decision.event_decision_id` | the same |
 | `item_interestingness.event_decision_id` | `event_decision.event_decision_id` | the same |
 | `question_instance.source_id` | `event_decision.event_decision_id` | the same |
+| `decision_place_label.event_decision_id` | `event_decision.event_decision_id` | the same |
+| `decision_company_mention.event_decision_id` | `event_decision.event_decision_id` | the same |
+| `decision_nearby_data_center_site.event_decision_id` | `event_decision.event_decision_id` | the same |
 | `event_decision_place.place_id` | `event_place.place_id` | `event_place`, a dbt model that isn't served, is published in `public` with a contract |
 | `canonical_argument.frame_id` | `policy_frame.frame_id` | `policy_frame`, a dbt seed that isn't served, is published with a contract |
 | `policy_question.topic_code` | `cap_topic.code` | the same, for the seed `cap_topic` |

@@ -93,6 +93,9 @@ export interface CanonicalArgument {
 
 export interface QuestionRollup {
   instances_total: number
+  // Date range of the counted instances (#508 summary: "since May 2026").
+  first_occurred_at?: string | null
+  last_occurred_at?: string | null
   decisions_total: number
   bills_total: number
   jurisdictions_total: number
@@ -117,6 +120,31 @@ export interface QuestionInstance {
   outcome_family?: OutcomeFamily | null
   occurred_at: string | null
   assign_score: number | null
+  // #508: what was decided, where and who (built in dbt; null/empty for a bill).
+  event_decision_id?: string | null
+  headline?: string | null
+  // Street-level address that agrees with the decision's own government; null when none.
+  place_label?: string | null
+  // Companies the decision's own headline/statement names, with the matched text.
+  company_names?: string[]
+  company_evidence?: string | null
+  company_mentions?: QuestionCompanyMention[]
+  // Tracked Epoch AI sites near the decision's government — NOT its subject.
+  nearby_sites?: QuestionNearbySite[]
+}
+
+// A company named in a decision's own text: the exact words matched, and a verbatim
+// excerpt with them in <mark> (render with highlightSnippet).
+export interface QuestionCompanyMention {
+  operator_name: string
+  matched_text: string
+  evidence: string | null
+}
+
+export interface QuestionNearbySite {
+  data_center_site_id: string
+  site_name: string | null
+  owner: string | null
 }
 
 export interface QuestionRelation {
@@ -143,7 +171,11 @@ export interface PolicyQuestionDetail extends Omit<PolicyQuestionSummary, 'scope
   arguments: CanonicalArgument[]
   sample_instances: QuestionInstance[]
   relations: QuestionRelation[]
+  // Per quarter, counted over the same scope (and outcome) as the rollup.
   trend: QuestionTrendPoint[]
+  // With an outcome: the counts for that family only (the dashboard summary).
+  outcome?: OutcomeFamily | null
+  outcome_rollup?: QuestionRollup | null
 }
 
 export async function fetchPolicyQuestions(params?: {
@@ -176,11 +208,13 @@ const scopeParams = (scope?: QuestionPlaceScope) => {
 }
 
 // One question; with a state/city every count and the money figure are for that scope.
+// With an outcome, outcome_rollup / trend / sample_instances are for that family too.
 export async function fetchPolicyQuestion(
   id: string,
-  scope?: QuestionPlaceScope,
+  scope?: QuestionPlaceScope & { outcome?: OutcomeFamily },
 ): Promise<PolicyQuestionDetail> {
   const q = scopeParams(scope)
+  if (scope?.outcome) q.set('outcome', scope.outcome)
   const qs = q.toString()
   const res = await api.get(`/policy-question/${id}${qs ? `?${qs}` : ''}`)
   return res.data
@@ -188,10 +222,16 @@ export async function fetchPolicyQuestion(
 
 export async function fetchQuestionInstances(
   id: string,
-  params: QuestionPlaceScope & { outcome?: OutcomeFamily; limit?: number; offset?: number } = {},
+  params: QuestionPlaceScope & {
+    outcome?: OutcomeFamily
+    order?: 'relevance' | 'recent'
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<QuestionInstance[]> {
   const q = scopeParams(params)
   if (params.outcome) q.set('outcome', params.outcome)
+  if (params.order) q.set('order', params.order)
   q.set('limit', String(params.limit ?? 50))
   q.set('offset', String(params.offset ?? 0))
   const res = await api.get(`/policy-question/${id}/instances?${q.toString()}`)

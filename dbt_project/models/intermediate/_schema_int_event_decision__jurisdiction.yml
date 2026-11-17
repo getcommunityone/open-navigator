@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: int_event_decision__jurisdiction
+    description: >
+      One row per AI-extracted decision (event_decision_id) whose meeting's canonical event
+      (civic_event, joined on legacy_event_id) names a jurisdiction_id that exists in
+      jurisdictions. The decision's own government, for the #508 place-agreement check and
+      the nearby-site link. Decisions whose event has no jurisdiction get no row.
+    columns:
+      - name: event_decision_id
+        description: "The decision (event_decision.event_decision_id)."
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "The government whose meeting made the decision."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+      - name: jurisdiction_geoid
+        description: "Census GEOID of that government (5-digit county FIPS for a county)."
+      - name: jurisdiction_name
+        description: "Its name as jurisdictions gives it (e.g. 'Spalding County', 'Auburn')."
+      - name: jurisdiction_type
+        description: "county, city, town, ..."
+      - name: state_code
+        description: "2-letter state code of the government."
