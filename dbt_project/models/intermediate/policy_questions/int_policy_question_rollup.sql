@@ -4,6 +4,9 @@
 --
 -- Outcome buckets unify the decision and bill vocabularies into one "outcome
 -- family" so cross-level comparison works:
+--   moratorium = moratorium (decisions: an adopted/recommended moratorium, #483;
+--                see stg_question_instance for the matcher rule). Its own family,
+--                never approved — an adopted moratorium pauses the thing.
 --   approved  = approved (decisions) | enacted (bills)
 --   denied    = denied   (decisions) | failed | died_in_committee (bills)
 --   deferred  = deferred (decisions) | carried_over (bills)
@@ -36,6 +39,7 @@ juris as (
         source_type,
         state_code,
         case
+            when outcome_normalized = 'moratorium' then 'moratorium'
             when outcome_normalized in ('approved', 'enacted') then 'approved'
             when outcome_normalized in ('denied', 'failed', 'died_in_committee') then 'denied'
             when outcome_normalized in ('deferred', 'carried_over') then 'deferred'
@@ -54,6 +58,7 @@ select
     count(*) filter (where outcome_family = 'approved')                 as approved_count,
     count(*) filter (where outcome_family = 'denied')                   as denied_count,
     count(*) filter (where outcome_family = 'deferred')                 as deferred_count,
+    count(*) filter (where outcome_family = 'moratorium')               as moratorium_count,
     count(*) filter (where outcome_family = 'other')                    as other_count,
     coalesce(m.money_total, 0)::numeric                                 as money_total
 from juris j

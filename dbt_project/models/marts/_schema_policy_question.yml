@@ -69,6 +69,14 @@ models:
         data_type: integer
       - name: deferred_count
         data_type: integer
+      - name: moratorium_count
+        description: >
+          Linked local decisions that adopted or recommended a moratorium (#483).
+          Matched before approved in stg_question_instance, so an adopted
+          moratorium is never counted as approved. 0 when none.
+        data_type: integer
+        constraints:
+          - type: not_null
       - name: other_count
         data_type: integer
       - name: model_name

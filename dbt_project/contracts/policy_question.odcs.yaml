@@ -115,6 +115,12 @@ schema:
     name: deferred_count
     logicalType: integer
     physicalType: integer
+  - id: moratorium_count
+    name: moratorium_count
+    logicalType: integer
+    physicalType: integer
+    description: Linked local decisions that adopted or recommended a moratorium (#483). Matched before approved in stg_question_instance, so an adopted moratorium is never counted as approved. 0 when none.
+    required: true
   - id: other_count
     name: other_count
     logicalType: integer

@@ -13,6 +13,8 @@ export interface PolicyQuestionSummary {
   instances_total: number
   jurisdictions_total: number
   jurisdictions_approved: number
+  // Linked local decisions that adopted or recommended a moratorium (#483).
+  moratorium_count: number
   // Curated "featured" questions (homepage "big questions"). `display_order`
   // controls their sequence; both may be absent on older API responses.
   is_featured?: boolean
@@ -71,6 +73,7 @@ export interface QuestionRollup {
   approved_count: number
   denied_count: number
   deferred_count: number
+  moratorium_count: number
   other_count: number
 }
 

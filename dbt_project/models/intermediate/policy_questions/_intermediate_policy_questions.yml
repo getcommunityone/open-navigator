@@ -8,3 +8,8 @@ models:
     columns:
       - name: question_id
         tests: [unique, not_null]
+      - name: moratorium_count
+        description: >
+          Instances whose outcome family is moratorium (an adopted or recommended
+          moratorium, #483); never null (0 when none).
+        tests: [not_null]

@@ -11,12 +11,14 @@ const OUTCOME_COLORS: Record<string, string> = {
   approved: 'bg-green-500',
   denied: 'bg-red-500',
   deferred: 'bg-amber-500',
+  moratorium: 'bg-purple-500',
   other: 'bg-gray-400',
 }
 
 function RollupBar({ q }: { q: PolicyQuestionDetail }) {
   const r = q.rollup
-  const total = r.approved_count + r.denied_count + r.deferred_count + r.other_count
+  const total =
+    r.approved_count + r.denied_count + r.moratorium_count + r.deferred_count + r.other_count
   const seg = (n: number) => (total > 0 ? `${(n / total) * 100}%` : '0%')
   const pct =
     r.jurisdictions_total > 0
@@ -38,7 +40,7 @@ function RollupBar({ q }: { q: PolicyQuestionDetail }) {
             {r.states_total} state{r.states_total === 1 ? '' : 's'}
           </p>
           <div className="flex h-3 w-full overflow-hidden rounded-full">
-            {(['approved', 'denied', 'deferred', 'other'] as const).map((k) => {
+            {(['approved', 'denied', 'moratorium', 'deferred', 'other'] as const).map((k) => {
               const n = r[`${k}_count` as keyof typeof r] as number
               return n > 0 ? (
                 <div
@@ -53,6 +55,7 @@ function RollupBar({ q }: { q: PolicyQuestionDetail }) {
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
             <span>● approved {r.approved_count}</span>
             <span>● denied {r.denied_count}</span>
+            <span>● moratorium {r.moratorium_count}</span>
             <span>● deferred {r.deferred_count}</span>
             <span>● other {r.other_count}</span>
           </div>

@@ -56,7 +56,7 @@ models:
       - name: outcome_raw
         data_type: text
       - name: outcome_normalized
-        description: "decisions: approved|denied|deferred|other; bills: pending (Phase 2 extends)."
+        description: "decisions: approved|denied|deferred|moratorium|other (moratorium = an adopted/recommended moratorium, #483); bills: enacted|vetoed|failed|carried_over|died_in_committee|pending."
         data_type: text
       - name: occurred_at
         data_type: timestamp with time zone

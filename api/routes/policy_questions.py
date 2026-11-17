@@ -47,6 +47,8 @@ class RollupOut(BaseModel):
     approved_count: int = 0
     denied_count: int = 0
     deferred_count: int = 0
+    # Adopted/recommended moratoriums (#483) — its own family, never approved.
+    moratorium_count: int = 0
     other_count: int = 0
 
 
@@ -88,6 +90,8 @@ class PolicyQuestionSummary(BaseModel):
     instances_total: int = 0
     jurisdictions_total: int = 0
     jurisdictions_approved: int = 0
+    # Linked local decisions that adopted or recommended a moratorium (#483).
+    moratorium_count: int = 0
     is_featured: bool = False
     display_order: Optional[int] = None
     # Real money & talk (see dbt policy_question mart). money_total = dollars moved
@@ -148,7 +152,7 @@ _RELATIONS_SQL = """
 _LIST_COLS = """
     question_id, canonical_text, topic_code, primary_theme, cofog_code,
     scope, status, instances_total, jurisdictions_total, jurisdictions_approved,
-    is_featured, display_order,
+    moratorium_count, is_featured, display_order,
     money_total, money_share, talk_share,
     (select count(*) from public.question_transcript_link l
        where l.question_id = policy_question.question_id) as discussion_meeting_count
@@ -286,6 +290,7 @@ async def get_policy_question(
             instances_total=d.get("instances_total", 0),
             jurisdictions_total=d.get("jurisdictions_total", 0),
             jurisdictions_approved=d.get("jurisdictions_approved", 0),
+            moratorium_count=int(d.get("moratorium_count") or 0),
             is_featured=d.get("is_featured", False),
             display_order=d.get("display_order"),
             money_total=float(d.get("money_total") or 0),
