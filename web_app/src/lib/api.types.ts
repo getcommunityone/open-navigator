@@ -528,6 +528,10 @@ export interface paths {
          *     - NCES school districts
          *     - Nonprofit organizations
          *     - Meeting datasets (MeetingBank, LocalView, etc.)
+         *
+         *     Every count is a real warehouse value (see
+         *     ``stats_neon.fetch_national_reference_counts``) or ``null`` when it can't be
+         *     computed — never a hard-coded estimate (CLAUDE.md, "No Fabricated Data").
          */
         get: operations["get_data_status_api_data_status_get"];
         put?: never;
@@ -2064,10 +2068,6 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
-            /** Context */
-            ctx?: Record<string, never>;
-            /** Input */
-            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
