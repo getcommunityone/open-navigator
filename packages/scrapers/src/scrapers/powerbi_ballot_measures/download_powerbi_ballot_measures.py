@@ -39,6 +39,8 @@ from typing import Any
 
 from loguru import logger
 
+from core_lib.paths import repo_root
+
 try:
     from playwright.async_api import async_playwright
 except ImportError:  # pragma: no cover - playwright is a runtime dep
@@ -50,7 +52,7 @@ DEFAULT_URL = (
     "https://app.powerbi.com/view?r="
     "eyJrIjoiYjEwNDI2NTctZDFkMy00ZGM4LWFkMTItNTcwYTdkZmMxMGIxIiwidCI6IjM4MmZiOGIwLTRkYzMtNDEwNy04MGJkLTM1OTViMjQzMmZhZSIsImMiOjZ9"
 )
-_ROOT = Path(__file__).resolve().parents[3]
+_ROOT = repo_root(__file__)
 CACHE_DIR = _ROOT / "data" / "cache" / "ncls"
 RAW_DIR = CACHE_DIR / "raw"
 

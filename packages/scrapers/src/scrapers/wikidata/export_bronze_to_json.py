@@ -45,7 +45,8 @@ from typing import List, Dict, Optional
 try:
     import psycopg2
 except ModuleNotFoundError:
-    _repo_root = Path(__file__).resolve().parents[3]
+    from core_lib.paths import repo_root
+    _repo_root = repo_root(__file__)
     _venv_py = _repo_root / ".venv" / "bin" / "python"
     sys.stderr.write(
         "ModuleNotFoundError: psycopg2 — install deps in the project venv.\n"
