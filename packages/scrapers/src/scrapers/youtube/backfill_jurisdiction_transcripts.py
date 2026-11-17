@@ -1193,6 +1193,20 @@ def run(args: argparse.Namespace) -> int:
     max_rl = args.max_consecutive_rate_limits
     exit_code = 0
 
+    # Behind a full-tunnel VPN, a block is usually cleared by a new exit IP
+    # (scrapers.youtube.vpn_refresh); refresh instead of stopping, a few times per run.
+    from scrapers.youtube.vpn_refresh import refresh_enabled, refresh_exit_ip
+
+    vpn_refresh_after = int(getattr(args, "vpn_refresh_after", 0) or 0)
+    vpn_refresh_on = vpn_refresh_after > 0 and refresh_enabled()
+    vpn_refreshes_left = int(getattr(args, "max_vpn_refreshes", 0) or 0) if vpn_refresh_on else 0
+    if vpn_refresh_on:
+        logger.info(
+            "VPN tunnel detected: on {} consecutive blocks, wait for a new exit IP (up to {} times)",
+            vpn_refresh_after,
+            vpn_refreshes_left,
+        )
+
     probe_id = (args.probe_video_id or "").strip() or "ajsME66iXbY"
     if args.skip_probe or video_filter:
         probe_id = ""
@@ -1356,6 +1370,15 @@ def run(args: argparse.Namespace) -> int:
                         max_rl,
                         wait,
                     )
+                    if vpn_refreshes_left > 0 and consecutive_rl >= vpn_refresh_after:
+                        vpn_refreshes_left -= 1
+                        refreshed = refresh_exit_ip()
+                        if refreshed.changed:
+                            logger.info(
+                                "New VPN exit IP; resuming ({} refresh(es) left)", vpn_refreshes_left
+                            )
+                            consecutive_rl = 0
+                            continue
                     if consecutive_rl >= max_rl:
                         logger.error(
                             "Stopping after {} consecutive blocks — fix VPN/proxy, wait, then re-run",
@@ -1584,6 +1607,19 @@ def main() -> None:
         type=int,
         default=8,
         help="Stop batch after this many consecutive 429/IP blocks",
+    )
+    parser.add_argument(
+        "--vpn-refresh-after",
+        type=int,
+        default=3,
+        help="Behind a VPN tunnel: after this many consecutive blocks, wait for a new exit IP "
+        "(VPN_REFRESH_COMMAND, or Surfshark's Rotating IP) before going on; 0 disables",
+    )
+    parser.add_argument(
+        "--max-vpn-refreshes",
+        type=int,
+        default=5,
+        help="Most exit-IP refreshes per run (default 5)",
     )
     parser.add_argument("--languages", nargs="+", default=["en"])
     parser.add_argument("--dry-run", action="store_true")
