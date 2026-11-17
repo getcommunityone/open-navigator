@@ -3,6 +3,7 @@
     python -m ingestion.data_centers.epoch_sites                 # download + load
     python -m ingestion.data_centers.epoch_sites --no-download   # load what's cached
     python -m ingestion.data_centers.epoch_sites --file-dir DIR  # load files you saved
+    python -m ingestion.data_centers.epoch_sites --dsn URL       # write somewhere other than the local warehouse
 
 Source: Epoch AI, "AI data centers" (https://epoch.ai/data/data-centers), licensed
 CC BY 4.0: free to use and republish with credit to Epoch AI. Every row keeps its
@@ -138,18 +139,45 @@ def download(spec: EpochFile, cache_dir: Path) -> Path:
     return target
 
 
-def _dsn() -> str | None:
-    return next(
-        (os.environ[k] for k in ("NEON_DATABASE_URL_DEV", "NEON_DATABASE_URL", "DATABASE_URL") if os.environ.get(k)),
-        None,
-    )
+def _dsn(explicit: str | None = None) -> str:
+    """Where bronze goes: ``--dsn``, else a Postgres ``DATABASE_URL``, else the local warehouse.
+
+    Bronze lives in the local warehouse; Neon only serves ``public``. This used to read
+    ``NEON_DATABASE_URL_DEV`` and then ``NEON_DATABASE_URL`` (production) first, so an
+    exported Neon URL sent raw rows to production (#441). Neon variables are no longer
+    read: writing anywhere but the local warehouse takes an explicit ``--dsn``.
+    """
+    if explicit and explicit.strip():
+        return explicit.strip()
+    url = (os.environ.get("DATABASE_URL") or "").strip()
+    if url.startswith(("postgresql://", "postgres://")):
+        return url
+    password = os.environ.get("POSTGRES_PASSWORD") or "password"
+    return f"postgresql://postgres:{password}@localhost:5433/open_navigator"
+
+
+def _host(dsn: str) -> str:
+    """The DSN's host and port, without credentials, for the log."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(dsn)
+    return f"{parts.hostname or '?'}:{parts.port or 5432}{parts.path or ''}"
 
 
 def main(argv: list[str] | None = None) -> int:
+    from dotenv import load_dotenv
+
+    load_dotenv()  # POSTGRES_PASSWORD / DATABASE_URL from .env; Neon URLs in it are ignored
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--file-dir", type=Path, help="Load CSVs from here instead of downloading.")
     parser.add_argument("--no-download", action="store_true", help=f"Use the files in {CACHE_DIR}.")
     parser.add_argument("--dry-run", action="store_true", help="Parse and check, but don't write.")
+    parser.add_argument(
+        "--dsn",
+        default="",
+        help="Postgres URL to write bronze to (default: DATABASE_URL if it's Postgres, else the local "
+        "warehouse on localhost:5433). Neon variables are never read.",
+    )
     args = parser.parse_args(argv)
 
     source_dir = args.file_dir or CACHE_DIR
@@ -175,10 +203,8 @@ def main(argv: list[str] | None = None) -> int:
         logger.success("Dry run: both files parsed; nothing written")
         return 0
 
-    dsn = _dsn()
-    if not dsn:
-        logger.error("Set NEON_DATABASE_URL_DEV, NEON_DATABASE_URL or DATABASE_URL")
-        return 2
+    dsn = _dsn(args.dsn)
+    logger.info("Writing bronze to {}", _host(dsn))
 
     import psycopg2
     from psycopg2.extras import execute_values

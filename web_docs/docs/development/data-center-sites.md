@@ -25,7 +25,7 @@ their status and source. It is part of the
 
 | Step | Where | What it does |
 |---|---|---|
-| Load | `python -m ingestion.data_centers.epoch_sites [--no-download] [--file-dir DIR] [--dry-run]` | Downloads `data_centers.csv` and `data_center_timelines.csv` to `data/cache/epoch/` and lands each row as JSONB in bronze. Stops with the headers it found if Epoch renames `Name`, `Data center` or `Date` |
+| Load | `.venv/bin/python -m ingestion.data_centers.epoch_sites [--no-download] [--file-dir DIR] [--dry-run] [--dsn URL]` | Writes to the local warehouse unless `--dsn` says otherwise; Neon URLs in the environment are ignored (#441). Downloads `data_centers.csv` and `data_center_timelines.csv` to `data/cache/epoch/` and lands each row as JSONB in bronze. Stops with the headers it found if Epoch renames `Name`, `Data center` or `Date` |
 | Bronze | `bronze.bronze_epoch_data_centers`, `bronze.bronze_epoch_data_center_timelines` | One row per CSV row per downloaded file. PK `(file_sha256, row_number)`, so reloading the same file adds nothing |
 | Staging | `stg_epoch_data_center`, `stg_epoch_data_center_timeline` | Latest record per site, with first/last seen and `is_listed`; dated rows typed with guarded casts |
 | Mart | `data_center_site` (public) | One row per site. PK `data_center_site_id`. Status, last known status, power, source and licence |
