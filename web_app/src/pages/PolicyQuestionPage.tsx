@@ -6,6 +6,7 @@ import {
   type PolicyQuestionDetail,
 } from '../api/policyQuestions'
 import { expandStateName, titleCaseCity } from '../utils/formatters'
+import { themeLabel } from '../lib/themeLabel'
 
 const OUTCOME_COLORS: Record<string, string> = {
   approved: 'bg-green-500',
@@ -145,10 +146,10 @@ export default function PolicyQuestionPage() {
           </p>
           <h1 className="text-2xl font-bold text-gray-900 mt-1">{q.canonical_text}</h1>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
-            {q.primary_theme && q.primary_theme !== '__unthemed__' && (
-              <span className="rounded bg-gray-100 px-2 py-0.5">{q.primary_theme}</span>
+            {themeLabel(q.primary_theme) && (
+              <span className="rounded bg-gray-100 px-2 py-0.5">{themeLabel(q.primary_theme)}</span>
             )}
-            {q.scope && <span className="rounded bg-gray-100 px-2 py-0.5">scope: {q.scope}</span>}
+            {q.question_scope && <span className="rounded bg-gray-100 px-2 py-0.5">scope: {q.question_scope}</span>}
             {q.topic_code && (
               <span className="rounded bg-gray-100 px-2 py-0.5">CAP {q.topic_code}</span>
             )}

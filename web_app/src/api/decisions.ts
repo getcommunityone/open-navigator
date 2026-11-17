@@ -14,6 +14,9 @@ export interface DecisionListParams {
   causeId?: string
   /** policy-question id — exact link via question_instance. */
   questionId?: string
+  /** With questionId: the question's outcome family (approved | denied |
+   *  moratorium | deferred | other), #499. */
+  outcome?: string
   /** Meeting id — drill into a single meeting's decisions. */
   meetingId?: number
   /** 2-letter state code or full state name. */
@@ -39,6 +42,7 @@ export async function fetchDecisions(params: DecisionListParams = {}): Promise<D
       topic_id: params.topicIds,
       cause_id: params.causeId,
       question_id: params.questionId,
+      outcome: params.questionId ? params.outcome : undefined,
       meeting_id: params.meetingId,
       state: params.state,
       city: params.city,

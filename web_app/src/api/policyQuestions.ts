@@ -42,6 +42,34 @@ export interface QuestionMeeting {
   jurisdiction_name: string | null
   video_url: string | null
   n_alias_hits: number
+  // Verbatim transcript passage with the alias words wrapped in <mark> (ts_headline,
+  // built in dbt question_transcript_link, #499). Render with highlightSnippet.
+  evidence: string | null
+  start_seconds: number | null
+  // The recording at start_seconds; null when the transcript is untimed.
+  jump_url: string | null
+}
+
+// The rollup's outcome families (dbt macro question_outcome_family).
+export type OutcomeFamily = 'approved' | 'denied' | 'moratorium' | 'deferred' | 'other'
+export const OUTCOME_FAMILIES: OutcomeFamily[] = ['approved', 'denied', 'moratorium', 'deferred', 'other']
+
+// The place scope every figure of a detail response is counted over (#499).
+export interface QuestionScope {
+  level: 'national' | 'state' | 'city'
+  state_code: string | null
+  city: string | null
+}
+
+// A linked decision whose net_dollar_impact adds up to money_total.
+export interface QuestionMoneySource {
+  event_decision_id: string
+  title: string | null
+  jurisdiction_name: string | null
+  state_code: string | null
+  outcome_family: OutcomeFamily | null
+  occurred_at: string | null
+  net_dollar_impact: number
 }
 
 // One quarter of a question's history (real). instances = how often it came up;
@@ -86,6 +114,7 @@ export interface QuestionInstance {
   city: string | null
   outcome_raw: string | null
   outcome_normalized: string | null
+  outcome_family?: OutcomeFamily | null
   occurred_at: string | null
   assign_score: number | null
 }
@@ -99,9 +128,18 @@ export interface QuestionRelation {
   scope: string | null
 }
 
-export interface PolicyQuestionDetail extends PolicyQuestionSummary {
+export interface PolicyQuestionDetail extends Omit<PolicyQuestionSummary, 'scope'> {
   first_seen: string | null
+  // The question's level (local | state | both).
+  question_scope: string | null
+  // The place scope of every count / money / meeting figure below (#499).
+  scope: QuestionScope
   rollup: QuestionRollup
+  // The decisions whose net_dollar_impact sums to money_total.
+  money_sources: QuestionMoneySource[]
+  // Browse Topics topic named like one of the question's aliases, if any.
+  topic_id: number | null
+  topic_name: string | null
   arguments: CanonicalArgument[]
   sample_instances: QuestionInstance[]
   relations: QuestionRelation[]
@@ -125,27 +163,51 @@ export async function fetchPolicyQuestions(params?: {
   return res.data
 }
 
-export async function fetchPolicyQuestion(id: string): Promise<PolicyQuestionDetail> {
-  const res = await api.get(`/policy-question/${id}`)
+export interface QuestionPlaceScope {
+  state?: string
+  city?: string
+}
+
+const scopeParams = (scope?: QuestionPlaceScope) => {
+  const q = new URLSearchParams()
+  if (scope?.state) q.set('state', scope.state)
+  if (scope?.city) q.set('city', scope.city)
+  return q
+}
+
+// One question; with a state/city every count and the money figure are for that scope.
+export async function fetchPolicyQuestion(
+  id: string,
+  scope?: QuestionPlaceScope,
+): Promise<PolicyQuestionDetail> {
+  const q = scopeParams(scope)
+  const qs = q.toString()
+  const res = await api.get(`/policy-question/${id}${qs ? `?${qs}` : ''}`)
   return res.data
 }
 
 export async function fetchQuestionInstances(
   id: string,
-  limit = 50,
-  offset = 0,
+  params: QuestionPlaceScope & { outcome?: OutcomeFamily; limit?: number; offset?: number } = {},
 ): Promise<QuestionInstance[]> {
-  const res = await api.get(`/policy-question/${id}/instances?limit=${limit}&offset=${offset}`)
+  const q = scopeParams(params)
+  if (params.outcome) q.set('outcome', params.outcome)
+  q.set('limit', String(params.limit ?? 50))
+  q.set('offset', String(params.offset ?? 0))
+  const res = await api.get(`/policy-question/${id}/instances?${q.toString()}`)
   return res.data
 }
 
-// Real meetings whose transcript discusses the question's alias keyword(s).
-// The "discussed in N meetings" fallback for questions with no mapped decisions.
+// Real meetings whose transcript discusses the question's alias keyword(s), newest
+// first, scoped to the state/city. The scoped total is the detail's
+// discussion_meeting_count.
 export async function fetchQuestionMeetings(
   id: string,
-  limit = 50,
-  offset = 0,
+  params: QuestionPlaceScope & { limit?: number; offset?: number } = {},
 ): Promise<QuestionMeeting[]> {
-  const res = await api.get(`/policy-question/${id}/meetings?limit=${limit}&offset=${offset}`)
+  const q = scopeParams(params)
+  q.set('limit', String(params.limit ?? 50))
+  q.set('offset', String(params.offset ?? 0))
+  const res = await api.get(`/policy-question/${id}/meetings?${q.toString()}`)
   return res.data
 }
