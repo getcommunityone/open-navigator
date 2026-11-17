@@ -15,12 +15,13 @@ its `data_type` and description, the primary key, and each foreign key constrain
 
 | View | PNG | draw.io (editable) |
 |---|---|---|
-| Entity | [marts_entity.png](/img/erd/marts_entity.png) | [marts_entity.drawio](/img/erd/marts_entity.drawio) |
-| Full | [marts_full.png](/img/erd/marts_full.png) | [marts_full.drawio](/img/erd/marts_full.drawio) |
+| Entity | [marts_entity.png](pathname:///img/erd/marts_entity.png) | [marts_entity.drawio](/img/erd/marts_entity.drawio) |
+| Full | [marts_full.png](pathname:///img/erd/marts_full.png) | [marts_full.drawio](/img/erd/marts_full.drawio) |
 
 The PNGs carry the diagram inside them, so draw.io (or diagrams.net) can open a PNG and edit it.
 
-![Marts ERD, entity view](/img/erd/marts_entity.png)
+Open [marts_entity.drawio](/img/erd/marts_entity.drawio) in draw.io (or diagrams.net) to view the entity diagram.
+The PNG copies are stored with git LFS, so they may be missing from some checkouts and from the hosted site.
 
 ## How to read it
 

@@ -24,7 +24,7 @@ RUN echo "Building Docusaurus with DOCUSAURUS_BASE_URL=$DOCUSAURUS_BASE_URL" && 
     echo "Cache bust: 2026-04-27-12-00-fix-double-docs-prefix" && \
     npm run build && \
     echo "Verifying baseUrl in build output..." && \
-    grep -r "baseUrl" build/ | head -5 || true
+    { grep -r "baseUrl" build/ | head -5 || true; }
 
 FROM python:3.11-slim
 

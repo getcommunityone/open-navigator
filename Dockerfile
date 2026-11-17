@@ -23,7 +23,7 @@ RUN echo "Building Docusaurus with DOCUSAURUS_BASE_URL=$DOCUSAURUS_BASE_URL" && 
     echo "Cache bust: 2026-06-08-22-12-6c3e7ee7" && \
     npm run build && \
     echo "Verifying baseUrl in build output..." && \
-    grep -r "baseUrl" build/ | head -5 || true
+    { grep -r "baseUrl" build/ | head -5 || true; }
 
 FROM python:3.11-slim
 
