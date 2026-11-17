@@ -260,3 +260,8 @@ outputPorts:
   contractId: open-navigator-public-area_concern
   type: table
   description: One row per area per concern.
+- name: data_center_meeting_mention
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_meeting_mention
+  type: table
+  description: One row per (transcript video, passage) where the meeting's own words say "data center" (or data centre / datacenter / hyperscale).
