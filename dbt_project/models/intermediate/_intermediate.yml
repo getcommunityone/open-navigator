@@ -137,12 +137,12 @@ models:
           - unique
           - not_null
       - name: website_source
-        description: "Upstream lineage: gsa, uscm, league, nces_directory, naco, or override (seed)"
+        description: "Upstream lineage: gsa, uscm, league, nces_directory, naco, wikidata, or override (seed)"
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ['gsa', 'uscm', 'league', 'nces_directory', 'naco', 'override']
+                values: ['gsa', 'uscm', 'league', 'nces_directory', 'naco', 'wikidata', 'override']
       - name: domain_name
         description: "Lowercase hostname when derivable from URL; for GSA rows the .gov domain"
       - name: website_url

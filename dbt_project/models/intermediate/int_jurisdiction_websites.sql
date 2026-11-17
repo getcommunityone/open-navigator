@@ -766,7 +766,20 @@ wikidata_county_base AS (
 
 wikidata_rows AS (
     SELECT
-        'wikidata|' || COALESCE(w.wikidata_id, w.geoid)   AS website_record_key,
+        -- A place can share its Wikidata item with a county (Puerto Rico's "zona urbana"
+        -- places carry their municipio's item) or with another place (two Kingston, IL
+        -- geoids). The county keeps the plain key; such a place adds its own geoid so the
+        -- key stays unique (#475). Other keys are unchanged, because accessibility results
+        -- are stored by this key.
+        CASE
+            WHEN w.wikidata_id IN (SELECT c.wikidata_id FROM wikidata_county_base c WHERE c.wikidata_id IS NOT NULL)
+              OR w.wikidata_id IN (
+                    SELECT m.wikidata_id FROM wikidata_municipality_base m
+                    WHERE m.wikidata_id IS NOT NULL
+                    GROUP BY m.wikidata_id HAVING COUNT(*) > 1)
+                THEN 'wikidata|' || w.wikidata_id || '|' || w.geoid
+            ELSE 'wikidata|' || COALESCE(w.wikidata_id, w.geoid)
+        END                                               AS website_record_key,
         'wikidata'                                        AS website_source,
         NULLIF(
           LOWER(TRIM((regexp_match(
