@@ -226,6 +226,10 @@ CIVIC_SERVING = frozenset(
         "area_concern",
         # transcript passages that discuss data centers (#445), ~4.5 MB (#481)
         "data_center_meeting_mention",
+        # question dashboard: place label, company named, nearby tracked site (#508), ~0.5 MB (#528)
+        "decision_place_label",
+        "decision_company_mention",
+        "decision_nearby_data_center_site",
         # recent transcribed-but-unanalyzed meetings for the homepage "What's New"
         # rail (#509): one small row per meeting from the last 180 days, with the
         # stored topic/question evidence passage (no transcript text, #496).
