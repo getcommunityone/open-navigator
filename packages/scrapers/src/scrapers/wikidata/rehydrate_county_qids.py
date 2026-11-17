@@ -145,8 +145,19 @@ def is_local_database(url: str) -> bool:
 
 
 class WikidataReader:
-    def __init__(self, *, pause_s: float = 2.0, timeout_s: float = 120.0) -> None:
+    def __init__(
+        self,
+        *,
+        pause_s: float = 2.0,
+        timeout_s: float = 120.0,
+        max_retry_wait_s: float = 120.0,
+        attempts: int = 10,
+    ) -> None:
         self.pause_s = pause_s
+        # Wikimedia's edge sometimes answers a light, paced client with 429 and
+        # Retry-After: 1000 while the next request succeeds; cap the wait.
+        self.max_retry_wait_s = max_retry_wait_s
+        self.attempts = attempts
         self._client = httpx.Client(
             timeout=timeout_s,
             headers={"User-Agent": USER_AGENT},
@@ -164,7 +175,7 @@ class WikidataReader:
         self._last = time.monotonic()
 
     def _get(self, url: str, params: Mapping[str, str], accept: str) -> Any:
-        for attempt in range(6):
+        for attempt in range(self.attempts):
             self._wait()
             try:
                 resp = self._client.get(url, params=params, headers={"Accept": accept})
@@ -175,6 +186,7 @@ class WikidataReader:
             if resp.status_code in (429, 500, 502, 503, 504):
                 retry = resp.headers.get("Retry-After")
                 wait = float(retry) if retry and retry.isdigit() else 10.0 * (attempt + 1)
+                wait = min(wait, self.max_retry_wait_s, 15.0 * (attempt + 1))
                 logger.warning("Wikidata HTTP {} — waiting {:.0f}s", resp.status_code, wait)
                 time.sleep(wait)
                 continue
@@ -479,6 +491,8 @@ class AuditResult:
     items: Dict[str, Dict[str, Any]]
     mismatched: List[Tuple[str, str, str]] = field(default_factory=list)
     resolutions: Dict[str, Tuple[Optional[str], str]] = field(default_factory=dict)
+    # Rows whose item is right but whose stored wikidata_fips_code is not the GEOID.
+    restamp: List[str] = field(default_factory=list)
 
 
 def read_rows(conn, states: Optional[List[str]]) -> List[Tuple[str, str, Optional[str]]]:
@@ -504,6 +518,37 @@ def read_current(conn, geoids: Sequence[str]) -> Dict[str, Tuple[Optional[str], 
         return {g: (n, w) for g, n, w in cur.fetchall()}
 
 
+def read_stale_fips(conn, states: Optional[List[str]]) -> Set[str]:
+    """GEOIDs with a Q-id whose stored ``wikidata_fips_code`` is not the GEOID."""
+    sql = (
+        f"SELECT geoid::text FROM {COUNTY_TABLE} "
+        "WHERE NULLIF(BTRIM(wikidata_id), '') IS NOT NULL "
+        "AND REPLACE(BTRIM(COALESCE(wikidata_fips_code, '')), '-', '') "
+        "IS DISTINCT FROM REPLACE(BTRIM(geoid::text), '-', '')"
+    )
+    params: Tuple[Any, ...] = ()
+    if states:
+        sql += " AND usps = ANY(%s)"
+        params = (states,)
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        return {g for (g,) in cur.fetchall()}
+
+
+def apply_restamp(conn, geoids: Sequence[str]) -> int:
+    """Set ``wikidata_fips_code`` to the GEOID on rows whose item was verified."""
+    if not geoids:
+        return 0
+    with conn.cursor() as cur:
+        cur.execute(
+            f"UPDATE {COUNTY_TABLE} SET wikidata_fips_code = geoid::text WHERE geoid = ANY(%s)",
+            (list(geoids),),
+        )
+        n = cur.rowcount
+    conn.commit()
+    return n
+
+
 def audit(conn, reader: WikidataReader, states: Optional[List[str]]) -> AuditResult:
     rows = read_rows(conn, states)
     qids = sorted({q for _g, _u, q in rows if q})
@@ -514,6 +559,9 @@ def audit(conn, reader: WikidataReader, states: Optional[List[str]]) -> AuditRes
         if qid and not item_matches_row(geoid, items.get(qid, {})):
             res.mismatched.append((geoid, usps, qid))
     logger.info("Mismatched rows (item P882 ≠ geoid): {:,}", len(res.mismatched))
+    wrong = {g for g, _u, _q in res.mismatched}
+    res.restamp = sorted(read_stale_fips(conn, states) - wrong)
+    logger.info("Right item, stale wikidata_fips_code: {:,}", len(res.restamp))
     if res.mismatched:
         by_fips = fetch_items_by_fips(reader, [g for g, _u, _q in res.mismatched])
         for geoid, usps, _q in res.mismatched:
@@ -613,6 +661,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--env-file", type=Path, default=None, help="Env file (default: <repo>/.env)")
     ap.add_argument("--pause", type=float, default=2.0, help="Seconds between Wikidata requests")
     ap.add_argument(
+        "--max-retry-wait",
+        type=float,
+        default=120.0,
+        help="Cap on the wait after a Wikidata 429/5xx (seconds)",
+    )
+    ap.add_argument(
         "--report",
         type=Path,
         default=None,
@@ -636,7 +690,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     report.parent.mkdir(parents=True, exist_ok=True)
 
-    reader = WikidataReader(pause_s=args.pause)
+    reader = WikidataReader(pause_s=args.pause, max_retry_wait_s=args.max_retry_wait)
     conn = psycopg2.connect(db_url)
     try:
         res = audit(conn, reader, states)
@@ -661,6 +715,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "mismatched": len(res.mismatched),
             "resolutions": reasons,
             "website_counts": counts,
+            "fips_restamped": res.restamp,
             "applied": bool(args.apply),
             "changes": [
                 {
@@ -684,8 +739,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.apply:
             n = apply_updates(conn, updates, datetime.now(timezone.utc).replace(tzinfo=None))
             logger.success("Rewrote {:,} county rows in {}", n, COUNTY_TABLE)
+            n = apply_restamp(conn, res.restamp)
+            logger.success("Restamped wikidata_fips_code on {:,} rows with the right item", n)
         else:
-            logger.info("Dry run: {:,} rows would be rewritten (pass --apply)", len(updates))
+            logger.info(
+                "Dry run: {:,} rows would be rewritten and {:,} FIPS restamped (pass --apply)",
+                len(updates),
+                len(res.restamp),
+            )
     finally:
         conn.close()
         reader.close()
