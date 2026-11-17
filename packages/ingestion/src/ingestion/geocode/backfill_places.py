@@ -59,6 +59,7 @@ from llm.gemini.enrich_analysis_places import _nominatim_geocode
 from .census_batch import CensusAddress, CensusBatchGeocoder
 
 NOMINATIM_DELAY_S = 1.1
+NOMINATIM_MAX_CONSECUTIVE_ERRORS = 5
 # Census allows 10k/request, but 5k-row requests regularly outrun the read
 # timeout; 1k keeps each POST well under it and a failed batch cheap to retry.
 CENSUS_BATCH_SIZE = 1_000
@@ -442,13 +443,18 @@ async def run_nominatim(
     *,
     delay_s: float = NOMINATIM_DELAY_S,
     progress_every: int = PROGRESS_EVERY,
+    max_consecutive_errors: int = NOMINATIM_MAX_CONSECUTIVE_ERRORS,
 ) -> tuple[int, int]:
     """Geocode non-street-address targets via Nominatim at ``delay_s``/req.
+
+    Only a real "no result" is cached as ``not_found``; a transport or HTTP
+    error leaves the target uncached so a later run retries it.
 
     Returns ``(ok_count, processed_count)``.
     """
     ok = 0
     processed = 0
+    consecutive_errors = 0
     pending: list[dict[str, object]] = []
 
     async def _flush() -> None:
@@ -465,12 +471,27 @@ async def run_nominatim(
                 city=target.city or "",
                 state=target.state_code or "",
                 country="us",
+                raise_on_error=True,
             )
+            consecutive_errors = 0
         except Exception as exc:  # transport/network error — do NOT cache
             logger.warning("Nominatim error for {!r}: {}", target.query_text, exc)
             geo = None
             transient = True
+            consecutive_errors += 1
         time.sleep(delay_s)
+
+        if consecutive_errors >= max_consecutive_errors:
+            # The service is refusing or down: stop instead of hammering it
+            # (usage policy) and leave the rest uncached for a later run.
+            logger.error(
+                "Nominatim: {} consecutive transport errors; stopping after {} "
+                "of {} targets",
+                consecutive_errors,
+                processed + 1,
+                len(targets),
+            )
+            break
 
         if transient:
             # Leave uncached so the next run retries; only genuine no-match

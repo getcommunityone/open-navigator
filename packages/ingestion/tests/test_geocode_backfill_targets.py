@@ -138,3 +138,63 @@ def test_empty_target_set_logs_and_skips_geocoders(monkeypatch):
     finally:
         bp.logger.remove(handler)
     assert any("No geocode targets in gold.event_place" in m for m in messages)
+
+
+def _nominatim_target(i: int) -> bp.GeocodeTarget:
+    return bp.GeocodeTarget(
+        geocode_key=f"place {i}", query_text=f"Place {i}", place_type="facility",
+        street_address=None, city="Tuscaloosa", state_code="AL",
+    )
+
+
+def _capture_upserts(monkeypatch) -> list[dict[str, object]]:
+    written: list[dict[str, object]] = []
+
+    class _Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    async def _upsert(_session, params):
+        written.extend(params)
+
+    monkeypatch.setattr(bp, "async_session", lambda: _Session())
+    monkeypatch.setattr(bp, "_upsert_results", _upsert)
+    return written
+
+
+def test_nominatim_transport_errors_are_not_cached_and_stop_the_run(monkeypatch):
+    written = _capture_upserts(monkeypatch)
+    calls: list[str] = []
+
+    def _fail(query, **kwargs):
+        assert kwargs.get("raise_on_error") is True
+        calls.append(query)
+        raise OSError("HTTP Error 503")
+
+    monkeypatch.setattr(bp, "_nominatim_geocode", _fail)
+    targets = [_nominatim_target(i) for i in range(20)]
+    ok, _ = asyncio.run(
+        bp.run_nominatim(targets, delay_s=0, max_consecutive_errors=3)
+    )
+    assert ok == 0
+    assert len(calls) == 3  # stopped instead of hammering a failing service
+    assert written == []  # a 503 is never recorded as not_found
+
+
+def test_nominatim_real_miss_is_cached_as_not_found(monkeypatch):
+    written = _capture_upserts(monkeypatch)
+    hits = {"Place 0": {"latitude": 33.2, "longitude": -87.5}}
+    monkeypatch.setattr(
+        bp, "_nominatim_geocode", lambda q, **k: hits.get(q)
+    )
+    ok, processed = asyncio.run(
+        bp.run_nominatim([_nominatim_target(0), _nominatim_target(1)], delay_s=0)
+    )
+    assert (ok, processed) == (1, 2)
+    by_key = {w["geocode_key"]: w for w in written}
+    assert by_key["place 0"]["geocode_status"] == "ok"
+    assert by_key["place 1"]["geocode_status"] == "not_found"
+    assert by_key["place 1"]["latitude"] is None  # no guessed centroid
