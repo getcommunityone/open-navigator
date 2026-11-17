@@ -19,6 +19,12 @@ def test_admin_kept_links_are_runtime_owned_not_copied() -> None:
     assert "job_application_link" not in CIVIC_SERVING
 
 
+def test_contact_submission_is_runtime_owned_not_copied() -> None:
+    # contact-form senders' emails stay private (#448)
+    assert "contact_submission" in RUNTIME_OWNED
+    assert "contact_submission" not in CIVIC_SERVING
+
+
 def test_makefile_pii_mirror_matches_runtime_owned() -> None:
     makefile = Path(__file__).resolve().parents[3] / "Makefile"
     line = re.search(r"^PII_EXCLUDE_TABLES \?= (.+)$", makefile.read_text(), re.M)

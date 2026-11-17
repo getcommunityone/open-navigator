@@ -136,13 +136,21 @@ async def facebook_data_deletion_callback(
 
     if user:
         try:
-            logger.info(f"Deleting user account: {user.email} (Facebook ID: {user_id})")
+            # Never log the email: this request exists to erase it (#448).
+            logger.info(
+                "Deleting user account: user_id={} (Facebook ID: {})",
+                getattr(user, "user_id", None),
+                user_id,
+            )
             db.delete(user)
             db.commit()
             deletion_status = "deleted"
         except Exception as exc:
             db.rollback()
-            logger.error(f"Database error deleting Facebook user {user_id}: {exc}")
+            # Exception text can echo row values (bound parameters), so log only its type.
+            logger.error(
+                "Database error deleting Facebook user {}: {}", user_id, type(exc).__name__
+            )
             raise HTTPException(status_code=500, detail="Failed to process data deletion") from exc
     else:
         logger.info(f"No user found for Facebook ID: {user_id}")

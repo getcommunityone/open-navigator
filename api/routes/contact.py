@@ -10,9 +10,15 @@ from typing import Dict, List, Optional
 import httpx
 from fastapi import APIRouter, HTTPException, status
 from loguru import logger
+from opentelemetry import trace
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
+
+from api.models import ContactSubmission
 
 router = APIRouter(prefix="/contact", tags=["contact"])
+tracer = trace.get_tracer(__name__)
 
 CATEGORY_LABELS: Dict[str, str] = {
     "bug": "bug",
@@ -116,6 +122,106 @@ def _release_fingerprint(fingerprint: str, recorded_at: float) -> None:
         _recent_fingerprints.pop(fingerprint, None)
 
 
+def _open_session() -> Session:
+    """Open an ORM session on the API's own database (patched in tests)."""
+    from api.database import SessionLocal
+
+    return SessionLocal()
+
+
+def _save_submission(sender_name: str, sender_email: str, subject: str) -> Optional[int]:
+    """Store the sender privately; return the new ``contact_submission_id``.
+
+    Returns ``None`` when the database is unavailable, so the submission can still
+    go through. Never logs the email (#448).
+    """
+    with tracer.start_as_current_span("contact.save_submission") as span:
+        db = None
+        try:
+            db = _open_session()
+            row = ContactSubmission(
+                sender_name=sender_name,
+                sender_email=sender_email,
+                subject=subject,
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            span.set_attribute("contact_submission_id", row.contact_submission_id)
+            return row.contact_submission_id
+        except Exception as exc:
+            if db is not None:
+                db.rollback()
+            span.record_exception(exc)
+            logger.warning(
+                "Could not save contact submission privately ({}); "
+                "creating the issue without a reply address",
+                type(exc).__name__,
+            )
+            return None
+        finally:
+            if db is not None:
+                db.close()
+
+
+def _attach_issue(submission_id: int, issue_number: Optional[int], issue_url: Optional[str]) -> None:
+    """Record the created GitHub issue on its submission row (best effort)."""
+    with tracer.start_as_current_span("contact.attach_issue") as span:
+        span.set_attribute("contact_submission_id", submission_id)
+        db = None
+        try:
+            db = _open_session()
+            row = db.get(ContactSubmission, submission_id)
+            if row is None:
+                logger.warning("Contact submission #{} not found to attach its issue", submission_id)
+                return
+            row.github_issue_number = issue_number
+            row.github_issue_url = issue_url
+            db.commit()
+        except Exception as exc:
+            if db is not None:
+                db.rollback()
+            span.record_exception(exc)
+            logger.warning(
+                "Could not attach issue {} to contact submission #{} ({})",
+                issue_url,
+                submission_id,
+                type(exc).__name__,
+            )
+        finally:
+            if db is not None:
+                db.close()
+
+
+def _discard_submission(submission_id: int) -> None:
+    """Delete a stored submission whose issue was never created (best effort).
+
+    The user saw an error and will retry, so keeping the email would only hold
+    personal data for a message that never arrived.
+    """
+    with tracer.start_as_current_span("contact.discard_submission") as span:
+        span.set_attribute("contact_submission_id", submission_id)
+        db = None
+        try:
+            db = _open_session()
+            row = db.get(ContactSubmission, submission_id)
+            if row is not None:
+                db.delete(row)
+                db.commit()
+        except Exception as exc:
+            if db is not None:
+                db.rollback()
+            span.record_exception(exc)
+            logger.warning(
+                "Could not discard unsent contact submission #{} ({})",
+                submission_id,
+                type(exc).__name__,
+            )
+        finally:
+            if db is not None:
+                db.close()
+
+
 class ContactRequest(BaseModel):
     """Contact form submission"""
     name: str = Field(..., min_length=1, max_length=100, description="Name of the person contacting")
@@ -169,8 +275,20 @@ async def submit_contact(request: ContactRequest):
     safe_category = norm_category if norm_category in CATEGORY_LABELS else "feedback"
     label = CATEGORY_LABELS[safe_category]
 
+    # The repository is public: the email goes to the private contact_submission
+    # table, never into the issue (#448). No fallback puts it in the issue.
+    submission_id = await run_in_threadpool(
+        _save_submission, clean_name, str(request.email), clean_subject
+    )
+    if submission_id is not None:
+        # Code span so GitHub does not auto-link "#<id>" to an unrelated issue.
+        reply_line = f"Reply address kept privately (submission `#{submission_id}`)"
+    else:
+        reply_line = "Reply address not kept (private store unavailable)"
+
     issue_title = f"[Contact Form] {clean_subject}"
-    issue_body = f"""**From:** {clean_name} ({request.email})
+    issue_body = f"""**From:** {clean_name}
+**Reply:** {reply_line}
 **Category:** {safe_category}
 
 ---
@@ -206,8 +324,12 @@ async def submit_contact(request: ContactRequest):
             if response.status_code == 201:
                 issue_data = response.json()
                 issue_url = issue_data.get("html_url")
+                raw_number = issue_data.get("number")
+                issue_number = raw_number if isinstance(raw_number, int) else None
                 submitted = True
                 logger.info(f"Contact form submitted successfully: {issue_url}")
+                if submission_id is not None:
+                    await run_in_threadpool(_attach_issue, submission_id, issue_number, issue_url)
                 return ContactResponse(
                     success=True,
                     message="Thank you for contacting us! We've received your message and will get back to you soon.",
@@ -242,3 +364,5 @@ async def submit_contact(request: ContactRequest):
     finally:
         if not submitted:
             _release_fingerprint(fingerprint, recorded_at)
+            if submission_id is not None:
+                await run_in_threadpool(_discard_submission, submission_id)

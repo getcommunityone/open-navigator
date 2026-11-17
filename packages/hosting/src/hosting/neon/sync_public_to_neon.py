@@ -88,6 +88,8 @@ RUNTIME_OWNED = frozenset(
         "meeting_document_gap_cache",
         # job-application links kept by admins on the prod admin screen (DC-1.3, #248)
         "job_application_link",
+        # contact-form senders' names/emails, kept privately for follow-up (#448)
+        "contact_submission",
     }
 )
 
