@@ -6,7 +6,8 @@ import api from '../lib/api'
 export type MeetingSort = 'recent' | 'interesting' | 'decisions'
 
 export interface MeetingCard {
-  meeting_id: number
+  /** event_meeting_id; null for a meeting that isn't analyzed yet (no meeting page). */
+  meeting_id: number | null
   title: string | null
   jurisdiction: string | null
   city: string | null
@@ -18,6 +19,19 @@ export interface MeetingCard {
   question_count: number
   has_decisions: boolean
   video_id: string | null
+  /** False for a recent transcribed meeting with no AI analysis yet (#509): it has
+   *  no decisions or counts (0 is "unknown yet", never shown as a count) and links
+   *  to its recording. Only `sort=recent` without a content filter returns these. */
+  analyzed: boolean
+  /** Recording URL (set on not-yet-analyzed meetings). */
+  video_url?: string | null
+  /** Verbatim transcript passage with the matched words in <mark>…</mark>, from the
+   *  meeting's curated topic/question link; render via highlightSnippet. */
+  evidence?: string | null
+  /** What the passage matched: a curated topic name or a policy question. */
+  evidence_label?: string | null
+  /** The recording at the passage's moment; null when the transcript is untimed. */
+  jump_url?: string | null
 }
 
 export interface MeetingListParams {

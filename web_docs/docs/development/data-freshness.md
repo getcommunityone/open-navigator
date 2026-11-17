@@ -37,6 +37,7 @@ cd dbt_project
 | `intermediate.int_events_channels` (verified channels, written by scripts) | `loaded_at` | 30 days | 90 days |
 | `public.event_documents` (transcript search) | newest `created_at` | 7 days | — |
 | `public.event_meeting`, `public.event_decision` | newest `extracted_at` | 14 days | — |
+| `public.recent_transcribed_meeting` (homepage "What's New") | newest `meeting_date` | 14 days | — |
 | `public.jurisdiction_state_aggregate` (stats) | `last_updated` | 7 days | — |
 | `public.data_center_site` | newest `last_seen_on` | 14 days | — |
 | City homepage scrape coverage (`tests/assert_homepage_scrape_found_links.sql`) | share with a YouTube link | under 5% | — |

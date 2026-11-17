@@ -16,6 +16,18 @@ Filters are all query-time (no new dbt models):
 - state       -> normalize_state_input() -> mb.state_code
 - city / q    -> ILIKE over the display columns
 
+Recent, not-yet-analyzed meetings (#509): with sort=recent and no content filter
+(topic_id / theme / question_id), the page also includes rows from
+public.recent_transcribed_meeting: meetings transcribed in the last 180 days that
+have no AI analysis yet (meeting_browse only holds analyzed meetings, so the
+homepage "What's New" rail otherwise stopped where analysis stopped). They come back
+with ``analyzed: false``, ``meeting_id: null``, no decision/question counts, their
+``video_url``, and, when the transcript matched a curated topic or question, the
+stored verbatim ``evidence`` passage (<mark>ed in dbt; no transcript text is read
+here, #496) plus its ``jump_url``. A video meeting_browse already serves is never
+repeated, so a meeting switches to its analyzed card as soon as it is analyzed. In
+recent mode, dates later than today are left out (#472).
+
 Patterns mirror decision_browse.py: asyncpg pool via get_db_pool(), an
 OpenTelemetry span around the query work, and the wire-format rule (the meeting
 `date` is serialized as an ISO 'YYYY-MM-DD' string or null). meeting_date is TEXT
@@ -26,11 +38,13 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
+import asyncpg
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from api.routes.data_centers import jump_url
 from api.routes.search_postgres import get_db_pool, normalize_state_input
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
@@ -39,8 +53,13 @@ tracer = trace.get_tracer(__name__)
 
 
 class MeetingCard(BaseModel):
-    """A single meeting browse card — real data only; NULL/0/empty are honest."""
-    meeting_id: int
+    """A single meeting browse card — real data only; NULL/0/empty are honest.
+
+    ``analyzed`` is False for a transcribed meeting with no AI analysis yet
+    (public.recent_transcribed_meeting): it has no meeting page (``meeting_id`` is
+    null), no decision/question counts, and links to its ``video_url``.
+    """
+    meeting_id: Optional[int] = None
     title: Optional[str] = None
     jurisdiction: Optional[str] = None
     city: Optional[str] = None
@@ -51,6 +70,15 @@ class MeetingCard(BaseModel):
     question_count: int = 0
     has_decisions: bool = False
     video_id: Optional[str] = None
+    analyzed: bool = True
+    video_url: Optional[str] = None
+    # Verbatim transcript passage, matched words in <mark>…</mark>, from the
+    # meeting's curated topic/question link; null when there is none.
+    evidence: Optional[str] = None
+    # What the passage matched: a curated topic name or a policy question.
+    evidence_label: Optional[str] = None
+    # The recording at the passage's moment (YouTube t=); null when untimed.
+    jump_url: Optional[str] = None
 
 
 class MeetingListPagination(BaseModel):
@@ -178,6 +206,104 @@ def _build_filters(
     return where_sql, params
 
 
+def _scope_filters(
+    alias: str,
+    state_code: Optional[str],
+    city: Optional[str],
+    q: Optional[str],
+    start_idx: int = 1,
+) -> tuple[List[str], List[Any]]:
+    """
+    The scope predicates (state / city / q) over a relation that carries
+    meeting_title, jurisdiction_name, city and state_code — meeting_browse or
+    recent_transcribed_meeting. Same semantics as _build_filters, so both legs of
+    the recent union are filtered to exactly the same scope (the scope label).
+    """
+    clauses: List[str] = []
+    params: List[Any] = []
+    idx = start_idx
+    if state_code:
+        clauses.append(f"{alias}.state_code = ${idx}")
+        params.append(state_code)
+        idx += 1
+    if city and city.strip():
+        clauses.append(
+            f"({alias}.city ILIKE ${idx} OR {alias}.jurisdiction_name ILIKE ${idx})"
+        )
+        params.append(f"%{city.strip()}%")
+        idx += 1
+    if q and q.strip():
+        clauses.append(
+            f"({alias}.meeting_title ILIKE ${idx} OR {alias}.jurisdiction_name ILIKE ${idx})"
+        )
+        params.append(f"%{q.strip()}%")
+        idx += 1
+    return clauses, params
+
+
+def _recent_union_sql(
+    state_code: Optional[str], city: Optional[str], q: Optional[str]
+) -> tuple[str, str, List[Any]]:
+    """
+    (count_sql, list_sql, params) for sort=recent with no content filter: analyzed
+    meetings (meeting_browse) UNION recent transcribed-but-unanalyzed meetings
+    (recent_transcribed_meeting), newest first. The list SQL takes LIMIT / OFFSET as
+    the next two positional params. Both legs drop dates later than today (#472);
+    the unanalyzed leg drops any video meeting_browse already serves.
+    """
+    mb_clauses, params = _scope_filters("mb", state_code, city, q)
+    r_clauses, _ = _scope_filters("r", state_code, city, q)
+    mb_where = " AND ".join(
+        mb_clauses + [f"({_MEETING_DATE_SORT} IS NULL OR {_MEETING_DATE_SORT} <= current_date)"]
+    )
+    r_where = " AND ".join(
+        r_clauses
+        + [
+            "r.meeting_date <= current_date",
+            "NOT EXISTS (SELECT 1 FROM meeting_browse mb2 WHERE mb2.video_id = r.video_id)",
+        ]
+    )
+    union = f"""
+        SELECT
+            TRUE AS analyzed,
+            {_CARD_COLS},
+            NULL::text AS video_url,
+            NULL::text AS evidence,
+            NULL::text AS evidence_label,
+            NULL::numeric AS evidence_start_seconds
+        FROM meeting_browse mb
+        WHERE {mb_where}
+        UNION ALL
+        SELECT
+            FALSE AS analyzed,
+            NULL::bigint AS event_meeting_id,
+            r.meeting_title,
+            r.jurisdiction_name,
+            r.city,
+            r.state_code,
+            r.state,
+            r.meeting_date,
+            0 AS decision_count,
+            0 AS question_count,
+            r.video_id,
+            r.video_url,
+            r.evidence,
+            r.evidence_label,
+            r.evidence_start_seconds
+        FROM recent_transcribed_meeting r
+        WHERE {r_where}
+    """
+    count_sql = f"SELECT COUNT(*) FROM ({union}) cards"
+    n = len(params)
+    list_sql = f"""
+        SELECT * FROM ({union}) cards
+        ORDER BY cards.meeting_date DESC NULLS LAST, cards.analyzed DESC,
+                 cards.event_meeting_id DESC NULLS LAST, cards.video_id
+        LIMIT ${n + 1} OFFSET ${n + 2}
+    """
+    return count_sql, list_sql, params
+
+
 def _iso_date(value: Any) -> Optional[str]:
     """Render a date/value as an ISO 'YYYY-MM-DD' string, or None."""
     if value is None:
@@ -188,7 +314,36 @@ def _iso_date(value: Any) -> Optional[str]:
 
 
 def _build_card(row: Any) -> MeetingCard:
-    """Shape one public.meeting_browse row into a MeetingCard."""
+    """Shape one meeting_browse row (or a recent-union row) into a MeetingCard."""
+    keys = set(row.keys())
+    analyzed = bool(row["analyzed"]) if "analyzed" in keys else True
+    if not analyzed:
+        # Not yet analyzed: no meeting page and no counts exist — never invent them.
+        video_url = row["video_url"]
+        start = row["evidence_start_seconds"]
+        evidence = row["evidence"]
+        return MeetingCard(
+            meeting_id=None,
+            title=row["meeting_title"],
+            jurisdiction=row["jurisdiction_name"],
+            city=row["city"],
+            state_code=row["state_code"],
+            state=row["state"],
+            date=_iso_date(row["meeting_date"]),
+            decision_count=0,
+            question_count=0,
+            has_decisions=False,
+            video_id=row["video_id"],
+            analyzed=False,
+            video_url=video_url,
+            evidence=evidence,
+            evidence_label=row["evidence_label"] if evidence else None,
+            jump_url=(
+                jump_url(video_url or "", float(start))
+                if evidence and start is not None
+                else None
+            ),
+        )
     decision_count = int(row["decision_count"] or 0)
     return MeetingCard(
         meeting_id=int(row["event_meeting_id"]),
@@ -202,6 +357,7 @@ def _build_card(row: Any) -> MeetingCard:
         question_count=int(row["question_count"] or 0),
         has_decisions=decision_count > 0,
         video_id=row["video_id"],
+        analyzed=True,
     )
 
 
@@ -269,27 +425,58 @@ async def list_meetings(
         where_sql, params = _build_filters(
             topic_id, theme, question_id, state_code, city, q
         )
+        # Recent, unfiltered-by-content pages also carry not-yet-analyzed meetings.
+        include_unanalyzed = (
+            sort_key == "recent"
+            and topic_id is None
+            and not (theme and theme.strip())
+            and not (question_id and question_id.strip())
+        )
+        span.set_attribute("meetings.include_unanalyzed", include_unanalyzed)
 
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("meetings-list.query") as qspan:
-                    count_sql = (
-                        f"SELECT COUNT(*) FROM meeting_browse mb WHERE {where_sql}"
-                    )
-                    total = int(await conn.fetchval(count_sql, *params) or 0)
-                    qspan.set_attribute("meetings.total", total)
+                    rows = None
+                    if include_unanalyzed:
+                        u_count, u_list, u_params = _recent_union_sql(
+                            state_code, city, q
+                        )
+                        try:
+                            total = int(await conn.fetchval(u_count, *u_params) or 0)
+                            rows = await conn.fetch(u_list, *u_params, limit, offset)
+                        except asyncpg.exceptions.UndefinedTableError as e:
+                            # recent_transcribed_meeting not deployed here yet:
+                            # serve the analyzed meetings alone, as before.
+                            logger.warning(
+                                "recent_transcribed_meeting unavailable ({}); "
+                                "serving analyzed meetings only", e,
+                            )
+                            rows = None
+                    if rows is None:
+                        if sort_key == "recent":
+                            # Dates later than today are bad data (#472).
+                            where_sql = (
+                                f"({where_sql}) AND ({_MEETING_DATE_SORT} IS NULL "
+                                f"OR {_MEETING_DATE_SORT} <= current_date)"
+                            )
+                        count_sql = (
+                            f"SELECT COUNT(*) FROM meeting_browse mb WHERE {where_sql}"
+                        )
+                        total = int(await conn.fetchval(count_sql, *params) or 0)
 
-                    limit_idx = len(params) + 1
-                    offset_idx = len(params) + 2
-                    list_sql = f"""
-                        SELECT {_CARD_COLS}
-                        FROM meeting_browse mb
-                        WHERE {where_sql}
-                        ORDER BY {_ORDER_BY[sort_key]}, mb.event_meeting_id DESC
-                        LIMIT ${limit_idx} OFFSET ${offset_idx}
-                    """
-                    rows = await conn.fetch(list_sql, *params, limit, offset)
+                        limit_idx = len(params) + 1
+                        offset_idx = len(params) + 2
+                        list_sql = f"""
+                            SELECT {_CARD_COLS}
+                            FROM meeting_browse mb
+                            WHERE {where_sql}
+                            ORDER BY {_ORDER_BY[sort_key]}, mb.event_meeting_id DESC
+                            LIMIT ${limit_idx} OFFSET ${offset_idx}
+                        """
+                        rows = await conn.fetch(list_sql, *params, limit, offset)
+                    qspan.set_attribute("meetings.total", total)
                     qspan.set_attribute("meetings.row_count", len(rows))
         except HTTPException:
             raise

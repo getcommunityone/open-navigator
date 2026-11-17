@@ -30,6 +30,7 @@ import SiteHeader from '../components/SiteHeader'
 import { LensCarousel, type ApiCard } from '../components/StoryLenses'
 import MeetingThumbnail from '../components/MeetingThumbnail'
 import { fetchMeetings, type MeetingCard } from '../api/meetings'
+import { highlightSnippet } from '../lib/highlight'
 import { LAUNCH_CITIES } from '../lib/launchCoverage'
 
 const TEAL = '#0d9488'
@@ -119,21 +120,37 @@ const WHEN: { label: string; window: string }[] = [
 // "What's New" rail renders the most recent meetings in the same tiles the topic
 // lenses use — regardless of whether the meeting produced a decision. Stat chips
 // are shown only when there's a genuine count (no fabricated/zero filler).
+//
+// A meeting that is transcribed but not analyzed yet (analyzed === false, #509)
+// says so ("Not yet analyzed"), shows no decision/topic counts (none exist yet),
+// links to its recording (there is no meeting page), and — when its transcript
+// matched a curated topic or question — quotes that verbatim <mark>ed passage.
+const NOT_ANALYZED = 'Not yet analyzed'
+
+function meetingHref(m: MeetingCard): string | undefined {
+  if (m.analyzed !== false && m.meeting_id != null) return `/meetings/${m.meeting_id}`
+  return m.jump_url || m.video_url || (m.video_id ? `https://www.youtube.com/watch?v=${m.video_id}` : undefined)
+}
+
 function meetingToCard(m: MeetingCard): ApiCard {
+  const analyzed = m.analyzed !== false
   const stats: ApiCard['stats'] = []
-  if (m.decision_count > 0)
+  if (analyzed && m.decision_count > 0)
     stats.push({ value: String(m.decision_count), label: m.decision_count === 1 ? 'Decision' : 'Decisions' })
-  if (m.question_count > 0)
+  if (analyzed && m.question_count > 0)
     stats.push({ value: String(m.question_count), label: m.question_count === 1 ? 'Topic' : 'Topics' })
   return {
     headline: m.title || 'Untitled meeting',
     stats,
     jurisdiction: m.city || m.jurisdiction || '',
     date: m.date || undefined,
-    url: `/meetings/${m.meeting_id}`,
+    url: meetingHref(m),
     state_code: m.state_code || undefined,
     state: m.state || undefined,
     video_id: m.video_id,
+    description: analyzed ? undefined : m.evidence || undefined,
+    description_label: analyzed ? undefined : m.evidence_label || undefined,
+    status: analyzed ? undefined : NOT_ANALYZED,
   }
 }
 
@@ -1641,7 +1658,7 @@ export default function HomeV9() {
                     <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#2563eb' }}>
                       Recent meetings
                     </h2>
-                    <div style={{ fontSize: 14, color: '#78716c' }}>The latest analyzed meetings · 📍 {placeLabel}</div>
+                    <div style={{ fontSize: 14, color: '#78716c' }}>The latest meetings, analyzed or not yet · 📍 {placeLabel}</div>
                   </div>
                   {whenSelector}
                 </div>
@@ -1650,14 +1667,26 @@ export default function HomeV9() {
                   {recentMeetings.map((m) => {
                     const place = [m.city || m.jurisdiction || '', m.state_code].filter(Boolean).join(', ')
                     const date = fmtMeetingDate(m.date)
+                    const analyzed = m.analyzed !== false
+                    const href = meetingHref(m)
+                    const open = () => {
+                      if (!href) return
+                      if (/^https?:\/\//.test(href)) window.open(href, '_blank', 'noopener,noreferrer')
+                      else navigate(href, { state: { fromHome: true } })
+                    }
                     return (
                       <button
-                        key={m.meeting_id}
-                        onClick={() => navigate(`/meetings/${m.meeting_id}`, { state: { fromHome: true } })}
+                        key={m.meeting_id ?? `video-${m.video_id}`}
+                        onClick={open}
                         style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, padding: 0, overflow: 'hidden', cursor: 'pointer', fontFamily: 'inherit' }}
                       >
                         {m.video_id && <MeetingThumbnail videoId={m.video_id} alt={m.title ?? undefined} />}
                         <div style={{ padding: '14px 16px' }}>
+                          {!analyzed && (
+                            <span style={{ display: 'inline-block', marginBottom: 6, fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#57534e', background: '#f5f5f4', borderRadius: 999, padding: '2px 9px' }}>
+                              {NOT_ANALYZED}
+                            </span>
+                          )}
                           <div className="clamp2" style={{ fontSize: 15, fontWeight: 700, color: INK, lineHeight: 1.3 }}>
                             {m.title || 'Untitled meeting'}
                           </div>
@@ -1665,7 +1694,19 @@ export default function HomeV9() {
                             {place && <span>📍 {place}</span>}
                             {date && <span>{date}</span>}
                           </div>
-                          {m.decision_count > 0 && (
+                          {!analyzed && m.evidence && (
+                            <div style={{ marginTop: 8 }}>
+                              {m.evidence_label && (
+                                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#8a958f' }}>
+                                  Mentions · {m.evidence_label}
+                                </div>
+                              )}
+                              <div className="clamp2" style={{ marginTop: 2, fontSize: 13, color: '#56635e', lineHeight: 1.35 }}>
+                                {highlightSnippet(m.evidence)}
+                              </div>
+                            </div>
+                          )}
+                          {analyzed && m.decision_count > 0 && (
                             <div style={{ marginTop: 8 }}>
                               <span style={{ display: 'inline-block', fontSize: 11.5, fontWeight: 600, color: TEAL_DARK, background: '#ecfdf5', borderRadius: 999, padding: '2px 9px' }}>
                                 {m.decision_count} {m.decision_count === 1 ? 'decision' : 'decisions'}
@@ -1753,7 +1794,7 @@ export default function HomeV9() {
                       What&rsquo;s New
                     </h2>
                     <div style={{ fontSize: 14, color: '#78716c' }}>
-                      The most recent meetings, whatever the outcome · 📍 {placeLabel}
+                      The most recent meetings, including ones not yet analyzed · 📍 {placeLabel}
                     </div>
                   </div>
                 </div>

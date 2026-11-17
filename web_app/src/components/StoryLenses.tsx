@@ -196,6 +196,12 @@ export interface ApiCard {
    *  only when a content filter (topic/cause) produced the card; rendered under
    *  the title via highlightSnippet so the user sees WHY it matched the pill. */
   description?: string | null
+  /** What `description` matched (e.g. a curated topic name); shown as a small
+   *  "Mentions …" caption above the passage. */
+  description_label?: string | null
+  /** Status pill shown on the card (e.g. "Not yet analyzed"). Separate from
+   *  `badge`, which the lens API sets to the lens name and the card never shows. */
+  status?: string | null
 }
 interface ApiLens {
   id: string
@@ -231,6 +237,10 @@ export interface RenderCard {
    *  Rendered under the title, clamped to a few lines. Pre-built React nodes so
    *  callers can pass <mark>-highlighted segments without dangerouslySetInnerHTML. */
   excerpt?: React.ReactNode
+  /** What the excerpt matched, shown as a "Mentions …" caption above it. */
+  excerptLabel?: string
+  /** Small status pill next to the lens pill (e.g. "Not yet analyzed"). */
+  badge?: string
   /** Parsed speakers/voices who testified on this decision. When non-empty, the
    *  card shows a compact "Voices" attribution row (overlapping initial avatars +
    *  names). Undefined/empty ⇒ the row doesn't render (never invent a speaker). */
@@ -365,6 +375,11 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
                 Human review
               </span>
             )}
+            {c.badge && (
+              <span className="inline-flex items-center rounded-full bg-[#f5f5f4] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-[#57534e]">
+                {c.badge}
+              </span>
+            )}
           </div>
           <span className="shrink-0 text-[12px] text-[#8a958f]">{c.when}</span>
         </div>
@@ -378,6 +393,11 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
 
         {/* Optional matched-passage excerpt (transcript snippet). Clamped so a
             long passage never blows out the tile height in the grid. */}
+        {c.excerpt && c.excerptLabel && (
+          <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-wide text-[#8a958f]">
+            Mentions · {c.excerptLabel}
+          </p>
+        )}
         {c.excerpt && (
           <p className="mb-3 text-[13.5px] leading-snug text-[#56635e] line-clamp-3">
             {c.excerpt}
@@ -607,6 +627,8 @@ export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCar
     // escaped, never dangerouslySetInnerHTML). Absent ⇒ undefined so plain
     // browse (no content filter) shows no excerpt rather than an empty line.
     excerpt: c.description ? highlightSnippet(c.description) : undefined,
+    excerptLabel: c.description && c.description_label ? c.description_label : undefined,
+    badge: c.status || undefined,
   }))
   const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
   const showState = unscoped || distinctStates.size > 1
@@ -833,7 +855,13 @@ export function LensCarousel({
       lens={{ desc: '', ...lens }}
       savedKeys={savedKeys}
       onToggleSave={toggleSave}
-      onOpen={(c) => c.url && navigate(c.url)}
+      onOpen={(c) => {
+        if (!c.url) return
+        // An external link (e.g. a not-yet-analyzed meeting's recording) opens in
+        // a new tab; in-app routes navigate as before.
+        if (/^https?:\/\//.test(c.url)) window.open(c.url, '_blank', 'noopener,noreferrer')
+        else navigate(c.url)
+      }}
       cardKey={cardKey}
     />
   )

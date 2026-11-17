@@ -1,0 +1,108 @@
+version: 2
+
+# #509: recent transcribed-but-not-yet-analyzed meetings for the homepage "What's New"
+# rail. Built into gold and published to public (publish_public_serving's served list).
+
+models:
+  - name: recent_transcribed_meeting
+    data_tests:
+      - dbt_utils.recency:
+          # Freshness (context-engineering.md, principle 5): "What's New" shows no meeting from the last 14 days
+          arguments:
+            datepart: day
+            field: meeting_date
+            interval: 14
+          config:
+            severity: warn
+            tags: ['freshness']
+    description: >
+      One row per video_id: a meeting from the last 180 days (and not later than today)
+      that has a transcript in event_documents, passes the junk-channel gate
+      (event_youtube_with_jurisdiction), has a title that names a public meeting
+      (meeting_title_regex) and has NOT been AI-analyzed (not in
+      event_meeting). Served next to meeting_browse by GET /api/meetings?sort=recent
+      and labelled "Not yet analyzed": title, date, place and video only, no decision
+      counts. evidence is the verbatim, <mark>ed passage from the meeting's curated
+      topic link (topic_transcript_link) or, failing that, its curated question link
+      (question_transcript_link); null when the transcript matches neither. No
+      transcript text is read at request time (#496). No LLM.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'civic', 'meeting-browse', 'transcript', 'serving']
+      post_hook:
+        - "create index if not exists recent_transcribed_meeting_date_idx on {{ this }} (meeting_date desc)"
+        - "create index if not exists recent_transcribed_meeting_state_date_idx on {{ this }} (state_code, meeting_date desc)"
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: video_id
+        description: "Primary key: the meeting video (event_documents.video_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: meeting_title
+        description: "Meeting/video title (event_documents.event_title, else the YouTube title)."
+        data_type: text
+      - name: meeting_date
+        description: "Meeting date (event_documents.event_date): within the last 180 days and not later than today at build time."
+        data_type: date
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: jurisdiction_id
+        description: "FK -> jurisdictions.jurisdiction_id; null when the video's resolved jurisdiction isn't in jurisdictions."
+        data_type: text
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('jurisdictions')
+                field: jurisdiction_id
+      - name: jurisdiction_name
+        description: "Jurisdiction name (event_youtube_with_jurisdiction, else jurisdictions.name)."
+        data_type: text
+      - name: city
+        description: "City, when the source carries one."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code (event_youtube_with_jurisdiction)."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: video_url
+        description: "Recording URL (the card links here: there is no analyzed meeting page yet)."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: evidence
+        description: >
+          Verbatim transcript passage with the matched words in <mark>…</mark>, copied
+          from topic_transcript_link.evidence_passage or question_transcript_link.evidence.
+          Null when the meeting matches no curated topic or question.
+        data_type: text
+      - name: evidence_source
+        description: "Where evidence came from: 'topic' or 'question'; null with no evidence."
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['topic', 'question']
+      - name: evidence_label
+        description: "What matched: the curated topic name, or the policy question's canonical text."
+        data_type: text
+      - name: evidence_start_seconds
+        description: "Second of the recording where the passage starts (question links with timed captions); null otherwise."
+        data_type: numeric(12, 3)
