@@ -32,6 +32,12 @@ model call, a prompt, an agent or a data feed for one, check it against all six.
 More context isn't better context. A huge window full of loosely related text lowers retrieval accuracy, and
 conflicting definitions in it confuse the model.
 
+**What "noise" means here:** everything in the model's input that doesn't help answer the question. In a three-hour
+council meeting where the vote you care about takes ten minutes, the other 170 minutes are noise for that question.
+Noise isn't harmless: the model spreads its attention over all of it, so it's likelier to miss the part that matters
+or use the wrong one of two similar things, and every word is billed. More examples, and how we cut it down:
+[How Open Navigator uses AI](./ai-overview.md#what-noise-means).
+
 - **Semantic chunking:** split documents at units of meaning (a caption segment, a Markdown section, a JSON object),
   not at an arbitrary character count.
 - **Just-in-time over up-front:** give the model light references and a tool to load detail when it needs it, rather
@@ -185,7 +191,7 @@ recording exactly what entered the window, and by testing against known answers.
 | Output schema | Part 1 requests JSON output. `packages/llm/tests/test_part1_field_sizes.py` checks the fields |
 | Usage log, `packages/llm/src/llm/usage/` | One row per model call: model, tokens, latency, attempts, success, run ID. `python -m llm.usage.report` prices them. See [LLM usage tracking](./llm-usage-tracking.md) |
 | Model comparison, `packages/llm/src/llm/gemini/compare_models.py` | Runs the same transcripts through several models side by side. See [AI model evaluation](./ai-model-evaluation.md) |
-| MLflow, `packages/agents/agents/mlflow_base.py` | The agents package logs models with MLflow |
+| MLflow, `packages/agents/agents/mlflow_base.py` | The agents package records MLflow traces (a span per agent run and request) and logs models. Transcript analysis isn't traced yet ([#451](https://github.com/getcommunityone/open-navigator/issues/451)); see [tracing model runs](./ai-overview.md#tracing-model-runs) |
 | Jev screening (proposed) | Each screen records a hash of its exact question wording, so a reworded question is rescreened, never mixed with old answers |
 
 **Gaps**
