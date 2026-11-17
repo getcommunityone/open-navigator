@@ -26,6 +26,7 @@ from scrapers.discovery.browser_block import (
 
 import os
 
+from scrapers.discovery.channel_government_mismatch import title_names_other_government
 from scrapers.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
 from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn_for_url
 
@@ -221,6 +222,9 @@ class YouTubeChannelDiscovery:
         
         j_display_name = (county_name or resolved_city_name or "").strip()
         can_pattern_match = bool((homepage_url or "").strip())
+        # Name-only evidence (handle guesses, API name search) must not assign a
+        # channel whose title or @handle names another government (#514, #515).
+        j_type_for_guard = "county" if (county_name and not city_name) else "municipality"
 
         for handle in patterns_to_test:
             url = f"https://www.youtube.com/@{handle}"
@@ -296,6 +300,29 @@ class YouTubeChannelDiscovery:
                 await asyncio.sleep(0.3)
                 continue
 
+            other_gov = title_names_other_government(
+                str(enriched.get("channel_title") or ""),
+                jurisdiction_name=j_display_name,
+                jurisdiction_type=j_type_for_guard,
+                state_code=state_code,
+                channel_url=url,
+            )
+            if other_gov:
+                self._record_channel_probe(
+                    {
+                        "channel_url": url,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "discovery_method": "pattern_match",
+                        "outcome": "rejected_other_government",
+                        "http_status": None,
+                        "reason": other_gov,
+                        "channel_id": enriched.get("channel_id"),
+                        "channel_title": (enriched.get("channel_title") or "")[:500],
+                    }
+                )
+                await asyncio.sleep(0.3)
+                continue
+
             discovered.append(enriched)
             logger.success(
                 "✓ pattern_match accepted: {} (conf={})",
@@ -326,6 +353,19 @@ class YouTubeChannelDiscovery:
 
             for channel in api_channels:
                 url = channel['channel_url']
+                other_gov = title_names_other_government(
+                    str(channel.get('channel_title') or ''),
+                    jurisdiction_name=j_display_name,
+                    jurisdiction_type=j_type_for_guard,
+                    state_code=state_code,
+                    channel_url=url,
+                )
+                if other_gov:
+                    logger.info(
+                        "✗ API name-search hit names another government ({}): {} {}",
+                        other_gov, channel.get('channel_title'), url,
+                    )
+                    continue
                 if url not in tested_urls:
                     tested_urls.add(url)
                     discovered.append(channel)
