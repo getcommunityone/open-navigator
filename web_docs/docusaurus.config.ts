@@ -128,6 +128,11 @@ const config: Config = {
 
   markdown: {
     mermaid: true,
+    // The ERD PNGs are git-LFS files that aren't in every checkout (the Hugging Face
+    // deploy strips binaries). A missing image is a warning, not a failed build (#468).
+    hooks: {
+      onBrokenMarkdownImages: 'warn',
+    },
   },
 
   themeConfig: {
