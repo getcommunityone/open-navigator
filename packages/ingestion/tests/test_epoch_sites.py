@@ -48,3 +48,30 @@ def test_sql_is_idempotent_per_file() -> None:
     assert "PRIMARY KEY (file_sha256, row_number)" in create_sql(DATA_CENTERS)
     assert "ON CONFLICT (file_sha256, row_number) DO NOTHING" in insert_sql(TIMELINES)
     assert "data_center" in insert_sql(TIMELINES) and "name" in insert_sql(DATA_CENTERS)
+
+
+def test_dsn_never_reads_neon_urls(monkeypatch) -> None:
+    """#441: an exported production Neon URL must not receive bronze rows."""
+    from ingestion.data_centers import epoch_sites
+
+    monkeypatch.setenv("NEON_DATABASE_URL", "postgresql://u:p@ep-prod.neon.tech/db")
+    monkeypatch.setenv("NEON_DATABASE_URL_DEV", "postgresql://u:p@ep-dev.neon.tech/db")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("POSTGRES_PASSWORD", "pw")
+    assert epoch_sites._dsn() == "postgresql://postgres:pw@localhost:5433/open_navigator"
+
+
+def test_dsn_uses_postgres_database_url_or_explicit(monkeypatch) -> None:
+    from ingestion.data_centers import epoch_sites
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db.local:5433/x")
+    assert epoch_sites._dsn() == "postgresql://u:p@db.local:5433/x"
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./users.db")  # the legacy user DB is ignored
+    assert "localhost:5433" in epoch_sites._dsn()
+    assert epoch_sites._dsn("postgresql://u:p@other:5432/y") == "postgresql://u:p@other:5432/y"
+
+
+def test_host_hides_credentials() -> None:
+    from ingestion.data_centers import epoch_sites
+
+    assert epoch_sites._host("postgresql://user:secret@db.example:5433/open_navigator") == "db.example:5433/open_navigator"
