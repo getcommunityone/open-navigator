@@ -159,7 +159,7 @@ def test_headings_inside_comments_or_with_no_text_do_not_count(pc):
     assert pc.missing_parts(body) == ["Problem", "Done when"]
 
 
-def test_bold_phrase_inside_a_bullet_is_not_a_section_label():
+def test_bold_phrase_inside_a_bullet_is_not_a_section_label(pc):
     # #523: "- **Plain summary.** ..." under "## Done when" must not end the section.
     body = (
         "## Problem\nA thing is wrong.\n\n"
@@ -169,6 +169,6 @@ def test_bold_phrase_inside_a_bullet_is_not_a_section_label():
     assert pc.missing_parts(body) == []
 
 
-def test_bold_label_at_line_start_still_counts():
+def test_bold_label_at_line_start_still_counts(pc):
     body = "**Problem:** wrong.\n**Done when:** fixed.\n**Contract:** none.\n**Read first:** a file.\n"
     assert pc.missing_parts(body) == []
