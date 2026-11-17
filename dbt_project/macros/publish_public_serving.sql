@@ -184,7 +184,8 @@
     'decision_nearby_data_center_site':    "_s.state_code in {{states}}",
     'decision_company_mention':
         "_s.event_decision_id in (select event_decision_id from gold.event_decision "
-        "where state_code in {{states}})"
+        "where state_code in {{states}})",
+    'recent_transcribed_meeting':          "_s.state_code in {{states}}"
 } -%}
 {#- bill_sponsorship is DROPPED from serving entirely (removed from `served`):
     it has no state column and even scoped to the kept-bill set it is ~53 MB,
@@ -218,7 +219,8 @@
     'topic_transcript_link',
     'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
     'data_center_meeting_mention',
-    'decision_place_label', 'decision_company_mention', 'decision_nearby_data_center_site'
+    'decision_place_label', 'decision_company_mention', 'decision_nearby_data_center_site',
+    'recent_transcribed_meeting'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
