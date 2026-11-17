@@ -28,6 +28,11 @@ from datetime import datetime
 from pathlib import Path
 from loguru import logger
 import time
+
+# (connect, read) seconds. requests has no default timeout, so without these a stalled FEC server hangs the load
+# forever (#465). The bulk files are 1-5 GB, so a read may wait longer between chunks than an API reply.
+FEC_API_TIMEOUT = (10, 60)
+FEC_BULK_TIMEOUT = (10, 600)
 import zipfile
 import io
 
@@ -64,7 +69,7 @@ class OpenFECAPI:
         
         url = f"{self.BASE_URL}/{endpoint}"
         
-        response = self.session.get(url, params=params)
+        response = self.session.get(url, params=params, timeout=FEC_API_TIMEOUT)
         response.raise_for_status()
         
         # Rate limiting
@@ -259,7 +264,7 @@ class FECBulkDataLoader:
         logger.info(f"Downloading {url} (this may take a while...)")
         logger.warning(f"File size is typically 1-5 GB!")
         
-        response = requests.get(url, stream=True)
+        response = requests.get(url, stream=True, timeout=FEC_BULK_TIMEOUT)
         response.raise_for_status()
         
         total_size = int(response.headers.get('content-length', 0))
