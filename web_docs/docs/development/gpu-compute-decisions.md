@@ -8,6 +8,11 @@ description: Where Open Navigator's GPU runs go, who approves a paid one, and ho
 
 Decided November 15, 2026, by the owner. Logged in [#357](https://github.com/getcommunityone/open-navigator/issues/357).
 
+November 17, 2026: the owner confirmed that diarization (WhisperX) runs on Colab
+([#297](https://github.com/getcommunityone/open-navigator/issues/297)); how to run it is in
+[GPU speakers on Colab](../deployment/colab-gpu-diarize.md). A Modal workflow was built in the meantime
+([GPU steps on Modal](../deployment/modal-gpu.md), #314). Its code stays, but runs don't go there.
+
 ## Context
 
 Open Navigator's GPU steps (WhisperX diarization, local Gemma generation) are recorded one row per step
