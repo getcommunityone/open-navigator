@@ -104,7 +104,8 @@ def test_municipality_wd_literal_sets_hyphen_geoid_and_padding() -> None:
     ff1, _ = _municipality_wd_literal_sets("01-00100", None)
     assert "0100100" in ff1
     ff2, _ = _municipality_wd_literal_sets("100100", None)
-    assert "0100100" in ff2 and "100100" in ff2
+    # A 6-digit form has lost its leading zero; only the 7-digit state+place form is a valid P774.
+    assert "0100100" in ff2 and "100100" not in ff2
 
 
 def test_municipality_bulk_by_state_no_p17() -> None:

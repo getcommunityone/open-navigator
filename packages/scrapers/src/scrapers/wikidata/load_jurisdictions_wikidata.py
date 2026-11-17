@@ -66,6 +66,19 @@ _sys.modules.setdefault(_spec.name, _mod)
 assert _spec.loader is not None
 _spec.loader.exec_module(_mod)
 
+# Issue #461: the archived helpers matched counties on bare 3-digit county codes
+# shared by every state. Swap in the strict package versions so the monolith's
+# own call sites (looked up through its module globals at call time) use them.
+from scrapers.wikidata.fips_match import (  # noqa: E402
+    county_fips_literals as _strict_county_fips_literals,
+    municipality_wd_literal_sets as _strict_municipality_wd_literal_sets,
+    school_id_literal_alternatives as _strict_school_id_literal_alternatives,
+)
+
+_mod._county_fips_literal_alternatives = _strict_county_fips_literals
+_mod._municipality_wd_literal_sets = _strict_municipality_wd_literal_sets
+_mod._school_id_literal_alternatives = _strict_school_id_literal_alternatives
+
 # Re-export the irreducible-scraper helpers the remaining utilities import.
 DATABASE_URL = _mod.DATABASE_URL
 PRIORITY_STATES = _mod.PRIORITY_STATES

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import threading
 import time
 from pathlib import Path
@@ -18,11 +17,21 @@ from typing import Dict, Iterable, Optional, Tuple
 
 from loguru import logger
 
+from scrapers.wikidata.fips_match import (
+    county_fips_literals,
+    county_p882_to_geoid,
+    municipality_wd_literal_sets,
+    norm_lit,
+    school_id_literal_alternatives,
+)
+
 _LOCK = threading.Lock()
 
-
-def norm_lit(x: str) -> str:
-    return re.sub(r"[\s\-]+", "", str(x).strip())
+# County keys live in their own namespace, keyed on the full 5-digit FIPS only.
+# The legacy "county|882|<lit>" keys included bare 3-digit county codes ("003")
+# that are shared by every state, so cached entries under them can point at
+# another state's county (issue #461). They are left on disk but never read.
+COUNTY_TASK = "county5"
 
 
 def cache_key(task: str, pid: str, literal: str) -> str:
@@ -82,15 +91,32 @@ class GeographyQidCache:
         if gnis:
             self.set_q(cache_key("muni", "590", gnis), qid)
 
+    def _set_county_q(self, key: str, q: str) -> None:
+        """Record a county key; two different items for one key make it ambiguous."""
+        q = str(q).strip()
+        if not q.startswith("Q"):
+            return
+        old = self._entries.get(key)
+        if old and old.get("ambiguous"):
+            return
+        if old and old.get("q") and old.get("q") != q:
+            self._entries[key] = {"q": None, "ambiguous": True, "t": time.time()}
+            self._dirty = True
+            return
+        self.set_q(key, q)
+
     def remember_county(self, qid: str, fips: Optional[str], fips_alt: Optional[str], gnis: Optional[str]) -> None:
+        """Remember an item's own identifiers. Short (state-less) FIPS values are dropped."""
         if fips:
-            v = norm_lit(fips)
-            self.set_q(cache_key("county", "882", v), qid)
+            g = county_p882_to_geoid(fips)
+            if g:
+                self._set_county_q(cache_key(COUNTY_TASK, "882", g), qid)
         if fips_alt:
-            v = norm_lit(fips_alt)
-            self.set_q(cache_key("county", "3006", v), qid)
+            g = county_p882_to_geoid(fips_alt)
+            if g:
+                self._set_county_q(cache_key(COUNTY_TASK, "3006", g), qid)
         if gnis:
-            self.set_q(cache_key("county", "590", norm_lit(gnis)), qid)
+            self.set_q(cache_key(COUNTY_TASK, "590", norm_lit(gnis)), qid)
 
     def remember_school(self, qid: str, fips: Optional[str], gnis: Optional[str], nces: Optional[str]) -> None:
         for raw, pid in [(fips, "882"), (gnis, "590"), (nces, "6545")]:
@@ -109,10 +135,13 @@ class GeographyQidCache:
         return None
 
     def lookup_q_for_county(self, fips_lits) -> Optional[str]:
+        """Q-id for a county. Only full 5-digit FIPS literals are looked up."""
         for lit in fips_lits:
-            v = norm_lit(lit)
-            for pid in ("882", "3006", "774"):
-                q = self.get_q(cache_key("county", pid, v))
+            g = county_p882_to_geoid(lit)
+            if not g:
+                continue
+            for pid in ("882", "3006"):
+                q = self.get_q(cache_key(COUNTY_TASK, pid, g))
                 if q:
                     return q
         return None
@@ -131,29 +160,33 @@ class GeographyQidCache:
     ) -> None:
         if warm_task not in ("city", "county", "school_district"):
             return
-        from scrapers.wikidata.load_jurisdictions_wikidata import (
-            STATE_MAP,
-            _county_fips_literal_alternatives,
-            _municipality_wd_literal_sets,
-            _school_id_literal_alternatives,
-        )
-
-        sf = STATE_MAP.get(state_code, {}).get("fips")
+        if warm_task == "county":
+            # A bronze row's (geoid, qid) pair is the output of an earlier match,
+            # not the item's own P882, so it cannot vouch for itself: that loop is
+            # how one wrong match spread across states (issue #461). County keys
+            # come only from item identifiers (parquet dump or SPARQL).
+            return
 
         for geoid, ansi, qid in rows:
             if not geoid or not qid or not str(qid).startswith("Q"):
                 continue
             if warm_task == "city":
-                fl, gl = _municipality_wd_literal_sets(geoid, ansi)
+                fl, gl = municipality_wd_literal_sets(geoid, ansi)
                 for lit in fl:
                     self.remember_muni(qid, lit, None)
                 for lit in gl:
                     self.remember_muni(qid, None, lit)
-            elif warm_task == "county":
-                for lit in _county_fips_literal_alternatives(geoid, sf):
-                    self.remember_county(qid, lit, None, None)
             elif warm_task == "school_district":
-                for lit in _school_id_literal_alternatives(geoid):
+                for lit in school_id_literal_alternatives(geoid):
                     v = norm_lit(lit)
                     self.set_q(cache_key("school", "6545", v), qid)
                     self.set_q(cache_key("school", "882", v), qid)
+
+
+__all__ = [
+    "COUNTY_TASK",
+    "GeographyQidCache",
+    "cache_key",
+    "county_fips_literals",
+    "norm_lit",
+]
