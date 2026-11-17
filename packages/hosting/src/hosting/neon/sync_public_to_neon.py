@@ -221,6 +221,8 @@ CIVIC_SERVING = frozenset(
         "data_center_site",
         "data_center_agenda_item",
         "area_concern",
+        # transcript passages that discuss data centers (#445), ~4.5 MB (#481)
+        "data_center_meeting_mention",
         # NOTE: meeting_topic_link (60 MB) still deferred (budget headroom).
     }
 )

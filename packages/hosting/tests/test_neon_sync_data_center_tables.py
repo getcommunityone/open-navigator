@@ -7,7 +7,13 @@ from pathlib import Path
 
 from hosting.neon.sync_public_to_neon import CIVIC_SERVING, RUNTIME_OWNED
 
-DATA_CENTER_SERVING = {"job_claim", "data_center_site", "data_center_agenda_item", "area_concern"}
+DATA_CENTER_SERVING = {
+    "job_claim",
+    "data_center_site",
+    "data_center_agenda_item",
+    "area_concern",
+    "data_center_meeting_mention",
+}
 
 
 def test_data_center_marts_are_mirrored() -> None:
