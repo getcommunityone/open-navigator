@@ -27,6 +27,12 @@ Stop and report if a **hard** check fails. A **soft** failure skips only the ste
   reset). Then `git checkout main && git pull --ff-only`.
 - **Hard:** the local warehouse answers: `pg_isready -h localhost -p 5433`.
 - **Hard:** `.venv/bin/python -c "import hosting.neon.sync_public_to_neon"` works.
+- **Hard for YouTube (step 3):** the VPN is up. `.venv/bin/python -m scrapers.youtube.vpn_guard` prints the
+  tunnel and home interfaces with masked IPs and exits 0. YouTube is only ever reached through Surfshark, never the
+  home IP (#488): with the VPN off, every YouTube step (catalog, captions, yt-dlp) and
+  `youtube_run_priority_states_last_n.sh` stop with **exit 5**, before any YouTube request, and a mid-run drop stops
+  the run the same way after saving what it has. On exit 5, don't retry and don't set `YOUTUBE_REQUIRE_VPN=0`:
+  skip step 3, run the rest, and report "Surfshark is off: connect it, then re-run".
 - **Soft (YouTube, step 3):**
   - `.env` has `PROXY_USER_NAME` and `PROXY_PASSWORD` (Webshare, for the caption API);
   - `youtube_cookies.txt` exists. Warn if it's older than 7 days: a stale cookie file is the usual cause of "Sign in

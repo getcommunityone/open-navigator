@@ -13,6 +13,11 @@ Each run **clears tombstones** for the jurisdiction (use ``--no-clear-tombstones
 retries with **cookies** (``youtube_cookies.txt``) plus **yt-dlp** fallback after the caption API.
 IP blocks are **not** tombstoned (transient).
 
+YouTube is only contacted through the VPN (#488): the run checks
+``scrapers.youtube.vpn_guard.require_vpn`` before the first YouTube request and again
+before each caption fetch (at most every 120 s). With the VPN off it exits with code
+**5**; a mid-run drop stops the loop, keeps what was saved, and exits 5.
+
 Examples::
 
     # Tuscaloosa — all 400+ bronze videos, skip already on disk or in bronze
@@ -58,6 +63,11 @@ from scrapers.youtube.download_audio_to_drive import (  # noqa: E402
 )
 from scrapers.youtube.load_youtube_events_to_postgres import (  # noqa: E402
     YouTubeEventsLoader,
+)
+from scrapers.youtube.vpn_guard import (  # noqa: E402
+    VPN_EXIT_CODE,
+    VpnRequiredError,
+    require_vpn,
 )
 from llm.gemini.transcript_cache_paths import (  # noqa: E402
     DIR_TRANSCRIPTS,
@@ -1336,6 +1346,12 @@ def run(args: argparse.Namespace) -> int:
             )
         return 0
 
+    try:
+        require_vpn()
+    except VpnRequiredError as exc:
+        logger.error("{}", exc)
+        return VPN_EXIT_CODE
+
     cookies = resolve_cookies_path(args.cookies or None)
     proxy = (args.proxy or os.getenv("YOUTUBE_TRANSCRIPT_PROXY") or "").strip() or None
     from scrapers.youtube.transcript_api_client import (
@@ -1400,6 +1416,7 @@ def run(args: argparse.Namespace) -> int:
     consecutive_rl = 0
     max_rl = args.max_consecutive_rate_limits
     exit_code = 0
+    vpn_error: Optional[VpnRequiredError] = None
 
     # Behind a full-tunnel VPN, a block is usually cleared by a new exit IP
     # (scrapers.youtube.vpn_refresh); refresh instead of stopping, a few times per run.
@@ -1540,6 +1557,13 @@ def run(args: argparse.Namespace) -> int:
                     continue
 
             try:
+                # Re-check before each YouTube request (cached for 120 s) (#488).
+                require_vpn()
+            except VpnRequiredError as exc:
+                vpn_error = exc
+                break
+
+            try:
                 yt = loader.fetch_transcript(video_id)
                 if yt is None:
                     reason = permanent_failure_reason(None, via_proxy=via_socks)
@@ -1584,6 +1608,9 @@ def run(args: argparse.Namespace) -> int:
                                 video_id,
                             )
                     continue
+            except VpnRequiredError as exc:
+                vpn_error = exc
+                break
             except Exception as exc:
                 if is_rate_limited(exc):
                     stats["rate_limit"] += 1
@@ -1713,6 +1740,8 @@ def run(args: argparse.Namespace) -> int:
     finally:
         if batch_store:
             exit_code = 0 if stats["rate_limit"] < max_rl else 2
+            if vpn_error is not None:
+                exit_code = VPN_EXIT_CODE
             from api.batch_jobs.batch_job_status import (
                 policy_disk_file_counts,
             )
@@ -1733,6 +1762,9 @@ def run(args: argparse.Namespace) -> int:
 
     loader.close()
     logger.info("Done: {}", stats)
+    if vpn_error is not None:
+        logger.error("Stopped mid-run, progress above is saved: {}", vpn_error)
+        return VPN_EXIT_CODE
     return 0 if stats["rate_limit"] < max_rl else 2
 
 

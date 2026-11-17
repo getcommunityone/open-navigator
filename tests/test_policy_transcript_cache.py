@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from scrapers.youtube.policy_transcript_cache import (
     policy_transcript_sidecar_path,
     policy_transcript_sidecar_paths,
@@ -13,6 +15,12 @@ from scrapers.youtube.policy_transcript_cache import (
     write_policy_transcript_cache,
 )
 from scrapers.youtube.transcript_api_client import fetch_transcript_bundle
+
+
+@pytest.fixture(autouse=True)
+def _no_vpn_check(monkeypatch):
+    """CI has no VPN; these tests mock YouTube, so skip the live VPN check (#488)."""
+    monkeypatch.setattr("scrapers.youtube.transcript_api_client.require_vpn", lambda *a, **k: None)
 
 
 def test_policy_transcript_sidecar_path():

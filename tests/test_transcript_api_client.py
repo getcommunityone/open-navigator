@@ -22,6 +22,12 @@ from scrapers.youtube.transcript_api_client import (
     webshare_enabled,
 )
 
+
+@pytest.fixture(autouse=True)
+def _no_vpn_check(monkeypatch):
+    """CI has no VPN; these tests mock YouTube, so skip the live VPN check (#488)."""
+    monkeypatch.setattr("scrapers.youtube.transcript_api_client.require_vpn", lambda *a, **k: None)
+
 # Env vars transcript_api_client reads for proxy/caption routing. Importing the
 # scrapers/llm packages triggers a module-level load_dotenv() (download_audio_to_drive),
 # which pulls the developer's real .env into os.environ. The proxy tests below use

@@ -107,6 +107,7 @@ from scrapers.youtube.youtube_loader_logging import (
     configure_youtube_loader_logging,
     log_progress,
 )
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn  # noqa: E402
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
 
 # Pilot priority states. Must equal DEFAULT_PRIORITY_STATES in
@@ -830,6 +831,7 @@ class YouTubeEventsLoader:
 
         for suffix in ("", "/videos", "/about"):
             page_url = f"{base_url}{suffix}"
+            require_vpn()  # outside the try: a VPN drop must stop the run (#488)
             try:
                 with httpx.Client(
                     follow_redirects=True,
@@ -2006,6 +2008,7 @@ class YouTubeEventsLoader:
                 proxy_override=proxy,
                 player_clients=player_clients,
             )
+            require_vpn()
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     return ydl.extract_info(url, download=False)
@@ -2056,6 +2059,8 @@ class YouTubeEventsLoader:
                     clients,
                     self._youtube_video_log_label(video_id),
                 )
+            except VpnRequiredError:
+                raise
             except Exception as exc:
                 last_err = exc
                 err = str(exc)
@@ -2070,6 +2075,8 @@ class YouTubeEventsLoader:
                         )
                         if self._ytdlp_has_caption_tracks(info):
                             return info
+                    except VpnRequiredError:
+                        raise
                     except Exception as exc_relaxed:
                         last_err = exc_relaxed
         if last_err:
@@ -2085,6 +2092,8 @@ class YouTubeEventsLoader:
             url = f'https://www.youtube.com/watch?v={video_id}'
             try:
                 info = self._ytdlp_extract_info_for_subtitles(url, video_id)
+            except VpnRequiredError:
+                raise
             except Exception as exc:
                 self._last_ytdlp_transcript_error = f"yt-dlp: {format_transcript_error(exc, max_len=300)}"
                 return None
@@ -2113,6 +2122,7 @@ class YouTubeEventsLoader:
 
             import requests
 
+            require_vpn()
             response = requests.get(subtitle_url, timeout=10)
             response.raise_for_status()
 
@@ -2132,6 +2142,8 @@ class YouTubeEventsLoader:
                 'transcript_source': 'yt-dlp',
             }
 
+        except VpnRequiredError:
+            raise
         except Exception as e:
             error_msg = format_transcript_error(e)
             self._last_ytdlp_transcript_error = f"yt-dlp: {error_msg}"
@@ -2149,9 +2161,14 @@ class YouTubeEventsLoader:
             return None
     
     def fetch_transcript(self, video_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch transcript/captions for a YouTube video."""
+        """Fetch transcript/captions for a YouTube video.
+
+        Raises ``VpnRequiredError`` (never swallowed into a "no transcript" result)
+        when the VPN tunnel is down (#488).
+        """
         if not video_id:
             return None
+        require_vpn()
         with _transcript_fetch_slot():
             return self._fetch_transcript_unlocked(video_id)
 
@@ -2185,6 +2202,8 @@ class YouTubeEventsLoader:
                 proxy_url=None,
                 cookies_file=cookies_path,
             )
+        except VpnRequiredError:
+            raise
         except TranscriptsDisabled:
             if self.use_ytdlp_fallback:
                 logger.debug(
@@ -2592,6 +2611,8 @@ class YouTubeEventsLoader:
             ) -> Tuple[str, Optional[Dict[str, Any]], Optional[str]]:
                 try:
                     return video_id, self.fetch_transcript(video_id), None
+                except VpnRequiredError:
+                    raise
                 except Exception as exc:
                     if "RATE_LIMITED" in str(exc):
                         return video_id, None, self._rate_limit_detail(exc)
@@ -2813,7 +2834,11 @@ class YouTubeEventsLoader:
                 logger.warning(f"  💡 Consider increasing --transcript-delay (current: {self.transcript_delay}s)")
             
             return inserted
-            
+
+        except VpnRequiredError:
+            # Keep the transcripts already saved, then stop the run (#488).
+            self.conn.commit()
+            raise
         except Exception as e:
             self.conn.rollback()
             logger.error(f"Error inserting transcripts: {e}")
@@ -3012,6 +3037,8 @@ class YouTubeEventsLoader:
                     )
                     all_events.append(event)
                 
+            except VpnRequiredError:
+                raise
             except Exception as e:
                 logger.error(f"    Error fetching videos from channel {channel_id}: {e}")
                 continue
@@ -3147,6 +3174,7 @@ class YouTubeEventsLoader:
         workers = max(1, int(workers or 1))
         if workers == 1:
             for i, jurisdiction in enumerate(jurisdictions, 1):
+                require_vpn()  # re-checked (at most every 120 s) before each jurisdiction
                 logger.info(f"\n[{i}/{len(jurisdictions)}] Processing jurisdiction...")
                 total_inserted += self.process_jurisdiction(jurisdiction)
         else:
@@ -3176,6 +3204,10 @@ class YouTubeEventsLoader:
                             jurisdiction.get("state_code"),
                             inserted,
                         )
+                    except VpnRequiredError:
+                        for pending in futures:
+                            pending.cancel()
+                        raise
                     except Exception as exc:
                         logger.error(
                             "[{}/{}] {} failed: {}",
@@ -3295,8 +3327,9 @@ class YouTubeEventsLoader:
         }
 
 
+@exit_if_vpn_off
 def main():
-    """Main entry point."""
+    """Main entry point. Exits 5 when the VPN tunnel is down (#488)."""
     parser = argparse.ArgumentParser(description='Load YouTube events from jurisdictions into event')
     
     parser.add_argument(
@@ -3530,6 +3563,7 @@ def main():
     jurisdiction_id = (args.jurisdiction_id or '').strip() or None
 
     try:
+        require_vpn()
         if args.backfill_scraped_channel_ids:
             if args.channel_source not in YouTubeEventsLoader._SCRAPED_CHANNEL_TABLES:
                 logger.error(
@@ -3551,6 +3585,8 @@ def main():
             workers=args.workers,
         )
         return 0
+    except VpnRequiredError:
+        raise
     except Exception as e:
         logger.error(f"✗ Loading failed: {e}")
         import traceback

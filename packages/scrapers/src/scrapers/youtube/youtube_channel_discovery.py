@@ -27,6 +27,7 @@ from scrapers.discovery.browser_block import (
 import os
 
 from scrapers.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn_for_url
 
 
 def _response_block(response: Any) -> Optional[str]:
@@ -546,6 +547,8 @@ class YouTubeChannelDiscovery:
                 ),
             }
 
+        except VpnRequiredError:
+            raise
         except Exception as e:
             msg = str(e)[:500]
             logger.trace(f"YouTube probe failed for {channel_url!r}: {e}")
@@ -774,6 +777,8 @@ class YouTubeChannelDiscovery:
                 return None, f"{BLOCKED_PREFIX}{blk}"
             if response.status_code == 200 and (response.text or "").strip():
                 return response.text, ""
+        except VpnRequiredError:
+            raise  # never fall back to a browser on the home IP (#488)
         except Exception as exc:
             logger.debug(f"httpx fetch failed for {url}: {exc}")
 
@@ -1002,6 +1007,7 @@ class YouTubeChannelDiscovery:
         municipal sites (CivicPlus, Granicus) render search results via
         JavaScript so the link list is invisible without a browser.
         """
+        require_vpn_for_url(url)  # a YouTube page only through the VPN (#488)
         try:
             from scrapers.discovery.meetings_playwright_fetch import (
                 fetch_html_via_playwright,
@@ -1244,6 +1250,7 @@ class YouTubeChannelDiscovery:
 
 
 # Example usage
+@exit_if_vpn_off
 async def main():
     """Example: Discover all Tuscaloosa YouTube channels."""
     

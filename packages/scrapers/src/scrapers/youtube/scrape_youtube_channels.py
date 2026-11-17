@@ -40,6 +40,8 @@ import polars as pl
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from youtube_transcript_api import YouTubeTranscriptApi
+
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn
 import os
 from dotenv import load_dotenv
 
@@ -290,6 +292,7 @@ class MunicipalYouTubeScraper:
         if not YT_DLP_AVAILABLE:
             return None
 
+        require_vpn()  # outside the try: a VPN drop stops the run (#488)
         watch_url = f"https://www.youtube.com/watch?v={video_id}"
         try:
             with yt_dlp.YoutubeDL(self._ytdlp_base_opts(max_results=1)) as ydl:
@@ -499,6 +502,7 @@ class MunicipalYouTubeScraper:
         """Extract flat playlist entries from a channel tab URL."""
         if not YT_DLP_AVAILABLE:
             return [], channel_url
+        require_vpn()  # outside the try: a VPN drop stops the run (#488)
 
         info = None
         with _YTDLP_STDERR_LOCK:
@@ -612,6 +616,8 @@ class MunicipalYouTubeScraper:
             else:
                 logger.info(f"  → {len(videos)} unique videos")
 
+        except VpnRequiredError:
+            raise
         except Exception as e:
             logger.error(f"yt-dlp error for channel {channel_id}: {e}")
             return []
@@ -720,6 +726,7 @@ class MunicipalYouTubeScraper:
             logger.info(f"✅ Created {output_file} ({len(localview_df)} videos)")
 
 
+@exit_if_vpn_off
 def main():
     parser = argparse.ArgumentParser(
         description="Scrape municipal YouTube channels for meeting videos"
@@ -747,6 +754,7 @@ def main():
     )
     
     args = parser.parse_args()
+    require_vpn()  # every path below reaches YouTube (#488)
     
     # Parse inputs
     channel_ids = None

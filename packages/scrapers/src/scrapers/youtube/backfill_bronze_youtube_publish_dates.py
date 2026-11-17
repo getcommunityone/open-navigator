@@ -52,6 +52,8 @@ from dotenv import load_dotenv
 from loguru import logger
 import yt_dlp
 
+from scrapers.youtube.vpn_guard import exit_if_vpn_off, require_vpn
+
 load_dotenv()
 
 _LOCAL_DEV = "postgresql://postgres:password@localhost:5433/open_navigator"
@@ -253,6 +255,7 @@ def _extract_published_at_variants(
             )
             time.sleep(strategy_cooloff)
         for attempt in range(extract_retries):
+            require_vpn()  # outside the try: a VPN drop stops the run (#488)
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     info = ydl.extract_info(url, download=False) or {}
@@ -395,6 +398,7 @@ def _update_row(
     cur.close()
 
 
+@exit_if_vpn_off
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Backfill NULL published_at/event_date on bronze_event_youtube using yt-dlp."
@@ -465,6 +469,7 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+    require_vpn()  # yt-dlp metadata reaches YouTube only through the VPN (#488)
 
     states = (
         [s.strip().upper() for s in args.states.split(",") if s.strip()]
