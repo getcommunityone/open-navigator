@@ -21,7 +21,8 @@ Usage::
     python -m scrapers.discovery.survey_meeting_sources --data-center-sites --apply --youtube-search 40
     python -m scrapers.discovery.survey_meeting_sources --jurisdiction-id abilene_4801000
 
-``--apply`` creates and upserts ``bronze.bronze_jurisdiction_meeting_source``. A
+``--apply`` creates ``bronze.bronze_jurisdiction_meeting_source`` and replaces the
+rows of each government surveyed in the run (others are left alone). A
 government with nothing found gets one row with ``platform='none'`` (and its
 website as ``url``, or ``''``), so its website status is still on record. Every
 run also writes a JSON and a CSV report to ``data/cache/data_center_survey/``.
@@ -331,9 +332,27 @@ class PgWarehouse:
         return rows
 
     def write_rows(self, rows: Sequence[dict[str, Any]]) -> int:
-        """Create the bronze table if needed and upsert ``rows``."""
+        """Create the bronze table if needed and write ``rows``.
+
+        A run is a snapshot of each government it surveyed: that government's earlier
+        rows are replaced (so a source that is gone, or a wrong one, doesn't linger),
+        then the new rows are upserted, all in one transaction. Governments not in this
+        run keep their rows.
+        """
         import psycopg2.extras
 
+        self._conn.autocommit = False
+        try:
+            written = self._write_rows(rows, psycopg2.extras)
+            self._conn.commit()
+            return written
+        except Exception:
+            self._conn.rollback()
+            raise
+        finally:
+            self._conn.autocommit = True
+
+    def _write_rows(self, rows: Sequence[dict[str, Any]], extras: Any) -> int:
         with self._conn.cursor() as cur:
             cur.execute("CREATE SCHEMA IF NOT EXISTS bronze")
             cur.execute(
@@ -362,20 +381,15 @@ class PgWarehouse:
                 "jurisdiction_id", "geoid", "state_code", "jurisdiction_type", "platform", "url", "media",
                 "found_on", "website_status", "data_center_site_id", "surveyed_at",
             ]
-            psycopg2.extras.execute_values(
+            surveyed = sorted({r["jurisdiction_id"] for r in rows})
+            cur.execute(f"DELETE FROM {TABLE} WHERE jurisdiction_id = ANY(%s)", (surveyed,))
+            extras.execute_values(
                 cur,
                 f"INSERT INTO {TABLE} ({', '.join(cols)}) VALUES %s "
                 "ON CONFLICT (jurisdiction_id, platform, url) DO UPDATE SET "
                 + ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c not in ("jurisdiction_id", "platform", "url")),
                 [tuple(r[c] for c in cols) for r in rows],
             )
-            # A government that now has sources no longer needs its "nothing found" row.
-            with_sources = sorted({r["jurisdiction_id"] for r in rows if r["platform"] != NONE_PLATFORM})
-            if with_sources:
-                cur.execute(
-                    f"DELETE FROM {TABLE} WHERE platform = %s AND jurisdiction_id = ANY(%s)",
-                    (NONE_PLATFORM, with_sources),
-                )
         return len(rows)
 
     def close(self) -> None:
@@ -408,7 +422,7 @@ class SiteMatch:
     city_jurisdiction_id: Optional[str]
     city_status: str  # matched | cdp | unmatched | unparsed
     county_jurisdiction_id: Optional[str]
-    county_match: str  # crosswalk | zip | unmatched
+    county_match: str  # crosswalk | zip | same_as_city | unmatched
 
 
 def _government(row: dict[str, Any]) -> Government:
@@ -456,9 +470,11 @@ def resolve_site_governments(
             if city_status == "matched":
                 city_id = add(place, site_id)
             county = wh.county_for_place(str(place["geoid"])) if place.get("geoid") else None
-            if county:
+            if county and normalize_place_name(str(county.get("name") or "")) == normalize_place_name(str(place.get("name") or "")):
+                county_match = "same_as_city"  # independent city (Virginia): one government, already listed
+            elif county:
                 county_id, county_match = add(county, site_id), "crosswalk"
-        if county_id is None and parsed and parsed.zip_code:
+        if county_id is None and county_match == "unmatched" and parsed and parsed.zip_code:
             county = wh.county_for_zip(parsed.zip_code)
             if county and str(county.get("state_code") or "") == state_code:
                 county_id, county_match = add(county, site_id), "zip"
@@ -504,8 +520,8 @@ def rank_websites(rows: Iterable[dict[str, Any]], gov: Government, limit: int = 
 
     Order: curated overrides, hosts that carry the government's name, ``.gov``, source,
     shorter domains. Dropped: department side-sites (sheriff, 911, courts ...), GSA rows
-    registered by a different agency, and Wikidata rows whose host doesn't carry the
-    name (Wikidata county websites are sometimes another state's county).
+    registered by a different agency, and Wikidata or scraped rows whose host doesn't
+    carry the name (Wikidata gives some counties another state's county site, #461).
     """
     tokens = name_tokens(gov)
     core = _core_name(gov).lower()
@@ -525,8 +541,8 @@ def rank_websites(rows: Iterable[dict[str, Any]], gov: Government, limit: int = 
         agency = str(row.get("agency") or "").lower()
         if source == "gsa" and agency and core not in agency:
             continue
-        if source == "wikidata" and not named:
-            continue
+        if source in ("wikidata", "scraped") and not named:
+            continue  # e.g. Wikidata gives some counties another state's county site (#461)
         key = (
             0 if source == "override" else 1,
             0 if named else 1,
@@ -670,14 +686,19 @@ def names_government(text: str, gov: Government) -> bool:
     core = re.escape(" ".join(_core_name(gov).lower().split()))
     low = " ".join(text.lower().split())
     if gov.jurisdiction_type == "county":
-        return bool(re.search(rf"\b{core} (county|parish)\b", low))
-    return bool(re.search(rf"\b({_GOV_WORDS}) of {core}\b", low) or re.search(rf"\b{core},? ({_GOV_WORDS})\b", low))
+        return bool(re.search(rf"\b{core} (county|parish)\b(?!\s+(school|schools|board of education))", low))
+    not_school = r"(?!\s+(school|schools|isd|unified|public schools|board of education))"
+    return bool(
+        re.search(rf"\b({_GOV_WORDS}) of {core}\b{not_school}", low)
+        or re.search(rf"\b{core},? ({_GOV_WORDS})\b{not_school}", low)
+    )
 
 
 def names_state(text: str, gov: Government) -> bool:
     if gov.state and gov.state.lower() in text.lower():
         return True
-    return bool(re.search(rf"(^|[\s,(]){re.escape(gov.state_code)}(\b|$)", text))
+    st = re.escape(gov.state_code)
+    return bool(re.search(rf",\s*{st}\b|\b{st}\s+\d{{5}}\b|\s{st}\s*$", text))
 
 
 # --------------------------------------------------------------------------------
@@ -708,7 +729,6 @@ def vendor_probe_urls(gov: Government) -> list[str]:
             f"https://pub-{slug}.escribemeetings.com/",
             f"https://{slug}.suiteonemedia.com/",
             f"https://{slug}.new.swagit.com/views/",
-            f"https://go.boarddocs.com/{st}/{slug}/Board.nsf/Public",
         ]
     base = re.sub(r"[^a-z0-9]", "", _core_name(gov).lower())
     if base:
@@ -747,29 +767,89 @@ def youtube_query(gov: Government) -> str:
     return f"City of {gov.name} {gov.state}"
 
 
+# Words an official government channel title may carry besides its name and state.
+_CHANNEL_FILLER = frozenset(
+    "the of city town village borough township county parish government gov govt tv gtv official channel "
+    "municipal live video videos media meetings council commission commissioners board boc bocc cable access".split()
+)
+
+
+def _title_residue(title: str, gov: Government) -> list[str]:
+    """Words left in a channel title after removing the government's name, its state and filler words."""
+    low = re.sub(r"[^a-z0-9 ]", " ", title.lower())
+    for phrase in (_core_name(gov).lower(), gov.state.lower(), gov.state_code.lower()):
+        phrase = re.sub(r"[^a-z0-9 ]", " ", phrase)
+        if phrase.strip():
+            low = re.sub(rf"\b{re.escape(' '.join(phrase.split()))}\b", " ", " ".join(low.split()))
+    return [w for w in low.split() if w not in _CHANNEL_FILLER]
+
+
 def accept_youtube_channel(title: str, description: str, gov: Government) -> bool:
-    """Only a channel whose title names the government (and the state, in title or description)."""
-    if _NOT_GOVERNMENT_WORDS.search(title):
+    """Accept only a channel that is plainly this government's own.
+
+    The title must name the government ("City of X", "X County") and hold nothing
+    else but the state and filler words like "TV" or "Government", so a Humane
+    Society, a health department or a fan page of the same place is rejected. The
+    state must be in the title, or in a description that calls the channel official.
+    """
+    if _NOT_GOVERNMENT_WORDS.search(title) or not names_government(title, gov):
         return False
-    return names_government(title, gov) and (names_state(title, gov) or names_state(description, gov))
-
-
-async def youtube_channel_search(gov: Government, api_key: str, client: httpx.AsyncClient) -> list[MeetingSource]:
-    """One YouTube Data API search (100 quota units) for this government's official channel."""
-    resp = await client.get(
-        YOUTUBE_SEARCH_URL,
-        params={"part": "snippet", "type": "channel", "maxResults": 10, "q": youtube_query(gov), "key": api_key},
+    if _title_residue(title, gov):
+        return False
+    if names_state(title, gov):
+        return True
+    return "official" in description.lower() and (
+        gov.state.lower() in description.lower() or names_state(description, gov)
     )
-    if resp.status_code != 200:
-        logger.warning("YouTube search failed for {}: HTTP {}", gov.jurisdiction_id, resp.status_code)
-        return []
+
+
+class YouTubeSearchCache:
+    """API search results by query, kept on disk so a rerun re-checks them without spending quota."""
+
+    def __init__(self, path: Optional[Path]) -> None:
+        self.path = path
+        self.items: dict[str, list[dict[str, Any]]] = {}
+        if path and path.is_file():
+            self.items = json.loads(path.read_text())
+
+    def save(self) -> None:
+        if self.path:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(self.items, indent=1))
+
+
+async def youtube_channel_search(
+    gov: Government, api_key: str, client: httpx.AsyncClient, cache: Optional[YouTubeSearchCache] = None
+) -> tuple[list[MeetingSource], bool, bool]:
+    """Search YouTube for this government's official channel.
+
+    Returns ``(hits, spent, answered)``: ``spent`` when an API search was made (100
+    quota units; a cached query costs nothing), ``answered`` False when the API
+    refused (quota, HTTP error) so nothing was checked.
+    """
+    query = youtube_query(gov)
+    spent = False
+    if cache is not None and query in cache.items:
+        items = cache.items[query]
+    else:
+        resp = await client.get(
+            YOUTUBE_SEARCH_URL,
+            params={"part": "snippet", "type": "channel", "maxResults": 10, "q": query, "key": api_key},
+        )
+        spent = True
+        if resp.status_code != 200:
+            logger.warning("YouTube search failed for {}: HTTP {}", gov.jurisdiction_id, resp.status_code)
+            return [], spent, False
+        items = resp.json().get("items", [])
+        if cache is not None:
+            cache.items[query] = items
     out: list[MeetingSource] = []
-    for item in resp.json().get("items", []):
+    for item in items:
         snippet = item.get("snippet") or {}
         channel_id = (item.get("id") or {}).get("channelId") or snippet.get("channelId")
         if channel_id and accept_youtube_channel(snippet.get("title", ""), snippet.get("description", ""), gov):
             out.append(MeetingSource("youtube", f"https://www.youtube.com/channel/{channel_id}", "video", "youtube_search"))
-    return out[:1]
+    return out[:1], spent, True
 
 
 # --------------------------------------------------------------------------------
@@ -786,6 +866,7 @@ class GovernmentResult:
     pages_read: int
     sources: list[MeetingSource]
     youtube_searched: bool = False
+    youtube_search_failed: bool = False
 
 
 async def survey_government(gov: Government, websites: Sequence[str], fetcher: Fetcher, max_pages: int) -> GovernmentResult:
@@ -832,23 +913,33 @@ def youtube_search_order(results: Sequence[GovernmentResult]) -> list[Government
     return sorted(pending, key=lambda r: (bool(r.sources), status_rank.get(r.website_status, 9), r.government.jurisdiction_id))
 
 
-async def run_youtube_searches(results: Sequence[GovernmentResult], cap: int, api_key: Optional[str]) -> int:
+async def run_youtube_searches(
+    results: Sequence[GovernmentResult], cap: int, api_key: Optional[str], cache: Optional[YouTubeSearchCache] = None
+) -> int:
+    """Search for up to ``cap`` governments without a video source. Returns API searches spent."""
     if cap <= 0:
         return 0
     if not api_key:
         logger.warning("--youtube-search set but YOUTUBE_API_KEY is missing; skipping")
         return 0
-    used = 0
+    spent = 0
     async with httpx.AsyncClient(timeout=20.0) as client:
         for result in youtube_search_order(results)[:cap]:
-            used += 1
             result.youtube_searched = True
             try:
-                result.sources = merge_sources(result.sources + await youtube_channel_search(result.government, api_key, client))
+                hits, used, answered = await youtube_channel_search(result.government, api_key, client, cache)
             except httpx.HTTPError as exc:
                 logger.warning("YouTube search error for {}: {}", result.government.jurisdiction_id, exc)
-    logger.success("Ran {} YouTube channel searches ({} quota units)", used, used * 100)
-    return used
+                result.youtube_search_failed = True
+                continue
+            result.youtube_search_failed = not answered
+            spent += used
+            result.sources = merge_sources(result.sources + hits)
+    if cache is not None:
+        cache.save()
+    logger.success("Checked {} governments on YouTube; {} API searches spent ({} quota units)",
+                   sum(r.youtube_searched for r in results), spent, spent * 100)
+    return spent
 
 
 def bronze_rows(results: Sequence[GovernmentResult], surveyed_at: datetime) -> list[dict[str, Any]]:
@@ -894,6 +985,9 @@ def summarize(results: Sequence[GovernmentResult], matches: Sequence[SiteMatch])
             f"{r.government.name}, {r.government.state_code}: {r.website_url} ({r.website_reason})" for r in blocked
         ],
         "youtube_searches": sum(r.youtube_searched for r in results),
+        "youtube_searches_failed": [
+            f"{r.government.name}, {r.government.state_code}" for r in results if r.youtube_search_failed
+        ],
         "readers_to_build": [p for p, _ in per_platform.most_common() if p not in PLATFORMS_ALREADY_READ],
     }
 
@@ -914,6 +1008,7 @@ def write_report(results: Sequence[GovernmentResult], matches: Sequence[SiteMatc
                 "website_reason": r.website_reason,
                 "pages_read": r.pages_read,
                 "youtube_searched": r.youtube_searched,
+                "youtube_search_failed": r.youtube_search_failed,
                 "sources": [asdict(s) for s in r.sources],
             }
             for r in results
@@ -967,13 +1062,14 @@ async def run(args: argparse.Namespace, wh: Warehouse) -> dict[str, Any]:
         results = list(await asyncio.gather(*(one(g) for g in governments)))
     finally:
         await fetcher.close()
-    await run_youtube_searches(results, args.youtube_search, os.getenv("YOUTUBE_API_KEY"))
+    out_dir = Path(args.report_dir) if args.report_dir else repo_root() / "data" / "cache" / "data_center_survey"
+    cache = YouTubeSearchCache(out_dir / "youtube_search_cache.json")
+    await run_youtube_searches(results, args.youtube_search, os.getenv("YOUTUBE_API_KEY"), cache)
 
     surveyed_at = datetime.now(timezone.utc)
     rows = bronze_rows(results, surveyed_at)
     summary = summarize(results, matches)
     print_summary(results, summary)
-    out_dir = Path(args.report_dir) if args.report_dir else repo_root() / "data" / "cache" / "data_center_survey"
     json_path, csv_path = write_report(results, matches, summary, rows, out_dir, surveyed_at.strftime("%Y%m%dT%H%M%SZ"))
     logger.success("Report written: {} and {}", json_path, csv_path)
     if args.apply:

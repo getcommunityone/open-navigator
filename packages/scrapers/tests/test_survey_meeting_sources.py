@@ -180,6 +180,11 @@ class FakeWarehouse:
             "5170256": {"jurisdiction_id": "henrico_51087", "geoid": "51087", "name": "Henrico County",
                         "jurisdiction_type": "county", "state_code": "VA", "state": "Virginia", "lsad": None},
         }
+        self.places_by_state["VA"].append(
+            {"jurisdiction_id": "manassas_5148952", "geoid": "5148952", "name": "Manassas",
+             "jurisdiction_type": "municipality", "state_code": "VA", "state": "Virginia", "lsad": "25"})
+        self.counties["5148952"] = {"jurisdiction_id": "manassas_51683", "geoid": "51683", "name": "Manassas city",
+                                    "jurisdiction_type": "county", "state_code": "VA", "state": "Virginia", "lsad": None}
         self.zip_counties = {
             "20136": {"jurisdiction_id": "prince_william_51153", "geoid": "51153", "name": "Prince William County",
                       "jurisdiction_type": "county", "state_code": "VA", "state": "Virginia", "lsad": None},
@@ -211,10 +216,13 @@ def test_resolve_city_and_county_with_cdp_and_zip_fallback():
         {"data_center_site_id": "c", "address": "6000 Technology Blvd, Sandston, VA 23150", "state_code": "VA"},
         {"data_center_site_id": "d", "address": "13001 Rollins Ford Road, Bristow, VA 20136", "state_code": "VA"},
         {"data_center_site_id": "e", "address": "5400 Prosperity Dr NW, Toney, AL", "state_code": "AL"},
+        {"data_center_site_id": "f", "address": "9590 Hornbaker Rd, Manassas, VA 20109", "state_code": "VA"},
     ]
     govs, matches = sms.resolve_site_governments(sites, FakeWarehouse())
     by_id = {g.jurisdiction_id: g for g in govs}
-    assert set(by_id) == {"abilene_4801000", "taylor_48441", "henrico_51087", "prince_william_51153"}
+    assert set(by_id) == {
+        "abilene_4801000", "taylor_48441", "henrico_51087", "prince_william_51153", "manassas_5148952",
+    }
     assert by_id["abilene_4801000"].site_ids == ["a", "b"]
     status = {m.data_center_site_id: (m.city_status, m.county_match) for m in matches}
     assert status == {
@@ -223,6 +231,7 @@ def test_resolve_city_and_county_with_cdp_and_zip_fallback():
         "c": ("cdp", "crosswalk"),  # no municipal government; the county is surveyed
         "d": ("unmatched", "zip"),
         "e": ("unmatched", "unmatched"),
+        "f": ("matched", "same_as_city"),  # Virginia independent city: one government, not two
     }
 
 
@@ -244,6 +253,7 @@ def test_rank_websites_prefers_named_gov_hosts_and_drops_wrong_rows():
     county_rows = [
         {"website_url": "https://baldwincountyal.gov/", "website_source": "wikidata"},
         {"website_url": "http://www.allencounty.us/", "website_source": "naco"},
+        {"website_url": "https://limestonecounty-al.gov/", "website_source": "scraped"},
     ]
     assert sms.rank_websites(county_rows, _gov("Allen County", "county", "IN", "Indiana")) == ["http://www.allencounty.us/"]
 
@@ -251,13 +261,49 @@ def test_rank_websites_prefers_named_gov_hosts_and_drops_wrong_rows():
 def test_youtube_channel_must_name_government_and_state():
     abilene = _gov("Abilene")
     assert sms.accept_youtube_channel("City of Abilene, Texas", "", abilene)
+    assert sms.accept_youtube_channel("City of Abilene TV", "The official channel of Abilene, Texas", abilene)
     assert sms.accept_youtube_channel("City of Abilene", "Official channel of Abilene, TX", abilene)
     assert not sms.accept_youtube_channel("City of Abilene", "Kansas", abilene)
+    assert not sms.accept_youtube_channel("City of Abilene", "Videos about Abilene, Texas", abilene)  # not "official"
+    assert not sms.accept_youtube_channel("City of Abilene Animal Care Services", "Abilene, Texas", abilene)
+    assert not sms.accept_youtube_channel("City of Abilene Wastewater", "official, Texas", abilene)
     assert not sms.accept_youtube_channel("Abilene ISD", "Abilene, Texas", abilene)
     assert not sms.accept_youtube_channel("Abilene Fans Texas", "", abilene)
     county = _gov("Fayette County", "county", "GA", "Georgia")
     assert sms.accept_youtube_channel("Fayette County Georgia BOC", "", county)
     assert not sms.accept_youtube_channel("Fayette County Kentucky", "", county)
+    assert not sms.accept_youtube_channel("Humane Society of Fayette County, GA", "", county)
+    assert not sms.accept_youtube_channel("Fayette County Health Department - Georgia", "", county)
+    assert not sms.accept_youtube_channel("Defense of Democracy Fayette County GA", "", county)
+
+
+def test_state_code_needs_address_form_not_any_capital_word():
+    abilene = _gov("Abilene")
+    assert sms.names_state("Abilene, TX 79601", abilene)
+    assert sms.names_state("City of Abilene TX", abilene)
+    indiana = _gov("Clark County", "county", "IN", "Indiana")
+    assert not sms.names_state("SIGN IN to view Clark County meetings", indiana)
+
+
+def test_school_names_are_not_the_city():
+    columbus = _gov("Columbus", st="OH", state="Ohio")
+    assert not sms.names_government("Columbus City Schools - BoardDocs", columbus)
+    assert sms.names_government("City of Columbus, Ohio", columbus)
+
+
+def test_youtube_search_uses_the_cache_without_spending_quota(tmp_path):
+    import asyncio
+
+    gov = _gov("Abilene")
+    cache = sms.YouTubeSearchCache(tmp_path / "yt.json")
+    cache.items[sms.youtube_query(gov)] = [
+        {"id": {"channelId": "UCfan"}, "snippet": {"title": "Abilene Fans", "description": ""}},
+        {"id": {"channelId": "UCcity"}, "snippet": {"title": "City of Abilene, Texas", "description": ""}},
+    ]
+    hits, spent, answered = asyncio.run(sms.youtube_channel_search(gov, "unused-key", client=None, cache=cache))
+    assert answered and not spent
+    assert [h.url for h in hits] == ["https://www.youtube.com/channel/UCcity"]
+    assert hits[0].found_on == "youtube_search"
 
 
 def test_vendor_page_must_name_government_and_state():
