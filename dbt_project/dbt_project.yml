@@ -119,6 +119,17 @@ seeds:
         city: text
         outcome_raw: text
         occurred_at: timestamp
+    youtube_channel_attribution_override:
+      # Hand-reviewed YouTube channel/video -> jurisdiction corrections (#514, #515).
+      # Pin text types: video_id/jurisdiction_id are empty on channel-wide rows and
+      # issue is a number dbt would otherwise infer to integer.
+      +column_types:
+        channel_id: text
+        video_id: text
+        jurisdiction_id: text
+        state_code: text
+        issue: text
+        evidence: text
 
 # Snapshots configuration
 snapshots:
