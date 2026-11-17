@@ -9,18 +9,26 @@ instantiate it. Reads the public marts published over gold
 
 No fabricated data: a question with zero mapped instances returns an explicit
 empty rollup (all-zero counts), never placeholder numbers.
+
+Scope (#499): the detail, instances and meetings endpoints take ?state=&city=.
+Every figure the question header shows (outcome counts, jurisdictions, money,
+meetings) is then counted over the same scoped rows the lists show, and the
+response says which scope it is (`scope.level` national | state | city). Outcome
+families come from question_instance.outcome_family, the rollup's own rule (dbt
+macro question_outcome_family), never re-derived here.
 """
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
-from api.routes.search_postgres import get_db_pool
+from api.routes.data_centers import jump_url
+from api.routes.search_postgres import get_db_pool, normalize_state_input
 
 router = APIRouter(prefix="/policy-question", tags=["policy-question"])
 tracer = trace.get_tracer(__name__)
@@ -52,6 +60,18 @@ class RollupOut(BaseModel):
     other_count: int = 0
 
 
+# The rollup's outcome families (dbt macro question_outcome_family).
+OutcomeFamily = Literal["approved", "denied", "moratorium", "deferred", "other"]
+
+
+class ScopeOut(BaseModel):
+    """The place scope every figure in a response is counted over."""
+
+    level: Literal["national", "state", "city"] = "national"
+    state_code: Optional[str] = None
+    city: Optional[str] = None
+
+
 class InstanceOut(BaseModel):
     instance_id: str
     source_type: str
@@ -61,6 +81,7 @@ class InstanceOut(BaseModel):
     city: Optional[str] = None
     outcome_raw: Optional[str] = None
     outcome_normalized: Optional[str] = None
+    outcome_family: Optional[str] = None
     occurred_at: Optional[Any] = None
     assign_score: Optional[float] = None
 
@@ -77,6 +98,24 @@ class QuestionMeetingOut(BaseModel):
     jurisdiction_name: Optional[str] = None
     video_url: Optional[str] = None
     n_alias_hits: int = 0
+    # Verbatim transcript passage with the alias words <mark>ed (ts_headline in
+    # dbt question_transcript_link, #499), and the moment to jump to.
+    evidence: Optional[str] = None
+    start_seconds: Optional[float] = None
+    # The recording at start_seconds (YouTube t=); null when the transcript is untimed.
+    jump_url: Optional[str] = None
+
+
+class MoneySourceOut(BaseModel):
+    """A linked decision whose net_dollar_impact adds up to money_total."""
+
+    event_decision_id: str
+    title: Optional[str] = None
+    jurisdiction_name: Optional[str] = None
+    state_code: Optional[str] = None
+    outcome_family: Optional[str] = None
+    occurred_at: Optional[Any] = None
+    net_dollar_impact: float = 0
 
 
 class PolicyQuestionSummary(BaseModel):
@@ -123,7 +162,17 @@ class TrendPoint(BaseModel):
 
 class PolicyQuestionDetail(PolicyQuestionSummary):
     first_seen: Optional[Any] = None
+    # The question's level (local | state | both); `scope` is the place scope here.
+    question_scope: Optional[str] = None
+    # The place scope every count, money figure and meeting count below is for (#499).
+    scope: ScopeOut = ScopeOut()  # type: ignore[assignment]
     rollup: RollupOut
+    # The decisions whose net_dollar_impact sums to money_total, largest first.
+    money_sources: List[MoneySourceOut] = []
+    # The Browse Topics topic named like one of the question's aliases (e.g. the
+    # "Data centers" topic), when one exists; null otherwise.
+    topic_id: Optional[int] = None
+    topic_name: Optional[str] = None
     arguments: List[ArgumentOut] = []
     sample_instances: List[InstanceOut] = []
     relations: List[RelationOut] = []
@@ -191,29 +240,115 @@ _ARGS_SQL = """
     order by stance nulls last, member_count desc
 """
 
-_INSTANCES_SQL = """
+# Place scope (#499), shared by every scoped query: $2 = state_code or null,
+# $3 = '%city%' or null (the same ILIKE on city / jurisdiction_name that
+# /api/decisions uses, so the header counts and the decision list agree).
+_SCOPE_WHERE = """
+      and ($2::text is null or {a}.state_code = $2)
+      and ($3::text is null or {a}.city ilike $3 or {a}.jurisdiction_name ilike $3)
+"""
+
+# Header counts for the scope: the rollup's aggregates (int_policy_question_rollup)
+# over the scoped question_instance rows, by the same outcome_family column.
+_SCOPED_COUNTS_SQL = f"""
+    select
+        count(*)::int                                                      as instances_total,
+        count(*) filter (where qi.source_type = 'local_decision')::int     as decisions_total,
+        count(*) filter (where qi.source_type = 'state_bill')::int         as bills_total,
+        count(distinct coalesce(qi.state_code, '') || '|' || coalesce(qi.jurisdiction_name, ''))::int
+                                                                           as jurisdictions_total,
+        count(distinct coalesce(qi.state_code, '') || '|' || coalesce(qi.jurisdiction_name, ''))
+            filter (where qi.outcome_family = 'approved')::int             as jurisdictions_approved,
+        count(distinct qi.state_code)::int                                 as states_total,
+        count(*) filter (where qi.outcome_family = 'approved')::int        as approved_count,
+        count(*) filter (where qi.outcome_family = 'denied')::int          as denied_count,
+        count(*) filter (where qi.outcome_family = 'deferred')::int        as deferred_count,
+        count(*) filter (where qi.outcome_family = 'moratorium')::int      as moratorium_count,
+        count(*) filter (where qi.outcome_family = 'other')::int           as other_count
+    from public.question_instance qi
+    where qi.question_id = $1
+    {_SCOPE_WHERE.format(a="qi")}
+"""
+
+# The linked decisions that carry a dollar figure: money_total is their sum, as in
+# the rollup (item_interestingness.net_dollar_impact, already max-not-summed per
+# decision). Listed so the page can show where the amount comes from.
+_MONEY_SOURCES_SQL = f"""
+    select
+        qi.source_id                       as event_decision_id,
+        ii.title,
+        qi.jurisdiction_name,
+        qi.state_code,
+        qi.outcome_family,
+        qi.occurred_at,
+        ii.net_dollar_impact::float8       as net_dollar_impact
+    from public.question_instance qi
+    join public.item_interestingness ii
+      on ii.event_decision_id = qi.source_id
+    where qi.question_id = $1
+      and qi.source_type = 'local_decision'
+      and coalesce(ii.net_dollar_impact, 0) <> 0
+    {_SCOPE_WHERE.format(a="qi")}
+    order by abs(ii.net_dollar_impact) desc, qi.source_id
+"""
+
+# $4 = outcome family or null.
+_INSTANCES_SQL = f"""
     select instance_id, source_type, source_id, state_code, jurisdiction_name,
-           city, outcome_raw, outcome_normalized, occurred_at, assign_score
-    from public.question_instance
-    where question_id = $1
+           city, outcome_raw, outcome_normalized, outcome_family, occurred_at, assign_score
+    from public.question_instance qi
+    where qi.question_id = $1
+    {_SCOPE_WHERE.format(a="qi")}
+      and ($4::text is null or qi.outcome_family = $4)
     order by assign_score desc nulls last
-    limit $2 offset $3
+    limit $5 offset $6
 """
 
 # Real meetings whose transcript discusses the question's alias keyword(s)
-# (dbt question_transcript_link). Ordered by relevance (n_alias_hits) then recency.
-_MEETINGS_SQL = """
+# (dbt question_transcript_link), newest first. A date after today is a source
+# error (#472), so it sorts with the unknown dates at the end; relevance
+# (n_alias_hits) breaks ties.
+_MEETINGS_SQL = f"""
     select video_id, event_title, event_date, state_code, state, city,
-           jurisdiction_name, video_url, n_alias_hits
-    from public.question_transcript_link
-    where question_id = $1
-    order by n_alias_hits desc, event_date desc nulls last
-    limit $2 offset $3
+           jurisdiction_name, video_url, n_alias_hits,
+           evidence, start_seconds::float8 as start_seconds
+    from public.question_transcript_link l
+    where l.question_id = $1
+    {_SCOPE_WHERE.format(a="l")}
+    order by (l.event_date is null or l.event_date > current_date),
+             l.event_date desc,
+             l.n_alias_hits desc,
+             l.video_id
+    limit $4 offset $5
 """
 
-_DISCUSSION_COUNT_SQL = """
-    select count(*) from public.question_transcript_link where question_id = $1
+_DISCUSSION_COUNT_SQL = f"""
+    select count(*) from public.question_transcript_link l
+    where l.question_id = $1
+    {_SCOPE_WHERE.format(a="l")}
 """
+
+
+# Browse Topics topic whose name equals one of the question's curated aliases.
+_TOPIC_SQL = """
+    select t.topic_id, t.name as topic_name
+    from public.policy_question q
+    cross join lateral unnest(coalesce(q.aliases, '{}'::text[])) as a(alias)
+    join public.civicsearch_topic t on lower(t.name) = lower(trim(a.alias))
+    where q.question_id = $1
+    order by t.topic_id
+    limit 1
+"""
+
+
+def _scope(state: Optional[str], city: Optional[str]) -> tuple[ScopeOut, Optional[str], Optional[str]]:
+    """Normalize ?state=&city= into the response scope and the SQL params ($2, $3)."""
+    state_code = normalize_state_input(state) if state and state.strip() else None
+    city_name = city.strip() if city and city.strip() else None
+    level = "city" if city_name else "state" if state_code else "national"
+    city_param = f"%{city_name}%" if city_name else None
+    return ScopeOut(level=level, state_code=state_code, city=city_name), state_code, city_param
+
 
 # Quarterly history (oldest → newest) for the registry drill-down trend chart.
 _TREND_SQL = """
@@ -252,23 +387,43 @@ async def list_policy_questions(
 async def get_policy_question(
     question_id: str,
     sample: int = Query(12, ge=0, le=100),
+    state: Optional[str] = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: Optional[str] = Query(None, description="City; case-insensitive match on city / jurisdiction name."),
 ) -> PolicyQuestionDetail:
+    """One question, with every count and the money figure computed for the scope.
+
+    Example: ``GET /api/policy-question/f7001f99695ccecb1e8df4ab0ee721fd?state=WA``
+    """
+    scope, state_code, city_param = _scope(state, city)
     with tracer.start_as_current_span("policy-question-detail") as span:
         span.set_attribute("policy_question.id", question_id)
+        span.set_attribute("policy_question.scope", scope.level)
+        span.set_attribute("policy_question.state_code", state_code or "")
+        span.set_attribute("policy_question.city", scope.city or "")
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(_DETAIL_SQL, question_id)
                 if row is None:
                     raise HTTPException(status_code=404, detail=f"No policy question '{question_id}'")
+                counts = await conn.fetchrow(_SCOPED_COUNTS_SQL, question_id, state_code, city_param)
+                money_rows = await conn.fetch(_MONEY_SOURCES_SQL, question_id, state_code, city_param)
                 args = await conn.fetch(_ARGS_SQL, question_id)
-                insts = await conn.fetch(_INSTANCES_SQL, question_id, sample, 0)
+                insts = await conn.fetch(
+                    _INSTANCES_SQL, question_id, state_code, city_param, None, sample, 0
+                )
                 trend = await conn.fetch(_TREND_SQL, question_id)
-                discussion_count = await conn.fetchval(_DISCUSSION_COUNT_SQL, question_id)
+                discussion_count = await conn.fetchval(
+                    _DISCUSSION_COUNT_SQL, question_id, state_code, city_param
+                )
                 try:
                     rels = await conn.fetch(_RELATIONS_SQL, question_id)
                 except Exception:  # noqa: BLE001 — relations are best-effort (Phase 3 mart optional)
                     rels = []
+                try:
+                    topic = await conn.fetchrow(_TOPIC_SQL, question_id)
+                except Exception:  # noqa: BLE001 — the topic link is optional
+                    topic = None
         except HTTPException:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -277,27 +432,36 @@ async def get_policy_question(
             raise HTTPException(status_code=500, detail="policy-question lookup failed") from exc
 
         d = dict(row)
-        rollup = RollupOut(**{k: d.get(k, 0) for k in RollupOut.model_fields})
+        c = dict(counts) if counts is not None else {}
+        rollup = RollupOut(**{k: int(c.get(k) or 0) for k in RollupOut.model_fields})
+        money_sources = [MoneySourceOut(**dict(m)) for m in money_rows]
+        money_total = float(sum(m.net_dollar_impact for m in money_sources))
+        span.set_attribute("policy_question.instances_total", rollup.instances_total)
         return PolicyQuestionDetail(
             question_id=d["question_id"],
             canonical_text=d.get("canonical_text"),
             topic_code=d.get("topic_code"),
             primary_theme=d.get("primary_theme"),
             cofog_code=d.get("cofog_code"),
-            scope=d.get("scope"),
+            question_scope=d.get("scope"),
             status=d.get("status"),
             first_seen=d.get("first_seen"),
-            instances_total=d.get("instances_total", 0),
-            jurisdictions_total=d.get("jurisdictions_total", 0),
-            jurisdictions_approved=d.get("jurisdictions_approved", 0),
-            moratorium_count=int(d.get("moratorium_count") or 0),
+            scope=scope,
+            instances_total=rollup.instances_total,
+            jurisdictions_total=rollup.jurisdictions_total,
+            jurisdictions_approved=rollup.jurisdictions_approved,
+            moratorium_count=rollup.moratorium_count,
             is_featured=d.get("is_featured", False),
             display_order=d.get("display_order"),
-            money_total=float(d.get("money_total") or 0),
+            money_total=money_total,
+            # Shares are of ALL decisions nationwide (policy_question mart); the UI labels them so.
             money_share=float(d.get("money_share") or 0),
             talk_share=float(d.get("talk_share") or 0),
             discussion_meeting_count=int(discussion_count or 0),
             rollup=rollup,
+            money_sources=money_sources,
+            topic_id=(dict(topic).get("topic_id") if topic else None),
+            topic_name=(dict(topic).get("topic_name") if topic else None),
             arguments=[ArgumentOut(**dict(a)) for a in args],
             sample_instances=[InstanceOut(**dict(i)) for i in insts],
             relations=[RelationOut(**dict(r)) for r in rels],
@@ -308,32 +472,60 @@ async def get_policy_question(
 @router.get("/{question_id}/instances", response_model=List[InstanceOut])
 async def get_question_instances(
     question_id: str,
+    state: Optional[str] = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: Optional[str] = Query(None, description="City; case-insensitive match on city / jurisdiction name."),
+    outcome: Optional[OutcomeFamily] = Query(
+        None, description="Outcome family: approved | denied | moratorium | deferred | other."
+    ),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> List[InstanceOut]:
+    """The decisions/bills that instantiate the question, in the scope and outcome family.
+
+    Example: ``GET /api/policy-question/{id}/instances?state=AL&outcome=moratorium``
+    """
+    scope, state_code, city_param = _scope(state, city)
     with tracer.start_as_current_span("policy-question-instances") as span:
         span.set_attribute("policy_question.id", question_id)
+        span.set_attribute("policy_question.scope", scope.level)
+        span.set_attribute("policy_question.outcome", outcome or "")
         pool = await get_db_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch(_INSTANCES_SQL, question_id, limit, offset)
+            rows = await conn.fetch(
+                _INSTANCES_SQL, question_id, state_code, city_param, outcome, limit, offset
+            )
         return [InstanceOut(**dict(r)) for r in rows]
 
 
 @router.get("/{question_id}/meetings", response_model=List[QuestionMeetingOut])
 async def get_question_meetings(
     question_id: str,
+    state: Optional[str] = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: Optional[str] = Query(None, description="City; case-insensitive match on city / jurisdiction name."),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> List[QuestionMeetingOut]:
-    """Real meetings whose transcript discusses the question's alias keyword(s).
+    """Real meetings whose transcript discusses the question's alias keyword(s), newest first.
 
-    The "discussed in N meetings" fallback for questions with no structured
-    decision-instances. Keyword-matched (dbt question_transcript_link) — a
-    high-recall signal, NOT an AI-extracted decision; the UI labels it as such.
+    The "discussed in N meetings" list. Keyword-matched (dbt question_transcript_link):
+    a high-recall signal, NOT an AI-extracted decision; the UI labels it as such. Each
+    item carries the matched passage (`evidence`, <mark>ed) and the moment to jump to.
+    The scoped total is the detail endpoint's `discussion_meeting_count`.
     """
+    scope, state_code, city_param = _scope(state, city)
     with tracer.start_as_current_span("policy-question-meetings") as span:
         span.set_attribute("policy_question.id", question_id)
+        span.set_attribute("policy_question.scope", scope.level)
+        span.set_attribute("policy_question.state_code", state_code or "")
         pool = await get_db_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch(_MEETINGS_SQL, question_id, limit, offset)
-        return [QuestionMeetingOut(**dict(r)) for r in rows]
+            rows = await conn.fetch(
+                _MEETINGS_SQL, question_id, state_code, city_param, limit, offset
+            )
+        out: List[QuestionMeetingOut] = []
+        for r in rows:
+            d = dict(r)
+            d["jump_url"] = jump_url(d.get("video_url") or "", d.get("start_seconds"))
+            out.append(QuestionMeetingOut(**d))
+        span.set_attribute("policy_question.meeting_count", len(out))
+        return out
