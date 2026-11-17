@@ -38,109 +38,47 @@ INJECTION SAFETY: every alias goes through phraseto_tsquery('english', <alias>),
 which fully sanitizes free text into lexemes; no raw alias becomes a tsquery
 operator.
 
+MATCH EVIDENCE (#499): every row carries `evidence`, a verbatim passage of the
+transcript with the question's alias words <mark>ed by ts_headline (CLAUDE.md
+"Show the match evidence on filtered tiles"), and `start_seconds`, the moment
+to jump to. It is computed here, in the local warehouse, because production
+Neon's event_documents carries no transcript text (#496): the passage travels on
+this table instead.
+  * Timed (the transcript has caption segments): cues are cut into ~3-minute
+    windows (floor(start / 180)); the first window whose text matches the
+    question's alias query is the passage, and start_seconds is the first cue
+    in it (alone or joined with the next cue of the window, so a phrase split
+    across two cues still counts) that matches, else the window's start.
+  * Untimed (no segments): ts_headline over the whole transcript text;
+    start_seconds is null and the UI links to the meeting without a time.
+A link whose evidence has no <mark> is dropped: no bare tile, no spurious match.
+
 GRAIN: one row per (question_id, video_id) — DISTINCT.
 PK   : question_transcript_link_id = md5(question_id|video_id).
 FK   : question_id -> policy_question (enforced).
 
-SOURCE : curated_policy_questions (canonical_text/primary_theme/aliases),
-         event_documents (transcript, content_tsv, place + video metadata).
+SOURCE : int_question_transcript_link__match (the alias matches: curated_policy_questions
+         x event_documents.content_tsv, junk-channel gated by event_youtube_with_jurisdiction),
+         int_question_transcript_link__evidence (the passage + jump time).
 TARGET : public.question_transcript_link (served via publish_public_serving).
 */
 
-with
-
--- Curated featured questions exploded to one row per (question_id, alias). The
--- question_id mirrors policy_question's curated branch:
--- md5(primary_theme || '|' || canonical_text). Aliases are pipe-delimited in the
--- seed; blanks are dropped so a question with no aliases contributes nothing.
-question_alias as (
-    select
-        md5(primary_theme || '|' || canonical_text) as question_id,
-        trim(a)                                     as alias
-    from {{ ref('curated_policy_questions') }},
-         unnest(string_to_array(aliases, '|')) as a
-    where trim(coalesce(a, '')) <> ''
-),
-
--- Sanitize each alias into a phrase tsquery; drop any that lexes to nothing.
-valid_alias as (
-    select
-        question_id,
-        alias,
-        nullif(phraseto_tsquery('english', alias)::text, '') as pq
-    from question_alias
-),
-
-valid as (
-    select question_id, alias, pq
-    from valid_alias
-    where pq is not null
-),
-
--- Canonical transcript universe: one row per video_id (longest transcript wins),
--- carrying the place + video metadata used for the drill-through cards.
-doc as (
-    select distinct on (d.video_id)
-        d.video_id,
-        d.content_tsv,
-        d.event_title,
-        d.event_date,
-        d.state_code,
-        d.state,
-        d.city,
-        d.jurisdiction_name,
-        d.video_url
-    from {{ ref('event_documents') }} d
-    where d.document_type = 'transcript'
-      and d.video_id is not null
-      and d.content_tsv is not null
-    order by d.video_id, d.content_length desc nulls last
-),
-
--- One row per (video, question, alias) that hit.
-hit as (
-    select
-        d.video_id,
-        v.question_id,
-        v.alias,
-        d.event_title,
-        d.event_date,
-        d.state_code,
-        d.state,
-        d.city,
-        d.jurisdiction_name,
-        d.video_url
-    from doc d
-    join valid v
-        on d.content_tsv @@ v.pq::tsquery
-),
-
-scored as (
-    select
-        question_id,
-        video_id,
-        max(event_title)            as event_title,
-        max(event_date)             as event_date,
-        max(state_code)             as state_code,
-        max(state)                  as state,
-        max(city)                   as city,
-        max(jurisdiction_name)      as jurisdiction_name,
-        max(video_url)              as video_url,
-        count(distinct alias)       as n_alias_hits
-    from hit
-    group by question_id, video_id
-)
-
 select
-    md5(question_id || '|' || video_id) as question_transcript_link_id,
-    question_id::text                   as question_id,
-    video_id::text                      as video_id,
-    event_title::text                   as event_title,
-    event_date::date                    as event_date,
-    state_code::text                    as state_code,
-    state::text                         as state,
-    city::text                          as city,
-    jurisdiction_name::text             as jurisdiction_name,
-    video_url::text                     as video_url,
-    n_alias_hits::integer               as n_alias_hits
-from scored
+    md5(m.question_id || '|' || m.video_id) as question_transcript_link_id,
+    m.question_id::text                     as question_id,
+    m.video_id::text                        as video_id,
+    m.event_title::text                     as event_title,
+    m.event_date::date                      as event_date,
+    m.state_code::text                      as state_code,
+    m.state::text                           as state,
+    m.city::text                            as city,
+    m.jurisdiction_name::text               as jurisdiction_name,
+    m.video_url::text                       as video_url,
+    m.n_alias_hits::integer                 as n_alias_hits,
+    e.evidence::text                        as evidence,
+    e.start_seconds::numeric(12, 3)         as start_seconds
+from {{ ref('int_question_transcript_link__match') }} m
+join {{ ref('int_question_transcript_link__evidence') }} e
+  on e.question_id = m.question_id
+ and e.video_id = m.video_id
+where e.evidence like '%<mark>%'

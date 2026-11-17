@@ -28,7 +28,7 @@ LensCard helpers.
 """
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
@@ -119,6 +119,7 @@ def _build_filters(
     city: Optional[str],
     q: Optional[str],
     meeting_id: Optional[int] = None,
+    outcome: Optional[str] = None,
 ) -> tuple[str, str, List[Any], str]:
     """
     Build the shared FROM/JOIN clause + WHERE predicate + ordered params + the
@@ -158,14 +159,22 @@ def _build_filters(
         idx += 1
 
     if question_id:
+        # outcome (#499): the question's outcome family (question_instance.
+        # outcome_family, the rollup's rule) — only meaningful with a question.
+        outcome_sql = ""
+        if outcome:
+            outcome_sql = f" AND qi.outcome_family = ${idx + 1}"
         clauses.append(
             f"EXISTS (SELECT 1 FROM question_instance qi "
             f"WHERE qi.source_id = ii.event_decision_id "
             f"AND qi.source_type = 'local_decision' "
-            f"AND qi.question_id = ${idx})"
+            f"AND qi.question_id = ${idx}{outcome_sql})"
         )
         params.append(question_id)
         idx += 1
+        if outcome:
+            params.append(outcome)
+            idx += 1
 
     if meeting_id is not None:
         # Drill into a single meeting's decisions (meeting card -> decisions).
@@ -213,6 +222,10 @@ async def list_decisions(
     question_id: Optional[str] = Query(
         None, description="Policy-question id — keep only decisions that "
                           "instantiate it (public.question_instance).",
+    ),
+    outcome: Optional[Literal["approved", "denied", "moratorium", "deferred", "other"]] = Query(
+        None, description="With question_id: keep only decisions in this outcome family "
+                          "(question_instance.outcome_family). Ignored without question_id.",
     ),
     meeting_id: Optional[int] = Query(
         None, description="Meeting id — keep only decisions from this meeting "
@@ -267,6 +280,7 @@ async def list_decisions(
             "decisions.topic_id", ",".join(str(t) for t in topic_id) if topic_id else ""
         )
         span.set_attribute("decisions.question_id", question_id or "")
+        span.set_attribute("decisions.outcome", outcome or "")
         span.set_attribute("decisions.meeting_id", meeting_id or 0)
         span.set_attribute("decisions.limit", limit)
         span.set_attribute("decisions.offset", offset)
@@ -310,7 +324,7 @@ async def list_decisions(
             )
 
         from_sql, where_sql, params, snippet_sql = _build_filters(
-            topic_tsquery, question_id, state_code, city, q, meeting_id
+            topic_tsquery, question_id, state_code, city, q, meeting_id, outcome
         )
 
         try:

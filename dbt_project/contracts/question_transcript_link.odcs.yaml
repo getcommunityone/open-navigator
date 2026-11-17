@@ -110,3 +110,20 @@ schema:
     physicalType: integer
     description: Count of DISTINCT alias phrases that matched this transcript — a relevance signal for ordering / honest match labeling.
     required: true
+  - id: evidence
+    name: evidence
+    logicalType: string
+    physicalType: text
+    description: 'Verbatim transcript passage with the question''s alias words marked by ts_headline (<mark>…</mark>), #499. From the first ~3-minute caption window that matches when the transcript is timed, else from the whole text. Never null: a link with no marked passage is dropped.'
+    required: true
+    quality:
+    - type: library
+      metric: nullValues
+      mustBe: 0
+      dimension: completeness
+      severity: error
+  - id: start_seconds
+    name: start_seconds
+    logicalType: number
+    physicalType: numeric(12, 3)
+    description: Seconds into the video where the matched words are said (first matching cue of the passage window). Null for an untimed transcript; the UI then links to the meeting without a time.

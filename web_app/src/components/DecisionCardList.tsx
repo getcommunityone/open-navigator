@@ -37,6 +37,8 @@ interface DecisionCardListProps {
    *  keyword path (cause -> decision -> meeting, transcript fallback). */
   causeId?: string
   questionId?: string
+  /** With questionId: keep only decisions in this outcome family (#499). */
+  outcome?: string
   /** Meeting id — drill into a single meeting's decisions. */
   meetingId?: number
   /** 2-letter state code or full state name. */
@@ -55,12 +57,16 @@ interface DecisionCardListProps {
    *  changed in the same panel as Sort / State / City. The parent owns its state
    *  (and remounts this list on change via `key`). */
   scopeFilter?: ReactNode
+  /** Replaces the plain "No decisions here yet." when the list is empty (and no
+   *  search text is active) — e.g. a one-click broaden to nationwide. */
+  emptyState?: ReactNode
 }
 
 export default function DecisionCardList({
   topicIds,
   causeId,
   questionId,
+  outcome,
   meetingId,
   state,
   city,
@@ -68,6 +74,7 @@ export default function DecisionCardList({
   initialQuery,
   showAdvancedFilters = false,
   scopeFilter,
+  emptyState,
 }: DecisionCardListProps) {
   const navigate = useNavigate()
 
@@ -118,7 +125,7 @@ export default function DecisionCardList({
   // Reset to the first page when the scope or sort changes.
   useEffect(() => {
     setPage(0)
-  }, [topicKey, causeId, questionId, meetingId, sort])
+  }, [topicKey, causeId, questionId, outcome, meetingId, sort])
 
   const q = debouncedQuery || undefined
   // The flyout inputs (seeded from props) are authoritative for state/city.
@@ -135,6 +142,7 @@ export default function DecisionCardList({
       topicKey || null,
       causeId ?? null,
       questionId ?? null,
+      outcome ?? null,
       meetingId ?? null,
       effectiveState ?? null,
       effectiveCity ?? null,
@@ -147,6 +155,7 @@ export default function DecisionCardList({
         topicIds: topicIds && topicIds.length ? topicIds : undefined,
         causeId,
         questionId,
+        outcome,
         meetingId,
         state: effectiveState,
         city: effectiveCity,
@@ -346,7 +355,7 @@ export default function DecisionCardList({
         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
           {debouncedQuery
             ? `No decisions match “${debouncedQuery}”.`
-            : 'No decisions here yet.'}
+            : emptyState ?? 'No decisions here yet.'}
         </div>
       ) : (
         <>
