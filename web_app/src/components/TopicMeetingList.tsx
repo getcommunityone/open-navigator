@@ -2,6 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { fetchTopicMeetings, type TopicMeeting, type TopicMeetingList as TopicMeetingListData } from '../api/topics'
 import { StoryCard, TRANSCRIPT_LENS, type RenderCard } from './StoryLenses'
 import { highlightSnippet } from '../lib/highlight'
+import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 
 /**
  * TopicMeetingList — meetings whose transcript matched a curated topic's
@@ -43,6 +44,10 @@ function toCard(m: TopicMeeting): RenderCard {
     url: m.video_url || undefined,
     stateCode: m.state_code || undefined,
     videoId: m.video_id || undefined,
+    date: m.date || undefined,
+    // Icon for the "no video preview" cover, from the meeting's own title and
+    // matched passage (the <mark> tags are stripped first).
+    kind: inferThumbnailKind(`${m.title ?? ''} ${(m.excerpt ?? '').replace(/<\/?mark>/g, '')}`),
     excerpt: m.excerpt ? highlightSnippet(m.excerpt) : undefined,
   }
 }
