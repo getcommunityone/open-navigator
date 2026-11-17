@@ -5,8 +5,10 @@ import { meetingMomentPath } from '../lib/timestamp'
 import {
   fetchAreaConcerns,
   fetchDataCenterAgendaItems,
+  fetchDataCenterMeetingMentions,
   fetchDataCenterSites,
   type DataCenterAgendaItem,
+  type DataCenterMeetingMention,
   fetchJobClaims,
   type DataCenterSite,
   type JobClaim,
@@ -120,6 +122,8 @@ export default function DataCenters() {
         </section>
 
         <AgendaSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
+
+        <MeetingMentionsSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
 
         <SitesSection rawState={rawState} cityName={cityName} />
 
@@ -289,6 +293,120 @@ function AgendaCard({ item }: { item: DataCenterAgendaItem }) {
             Read the agenda
           </a>
         )}
+      </div>
+    </li>
+  )
+}
+
+/**
+ * "Said in meetings" (#445): passages of meeting transcripts where a data center was
+ * discussed, newest meeting first, grouped by meeting. Each passage quotes the transcript
+ * with the matched words highlighted (server ts_headline -> highlightSnippet, React-escaped)
+ * and links to that moment in the recording when the transcript is timed. Same ?state=&city=
+ * scope as the rest of the page.
+ */
+function MeetingMentionsSection({ rawState, cityName, scopeLabel }: { rawState?: string; cityName?: string; scopeLabel: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['data-centers', 'meeting-mentions', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchDataCenterMeetingMentions({ state: rawState, city: cityName }),
+  })
+  const items = data?.items ?? []
+  // Group the passages under their meeting, keeping the API's newest-first order.
+  const meetings: { videoId: string; passages: DataCenterMeetingMention[] }[] = []
+  for (const item of items) {
+    const last = meetings[meetings.length - 1]
+    if (last && last.videoId === item.video_id) last.passages.push(item)
+    else meetings.push({ videoId: item.video_id, passages: [item] })
+  }
+  const counts = data?.counts
+  return (
+    <section aria-labelledby="mentions-heading" className="mt-6">
+      <h2 id="mentions-heading" className="mb-1 text-xl font-semibold text-gray-900">
+        Said in meetings
+      </h2>
+      <p className="mb-3 text-sm text-gray-600">
+        Where data centers came up in recorded meetings in {scopeLabel}, quoted from the meeting transcript.
+        {counts && counts.passages > 0 && (
+          <>
+            {' '}
+            {counts.passages.toLocaleString()} passage{counts.passages === 1 ? '' : 's'} in{' '}
+            {counts.meetings.toLocaleString()} meeting{counts.meetings === 1 ? '' : 's'}
+            {items.length < counts.passages ? `; the newest ${items.length} are shown` : ''}.
+          </>
+        )}
+      </p>
+      {isLoading ? (
+        <div role="status" className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+          Loading meeting transcripts for {scopeLabel}…
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Couldn&apos;t load meeting transcripts.{' '}
+          <button type="button" onClick={() => refetch()} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      ) : meetings.length === 0 ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          No meeting transcripts mentioning a data center for {scopeLabel} yet.
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {meetings.map((m) => (
+            <MeetingMentionCard key={m.videoId} passages={m.passages} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function formatMoment(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(s / 3600)
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, '0')
+  const ss = String(s % 60).padStart(2, '0')
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
+}
+
+function MeetingMentionCard({ passages }: { passages: DataCenterMeetingMention[] }) {
+  const first = passages[0]
+  const when = formatIsoDate(first.meeting_date)
+  const where = [first.jurisdiction_name, first.state_code].filter(Boolean).join(', ')
+  const site = passages.find((p) => p.site_name)?.site_name
+  return (
+    <li className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold text-gray-900">
+          {first.meeting_title || 'Meeting'}
+          {where && <span className="font-normal text-gray-600"> · {where}</span>}
+        </p>
+        <p className="text-sm text-gray-500">{when ?? 'Date not listed'}</p>
+      </div>
+      <ul className="mt-2 space-y-2">
+        {passages.map((p) => (
+          <li key={p.data_center_meeting_mention_id}>
+            <blockquote className="line-clamp-4 border-l-4 border-primary-300 pl-3 text-sm text-gray-800">
+              {highlightSnippet(p.evidence)}
+            </blockquote>
+            {p.jump_url && p.start_seconds != null && (
+              <a
+                href={p.jump_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-4 text-xs font-medium text-primary-700 hover:underline"
+              >
+                Watch at {formatMoment(p.start_seconds)}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        {site && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700">Site: {site}</span>}
+        <a href={first.video_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-700 hover:underline">
+          Watch the meeting
+        </a>
       </div>
     </li>
   )

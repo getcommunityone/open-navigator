@@ -660,3 +660,157 @@ async def list_area_concerns(
             items=[AreaConcern(**dict(r)) for r in area_rows],
             national=[AreaConcern(**dict(r)) for r in national_rows],
         )
+
+
+# --- Data centers discussed in meeting transcripts (#445) ------------------------
+#
+# Backed by the dbt mart ``data_center_meeting_mention``: one row per (meeting video,
+# ~3-minute passage) whose own words say "data center", with a verbatim highlighted
+# excerpt (``evidence``) and, when the transcript is timed, the second to jump to.
+# Sibling of the agenda items above: transcripts reach places whose agendas we don't have.
+
+MentionStrength = Literal["site_specific", "data_center"]
+
+
+class DataCenterMeetingMention(BaseModel):
+    data_center_meeting_mention_id: str
+    video_id: str
+    video_url: str
+    jump_url: str | None = Field(
+        None, description="video_url at start_seconds (YouTube t=); null when the transcript has no timing."
+    )
+    meeting_title: str | None = None
+    meeting_date: date | None = None
+    jurisdiction_id: str | None = None
+    jurisdiction_name: str | None = None
+    state_code: str | None = None
+    state: str | None = None
+    passage_index: int
+    start_seconds: float | None = Field(None, description="Seconds into the recording; null when untimed.")
+    evidence: str = Field(..., description="Verbatim transcript excerpt; matched words wrapped in <mark>.")
+    match_terms: list[str] = Field(default_factory=list)
+    match_strength: MentionStrength
+    data_center_site_id: str | None = None
+    site_name: str | None = Field(None, description="The tracked site discussed or nearby, if any.")
+    site_match_basis: Literal["named_in_passage", "nearby_site"] | None = None
+
+
+class DataCenterMeetingMentionCounts(BaseModel):
+    """Real counts for the whole scope (before ``limit``): 0 means none."""
+
+    passages: int = 0
+    meetings: int = 0
+    site_specific: int = 0
+
+
+class DataCenterMeetingMentionsResponse(BaseModel):
+    scope: JobClaimScope
+    counts: DataCenterMeetingMentionCounts = Field(default_factory=DataCenterMeetingMentionCounts)
+    items: list[DataCenterMeetingMention]
+
+
+def build_mention_queries(
+    scope: JobClaimScope, site_id: str | None, strength: str | None, limit: int
+) -> tuple[str, list[Any], str, list[Any]]:
+    """(items SQL, params, counts SQL, params). Newest meeting first, then by moment in the meeting."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"m.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"m.jurisdiction_name ILIKE ${len(params)}")
+    if site_id:
+        params.append(site_id)
+        where.append(f"m.data_center_site_id = ${len(params)}")
+    if strength:
+        params.append(strength)
+        where.append(f"m.match_strength = ${len(params)}")
+    where_sql = " AND ".join(where) or "TRUE"
+    counts_params = list(params)
+    params.append(limit)
+    items_sql = (
+        "SELECT m.data_center_meeting_mention_id, m.video_id, m.video_url, m.meeting_title, "
+        "m.meeting_date, m.jurisdiction_id, m.jurisdiction_name, m.state_code, m.state, "
+        "m.passage_index, m.start_seconds::float8 AS start_seconds, m.evidence, "
+        "coalesce(m.match_terms, ARRAY[]::text[]) AS match_terms, m.match_strength, "
+        "m.data_center_site_id, s.site_name, m.site_match_basis "
+        "FROM data_center_meeting_mention m "
+        "LEFT JOIN data_center_site s ON s.data_center_site_id = m.data_center_site_id "
+        f"WHERE {where_sql} "
+        "ORDER BY m.meeting_date DESC NULLS LAST, m.video_id, m.passage_index "
+        f"LIMIT ${len(params)}"
+    )
+    counts_sql = (
+        "SELECT count(*)::int AS passages, count(DISTINCT m.video_id)::int AS meetings, "
+        "count(*) FILTER (WHERE m.match_strength = 'site_specific')::int AS site_specific "
+        f"FROM data_center_meeting_mention m WHERE {where_sql}"
+    )
+    return items_sql, params, counts_sql, counts_params
+
+
+def jump_url(video_url: str, start_seconds: float | None) -> str | None:
+    """The recording at the passage's moment (YouTube ``t=`` in whole seconds)."""
+    if start_seconds is None or "youtu" not in video_url:
+        return None
+    sep = "&" if "?" in video_url else "?"
+    return f"{video_url}{sep}t={int(start_seconds)}s"
+
+
+@router.get("/meeting-mentions", response_model=DataCenterMeetingMentionsResponse)
+async def list_data_center_meeting_mentions(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the jurisdiction name."),
+    site_id: str | None = Query(None, description="Only passages linked to this data_center_site_id."),
+    strength: MentionStrength | None = Query(
+        None, description="site_specific (names a tracked site/owner) or data_center."
+    ),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+) -> DataCenterMeetingMentionsResponse:
+    """
+    Meeting passages where a data center was discussed, newest meeting first, each with a
+    quoted, highlighted excerpt of the transcript and the moment to jump to.
+
+    Example:
+        GET /api/data-centers/meeting-mentions?state=NC&city=Charlotte
+    """
+    scope = build_scope(state, city, None)
+    applied = JobClaimScope(
+        level="city" if scope.city else ("state" if scope.state_code else "national"),
+        state_code=scope.state_code,
+        state=scope.state,
+        city=scope.city,
+    )
+    site_clean = _clean(site_id)
+    items_sql, params, counts_sql, counts_params = build_mention_queries(applied, site_clean, strength, limit)
+    with tracer.start_as_current_span("data-centers.meeting-mentions") as span:
+        span.set_attribute("meeting_mentions.scope_level", applied.level)
+        span.set_attribute("meeting_mentions.state_code", applied.state_code or "")
+        span.set_attribute("meeting_mentions.city", applied.city or "")
+        span.set_attribute("meeting_mentions.site_id", site_clean or "")
+        span.set_attribute("meeting_mentions.limit", limit)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                with tracer.start_as_current_span("data-centers.meeting-mentions.query"):
+                    rows = await conn.fetch(items_sql, *params)
+                    count_rows = await conn.fetch(counts_sql, *counts_params)
+        except asyncpg.exceptions.UndefinedTableError as e:
+            span.set_attribute("meeting_mentions.relation_missing", True)
+            logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)
+            return DataCenterMeetingMentionsResponse(scope=applied, items=[])
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers meeting-mentions error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load meeting mentions")
+        counts = (
+            DataCenterMeetingMentionCounts(**dict(count_rows[0])) if count_rows else DataCenterMeetingMentionCounts()
+        )
+        items = []
+        for r in rows:
+            row = dict(r)
+            row["jump_url"] = jump_url(row["video_url"], row.get("start_seconds"))
+            items.append(DataCenterMeetingMention(**row))
+        span.set_attribute("meeting_mentions.count", len(items))
+        return DataCenterMeetingMentionsResponse(scope=applied, counts=counts, items=items)

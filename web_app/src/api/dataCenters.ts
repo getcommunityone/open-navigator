@@ -19,6 +19,8 @@ export type DataCenterSiteStatus = NonNullable<DataCenterSite['status']>
 export type DataCenterSitesResponse = Schemas['DataCenterSitesResponse']
 export type DataCenterAgendaItem = Schemas['DataCenterAgendaItem']
 export type DataCenterAgendaItemsResponse = Schemas['DataCenterAgendaItemsResponse']
+export type DataCenterMeetingMention = Schemas['DataCenterMeetingMention']
+export type DataCenterMeetingMentionsResponse = Schemas['DataCenterMeetingMentionsResponse']
 export type AreaConcern = Schemas['AreaConcern']
 export type AreaConcernsResponse = Schemas['AreaConcernsResponse']
 
@@ -84,4 +86,24 @@ export async function fetchAreaConcerns(params: { state?: string; city?: string 
   if (params.city) q.city = params.city
   const res = await api.get<AreaConcernsResponse>('/data-centers/concerns', { params: q })
   return res.data
+}
+
+/** Meeting passages where a data center was discussed (#445), quoted from the transcript. */
+export async function fetchDataCenterMeetingMentions(params: {
+  state?: string
+  city?: string
+}): Promise<DataCenterMeetingMentionsResponse> {
+  const q: Record<string, string> = {}
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.meeting-mentions.load',
+    async (span) => {
+      const res = await api.get<DataCenterMeetingMentionsResponse>('/data-centers/meeting-mentions', { params: q })
+      span.setAttribute('data_centers.meeting_mentions.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
 }

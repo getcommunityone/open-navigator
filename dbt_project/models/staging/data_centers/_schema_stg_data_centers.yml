@@ -110,3 +110,24 @@ models:
         description: "Buildings operational by that date."
       - name: it_power_mw
         description: "IT power capacity (MW)."
+
+  - name: stg_event_youtube_transcript__data_center
+    description: >
+      Transcripts whose text says "data center" / "data centre" / "datacenter" / "hyperscale"
+      (#445), one row per video_id, with segments and caption_text_timed kept for timing.
+      Prefiltered with the GIN-indexed tsvector expression of bronze_event_youtube_transcript,
+      then confirmed with a word-boundary regex.
+    columns:
+      - name: video_id
+        description: "YouTube video id (unique)."
+        tests:
+          - unique
+          - not_null
+      - name: raw_text
+        description: "Full transcript text."
+      - name: segments
+        description: "Timed caption cues (JSON array of {text, start, duration}); null when absent or empty."
+      - name: caption_text_timed
+        description: "Transcript text with {HH:MM:SS} markers; null when absent."
+      - name: transcript_source
+        description: "Where the transcript came from (lower-cased)."
