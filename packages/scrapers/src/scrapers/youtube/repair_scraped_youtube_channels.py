@@ -37,7 +37,8 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-_REPO = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+_REPO = repo_root(__file__)
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 load_dotenv(_REPO / ".env")

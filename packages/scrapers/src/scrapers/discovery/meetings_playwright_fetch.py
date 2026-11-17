@@ -136,7 +136,9 @@ def _playwright_failure_reason(exc: BaseException) -> str:
     if "missing dependencies" in blob or "install-deps" in blob:
         if not _missing_os_deps_logged:
             _missing_os_deps_logged = True
-            repo = Path(__file__).resolve().parents[2]
+            from core_lib.paths import repo_root
+
+            repo = repo_root(__file__)
             vpy = repo / ".venv" / "bin" / "python"
             if vpy.is_file():
                 install_line = f"  cd {repo} && sudo {vpy} -m playwright install-deps"

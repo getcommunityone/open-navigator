@@ -37,17 +37,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import time
 from datetime import date, datetime
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from dotenv import load_dotenv
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+_REPO_ROOT = repo_root(__file__)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -87,6 +89,10 @@ def _effective_state_code(
     return db_st
 
 DEFAULT_LOCAL_CACHE = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
+# Where the cache was wrongly written before #458; read (never written) during the transition.
+LEGACY_PACKAGE_CACHE = (
+    _REPO_ROOT / "packages" / "scrapers" / "data" / "cache" / "gemini_transcript_policy"
+)
 TUSCALOOSA_JURISDICTION_ID = "tuscaloosa_0177256"
 
 # Bronze rows with transcript_source like tombstone:% are skipped on future backfills.
@@ -176,7 +182,12 @@ def row_needs_backfill(
     state_code: Optional[str] = None,
     policy_folder: Optional[Path] = None,
 ) -> bool:
-    """True if this row still needs YouTube fetch and/or local cache sync."""
+    """True if this row still needs YouTube fetch and/or local cache sync.
+
+    A row bronze has no transcript for always needs work; the run loop first
+    tries :func:`sync_existing_local_transcript` (load the cached file into bronze,
+    no YouTube) and only fetches when no cached transcript exists (#458).
+    """
     if not row.get("bronze_has_transcript"):
         return True
     if include_bronze_existing:
@@ -467,15 +478,15 @@ def local_transcript_path(
     )
 
 
-def local_transcript_exists(
+def find_local_transcript_file(
     cache_dir: Path,
     jurisdiction_id: str,
     row: Dict[str, Any],
     *,
     state_code: Optional[str] = None,
     policy_folder: Optional[Path] = None,
-) -> bool:
-    """Return True if a caption JSON for this row is already on disk."""
+) -> Optional[Path]:
+    """Path of the caption JSON for this row under ``cache_dir``, or ``None``."""
     st = _effective_state_code(jurisdiction_id, row, explicit=state_code)
     folder = policy_folder
     if folder is None:
@@ -487,16 +498,14 @@ def local_transcript_exists(
     event_date = row_resolved.get("event_date")
     cid = str(row_resolved.get("channel_id") or "").strip() or None
 
-    if (
-        resolve_transcript_cache_path(
-            folder,
-            video_id=vid,
-            title=title,
-            event_date=event_date,
-        )
-        is not None
-    ):
-        return True
+    found = resolve_transcript_cache_path(
+        folder,
+        video_id=vid,
+        title=title,
+        event_date=event_date,
+    )
+    if found is not None:
+        return found
 
     if cid:
         if _is_policy_channel_dir(folder):
@@ -510,13 +519,14 @@ def local_transcript_exists(
                 / transcript_cache_filename(title, event_date)
             )
             if named.is_file():
-                return True
+                return named
 
     if policy_folder is not None:
-        return False
+        return None
 
-    if local_transcript_path(cache_dir, jurisdiction_id, row_resolved, state_code=st).is_file():
-        return True
+    canonical = local_transcript_path(cache_dir, jurisdiction_id, row_resolved, state_code=st)
+    if canonical.is_file():
+        return canonical
     legacy = legacy_transcript_cache_path(
         cache_dir,
         jurisdiction_id,
@@ -525,8 +535,149 @@ def local_transcript_exists(
         channel_id=cid,
     )
     if legacy.is_file():
-        return True
-    return False
+        return legacy
+    return None
+
+def local_transcript_exists(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    row: Dict[str, Any],
+    *,
+    state_code: Optional[str] = None,
+    policy_folder: Optional[Path] = None,
+) -> bool:
+    """Return True if a caption JSON for this row is already on disk."""
+    return (
+        find_local_transcript_file(
+            cache_dir,
+            jurisdiction_id,
+            row,
+            state_code=state_code,
+            policy_folder=policy_folder,
+        )
+        is not None
+    )
+
+
+def find_existing_transcript_file(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    row: Dict[str, Any],
+    *,
+    state_code: Optional[str] = None,
+    policy_folder: Optional[Path] = None,
+    legacy_cache_dirs: Sequence[Path] = (LEGACY_PACKAGE_CACHE,),
+) -> Optional[Path]:
+    """Find this row's cached transcript in ``cache_dir``, then in the legacy caches.
+
+    Before #458 the cache was written under ``packages/scrapers/data/cache/…``;
+    during the transition that location is checked too so a transcript we already
+    have is never downloaded again.
+    """
+    found = find_local_transcript_file(
+        cache_dir,
+        jurisdiction_id,
+        row,
+        state_code=state_code,
+        policy_folder=policy_folder,
+    )
+    if found is not None:
+        return found
+    for legacy in legacy_cache_dirs:
+        if not legacy.is_dir() or legacy.resolve() == cache_dir.resolve():
+            continue
+        legacy_pf: Optional[Path] = None
+        if policy_folder is not None:
+            try:
+                legacy_pf = legacy / policy_folder.relative_to(cache_dir)
+            except ValueError:
+                legacy_pf = None
+        found = find_local_transcript_file(
+            legacy,
+            jurisdiction_id,
+            row,
+            state_code=state_code,
+            policy_folder=legacy_pf,
+        )
+        if found is not None:
+            return found
+    return None
+
+
+@dataclass
+class LocalTranscriptSync:
+    """Outcome of :func:`sync_existing_local_transcript`."""
+
+    path: Path
+    loaded_to_bronze: bool
+    copied_to: Optional[Path] = None
+
+
+def sync_existing_local_transcript(
+    conn: Any,
+    *,
+    cache_dir: Path,
+    jurisdiction_id: str,
+    row: Dict[str, Any],
+    state_code: Optional[str] = None,
+    policy_folder: Optional[Path] = None,
+    write_bronze: bool = True,
+    copy_into_cache: bool = True,
+    legacy_cache_dirs: Sequence[Path] = (LEGACY_PACKAGE_CACHE,),
+) -> Optional[LocalTranscriptSync]:
+    """Use a transcript already on disk instead of downloading it again (#458).
+
+    For a row bronze has no transcript for: when a cached transcript JSON for the
+    same ``video_id`` exists (in ``cache_dir`` or a legacy cache), upsert it into
+    bronze and, if it came from a legacy cache, copy it into ``cache_dir`` at the
+    same relative path (never overwriting). Returns ``None`` when the caller
+    should fetch from YouTube.
+    """
+    from scrapers.youtube.policy_transcript_cache import read_cached_transcript
+
+    path = find_existing_transcript_file(
+        cache_dir,
+        jurisdiction_id,
+        row,
+        state_code=state_code,
+        policy_folder=policy_folder,
+        legacy_cache_dirs=legacy_cache_dirs,
+    )
+    if path is None:
+        return None
+    try:
+        got = read_cached_transcript(path)
+    except (OSError, ValueError) as exc:
+        logger.warning("Unreadable cached transcript {}: {}", path, exc)
+        return None
+    video_id = str(row["video_id"])
+    if got is None or not got[1]:
+        return None
+    if got[0] != video_id:
+        logger.info(
+            "Cached transcript {} belongs to {}, not {} — fetching", path, got[0], video_id
+        )
+        return None
+
+    loaded = False
+    if write_bronze:
+        upsert_bronze_transcript(conn, video_id, got[1])
+        loaded = True
+
+    copied_to: Optional[Path] = None
+    if copy_into_cache:
+        for legacy in legacy_cache_dirs:
+            try:
+                rel = path.relative_to(legacy)
+            except ValueError:
+                continue
+            dest = cache_dir / rel
+            if not dest.exists():
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, dest)
+                copied_to = dest
+            break
+    return LocalTranscriptSync(path=path, loaded_to_bronze=loaded, copied_to=copied_to)
 
 
 def write_local_transcript(
@@ -682,6 +833,53 @@ def write_transcript_tombstone(
             },
         )
         loader.conn.commit()
+    finally:
+        cur.close()
+
+
+def upsert_bronze_transcript(conn: Any, video_id: str, yt: Mapping[str, Any]) -> None:
+    """Upsert one fetched transcript into ``bronze.bronze_event_youtube_transcript``.
+
+    ``yt`` is the caption payload (``raw_text``, ``segments``, ``language``,
+    ``is_auto_generated``, ``transcript_source``). Keyed on ``video_id`` only, so it
+    runs whether or not the video has an ``event_id`` in ``bronze_event_youtube``.
+    Commits on ``conn`` (a DB-API connection, e.g. psycopg2).
+    """
+    segments = yt.get("segments")
+    seg_json = json.dumps(segments) if segments else None
+    quality = "medium" if yt.get("is_auto_generated") else "high"
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO bronze.bronze_event_youtube_transcript (
+                video_id, raw_text, segments, language,
+                is_auto_generated, transcript_source, has_transcript, transcript_quality
+            ) VALUES (
+                %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
+                %(is_auto_generated)s, %(transcript_source)s, true, %(transcript_quality)s
+            )
+            ON CONFLICT (video_id) DO UPDATE SET
+                raw_text = EXCLUDED.raw_text,
+                segments = EXCLUDED.segments,
+                language = EXCLUDED.language,
+                is_auto_generated = EXCLUDED.is_auto_generated,
+                transcript_source = EXCLUDED.transcript_source,
+                has_transcript = EXCLUDED.has_transcript,
+                transcript_quality = EXCLUDED.transcript_quality,
+                last_updated = CURRENT_TIMESTAMP
+            """,
+            {
+                "video_id": video_id,
+                "raw_text": yt.get("raw_text"),
+                "segments": seg_json,
+                "language": yt.get("language"),
+                "is_auto_generated": yt.get("is_auto_generated"),
+                "transcript_source": yt.get("transcript_source"),
+                "transcript_quality": quality,
+            },
+        )
+        conn.commit()
     finally:
         cur.close()
 
@@ -980,6 +1178,7 @@ def run(args: argparse.Namespace) -> int:
             if args.skip_local_existing:
                 local_pf = ensure_policy_folder()
                 filtered: List[Dict[str, Any]] = []
+                local_only = 0
                 for row in pending:
                     if local_transcript_exists(
                         cache_dir,
@@ -988,12 +1187,21 @@ def run(args: argparse.Namespace) -> int:
                         state_code=state_code,
                         policy_folder=local_pf,
                     ):
-                        continue
+                        if row.get("bronze_has_transcript"):
+                            continue
+                        # On disk but not in bronze: keep it so the loop loads the
+                        # file into bronze (no YouTube fetch) (#458).
+                        local_only += 1
                     filtered.append(row)
                 skipped_local = len(pending) - len(filtered)
                 pending = filtered
                 if skipped_local:
                     logger.info("Skipped {} already in local cache", skipped_local)
+                if local_only:
+                    logger.info(
+                        "{} cached on disk but missing from bronze — will load from disk",
+                        local_only,
+                    )
 
     if pending and not video_filter and not getattr(args, "no_dedupe_duplicates", False):
         from scrapers.youtube.dedupe_meeting_videos import (
@@ -1187,7 +1395,7 @@ def run(args: argparse.Namespace) -> int:
 
     ensure_bronze_youtube_transcript_columns(loader.conn)
 
-    stats = {"ok": 0, "fail": 0, "rate_limit": 0, "empty": 0, "tombstoned": 0}
+    stats = {"ok": 0, "fail": 0, "rate_limit": 0, "empty": 0, "tombstoned": 0, "local_to_bronze": 0}
     use_tombstones = args.write_bronze and not getattr(args, "no_tombstones", False)
     consecutive_rl = 0
     max_rl = args.max_consecutive_rate_limits
@@ -1303,6 +1511,32 @@ def run(args: argparse.Namespace) -> int:
                         ),
                     )
                     logger.success("Synced bronze → local for {} (skip YouTube)", video_id)
+                    continue
+
+            if not row.get("bronze_has_transcript") and not args.include_bronze_existing:
+                # Never download a transcript we already have on disk (#458).
+                synced = sync_existing_local_transcript(
+                    loader.conn,
+                    cache_dir=cache_dir,
+                    jurisdiction_id=jurisdiction_id,
+                    row=row,
+                    state_code=state_code,
+                    policy_folder=ensure_policy_folder(),
+                    write_bronze=args.write_bronze,
+                    copy_into_cache=not args.no_local_cache,
+                )
+                if synced is not None:
+                    stats["ok"] += 1
+                    stats["local_to_bronze"] += 1
+                    _batch_video(video_id, "ok", title=row_title, source="local_cache")
+                    record_transcript_download_success(
+                        loader.conn, video_id, synced.copied_to or synced.path
+                    )
+                    logger.success(
+                        "Loaded cached transcript for {} into bronze from {} (skip YouTube)",
+                        video_id,
+                        synced.path,
+                    )
                     continue
 
             try:
@@ -1453,47 +1687,9 @@ def run(args: argparse.Namespace) -> int:
                 )
 
             if args.write_bronze:
-                import json as _json
-
-                if event_id:
-                    segments = yt.get("segments")
-                    seg_json = _json.dumps(segments) if segments else None
-                    quality = "medium" if yt.get("is_auto_generated") else "high"
-                    cur = loader.conn.cursor()
-                    try:
-                        cur.execute(
-                            """
-                            INSERT INTO bronze.bronze_event_youtube_transcript (
-                                video_id, raw_text, segments, language,
-                                is_auto_generated, transcript_source, has_transcript, transcript_quality
-                            ) VALUES (
-                                %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
-                                %(is_auto_generated)s, %(transcript_source)s, true, %(transcript_quality)s
-                            )
-                            ON CONFLICT (video_id) DO UPDATE SET
-                                raw_text = EXCLUDED.raw_text,
-                                segments = EXCLUDED.segments,
-                                language = EXCLUDED.language,
-                                is_auto_generated = EXCLUDED.is_auto_generated,
-                                transcript_source = EXCLUDED.transcript_source,
-                                has_transcript = EXCLUDED.has_transcript,
-                                transcript_quality = EXCLUDED.transcript_quality,
-                                last_updated = CURRENT_TIMESTAMP
-                            """,
-                            {
-                                "event_id": event_id,
-                                "video_id": video_id,
-                                "raw_text": yt.get("raw_text"),
-                                "segments": seg_json,
-                                "language": yt.get("language"),
-                                "is_auto_generated": yt.get("is_auto_generated"),
-                                "transcript_source": yt.get("transcript_source"),
-                                "transcript_quality": quality,
-                            },
-                        )
-                        loader.conn.commit()
-                    finally:
-                        cur.close()
+                # The upsert is keyed on video_id alone, so it must not wait on an
+                # event_id: most catalogued videos have none yet (#458).
+                upsert_bronze_transcript(loader.conn, video_id, yt)
 
             stats["ok"] += 1
             _batch_video(

@@ -21,7 +21,8 @@ from typing import Any
 import pandas as pd
 from loguru import logger
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+_PROJECT_ROOT = repo_root(__file__)
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 

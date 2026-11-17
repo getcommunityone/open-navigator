@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Union
+from typing import Any, Dict, Mapping, Optional
+
+from core_lib.paths import repo_root
 
 from llm.gemini.transcript_cache_paths import (
     resolve_meeting_event_date,
@@ -29,7 +31,7 @@ def apply_resolved_event_date(row: Dict[str, Any]) -> Dict[str, Any]:
         row["event_date"] = resolved
     return row
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = repo_root(__file__)
 DEFAULT_POLICY_CACHE_DIR = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 
 
@@ -136,3 +138,28 @@ __all__ = [
     "resolve_policy_transcripts_dir",
     "write_policy_transcript_cache",
 ]
+
+
+def read_cached_transcript(path: Path) -> Optional[tuple[str, Dict[str, Any]]]:
+    """Return ``(video_id, yt_payload)`` from a cached transcript JSON, or ``None``.
+
+    The file holds the caption payload under ``youtube`` (``raw_text``,
+    ``segments``, ``language``, ``is_auto_generated``, ``transcript_source``); the
+    top-level ``caption_raw_data`` / ``transcript_source`` stand in when the block
+    lacks them. ``yt_payload`` is empty when the file has no transcript text.
+    Raises ``OSError`` / ``ValueError`` for unreadable or invalid JSON.
+    """
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        return None
+    yt = dict(data.get("youtube") or {})
+    video_id = str(data.get("video_id") or yt.get("video_id") or "").strip()
+    if not video_id:
+        return None
+    if not yt.get("segments") and data.get("caption_raw_data"):
+        yt["segments"] = data["caption_raw_data"]
+    if not yt.get("transcript_source") and data.get("transcript_source"):
+        yt["transcript_source"] = data["transcript_source"]
+    if not str(yt.get("raw_text") or "").strip():
+        return video_id, {}
+    return video_id, yt

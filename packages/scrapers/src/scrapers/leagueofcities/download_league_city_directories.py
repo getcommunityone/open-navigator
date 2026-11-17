@@ -58,7 +58,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urljoin, urlparse, urlencode, urlunparse
 
-_ROOT = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+_ROOT = repo_root(__file__)
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
@@ -66,7 +67,7 @@ import httpx
 from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = _ROOT
 DEFAULT_README = Path(__file__).resolve().parent / "readme.md"
 CACHE_ROOT = REPO_ROOT / "data" / "cache" / "leagueofcities"
 

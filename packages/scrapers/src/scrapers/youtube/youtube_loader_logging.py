@@ -15,7 +15,8 @@ from pathlib import Path
 
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+_REPO_ROOT = repo_root(__file__)
 _DEFAULT_LOG_DIR = _REPO_ROOT / "data" / "bronze" / "youtube_loader_logs"
 
 # Readable one-line format (no noisy module:function:line).

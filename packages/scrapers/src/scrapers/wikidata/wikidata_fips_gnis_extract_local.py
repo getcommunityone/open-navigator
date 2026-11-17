@@ -52,7 +52,8 @@ import requests
 from loguru import logger
 
 # ── paths ──────────────────────────────────────────────────────────────────────
-ROOT = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+ROOT = repo_root(__file__)
 sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv

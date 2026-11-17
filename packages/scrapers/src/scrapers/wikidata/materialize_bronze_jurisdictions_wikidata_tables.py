@@ -18,7 +18,6 @@ the canonical Census bronze tables.
 import argparse
 import os
 import sys
-from pathlib import Path
 from typing import Iterable
 
 import psycopg2
@@ -26,7 +25,8 @@ from loguru import logger
 from dotenv import load_dotenv
 
 
-_ROOT = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+_ROOT = repo_root(__file__)
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 

@@ -33,7 +33,8 @@ import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+REPO_ROOT = repo_root(__file__)
 DEFAULT_CACHE = REPO_ROOT / "data" / "cache" / "dot_public_involvement"
 
 USER_AGENT = (

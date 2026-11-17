@@ -28,7 +28,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
 
-_root = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+_root = repo_root(__file__)
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 

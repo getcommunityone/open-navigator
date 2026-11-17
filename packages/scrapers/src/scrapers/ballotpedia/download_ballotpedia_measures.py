@@ -37,7 +37,8 @@ from typing import Any
 
 from loguru import logger
 
-_ROOT = Path(__file__).resolve().parents[3]
+from core_lib.paths import repo_root
+_ROOT = repo_root(__file__)
 sys.path.insert(0, str(_ROOT))
 
 from scrapers.ballotpedia.ballotpedia_integration import BallotpediaDiscovery
