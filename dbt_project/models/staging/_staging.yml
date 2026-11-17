@@ -1835,6 +1835,17 @@ sources:
             description: "The site name this timeline row belongs to (Epoch's 'Data center' link)."
           - name: record
             description: "The whole CSV row, header -> value."
+      - name: bronze_jurisdiction_meeting_source
+        description: >
+          Where each government around a data center site publishes its meetings (#460), one row
+          per (jurisdiction_id, platform, url). Written by
+          `python -m scrapers.discovery.survey_meeting_sources --apply` (#464); until that has run
+          the table doesn't exist and int_data_center_site__jurisdiction uses the site address only.
+        columns:
+          - name: jurisdiction_id
+            description: "The government (jurisdictions.jurisdiction_id)."
+          - name: data_center_site_id
+            description: "The data center site (data_center_site.data_center_site_id) the government was surveyed for."
       - name: bronze_events_analysis_ai
         config:
           # Freshness (context-engineering.md, principle 5): `dbt source freshness`

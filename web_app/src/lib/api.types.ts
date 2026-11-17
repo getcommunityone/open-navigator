@@ -386,6 +386,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/meeting-mentions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Center Meeting Mentions
+         * @description Meeting passages where a data center was discussed, newest meeting first, each with a
+         *     quoted, highlighted excerpt of the transcript and the moment to jump to.
+         *
+         *     Example:
+         *         GET /api/data-centers/meeting-mentions?state=NC&city=Charlotte
+         */
+        get: operations["list_data_center_meeting_mentions_api_data_centers_meeting_mentions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/sites": {
         parameters: {
             query?: never;
@@ -1303,6 +1327,88 @@ export interface components {
             counts?: components["schemas"]["DataCenterAgendaCounts"];
             /** Items */
             items: components["schemas"]["DataCenterAgendaItem"][];
+            scope: components["schemas"]["JobClaimScope"];
+        };
+        /** DataCenterMeetingMention */
+        DataCenterMeetingMention: {
+            /** Data Center Meeting Mention Id */
+            data_center_meeting_mention_id: string;
+            /** Data Center Site Id */
+            data_center_site_id?: string | null;
+            /**
+             * Evidence
+             * @description Verbatim transcript excerpt; matched words wrapped in <mark>.
+             */
+            evidence: string;
+            /**
+             * Jump Url
+             * @description video_url at start_seconds (YouTube t=); null when the transcript has no timing.
+             */
+            jump_url?: string | null;
+            /** Jurisdiction Id */
+            jurisdiction_id?: string | null;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /**
+             * Match Strength
+             * @enum {string}
+             */
+            match_strength: "site_specific" | "data_center";
+            /** Match Terms */
+            match_terms?: string[];
+            /** Meeting Date */
+            meeting_date?: string | null;
+            /** Meeting Title */
+            meeting_title?: string | null;
+            /** Passage Index */
+            passage_index: number;
+            /** Site Match Basis */
+            site_match_basis?: ("named_in_passage" | "nearby_site") | null;
+            /**
+             * Site Name
+             * @description The tracked site discussed or nearby, if any.
+             */
+            site_name?: string | null;
+            /**
+             * Start Seconds
+             * @description Seconds into the recording; null when untimed.
+             */
+            start_seconds?: number | null;
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Video Id */
+            video_id: string;
+            /** Video Url */
+            video_url: string;
+        };
+        /**
+         * DataCenterMeetingMentionCounts
+         * @description Real counts for the whole scope (before ``limit``): 0 means none.
+         */
+        DataCenterMeetingMentionCounts: {
+            /**
+             * Meetings
+             * @default 0
+             */
+            meetings: number;
+            /**
+             * Passages
+             * @default 0
+             */
+            passages: number;
+            /**
+             * Site Specific
+             * @default 0
+             */
+            site_specific: number;
+        };
+        /** DataCenterMeetingMentionsResponse */
+        DataCenterMeetingMentionsResponse: {
+            counts?: components["schemas"]["DataCenterMeetingMentionCounts"];
+            /** Items */
+            items: components["schemas"]["DataCenterMeetingMention"][];
             scope: components["schemas"]["JobClaimScope"];
         };
         /**
@@ -2708,6 +2814,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobClaimsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_data_center_meeting_mentions_api_data_centers_meeting_mentions_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+                /** @description Only passages linked to this data_center_site_id. */
+                site_id?: string | null;
+                /** @description site_specific (names a tracked site/owner) or data_center. */
+                strength?: ("site_specific" | "data_center") | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataCenterMeetingMentionsResponse"];
                 };
             };
             /** @description Validation Error */

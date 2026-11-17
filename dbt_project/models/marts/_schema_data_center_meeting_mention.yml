@@ -1,0 +1,114 @@
+version: 2
+
+# #445: data centers discussed in meeting transcripts, the sibling of data_center_agenda_item
+# (agendas). Built into gold and published to public (publish_public_serving's served list).
+
+models:
+  - name: data_center_meeting_mention
+    description: >
+      One row per (transcript video, passage) where the meeting's own words say "data center"
+      (or data centre / datacenter / hyperscale). A passage is a ~3-minute window of timed
+      caption cues, or a 2,500-character window of the text when the transcript has no
+      timing. evidence is a verbatim ts_headline excerpt of the passage with the matched words
+      in <mark>; a passage that doesn't produce one isn't kept. data_center_site_id links a
+      tracked Epoch site the passage names, or the site near the video's jurisdiction; null
+      means a data center was discussed where no tracked site is known. Plain text matching,
+      no LLM.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['data_centers', 'serving']
+      post_hook:
+        - "create index if not exists data_center_meeting_mention_state_date_idx on {{ this }} (state_code, meeting_date desc)"
+        - "create index if not exists data_center_meeting_mention_site_idx on {{ this }} (data_center_site_id)"
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+      - type: foreign_key
+        columns: [data_center_site_id]
+        to: ref('data_center_site')
+        to_columns: [data_center_site_id]
+    columns:
+      - name: data_center_meeting_mention_id
+        description: "Primary key: md5(video_id | passage_index)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: video_id
+        description: "YouTube video id of the meeting recording (the transcript's key)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: video_url
+        description: "Link to the recording."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: meeting_title
+        description: "The video's title as the channel lists it."
+        data_type: text
+      - name: meeting_date
+        description: "The meeting date, from event_youtube_with_jurisdiction."
+        data_type: date
+      - name: jurisdiction_id
+        description: "The government whose meeting it is (FK to jurisdictions); null when the video's place isn't in jurisdictions."
+        data_type: text
+      - name: jurisdiction_name
+        description: "Jurisdiction name as resolved for the video, else from jurisdictions."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: passage_index
+        description: "floor(start / 180) for timed transcripts; the 2,500-character window number otherwise."
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: start_seconds
+        description: "Seconds into the recording of the first cue in the passage that says a data center word; null when the transcript has no timing."
+        data_type: numeric(12, 3)
+      - name: evidence
+        description: "Verbatim ts_headline excerpt of the passage; matched words wrapped in <mark>."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "like '%<mark>%'"
+      - name: match_terms
+        description: "The terms found in the passage (data center, data centre, datacenter, hyperscale, and the site term when one is named)."
+        data_type: text[]
+        constraints:
+          - type: not_null
+      - name: match_strength
+        description: "site_specific when the passage names the linked site, its project or (nearby site) its owner; data_center otherwise."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['site_specific', 'data_center']
+      - name: data_center_site_id
+        description: "The tracked site discussed or nearby (FK to data_center_site); null when none is known."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('data_center_site')
+              field: data_center_site_id
+      - name: site_match_basis
+        description: "named_in_passage, nearby_site, or null (no site linked)."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['named_in_passage', 'nearby_site']

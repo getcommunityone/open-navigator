@@ -177,7 +177,8 @@
     'mdm_organization':                    "_s.state_code in {{states}}",
     'bills':                               "_s.state_code in {{states}}",
     'job_claim':                           "_s.state_code in {{states}}",
-    'data_center_agenda_item':             "_s.state_code in {{states}}"
+    'data_center_agenda_item':             "_s.state_code in {{states}}",
+    'data_center_meeting_mention':         "_s.state_code in {{states}}"
 } -%}
 {#- bill_sponsorship is DROPPED from serving entirely (removed from `served`):
     it has no state column and even scoped to the kept-bill set it is ~53 MB,
@@ -208,7 +209,8 @@
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
     'policy_question_relation', 'policy_question_trend', 'question_transcript_link',
     'meeting_browse', 'meeting_topic_link', 'meeting_question_link',
-    'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern'
+    'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
+    'data_center_meeting_mention'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
