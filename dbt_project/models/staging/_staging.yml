@@ -2286,9 +2286,11 @@ sources:
             description: "2-letter state code."
 
   - name: gold_runtime
-    description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
+    description: >-
+      Runtime gold tables (ACS joins for mapping quality marts). Moved public -> gold by
+      the gold/public serving split (#476).
     database: open_navigator
-    schema: public
+    schema: gold
     tables:
       - name: jurisdiction_acs
         description: "ACS population / income tiers keyed by geography_type + geoid"
