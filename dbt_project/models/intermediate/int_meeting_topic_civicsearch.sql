@@ -37,13 +37,23 @@ with topic_query as (
         t.name as topic_name,
         to_tsquery(
             'english',
-            string_agg(distinct nullif(plainto_tsquery('english', kw.elem)::text, ''), ' | ')
+            string_agg(distinct nullif(kw.fragment, ''), ' | ')
         ) as ts_query
     from {{ ref('civicsearch_topic') }} t
-    cross join lateral jsonb_array_elements_text(t.keyword_stats) as kw(elem)
+    cross join lateral (
+        -- CivicSearch: plainto (AND of lexemes). Curated topics (issue #500):
+        -- phraseto (ordered phrase), so "data center" doesn't fire on a
+        -- transcript that merely says "data" and "center" far apart.
+        select case
+                   when t.source = 'curated'
+                       then phraseto_tsquery('english', e.elem)::text
+                   else plainto_tsquery('english', e.elem)::text
+               end as fragment
+        from jsonb_array_elements_text(t.keyword_stats) as e(elem)
+    ) as kw
     group by t.topic_id, t.name
     -- only keep topics that produced a non-empty query
-    having string_agg(distinct nullif(plainto_tsquery('english', kw.elem)::text, ''), ' | ') is not null
+    having string_agg(distinct nullif(kw.fragment, ''), ' | ') is not null
 ),
 
 -- One transcript tsvector per meeting (a meeting maps to its video_id; collapse

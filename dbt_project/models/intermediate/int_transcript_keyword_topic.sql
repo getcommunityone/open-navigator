@@ -48,6 +48,12 @@ therefore:
 Eyeballed ~housing/budget/police/mental-health samples: matches are genuinely
 on-topic at this threshold.
 
+CURATED TOPICS (issue #500, source = 'curated', e.g. "Data centers"): their
+keywords are hand-picked SPECIFIC phrases ("data center", "hyperscale"), so steps
+1 and 4 are relaxed for them: single-word keywords are kept and ONE phrase hit is
+a match. This is the same rule question_transcript_link applies to curated
+question aliases. CivicSearch topics keep the >= 2 rule.
+
 INJECTION SAFETY: every phrase goes through phraseto_tsquery('english', <kw>),
 which fully sanitizes free text into lexemes; no raw keyword becomes a tsquery
 operator.
@@ -83,17 +89,23 @@ topic_phrase as (
     select
         t.topic_id,
         t.name                                              as topic_name,
+        t.source                                            as topic_source,
         kw.elem                                             as keyword,
         nullif(phraseto_tsquery('english', kw.elem)::text, '') as pq
     from {{ ref('civicsearch_topic') }} t
     cross join lateral jsonb_array_elements_text(t.keyword_stats) as kw(elem)
-    where array_length(regexp_split_to_array(trim(kw.elem), '\s+'), 1) >= 2
+    -- CivicSearch: multi-word phrases only. Curated (issue #500): every keyword,
+    -- single words included ("hyperscale") — the vocabulary is hand-picked.
+    where (
+            t.source = 'curated'
+         or array_length(regexp_split_to_array(trim(kw.elem), '\s+'), 1) >= 2
+      )
       and nullif(phraseto_tsquery('english', kw.elem)::text, '')
           not in (select pq_text from stop_phrase where pq_text is not null)
 ),
 
 valid_phrase as (
-    select topic_id, topic_name, keyword, pq
+    select topic_id, topic_name, topic_source, keyword, pq
     from topic_phrase
     where pq is not null
 ),
@@ -131,6 +143,7 @@ phrase_hit as (
         d.video_id,
         vp.topic_id,
         vp.topic_name,
+        vp.topic_source,
         vp.keyword
     from doc d
     join valid_phrase vp
@@ -142,6 +155,7 @@ scored as (
         video_id,
         topic_id,
         max(topic_name)             as topic_name,
+        max(topic_source)           as topic_source,
         count(distinct keyword)     as n_phrase_hits
     from phrase_hit
     group by video_id, topic_id
@@ -157,4 +171,7 @@ select distinct
 from scored s
 join transcript_place tp
     on tp.video_id = s.video_id
-where s.n_phrase_hits >= 2
+-- CivicSearch topics need >= 2 distinct phrases (generic vocabulary); a curated
+-- topic's keywords are specific, so 1 hit is a match (as question_transcript_link
+-- does for curated question aliases).
+where s.n_phrase_hits >= case when s.topic_source = 'curated' then 1 else 2 end

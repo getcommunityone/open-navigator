@@ -198,6 +198,9 @@ CIVIC_SERVING = frozenset(
         "meeting_question_link",
         "question_transcript_link",
         "civicsearch_topic",
+        # curated-topic meeting tiles + their stored evidence passage (#500;
+        # ~1-2 MB — Neon event_documents has no transcript content, #496)
+        "topic_transcript_link",
         "topic_money_and_talk",
         "policy_question_trend",
         # decision detail + arguments
