@@ -12,7 +12,15 @@ from typing import Dict, Iterator, Optional, Set, Tuple
 
 from loguru import logger
 
-from scrapers.wikidata.geography_qid_cache import GeographyQidCache, norm_lit
+from scrapers.wikidata.fips_match import (
+    county_fips_literals,
+    municipality_wd_literal_sets,
+    norm_lit,
+)
+from scrapers.wikidata.geography_qid_cache import GeographyQidCache
+
+_MAP_TABLE_SCHEMA = "bronze"
+_MAP_TABLE_NAME = "bronze_jurisdiction_wikidata_fips_gnis_map"
 
 
 def resolve_fips_gnis_parquet_path(explicit: Path | str | None = None) -> Path:
@@ -163,15 +171,35 @@ def lookup_qid_from_literals(
     return None
 
 
+def _drop_ambiguous(pairs: Iterator[Tuple[str, str]]) -> Dict[str, str]:
+    """literal → qid, leaving out any literal claimed by two different items."""
+    out: Dict[str, str] = {}
+    ambiguous: Set[str] = set()
+    for lit, qid in pairs:
+        if lit in ambiguous:
+            continue
+        prev = out.get(lit)
+        if prev is None:
+            out[lit] = qid
+        elif prev != qid:
+            ambiguous.add(lit)
+            del out[lit]
+    return out
+
+
 def build_parquet_indexes(parquet_path: Path) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """In-memory fips/gnis → qid maps (use for moderate parquet sizes or one state)."""
-    fips_index: Dict[str, str] = {}
-    gnis_index: Dict[str, str] = {}
-    for qid, fips, gnis in iter_parquet_rows(parquet_path):
-        if fips:
-            fips_index[norm_lit(fips)] = qid
-        if gnis:
-            gnis_index[norm_lit(gnis)] = qid
+    """In-memory fips/gnis → qid maps (use for moderate parquet sizes or one state).
+
+    A literal shared by two items (e.g. a bare county code, or a place code that
+    equals another state's county code) is dropped instead of last-write-wins.
+    """
+    # Two streaming passes keep memory flat on the full-US dump.
+    fips_index = _drop_ambiguous(
+        (norm_lit(f), q) for q, f, _g in iter_parquet_rows(parquet_path) if f
+    )
+    gnis_index = _drop_ambiguous(
+        (norm_lit(g), q) for q, _f, g in iter_parquet_rows(parquet_path) if g
+    )
     return fips_index, gnis_index
 
 
@@ -181,8 +209,9 @@ def _postgres_lookup_table_ready(conn) -> bool:
         cur.execute(
             """
             SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = 'bronze.bronze_jurisdiction_wikidata_fips_gnis_map'
-            """
+            WHERE table_schema = %s AND table_name = %s
+            """,
+            (_MAP_TABLE_SCHEMA, _MAP_TABLE_NAME),
         )
         return cur.fetchone() is not None
     finally:
@@ -200,10 +229,16 @@ def apply_parquet_qids_to_bronze_municipalities(conn, state_code: str, parquet_p
                 UPDATE bronze.bronze_jurisdictions_municipalities_wikidata w
                 SET wikidata_id = p.qid
                 FROM bronze.bronze_jurisdictions_municipalities m
-                JOIN bronze.bronze_jurisdiction_wikidata_fips_gnis_map p
-                  ON REPLACE(m.geoid::text, '-', '') = REPLACE(BTRIM(p.fips), '-', '')
+                JOIN (
+                    SELECT REPLACE(BTRIM(fips), '-', '') AS fips, MIN(qid) AS qid
+                    FROM bronze.bronze_jurisdiction_wikidata_fips_gnis_map
+                    WHERE fips IS NOT NULL AND BTRIM(fips) <> ''
+                    GROUP BY 1
+                    HAVING COUNT(DISTINCT qid) = 1
+                ) p
+                  ON REPLACE(m.geoid::text, '-', '') = p.fips
                 WHERE m.usps = %s AND w.usps = m.usps AND w.geoid::text = m.geoid::text
-                  AND p.fips IS NOT NULL AND BTRIM(p.fips) <> ''
+                  AND LENGTH(p.fips) = 7
                   AND (w.wikidata_id IS NULL OR BTRIM(wikidata_id::text) = '')
                 """,
                 (us,),
@@ -214,11 +249,16 @@ def apply_parquet_qids_to_bronze_municipalities(conn, state_code: str, parquet_p
                 UPDATE bronze.bronze_jurisdictions_municipalities_wikidata w
                 SET wikidata_id = p.qid
                 FROM bronze.bronze_jurisdictions_municipalities m
-                JOIN bronze.bronze_jurisdiction_wikidata_fips_gnis_map p
-                  ON REPLACE(BTRIM(m.ansicode::text), '-', '') = REPLACE(BTRIM(p.gnis), '-', '')
+                JOIN (
+                    SELECT REPLACE(BTRIM(gnis), '-', '') AS gnis, MIN(qid) AS qid
+                    FROM bronze.bronze_jurisdiction_wikidata_fips_gnis_map
+                    WHERE gnis IS NOT NULL AND BTRIM(gnis) <> ''
+                    GROUP BY 1
+                    HAVING COUNT(DISTINCT qid) = 1
+                ) p
+                  ON REPLACE(BTRIM(m.ansicode::text), '-', '') = p.gnis
                 WHERE m.usps = %s AND w.usps = m.usps AND w.geoid::text = m.geoid::text
                   AND m.ansicode IS NOT NULL AND BTRIM(m.ansicode::text) <> ''
-                  AND p.gnis IS NOT NULL AND BTRIM(p.gnis) <> ''
                   AND (w.wikidata_id IS NULL OR BTRIM(wikidata_id::text) = '')
                 """,
                 (us,),
@@ -228,8 +268,6 @@ def apply_parquet_qids_to_bronze_municipalities(conn, state_code: str, parquet_p
         finally:
             cur.close()
         return n
-
-    from scrapers.wikidata.load_jurisdictions_wikidata import _municipality_wd_literal_sets
 
     fips_index, gnis_index = build_parquet_indexes(parquet_path)
     cur = conn.cursor()
@@ -244,7 +282,7 @@ def apply_parquet_qids_to_bronze_municipalities(conn, state_code: str, parquet_p
             (us,),
         )
         for geoid, ansicode in cur.fetchall():
-            ff, gg = _municipality_wd_literal_sets(geoid, ansicode)
+            ff, gg = municipality_wd_literal_sets(geoid, ansicode)
             qid = lookup_qid_from_literals(ff, gg, fips_index, gnis_index)
             if not qid:
                 continue
@@ -274,10 +312,17 @@ def apply_parquet_qids_to_bronze_counties(conn, state_code: str, parquet_path: P
                 UPDATE bronze.bronze_jurisdictions_counties_wikidata w
                 SET wikidata_id = p.qid
                 FROM bronze.bronze_jurisdictions_counties m
-                JOIN bronze.bronze_jurisdiction_wikidata_fips_gnis_map p
-                  ON REPLACE(m.geoid::text, '-', '') = REPLACE(BTRIM(p.fips), '-', '')
+                JOIN (
+                    -- Full 5-digit P882 only, and only when exactly one item carries it.
+                    SELECT REPLACE(BTRIM(fips), '-', '') AS fips, MIN(qid) AS qid
+                    FROM bronze.bronze_jurisdiction_wikidata_fips_gnis_map
+                    WHERE fips IS NOT NULL AND BTRIM(fips) <> ''
+                    GROUP BY 1
+                    HAVING COUNT(DISTINCT qid) = 1
+                ) p
+                  ON REPLACE(m.geoid::text, '-', '') = p.fips
                 WHERE m.usps = %s AND w.usps = m.usps AND w.geoid::text = m.geoid::text
-                  AND p.fips IS NOT NULL AND BTRIM(p.fips) <> ''
+                  AND LENGTH(p.fips) = 5
                   AND (w.wikidata_id IS NULL OR BTRIM(wikidata_id::text) = '')
                 """,
                 (us,),
@@ -288,13 +333,10 @@ def apply_parquet_qids_to_bronze_counties(conn, state_code: str, parquet_path: P
             cur.close()
         return n
 
-    from scrapers.wikidata.load_jurisdictions_wikidata import (
-        STATE_MAP,
-        _county_fips_literal_alternatives,
-    )
+    from scrapers.wikidata.state_fips import STATE_FIPS
 
     fips_index, gnis_index = build_parquet_indexes(parquet_path)
-    sf = STATE_MAP.get(us, {}).get("fips")
+    sf = STATE_FIPS.get(us)
     cur = conn.cursor()
     updated = 0
     try:
@@ -307,8 +349,9 @@ def apply_parquet_qids_to_bronze_counties(conn, state_code: str, parquet_path: P
             (us,),
         )
         for (geoid,) in cur.fetchall():
-            lits = _county_fips_literal_alternatives(geoid, sf)
-            qid = lookup_qid_from_literals(lits, lits, fips_index, gnis_index)
+            # Full 5-digit FIPS only; a county FIPS is never looked up as a GNIS id.
+            lits = county_fips_literals(geoid, sf)
+            qid = lookup_qid_from_literals(lits, set(), fips_index, gnis_index)
             if not qid:
                 continue
             cur.execute(
