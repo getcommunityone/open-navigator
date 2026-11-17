@@ -90,7 +90,11 @@ def test_houston_county_rejects_city_of_dothan_channel():
             jurisdiction_state_code="AL",
             jurisdiction_homepage="https://houstoncosoal.gov",
         )
-        == "county_city_channel_mismatch"
+        in (
+        "county_city_channel_mismatch",
+        # #514: the government-mismatch guard now catches "City of Dothan" first.
+        "title_names_other_government",
+    )
     )
 
 

@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: int_youtube__attribution_override
+    description: |
+      Hand-reviewed jurisdiction attribution for YouTube videos on channels that
+      discovery filed under the wrong government (#514 Brooks County GA / citizen-media
+      channel filed under Gordon and Douglas GA; #515 City of Bartow FL filed under
+      Bartow County GA). Expands the youtube_channel_attribution_override seed over
+      every bronze_event_youtube video on a listed channel; a per-video row wins over
+      the channel-wide row. jurisdiction_id NULL = not attributable to a government.
+      Wins over int_event_youtube__jurisdiction_resolved and bronze in
+      event_youtube_with_jurisdiction, and is written back to the hand-maintained
+      and append-only tables by the repair_youtube_channel_attribution run-operation.
+    config:
+      materialized: table
+    columns:
+      - name: video_id
+        description: "YouTube video id. One row per video on an overridden channel."
+        tests:
+          - unique
+          - not_null
+      - name: channel_id
+        description: "YouTube channel id (UC...)."
+        tests:
+          - not_null
+      - name: jurisdiction_id
+        description: "Reviewed int_jurisdictions id; NULL when the video names no government."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('int_jurisdictions')
+                field: jurisdiction_id
+      - name: jurisdiction_name
+        description: "int_jurisdictions.name for jurisdiction_id."
+      - name: jurisdiction_type
+        description: "int_jurisdictions.jurisdiction_type for jurisdiction_id."
+      - name: state_code
+        description: "2-letter state (from the jurisdiction, else the seed)."
+        tests:
+          - not_null
+      - name: state
+        description: "Full state name."
+        tests:
+          - not_null
+      - name: city
+        description: "Municipality name when the jurisdiction is a municipality, else NULL."
+      - name: override_level
+        description: "'video' (per-video seed row) or 'channel' (channel-wide default)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['video', 'channel']
+      - name: issue
+        description: "GitHub issue that recorded the misattribution."
+      - name: evidence
+        description: "Verbatim title / handle / website evidence for the attribution."

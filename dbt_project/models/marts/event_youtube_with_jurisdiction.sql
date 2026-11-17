@@ -23,6 +23,13 @@ stays raw.
 Cardinality: bronze.video_id is unique and the resolved model is one row per
 video_id, so the LEFT JOIN never fans out — row count == bronze row count MINUS
 rows on channels positively classified as junk / non-government (see junk_channels).
+
+Reviewed attribution (#514, #515): int_youtube__attribution_override carries
+hand-reviewed jurisdictions for channels discovery filed under the wrong government
+(seed youtube_channel_attribution_override). When a video has an override row it
+wins over BOTH the resolved model and bronze for all six geo columns — including a
+NULL jurisdiction for videos that name no government — so a re-crawl that writes
+the old attribution back into bronze cannot bring it back into the served feed.
 */
 
 with
@@ -66,6 +73,19 @@ juris as (
     select jurisdiction_id, name as jurisdiction_name, state_code, state
     from {{ ref('int_jurisdictions') }}
     where jurisdiction_id is not null
+),
+
+-- Hand-reviewed attribution (#514, #515): wins over resolved and bronze.
+attribution as (
+    select
+        video_id,
+        jurisdiction_id,
+        jurisdiction_name,
+        jurisdiction_type,
+        state_code,
+        state,
+        city
+    from {{ ref('int_youtube__attribution_override') }}
 )
 
 select
@@ -82,22 +102,28 @@ select
     b.title,
     b.description,
 
-    -- Jurisdiction linkage — resolved value wins, bronze is the fallback.
-    coalesce(nullif(r.jurisdiction_id, ''),   nullif(b.jurisdiction_id, ''))   as jurisdiction_id,
+    -- Jurisdiction linkage — reviewed attribution wins, then the resolved value,
+    -- then bronze. An attribution row with a NULL jurisdiction stays NULL.
+    case when a.video_id is not null then a.jurisdiction_id else
+    coalesce(nullif(r.jurisdiction_id, ''),   nullif(b.jurisdiction_id, ''))   end as jurisdiction_id,
     -- Display-bug repair (#501): when the effective name is NULL, equals the
     -- jurisdiction_id, or is id-shaped (`chilton_01021`, `c-AL-01021`), substitute
     -- the authoritative int_jurisdictions name (joined on the effective
     -- jurisdiction_id). If the id isn't joinable, null the bogus name rather than
     -- surfacing the id. Real names pass through unchanged.
+    case when a.video_id is not null then a.jurisdiction_name else
     {{ heal_jurisdiction_name(
         "coalesce(nullif(r.jurisdiction_name, ''), nullif(b.jurisdiction_name, ''))",
         "coalesce(nullif(r.jurisdiction_id, ''), nullif(b.jurisdiction_id, ''))",
         'j.jurisdiction_name'
-    ) }} as jurisdiction_name,
-    coalesce(nullif(r.jurisdiction_type, ''), nullif(b.jurisdiction_type, '')) as jurisdiction_type,
-    b.city,
-    coalesce(nullif(r.state_code, ''), nullif(b.state_code, ''), j.state_code)  as state_code,
-    coalesce(nullif(r.state, ''),      nullif(b.state, ''),      j.state)       as state,
+    ) }} end as jurisdiction_name,
+    case when a.video_id is not null then a.jurisdiction_type else
+    coalesce(nullif(r.jurisdiction_type, ''), nullif(b.jurisdiction_type, '')) end as jurisdiction_type,
+    (case when a.video_id is not null then a.city else b.city end)::varchar(100) as city,
+    case when a.video_id is not null then a.state_code else
+    coalesce(nullif(r.state_code, ''), nullif(b.state_code, ''), j.state_code)  end as state_code,
+    case when a.video_id is not null then a.state else
+    coalesce(nullif(r.state, ''),      nullif(b.state, ''),      j.state)       end as state,
 
     -- Meeting details
     b.meeting_type,
@@ -149,6 +175,7 @@ select
 
 from bronze b
 left join resolved r on r.video_id = b.video_id
+left join attribution a on a.video_id = b.video_id
 left join junk_channels jc on jc.channel_id = nullif(trim(b.channel_id), '')
 left join juris j
     on j.jurisdiction_id = coalesce(nullif(r.jurisdiction_id, ''), nullif(b.jurisdiction_id, ''))

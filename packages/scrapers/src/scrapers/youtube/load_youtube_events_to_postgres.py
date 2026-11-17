@@ -108,6 +108,7 @@ from scrapers.youtube.youtube_loader_logging import (
     log_progress,
 )
 from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn  # noqa: E402
+from scrapers.discovery.channel_government_mismatch import real_channel_title  # noqa: E402
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
 
 # Pilot priority states. Must equal DEFAULT_PRIORITY_STATES in
@@ -2917,6 +2918,10 @@ class YouTubeEventsLoader:
         for channel in channels:
             channel_id = channel['channel_id']
             channel_title = channel.get('channel_title', 'Unknown Channel')
+            # The channel queries fill channel_title with the jurisdiction's name when
+            # the real title is unknown. Never store that in the channel catalog: it
+            # makes any channel read as the jurisdiction's own (#514, #515).
+            catalog_channel_title = real_channel_title(channel_title, jurisdiction_name)
             channel_url = channel.get('channel_url', f"https://www.youtube.com/channel/{channel_id}")
             channel_type = channel.get('channel_type', 'unknown')
             discovery_method = str(channel.get('discovery_method') or 'jurisdictions_details').strip() or 'jurisdictions_details'
@@ -2932,7 +2937,7 @@ class YouTubeEventsLoader:
             self.upsert_channel(
                 channel_id=channel_id,
                 channel_url=channel_url,
-                channel_title=channel_title,
+                channel_title=catalog_channel_title,
                 channel_type=channel_type,
                 jurisdiction_id=jurisdiction_id,
                 jurisdiction_name=jurisdiction_name,

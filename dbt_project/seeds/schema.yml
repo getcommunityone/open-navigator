@@ -172,6 +172,47 @@ seeds:
       - name: occurred_at
         description: "When the decision was recorded (event_decision.extracted_at)."
 
+  - name: youtube_channel_attribution_override
+    description: >
+      Hand-reviewed corrections for YouTube channels that discovery filed under the
+      wrong government (#514, #515). One row per channel (video_id empty: the
+      channel-wide default) plus optional per-video rows that win over it. An empty
+      jurisdiction_id means the video is not attributable to any government (a
+      citizen-media channel covering several places): it is served with no
+      jurisdiction rather than a guessed one. Evidence is the channel/video title or
+      website that proves the attribution. Applied by int_youtube__attribution_override
+      in event_youtube_with_jurisdiction (so a re-crawl cannot bring the old
+      attribution back into the served feed) and written back to bronze, the channel
+      catalogs, civic_event and the append-only event_* marts by the
+      repair_youtube_channel_attribution run-operation.
+      After editing: dbt seed --select youtube_channel_attribution_override &&
+      dbt run --select int_youtube__attribution_override &&
+      dbt run-operation repair_youtube_channel_attribution (dry run, then --args '{dry_run: false}').
+    columns:
+      - name: channel_id
+        description: "YouTube channel id (UC...)."
+        tests:
+          - not_null
+      - name: video_id
+        description: "YouTube video id; empty for the channel-wide default row."
+      - name: jurisdiction_id
+        description: "int_jurisdictions.jurisdiction_id the video belongs to; empty = no government."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('int_jurisdictions')
+                field: jurisdiction_id
+      - name: state_code
+        description: "2-letter state of the channel/video, used when jurisdiction_id is empty."
+        tests:
+          - not_null
+      - name: issue
+        description: "GitHub issue that recorded the misattribution."
+      - name: evidence
+        description: "Why this attribution is right: the verbatim title(s), handle or website."
+        tests:
+          - not_null
+
   - name: policy_theme_cofog
     description: >
       Maps each canonical policy-decision primary_theme label (the 18-label COFOG
