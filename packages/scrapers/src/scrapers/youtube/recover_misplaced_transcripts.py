@@ -124,27 +124,29 @@ def recover(
         files = files[:limit]
     stats.files = len(files)
 
-    parsed: list[tuple[Path, Optional[str], dict[str, Any]]] = []
-    for path in files:
+    # Keep only (path, video_id, has_text): payloads are re-read at upsert time so
+    # memory stays flat across ~15k multi-MB transcript files.
+    scanned: list[tuple[Path, Optional[str], bool]] = []
+    for n, path in enumerate(files, 1):
         try:
             got = read_cached_transcript(path)
         except (OSError, ValueError) as exc:
             logger.warning("Unreadable transcript {}: {}", path, exc)
-            stats.unreadable += 1
-            parsed.append((path, None, {}))
-            continue
+            got = None
         if got is None:
             stats.unreadable += 1
-            parsed.append((path, None, {}))
-            continue
-        parsed.append((path, got[0], got[1]))
+            scanned.append((path, None, False))
+        else:
+            scanned.append((path, got[0], bool(got[1])))
+        if n % 2000 == 0:
+            logger.info("Scanned {:,}/{:,} files", n, len(files))
 
-    in_bronze = fetch_bronze_transcript_ids(conn, (v for _, v, _ in parsed if v))
+    in_bronze = fetch_bronze_transcript_ids(conn, (v for _, v, _ in scanned if v))
     handled: set[str] = set()
 
-    for path, video_id, yt in parsed:
+    for path, video_id, has_text in scanned:
         if video_id:
-            if not yt:
+            if not has_text:
                 stats.no_transcript += 1
             elif video_id in in_bronze:
                 stats.bronze_present += 1
@@ -155,7 +157,9 @@ def recover(
                 stats.bronze_loaded += 1
                 stats.loaded_video_ids.append(video_id)
                 if apply:
-                    upsert(conn, video_id, yt)
+                    got = read_cached_transcript(path)
+                    if got and got[1]:
+                        upsert(conn, video_id, got[1])
 
         dest = dest_root / path.relative_to(source_root)
         if dest.exists():
