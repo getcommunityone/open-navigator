@@ -58,8 +58,8 @@ resolved as (
     from {{ ref('int_event_youtube__jurisdiction_resolved') }}
 ),
 
--- Authoritative jurisdiction names, used to repair the raw `c-XX-NNNNN` county
--- code that some bronze rows carry in jurisdiction_name (display bug). The row's
+-- Authoritative jurisdiction names, used to repair an id (`c-XX-NNNNN` county
+-- code or `{slug}_{geoid}`) that some bronze rows carry in jurisdiction_name (#501). The row's
 -- effective jurisdiction_id is still valid and joinable, so we resolve the real
 -- name from here when the bronze/resolved name is the bogus code.
 juris as (
@@ -84,15 +84,16 @@ select
 
     -- Jurisdiction linkage — resolved value wins, bronze is the fallback.
     coalesce(nullif(r.jurisdiction_id, ''),   nullif(b.jurisdiction_id, ''))   as jurisdiction_id,
-    -- Display-bug repair: when the effective name is the raw `c-XX-NNNNN` county
-    -- code, substitute the authoritative int_jurisdictions name (joined on the
-    -- effective jurisdiction_id). If the id isn't joinable, null the bogus name
-    -- rather than surfacing the code. Non-bogus names pass through unchanged.
-    case
-        when coalesce(nullif(r.jurisdiction_name, ''), nullif(b.jurisdiction_name, '')) ~ '^c-[A-Z]{2}-[0-9]+$'
-            then j.jurisdiction_name
-        else coalesce(nullif(r.jurisdiction_name, ''), nullif(b.jurisdiction_name, ''))
-    end as jurisdiction_name,
+    -- Display-bug repair (#501): when the effective name is NULL, equals the
+    -- jurisdiction_id, or is id-shaped (`chilton_01021`, `c-AL-01021`), substitute
+    -- the authoritative int_jurisdictions name (joined on the effective
+    -- jurisdiction_id). If the id isn't joinable, null the bogus name rather than
+    -- surfacing the id. Real names pass through unchanged.
+    {{ heal_jurisdiction_name(
+        "coalesce(nullif(r.jurisdiction_name, ''), nullif(b.jurisdiction_name, ''))",
+        "coalesce(nullif(r.jurisdiction_id, ''), nullif(b.jurisdiction_id, ''))",
+        'j.jurisdiction_name'
+    ) }} as jurisdiction_name,
     coalesce(nullif(r.jurisdiction_type, ''), nullif(b.jurisdiction_type, '')) as jurisdiction_type,
     b.city,
     coalesce(nullif(r.state_code, ''), nullif(b.state_code, ''), j.state_code)  as state_code,

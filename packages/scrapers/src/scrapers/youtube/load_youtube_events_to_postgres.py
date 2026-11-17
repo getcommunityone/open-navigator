@@ -169,6 +169,54 @@ def _channel_id_from_url(channel_url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+# A jurisdiction id, never a display name (#501): the canonical slug id
+# ``{place_slug}_{geoid}`` (``chilton_01021``) or the legacy county code
+# ``c-{USPS}-{geoid}`` (``c-AL-01021``). Same patterns as the dbt macro
+# ``jurisdiction_name_is_id_shaped`` (dbt_project/macros/jurisdiction_display_name.sql).
+_JURISDICTION_SLUG_ID_RE = re.compile(r"^[a-z0-9_]+_[0-9]{5,10}$")
+_JURISDICTION_COUNTY_CODE_RE = re.compile(r"^c-[A-Z]{2}-[0-9]+$")
+
+
+def is_id_shaped_jurisdiction_name(name: Optional[str]) -> bool:
+    """True when ``name`` looks like a jurisdiction id rather than a display name."""
+    text = (name or "").strip()
+    return bool(
+        _JURISDICTION_SLUG_ID_RE.match(text) or _JURISDICTION_COUNTY_CODE_RE.match(text)
+    )
+
+
+def display_jurisdiction_name(
+    name: Optional[str], jurisdiction_id: Optional[str]
+) -> Optional[str]:
+    """Return a human display name for ``jurisdiction_name``, or ``None``.
+
+    ``jurisdiction_name`` must never hold an id (#501). Returns ``None`` when the
+    name is blank, equals ``jurisdiction_id``, or is id-shaped, so the caller stores
+    NULL (dbt staging then resolves the name from ``int_jurisdictions``).
+    """
+    text = (name or "").strip()
+    if not text:
+        return None
+    if jurisdiction_id is not None and text == str(jurisdiction_id).strip():
+        return None
+    if is_id_shaped_jurisdiction_name(text):
+        return None
+    return text
+
+
+def _log_jurisdiction_name_misses(rows: Sequence[Dict[str, Any]], source_table: str) -> None:
+    """Warn once per jurisdiction whose id has no ``int_jurisdictions`` name."""
+    for row in rows:
+        if row.get("jurisdiction_name") is None:
+            logger.warning(
+                "No int_jurisdictions name for jurisdiction_id={} ({}); "
+                "jurisdiction_name will be NULL — fix the id in {}",
+                row.get("jurisdiction_id"),
+                row.get("geoid"),
+                source_table,
+            )
+
+
 @contextmanager
 def _transcript_fetch_slot():
     """Serialize caption requests across parallel jurisdiction workers."""
@@ -1040,7 +1088,9 @@ class YouTubeEventsLoader:
                 s.usps AS state_code,
                 COALESCE(j.state, s.usps) AS state,
                 s.jurisdiction_id,
-                COALESCE(j.name, s.jurisdiction_id) AS jurisdiction_name,
+                -- Display name only; NULL when the id has no int_jurisdictions row.
+                -- Never COALESCE to the id: it would be stored as the name (#501).
+                j.name AS jurisdiction_name,
                 COALESCE(j.jurisdiction_type, 'county') AS jurisdiction_type,
                 BTRIM(s.youtube_channel_url) AS youtube_channel_url,
                 BTRIM(s.youtube_channel_id) AS youtube_channel_id,
@@ -1059,11 +1109,13 @@ class YouTubeEventsLoader:
         if jurisdiction_id:
             query += " AND s.jurisdiction_id = %s"
             params.append(jurisdiction_id.strip())
-        query += " ORDER BY s.usps, jurisdiction_name"
+        query += " ORDER BY s.usps, s.jurisdiction_id"
 
         cursor.execute(query, params)
         rows = cursor.fetchall()
         cursor.close()
+
+        _log_jurisdiction_name_misses(rows, "bronze.bronze_jurisdictions_counties_scraped")
 
         jurisdictions: List[Dict] = []
         counties_table = "bronze.bronze_jurisdictions_counties_scraped"
@@ -1144,7 +1196,9 @@ class YouTubeEventsLoader:
                 s.usps AS state_code,
                 COALESCE(j.state, s.usps) AS state,
                 s.jurisdiction_id,
-                COALESCE(j.name, s.jurisdiction_id) AS jurisdiction_name,
+                -- Display name only; NULL when the id has no int_jurisdictions row.
+                -- Never COALESCE to the id: it would be stored as the name (#501).
+                j.name AS jurisdiction_name,
                 COALESCE(j.jurisdiction_type, 'municipality') AS jurisdiction_type,
                 BTRIM(s.youtube_channel_url) AS youtube_channel_url,
                 BTRIM(s.youtube_channel_id) AS youtube_channel_id,
@@ -1163,11 +1217,13 @@ class YouTubeEventsLoader:
         if jurisdiction_id:
             query += " AND s.jurisdiction_id = %s"
             params.append(jurisdiction_id.strip())
-        query += " ORDER BY s.usps, jurisdiction_name"
+        query += " ORDER BY s.usps, s.jurisdiction_id"
 
         cursor.execute(query, params)
         rows = cursor.fetchall()
         cursor.close()
+
+        _log_jurisdiction_name_misses(rows, "bronze.bronze_jurisdictions_municipalities_scraped")
 
         jurisdictions: List[Dict] = []
         municipalities_table = "bronze.bronze_jurisdictions_municipalities_scraped"
@@ -1542,7 +1598,7 @@ class YouTubeEventsLoader:
         self,
         video: Dict,
         jurisdiction_id: str,
-        jurisdiction_name: str,
+        jurisdiction_name: Optional[str],
         jurisdiction_type: str,
         state_code: str,
         state: str,
@@ -1575,7 +1631,7 @@ class YouTubeEventsLoader:
         
         # Extract city from jurisdiction name if it's a city
         city = None
-        if jurisdiction_type == 'city':
+        if jurisdiction_type == 'city' and jurisdiction_name:
             # Remove state suffix like ", AL" from "Birmingham, AL"
             city = jurisdiction_name.split(',')[0].strip()
         
@@ -2222,7 +2278,18 @@ class YouTubeEventsLoader:
             -- loaded_at is when the video was first loaded: set on insert, never on update.
             ON CONFLICT (video_id) DO UPDATE SET
                 jurisdiction_id = EXCLUDED.jurisdiction_id,
-                jurisdiction_name = EXCLUDED.jurisdiction_name,
+                -- NULL incoming name (id had no display name) keeps a real stored
+                -- name but never keeps an id-shaped one (#501).
+                jurisdiction_name = COALESCE(
+                    EXCLUDED.jurisdiction_name,
+                    CASE
+                        WHEN y.jurisdiction_name ~ '^[a-z0-9_]+_[0-9]{5,10}$'
+                          OR y.jurisdiction_name ~ '^c-[A-Z]{2}-[0-9]+$'
+                          OR y.jurisdiction_name = EXCLUDED.jurisdiction_id
+                        THEN NULL
+                        ELSE y.jurisdiction_name
+                    END
+                ),
                 jurisdiction_type = EXCLUDED.jurisdiction_type,
                 state_code = EXCLUDED.state_code,
                 state = EXCLUDED.state,
@@ -2789,12 +2856,23 @@ class YouTubeEventsLoader:
     def process_jurisdiction(self, jurisdiction: Dict) -> int:
         """Process all YouTube channels for a single jurisdiction."""
         jurisdiction_id = jurisdiction['jurisdiction_id']
-        jurisdiction_name = jurisdiction['jurisdiction_name']
+        # Never store an id as the display name (#501). The bronze fallback source
+        # re-reads names from bronze_event_youtube itself, so an id written once
+        # would otherwise be copied forward on every refresh.
+        jurisdiction_name = display_jurisdiction_name(
+            jurisdiction.get('jurisdiction_name'), jurisdiction_id
+        )
+        if jurisdiction_name is None:
+            logger.warning(
+                "No display name for jurisdiction_id={} (got {!r}); storing jurisdiction_name NULL",
+                jurisdiction_id,
+                jurisdiction.get('jurisdiction_name'),
+            )
         state_code = jurisdiction['state_code']
         state = jurisdiction['state']
         jurisdiction_type = jurisdiction['jurisdiction_type']
         
-        logger.info(f"Processing: {jurisdiction_name}, {state_code}")
+        logger.info(f"Processing: {jurisdiction_name or jurisdiction_id}, {state_code}")
         
         # Extract channel IDs from JSONB (trust bronze catalog — skip policy_score gate on refresh)
         channels = self.extract_channel_ids(
