@@ -25,9 +25,12 @@ class _Conn:
         money: list[dict[str, Any]] | None = None,
         topic: dict[str, Any] | None = None,
         discussion: int = 0,
+        trend: list[dict[str, Any]] | None = None,
+        outcome_counts: dict[str, Any] | None = None,
     ):
         self.row, self.rows = row, rows or []
         self.counts, self.money, self.topic, self.discussion = counts, money or [], topic, discussion
+        self.trend, self.outcome_counts = trend or [], outcome_counts
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
 
     def params_for(self, needle: str) -> tuple[Any, ...]:
@@ -35,6 +38,8 @@ class _Conn:
 
     async def fetch(self, sql: str, *params: Any):
         self.calls.append((sql, params))
+        if "date_trunc('quarter'" in sql:
+            return self.trend
         if "item_interestingness" in sql:
             return self.money
         return self.rows
@@ -42,7 +47,7 @@ class _Conn:
     async def fetchrow(self, sql: str, *params: Any):
         self.calls.append((sql, params))
         if "count(*) filter" in sql:
-            return self.counts
+            return self.outcome_counts if params[3] is not None else self.counts
         if "civicsearch_topic" in sql:
             return self.topic
         return self.row
@@ -148,7 +153,7 @@ def test_detail_without_filter_is_national(get) -> None:
     assert body["scope"] == {"level": "national", "state_code": None, "city": None}
     assert body["question_scope"] == "local"
     # National: the scope params are null, so every row counts.
-    assert conn.params_for("count(*) filter") == (QID, None, None)
+    assert conn.params_for("count(*) filter") == (QID, None, None, None)
 
 
 def test_detail_state_scope_recomputes_counts(get) -> None:
@@ -156,7 +161,7 @@ def test_detail_state_scope_recomputes_counts(get) -> None:
     conn = _Conn(row=_detail_row(), counts=_counts(**{k: 0 for k in _COUNT_KEYS}), discussion=3)
     body = get(conn, f"/api/policy-question/{QID}", {"state": "wa"}).json()
     assert body["scope"] == {"level": "state", "state_code": "WA", "city": None}
-    assert conn.params_for("count(*) filter") == (QID, "WA", None)
+    assert conn.params_for("count(*) filter") == (QID, "WA", None, None)
     assert body["instances_total"] == 0 and body["jurisdictions_total"] == 0
     assert body["rollup"]["moratorium_count"] == 0 and body["rollup"]["approved_count"] == 0
     assert body["money_total"] == 0 and body["money_sources"] == []
@@ -168,7 +173,7 @@ def test_detail_full_state_name_and_city_scope(get) -> None:
     conn = _Conn(row=_detail_row(), counts=_counts())
     body = get(conn, f"/api/policy-question/{QID}", {"state": "Georgia", "city": " DeKalb "}).json()
     assert body["scope"] == {"level": "city", "state_code": "GA", "city": "DeKalb"}
-    assert conn.params_for("count(*) filter") == (QID, "GA", "%DeKalb%")
+    assert conn.params_for("count(*) filter") == (QID, "GA", "%DeKalb%", None)
 
 
 def test_detail_counts_come_from_outcome_family_column() -> None:
@@ -239,3 +244,81 @@ def test_list_passes_moratorium_count_through(get) -> None:
                  is_featured=True, display_order=1)]
     body = get(_Conn(rows=rows), "/api/policy-question/", {"featured": "true"}).json()
     assert body[0]["moratorium_count"] == 5
+
+
+# ── #508: readable instance rows, scoped trend, outcome summary ──
+
+
+def _instance_row(**overrides: Any) -> dict[str, Any]:
+    row = dict(
+        instance_id="i1", source_type="local_decision", source_id="d1", state_code="AL",
+        jurisdiction_name="Auburn", city=None, outcome_raw="approved", outcome_normalized="approved",
+        outcome_family="approved", occurred_at="2026-06-05", assign_score=0.9,
+        event_decision_id="d1", headline="Data Center Expansion Approved at 1571 West Samford Avenue",
+        place_label="1571 West Samford Ave, Auburn, AL", company_mentions="[]", nearby_sites="[]",
+    )
+    row.update(overrides)
+    return row
+
+
+def test_instances_carry_headline_place_company_and_nearby_sites(get) -> None:
+    mentions = '[{"operator_name": "Amazon", "matched_text": "Amazon Web Services", ' \
+               '"evidence": "a lease with <mark>Amazon Web Services</mark>"}]'
+    sites = '[{"data_center_site_id": "s1", "site_name": "Meta Montgomery", "owner": "Meta"}]'
+    conn = _Conn(rows=[_instance_row(company_mentions=mentions, nearby_sites=sites)])
+    body = get(conn, f"/api/policy-question/{QID}/instances").json()
+    item = body[0]
+    assert item["event_decision_id"] == "d1"
+    assert item["headline"].startswith("Data Center Expansion Approved")
+    assert item["place_label"] == "1571 West Samford Ave, Auburn, AL"
+    assert item["company_names"] == ["Amazon"]
+    assert item["company_mentions"][0]["matched_text"] == "Amazon Web Services"
+    assert "<mark>Amazon Web Services</mark>" in item["company_evidence"]
+    assert item["nearby_sites"] == [{"data_center_site_id": "s1", "site_name": "Meta Montgomery", "owner": "Meta"}]
+
+
+def test_instances_without_context_are_empty_not_invented(get) -> None:
+    conn = _Conn(rows=[_instance_row(source_type="state_bill", event_decision_id=None, headline=None,
+                                     place_label=None, company_mentions=None, nearby_sites=None)])
+    item = get(conn, f"/api/policy-question/{QID}/instances").json()[0]
+    assert item["place_label"] is None and item["headline"] is None
+    assert item["company_names"] == [] and item["company_evidence"] is None
+    assert item["nearby_sites"] == []
+
+
+def test_instances_context_comes_from_the_dbt_marts() -> None:
+    sql = policy_questions._INSTANCES_SQL
+    for mart in ("public.decision_place_label", "public.decision_company_mention",
+                 "public.decision_nearby_data_center_site", "public.event_decision"):
+        assert mart in sql
+
+
+def test_instances_recent_order(get) -> None:
+    conn = _Conn(rows=[])
+    get(conn, f"/api/policy-question/{QID}/instances", {"order": "recent"})
+    assert "qi.occurred_at desc" in conn.calls[0][0]
+    get(conn, f"/api/policy-question/{QID}/instances")
+    assert "qi.assign_score desc" in conn.calls[1][0]
+
+
+def test_detail_trend_and_dates_follow_the_scope(get) -> None:
+    trend = [dict(quarter_start="2026-04-01", instances=10, money=0.0)]
+    counts = _counts(first_occurred_at="2026-05-28", last_occurred_at="2026-06-10")
+    conn = _Conn(row=_detail_row(), counts=counts, trend=trend)
+    body = get(conn, f"/api/policy-question/{QID}", {"state": "GA"}).json()
+    assert conn.params_for("date_trunc('quarter'") == (QID, "GA", None, None)
+    assert body["trend"] == [{"quarter_start": "2026-04-01", "instances": 10, "money": 0.0}]
+    assert body["rollup"]["first_occurred_at"] == "2026-05-28"
+    assert body["outcome"] is None and body["outcome_rollup"] is None
+
+
+def test_detail_outcome_adds_outcome_rollup_and_keeps_all_family_rollup(get) -> None:
+    outcome_counts = _counts(instances_total=5, decisions_total=5, jurisdictions_total=3, states_total=2,
+                             approved_count=5, denied_count=0, moratorium_count=0)
+    conn = _Conn(row=_detail_row(), counts=_counts(), outcome_counts=outcome_counts)
+    body = get(conn, f"/api/policy-question/{QID}", {"outcome": "approved"}).json()
+    assert body["outcome"] == "approved"
+    assert body["outcome_rollup"]["instances_total"] == 5
+    assert body["rollup"]["instances_total"] == 4  # the header's all-family counts are unchanged
+    params = [p for sql, p in conn.calls if "count(*) filter" in sql]
+    assert (QID, None, None, None) in params and (QID, None, None, "approved") in params

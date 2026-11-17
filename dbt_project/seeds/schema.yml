@@ -301,3 +301,28 @@ seeds:
         description: "Primary key matching int_jurisdictions (e.g. county_01093)"
       - name: website_url
         description: "Full site URL (https://…); normalized like other sources"
+
+  - name: data_center_operators
+    config:
+      column_types:
+        operator_name: text
+        aliases: text
+    description: >
+      Curated data center operators and developers (#508), matched against a data center
+      decision's own headline / decision_statement by decision_company_mention. aliases is a
+      '|'-separated list of the exact, case-sensitive forms that name the company. A brand
+      name that is also an ordinary word (Switch, Stack, Compass, Aligned, Vantage, Meta,
+      Oracle, Tract) is listed only in a company form ("Switch, Inc.", "Stack
+      Infrastructure", "Meta Platforms", "Meta's", "Oracle Cloud"), never as the bare word.
+      A row here also governs an Epoch AI owner/user name of the same spelling, so Epoch's
+      bare "Meta" or "Cursor" (an Epoch user name that is an ordinary word) never matches.
+      Add a company by adding a row; keep only real company names.
+    columns:
+      - name: operator_name
+        description: "Company name as shown on the page (PK)."
+        tests:
+          - unique
+          - not_null
+      - name: aliases
+        description: "'|'-separated exact forms that name it, matched as whole words/phrases."
+        tests: [not_null]

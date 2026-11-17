@@ -270,6 +270,21 @@ outputPorts:
   contractId: open-navigator-public-data_center_meeting_mention
   type: table
   description: One row per (transcript video, passage) where the meeting's own words say "data center" (or data centre / datacenter / hyperscale).
+- name: decision_place_label
+  version: 1.0.0
+  contractId: open-navigator-public-decision_place_label
+  type: table
+  description: 'One row per AI-extracted decision that gets a place label: a street-level address or named road from the decision''s own primary place that agrees with the decision''s own government (state, city/county) — see the model header for the exact rule.'
+- name: decision_company_mention
+  version: 1.0.0
+  contractId: open-navigator-public-decision_company_mention
+  type: table
+  description: One row per (data center decision, company) where the decision's own headline or decision_statement names the company.
+- name: decision_nearby_data_center_site
+  version: 1.0.0
+  contractId: open-navigator-public-decision_nearby_data_center_site
+  type: table
+  description: 'One row per (data center decision, tracked Epoch AI site) where the site is near the decision''s own government (int_data_center_site__jurisdiction, #445).'
 - name: recent_transcribed_meeting
   version: 1.0.0
   contractId: open-navigator-public-recent_transcribed_meeting

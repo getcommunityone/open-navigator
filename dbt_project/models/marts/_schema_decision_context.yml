@@ -1,0 +1,303 @@
+version: 2
+
+# #508: what a decision is about, where and who — the readable question-dashboard rows.
+# Built into gold and published to public (publish_public_serving's served list). All three
+# are small (a few dozen rows for data center decisions; one row per labelled decision).
+#
+# FKs to event_decision are relationships tests, not enforced constraints: event_decision is
+# partitioned with a composite PK (event_decision_id, extracted_at) and cannot be a
+# single-column FK target (the event_* family convention, see _schema_event_decision_place.yml).
+
+models:
+  - name: decision_place_label
+    description: >
+      One row per AI-extracted decision that gets a place label: a street-level address or
+      named road from the decision's own primary place that agrees with the decision's own
+      government (state, city/county) — see the model header for the exact rule. A decision
+      with no row shows no place; vague or contradicting places (speech-to-text county names
+      such as "Dicab County") are never labelled.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: event_decision_id
+        description: >
+          Primary key, and FK -> event_decision.event_decision_id (asserted via a
+          relationships test: event_decision is partitioned with a composite PK).
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: state_code
+        description: "2-letter state code of the decision's government."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction_id
+        description: "The decision's own government (FK to jurisdictions), which the place agrees with."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: place_id
+        description: "The event_place slug the label comes from (within the decision's analysis)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: place_type
+        description: "street_address, intersection or corridor."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['street_address', 'intersection', 'corridor']
+      - name: place_label
+        description: "The address as extracted (normalized_address, else raw_text), e.g. '1571 West Samford Ave, Auburn, AL'."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: agreement_basis
+        description: "Why the place agrees with the government: place_city, city_in_county or address_names_jurisdiction."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['place_city', 'city_in_county', 'address_names_jurisdiction']
+      - name: latitude
+        description: "Geocoded latitude of the place, when known (event_place_geocoded)."
+        data_type: double precision
+      - name: longitude
+        description: "Geocoded longitude of the place, when known."
+        data_type: double precision
+
+  - name: decision_company_mention
+    description: >
+      One row per (data center decision, company) where the decision's own headline or
+      decision_statement names the company. Matched case-sensitively on a whole word or
+      phrase against the curated seed data_center_operators (company forms only for brand
+      names that are ordinary words) and the owner / users / project names on
+      data_center_site. matched_text is the exact text matched and evidence a verbatim
+      excerpt with it in <mark>. No LLM, no guessed company.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: decision_company_mention_id
+        description: "Primary key: md5(event_decision_id | operator_name)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_decision_id
+        description: >
+          FK -> event_decision.event_decision_id (asserted via a relationships test:
+          event_decision is partitioned with a composite PK).
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: operator_name
+        description: "The company: the seed's operator_name, or the Epoch owner/user name (a project name is credited to its site's owner)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: matched_text
+        description: "The exact text in the decision that matched (e.g. 'Amazon Web Services')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: term_source
+        description: "seed (data_center_operators) or epoch (data_center_site owner / users / project)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['seed', 'epoch']
+      - name: text_field
+        description: "headline or decision_statement: the field the match is in."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['headline', 'decision_statement']
+      - name: evidence
+        description: "Verbatim excerpt of that field around the match, with the match wrapped in <mark>."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "like '%<mark>%'"
+
+  - name: decision_nearby_data_center_site
+    description: >
+      One row per (data center decision, tracked Epoch AI site) where the site is near the
+      decision's own government (int_data_center_site__jurisdiction, #445). Nearby only: it
+      does not say the decision is about that site, and the page labels it "Nearby tracked
+      site".
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [data_center_site_id]
+        to: ref('data_center_site')
+        to_columns: [data_center_site_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: decision_nearby_data_center_site_id
+        description: "Primary key: md5(event_decision_id | data_center_site_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_decision_id
+        description: >
+          FK -> event_decision.event_decision_id (asserted via a relationships test:
+          event_decision is partitioned with a composite PK).
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: data_center_site_id
+        description: "The nearby tracked site (FK to data_center_site)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction_id
+        description: "The decision's government, one of the governments around the site (FK to jurisdictions)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code of that government."
+        data_type: text
+      - name: link_basis
+        description: "How the site is linked to the government: meeting_source_survey, address_city or address_county."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['meeting_source_survey', 'address_city', 'address_county']
+
+unit_tests:
+  # #508: a company is named only by a whole-word, case-sensitive company form; ordinary
+  # words (switch, stack, compass, meta, oracle, "LAWS") never match; an Epoch project name
+  # counts only in its site's state and is credited to the site's owner.
+  - name: company_mention_only_for_company_forms
+    model: decision_company_mention
+    given:
+      - input: ref('event_decision')
+        rows:
+          - {event_decision_id: d1, extracted_at: '2026-06-01', state_code: GA, headline: 'Amazon Web Services Data Center Rezoning Approved', decision_statement: 'The board approved the rezoning.'}
+          - {event_decision_id: d2, extracted_at: '2026-06-01', state_code: GA, headline: 'Board Votes to Switch Data Center Rules', decision_statement: 'Members will stack the hearings, use a compass of priorities under new LAWS, and Meta will be discussed as the oracle of growth.'}
+          - {event_decision_id: d3, extracted_at: '2026-06-01', state_code: AL, headline: 'Data Center Lease Approved', decision_statement: 'The council approved a data center lease with Stack Infrastructure and Meta Platforms.'}
+          - {event_decision_id: d4, extracted_at: '2026-06-01', state_code: LA, headline: 'Hyperion Data Center Tax Abatement Approved', decision_statement: 'Approved.'}
+          - {event_decision_id: d5, extracted_at: '2026-06-01', state_code: TX, headline: 'Hyperion Data Center Tax Abatement Approved', decision_statement: 'Approved.'}
+          - {event_decision_id: d6, extracted_at: '2026-06-01', state_code: GA, headline: 'Google Fiber Franchise Renewed', decision_statement: 'The council renewed the Google Fiber franchise.'}
+      - input: ref('data_center_operators')
+        rows:
+          - {operator_name: Amazon, aliases: 'Amazon|Amazon Web Services|AWS'}
+          - {operator_name: Google, aliases: 'Google|Alphabet Inc'}
+          - {operator_name: Meta, aliases: "Meta Platforms|Meta's|Facebook"}
+          - {operator_name: Switch, aliases: 'Switch, Inc.|Switch Inc'}
+          - {operator_name: STACK Infrastructure, aliases: 'STACK Infrastructure|Stack Infrastructure'}
+          - {operator_name: Compass Datacenters, aliases: 'Compass Datacenters'}
+          - {operator_name: Oracle, aliases: 'Oracle Cloud'}
+      - input: ref('data_center_site')
+        rows:
+          - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA}
+    expect:
+      rows:
+        - {event_decision_id: d1, operator_name: Amazon, matched_text: 'Amazon Web Services', text_field: headline, evidence: '<mark>Amazon Web Services</mark> Data Center Rezoning Approved'}
+        - {event_decision_id: d3, operator_name: Meta, matched_text: 'Meta Platforms', text_field: decision_statement, evidence: 'The council approved a data center lease with Stack Infrastructure and <mark>Meta Platforms</mark>.'}
+        - {event_decision_id: d3, operator_name: STACK Infrastructure, matched_text: 'Stack Infrastructure', text_field: decision_statement, evidence: 'The council approved a data center lease with <mark>Stack Infrastructure</mark> and Meta Platforms.'}
+        - {event_decision_id: d4, operator_name: Meta, matched_text: 'Hyperion', text_field: headline, evidence: '<mark>Hyperion</mark> Data Center Tax Abatement Approved'}
+
+  # #508: only a street-level place that agrees with the decision's own government is
+  # labelled; speech-to-text county names and contradicting places are not.
+  - name: place_label_only_when_street_level_and_agreeing
+    model: decision_place_label
+    given:
+      - input: ref('event_decision')
+        rows:
+          - {event_decision_id: auburn, extracted_at: '2026-06-01', analysis_id: 1, primary_place_id: p_samford, place_refs: '["p_samford"]'}
+          - {event_decision_id: dekalb, extracted_at: '2026-06-01', analysis_id: 2, primary_place_id: p_dicab, place_refs: '["p_dicab"]'}
+          - {event_decision_id: spalding_road, extracted_at: '2026-06-01', analysis_id: 3, primary_place_id: p_road, place_refs: '["p_road", "p_atl"]'}
+          - {event_decision_id: spalding_wrong_state, extracted_at: '2026-06-01', analysis_id: 4, primary_place_id: p_corr, place_refs: '["p_corr"]'}
+          - {event_decision_id: spalding_griffin, extracted_at: '2026-06-01', analysis_id: 5, primary_place_id: p_griffin, place_refs: '["p_griffin"]'}
+          - {event_decision_id: spalding_atlanta, extracted_at: '2026-06-01', analysis_id: 6, primary_place_id: p_atl, place_refs: '["p_atl"]'}
+          - {event_decision_id: no_primary_two_refs, extracted_at: '2026-06-01', analysis_id: 7, primary_place_id: null, place_refs: '["p_a", "p_b"]'}
+      - input: ref('event_place_geocoded')
+        rows:
+          - {analysis_id: 1, place_id: p_samford, extracted_at: '2026-06-01', place_type: street_address, raw_text: '1571 West Samford Avenue', normalized_address: '1571 West Samford Ave, Auburn, AL', street_address: '1571 West Samford Ave', place_city: Auburn, place_state_code: AL}
+          - {analysis_id: 2, place_id: p_dicab, extracted_at: '2026-06-01', place_type: jurisdiction_wide, raw_text: 'dicap county', normalized_address: 'Dicab County, GA', place_city: Dicab County, place_state_code: GA}
+          - {analysis_id: 3, place_id: p_road, extracted_at: '2026-06-01', place_type: corridor, raw_text: 'Tomachici Road', normalized_address: 'Tomachici Road, Spalding County, GA', place_state_code: GA}
+          - {analysis_id: 3, place_id: p_atl, extracted_at: '2026-06-01', place_type: street_address, raw_text: '1441 Dunwoody Village Parkway', normalized_address: '1441 Dunwoody Village Parkway, Atlanta, GA', street_address: '1441 Dunwoody Village Parkway', place_city: Atlanta, place_state_code: GA}
+          - {analysis_id: 4, place_id: p_corr, extracted_at: '2026-06-01', place_type: corridor, raw_text: 'Old Atlanta Road', normalized_address: 'Old Atlanta Road, Spalding County, AL', place_state_code: AL}
+          - {analysis_id: 5, place_id: p_griffin, extracted_at: '2026-06-01', place_type: street_address, raw_text: '1221 Tomachici Road', normalized_address: '1221 Tomachici Road, Griffin, Georgia', street_address: '1221 Tomachici Road', place_city: Griffin, place_state_code: GA}
+          - {analysis_id: 6, place_id: p_atl, extracted_at: '2026-06-01', place_type: street_address, raw_text: '1441 Dunwoody Village Parkway', normalized_address: '1441 Dunwoody Village Parkway, Atlanta, GA', street_address: '1441 Dunwoody Village Parkway', place_city: Atlanta, place_state_code: GA}
+          - {analysis_id: 7, place_id: p_a, extracted_at: '2026-06-01', place_type: street_address, raw_text: '10 Main Street', normalized_address: '10 Main Street, Auburn, AL', street_address: '10 Main Street', place_city: Auburn, place_state_code: AL}
+          - {analysis_id: 7, place_id: p_b, extracted_at: '2026-06-01', place_type: street_address, raw_text: '12 Main Street', normalized_address: '12 Main Street, Auburn, AL', street_address: '12 Main Street', place_city: Auburn, place_state_code: AL}
+      - input: ref('int_event_decision__jurisdiction')
+        rows:
+          - {event_decision_id: auburn, jurisdiction_id: auburn_0103076, jurisdiction_geoid: '0103076', jurisdiction_name: Auburn, jurisdiction_type: city, state_code: AL}
+          - {event_decision_id: dekalb, jurisdiction_id: dekalb_13089, jurisdiction_geoid: '13089', jurisdiction_name: DeKalb County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: spalding_road, jurisdiction_id: spalding_13255, jurisdiction_geoid: '13255', jurisdiction_name: Spalding County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: spalding_wrong_state, jurisdiction_id: spalding_13255, jurisdiction_geoid: '13255', jurisdiction_name: Spalding County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: spalding_griffin, jurisdiction_id: spalding_13255, jurisdiction_geoid: '13255', jurisdiction_name: Spalding County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: spalding_atlanta, jurisdiction_id: spalding_13255, jurisdiction_geoid: '13255', jurisdiction_name: Spalding County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: no_primary_two_refs, jurisdiction_id: auburn_0103076, jurisdiction_geoid: '0103076', jurisdiction_name: Auburn, jurisdiction_type: city, state_code: AL}
+      - input: ref('jurisdiction_county_crosswalk')
+        rows:
+          - {geoid: '1335324', name: Griffin, state_code: GA, county_fips: '13255'}
+          - {geoid: '1304000', name: Atlanta, state_code: GA, county_fips: '13121'}
+    expect:
+      rows:
+        - {event_decision_id: auburn, place_label: '1571 West Samford Ave, Auburn, AL', agreement_basis: place_city}
+        - {event_decision_id: spalding_road, place_label: 'Tomachici Road, Spalding County, GA', agreement_basis: address_names_jurisdiction}
+        - {event_decision_id: spalding_griffin, place_label: '1221 Tomachici Road, Griffin, Georgia', agreement_basis: city_in_county}

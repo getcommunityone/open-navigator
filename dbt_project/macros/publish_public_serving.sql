@@ -180,6 +180,11 @@
     'job_claim':                           "_s.state_code in {{states}}",
     'data_center_agenda_item':             "_s.state_code in {{states}}",
     'data_center_meeting_mention':         "_s.state_code in {{states}}",
+    'decision_place_label':                "_s.state_code in {{states}}",
+    'decision_nearby_data_center_site':    "_s.state_code in {{states}}",
+    'decision_company_mention':
+        "_s.event_decision_id in (select event_decision_id from gold.event_decision "
+        "where state_code in {{states}})",
     'recent_transcribed_meeting':          "_s.state_code in {{states}}"
 } -%}
 {#- bill_sponsorship is DROPPED from serving entirely (removed from `served`):
@@ -214,6 +219,7 @@
     'topic_transcript_link',
     'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
     'data_center_meeting_mention',
+    'decision_place_label', 'decision_company_mention', 'decision_nearby_data_center_site',
     'recent_transcribed_meeting'
 ] -%}
 

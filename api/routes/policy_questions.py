@@ -20,6 +20,7 @@ macro question_outcome_family), never re-derived here.
 
 from __future__ import annotations
 
+import json
 from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -47,6 +48,9 @@ class ArgumentOut(BaseModel):
 
 class RollupOut(BaseModel):
     instances_total: int = 0
+    # Date range of the counted instances (#508's plain summary: "since May 2026").
+    first_occurred_at: Optional[Any] = None
+    last_occurred_at: Optional[Any] = None
     decisions_total: int = 0
     bills_total: int = 0
     jurisdictions_total: int = 0
@@ -72,6 +76,23 @@ class ScopeOut(BaseModel):
     city: Optional[str] = None
 
 
+class CompanyMentionOut(BaseModel):
+    """A company the decision's own text names (dbt decision_company_mention, #508)."""
+
+    operator_name: str
+    # The exact words matched, and a verbatim excerpt with them in <mark>.
+    matched_text: str
+    evidence: Optional[str] = None
+
+
+class NearbySiteOut(BaseModel):
+    """A tracked Epoch AI site near the decision's government (#445 mapping). Nearby only."""
+
+    data_center_site_id: str
+    site_name: Optional[str] = None
+    owner: Optional[str] = None
+
+
 class InstanceOut(BaseModel):
     instance_id: str
     source_type: str
@@ -84,6 +105,18 @@ class InstanceOut(BaseModel):
     outcome_family: Optional[str] = None
     occurred_at: Optional[Any] = None
     assign_score: Optional[float] = None
+    # #508: what was decided, where and who. All null/empty for a state bill.
+    event_decision_id: Optional[str] = None
+    headline: Optional[str] = None
+    # A street-level address that agrees with the decision's own government
+    # (dbt decision_place_label); null when there is none we can trust.
+    place_label: Optional[str] = None
+    # Companies the decision's own headline/statement names, with the matched text.
+    company_names: List[str] = []
+    company_evidence: Optional[str] = None
+    company_mentions: List[CompanyMentionOut] = []
+    # Tracked sites near the decision's government. NOT the decision's subject.
+    nearby_sites: List[NearbySiteOut] = []
 
 
 class QuestionMeetingOut(BaseModel):
@@ -176,8 +209,13 @@ class PolicyQuestionDetail(PolicyQuestionSummary):
     arguments: List[ArgumentOut] = []
     sample_instances: List[InstanceOut] = []
     relations: List[RelationOut] = []
-    # Per-quarter history (real): how often the question came up + dollars moved.
+    # Per-quarter history (real), counted over the same scope (and outcome, when given)
+    # as the rollup: how often the question came up + dollars moved.
     trend: List[TrendPoint] = []
+    # #508: with ?outcome=, the same counts for that outcome family only (the dashboard's
+    # summary sentence). Null without an outcome.
+    outcome: Optional[str] = None
+    outcome_rollup: Optional[RollupOut] = None
 
 
 _RELATIONS_SQL = """
@@ -264,10 +302,13 @@ _SCOPED_COUNTS_SQL = f"""
         count(*) filter (where qi.outcome_family = 'denied')::int          as denied_count,
         count(*) filter (where qi.outcome_family = 'deferred')::int        as deferred_count,
         count(*) filter (where qi.outcome_family = 'moratorium')::int      as moratorium_count,
-        count(*) filter (where qi.outcome_family = 'other')::int           as other_count
+        count(*) filter (where qi.outcome_family = 'other')::int           as other_count,
+        min(qi.occurred_at)::date                                          as first_occurred_at,
+        max(qi.occurred_at)::date                                          as last_occurred_at
     from public.question_instance qi
     where qi.question_id = $1
     {_SCOPE_WHERE.format(a="qi")}
+      and ($4::text is null or qi.outcome_family = $4)
 """
 
 # The linked decisions that carry a dollar figure: money_total is their sum, as in
@@ -292,16 +333,92 @@ _MONEY_SOURCES_SQL = f"""
     order by abs(ii.net_dollar_impact) desc, qi.source_id
 """
 
-# $4 = outcome family or null.
-_INSTANCES_SQL = f"""
-    select instance_id, source_type, source_id, state_code, jurisdiction_name,
-           city, outcome_raw, outcome_normalized, outcome_family, occurred_at, assign_score
+# $4 = outcome family or null. {order} is one of _INSTANCE_ORDER.
+# #508: each local decision carries its headline (latest extraction), the place label,
+# the companies its own text names and the tracked sites near its government, all
+# built in dbt (decision_place_label, decision_company_mention,
+# decision_nearby_data_center_site); bills get nulls / empty lists.
+_INSTANCES_SQL_TMPL = f"""
+    select qi.instance_id, qi.source_type, qi.source_id, qi.state_code, qi.jurisdiction_name,
+           qi.city, qi.outcome_raw, qi.outcome_normalized, qi.outcome_family, qi.occurred_at,
+           qi.assign_score,
+           d.event_decision_id, d.headline,
+           pl.place_label,
+           coalesce(cm.mentions, '[]'::jsonb)::text as company_mentions,
+           coalesce(ns.sites, '[]'::jsonb)::text    as nearby_sites
     from public.question_instance qi
+    left join lateral (
+        select ed.event_decision_id, ed.headline
+        from public.event_decision ed
+        where qi.source_type = 'local_decision' and ed.event_decision_id = qi.source_id
+        order by ed.extracted_at desc
+        limit 1
+    ) d on true
+    left join public.decision_place_label pl on pl.event_decision_id = d.event_decision_id
+    left join lateral (
+        select jsonb_agg(jsonb_build_object(
+                   'operator_name', m.operator_name,
+                   'matched_text', m.matched_text,
+                   'evidence', m.evidence) order by m.operator_name) as mentions
+        from public.decision_company_mention m
+        where m.event_decision_id = d.event_decision_id
+    ) cm on true
+    left join lateral (
+        select jsonb_agg(jsonb_build_object(
+                   'data_center_site_id', s.data_center_site_id,
+                   'site_name', s.site_name,
+                   'owner', s.owner) order by s.site_name) as sites
+        from public.decision_nearby_data_center_site n
+        join public.data_center_site s on s.data_center_site_id = n.data_center_site_id
+        where n.event_decision_id = d.event_decision_id
+    ) ns on true
     where qi.question_id = $1
     {_SCOPE_WHERE.format(a="qi")}
       and ($4::text is null or qi.outcome_family = $4)
-    order by assign_score desc nulls last
+    order by {{order}}
     limit $5 offset $6
+"""
+
+_INSTANCE_ORDER = {
+    "relevance": "qi.assign_score desc nulls last, qi.instance_id",
+    # Newest first; a future date is a source error (#472), so it sorts with the unknowns.
+    "recent": "(qi.occurred_at is null or qi.occurred_at > current_date), qi.occurred_at desc, qi.instance_id",
+}
+_INSTANCES_SQL = _INSTANCES_SQL_TMPL.format(order=_INSTANCE_ORDER["relevance"])
+_INSTANCES_RECENT_SQL = _INSTANCES_SQL_TMPL.format(order=_INSTANCE_ORDER["recent"])
+
+
+def _instance(row: Any) -> InstanceOut:
+    """One instances row -> InstanceOut, decoding the JSON lists and the company fields."""
+    d = dict(row)
+    mentions = [CompanyMentionOut(**m) for m in json.loads(d.pop("company_mentions", None) or "[]")]
+    sites = [NearbySiteOut(**s) for s in json.loads(d.pop("nearby_sites", None) or "[]")]
+    return InstanceOut(
+        **d,
+        company_mentions=mentions,
+        company_names=[m.operator_name for m in mentions],
+        company_evidence=" · ".join(m.evidence for m in mentions if m.evidence) or None,
+        nearby_sites=sites,
+    )
+
+
+# Per-quarter history for the scope and outcome: the policy_question_trend mart's rule
+# (instances by quarter; money = the linked decision's item_interestingness
+# net_dollar_impact) over the scoped question_instance rows, so the chart never shows
+# national figures under a state label.
+_SCOPED_TREND_SQL = f"""
+    select date_trunc('quarter', qi.occurred_at)::date as quarter_start,
+           count(*)::int                                  as instances,
+           coalesce(sum(ii.net_dollar_impact), 0)::float8 as money
+    from public.question_instance qi
+    left join public.item_interestingness ii
+      on ii.event_decision_id = qi.source_id and qi.source_type = 'local_decision'
+    where qi.question_id = $1
+      and qi.occurred_at is not null
+    {_SCOPE_WHERE.format(a="qi")}
+      and ($4::text is null or qi.outcome_family = $4)
+    group by 1
+    order by 1
 """
 
 # Real meetings whose transcript discusses the question's alias keyword(s)
@@ -350,13 +467,16 @@ def _scope(state: Optional[str], city: Optional[str]) -> tuple[ScopeOut, Optiona
     return ScopeOut(level=level, state_code=state_code, city=city_name), state_code, city_param
 
 
-# Quarterly history (oldest → newest) for the registry drill-down trend chart.
-_TREND_SQL = """
-    select quarter_start, instances, coalesce(money, 0) as money
-    from public.policy_question_trend
-    where question_id = $1
-    order by quarter_start asc
-"""
+
+_ROLLUP_DATES = ("first_occurred_at", "last_occurred_at")
+
+
+def _rollup(c: dict[str, Any]) -> RollupOut:
+    """A scoped counts row -> RollupOut (missing counts read 0, missing dates null)."""
+    return RollupOut(
+        **{k: int(c.get(k) or 0) for k in RollupOut.model_fields if k not in _ROLLUP_DATES},
+        **{k: c.get(k) for k in _ROLLUP_DATES},
+    )
 
 
 @router.get("/", response_model=List[PolicyQuestionSummary])
@@ -389,6 +509,13 @@ async def get_policy_question(
     sample: int = Query(12, ge=0, le=100),
     state: Optional[str] = Query(None, description="2-letter state code (a full name is normalized)."),
     city: Optional[str] = Query(None, description="City; case-insensitive match on city / jurisdiction name."),
+    outcome: Optional[OutcomeFamily] = Query(
+        None,
+        description=(
+            "Outcome family. Adds outcome_rollup (the counts for that family) and limits the "
+            "trend and sample instances to it; rollup stays all families."
+        ),
+    ),
 ) -> PolicyQuestionDetail:
     """One question, with every count and the money figure computed for the scope.
 
@@ -406,13 +533,20 @@ async def get_policy_question(
                 row = await conn.fetchrow(_DETAIL_SQL, question_id)
                 if row is None:
                     raise HTTPException(status_code=404, detail=f"No policy question '{question_id}'")
-                counts = await conn.fetchrow(_SCOPED_COUNTS_SQL, question_id, state_code, city_param)
+                counts = await conn.fetchrow(
+                    _SCOPED_COUNTS_SQL, question_id, state_code, city_param, None
+                )
+                outcome_counts = (
+                    await conn.fetchrow(_SCOPED_COUNTS_SQL, question_id, state_code, city_param, outcome)
+                    if outcome
+                    else None
+                )
                 money_rows = await conn.fetch(_MONEY_SOURCES_SQL, question_id, state_code, city_param)
                 args = await conn.fetch(_ARGS_SQL, question_id)
                 insts = await conn.fetch(
-                    _INSTANCES_SQL, question_id, state_code, city_param, None, sample, 0
+                    _INSTANCES_RECENT_SQL, question_id, state_code, city_param, outcome, sample, 0
                 )
-                trend = await conn.fetch(_TREND_SQL, question_id)
+                trend = await conn.fetch(_SCOPED_TREND_SQL, question_id, state_code, city_param, outcome)
                 discussion_count = await conn.fetchval(
                     _DISCUSSION_COUNT_SQL, question_id, state_code, city_param
                 )
@@ -433,7 +567,8 @@ async def get_policy_question(
 
         d = dict(row)
         c = dict(counts) if counts is not None else {}
-        rollup = RollupOut(**{k: int(c.get(k) or 0) for k in RollupOut.model_fields})
+        rollup = _rollup(c)
+        outcome_rollup = _rollup(dict(outcome_counts)) if outcome_counts is not None else None
         money_sources = [MoneySourceOut(**dict(m)) for m in money_rows]
         money_total = float(sum(m.net_dollar_impact for m in money_sources))
         span.set_attribute("policy_question.instances_total", rollup.instances_total)
@@ -463,9 +598,11 @@ async def get_policy_question(
             topic_id=(dict(topic).get("topic_id") if topic else None),
             topic_name=(dict(topic).get("topic_name") if topic else None),
             arguments=[ArgumentOut(**dict(a)) for a in args],
-            sample_instances=[InstanceOut(**dict(i)) for i in insts],
+            sample_instances=[_instance(i) for i in insts],
             relations=[RelationOut(**dict(r)) for r in rels],
             trend=[TrendPoint(**dict(t)) for t in trend],
+            outcome=outcome,
+            outcome_rollup=outcome_rollup,
         )
 
 
@@ -476,6 +613,9 @@ async def get_question_instances(
     city: Optional[str] = Query(None, description="City; case-insensitive match on city / jurisdiction name."),
     outcome: Optional[OutcomeFamily] = Query(
         None, description="Outcome family: approved | denied | moratorium | deferred | other."
+    ),
+    order: Literal["relevance", "recent"] = Query(
+        "relevance", description="relevance (assign_score) or recent (newest first)."
     ),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -492,9 +632,10 @@ async def get_question_instances(
         pool = await get_db_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                _INSTANCES_SQL, question_id, state_code, city_param, outcome, limit, offset
+                _INSTANCES_RECENT_SQL if order == "recent" else _INSTANCES_SQL,
+                question_id, state_code, city_param, outcome, limit, offset,
             )
-        return [InstanceOut(**dict(r)) for r in rows]
+        return [_instance(r) for r in rows]
 
 
 @router.get("/{question_id}/meetings", response_model=List[QuestionMeetingOut])
