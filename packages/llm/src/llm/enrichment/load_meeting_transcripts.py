@@ -48,6 +48,8 @@ sys.path.insert(0, str(Path(__file__).parents[5]))
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_batch
 from loguru import logger
+
+from llm.prompt_version import prompt_sha256, prompt_version_label
 from dotenv import load_dotenv
 import re
 
@@ -492,6 +494,7 @@ class MeetingTranscriptAnalyzer:
             structured_analysis = EXCLUDED.structured_analysis,
             summary_text = EXCLUDED.summary_text,
             timeline_mermaid = EXCLUDED.timeline_mermaid,
+            prompt_version = EXCLUDED.prompt_version,
             processing_time_seconds = EXCLUDED.processing_time_seconds,
             tokens_used = EXCLUDED.tokens_used,
             error_message = EXCLUDED.error_message,
@@ -505,7 +508,7 @@ class MeetingTranscriptAnalyzer:
                     video_id,
                     'policy_frame_analysis',
                     self.model_name,
-                    'v1.0',
+                    prompt_version_label(Path(str(POLICY_ANALYSIS_PROMPT)).stem, prompt_sha256(self.prompt_template)),
                     analysis['raw_response'],
                     json.dumps(analysis['structured_analysis']) if analysis['structured_analysis'] else None,
                     analysis['summary_text'],

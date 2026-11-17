@@ -26,6 +26,8 @@
 #   NO_CLEAR_TOMBSTONES=1  — pass --no-clear-tombstones (avoid retrying old permanent misses)
 #   NO_TOMBSTONES=1        — pass --no-tombstones (do not write new tombstone:* rows)
 #   NO_PREFER_UNTRIED=1    — pass --no-prefer-untried (retry order by date only)
+#   HOMEPAGE_CHANNELS=0    — only jurisdictions that already have videos (default also
+#                            includes cities/counties whose channel is linked from their website)
 #   SKIP_PROBE=1           — pass --skip-probe (faster; fewer per-jurisdiction probe calls)
 #   PROXY=http://user:pass@host:port  — pass --proxy to caption backfill (or YOUTUBE_TRANSCRIPT_PROXY)
 #   TRANSCRIPT_SOURCE=ytdlp-only       — skip youtube-transcript-api; use yt-dlp subtitles only
@@ -95,7 +97,7 @@ batch_start() {
   if [[ "${ROUND_ROBIN:-1}" =~ ^(0|false|no|off)$ ]]; then
     rr=0
   fi
-  BATCH_JOB_ID="$("$PYTHON" packages/scrapers/src/scrapers/youtube/batch_job_status.py start \
+  BATCH_JOB_ID="$("$PYTHON" -m api.batch_jobs.batch_job_status start \
     --step "$step" \
     --states "$STATES" \
     --n "$N" \
@@ -114,7 +116,7 @@ batch_finish() {
   if [[ -z "${BATCH_JOB_ID:-}" ]]; then
     return 0
   fi
-  "$PYTHON" packages/scrapers/src/scrapers/youtube/batch_job_status.py finish \
+  "$PYTHON" -m api.batch_jobs.batch_job_status finish \
     --batch-id "$BATCH_JOB_ID" --status "$status" || true
   batch_dashboard_refresh
   echo "Dashboard: /data-explorer/batch-jobs (React app; API reads data/cache/batch_jobs/)"
@@ -173,10 +175,16 @@ round_robin = os.environ.get("ROUND_ROBIN", "1").strip().lower() not in (
 
 from api.batch_jobs.batch_job_status import fetch_batch_plan_jurisdictions
 
+# Also crawl cities/counties whose channel was found on their own website but that
+# have no videos yet (HOMEPAGE_CHANNELS=0 turns this off).
+include_homepage = os.environ.get("HOMEPAGE_CHANNELS", "1").strip().lower() not in (
+    "0", "false", "no", "off",
+)
 runs = fetch_batch_plan_jurisdictions(
     states,
     round_robin=round_robin,
     database_url=url,
+    include_homepage_channels=include_homepage,
 )
 if not runs:
     sys.exit(f"No jurisdictions with YouTube bronze for states: {', '.join(states)}")
@@ -231,6 +239,7 @@ run_catalog() {
     echo "--- Catalog: $st — $name ($jid) [channel-source=$ch_src] ---"
     local -a cat_argv=(
       --jurisdiction-id "$jid"
+      --states "$st"
       --max-videos "$MAX_VIDEOS"
       --skip-transcripts
       --channel-source "$ch_src"
@@ -320,7 +329,7 @@ run_captions() {
       ((success+=1))
     fi
     if [[ -n "${BATCH_JOB_ID:-}" && "$cap_ec" -ne 0 ]]; then
-      "$PYTHON" packages/scrapers/src/scrapers/youtube/batch_job_status.py jurisdiction-finish \
+      "$PYTHON" -m api.batch_jobs.batch_job_status jurisdiction-finish \
         --batch-id "$BATCH_JOB_ID" \
         --jurisdiction-id "$jid" \
         --exit-code "$cap_ec" \
@@ -412,6 +421,7 @@ run_each_jurisdiction() {
         echo "--- Catalog: $st — $name ($jid) [channel-source=$ch_src] ---"
         local -a cat_argv=(
           --jurisdiction-id "$jid"
+          --states "$st"
           --max-videos "$MAX_VIDEOS"
           --skip-transcripts
           --channel-source "$ch_src"

@@ -12,7 +12,7 @@ All markdown documentation from the `docs/` directory has been organized and mig
 
 #### 📊 **Data Sources** (`website/docs/data-sources/`)
 - Overview of all data sources
-- Jurisdiction Discovery (Census Bureau, 90K+ jurisdictions)
+- Jurisdiction Discovery (Census Bureau list of local governments)
 - Census Data integration
 - Civic Tech URL sources
 - URL datasets (confirmed and analyzed)

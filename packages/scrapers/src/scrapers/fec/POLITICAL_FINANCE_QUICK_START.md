@@ -27,7 +27,7 @@ Combined with your existing **IRS Form 990 data** (PAST funding), you have the m
 │  • Financials               • Eligibility                        │
 │                                   │                              │
 │  Jurisdictions                    │     FEC                      │
-│  • 90k+ cities          ──────────┴───> • Political donations   │
+│  • Local govts          ──────────┴───> • Political donations   │
 │  • Meeting minutes                      • Donor employers        │
 │  • Contact info                         • Recipients             │
 │  • Demographics                         • Amounts & dates        │

@@ -6,9 +6,12 @@ officer's name lands in a <BusinessName> wrapper rather than <PersonNm>.
 """
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from ingestion.givingtuesday.efile import (
+    _to_amount,
+    fetch_990_xml,
     parse_990_xml,
     xml_url_for_object,
 )
@@ -83,6 +86,13 @@ def test_url_builder():
     )
 
 
+def test_url_builder_rejects_invalid_object_id():
+    with pytest.raises(ValueError, match="Invalid 990 object_id"):
+        xml_url_for_object("../../etc/passwd")
+    with pytest.raises(ValueError, match="Invalid 990 object_id"):
+        xml_url_for_object("12345")
+
+
 def test_header_and_filer(doc):
     h = doc["header"]
     assert h["return_type"] == "990"
@@ -94,6 +104,8 @@ def test_header_and_filer(doc):
     assert h["filer"]["ein"] == "396094742"
     assert h["filer"]["address"]["state"] == "WI"
     assert h["officer"]["name"] == "Jane Treasurer"
+    # When <PreparerFirmGrp> is absent, preparer.firm must be None, not the Filer's name.
+    assert h["preparer"]["firm"] is None
 
 
 def test_summary_amounts_are_numeric(doc):
@@ -139,3 +151,82 @@ def test_schedules_and_generic_sections(doc):
 def test_rejects_non_return_xml():
     with pytest.raises(ValueError):
         parse_990_xml("<NotAReturn/>")
+
+
+def test_rejects_dtd_and_oversized_xml():
+    dtd_xml = """<?xml version="1.0"?>
+    <!DOCTYPE Return [<!ENTITY lol "lol">]>
+    <Return xmlns="http://www.irs.gov/efile"></Return>
+    """
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        parse_990_xml(dtd_xml)
+
+    with pytest.raises(ValueError, match="exceeds max allowed"):
+        parse_990_xml(_SAMPLE_990, max_bytes=128)
+
+
+@pytest.mark.asyncio
+async def test_fetch_990_xml_enforces_max_bytes():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            content=_SAMPLE_990.encode("utf-8"),
+            headers={"Content-Length": str(len(_SAMPLE_990))},
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(ValueError, match="exceeds maximum allowed"):
+            await fetch_990_xml("201602229349300615", client=client, max_bytes=100)
+        data = await fetch_990_xml("201602229349300615", client=client, max_bytes=100_000)
+        assert b"<Return" in data
+
+
+@pytest.mark.asyncio
+async def test_fetch_990_xml_stops_streaming_once_limit_passed():
+    """With no Content-Length, the download is aborted as soon as it passes max_bytes."""
+    chunk = b"x" * 1024
+    total_chunks = 1000  # ~1 MB on offer
+    yielded = {"n": 0}
+
+    async def body():
+        for _ in range(total_chunks):
+            yielded["n"] += 1
+            yield chunk
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=body()))
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(ValueError, match="exceeds maximum allowed"):
+            await fetch_990_xml("201602229349300615", client=client, max_bytes=10 * 1024)
+    # Stopped just past the 10 KB limit, never read the whole ~1 MB body.
+    assert yielded["n"] <= 11
+
+
+@pytest.mark.asyncio
+async def test_fetch_990_xml_rejects_on_content_length_before_reading():
+    read = {"started": False}
+
+    async def body():
+        read["started"] = True
+        yield b"<Return/>"
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, content=body(), headers={"Content-Length": "999999"})
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(ValueError, match="Content-Length"):
+            await fetch_990_xml("201602229349300615", client=client, max_bytes=100)
+    assert read["started"] is False
+
+
+def test_to_amount_rounds_decimal_strings():
+    assert (_to_amount("1234"), _to_amount("1234.56"), _to_amount(" "), _to_amount("n/a")) == (1234, 1235, None, None)
+
+
+def test_preparer_firm_read_from_preparer_firm_grp():
+    xml = _SAMPLE_990.replace(
+        "</BusinessOfficerGrp>",
+        "</BusinessOfficerGrp><PreparerFirmGrp><PreparerFirmName>"
+        "<BusinessNameLine1Txt>Audit Partners LLP</BusinessNameLine1Txt>"
+        "</PreparerFirmName></PreparerFirmGrp>",
+    )
+    assert parse_990_xml(xml)["header"]["preparer"]["firm"] == "Audit Partners LLP"

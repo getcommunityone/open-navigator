@@ -108,10 +108,15 @@ from scrapers.youtube.youtube_loader_logging import (
     log_progress,
 )
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
-from scripts.datasources.jurisdiction_pilot.scrape_priority_states import DEFAULT_PRIORITY_STATES
 
-# Load environment variables
-load_dotenv(_root := Path(__file__).resolve().parents[3])
+# Pilot priority states. Must equal DEFAULT_PRIORITY_STATES in
+# scripts/datasources/jurisdiction_pilot/scrape_priority_states.py (checked by
+# tests/test_priority_states_default.py); defined here so the package does not
+# import from the legacy scripts/ tree.
+DEFAULT_PRIORITY_STATES = ("AL", "GA", "IN", "MA", "WA", "WI")
+
+# Load environment variables from repo root (5 levels up from packages/scrapers/src/scrapers/youtube/)
+_root = Path(__file__).resolve().parents[5]
 load_dotenv(_root / ".env")
 
 
@@ -131,6 +136,8 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 _CHANNEL_ID_RE = re.compile(r"/channel/((?:UC)[A-Za-z0-9_-]{20,})", re.I)
 _HANDLE_RE = re.compile(r"youtube\.com/@([^/?#]+)", re.I)
+# Older channel URLs: /user/Name and /c/Name. No API lookup for these; the page has the id.
+_LEGACY_CHANNEL_RE = re.compile(r"youtube\.com/(user|c)/([^/?#]+)", re.I)
 _UC_ID_CAPTURE = r"((?:UC)[A-Za-z0-9_-]{22})"
 # ytInitialData / player response embeds (incl. subscribeEndpoint.channelIds)
 _HTML_CHANNEL_ID_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
@@ -749,6 +756,14 @@ class YouTubeEventsLoader:
         """GET ``/@handle`` (and /videos) and scrape embedded channel id from page source."""
         if not handle:
             return None
+        return self._resolve_channel_page_html(f"https://www.youtube.com/@{handle}", f"@{handle}")
+
+    def _resolve_channel_page_html(self, base_url: str, label: str) -> Optional[str]:
+        """GET a channel page (``/@handle``, ``/user/Name``, ``/c/Name``; also /videos and
+        /about) and scrape the embedded UC channel id from the page source."""
+        base_url = (base_url or "").strip().rstrip("/")
+        if not base_url:
+            return None
         try:
             import httpx
         except ImportError:
@@ -766,7 +781,7 @@ class YouTubeEventsLoader:
             headers["Cookie"] = cookie_header
 
         for suffix in ("", "/videos", "/about"):
-            page_url = f"https://www.youtube.com/@{handle}{suffix}"
+            page_url = f"{base_url}{suffix}"
             try:
                 with httpx.Client(
                     follow_redirects=True,
@@ -781,14 +796,14 @@ class YouTubeEventsLoader:
                 )
                 if cid:
                     logger.info(
-                        "Resolved @{} → {} from page HTML ({})",
-                        handle,
+                        "Resolved {} → {} from page HTML ({})",
+                        label,
                         cid,
                         suffix or "/",
                     )
                     return cid
             except Exception as exc:
-                logger.debug("Page fetch failed for @{}{}: {}", handle, suffix, exc)
+                logger.debug("Page fetch failed for {}{}: {}", label, suffix, exc)
         return None
 
     def _resolve_handle_without_api(self, handle: str) -> Optional[str]:
@@ -809,7 +824,7 @@ class YouTubeEventsLoader:
         return self._resolve_handle_via_page_html(handle)
 
     def resolve_channel_id_from_url(self, channel_url: str) -> Tuple[Optional[str], str]:
-        """Resolve a UC channel id from ``/channel/UC…`` or ``@handle`` URLs."""
+        """Resolve a UC channel id from ``/channel/UC…``, ``@handle``, ``/user/`` or ``/c/`` URLs."""
         url = (channel_url or "").strip()
         if not url:
             return None, url
@@ -854,6 +869,16 @@ class YouTubeEventsLoader:
                         logger.debug("forHandle lookup failed for @{}: {}", handle, exc)
 
             logger.debug("Could not resolve channel id for @{} (yt-dlp + page HTML + API)", handle)
+
+        legacy_match = _LEGACY_CHANNEL_RE.search(url)
+        if legacy_match:
+            kind, name = legacy_match.group(1).lower(), legacy_match.group(2)
+            channel_id = self._resolve_channel_page_html(
+                f"https://www.youtube.com/{kind}/{name}", f"/{kind}/{name}"
+            )
+            if channel_id:
+                return channel_id, f"https://www.youtube.com/channel/{channel_id}"
+            logger.debug("Could not resolve channel id for /{}/{} (page HTML)", kind, name)
 
         return None, url
 
@@ -2183,15 +2208,18 @@ class YouTubeEventsLoader:
                 jurisdiction_name, jurisdiction_type, state_code, state, city,
                 location, location_description, meeting_type,
                 video_url, view_count, duration_minutes, like_count,
-                language, channel_type, datasource, datasource_id, last_updated
+                language, channel_type, datasource, datasource_id, last_updated,
+                loaded_at
             ) VALUES (
                 %(event_id)s, %(video_id)s, %(jurisdiction_id)s, %(channel_id)s, %(channel_url)s,
                 %(title)s, %(description)s, %(event_date)s, %(event_time)s, %(published_at)s,
                 %(jurisdiction_name)s, %(jurisdiction_type)s, %(state_code)s, %(state)s, %(city)s,
                 %(location)s, %(location_description)s, %(meeting_type)s,
                 %(video_url)s, %(view_count)s, %(duration_minutes)s, %(like_count)s,
-                %(language)s, %(channel_type)s, %(datasource)s, %(datasource_id)s, %(last_updated)s
+                %(language)s, %(channel_type)s, %(datasource)s, %(datasource_id)s, %(last_updated)s,
+                NOW()
             )
+            -- loaded_at is when the video was first loaded: set on insert, never on update.
             ON CONFLICT (video_id) DO UPDATE SET
                 jurisdiction_id = EXCLUDED.jurisdiction_id,
                 jurisdiction_name = EXCLUDED.jurisdiction_name,

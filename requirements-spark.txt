@@ -1,6 +1,7 @@
 # Spark / Delta Lake — optional extras
 #
-# These are large (~300 MB) and require a working Java runtime (JDK 8 or 17+)
+# These are large (~300 MB) and require a working Java runtime (JDK 17+;
+# Spark 4 dropped Java 8/11)
 # at runtime. Most of the project (including `python scripts/download_bronze.py`)
 # does NOT need them — only the following workflows do:
 #
@@ -27,7 +28,7 @@
 #
 #   sudo apt install -y openjdk-17-jre-headless     # Debian/Ubuntu
 #   brew install openjdk@17                          # macOS
-delta-spark==3.0.0
-# 3.5.2 patches CVE GHSA (Spark inadequate encryption strength); stays on the
-# 3.5 line for delta-spark 3.0.0 compatibility.
-pyspark==3.5.2
+# pyspark 4.x line (Spark 4, Scala 2.13, Java 17+). delta-spark 4.1.0 matches the
+# workspace uv.lock and declares pyspark>=4.0.1; delta-spark 3.x is pyspark 3.5 only.
+delta-spark==4.1.0
+pyspark==4.3.0

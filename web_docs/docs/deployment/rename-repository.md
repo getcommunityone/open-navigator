@@ -224,7 +224,7 @@ Make your repository discoverable:
    - municipal-data
    - nonprofit-data
 
-2. **Add Description**: "AI-powered platform analyzing municipal meetings and budgets across 90,000+ U.S. jurisdictions to identify advocacy opportunities"
+2. **Add Description**: "AI-powered platform analyzing municipal meetings and budgets across U.S. cities, counties and school districts to identify advocacy opportunities"
 
 3. **Add Website**: Link to your deployment or documentation
 

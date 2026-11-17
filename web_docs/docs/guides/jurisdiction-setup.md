@@ -50,10 +50,10 @@ Expected output:
 📊 Jurisdiction Discovery Statistics
 
 Bronze Layer (Raw Data):
-  Total jurisdictions: 90,735
-    - county: 3,143
-    - municipality: 19,495
-    - school_district: 13,051
+  Total jurisdictions: 90,837
+    - county: 3,031
+    - municipality: 19,491
+    - school_district: 12,546
 
 Silver Layer (Discovered URLs):
   Total discoveries: 87
@@ -199,7 +199,7 @@ Compare to legacy approach:
 
 ---
 
-**Ready to discover 90,000+ government websites with zero external dependencies!** 🚀
+**Discovers government websites with zero external dependencies.**
 # Jurisdiction Discovery System - Setup Guide
 
 ## Quick Start
@@ -289,9 +289,9 @@ python main.py discover-jurisdictions --limit 100
 Expected output:
 ```
 📊 Bronze Layer Complete:
-   Total records: 90,735
-   Counties: 3,143
-   Municipalities: 19,495
+   Total records: 90,837
+   Counties: 3,031
+   Municipalities: 19,491
    ...
 
 📊 URL Discovery Complete:
@@ -334,12 +334,12 @@ Output:
 📊 Jurisdiction Discovery Statistics
 
 Bronze Layer (Raw Data):
-  Total jurisdictions: 90,735
-    - county: 3,143
-    - municipality: 19,495
-    - school_district: 13,051
-    - special_district: 38,542
-    - township: 16,504
+  Total jurisdictions: 90,837
+    - county: 3,031
+    - municipality: 19,491
+    - school_district: 12,546
+    - special_district: 39,555
+    - township: 16,214
 
 Silver Layer (Discovered URLs):
   Total discoveries: 27,483
@@ -555,4 +555,4 @@ For issues or questions:
 
 ---
 
-**Ready to discover 90,000+ government websites!** 🦷✨
+**Discovers government websites across the U.S.**

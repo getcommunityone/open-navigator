@@ -1,12 +1,14 @@
-"""public.jurisdiction — canonical jurisdiction row (replaces jurisdictions_details_search)."""
-
+"""Backward-compatible shim for ``ingestion.jurisdictions.columns``."""
 from __future__ import annotations
 
-JURISDICTION_TABLE = "jurisdiction"
+from ingestion.jurisdictions.columns import (
+    DETAILS_TO_JURISDICTION,
+    JURISDICTION_TABLE,
+    map_legacy_jurisdiction_column,
+)
 
-# Legacy jurisdictions_details_search column → jurisdiction column
-DETAILS_TO_JURISDICTION = {
-    "jurisdiction_name": "name",
-    "jurisdiction_type": "type",
-    "status": "discovery_status",
-}
+__all__ = [
+    "JURISDICTION_TABLE",
+    "DETAILS_TO_JURISDICTION",
+    "map_legacy_jurisdiction_column",
+]

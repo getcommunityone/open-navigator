@@ -205,3 +205,107 @@ def test_fetch_batch_plan_drops_legacy_prefixed_ids(monkeypatch):
     ids = {r.jurisdiction_id for r in runs}
     assert "c-AL-01021" not in ids
     assert "chilton_01021" in ids
+
+
+def test_batch_plan_sql_has_no_stray_percent_signs():
+    """A bare % in the SQL (e.g. LIKE '%_x') breaks psycopg2's %s parameters; the
+    error was swallowed and every plan silently came from the fallback query."""
+    import ast
+    import inspect
+    import textwrap
+
+    from api.batch_jobs import batch_job_status as b
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(b.fetch_batch_plan_jurisdictions)))
+    sql = next(
+        n.args[0].value
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "execute"
+    )
+    # psycopg2 formats like Python's % operator: four parameters, nothing else.
+    rendered = sql % ("'S'", "'S'", "true", "false")
+    assert "%" not in rendered.replace("%%", "")
+    assert "include_homepage_channels" in inspect.signature(b.fetch_batch_plan_jurisdictions).parameters
+
+
+class _FakeCursor:
+    def __init__(self, rows, seen):
+        self._rows, self._seen = rows, seen
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def execute(self, sql, params=None):
+        self._seen.append((sql, params))
+
+    def fetchall(self):
+        return self._rows
+
+
+class _FakeConn:
+    def __init__(self, rows, seen):
+        self._rows, self._seen = rows, seen
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def cursor(self, cursor_factory=None):
+        return _FakeCursor(self._rows, self._seen)
+
+
+def test_channel_only_jurisdiction_is_planned_when_homepage_channels_included(monkeypatch):
+    """#402: a place whose channel was just found (no videos yet) gets its first crawl."""
+    import psycopg2
+
+    from api.batch_jobs.batch_job_status import fetch_batch_plan_jurisdictions
+
+    seen: list = []
+    channel_only = {
+        "state_code": "DE",
+        "jurisdiction_id": "sussex_10005",
+        "jurisdiction_name": "Sussex County",
+        "jurisdiction_type": "county",
+    }
+    monkeypatch.setattr(psycopg2, "connect", lambda url: _FakeConn([channel_only], seen))
+
+    runs = fetch_batch_plan_jurisdictions(
+        ["DE"], round_robin=False, database_url="postgresql://fake", include_homepage_channels=True
+    )
+    sql, params = seen[0]
+    assert "with_homepage_channel" in sql and "website_scrape" in sql
+    assert params == (["DE"], ["DE"], True, True)
+    assert [r.jurisdiction_id for r in runs] == ["sussex_10005"]
+
+    seen.clear()
+    fetch_batch_plan_jurisdictions(["DE"], round_robin=False, database_url="postgresql://fake")
+    assert seen[0][1] == (["DE"], ["DE"], False, False)
+
+
+def test_failed_plan_query_is_reported_not_silent(monkeypatch, capsys):
+    """The main query's error used to be swallowed; it must reach stderr before the fallback."""
+    import psycopg2
+
+    from api.batch_jobs.batch_job_status import fetch_batch_plan_jurisdictions
+
+    calls: list = []
+
+    class _Boom(_FakeCursor):
+        def execute(self, sql, params=None):
+            calls.append(sql)
+            if len(calls) == 1:
+                raise psycopg2.ProgrammingError("bad format")
+
+    class _Conn(_FakeConn):
+        def cursor(self, cursor_factory=None):
+            return _Boom(self._rows, self._seen)
+
+    monkeypatch.setattr(psycopg2, "connect", lambda url: _Conn([], []))
+    fetch_batch_plan_jurisdictions(["DE"], round_robin=False, database_url="postgresql://fake")
+    assert len(calls) == 2  # main query, then the fallback
+    assert "batch plan query failed" in capsys.readouterr().err

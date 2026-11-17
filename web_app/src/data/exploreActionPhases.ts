@@ -292,7 +292,7 @@ const trackDecisionsCards: ExploreCard[] = [
     icon: CalendarIcon,
     path: '/events',
     color: '#84A98C',
-    stats: '90K+ jurisdictions',
+    stats: 'Cities, counties & school districts',
   },
   {
     title: 'Set Alerts',
@@ -380,7 +380,7 @@ const planProfessionalPathCards: ExploreCard[] = [
     icon: MapPinIcon,
     path: '/jurisdictions',
     color: '#52796F',
-    stats: '90K+ jurisdictions',
+    stats: 'Cities, counties & school districts',
   },
   {
     title: 'Nonprofit Champions',

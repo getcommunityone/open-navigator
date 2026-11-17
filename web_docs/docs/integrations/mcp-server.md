@@ -8,7 +8,7 @@ sidebar_position: 1
 
 The Open Navigator MCP server exposes your entire civic data platform to AI assistants like Claude through the [Model Context Protocol](https://modelcontextprotocol.io/). This enables AI assistants to:
 
-- 🏛️ Search 90,000+ U.S. jurisdictions
+- 🏛️ Search U.S. jurisdictions (cities, counties, townships, school districts)
 - 🏢 Query 3M+ nonprofit organizations
 - 📜 Semantic search across 4.5M+ legislative documents
 - 📊 Get real-time statistics and analytics
@@ -37,7 +37,7 @@ The Open Navigator MCP server exposes your entire civic data platform to AI assi
 │  Open Navigator     │
 │   MCP Server        │
 ├─────────────────────┤
-│ ✓ HuggingFace Hub   │──► 90k jurisdictions
+│ ✓ HuggingFace Hub   │──► Jurisdictions
 │ ✓ Qdrant Vector DB  │──► Semantic search
 │ ✓ PostgreSQL        │──► Analytics & stats
 └─────────────────────┘
@@ -125,7 +125,7 @@ Close and reopen Claude Desktop. The MCP server will start automatically when yo
 
 #### `search_jurisdictions`
 
-Search 90,000+ U.S. jurisdictions by name, type, or location.
+Search U.S. jurisdictions by name, type, or location.
 
 **Parameters:**
 - `query` (required): Search term (e.g., "San Francisco", "Orange County")

@@ -253,7 +253,7 @@ This page documents all data sources, standards, and research contributions used
 CDP provides a standardized data model for civic meeting data that Open Navigator extends to support:
 - Multi-source ingestion (YouTube, LocalView, Legistar, Granicus)
 - AI-powered transcription (Gemini, Whisper)
-- Nationwide coverage (90,000+ jurisdictions)
+- Nationwide coverage of cities, counties, townships and school districts
 - Policy analysis and opportunity detection
 
 ---
@@ -627,6 +627,7 @@ These platforms present **multiple positions on the same issue side by side** �
 
 **In this section:**
 - [U.S. Census Bureau](#us-census-bureau)
+- [Census of Governments (U.S. Census Bureau)](#census-of-governments-us-census-bureau)
 - [State Symbols USA (reference)](#state-symbols-usa-reference)
 - [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf)
 - [Open States / Plural Policy](#open-states--plural-policy-)
@@ -640,6 +641,16 @@ These platforms present **multiple positions on the same issue side by side** �
 - **License:** Public Domain (U.S. Government)
 - **Datasets:** Census Gazetteer, American Community Survey (ACS), Decennial Census
 - **Coverage:** All 50 states, 3,144 counties, 19,000+ incorporated places
+
+### Census of Governments (U.S. Census Bureau)
+
+**What we use:** The official count of local governments in the U.S. We cite it when docs describe the national universe of local governments.
+
+- **Source:** U.S. Census Bureau, Census of Governments (every five years, with annual updates)
+- **License:** Public Domain (U.S. Government)
+- **2025 total:** 91,438 local governments ([Government Organization Summary, 2022-2025](https://www.census.gov/library/publications/2026/econ/govtorg2225.html))
+- **2022 breakdown:** 90,837 local governments: 3,031 counties, 19,491 municipalities, 16,214 townships, 12,546 independent school districts and 39,555 special districts ([Census of Governments 2022 webinar slides](https://www.fdlp.gov/sites/default/files/training/20231212-wn-census-govts-slides.pdf))
+- **Note:** About 40% of local governments are special districts (water, fire, transit and similar). Open Navigator does not include special districts.
 
 ---
 
@@ -1101,7 +1112,7 @@ ocd-division/country:us/state:al/school_district:birmingham_city  # School Distr
 | Vocabulary ID | Description | Concept Count |
 |---------------|-------------|---------------|
 | `NTEE` | National Taxonomy of Exempt Entities | 600+ |
-| `FIPS` | Federal Information Processing Standards | 90,000+ |
+| `FIPS` | Federal Information Processing Standards | One per jurisdiction |
 | `Schema.org` | Structured data types | 800+ |
 | `Popolo` | Open government data specs | 15+ |
 | `OCD-ID` | Open Civic Data identifiers | 22,000+ |
@@ -2739,7 +2750,7 @@ City Creates Dashboard → Residents Attend Data Academy → Data Informs Policy
 **How We Apply ODI Research:**
 
 **Our Platform as Evidence-Based Open Data Infrastructure:**
-- **Supply:** 90K+ jurisdictions, 3M+ nonprofits, 500K+ meetings → standardized datasets
+- **Supply:** Cities, counties and school districts, 3M+ nonprofits, 500K+ meetings → standardized datasets
 - **Demand:** Pre-built dashboards, metric views, analytics → accessible to non-technical users
 - **Intermediaries:** Civic tech projects, brigade chapters, nonprofits → data translators
 - **Ecosystem:** Community solutions framework → multi-stakeholder collaboration

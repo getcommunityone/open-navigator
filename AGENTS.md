@@ -68,6 +68,20 @@ asked.
 - Everything in `CLAUDE.md`, "Branch & PR Workflow" still applies: never push to `main`, never force-push, required
   checks green before merge.
 
+## Context for models and agents
+
+Anything a model reads (a prompt, a transcript, a tool result, this repository) is context, and it's engineered like
+code. The six principles and where each applies: [Context engineering](web_docs/docs/development/context-engineering.md).
+
+- **Send the least that answers the question.** Split at units of meaning (caption segments, sections), and load
+  detail with a tool when it's needed rather than up front.
+- **Read the governed layer.** Models and the API read `public` (or Unity Catalog), never `bronze` or `gold` directly;
+  access rules belong to the data, not to a prompt.
+- **Carry the source forward.** Every derived row, quote or answer keeps the ID and link of the record it came from.
+- **Say how current it is.** A table a model or the site reads has a freshness target and a last-updated date.
+- **Version and test it.** Prompts, output schemas and tool definitions live in git with a version that changes when
+  they do, and are checked against known answers, not by asking another model whether the result looks right.
+
 ## GPU and paid compute
 
 GPU steps (WhisperX diarization, local Gemma generation; #262, #297) run on paid or shared machines. The decision and

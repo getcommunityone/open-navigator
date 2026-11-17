@@ -39,6 +39,8 @@ from typing import Any, Optional
 import psycopg2
 from loguru import logger
 
+from llm.prompt_version import prompt_version_from_meta
+
 PROJECT_ROOT = Path(__file__).parents[5]
 CACHE_ROOT = PROJECT_ROOT / "data" / "cache" / "gemini_transcript_policy"
 
@@ -50,7 +52,6 @@ DATABASE_URL = os.getenv(
 
 ANALYSIS_TYPE = "policy_frame_analysis"
 DEFAULT_AI_MODEL = "gemini-2.5-flash-lite"
-PROMPT_VERSION = "v1.0"
 
 _VIDEO_ID_RE = re.compile(r"[?&]v=([^&]+)")
 
@@ -144,6 +145,7 @@ def _timeline_from_analysis(analysis: dict[str, Any]) -> Optional[str]:
 
 
 def upsert_row(conn, *, event_id: int, video_id: str, ai_model: str,
+               prompt_version: Optional[str] = None,
                raw_response: str, analysis: dict[str, Any],
                summary_text: Optional[str], timeline_mermaid: Optional[str],
                created_at: Optional[datetime]) -> None:
@@ -161,6 +163,7 @@ def upsert_row(conn, *, event_id: int, video_id: str, ai_model: str,
     ON CONFLICT (event_id, analysis_type, ai_model)
     DO UPDATE SET
         video_id = EXCLUDED.video_id,
+        prompt_version = EXCLUDED.prompt_version,
         raw_response = EXCLUDED.raw_response,
         structured_analysis = EXCLUDED.structured_analysis,
         summary_text = EXCLUDED.summary_text,
@@ -169,7 +172,7 @@ def upsert_row(conn, *, event_id: int, video_id: str, ai_model: str,
     """
     with conn.cursor() as cur:
         cur.execute(insert_sql, (
-            event_id, video_id, ANALYSIS_TYPE, ai_model, PROMPT_VERSION,
+            event_id, video_id, ANALYSIS_TYPE, ai_model, prompt_version,
             raw_response, json.dumps(analysis), summary_text, timeline_mermaid,
             created_at,
         ))
@@ -248,6 +251,7 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
             try:
                 upsert_row(
                     conn, event_id=event_id, video_id=video_id, ai_model=ai_model,
+                    prompt_version=prompt_version_from_meta(meta),
                     raw_response=raw_response, analysis=analysis,
                     summary_text=summary_text, timeline_mermaid=timeline_mermaid,
                     created_at=created_at,

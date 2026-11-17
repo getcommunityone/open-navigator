@@ -263,7 +263,7 @@ function HomepageFeatures() {
   const features = [
     {
       title: '📄 Meeting Minutes & Financial Documents',
-      description: 'Tracks what happens in local meetings and budgets. Covers 90,000+ cities, counties, and school districts.',
+      description: 'Tracks what happens in local meetings and budgets. Covers cities, counties, and school districts across the U.S.',
     },
     {
       title: '🤖 Automated Analysis',
@@ -318,13 +318,6 @@ function HomepageStats() {
           </div>
         </div>
         <div className="row">
-          <div className="col col--3 text--center">
-            <div className="padding--md">
-              <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#2196F3' }}>90,000+</div>
-              <p style={{ fontSize: '1rem', fontWeight: '500' }}>Government Jurisdictions</p>
-              <p style={{ fontSize: '0.9rem', color: '#666' }}>Counties, cities, townships</p>
-            </div>
-          </div>
           <div className="col col--3 text--center">
             <div className="padding--md">
               <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#4CAF50' }}>3M+</div>
