@@ -19,6 +19,9 @@ produces that reaches the site has to trace back to the real record, with a verb
   probabilities, never text.
 - **Noise** is anything in the model's input that doesn't help answer the question. It makes answers worse and costs
   money, so we work to keep it out.
+- **Compaction** is what happens when a long conversation with a model outgrows its context: older turns are
+  replaced by a summary. Details can be lost, so anything that matters is written to a file, an issue or a PR, not
+  left only in the conversation.
 - **Tracing** records what went into each model run and what came out. Today we record one usage row per model call
   and the prompt version. Full MLflow traces exist for the agents package, not yet for transcript analysis
   ([#451](https://github.com/getcommunityone/open-navigator/issues/451)).
@@ -71,6 +74,35 @@ How we reduce it:
 - **Say how fresh it is.** [Data freshness checks](./data-freshness.md) flag stale tables.
 
 The six principles behind this are in [Context engineering](./context-engineering.md).
+
+## Compaction
+
+A model can only hold so much text at once (its context window). A long session with a coding agent, hours of
+reading files, running commands and talking, fills it up. When that happens the tool **compacts** the conversation:
+it replaces the older part with a summary and carries on. Claude Code does this automatically.
+
+Compaction keeps a session going, but a summary isn't the original:
+
+- **Exact wording is gone.** Error messages, command output, numbers and quotes are paraphrased or dropped.
+- **Details fall out.** A side finding, a caveat or a decision made early in the session may not survive.
+- **Summaries can drift.** Something that was tried and failed can read like something that was done.
+
+How we work with it:
+
+- **Write down what must survive.** Findings become issues, decisions go in a page under
+  `web_docs/docs/development/`, and verification goes in the PR description (`AGENTS.md`, "Log what you find, as you
+  go"). A fact that lives only in the conversation can be lost at the next compaction.
+- **One unit of work per session.** When a piece of work is finished, record what's durable and start a fresh session
+  for the next one, rather than letting one session run until it's compacted several times
+  (see "Context hygiene" in the [cleanup roadmap](./cleanup-roadmap.md)).
+- **Check, don't trust the summary.** After a compaction, re-read the files, the branch and the PR before acting on
+  what the summary says happened.
+- **A summary is never evidence.** What the site shows must quote the record verbatim (`CLAUDE.md`, "Show the Match
+  Evidence"). A meeting's AI summary is shown as an AI summary (for example on the meeting compare page, next to the
+  official minutes); the quotes on result tiles are passages from the record itself.
+
+The data pipelines don't compact. A long transcript is split into chunks at caption-segment boundaries, and screening
+keeps or skips whole meetings, so nothing the site quotes is ever a model's summary of a summary.
 
 ## Tracing model runs
 
