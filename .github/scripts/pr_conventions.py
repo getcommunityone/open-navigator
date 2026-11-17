@@ -36,7 +36,7 @@ def missing_parts(issue_body: str) -> list[str]:
     guidance sits in comments) lacks all four."""
     text = FENCE.sub("", COMMENT.sub("", issue_body or ""))
     starts = [(m.start(), m.end(), m.group(1) or m.group(2)) for m in re.finditer(
-        r"^\s*#+\s*([A-Za-z][^\n]*?)\s*$|\*\*\s*([A-Za-z][^*\n]*?)\s*:?\s*\*\*", text, re.MULTILINE)]
+        r"^\s*#+\s*([A-Za-z][^\n]*?)\s*$|^[ \t]*\*\*\s*([A-Za-z][^*\n]*?)\s*:?\s*\*\*", text, re.MULTILINE)]
     out = []
     for part in PARTS:
         found = False
