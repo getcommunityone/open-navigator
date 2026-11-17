@@ -62,11 +62,11 @@ def test_runs_the_refresh_command(tmp_path):
 
 
 def test_off_without_a_tunnel_or_when_disabled(monkeypatch):
-    from scrapers.discovery import scrape_http
+    from scrapers.youtube import vpn_guard as vg
 
-    monkeypatch.setattr(scrape_http, "direct_egress_interface", lambda: None)
+    monkeypatch.setattr(vg, "read_routes", lambda: vg.RouteInfo(None, "eth3"))
     assert vr.refresh_enabled() is False
-    monkeypatch.setattr(scrape_http, "direct_egress_interface", lambda: "eth3")
+    monkeypatch.setattr(vg, "read_routes", lambda: vg.RouteInfo("eth2", "eth3"))
     assert vr.refresh_enabled() is True
     monkeypatch.setenv("YOUTUBE_VPN_REFRESH", "0")
     assert vr.refresh_enabled() is False

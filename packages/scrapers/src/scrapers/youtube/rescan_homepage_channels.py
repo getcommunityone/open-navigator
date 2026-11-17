@@ -14,7 +14,10 @@ pattern guess or a search hit (``REPLACEABLE_METHODS``), the first link found
 becomes the primary (``youtube_channel_selection_method = 'website_scrape'``). A
 channel chosen any other way (an earlier homepage link, a hand pick) is never
 replaced. No YouTube request is made, so the YouTube Data API quota and YouTube's
-bot checks don't apply.
+bot checks don't apply, and the scan runs without the VPN: city websites may still
+be retried on the home connection. If a page fetch ever does go to a YouTube host,
+it needs the VPN (``scrapers.youtube.vpn_guard``); with the VPN off the run stops
+with exit code 5 (#488).
 
 Dry run by default::
 
@@ -33,6 +36,8 @@ from datetime import UTC, datetime
 from typing import Any, Sequence
 
 from loguru import logger
+
+from scrapers.youtube.vpn_guard import exit_if_vpn_off
 
 TABLE = "bronze.bronze_jurisdictions_municipalities_scraped"
 # Scraped table per jurisdiction type. School districts' table has no channel
@@ -191,6 +196,7 @@ def select_sql(
 async def scan_all(
     rows: list[dict[str, Any]], *, concurrency: int, timeout: float
 ) -> list[RescanResult]:
+    from scrapers.youtube.vpn_guard import VpnRequiredError
     from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 
     sem = asyncio.Semaphore(max(1, concurrency))
@@ -206,6 +212,8 @@ async def scan_all(
                         timeout,
                     )
                     res.channels = list(dict.fromkeys(c for c in found if c))
+                except VpnRequiredError:
+                    raise  # a YouTube fetch without the VPN stops the run (#488)
                 except Exception as exc:  # noqa: BLE001 - one broken site must not stop the scan
                     res.error = f"{type(exc).__name__}: {exc}"[:200]
             results.append(res)
@@ -293,6 +301,7 @@ def _database_url(explicit: str) -> str:
     return f"postgresql://postgres:{os.getenv('POSTGRES_PASSWORD') or 'password'}@localhost:5433/open_navigator"
 
 
+@exit_if_vpn_off
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description="Find the YouTube channels that jurisdiction websites link to."

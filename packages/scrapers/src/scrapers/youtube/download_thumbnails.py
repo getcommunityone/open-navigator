@@ -55,6 +55,8 @@ import psycopg2
 from loguru import logger
 from psycopg2.extras import execute_values
 
+from scrapers.youtube.vpn_guard import exit_if_vpn_off, require_vpn, require_vpn_for_url
+
 # Cross-package helpers live under the repo root (core_lib / llm / scripts).
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 if str(_REPO_ROOT) not in sys.path:
@@ -239,6 +241,7 @@ async def _download_one(
         for attempt_q in candidates:
             url = _thumb_url(video.video_id, attempt_q)
             for retry in range(3):
+                require_vpn_for_url(url)  # outside the try: a VPN drop stops the run (#488)
                 try:
                     resp = await client.get(url)
                 except (httpx.TransportError, httpx.TimeoutException) as exc:
@@ -389,6 +392,7 @@ def _parse_shard(value: str) -> tuple[int, int]:
     return i, n
 
 
+@exit_if_vpn_off
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dsn", default=DEFAULT_DSN, help="Postgres URL")
@@ -420,6 +424,7 @@ def main(argv: list[str] | None = None) -> int:
         help="report planned paths + counts and exit",
     )
     args = parser.parse_args(argv)
+    require_vpn()  # thumbnails come from i.ytimg.com, only through the VPN (#488)
 
     thumb_root = args.out_root.resolve()
     scraped_root = resolve_scraped_meetings_output_root().resolve()

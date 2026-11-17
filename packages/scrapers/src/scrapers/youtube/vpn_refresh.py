@@ -14,8 +14,10 @@ When the caption backfill hits repeated blocks, :func:`refresh_exit_ip`:
    ``wait_seconds``. With Surfshark's *Rotating IP* setting on, the exit IP changes
    every few minutes without reconnecting, so waiting alone is enough.
 
-It does nothing unless a VPN tunnel is up (``direct_egress_interface()`` found one),
+It does nothing unless a VPN tunnel is up (``vpn_guard.read_routes()`` finds one),
 because without a tunnel the public IP is the home connection's and won't change.
+``scrapers.youtube.vpn_guard.vpn_status()`` reports the tunnel, home interface and
+both public IPs; ``require_vpn()`` stops YouTube runs when the tunnel is down.
 
 Environment:
   YOUTUBE_VPN_REFRESH — ``auto`` (default: on when a VPN tunnel is up), ``0`` off
@@ -54,9 +56,11 @@ def refresh_enabled() -> bool:
     mode = (os.getenv("YOUTUBE_VPN_REFRESH") or "auto").strip().lower()
     if mode in ("0", "false", "no", "off"):
         return False
-    from scrapers.discovery.scrape_http import direct_egress_interface
+    # Read the route table live (vpn_guard), not the per-process cached
+    # direct_egress_interface(): the tunnel can come and go during a run (#488).
+    from scrapers.youtube.vpn_guard import read_routes
 
-    return direct_egress_interface() is not None
+    return read_routes().tunnel_interface is not None
 
 
 def public_ip(timeout: float = 10.0) -> Optional[str]:
