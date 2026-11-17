@@ -79,6 +79,26 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 1
 fi
 
+# YouTube is only reached through the VPN (#488). Every YouTube step exits 5 when the
+# tunnel is down; this crawl stops with exit 5 too instead of moving on.
+stop_on_vpn_exit() {
+  local ec="$1" what="$2"
+  if [[ "$ec" -eq 5 ]]; then
+    echo "STOP: the VPN is off ($what exited 5). Connect Surfshark, then re-run." >&2
+    exit 5
+  fi
+  echo "WARN: $what failed (exit $ec)" >&2
+}
+
+if [[ -z "${DRY_RUN:-}" ]]; then
+  vpn_ec=0
+  "$PYTHON" -m scrapers.youtube.vpn_guard || vpn_ec=$?
+  if [[ "$vpn_ec" -ne 0 ]]; then
+    echo "STOP: the VPN check failed (exit $vpn_ec); no YouTube request was made." >&2
+    exit 5
+  fi
+fi
+
 batch_dashboard_refresh() {
   if [[ -n "${BATCH_STATUS:-}" && "${BATCH_STATUS}" == "0" ]]; then
     return 0
@@ -247,10 +267,10 @@ run_catalog() {
     [[ -n "${CATALOG_FORCE:-}" ]] && cat_argv+=(--force)
     if [[ -n "${CATALOG_YTDLP:-}" ]]; then
       env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-        "${cat_argv[@]}" "${extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+        "${cat_argv[@]}" "${extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
     else
       "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-        "${cat_argv[@]}" "${extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+        "${cat_argv[@]}" "${extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
     fi
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN=1; list_jurisdictions)
 }
@@ -321,10 +341,11 @@ run_captions() {
       cap_args+=(--dry-run)
     fi
     local cap_ec=0
-    if ! "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}"; then
-      cap_ec=$?
+    "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
+      || cap_ec=$?
+    if [[ "$cap_ec" -ne 0 ]]; then
       ((failed+=1))
-      echo "WARN: captions failed for $jid (exit $cap_ec)" >&2
+      stop_on_vpn_exit "$cap_ec" "captions for $jid"
     else
       ((success+=1))
     fi
@@ -429,10 +450,10 @@ run_each_jurisdiction() {
         [[ -n "${CATALOG_FORCE:-}" ]] && cat_argv+=(--force)
         if [[ -n "${CATALOG_YTDLP:-}" ]]; then
           env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-            "${cat_argv[@]}" "${cat_extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+            "${cat_argv[@]}" "${cat_extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
         else
           "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-            "${cat_argv[@]}" "${cat_extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+            "${cat_argv[@]}" "${cat_extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
         fi
       fi
     fi
@@ -470,8 +491,13 @@ run_each_jurisdiction() {
     fi
     if [[ -n "${DRY_RUN:-}" ]]; then
       cap_args+=(--dry-run)
-    elif ! "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}"; then
-      echo "WARN: captions failed for $jid" >&2
+    else
+      cap_ec=0
+      "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
+        || cap_ec=$?
+      if [[ "$cap_ec" -ne 0 ]]; then
+        stop_on_vpn_exit "$cap_ec" "captions for $jid"
+      fi
     fi
     echo "--- Analyze: $st — $name ($jid) ---"
     local -a ana_args=(
