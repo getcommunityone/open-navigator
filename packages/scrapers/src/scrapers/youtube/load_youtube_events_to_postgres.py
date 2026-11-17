@@ -369,9 +369,16 @@ class YouTubeEventsLoader:
     
     def _add_jurisdiction_id_column(self):
         """Add jurisdiction_id and channel_id columns to event if they don't exist."""
+        from scrapers.youtube.schema_guard import is_base_table, set_local_lock_timeout
+
+        # ``event`` is a dbt view today; ALTER on it only fails, after waiting for a lock (#534).
+        if not is_base_table(self.conn, "event"):
+            self.conn.commit()
+            return
         cursor = self.conn.cursor()
         
         try:
+            set_local_lock_timeout(cursor)
             # Add jurisdiction_id column
             cursor.execute("""
                 ALTER TABLE event 
@@ -503,6 +510,9 @@ class YouTubeEventsLoader:
         cursor = self.conn.cursor()
         
         try:
+            from scrapers.youtube.schema_guard import set_local_lock_timeout
+
+            set_local_lock_timeout(cursor)
             # Create bronze schema if it doesn't exist
             cursor.execute("CREATE SCHEMA IF NOT EXISTS bronze;")
             
@@ -566,6 +576,9 @@ class YouTubeEventsLoader:
         cursor = self.conn.cursor()
         
         try:
+            from scrapers.youtube.schema_guard import set_local_lock_timeout
+
+            set_local_lock_timeout(cursor)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS bronze.bronze_events_channels (
                     id SERIAL PRIMARY KEY,
@@ -941,8 +954,16 @@ class YouTubeEventsLoader:
     def _ensure_scraped_youtube_channel_id_column(self, table: str) -> None:
         if table in self._scraped_channel_id_columns_ready:
             return
+        from scrapers.youtube.schema_guard import missing_columns, set_local_lock_timeout
+
+        schema, _, name = table.partition(".")
+        if not missing_columns(self.conn, schema, name, ("youtube_channel_id",)):
+            self.conn.commit()
+            self._scraped_channel_id_columns_ready.add(table)
+            return
         cursor = self.conn.cursor()
         try:
+            set_local_lock_timeout(cursor)
             cursor.execute(
                 f"""
                 ALTER TABLE {table}
