@@ -101,13 +101,21 @@ LEFT JOIN {{ source('bronze', 'bronze_event_youtube') }} y
 
 -- Basic quality filter: must have video_id and some transcript data.
 -- Exclude policy-pipeline rejects (``excluded:non_meeting``, etc.) so promos /
--- news segments never reach events_text_search / event_documents.
+-- news segments never reach events_text_search / event_documents, and
+-- ``tombstone:%`` rows (videos whose captions could not be fetched).
+--
+-- The text itself is the test, NOT has_transcript (#470, #533): ~10.2k rows
+-- loaded 2026-05-30..06-10 carry full captions with has_transcript = false
+-- (e.g. Minneapolis City Council 2026-05-21, OCczFuk5DXs), and filtering on the
+-- flag kept those meetings out of events_text_search / event_documents. The flag
+-- still passes through as a column. Same rule as
+-- stg_event_youtube_transcript__data_center (#445).
 WHERE
     t.video_id IS NOT NULL
     AND TRIM(t.video_id) != ''
-    AND COALESCE(t.has_transcript, false) = true
     AND LOWER(COALESCE(TRIM(t.transcript_source), '')) NOT LIKE 'excluded:%'
+    AND LOWER(COALESCE(TRIM(t.transcript_source), '')) NOT LIKE 'tombstone:%'
     AND (
-        t.raw_text IS NOT NULL
-        OR t.segments IS NOT NULL
+        NULLIF(TRIM(t.raw_text), '') IS NOT NULL
+        OR (jsonb_typeof(t.segments) = 'array' AND jsonb_array_length(t.segments) > 0)
     )
