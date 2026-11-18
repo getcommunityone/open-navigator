@@ -19,6 +19,9 @@
   the WHOLE OR down to a parallel seq scan (~3.5s reading ~3.3GB over ~120k
   transcripts). The trigram index lets the planner BitmapOr the two index scans
   (~56ms), preserving title recall AND speed.
+  ANALYZE runs last so the downstream link models built in the same dbt run
+  (int_question_transcript_link__evidence, the keyword links) are planned with
+  statistics on the fresh table rather than before autovacuum gets to it (#533).
   (This note lives in a Jinja comment, NOT inside the config() list below --
   a `--` SQL comment inside the post_hook list is not valid Jinja and breaks
   `dbt parse` for the whole project.)
@@ -40,7 +43,8 @@
         "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)",
         "CREATE INDEX IF NOT EXISTS event_documents_content_fts_idx ON {{ this }} USING gin (to_tsvector('english', content))",
         "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-        "CREATE INDEX IF NOT EXISTS event_documents_event_title_trgm_idx ON {{ this }} USING gin (event_title gin_trgm_ops)"
+        "CREATE INDEX IF NOT EXISTS event_documents_event_title_trgm_idx ON {{ this }} USING gin (event_title gin_trgm_ops)",
+        "ANALYZE {{ this }}"
       ] if target.name != 'neon' else []
     )
   )
