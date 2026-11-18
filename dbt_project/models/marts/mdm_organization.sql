@@ -63,9 +63,10 @@ ranked as (
                 case source_system
                     when 'bronze_organizations_nonprofits_nccs' then 1
                     when 'bronze_locations' then 2
-                    when 'bronze_organizations_from_ai' then 3
-                    when 'bronze_organizations_nonprofits_irs' then 4
-                    else 5
+                    when 'seed_data_center_companies' then 3   -- curated companies (#531)
+                    when 'bronze_organizations_from_ai' then 4
+                    when 'bronze_organizations_nonprofits_irs' then 5
+                    else 6
                 end,
                 org_uid
         ) as rn
@@ -84,7 +85,16 @@ type_vote as (
     from clustered
     where org_type <> 'other'
     group by master_org_id, org_type
-    order by master_org_id, count(*) desc
+    -- a curated company (#531) wins a tie, e.g. against one AI-extracted 'business' mention
+    order by master_org_id, count(*) desc, (org_type = 'company') desc
+),
+
+-- The curated company website (#531) fills in when the golden occurrence has none.
+curated_website as (
+    select distinct on (master_org_id) master_org_id, website
+    from clustered
+    where source_system = 'seed_data_center_companies' and website is not null
+    order by master_org_id, website
 ),
 
 evidence as (
@@ -115,8 +125,9 @@ name_occurrences as (
             when 'bronze_organizations_nonprofits_irs' then 1  -- IRS = legal-name registry
             when 'bronze_organizations_nonprofits_nccs' then 2 -- NCCS lags IRS on name
             when 'bronze_locations' then 3
-            when 'bronze_organizations_from_ai' then 4
-            else 5
+            when 'seed_data_center_companies' then 4         -- curated company name (#531)
+            when 'bronze_organizations_from_ai' then 5
+            else 6
         end as name_rank
     from clustered
     where org_name_norm is not null
@@ -189,7 +200,7 @@ select
     g.zip5,
     g.lat,
     g.lon,
-    g.website,
+    coalesce(g.website, cw.website)     as website,
     e.n_occurrences,
     e.n_sources,
     e.first_seen_year,
@@ -204,3 +215,4 @@ left join type_vote v using (master_org_id)
 left join current_name cn using (master_org_id)
 left join name_history nh using (master_org_id)
 left join former_names fn using (master_org_id)
+left join curated_website cw using (master_org_id)

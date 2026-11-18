@@ -87,6 +87,11 @@ models:
         data_type: double precision
 
   - name: decision_company_mention
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
     description: >
       One row per (data center decision, company) where the decision's own headline or
       decision_statement names the company. Matched case-sensitively on a whole word or
@@ -157,6 +162,9 @@ models:
         tests:
           - dbt_utils.expression_is_true:
               expression: "like '%<mark>%'"
+      - name: master_org_id
+        description: "The company's organization master row (#531), via mdm_organization_data_center names and aliases; null when no curated company carries the name."
+        data_type: text
 
   - name: decision_nearby_data_center_site
     description: >
@@ -251,12 +259,18 @@ unit_tests:
       - input: ref('data_center_site')
         rows:
           - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA}
+      # #531: the company's organization master row, by name (Amazon) or alias
+      - input: ref('mdm_organization_data_center')
+        format: sql
+        rows: |
+          select 'm_amazon'::text as master_org_id, 'Amazon'::text as company_name,
+                 array['Amazon Web Services', 'AWS']::text[] as aliases
     expect:
       rows:
-        - {event_decision_id: d1, operator_name: Amazon, matched_text: 'Amazon Web Services', text_field: headline, evidence: '<mark>Amazon Web Services</mark> Data Center Rezoning Approved'}
-        - {event_decision_id: d3, operator_name: Meta, matched_text: 'Meta Platforms', text_field: decision_statement, evidence: 'The council approved a data center lease with Stack Infrastructure and <mark>Meta Platforms</mark>.'}
-        - {event_decision_id: d3, operator_name: STACK Infrastructure, matched_text: 'Stack Infrastructure', text_field: decision_statement, evidence: 'The council approved a data center lease with <mark>Stack Infrastructure</mark> and Meta Platforms.'}
-        - {event_decision_id: d4, operator_name: Meta, matched_text: 'Hyperion', text_field: headline, evidence: '<mark>Hyperion</mark> Data Center Tax Abatement Approved'}
+        - {event_decision_id: d1, operator_name: Amazon, matched_text: 'Amazon Web Services', text_field: headline, evidence: '<mark>Amazon Web Services</mark> Data Center Rezoning Approved', master_org_id: m_amazon}
+        - {event_decision_id: d3, operator_name: Meta, matched_text: 'Meta Platforms', text_field: decision_statement, evidence: 'The council approved a data center lease with Stack Infrastructure and <mark>Meta Platforms</mark>.', master_org_id: null}
+        - {event_decision_id: d3, operator_name: STACK Infrastructure, matched_text: 'Stack Infrastructure', text_field: decision_statement, evidence: 'The council approved a data center lease with <mark>Stack Infrastructure</mark> and Meta Platforms.', master_org_id: null}
+        - {event_decision_id: d4, operator_name: Meta, matched_text: 'Hyperion', text_field: headline, evidence: '<mark>Hyperion</mark> Data Center Tax Abatement Approved', master_org_id: null}
 
   # #508: only a street-level place that agrees with the decision's own government is
   # labelled; speech-to-text county names and contradicting places are not.

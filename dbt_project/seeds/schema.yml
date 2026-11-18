@@ -367,3 +367,146 @@ seeds:
       - name: aliases
         description: "'|'-separated exact forms that name it, matched as whole words/phrases."
         tests: [not_null]
+
+  - name: data_center_companies
+    config:
+      column_types:
+        company_key: text
+        company_name: text
+        aliases: text
+        roles: text
+        website_url: text
+        press_feed_url: text
+        source_kind: text
+        source_url: text
+        source_excerpt: text
+    description: >
+      Curated data center companies (#531): operators, developers, owners, tenants/users and
+      utility partners. Each row enters the organization master as org_type 'company'
+      (stg_data_center_companies__org -> mdm_organization) and gets a row in the
+      mdm_organization_data_center satellite. A company has no city or state here, so it
+      clusters with a same-name national mention already in the master (the AI-extracted
+      "Google") instead of duplicating it. Every row carries source_url and a verbatim
+      source_excerpt; source_kind is company_announcement, news_article or dataset_row
+      (a quoted field of a published dataset, "<row> | <field>: <value>"). Add only real
+      companies a source names; never a guessed website or feed.
+    columns:
+      - name: company_key
+        description: "Stable slug (PK), e.g. applied-digital."
+        tests: [unique, not_null]
+      - name: company_name
+        description: "The company's name as it is commonly written."
+        tests: [unique, not_null]
+      - name: aliases
+        description: "'|'-separated exact forms that name it."
+      - name: roles
+        description: "'|'-separated roles: developer, operator, owner, tenant, user, utility."
+        tests: [not_null]
+      - name: website_url
+        description: "The company's own website; blank when not confirmed."
+      - name: press_feed_url
+        description: "RSS feed of the company's press releases / investor news, when public and confirmed."
+      - name: source_kind
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['company_announcement', 'news_article', 'dataset_row']
+      - name: source_url
+        tests: [not_null]
+      - name: source_excerpt
+        description: "Verbatim text from source_url that names the company."
+        tests: [not_null]
+
+  - name: data_center_projects
+    config:
+      column_types:
+        project_key: text
+        project_name: text
+        developer_key: text
+        operator_key: text
+        tenant_key: text
+        area: text
+        city: text
+        county: text
+        state_code: text
+        status: text
+        announced_on: text
+        data_center_site_name: text
+        source_kind: text
+        source_url: text
+        source_excerpt: text
+        company_source_url: text
+        company_source_excerpt: text
+    description: >
+      Curated data center projects (#531) found in company announcements and news, one row
+      per project, each with the source that names it (source_url + verbatim
+      source_excerpt). developer_key / operator_key / tenant_key are company_keys from
+      data_center_companies, blank when no source names one. city / county / state_code
+      only as a source states them. data_center_site_name names the Epoch AI site when the
+      project is one (folded into data_center_project instead of repeated).
+      company_source_url / company_source_excerpt source the developer / operator / tenant
+      when a different passage names them. Figures go in
+      data_center_project_figures, one row per figure and source.
+    columns:
+      - name: project_key
+        tests: [unique, not_null]
+      - name: project_name
+        tests: [not_null]
+      - name: status
+        description: "announced, planned, under_construction, operating or cancelled; blank when no source says."
+        tests:
+          - accepted_values:
+              values: ['announced', 'planned', 'under_construction', 'operating', 'cancelled']
+      - name: announced_on
+        description: "Date (YYYY-MM-DD) the source dates the announcement; blank when not stated."
+      - name: source_kind
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['company_announcement', 'news_article', 'dataset_row']
+      - name: source_url
+        tests: [not_null]
+      - name: source_excerpt
+        tests: [not_null]
+
+  - name: data_center_project_figures
+    config:
+      column_types:
+        project_key: text
+        metric: text
+        value: numeric
+        unit: text
+        source_kind: text
+        source_url: text
+        source_excerpt: text
+        published_on: text
+    description: >
+      One row per figure a source states about a curated data center project (#531).
+      Sources that disagree each get their own row; nothing is averaged or picked.
+      value is the number the excerpt states, in unit (e.g. "$3.2 billion" -> 3200000000 usd).
+    columns:
+      - name: project_key
+        tests:
+          - not_null
+          - relationships:
+              to: ref('data_center_projects')
+              field: project_key
+      - name: metric
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['investment_usd', 'it_mw', 'utility_mw', 'acres', 'square_feet', 'jobs']
+      - name: value
+        tests: [not_null]
+      - name: unit
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['usd', 'mw', 'acres', 'sq_ft', 'jobs']
+      - name: source_url
+        tests: [not_null]
+      - name: source_excerpt
+        description: "Verbatim text from source_url that states the figure."
+        tests: [not_null]
+      - name: published_on
+        description: "The source's publication date (YYYY-MM-DD), when it gives one."

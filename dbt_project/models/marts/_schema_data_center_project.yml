@@ -1,0 +1,461 @@
+version: 2
+
+# #531: data center companies (an MDM satellite on the organization master) and projects,
+# with their companies, governments, figures and the decisions / meeting passages that
+# discuss them. All small; published to public and mirrored to Neon.
+
+models:
+  - name: mdm_organization_data_center
+    description: >
+      MDM satellite (#531): data center detail for organizations that are data center companies. One row per master_org_id (PK and FK to mdm_organization), 1:1 with the data_center_companies seed rows. Roles, aliases, website, press/IR feed and the source (URL + verbatim excerpt) of each row.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: master_org_id
+        description: 'Primary key and FK: the organization master row the company resolved to.'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: company_key
+        description: "The seed's stable slug."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests: [unique]
+      - name: company_name
+        description: "The company's name."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: aliases
+        description: 'Exact forms that name the company.'
+        data_type: text[]
+      - name: roles
+        description: 'developer, operator, owner, tenant, user, utility.'
+        data_type: text[]
+      - name: website_url
+        description: "The company's own website; null when not confirmed."
+        data_type: text
+      - name: press_feed_url
+        description: "RSS feed of the company's press releases, when public; read by #532's loader."
+        data_type: text
+      - name: source_kind
+        description: 'company_announcement, news_article or dataset_row.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_url
+        description: 'Where the excerpt comes from.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_excerpt
+        description: 'Verbatim text from source_url.'
+        data_type: text
+        constraints:
+          - type: not_null
+  - name: data_center_project
+    description: >
+      One row per announced or tracked data center project (#531): curated projects from company announcements and news (data_center_projects seed) plus every other Epoch AI site. A figure is shown only when all its sources agree; data_center_project_figure keeps every figure with its own source. jurisdiction_id is the most specific government it resolves to.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [data_center_site_id]
+        to: ref('data_center_site')
+        to_columns: [data_center_site_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: project_id
+        description: "Primary key: md5('curated|' || project_key) or md5('epoch|' || data_center_site_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: project_key
+        description: "The seed's project_key, or 'epoch:' || data_center_site_id."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: project_source
+        description: 'curated or epoch.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['curated', 'epoch']
+      - name: project_name
+        description: 'Project or campus name as the source gives it.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: data_center_site_id
+        description: 'The Epoch AI site, when the project is one.'
+        data_type: text
+      - name: area
+        description: 'Address or area as the source states it.'
+        data_type: text
+      - name: city
+        description: 'City or town, as a curated source states it.'
+        data_type: text
+      - name: county
+        description: 'County, as a curated source states it.'
+        data_type: text
+      - name: state_code
+        description: '2-letter state code.'
+        data_type: text
+      - name: state
+        description: 'Full state name.'
+        data_type: text
+      - name: jurisdiction_id
+        description: 'Most specific government the project resolves to; null when none.'
+        data_type: text
+      - name: status
+        description: 'announced, planned, under_construction, operating, cancelled or (Epoch) no_longer_listed; null when no source says.'
+        data_type: text
+      - name: announced_on
+        description: 'Announcement date the source gives; null when not stated.'
+        data_type: date
+      - name: investment_usd
+        description: 'Announced investment (USD) when every source agrees; else null.'
+        data_type: numeric
+      - name: investment_source_url
+        description: 'Source of investment_usd.'
+        data_type: text
+      - name: investment_source_excerpt
+        description: 'Verbatim excerpt stating investment_usd.'
+        data_type: text
+      - name: it_mw
+        description: 'IT power / critical IT load (MW) when every source agrees; else null.'
+        data_type: numeric
+      - name: it_mw_source_url
+        description: 'Source of it_mw.'
+        data_type: text
+      - name: it_mw_source_excerpt
+        description: 'Verbatim excerpt stating it_mw.'
+        data_type: text
+      - name: acres
+        description: 'Site acreage when every source agrees; else null.'
+        data_type: numeric
+      - name: acres_source_url
+        description: 'Source of acres.'
+        data_type: text
+      - name: acres_source_excerpt
+        description: 'Verbatim excerpt stating acres.'
+        data_type: text
+      - name: has_conflicting_figures
+        description: 'True when sources state different values for any metric (see data_center_project_figure).'
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: source_kind
+        description: 'company_announcement, news_article or dataset_row.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_url
+        description: 'Where the excerpt comes from.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_excerpt
+        description: 'Verbatim text from source_url.'
+        data_type: text
+        constraints:
+          - type: not_null
+  - name: data_center_project_company
+    description: >
+      Companies on a data center project, by role (#531). One row per (project_id, master_org_id, role): developer/operator/tenant from curated sources, owner/user from Epoch AI's Owner and Users fields matched to a company by name or alias.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [project_id]
+        to: ref('data_center_project')
+        to_columns: [project_id]
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: project_company_id
+        description: 'Primary key: md5(project_id | master_org_id | role).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: project_id
+        description: 'The project.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: master_org_id
+        description: 'The company (organization master row).'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: role
+        description: 'developer, operator, tenant, owner or user.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['developer', 'operator', 'tenant', 'owner', 'user']
+      - name: confidence
+        description: "stated, or Epoch's likely / speculative."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_kind
+        description: 'company_announcement, news_article or dataset_row.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_url
+        description: 'Where the excerpt comes from.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_excerpt
+        description: 'Verbatim text from source_url.'
+        data_type: text
+        constraints:
+          - type: not_null
+  - name: data_center_project_jurisdiction
+    description: >
+      Governments a data center project sits in (#531; the #445 site mapping carried to projects). One row per (project_id, jurisdiction_id) with the strongest basis.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [project_id]
+        to: ref('data_center_project')
+        to_columns: [project_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: project_jurisdiction_id
+        description: 'Primary key: md5(project_id | jurisdiction_id).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: project_id
+        description: 'The project.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction_id
+        description: 'The government.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: basis
+        description: 'stated_city, meeting_source_survey, address_city, address_county or stated_county.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['stated_city', 'meeting_source_survey', 'address_city', 'address_county', 'stated_county']
+  - name: data_center_project_figure
+    description: >
+      Every stated figure about a data center project, each with its own source (#531). One row per (project, metric, source, value): conflicting figures keep each source.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [project_id]
+        to: ref('data_center_project')
+        to_columns: [project_id]
+    columns:
+      - name: project_figure_id
+        description: 'Primary key: md5(project_id | metric | source_url | value).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: project_id
+        description: 'The project.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: metric
+        description: 'investment_usd, it_mw, utility_mw, acres, square_feet or jobs.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['investment_usd', 'it_mw', 'utility_mw', 'acres', 'square_feet', 'jobs']
+      - name: value
+        description: 'The number the excerpt states.'
+        data_type: numeric
+        constraints:
+          - type: not_null
+      - name: unit
+        description: 'usd, mw, acres, sq_ft or jobs.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_kind
+        description: 'company_announcement, news_article or dataset_row.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_url
+        description: 'Where the excerpt comes from.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_excerpt
+        description: 'Verbatim text from source_url.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: published_on
+        description: "The source's date, when given."
+        data_type: date
+  - name: data_center_project_mention
+    description: >
+      Decisions and meeting passages that discuss a data center project (#531). One row per (project_id, record_type, record_id), matched deterministically by project name (in the project's state) or by a project company named in a record from one of the project's governments, with a verbatim <mark>ed evidence excerpt.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [project_id]
+        to: ref('data_center_project')
+        to_columns: [project_id]
+      - type: foreign_key
+        columns: [data_center_meeting_mention_id]
+        to: ref('data_center_meeting_mention')
+        to_columns: [data_center_meeting_mention_id]
+    columns:
+      - name: project_mention_id
+        description: 'Primary key: md5(project_id | record_type | record_id).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: project_id
+        description: 'The project.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: record_type
+        description: 'decision or meeting_passage.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['decision', 'meeting_passage']
+      - name: record_id
+        description: 'event_decision_id or data_center_meeting_mention_id.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: event_decision_id
+        description: 'The decision, for record_type decision.'
+        data_type: text
+      - name: data_center_meeting_mention_id
+        description: 'The transcript passage, for record_type meeting_passage.'
+        data_type: text
+      - name: match_basis
+        description: 'project_name or company_and_place.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['project_name', 'company_and_place']
+      - name: matched_term
+        description: 'The project name or company form that matched.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: evidence
+        description: "Verbatim excerpt of the record's text with the match in <mark>."
+        data_type: text
+        constraints:
+          - type: not_null
+
+unit_tests:
+  # #531: a figure all sources agree on is shown with its first source; disagreeing sources
+  # leave the column null, set has_conflicting_figures, and keep every figure row.
+  - name: project_figures_shown_only_when_sources_agree
+    model: data_center_project
+    given:
+      - input: ref('int_data_center_project__base')
+        rows:
+          - {project_id: p1, project_key: k1, project_source: curated, project_name: Campus One, state_code: AL, source_kind: news_article, source_url: 'https://a', source_excerpt: 'Campus One'}
+          - {project_id: p2, project_key: k2, project_source: curated, project_name: Campus Two, state_code: AL, source_kind: news_article, source_url: 'https://b', source_excerpt: 'Campus Two'}
+      - input: ref('int_data_center_project__figure')
+        rows:
+          - {project_id: p1, metric: investment_usd, value: 3200000000, source_url: 'https://a', source_excerpt: '$3.2 billion', published_on: '2026-09-24'}
+          - {project_id: p1, metric: investment_usd, value: 3200000000, source_url: 'https://c', source_excerpt: '$3.2B', published_on: '2026-09-25'}
+          - {project_id: p2, metric: square_feet, value: 1200000, source_url: 'https://b', source_excerpt: '1.2 million square feet', published_on: '2026-09-24'}
+          - {project_id: p2, metric: square_feet, value: 1300000, source_url: 'https://d', source_excerpt: '1.3 million square feet', published_on: '2026-09-25'}
+      - input: ref('int_data_center_project__jurisdiction')
+        rows:
+          - {project_id: p1, jurisdiction_id: brookwood_0109808, basis: stated_city}
+          - {project_id: p1, jurisdiction_id: tuscaloosa_01125, basis: stated_county}
+    expect:
+      rows:
+        - {project_id: p1, investment_usd: 3200000000, investment_source_url: 'https://a', has_conflicting_figures: false, jurisdiction_id: brookwood_0109808}
+        - {project_id: p2, investment_usd: null, investment_source_url: null, has_conflicting_figures: true, jurisdiction_id: null}
