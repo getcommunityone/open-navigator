@@ -113,7 +113,7 @@ def export_whisper_queue(store: Any, out: Path) -> int:
     with store._conn.cursor() as cur:  # noqa: SLF001 - read-only helper on the same connection
         cur.execute(
             f"SELECT platform, meeting_uid, meeting_date, video_url FROM {MEETING_TABLE} "
-            "WHERE transcription_status = 'queued_whisper' ORDER BY meeting_date DESC NULLS LAST, platform, meeting_uid"
+            "WHERE transcription_status = 'queued_whisper' AND meeting_date <= current_date ORDER BY meeting_date DESC NULLS LAST, platform, meeting_uid"
         )
         rows = cur.fetchall()
     out.parent.mkdir(parents=True, exist_ok=True)

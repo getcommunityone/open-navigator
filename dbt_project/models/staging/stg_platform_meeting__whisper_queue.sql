@@ -23,3 +23,5 @@ select
 from {{ ref('stg_bronze_platform_meeting') }}
 where transcription_status = 'queued_whisper'
   and video_url is not null
+  -- A meeting still ahead has a livestream link but no recording yet.
+  and meeting_date <= current_date
