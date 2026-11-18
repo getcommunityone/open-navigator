@@ -92,13 +92,21 @@ models:
         columns: [master_org_id]
         to: ref('mdm_organization')
         to_columns: [master_org_id]
+      - type: foreign_key
+        columns: [data_center_meeting_mention_id]
+        to: ref('data_center_meeting_mention')
+        to_columns: [data_center_meeting_mention_id]
     description: >
-      One row per (data center decision, company) where the decision's own headline or
-      decision_statement names the company. Matched case-sensitively on a whole word or
-      phrase against the curated seed data_center_operators (company forms only for brand
-      names that are ordinary words) and the owner / users / project names on
-      data_center_site. matched_text is the exact text matched and evidence a verbatim
-      excerpt with it in <mark>. No LLM, no guessed company.
+      One row per (data center decision, company) where the decision's own text, or a
+      passage of its own meeting, names the company. evidence_source says which. A
+      decision_text match is on the decision's headline or decision_statement, case-sensitive
+      on a whole word or phrase, against the curated seed data_center_operators (company
+      forms only for brand names that are ordinary words) and the owner / users / project
+      names on data_center_site. A meeting_passage match (#525) is in a transcript passage of
+      the same meeting (inside the decision's discussion window when the analysis gave one),
+      and only where the passage says the company is the applicant or developer next to the
+      name ("on behalf of X", "X is a ... developer"). matched_text is the exact text matched
+      and evidence a verbatim excerpt with it in <mark>. No LLM, no guessed company.
     config:
       materialized: table
       on_schema_change: fail
@@ -134,7 +142,7 @@ models:
         constraints:
           - type: not_null
       - name: matched_text
-        description: "The exact text in the decision that matched (e.g. 'Amazon Web Services')."
+        description: "The exact text that matched, in the decision or the passage (e.g. 'Amazon Web Services')."
         data_type: text
         constraints:
           - type: not_null
@@ -147,21 +155,55 @@ models:
           - accepted_values:
               values: ['seed', 'epoch']
       - name: text_field
-        description: "headline or decision_statement: the field the match is in."
+        description: "headline, decision_statement or meeting_passage: where the match is."
         data_type: text
         constraints:
           - type: not_null
         tests:
           - accepted_values:
-              values: ['headline', 'decision_statement']
+              values: ['headline', 'decision_statement', 'meeting_passage']
       - name: evidence
-        description: "Verbatim excerpt of that field around the match, with the match wrapped in <mark>."
+        description: "Verbatim excerpt of that text around the match, with the match wrapped in <mark>."
         data_type: text
         constraints:
           - type: not_null
         tests:
           - dbt_utils.expression_is_true:
               expression: "like '%<mark>%'"
+      - name: evidence_source
+        description: >
+          decision_text (the decision's own headline / decision_statement) or meeting_passage
+          (a transcript passage of the decision's own meeting, #525). The page labels the
+          second "Named in the meeting".
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['decision_text', 'meeting_passage']
+          - dbt_utils.expression_is_true:
+              expression: "= case when text_field = 'meeting_passage' then 'meeting_passage' else 'decision_text' end"
+      - name: start_seconds
+        description: >
+          Passages only: seconds into the recording of the passage's first data center cue
+          (data_center_meeting_mention.start_seconds), the moment to jump to. It is the
+          passage's moment, not the exact second of the quote. Null for decision_text and
+          for an untimed transcript.
+        data_type: numeric(12, 3)
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null"
+              config:
+                where: "evidence_source = 'decision_text'"
+      - name: data_center_meeting_mention_id
+        description: >
+          The passage the quote came from (FK -> data_center_meeting_mention); null for
+          decision_text. Required for meeting_passage.
+        data_type: text
+        tests:
+          - not_null:
+              config:
+                where: "evidence_source = 'meeting_passage'"
       - name: master_org_id
         description: "The company's organization master row (#531), via mdm_organization_data_center names and aliases; null when no curated company carries the name."
         data_type: text
@@ -265,12 +307,104 @@ unit_tests:
         rows: |
           select 'm_amazon'::text as master_org_id, 'Amazon'::text as company_name,
                  array['Amazon Web Services', 'AWS']::text[] as aliases
+      # #525: no decision here has a meeting, so the passage path adds nothing
+      - input: ref('event_meeting')
+        format: sql
+        rows: |
+          select null::integer as event_meeting_id, null::varchar as video_id where false
+      - input: ref('data_center_meeting_mention')
+        format: sql
+        rows: |
+          select null::text as data_center_meeting_mention_id, null::text as video_id,
+                 null::integer as passage_index, null::numeric as start_seconds where false
+      - input: ref('int_data_center_transcript__passage')
+        format: sql
+        rows: |
+          select null::text as video_id, null::integer as passage_index, null::text as passage_text where false
+      - input: source('bronze', 'bronze_events_analysis_ai')
+        format: sql
+        rows: |
+          select null::integer as id, null::jsonb as structured_analysis where false
     expect:
       rows:
-        - {event_decision_id: d1, operator_name: Amazon, matched_text: 'Amazon Web Services', text_field: headline, evidence: '<mark>Amazon Web Services</mark> Data Center Rezoning Approved', master_org_id: m_amazon}
-        - {event_decision_id: d3, operator_name: Meta, matched_text: 'Meta Platforms', text_field: decision_statement, evidence: 'The council approved a data center lease with Stack Infrastructure and <mark>Meta Platforms</mark>.', master_org_id: null}
-        - {event_decision_id: d3, operator_name: STACK Infrastructure, matched_text: 'Stack Infrastructure', text_field: decision_statement, evidence: 'The council approved a data center lease with <mark>Stack Infrastructure</mark> and Meta Platforms.', master_org_id: null}
-        - {event_decision_id: d4, operator_name: Meta, matched_text: 'Hyperion', text_field: headline, evidence: '<mark>Hyperion</mark> Data Center Tax Abatement Approved', master_org_id: null}
+        - {event_decision_id: d1, operator_name: Amazon, matched_text: 'Amazon Web Services', text_field: headline, evidence_source: decision_text, start_seconds: null, data_center_meeting_mention_id: null, evidence: '<mark>Amazon Web Services</mark> Data Center Rezoning Approved', master_org_id: m_amazon}
+        - {event_decision_id: d3, operator_name: Meta, matched_text: 'Meta Platforms', text_field: decision_statement, evidence_source: decision_text, start_seconds: null, data_center_meeting_mention_id: null, evidence: 'The council approved a data center lease with Stack Infrastructure and <mark>Meta Platforms</mark>.', master_org_id: null}
+        - {event_decision_id: d3, operator_name: STACK Infrastructure, matched_text: 'Stack Infrastructure', text_field: decision_statement, evidence_source: decision_text, start_seconds: null, data_center_meeting_mention_id: null, evidence: 'The council approved a data center lease with <mark>Stack Infrastructure</mark> and Meta Platforms.', master_org_id: null}
+        - {event_decision_id: d4, operator_name: Meta, matched_text: 'Hyperion', text_field: headline, evidence_source: decision_text, start_seconds: null, data_center_meeting_mention_id: null, evidence: '<mark>Hyperion</mark> Data Center Tax Abatement Approved', master_org_id: null}
+
+  # #525: a company is named from the meeting's own words only when the passage is in the
+  # decision's own meeting, inside its discussion window when it has one, and says the
+  # company is the applicant or developer next to the name.
+  - name: company_mention_from_meeting_passage
+    model: decision_company_mention
+    given:
+      - input: ref('event_decision')
+        rows:
+          # p1: meeting v1, no window -> the whole meeting
+          - {event_decision_id: p1, extracted_at: '2026-06-01', analysis_id: 1, decision_id: D001, state_code: GA, headline: 'Data Center Campus Amendment Denied', decision_statement: 'Denied.'}
+          # p5: same meeting; its own headline names Hillwood, so decision_text wins for Hillwood
+          - {event_decision_id: p5, extracted_at: '2026-06-01', analysis_id: 1, decision_id: D002, state_code: GA, headline: 'Hillwood Data Center Rezoning Approved', decision_statement: 'Approved.'}
+          # p2: meeting v2, window 100-200 s -> only the passage that overlaps it
+          - {event_decision_id: p2, extracted_at: '2026-06-01', analysis_id: 2, decision_id: D001, state_code: GA, headline: 'Data Center Special Exception Denied', decision_statement: 'Denied.'}
+          # p3: meeting v3, only passing mentions, no cue
+          - {event_decision_id: p3, extracted_at: '2026-06-01', analysis_id: 3, decision_id: D001, state_code: GA, headline: 'Data Center Moratorium Adopted', decision_statement: 'Adopted.'}
+          # p4: meeting v4, window 100-200 s, but its only passage is untimed
+          - {event_decision_id: p4, extracted_at: '2026-06-01', analysis_id: 4, decision_id: D001, state_code: GA, headline: 'Data Center Ordinance Tabled', decision_statement: 'Tabled.'}
+      - input: ref('event_meeting')
+        format: sql
+        rows: |
+          select 1 as event_meeting_id, 'v1'::varchar as video_id
+          union all select 2, 'v2'
+          union all select 3, 'v3'
+          union all select 4, 'v4'
+      - input: source('bronze', 'bronze_events_analysis_ai')
+        format: sql
+        rows: |
+          select 2 as id, '{"decisions": [{"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 100, "timestamp_end_seconds": 200}}]}'::jsonb as structured_analysis
+          union all
+          select 4, '{"decisions": [{"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 100, "timestamp_end_seconds": 200}}]}'::jsonb
+          union all
+          select 1, '{"decisions": [{"decision_id": "D001", "media_anchor": null}, {"decision_id": "D002"}]}'::jsonb
+      - input: ref('data_center_meeting_mention')
+        format: sql
+        rows: |
+          select 'mm1'::text as data_center_meeting_mention_id, 'v1'::text as video_id, 11 as passage_index, 2082.079::numeric as start_seconds
+          union all select 'mm2', 'v2', 0, 10
+          union all select 'mm3', 'v2', 5, 900
+          union all select 'mm4', 'v3', 0, 5
+          union all select 'mm5', 'v4', 0, null
+      - input: ref('int_data_center_transcript__passage')
+        rows:
+          - {video_id: v1, passage_index: 11, passage_text: 'on behalf of Hillwood. Powerhouse is a best-in-class developer of data centers.'}
+          - {video_id: v2, passage_index: 0, passage_text: 'the applicant is Hillwood and the hearing is tonight.'}
+          - {video_id: v2, passage_index: 5, passage_text: 'the applicant is Equinix.'}
+          - {video_id: v3, passage_index: 0, passage_text: "Google and Meta haven't come to me. a Meta data center in Newton County."}
+          - {video_id: v4, passage_index: 0, passage_text: 'on behalf of Hillwood.'}
+      - input: ref('data_center_operators')
+        rows:
+          - {operator_name: Hillwood, aliases: Hillwood}
+          - {operator_name: PowerHouse Data Centers, aliases: PowerHouse Data Centers, meeting_aliases: Powerhouse}
+          - {operator_name: Equinix, aliases: Equinix}
+          - {operator_name: Google, aliases: Google}
+          - {operator_name: Meta, aliases: 'Meta Platforms|Meta data center'}
+      - input: ref('data_center_site')
+        rows:
+          - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA}
+      - input: ref('mdm_organization_data_center')
+        format: sql
+        rows: |
+          select null::text as master_org_id, null::text as company_name, null::text[] as aliases where false
+    expect:
+      rows:
+        # p1: "on behalf of Hillwood" (cue before) and "Powerhouse is a ... developer" (cue after)
+        - {event_decision_id: p1, operator_name: Hillwood, matched_text: Hillwood, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm1, start_seconds: 2082.079, evidence: 'on behalf of <mark>Hillwood</mark>. Powerhouse is a best-in-class developer of data centers.'}
+        - {event_decision_id: p1, operator_name: PowerHouse Data Centers, matched_text: Powerhouse, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm1, start_seconds: 2082.079, evidence: 'on behalf of Hillwood. <mark>Powerhouse</mark> is a best-in-class developer of data centers.'}
+        # p5: its own headline names Hillwood (decision_text wins); Powerhouse comes from the meeting
+        - {event_decision_id: p5, operator_name: Hillwood, matched_text: Hillwood, text_field: headline, evidence_source: decision_text, data_center_meeting_mention_id: null, start_seconds: null, evidence: '<mark>Hillwood</mark> Data Center Rezoning Approved'}
+        - {event_decision_id: p5, operator_name: PowerHouse Data Centers, matched_text: Powerhouse, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm1, start_seconds: 2082.079, evidence: 'on behalf of Hillwood. <mark>Powerhouse</mark> is a best-in-class developer of data centers.'}
+        # p2: the passage inside the 100-200 s window; Equinix at 900 s is outside it
+        - {event_decision_id: p2, operator_name: Hillwood, matched_text: Hillwood, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm2, start_seconds: 10, evidence: 'the applicant is <mark>Hillwood</mark> and the hearing is tonight.'}
+        # p3 (companies named in passing, no cue) and p4 (untimed passage, window known): no rows
 
   # #508: only a street-level place that agrees with the decision's own government is
   # labelled; speech-to-text county names and contradicting places are not.
