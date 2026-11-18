@@ -437,6 +437,8 @@ seeds:
         source_excerpt: text
         company_source_url: text
         company_source_excerpt: text
+        announced_source_url: text
+        announced_source_excerpt: text
     description: >
       Curated data center projects (#531) found in company announcements and news, one row
       per project, each with the source that names it (source_url + verbatim
@@ -458,7 +460,7 @@ seeds:
           - accepted_values:
               values: ['announced', 'planned', 'under_construction', 'operating', 'cancelled']
       - name: announced_on
-        description: "Date (YYYY-MM-DD) the source dates the announcement; blank when not stated."
+        description: "Date (YYYY-MM-DD) the announcement is dated; blank when no source dates it. Requires announced_source_url / announced_source_excerpt (the passage that dates it)."
       - name: source_kind
         tests:
           - not_null

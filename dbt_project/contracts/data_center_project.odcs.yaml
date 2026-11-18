@@ -121,6 +121,16 @@ schema:
     logicalType: date
     physicalType: date
     description: Announcement date the source gives; null when not stated.
+  - id: announced_source_url
+    name: announced_source_url
+    logicalType: string
+    physicalType: text
+    description: Source that dates the announcement.
+  - id: announced_source_excerpt
+    name: announced_source_excerpt
+    logicalType: string
+    physicalType: text
+    description: Verbatim passage that dates the announcement.
   - id: investment_usd
     name: investment_usd
     logicalType: number

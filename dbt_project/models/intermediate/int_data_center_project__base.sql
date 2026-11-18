@@ -28,7 +28,10 @@ projects as (
         nullif(btrim(c.county), '')::text                     as county,
         nullif(upper(btrim(c.state_code)), '')::text          as state_code,
         nullif(btrim(c.status), '')::text                     as status,
-        nullif(btrim(c.announced_on), '')::date               as announced_on,
+        case when nullif(btrim(c.announced_source_url), '') is not null
+             then nullif(btrim(c.announced_on), '')::date end   as announced_on,
+        nullif(btrim(c.announced_source_url), '')::text       as announced_source_url,
+        nullif(btrim(c.announced_source_excerpt), '')::text   as announced_source_excerpt,
         c.source_kind::text                                   as source_kind,
         c.source_url::text                                    as source_url,
         c.source_excerpt::text                                as source_excerpt
@@ -47,6 +50,8 @@ projects as (
         s.state_code,
         s.status,
         null::date,
+        null::text,
+        null::text,
         'dataset_row',
         s.source_url,
         concat_ws(' | ', s.site_name,

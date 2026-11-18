@@ -18,6 +18,9 @@
     has_conflicting_figures is true, and each figure keeps its own source there. Each
     shown figure carries the URL and verbatim excerpt of its first source.
 
+    announced_on is set only with the passage that dates it (announced_source_url /
+    announced_source_excerpt).
+
     jurisdiction_id is the most specific government the project resolves to
     (data_center_project_jurisdiction: a stated city or town, else the stated county);
     null when none resolves. Nothing is inferred: a seed column left blank stays null.
@@ -66,6 +69,8 @@ select
     j.jurisdiction_id::text                                                  as jurisdiction_id,
     p.status,
     p.announced_on,
+    p.announced_source_url,
+    p.announced_source_excerpt,
     (case when inv.n_values = 1 then inv.value end)::numeric                 as investment_usd,
     (case when inv.n_values = 1 then inv.source_url end)::text               as investment_source_url,
     (case when inv.n_values = 1 then inv.source_excerpt end)::text           as investment_source_excerpt,

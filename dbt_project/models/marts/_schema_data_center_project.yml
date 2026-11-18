@@ -139,6 +139,12 @@ models:
       - name: announced_on
         description: 'Announcement date the source gives; null when not stated.'
         data_type: date
+      - name: announced_source_url
+        description: 'Source that dates the announcement.'
+        data_type: text
+      - name: announced_source_excerpt
+        description: 'Verbatim passage that dates the announcement.'
+        data_type: text
       - name: investment_usd
         description: 'Announced investment (USD) when every source agrees; else null.'
         data_type: numeric
