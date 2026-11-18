@@ -238,6 +238,11 @@ CIVIC_SERVING = frozenset(
         "data_center_project_jurisdiction",
         "data_center_project_figure",
         "data_center_project_mention",
+        # company-hosted community meetings from news / press releases, their
+        # sources and recording candidates (#532)
+        "data_center_community_event",
+        "data_center_community_event_source",
+        "data_center_community_event_recording",
         # recent transcribed-but-unanalyzed meetings for the homepage "What's New"
         # rail (#509): one small row per meeting from the last 180 days, with the
         # stored topic/question evidence passage (no transcript text, #496).

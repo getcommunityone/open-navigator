@@ -198,6 +198,13 @@
         "where state_code in {{states}} or state_code is null)",
     'data_center_project_mention':
         "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_community_event':         "(_s.state_code in {{states}} or _s.state_code is null)",
+    'data_center_community_event_source':
+        "_s.community_event_id in (select community_event_id from gold.data_center_community_event "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_community_event_recording':
+        "_s.community_event_id in (select community_event_id from gold.data_center_community_event "
         "where state_code in {{states}} or state_code is null)"
 } -%}
 {#- bill_sponsorship is DROPPED from serving entirely (removed from `served`):
@@ -235,7 +242,9 @@
     'decision_place_label', 'decision_company_mention', 'decision_nearby_data_center_site',
     'recent_transcribed_meeting',
     'mdm_organization_data_center', 'data_center_project', 'data_center_project_company',
-    'data_center_project_jurisdiction', 'data_center_project_figure', 'data_center_project_mention'
+    'data_center_project_jurisdiction', 'data_center_project_figure', 'data_center_project_mention',
+    'data_center_community_event', 'data_center_community_event_source',
+    'data_center_community_event_recording'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
