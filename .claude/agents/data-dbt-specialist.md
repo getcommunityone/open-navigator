@@ -1,5 +1,6 @@
 ---
 name: data-dbt-specialist
+model: sonnet
 description: >-
   Data-layer specialist for open-navigator. Use for anything touching dbt models
   (bronze/staging/intermediate/marts), SQL transformation logic, JSONB extraction,
