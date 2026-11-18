@@ -206,8 +206,11 @@ anchor_raw as (
     where a.id in (select analysis_id from decision_meetings)
 ),
 
+-- A decision_id can repeat inside one analysis. Each bound is then taken across all of
+-- its entries (earliest start, latest end), so no entry's window loses a passage and no
+-- window is built from the start of one entry and the end of another.
 windows as (
-    select analysis_id, decision_id, max(window_start) as window_start, max(window_end) as window_end
+    select analysis_id, decision_id, min(window_start) as window_start, max(window_end) as window_end
     from anchor_raw
     where window_start is not null and window_end is not null and window_end >= window_start
     group by 1, 2

@@ -1004,18 +1004,20 @@ function InstanceRow({ ex }: { ex: QuestionInstance }) {
           </span>
         </div>
       )}
-      {mentions.map((m) => (
+      {mentions.map((m) => {
+        const recordingLink = companyMentionLink(m)
+        return (
         <div key={m.operator_name} className="mt-1 flex items-start gap-1 text-xs text-gray-700" data-testid="dashboard-instance-company">
           <BuildingOffice2Icon className="mt-px h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
           <span>
             <span className="text-gray-400">{companyMentionLabel(m)}: </span>
             <span className="font-medium">{m.operator_name}</span>
             {m.evidence && <span className="text-gray-500"> — “{highlightSnippet(m.evidence)}”</span>}
-            {companyMentionLink(m) && (
+            {recordingLink && (
               <>
                 {' '}
                 <a
-                  href={companyMentionLink(m) as string}
+                  href={recordingLink}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-indigo-600 hover:underline"
@@ -1027,7 +1029,8 @@ function InstanceRow({ ex }: { ex: QuestionInstance }) {
             )}
           </span>
         </div>
-      ))}
+        )
+      })}
       {nearby.map((s) => (
         <div key={s.data_center_site_id} className="mt-1 text-xs text-gray-500">
           Nearby tracked site: {s.site_name}

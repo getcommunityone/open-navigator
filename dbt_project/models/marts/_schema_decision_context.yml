@@ -350,6 +350,8 @@ unit_tests:
           - {event_decision_id: p3, extracted_at: '2026-06-01', analysis_id: 3, decision_id: D001, state_code: GA, headline: 'Data Center Moratorium Adopted', decision_statement: 'Adopted.'}
           # p4: meeting v4, window 100-200 s, but its only passage is untimed
           - {event_decision_id: p4, extracted_at: '2026-06-01', analysis_id: 4, decision_id: D001, state_code: GA, headline: 'Data Center Ordinance Tabled', decision_statement: 'Tabled.'}
+          # p6: meeting v5, its analysis lists D001 twice (windows 100-200 s and 900-1000 s)
+          - {event_decision_id: p6, extracted_at: '2026-06-01', analysis_id: 5, decision_id: D001, state_code: GA, headline: 'Data Center Site Plan Approved', decision_statement: 'Approved.'}
       - input: ref('event_meeting')
         format: sql
         rows: |
@@ -357,6 +359,7 @@ unit_tests:
           union all select 2, 'v2'
           union all select 3, 'v3'
           union all select 4, 'v4'
+          union all select 5, 'v5'
       - input: source('bronze', 'bronze_events_analysis_ai')
         format: sql
         rows: |
@@ -365,6 +368,8 @@ unit_tests:
           select 4, '{"decisions": [{"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 100, "timestamp_end_seconds": 200}}]}'::jsonb
           union all
           select 1, '{"decisions": [{"decision_id": "D001", "media_anchor": null}, {"decision_id": "D002"}]}'::jsonb
+          union all
+          select 5, '{"decisions": [{"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 100, "timestamp_end_seconds": 200}}, {"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 900, "timestamp_end_seconds": 1000}}]}'::jsonb
       - input: ref('data_center_meeting_mention')
         format: sql
         rows: |
@@ -373,6 +378,8 @@ unit_tests:
           union all select 'mm3', 'v2', 5, 900
           union all select 'mm4', 'v3', 0, 5
           union all select 'mm5', 'v4', 0, null
+          union all select 'mm6', 'v5', 0, 10
+          union all select 'mm7', 'v5', 5, 900
       - input: ref('int_data_center_transcript__passage')
         rows:
           - {video_id: v1, passage_index: 11, passage_text: 'on behalf of Hillwood. Powerhouse is a best-in-class developer of data centers.'}
@@ -380,6 +387,8 @@ unit_tests:
           - {video_id: v2, passage_index: 5, passage_text: 'the applicant is Equinix.'}
           - {video_id: v3, passage_index: 0, passage_text: "Google and Meta haven't come to me. a Meta data center in Newton County."}
           - {video_id: v4, passage_index: 0, passage_text: 'on behalf of Hillwood.'}
+          - {video_id: v5, passage_index: 0, passage_text: 'the applicant is Hillwood tonight.'}
+          - {video_id: v5, passage_index: 5, passage_text: 'the applicant is Equinix tonight.'}
       - input: ref('data_center_operators')
         rows:
           - {operator_name: Hillwood, aliases: Hillwood}
@@ -404,6 +413,10 @@ unit_tests:
         - {event_decision_id: p5, operator_name: PowerHouse Data Centers, matched_text: Powerhouse, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm1, start_seconds: 2082.079, evidence: 'on behalf of Hillwood. <mark>Powerhouse</mark> is a best-in-class developer of data centers.'}
         # p2: the passage inside the 100-200 s window; Equinix at 900 s is outside it
         - {event_decision_id: p2, operator_name: Hillwood, matched_text: Hillwood, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm2, start_seconds: 10, evidence: 'the applicant is <mark>Hillwood</mark> and the hearing is tonight.'}
+        # p6: D001 listed twice in its analysis -> the window spans both entries (100-1000 s),
+        # so both passages count; a window made of one entry's start and the other's end would not
+        - {event_decision_id: p6, operator_name: Hillwood, matched_text: Hillwood, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm6, start_seconds: 10, evidence: 'the applicant is <mark>Hillwood</mark> tonight.'}
+        - {event_decision_id: p6, operator_name: Equinix, matched_text: Equinix, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm7, start_seconds: 900, evidence: 'the applicant is <mark>Equinix</mark> tonight.'}
         # p3 (companies named in passing, no cue) and p4 (untimed passage, window known): no rows
 
   # #508: only a street-level place that agrees with the decision's own government is
