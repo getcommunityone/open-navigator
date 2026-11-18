@@ -271,10 +271,13 @@ def test_write_unreadable_leaves_channel_columns_alone():
 
 def test_mark_no_website_sql():
     sql, params = r.mark_no_website_sql(r.TABLE, "municipality", ["al"], apply=False)
-    assert sql.startswith("SELECT COUNT(*)") and params == ["municipality", ["AL"]]
-    sql, params = r.mark_no_website_sql(r.TABLE, "municipality", [], apply=True)
-    assert sql.startswith("UPDATE") and "no_website" in sql
-    assert params[0] == r.PATTERN_MATCH_UNVERIFIED_METHOD and params[-1] == "municipality"
+    assert "SELECT COUNT(*)" in sql and params == ["municipality", ["AL"]]
+    assert sql.startswith("WITH with_site AS MATERIALIZED")
+    sql, params = r.mark_no_website_sql(r.TABLE, "municipality", ["al"], apply=True)
+    assert "UPDATE" in sql and "no_website" in sql
+    assert sql.count("%s") == len(params)
+    assert params[0] == "municipality" and params[1] == r.PATTERN_MATCH_UNVERIFIED_METHOD
+    assert params[-1] == ["AL"]
 
 
 def test_unverified_guess_is_never_crawled():

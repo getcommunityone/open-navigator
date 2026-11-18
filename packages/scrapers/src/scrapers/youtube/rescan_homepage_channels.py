@@ -469,26 +469,32 @@ def mark_no_website_sql(
         "AND BTRIM(COALESCE(s.youtube_channel_url, '')) <> '' "
         "AND BTRIM(COALESCE(s.homepage_url, '')) = '' "
         "AND BTRIM(COALESCE(s.homepage_final_url, '')) = '' "
-        "AND NOT EXISTS (SELECT 1 FROM intermediate.int_jurisdictions j "
+        "AND s.geoid NOT IN (SELECT geoid FROM with_site WHERE geoid IS NOT NULL)"
+    )
+    # Materialized once: a correlated NOT EXISTS was planned as a nested loop that
+    # re-ran the join per row (7 minutes for 6,381 rows).
+    with_site = (
+        "WITH with_site AS MATERIALIZED (SELECT DISTINCT j.geoid::text AS geoid "
+        "FROM intermediate.int_jurisdictions j "
         f"JOIN {WEBSITES} ws ON ws.jurisdiction_id = j.jurisdiction_id "
         "AND BTRIM(COALESCE(ws.website_url, '')) <> '' "
-        "WHERE j.geoid = s.geoid AND j.jurisdiction_type::text = %s)"
+        "WHERE j.jurisdiction_type::text = %s) "
     )
     params: list[Any] = [jtype]
     if states:
         where += " AND s.usps = ANY(%s)"
         params.append([st.upper() for st in states])
     if not apply:
-        return f"SELECT COUNT(*) FROM {table} s WHERE {where}", params
+        return f"{with_site}SELECT COUNT(*) FROM {table} s WHERE {where}", params
     now = datetime.now(UTC).replace(microsecond=0).isoformat()
     sql = (
-        f"UPDATE {table} s SET youtube_channel_selection_method = %s, "
+        f"{with_site}UPDATE {table} s SET youtube_channel_selection_method = %s, "
         "payload = COALESCE(s.payload, '{}'::jsonb) || jsonb_build_object("
         "'homepage_rescan_verdict', jsonb_build_object('status', %s, 'reason', 'no_website', "
         "'guess_url', s.youtube_channel_url, 'checked_at', %s::text)) "
         f"WHERE {where}"
     )
-    return sql, [PATTERN_MATCH_UNVERIFIED_METHOD, UNVERIFIED, now, *params]
+    return sql, [params[0], PATTERN_MATCH_UNVERIFIED_METHOD, UNVERIFIED, now, *params[1:]]
 
 
 def _database_url(explicit: str) -> str:
