@@ -1841,22 +1841,33 @@ sources:
           freshness:
             warn_after: {count: 14, period: day}
         description: >
-          News and company press-release items about data centers (#532), one per
+          News and company press-release items about data centers (#532, #549), one per
           (source, url), landed by `python -m ingestion.data_centers.community_events` from
-          the GDELT DOC API, Google News RSS (only when robots.txt allows it) and the
-          companies' press-release feeds. title and snippet are verbatim.
+          the GDELT DOC API, Google News RSS (only when robots.txt allows it), the
+          companies' press-release feeds, local news RSS/Atom feeds (seed local_news_feeds)
+          and the optional keyed NewsAPI.org, Guardian and Brave Search APIs; and by
+          `python -m ingestion.data_centers.video_search` from the YouTube Data API
+          (source youtube_search). title and snippet are verbatim.
         columns:
           - name: news_item_id
             description: "md5(source | url)."
           - name: source
-            description: "gdelt, google_news or company_feed."
+            description: "gdelt, google_news, company_feed, rss, newsapi, guardian, brave or youtube_search."
+          - name: publisher
+            description: "Domain, outlet (rss), company (company_feed) or YouTube channel title (youtube_search)."
           - name: snippet
-            description: "Verbatim text: the headline (GDELT), the feed description, or whole sentences of a press release that say a meeting word or a project name."
+            description: "Verbatim text: the headline (GDELT), the feed or API description, whole sentences of an article or press release that say a meeting word, 'data center' or a tracked name, or a video's description."
       - name: bronze_data_center_event_recording_candidate
         description: >
           Videos a YouTube search (through the VPN guard) found for a company-hosted data
           center meeting (#532), landed by `python -m ingestion.data_centers.recording_candidates`.
           Candidates for review only.
+      - name: bronze_data_center_video_search_log
+        description: >
+          One row per YouTube Data API query `python -m ingestion.data_centers.video_search`
+          has run (#549): when, for which Pacific quota day, how many searches that day and
+          how many videos it returned. Keeps the run within its daily quota budget and lets
+          it resume across days. Not read by any model.
       - name: bronze_jurisdiction_meeting_source
         description: >
           Where each government around a data center site publishes its meetings (#460), one row

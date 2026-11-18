@@ -417,6 +417,51 @@ seeds:
         description: "Verbatim text from source_url that names the company."
         tests: [not_null]
 
+  - name: local_news_feeds
+    config:
+      column_types:
+        feed_id: text
+        outlet: text
+        state_code: text
+        feed_url: text
+        robots_checked_on: date
+        robots_allowed: boolean
+        enabled: boolean
+        note: text
+    description: >
+      Local news RSS/Atom feeds the data center meeting finder reads (#549), starting with the
+      states that have tracked data center projects. One row per feed. The loader
+      (`python -m ingestion.data_centers.community_events --source rss`) reads only rows that
+      are enabled and whose robots.txt check allowed the feed path for its User-Agent, and
+      checks robots.txt again live before fetching. robots_checked_on / robots_allowed are
+      written by `python -m ingestion.data_centers.news_feeds --check-robots`. A feed_url with
+      {term} is an outlet's own topic feed, expanded per tracked company name and project
+      place. A row with no feed_url records an outlet with no published feed; a disabled row
+      records why (note), e.g. a feed that answers HTTP 429 to automated clients. Never add a
+      search engine's feed (Google News RSS is disallowed by its robots.txt).
+    columns:
+      - name: feed_id
+        description: "Stable slug (PK), e.g. abc3340-local."
+        tests: [unique, not_null]
+      - name: outlet
+        description: "The news outlet as it names itself."
+        tests: [not_null]
+      - name: state_code
+        description: "Two-letter state the outlet covers."
+        tests: [not_null]
+      - name: feed_url
+        description: "The feed URL; blank when the outlet publishes none."
+      - name: robots_checked_on
+        description: "Date robots.txt was last checked for the feed path."
+      - name: robots_allowed
+        description: "Whether robots.txt allowed the feed path for the loader's User-Agent on that date (403, 429 or a bot challenge in place of robots.txt counts as not allowed)."
+        tests: [not_null]
+      - name: enabled
+        description: "false keeps a feed listed but unread (see note)."
+        tests: [not_null]
+      - name: note
+        description: "Why a feed is disabled or blank, or what kind of feed it is."
+
   - name: data_center_projects
     config:
       column_types:

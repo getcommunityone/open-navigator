@@ -97,7 +97,7 @@ models:
               arguments:
                 values: ['stated', 'stated_month_day']
       - name: recording_url
-        description: 'A video link an article itself carries; null otherwise.'
+        description: 'A video link an article itself carries, or a YouTube-search video of the meeting itself (source_role recording, never a news channel''s coverage); null otherwise.'
         data_type: text
       - name: recording_candidate_count
         description: 'Search candidates for review (data_center_community_event_recording).'
@@ -151,14 +151,14 @@ models:
         constraints:
           - type: not_null
       - name: source
-        description: 'gdelt, google_news or company_feed.'
+        description: 'gdelt, google_news, company_feed, rss (local news feeds), newsapi, guardian, brave (#549) or youtube_search (a video the YouTube Data API found, #549).'
         data_type: text
         constraints:
           - type: not_null
         tests:
           - accepted_values:
               arguments:
-                values: ['gdelt', 'google_news', 'company_feed']
+                values: ['gdelt', 'google_news', 'company_feed', 'rss', 'newsapi', 'guardian', 'brave', 'youtube_search']
       - name: url
         description: 'The article or press release.'
         data_type: text
@@ -170,8 +170,17 @@ models:
         constraints:
           - type: not_null
       - name: publisher
-        description: 'The publisher (domain or company).'
+        description: 'The publisher (domain, outlet, company or YouTube channel).'
         data_type: text
+      - name: source_role
+        description: 'article (news, press release, web page); recording (a YouTube video of the meeting itself, not from a news channel); news_coverage (a TV or radio news channel''s video about it: coverage, not the meeting) (#549).'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['article', 'recording', 'news_coverage']
       - name: published_on
         description: 'Its publication date.'
         data_type: date
@@ -266,25 +275,26 @@ unit_tests:
                  'Example Digital to host town hall on Forge Campus Two data center Oct. 7'::text as snippet,
                  null::text as company_key,
                  'Example Digital to host town hall on Forge Campus Two data center Oct. 7'::text as body,
-                 array['town_hall']::text[] as kinds, true as says_data_center, null::timestamptz as first_seen_at
+                 array['town_hall']::text[] as kinds, true as says_data_center, 'article'::text as source_role,
+                 null::timestamptz as first_seen_at
           union all
           select 'n2', 'gdelt', 'https://example.test/2', 'Residents pack open house on data center', 'example.test',
                  null, date '2026-10-02', null, null, 'Residents pack open house on data center',
-                 array['open_house']::text[], true, null
+                 array['open_house']::text[], true, 'article', null
           union all
           select 'n3', 'gdelt', 'https://example.test/3', 'Example Digital data center open house February 30, 2026',
                  'example.test', null, date '2026-02-01', null, null,
                  'Example Digital data center open house February 30, 2026 at Forge Campus Two',
-                 array['open_house']::text[], true, null
+                 array['open_house']::text[], true, 'article', null
           union all
           select 'n4', 'company_feed', 'https://example.test/4', 'Release', 'Example Digital', null,
                  date '2026-10-02', null, 'example-digital',
                  'Release — DALLAS, Oct. 2, 2026 -- Example Digital will host a town hall at Forge Campus Two data center.',
-                 array['town_hall']::text[], true, null
+                 array['town_hall']::text[], true, 'article', null
           union all
           select 'n5', 'gdelt', 'https://example.test/5', 'x', 'example.test', null, date '2027-01-05', null, null,
                  'Example Digital data center town hall Dec. 15 at Forge Campus Two',
-                 array['town_hall']::text[], true, null
+                 array['town_hall']::text[], true, 'article', null
       - input: ref('mdm_organization_data_center')
         format: sql
         rows: |
@@ -303,3 +313,41 @@ unit_tests:
         - {news_item_id: n3, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: open_house, event_date: null, event_date_basis: null}
         - {news_item_id: n4, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: town_hall, event_date: null, event_date_basis: null}
         - {news_item_id: n5, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: town_hall, event_date: '2026-12-15', event_date_basis: stated_month_day}
+
+  # #549: a YouTube-search video of the meeting is its recording; a TV news channel's video
+  # of the same meeting is coverage and never becomes the recording.
+  - name: news_item_match_video_recording_vs_coverage
+    model: int_data_center_news_item__match
+    given:
+      - input: ref('stg_data_center_news_item')
+        format: sql
+        rows: |
+          select 'v1'::text as news_item_id, 'youtube_search'::text as source,
+                 'https://www.youtube.com/watch?v=AAAAAAAAAAA'::text as url,
+                 'Example Digital Forge Campus Two data center town hall'::text as title,
+                 'Example Digital'::text as publisher, null::timestamptz as published_at,
+                 date '2026-10-02' as published_on, null::text as snippet, null::text as company_key,
+                 'Example Digital Forge Campus Two data center town hall'::text as body,
+                 array['town_hall']::text[] as kinds, true as says_data_center,
+                 'recording'::text as source_role, null::timestamptz as first_seen_at
+          union all
+          select 'v2', 'youtube_search', 'https://www.youtube.com/watch?v=BBBBBBBBBBB',
+                 'Residents question Example Digital at Forge Campus Two data center town hall', 'WXYZ News',
+                 null, date '2026-10-03', null, null,
+                 'Residents question Example Digital at Forge Campus Two data center town hall',
+                 array['town_hall']::text[], true, 'news_coverage', null
+      - input: ref('mdm_organization_data_center')
+        format: sql
+        rows: |
+          select 'm1'::text as master_org_id, 'example-digital'::text as company_key,
+                 'Example Digital'::text as company_name, array['Example Digital']::text[] as aliases
+      - input: ref('data_center_project')
+        rows:
+          - {project_id: p1, project_name: Forge Campus Two, project_source: curated, city: Exampleton, state_code: AL, jurisdiction_id: exampleton_01}
+      - input: ref('data_center_project_company')
+        rows:
+          - {project_id: p1, master_org_id: m1, role: developer}
+    expect:
+      rows:
+        - {news_item_id: v1, status: confirmed, project_id: p1, source_role: recording, recording_url: 'https://www.youtube.com/watch?v=AAAAAAAAAAA'}
+        - {news_item_id: v2, status: confirmed, project_id: p1, source_role: news_coverage, recording_url: null}

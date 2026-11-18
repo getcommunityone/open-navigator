@@ -165,7 +165,7 @@ schema:
     name: recording_url
     logicalType: string
     physicalType: text
-    description: A video link an article itself carries; null otherwise.
+    description: A video link an article itself carries, or a YouTube-search video of the meeting itself (source_role recording, never a news channel's coverage); null otherwise.
   - id: recording_candidate_count
     name: recording_candidate_count
     logicalType: integer

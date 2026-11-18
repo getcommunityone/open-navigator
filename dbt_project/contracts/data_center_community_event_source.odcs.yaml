@@ -61,7 +61,7 @@ schema:
     name: source
     logicalType: string
     physicalType: text
-    description: gdelt, google_news or company_feed.
+    description: 'gdelt, google_news, company_feed, rss (local news feeds), newsapi, guardian, brave (#549) or youtube_search (a video the YouTube Data API found, #549).'
     required: true
     quality:
     - type: library
@@ -71,6 +71,11 @@ schema:
         - gdelt
         - google_news
         - company_feed
+        - rss
+        - newsapi
+        - guardian
+        - brave
+        - youtube_search
       mustBe: 0
       dimension: conformity
       severity: error
@@ -90,7 +95,24 @@ schema:
     name: publisher
     logicalType: string
     physicalType: text
-    description: The publisher (domain or company).
+    description: The publisher (domain, outlet, company or YouTube channel).
+  - id: source_role
+    name: source_role
+    logicalType: string
+    physicalType: text
+    description: 'article (news, press release, web page); recording (a YouTube video of the meeting itself, not from a news channel); news_coverage (a TV or radio news channel''s video about it: coverage, not the meeting) (#549).'
+    required: true
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - article
+        - recording
+        - news_coverage
+      mustBe: 0
+      dimension: conformity
+      severity: error
   - id: published_on
     name: published_on
     logicalType: date
