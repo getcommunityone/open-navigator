@@ -76,6 +76,9 @@ This model:
   golden event value still wins when it exists (COALESCE order); the YouTube
   metadata is the fallback. event_id stays NULL for orphans (no fake FK).
 
+- Drops junk-gated and non-US (Canadian CivicSearch) transcripts; see the
+  Exclusions CTEs below (#533).
+
 Data flow:
   bronze_event_youtube_transcript -> stg_bronze_event_youtube_transcript
     -> events_text_search -> event_documents (this model)
@@ -96,6 +99,38 @@ WITH transcripts AS (
         created_at
     FROM {{ ref('events_text_search') }}
     WHERE raw_text IS NOT NULL
+),
+
+-- ── Exclusions (#533) ───────────────────────────────────────────────────────
+-- Every transcript with caption text reaches this model (the staging view tests
+-- the text, not the has_transcript flag). Two groups are then dropped on purpose:
+--
+-- 1. Junk gate. Videos on channels positively classified as junk / non-government
+--    (bronze_youtube_channel_classification, the gate in
+--    event_youtube_with_jurisdiction). A video that IS in the bronze catalog but
+--    NOT in that view was removed by the gate (the view is otherwise one row per
+--    bronze row). Gameplay, vlogs, music videos, land-sale ads: not meetings.
+--    Videos with no catalog row at all are kept (unscored, never dropped).
+junk_gated_videos AS (
+    SELECT b.video_id
+    FROM {{ source('bronze', 'bronze_event_youtube') }} b
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM {{ ref('event_youtube_with_jurisdiction') }} w
+        WHERE w.video_id = b.video_id
+    )
+),
+
+-- 2. Outside the US. CivicSearch also indexes Canadian municipal meetings
+--    (Toronto, Ottawa, Halifax, ...). They have no US jurisdiction to resolve to
+--    (the jurisdiction model is US-only), so they would show up in national search
+--    and topic / question counts with no place. Identified by the CivicSearch
+--    location ending in a Canadian province or territory; on 2026-11-17 these were
+--    exactly the 696 CivicSearch transcripts with no resolved jurisdiction.
+non_us_videos AS (
+    SELECT DISTINCT c.vid_id AS video_id
+    FROM {{ ref('stg_civicsearch__event') }} c
+    WHERE c.location ~ '{{ canadian_location_regex() }}'
 ),
 
 -- One row per video_id with junk-gated, jurisdiction-resolved metadata. Used to
@@ -141,6 +176,8 @@ joined AS (
     FROM transcripts t
     LEFT JOIN {{ ref('event') }} e ON e.event_id = t.event_id
     LEFT JOIN youtube y ON y.video_id = t.video_id
+    WHERE NOT EXISTS (SELECT 1 FROM junk_gated_videos j WHERE j.video_id = t.video_id)
+      AND NOT EXISTS (SELECT 1 FROM non_us_videos n WHERE n.video_id = t.video_id)
 )
 
 SELECT
