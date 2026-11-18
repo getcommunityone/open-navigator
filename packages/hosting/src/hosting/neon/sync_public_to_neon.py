@@ -437,6 +437,11 @@ def _copy_one(local_conn, neon_conn, name: str) -> int:
         cur.execute(f'ALTER TABLE public."{load_tbl}" RENAME TO "{name}"')
     neon_conn.commit()
     buf.close()
+    for ddl in TARGET_INDEXES.get(name, []):
+        with neon_conn.cursor() as cur:
+            cur.execute(ddl)
+        neon_conn.commit()
+        logger.debug("   🗂️  {} — index built on target", name)
     return rows
 
 
@@ -493,6 +498,21 @@ def budget_problem(p: SizeProjection, max_mb: float, hard_cap_mb: float = NEON_H
     return None
 
 
+# Indexes built on the target after a table is copied (the copy itself carries none).
+# event_meeting_document is served without a stored tsvector (#557); document search matches
+# this exact expression (api/routes/search_postgres.py `_MEETING_DOC_TSV`, search.py), so the
+# index must use the same one. Without it that search takes seconds; with it, milliseconds.
+TARGET_INDEXES: Dict[str, List[str]] = {
+    "event_meeting_document": [
+        "CREATE INDEX IF NOT EXISTS event_meeting_document_fts_idx ON public.event_meeting_document "
+        "USING gin ((to_tsvector('english', coalesce(content, '') || ' ' || coalesce(meeting_title, '') "
+        "|| ' ' || coalesce(body_name, ''))))"
+    ],
+}
+# Bytes those indexes add (measured locally), counted in the size projection.
+TARGET_INDEX_BYTES: Dict[str, int] = {"event_meeting_document": 9 * 1024 * 1024}
+
+
 def _local_object_bytes(local_conn, name: str) -> int:
     with local_conn.cursor() as cur:
         cur.execute(
@@ -501,7 +521,7 @@ def _local_object_bytes(local_conn, name: str) -> int:
             )
         )
         column_bytes, rows = cur.fetchone()
-    return estimate_copy_bytes(int(column_bytes), int(rows))
+    return estimate_copy_bytes(int(column_bytes), int(rows)) + TARGET_INDEX_BYTES.get(name, 0)
 
 
 def _target_sizes(neon_conn, names: List[str]) -> Tuple[int, Dict[str, int]]:
