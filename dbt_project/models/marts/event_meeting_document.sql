@@ -46,6 +46,10 @@ SOURCES (UNION ALL, disjoint by construction):
   - staging.stg_scraped_meeting_documents — agenda/minutes PDFs from the
     nationwide jurisdiction homepage crawl, counties and municipalities in every state,
     day-dated only (source = 'scraped_meetings'; #392).
+  - staging.stg_platform_meeting_documents — agenda/minutes of meetings read from
+    Granicus portals and the Legistar Web API (source = 'legistar' | 'granicus';
+    #536). Their content is the agenda/minutes text the platform serves through its
+    API (coalesced in when bronze_meeting_document_text has no extraction).
 
 LINK TARGET: public.event_meeting. A document is matched to a meeting on ALL
 THREE of:
@@ -114,12 +118,14 @@ with docs as (
         coalesce(census_geoid, substring(jurisdiction_id from '_(\d+)$'))
             ~ '^\d{5}$'                                     as is_county_doc,
         source,
-        created_at
+        created_at,
+        platform_content
     from (
         select
             event_meeting_document_id, jurisdiction_id, census_geoid, url_sha256,
             state_code, state, document_type, document_url, doc_date,
-            meeting_title, body_key, source, created_at
+            meeting_title, body_key, source, created_at,
+            null::text as platform_content
         from {{ ref('stg_suiteone_meeting_documents') }}
 
         union all
@@ -129,8 +135,20 @@ with docs as (
         select
             event_meeting_document_id, jurisdiction_id, census_geoid, url_sha256,
             state_code, state, document_type, document_url, doc_date,
-            meeting_title, body_key, source, created_at
+            meeting_title, body_key, source, created_at,
+            null::text as platform_content
         from {{ ref('stg_scraped_meeting_documents') }}
+
+        union all
+
+        -- Granicus / Legistar meetings (#536). Carries the agenda / minutes text the
+        -- platform serves through its API; disjoint from the two models above by host.
+        select
+            event_meeting_document_id, jurisdiction_id, census_geoid, url_sha256,
+            state_code, state, document_type, document_url, doc_date,
+            meeting_title, body_key, source, created_at,
+            content as platform_content
+        from {{ ref('stg_platform_meeting_documents') }}
     ) all_docs
 
 ),
@@ -215,8 +233,14 @@ joined as (
         d.meeting_title,
         -- Extracted PDF text (1:1 per document on jurisdiction_id + url_sha256),
         -- NULL where no text has been extracted yet.
-        t.content                                           as content,
-        t.word_count::integer                               as word_count,
+        -- Granicus / Legistar documents (#536) carry the platform-served text instead.
+        coalesce(t.content, d.platform_content)             as content,
+        coalesce(
+            t.word_count::integer,
+            case when d.platform_content is not null
+                 then array_length(regexp_split_to_array(btrim(d.platform_content), '\s+'), 1)
+            end
+        )                                                   as word_count,
         d.source,
         d.created_at
     from docs d

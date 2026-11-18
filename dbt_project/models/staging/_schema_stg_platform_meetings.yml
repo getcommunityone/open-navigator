@@ -1,0 +1,75 @@
+version: 2
+
+# #536: meetings read from Granicus portals and the Legistar Web API
+# (scrapers.platforms -> bronze_platform_meeting / bronze_platform_meeting_caption).
+
+models:
+  - name: stg_bronze_platform_meeting
+    description: >
+      One row per Granicus / Legistar meeting (platform, meeting_uid): date, body, title,
+      agenda / minutes / video URLs, the agenda and minutes text the platform serves, and
+      transcription_status (captions | queued_whisper | video_url_unknown | no_video).
+    columns:
+      - name: platform_meeting_id
+        description: "md5(platform | meeting_uid); unique per meeting."
+        data_tests:
+          - unique
+          - not_null
+      - name: platform
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['legistar', 'granicus']
+      - name: meeting_uid
+        data_tests:
+          - not_null
+      - name: state_code
+        description: "2-letter state code."
+      - name: state
+        description: "Full state name."
+      - name: transcription_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['captions', 'queued_whisper', 'video_url_unknown', 'no_video']
+
+  - name: stg_bronze_platform_meeting_caption
+    description: "Caption text a platform serves for a meeting's video; one row per meeting, cues in segments."
+    columns:
+      - name: platform_meeting_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_bronze_platform_meeting')
+                field: platform_meeting_id
+
+  - name: stg_platform_meeting__whisper_queue
+    description: >
+      Platform meeting videos with no captions, queued for Colab Whisper (#489). Not
+      transcribed here; the runner checks the video host's robots.txt before downloading.
+    columns:
+      - name: platform_meeting_id
+        data_tests:
+          - unique
+          - not_null
+      - name: video_url
+        data_tests:
+          - not_null
+
+  - name: stg_platform_meeting_documents
+    description: >
+      Agenda and minutes documents of Granicus / Legistar meetings in the
+      event_meeting_document shape (one row per jurisdiction_id + url_sha256). content is
+      the platform-served agenda / minutes text, NULL when the platform serves none.
+    columns:
+      - name: event_meeting_document_id
+        data_tests:
+          - unique
+          - not_null
+      - name: document_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['agenda', 'minutes']

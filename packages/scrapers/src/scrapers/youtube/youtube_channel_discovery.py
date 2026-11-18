@@ -829,7 +829,17 @@ class YouTubeChannelDiscovery:
         return None, "fetch_failed"
 
     async def _scrape_website_for_channels(self, url: str) -> List[str]:
+        """Scrape a website for YouTube channel links (see ``scrape_website_with_status``)."""
+        channels, _ = await self.scrape_website_with_status(url)
+        return channels
+
+    async def scrape_website_with_status(self, url: str) -> tuple[List[str], str]:
         """Scrape a website for YouTube channel links.
+
+        Returns ``(channels, homepage_error)``. ``homepage_error`` is ``""`` when the
+        seed page loaded, else the fetch reason (``fetch_failed``, ``blocked:<reason>``).
+        A caller can then tell "the site links no channel" (page loaded, nothing found)
+        from "the site could not be read" (#535).
 
         Layered fallback:
 
@@ -851,16 +861,17 @@ class YouTubeChannelDiscovery:
         search_pw_max = self._youtube_int_env("YOUTUBE_SITE_SEARCH_PLAYWRIGHT_MAX", 2)
 
         homepage_html, home_err = await self._fetch_page_html(url)
+        home_status = "" if homepage_html else (home_err or "fetch_failed")
         if homepage_html:
             add_channels(self._extract_youtube_links_from_html(homepage_html, base_url=url))
         elif is_blocked_reason(home_err):
             # The host refuses automated access: record it and move on (issue #443).
-            return channels
+            return channels, home_status
         else:
             logger.debug(f"Could not load homepage HTML for YouTube scrape: {url}")
 
         if channels:
-            return channels
+            return channels, home_status
 
         if not homepage_html:
             # Avoid dozens of blind search/Playwright probes when the seed page never loaded.
@@ -873,7 +884,7 @@ class YouTubeChannelDiscovery:
             ):
                 page_html, page_err = await self._fetch_page_html(follow_url)
                 if is_blocked_reason(page_err):
-                    return channels
+                    return channels, home_status
                 if not page_html:
                     continue
                 add_channels(self._extract_youtube_links_from_html(page_html, base_url=follow_url))
@@ -883,7 +894,7 @@ class YouTubeChannelDiscovery:
                         follow=follow_url,
                         seed=url,
                     )
-                    return channels
+                    return channels, home_status
 
         attempted_search_urls: list[str] = []
         blocked_search_urls: set[str] = set()
@@ -917,7 +928,7 @@ class YouTubeChannelDiscovery:
                 except Exception as exc:
                     logger.trace(f"Site search scrape failed for {search_url}: {exc}")
                 if channels:
-                    return channels
+                    return channels, home_status
             if http_attempts >= search_http_max:
                 break
 
@@ -930,7 +941,7 @@ class YouTubeChannelDiscovery:
             if channels:
                 break
 
-        return channels
+        return channels, home_status
 
     def _build_site_search_urls(self, homepage_url: str, query: str) -> list[str]:
         parsed = urlparse(homepage_url)

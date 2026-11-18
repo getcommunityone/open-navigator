@@ -109,6 +109,7 @@ from scrapers.youtube.youtube_loader_logging import (
 )
 from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn  # noqa: E402
 from scrapers.discovery.channel_government_mismatch import real_channel_title  # noqa: E402
+from scrapers.youtube.pattern_match_gate import PATTERN_MATCH_UNVERIFIED_METHOD  # noqa: E402
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
 
 # Pilot priority states. Must equal DEFAULT_PRIORITY_STATES in
@@ -369,9 +370,16 @@ class YouTubeEventsLoader:
     
     def _add_jurisdiction_id_column(self):
         """Add jurisdiction_id and channel_id columns to event if they don't exist."""
+        from scrapers.youtube.schema_guard import is_base_table, set_local_lock_timeout
+
+        # ``event`` is a dbt view today; ALTER on it only fails, after waiting for a lock (#534).
+        if not is_base_table(self.conn, "event"):
+            self.conn.commit()
+            return
         cursor = self.conn.cursor()
         
         try:
+            set_local_lock_timeout(cursor)
             # Add jurisdiction_id column
             cursor.execute("""
                 ALTER TABLE event 
@@ -503,6 +511,9 @@ class YouTubeEventsLoader:
         cursor = self.conn.cursor()
         
         try:
+            from scrapers.youtube.schema_guard import set_local_lock_timeout
+
+            set_local_lock_timeout(cursor)
             # Create bronze schema if it doesn't exist
             cursor.execute("CREATE SCHEMA IF NOT EXISTS bronze;")
             
@@ -566,6 +577,9 @@ class YouTubeEventsLoader:
         cursor = self.conn.cursor()
         
         try:
+            from scrapers.youtube.schema_guard import set_local_lock_timeout
+
+            set_local_lock_timeout(cursor)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS bronze.bronze_events_channels (
                     id SERIAL PRIMARY KEY,
@@ -941,8 +955,16 @@ class YouTubeEventsLoader:
     def _ensure_scraped_youtube_channel_id_column(self, table: str) -> None:
         if table in self._scraped_channel_id_columns_ready:
             return
+        from scrapers.youtube.schema_guard import missing_columns, set_local_lock_timeout
+
+        schema, _, name = table.partition(".")
+        if not missing_columns(self.conn, schema, name, ("youtube_channel_id",)):
+            self.conn.commit()
+            self._scraped_channel_id_columns_ready.add(table)
+            return
         cursor = self.conn.cursor()
         try:
+            set_local_lock_timeout(cursor)
             cursor.execute(
                 f"""
                 ALTER TABLE {table}
@@ -1104,8 +1126,10 @@ class YouTubeEventsLoader:
                 ON j.jurisdiction_id = s.jurisdiction_id
             WHERE s.youtube_channel_url IS NOT NULL
               AND BTRIM(s.youtube_channel_url) <> ''
+              -- A handle guess the jurisdiction's own site does not link (#535).
+              AND COALESCE(s.youtube_channel_selection_method, '') <> %s
         """
-        params: list[Any] = []
+        params: list[Any] = [PATTERN_MATCH_UNVERIFIED_METHOD]
         if states_filter:
             query += " AND upper(btrim(s.usps::text)) = ANY(%s)"
             params.append([s.upper() for s in states_filter])
@@ -1212,8 +1236,10 @@ class YouTubeEventsLoader:
                 ON j.jurisdiction_id = s.jurisdiction_id
             WHERE s.youtube_channel_url IS NOT NULL
               AND BTRIM(s.youtube_channel_url) <> ''
+              -- A handle guess the jurisdiction's own site does not link (#535).
+              AND COALESCE(s.youtube_channel_selection_method, '') <> %s
         """
-        params: list[Any] = []
+        params: list[Any] = [PATTERN_MATCH_UNVERIFIED_METHOD]
         if states_filter:
             query += " AND upper(btrim(s.usps::text)) = ANY(%s)"
             params.append([s.upper() for s in states_filter])
