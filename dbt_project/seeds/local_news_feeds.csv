@@ -1,0 +1,51 @@
+feed_id,outlet,state_code,feed_url,robots_checked_on,robots_allowed,enabled,note
+abc3340-local,ABC 33/40,AL,https://abc3340.com/news/local.rss,2026-11-17,true,true,Local news section feed.
+abc3340-topic-data-center,ABC 33/40,AL,https://abc3340.com/topic/data%20center.rss,2026-11-17,true,true,"Outlet topic feed ""data center""; reaches back further than the section feed."
+abc3340-topic,ABC 33/40,AL,https://abc3340.com/topic/{term}.rss,2026-11-17,true,true,Outlet topic feed expanded once per tracked company name and project place.
+spectrum-news,Spectrum News,AL,,,false,false,No RSS/Atom feed published (spectrumlocalnews.com/rss is 404; no feed link on the home page).
+al-com,AL.com,AL,https://www.al.com/arc/outboundfeeds/rss/?outputType=xml,2026-11-17,true,true,Feed listed in the site's robots.txt.
+business-alabama,Business Alabama,AL,https://businessalabama.com/feed/,2026-11-17,false,false,robots.txt is served behind a bot challenge; not fetched.
+alabama-reflector,Alabama Reflector,AL,https://alabamareflector.com/feed/,2026-11-17,true,true,
+wbrc,WBRC FOX6 News,AL,https://www.wbrc.com/arc/outboundfeeds/rss/category/news/?outputType=xml&size=100,2026-11-17,true,true,
+cbs42,CBS 42,AL,https://www.cbs42.com/feed/,2026-11-17,true,true,
+fox10,FOX10 News,AL,https://www.fox10tv.com/arc/outboundfeeds/rss/?outputType=xml,2026-11-17,true,true,
+whnt,WHNT News 19,AL,https://www.whnt.com/feed/,2026-11-17,true,true,
+tuscaloosa-thread,Tuscaloosa Thread,AL,https://tuscaloosathread.com/feed/,2026-11-17,true,true,
+wvua23,WVUA 23,AL,https://www.wvua23.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory,2026-11-17,true,false,Feed answered HTTP 429 to an automated client on 2026-11-17; not used.
+yellowhammer-news,Yellowhammer News,AL,https://yellowhammernews.com/feed/,2026-11-17,false,true,
+bham-now,Bham Now,AL,https://bhamnow.com/feed/,2026-11-17,false,true,
+11alive,11Alive (WXIA),GA,https://www.11alive.com/feeds/syndication/rss/news/local,2026-11-17,true,true,
+wjbf,WJBF NewsChannel 6,GA,https://www.wjbf.com/feed/,2026-11-17,true,true,
+georgia-recorder,Georgia Recorder,GA,https://georgiarecorder.com/feed/,2026-11-17,true,true,
+ajc,Atlanta Journal-Constitution,GA,,,false,false,No public RSS feed found (Arc outbound feed path is 404).
+virginia-mercury,Virginia Mercury,VA,https://virginiamercury.com/feed/localFeed/,2026-11-17,true,true,
+wtop,WTOP News,VA,https://wtop.com/feed/,2026-11-17,true,true,
+wtop-data-centers,WTOP News,VA,https://wtop.com/tag/data-centers/feed/,2026-11-17,true,true,"Outlet tag feed ""data centers""."
+loudoun-times,Loudoun Times-Mirror,VA,https://www.loudountimes.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory,2026-11-17,true,false,Feed answered HTTP 429 to an automated client on 2026-11-17; not used.
+cardinal-news,Cardinal News,VA,https://cardinalnews.org/feed/,2026-11-17,false,true,
+kxan,KXAN,TX,https://www.kxan.com/feed/,2026-11-17,true,true,
+texas-tribune,The Texas Tribune,TX,https://www.texastribune.org/feeds/latest/,2026-11-17,false,true,
+wthr,WTHR 13News,IN,https://www.wthr.com/feeds/syndication/rss/news/local,2026-11-17,true,true,
+wishtv,WISH-TV,IN,https://www.wishtv.com/feed/,2026-11-17,true,true,
+wane,WANE 15,IN,https://www.wane.com/feed/,2026-11-17,true,true,
+indiana-capital-chronicle,Indiana Capital Chronicle,IN,https://indianacapitalchronicle.com/feed/,2026-11-17,true,true,
+nbc4i,NBC4 (WCMH),OH,https://www.nbc4i.com/feed/,2026-11-17,true,true,
+cleveland-com,Cleveland.com,OH,https://www.cleveland.com/arc/outboundfeeds/rss/?outputType=xml,2026-11-17,true,true,
+ohio-capital-journal,Ohio Capital Journal,OH,https://ohiocapitaljournal.com/feed/,2026-11-17,true,true,
+dayton-daily-news,Dayton Daily News,OH,https://www.daytondailynews.com/arc/outboundfeeds/rss/?outputType=xml,2026-11-17,true,false,Feed answered HTTP 429 to an automated client on 2026-11-17; not used.
+inforum,InForum,ND,https://www.inforum.com/index.rss,2026-11-17,true,true,
+kfyr,KFYR-TV,ND,https://www.kfyrtv.com/arc/outboundfeeds/rss/?outputType=xml,2026-11-17,true,true,
+north-dakota-monitor,North Dakota Monitor,ND,https://northdakotamonitor.com/feed/,2026-11-17,true,true,
+bismarck-tribune,Bismarck Tribune,ND,https://bismarcktribune.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory,2026-11-17,true,false,Feed answered HTTP 429 to an automated client on 2026-11-17; not used.
+wwl,WWL-TV,LA,https://www.wwltv.com/feeds/syndication/rss/news/local,2026-11-17,true,true,
+brproud,BRProud (WVLA/WGMB),LA,https://www.brproud.com/feed/,2026-11-17,true,true,
+louisiana-illuminator,Louisiana Illuminator,LA,https://lailluminator.com/feed/,2026-11-17,true,true,
+the-advocate,The Advocate,LA,https://www.theadvocate.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory,2026-11-17,true,false,Feed answered HTTP 429 to an automated client on 2026-11-17; not used.
+abc15,ABC15 Arizona,AZ,https://www.abc15.com/news/local-news.rss,2026-11-17,true,true,
+azfamily,azfamily (KTVK/KPHO),AZ,https://www.azfamily.com/arc/outboundfeeds/rss/?outputType=xml,2026-11-17,true,true,
+arizona-mirror,Arizona Mirror,AZ,https://azmirror.com/feed/,2026-11-17,true,true,
+ktar,KTAR News,AZ,https://ktar.com/feed/,2026-11-17,false,true,
+wpr,Wisconsin Public Radio,WI,https://www.wpr.org/rss,2026-11-17,true,true,
+wisconsin-examiner,Wisconsin Examiner,WI,https://wisconsinexaminer.com/feed/,2026-11-17,true,true,
+kare11,KARE 11,MN,https://www.kare11.com/feeds/syndication/rss/news/local,2026-11-17,true,true,
+minnesota-reformer,Minnesota Reformer,MN,https://minnesotareformer.com/feed/,2026-11-17,true,true,

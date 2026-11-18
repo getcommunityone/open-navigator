@@ -4,7 +4,9 @@
     The articles and announcements that report each company-hosted data center meeting
     (#532). Grain: one row per (community_event_id, news item). Every event keeps every
     source: URL, title, publisher, date and the verbatim snippet the match was made on,
-    with the meeting word in <mark>.
+    with the meeting word in <mark>. source_role (#549) says what the source is: an article
+    (news, press release, web page), the meeting's own recording, or a TV/radio news
+    channel's video about it (news_coverage), which is coverage, not the meeting.
 */
 
 select
@@ -15,10 +17,11 @@ select
     i.url::text                                                  as url,
     i.title::text                                                as title,
     i.publisher::text                                            as publisher,
+    i.source_role::text                                          as source_role,
     i.published_on::date                                         as published_on,
     i.event_kind::text                                           as matched_kind,
     regexp_replace(i.body,
-        '\m(town hall|community meeting|open house|information session|public meeting)(s?)\M',
+        '\m(town ?hall|community meeting|open house|information session|public meeting)(s?)\M',
         '<mark>\1\2</mark>', 'gi')::text                         as evidence
 from {{ ref('int_data_center_community_event__item') }} as i
 inner join {{ ref('data_center_community_event') }} as e on e.community_event_id = i.community_event_id

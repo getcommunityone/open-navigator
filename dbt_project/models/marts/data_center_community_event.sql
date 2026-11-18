@@ -19,7 +19,9 @@
                             review; the API does not show it as an event.
 
     event_date is set only when an article states it (event_date_basis). recording_url is a
-    video link an article itself carries; searched recordings are candidates for review in
+    video link an article itself carries, or a video the YouTube Data API search found
+    (#549) that itself names the host, project and meeting and is not a news channel's
+    coverage. Videos the per-event yt-dlp search found stay candidates for review in
     data_center_community_event_recording, never attached here.
 */
 

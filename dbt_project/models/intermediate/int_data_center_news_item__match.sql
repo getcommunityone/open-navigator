@@ -22,7 +22,10 @@
                       forward when that is more than 60 days before publication, or back when
                       it is more than 300 days after ('stated_month_day'). A dateline or an
                       earlier date is never used; no date there means null.
-      recording_url   a YouTube or Facebook video link the item's text carries.
+      recording_url   a YouTube or Facebook video link the item's text carries; for a video
+                      found by YouTube search (#549) that is not a news channel's
+                      (source_role 'recording'), the video itself.
+      source_role     article, recording or news_coverage (stg_data_center_news_item).
       status          'confirmed' when the item says "data center", names a meeting word,
                       names the host company and resolves a project; 'unconfirmed' when it
                       says "data center" and a meeting word but misses the host or project
@@ -31,7 +34,7 @@
 
 {%- set month_rx = "(Jan(uary)?|Feb(ruary)?|Mar(ch)?|Apr(il)?|May|June?|July?|Aug(ust)?|Sep(t(ember)?)?|Oct(ober)?|Nov(ember)?|Dec(ember)?)\\.?" %}
 {%- set date_rx = "\\m" ~ month_rx ~ "\\s+([0-9]{1,2})(st|nd|rd|th)?\\M(,?\\s+(20[0-9]{2}))?" %}
-{%- set kind_rx = "\\m(town hall|community meeting|open house|information session|public meeting)s?\\M" %}
+{%- set kind_rx = "\\m(town ?hall|community meeting|open house|information session|public meeting)s?\\M" %}
 
 with items as (
     select * from {{ ref('stg_data_center_news_item') }}
@@ -162,7 +165,7 @@ select
     i.snippet::text                                                   as snippet,
     i.body::text                                                      as body,
     i.kinds::text[]                                                   as kinds,
-    (case lower((regexp_match(i.body, '{{ kind_rx }}', 'i'))[1])
+    (case regexp_replace(lower((regexp_match(i.body, '{{ kind_rx }}', 'i'))[1]), '^townhall$', 'town hall')
         when 'town hall' then 'town_hall'
         when 'community meeting' then 'community_meeting'
         when 'open house' then 'open_house'
@@ -182,9 +185,12 @@ select
         else rd.raw_date
     end)::date                                                        as event_date,
     rd.event_date_basis::text                                         as event_date_basis,
-    (regexp_match(coalesce(i.snippet, ''),
-        '(https?://(www\.|m\.)?(youtube\.com/(watch\?v=|live/)|youtu\.be/|facebook\.com/[^\s"<>]+/videos/)[^\s"<>]+)'))[1]::text
-                                                                      as recording_url,
+    coalesce(
+        (regexp_match(coalesce(i.snippet, ''),
+            '(https?://(www\.|m\.)?(youtube\.com/(watch\?v=|live/)|youtu\.be/|facebook\.com/[^\s"<>]+/videos/)[^\s"<>]+)'))[1],
+        case when i.source_role = 'recording' then i.url end
+    )::text                                                           as recording_url,
+    i.source_role::text                                               as source_role,
     (case
         when i.says_data_center and cardinality(i.kinds) > 0
              and bc.master_org_id is not null and bp.project_id is not null then 'confirmed'

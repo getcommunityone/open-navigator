@@ -1,22 +1,24 @@
-"""Find company-hosted data center community meetings in news and company announcements (#532).
+"""Find company-hosted data center community meetings in news and company announcements (#532, #549).
 
     python -m ingestion.data_centers.community_events               # fetch + land in bronze
     python -m ingestion.data_centers.community_events --dry-run     # fetch, print, don't write
-    python -m ingestion.data_centers.community_events --sources gdelt,company_feed
+    python -m ingestion.data_centers.community_events --source rss
+    python -m ingestion.data_centers.community_events --source newsapi,guardian,brave
     python -m ingestion.data_centers.community_events --dsn URL     # write somewhere else
 
 Developers hold their own town halls, open houses and information sessions about a data
 center project. Local news announces and covers them, and some companies post them in
-their press releases. This loader reads three free sources and lands every item it finds
+their press releases. This loader reads free sources and lands every item it finds
 in ``bronze.bronze_data_center_news_item`` with its URL, title, publisher, published date
 and a verbatim snippet. dbt (``stg_data_center_news_item`` ->
 ``data_center_community_event``) decides which items describe an event; nothing here
 guesses a date, a place or a host.
 
-Sources (no keys, no paid calls, no LLM):
+Sources (no paid calls, no LLM):
   gdelt         the GDELT DOC 2.0 API (article list, last 3 months). GDELT asks for at most
                 one request every 5 seconds; this loader waits 6 and backs off on HTTP 429.
-                The snippet is the article's headline, which is all GDELT returns.
+                The snippet is the article's headline, which is all GDELT returns. Opt-in
+                (``--source gdelt``): it answered only 429 for hours (#542).
   google_news   Google News RSS search. Read only when news.google.com/robots.txt allows the
                 feed path for our User-Agent; today it disallows /rss, so this source is
                 skipped and the run says so.
@@ -24,6 +26,15 @@ Sources (no keys, no paid calls, no LLM):
                 (press_feed_url). An item that names a meeting word, "data center" or one of
                 the company's projects gets its release page read, and the sentences that
                 say a meeting word or a project name are kept verbatim.
+  rss           local news RSS/Atom feeds from the seed ``local_news_feeds.csv`` (#549), only
+                those whose robots.txt check allowed them; see ``news_feeds``.
+  newsapi, guardian, brave
+                optional keyed APIs (``NEWSAPI_KEY``, ``GUARDIAN_API_KEY``,
+                ``BRAVE_SEARCH_API_KEY``), skipped quietly when the key is unset; see
+                ``news_apis``. Keys are never printed.
+
+YouTube videos found by the YouTube Data API land in the same table from
+``python -m ingestion.data_centers.video_search`` (source ``youtube_search``).
 
 Every host's robots.txt is checked before the first request to it. The User-Agent names
 this project and its repository and carries no personal details. Requests to the same host
@@ -60,7 +71,10 @@ USER_AGENT = (
 TABLE = "bronze.bronze_data_center_news_item"
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search"
-SOURCES = ("gdelt", "google_news", "company_feed")
+SOURCES = ("gdelt", "google_news", "company_feed", "rss", "newsapi", "guardian", "brave")
+# GDELT is opt-in (it answered only HTTP 429 for hours, #542); keyed providers skip quietly
+# when their key is unset.
+DEFAULT_SOURCES = ("google_news", "company_feed", "rss", "newsapi", "guardian", "brave")
 
 # The meeting words the issue names, matched case-insensitively as whole phrases.
 KIND_TERMS: dict[str, str] = {
@@ -71,7 +85,10 @@ KIND_TERMS: dict[str, str] = {
     "public meeting": "public_meeting",
 }
 DATA_CENTER_RE = re.compile(r"\bdata\s?cent(?:er|re)s?\b|\bdatacenters?\b|\bhyperscale", re.I)
-KIND_RE = re.compile(r"\b(" + "|".join(re.escape(k) for k in KIND_TERMS) + r")s?\b", re.I)
+# "town hall" also matches the one-word "townhall" (video titles use both)
+KIND_RE = re.compile(
+    r"\b(" + "|".join(re.escape(k).replace("town\\ hall", "town ?hall") for k in KIND_TERMS) + r")s?\b", re.I
+)
 
 # Sites whose terms forbid use by competitors: never fetched, items linking there dropped.
 BLOCKED_HOSTS = ("americansentiment.com", "prophecygov.com")
@@ -87,7 +104,8 @@ def is_blocked_host(url: str) -> bool:
 
 def matched_kinds(text: str) -> list[str]:
     """The meeting kinds a text names, e.g. ['town_hall'] (sorted, unique)."""
-    return sorted({KIND_TERMS[m.group(1).lower()] for m in KIND_RE.finditer(text or "")})
+    return sorted({KIND_TERMS[re.sub(r"^townhall$", "town hall", m.group(1).lower())]
+                   for m in KIND_RE.finditer(text or "")})
 
 
 def says_data_center(text: str) -> bool:
@@ -253,6 +271,16 @@ def gdelt_queries(project_names: Iterable[str] = ()) -> list[str]:
     return queries
 
 
+_CHALLENGE_RE = re.compile(
+    r"Just a moment\.\.\.|Checking your browser|cf-chl|challenge-platform|Attention Required!|captcha", re.I
+)
+
+
+def looks_like_bot_challenge(body: str) -> bool:
+    """True when a response is a bot-check page (Cloudflare etc.) rather than content."""
+    return bool(_CHALLENGE_RE.search((body or "")[:5000]))
+
+
 # --- polite HTTP -------------------------------------------------------------------------
 
 
@@ -301,6 +329,9 @@ class PoliteFetcher:
                 if resp.status_code in (401, 403) or resp.status_code >= 500:
                     # RFC 9309: unauthorized or a server error means "don't crawl"
                     parser.disallow_all = True  # type: ignore[union-attr]
+                elif resp.status_code == 429 or ("html" in ctype and looks_like_bot_challenge(resp.text)):
+                    # a rate limit or a bot challenge in place of robots.txt: stay out
+                    parser.disallow_all = True  # type: ignore[union-attr]
                 elif resp.status_code >= 400 or "html" in ctype:
                     parser = None  # no robots.txt: everything allowed
                 else:
@@ -312,6 +343,15 @@ class PoliteFetcher:
             self._robots[host] = parser
         parser = self._robots[host]
         return True if parser is None else parser.can_fetch(USER_AGENT, url)
+
+    def get_api(
+        self, url: str, *, params: Optional[dict[str, str]] = None, headers: Optional[dict[str, str]] = None
+    ) -> httpx.Response:
+        """GET a keyed API endpoint: spaced per host, no robots.txt (the provider's terms and
+        rate limits govern an API, and its key authorises the call)."""
+        host = urlsplit(url).hostname or ""
+        self._wait(host)
+        return self.client.get(url, params=params, headers=headers or {})
 
     def get(self, url: str, *, params: Optional[dict[str, str]] = None) -> httpx.Response:
         if not self.allowed(url):
@@ -500,15 +540,40 @@ def dedupe(items: Iterable[NewsItem]) -> list[NewsItem]:
     return list(seen.values())
 
 
+TARGETS_SQL = """
+    select c.company_name, p.project_name, p.city, p.county, p.state_code
+    from public.mdm_organization_data_center as c
+    left join public.data_center_project_company as pc on pc.master_org_id = c.master_org_id
+    left join public.data_center_project as p on p.project_id = pc.project_id and p.project_source = 'curated'
+    order by 1, 2
+"""
+
+
+def tracked_names(rows: Iterable[tuple]) -> Any:
+    """``TrackedNames`` and ``SearchTarget``s from TARGETS_SQL rows (company, project, city, county, state)."""
+    from ingestion.data_centers.news_apis import SearchTarget
+    from ingestion.data_centers.news_feeds import TrackedNames
+
+    rows = list(rows)
+    companies = sorted({r[0] for r in rows if r[0]})
+    projects = sorted({r[1] for r in rows if r[1]})
+    places = sorted({p for r in rows for p in (r[2], r[3]) if p})
+    targets = [SearchTarget(r[0], r[1], r[2] or r[3], r[4]) for r in rows if r[0]]
+    return TrackedNames(tuple(companies), tuple(projects), tuple(places)), targets
+
+
 def main(argv: list[str] | None = None) -> int:
     from dotenv import load_dotenv
 
     load_dotenv()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--sources", default=",".join(SOURCES), help=f"Comma list of {', '.join(SOURCES)}.")
+    parser.add_argument("--source", "--sources", dest="sources", default=",".join(DEFAULT_SOURCES),
+                        help=f"Comma list of {', '.join(SOURCES)} (default: {', '.join(DEFAULT_SOURCES)}).")
     parser.add_argument("--dry-run", action="store_true", help="Fetch and report, but don't write.")
     parser.add_argument("--min-interval", type=float, default=3.0, help="Seconds between requests to one host.")
     parser.add_argument("--gdelt-retries", type=int, default=4, help="Backoff tries on GDELT HTTP 429.")
+    parser.add_argument("--max-pages", type=int, default=10, help="Article pages read per feed (rss, brave).")
+    parser.add_argument("--feeds-seed", default="", help="local_news_feeds.csv (default: the dbt seed).")
     parser.add_argument("--dsn", default="", help="Postgres URL (default: local warehouse).")
     args = parser.parse_args(argv)
     sources = [s.strip() for s in args.sources.split(",") if s.strip()]
@@ -525,8 +590,13 @@ def main(argv: list[str] | None = None) -> int:
         feeds = [CompanyFeed(r[0], r[1], r[2], tuple(r[3])) for r in cur.fetchall()]
         cur.execute(PROJECTS_SQL)
         project_names = [r[0] for r in cur.fetchall()]
+        cur.execute(TARGETS_SQL)
+        names, targets = tracked_names(cur.fetchall())
 
-    fetcher = PoliteFetcher(min_interval=args.min_interval, host_intervals={"api.gdeltproject.org": 6.0})
+    from ingestion.data_centers import news_apis, news_feeds
+
+    fetcher = PoliteFetcher(min_interval=args.min_interval,
+                            host_intervals={"api.gdeltproject.org": 6.0, **news_apis.API_INTERVALS})
     found: list[NewsItem] = []
     report: dict[str, str] = {}
 
@@ -565,6 +635,51 @@ def main(argv: list[str] | None = None) -> int:
             logger.info("{} feed: {} items", feed.company_name, len(got))
             found.extend(got)
         report["company_feed"] = f"{len(found) - n0} items from {len(feeds)} feeds"
+
+    if "rss" in sources:
+        from pathlib import Path
+
+        seed = news_feeds.read_feed_seed(Path(args.feeds_seed) if args.feeds_seed else None)
+        listed = [f for f in seed if f.feed_url]
+        usable = [f for f in listed if f.usable]
+        n0, entries, read = len(found), 0, 0
+        seen: set[str] = set()
+        for feed in usable:
+            if not fetcher.allowed(news_feeds.robots_probe_url(feed)):
+                logger.warning("{}: robots.txt now disallows the feed; skipped (re-run --check-robots)",
+                               feed.feed_id)
+                continue
+            try:
+                got, n = news_feeds.fetch_local_feed(fetcher, feed, names, max_pages=args.max_pages,
+                                                     seen_urls=seen)
+            except httpx.HTTPError as err:
+                logger.warning("{}: feed skipped ({})", feed.feed_id, err)
+                continue
+            read += 1
+            entries += n
+            logger.info("{}: {} entries, {} about data centers", feed.feed_id, n, len(got))
+            found.extend(got)
+        report["rss"] = (f"{len(found) - n0} items about data centers from {entries} entries; "
+                         f"{len(listed)} feeds in seed, {sum(1 for f in listed if f.robots_allowed)} robots-allowed, "
+                         f"{len(usable)} enabled, {read} read")
+
+    for provider in ("newsapi", "guardian", "brave"):
+        if provider not in sources:
+            continue
+        queries = news_apis.web_queries(targets) if provider == "brave" else news_apis.news_queries(targets)
+        got, line = news_apis.run_provider(provider, fetcher, queries)
+        if provider == "brave":
+            pages = 0
+            for item in got:
+                if pages >= args.max_pages * 3:
+                    break
+                pages += 1
+                passages, chars = news_feeds.article_passages(fetcher, item.url, names.passage_terms)
+                if passages:
+                    item.snippet = " … ".join(passages)
+                    item.raw["page_chars"] = chars
+        found.extend(got)
+        report[provider] = line
 
     items = dedupe(found)
     with_kind = sum(1 for i in items if matched_kinds(f"{i.title} {i.snippet or ''}"))
