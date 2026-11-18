@@ -256,7 +256,13 @@
       31.6 MB of Neon's 512 MB.
     * event_decision: without the four diagram_* columns (13.1 MB on Neon), which
       no API route or page reads. An explicit list, so a new gold column must be
-      added here to be served. -#}
+      added here to be served.
+    * rpt_bill_map_aggregate, jurisdiction_finance_category (#557): only the columns
+      trending.py and local_finance.py read; the id, code, rank, sample-title and
+      load-time columns were never read (about 30 + 15 MB on Neon).
+    * event_meeting_document (#557): no stored content_tsv (24 MB; search matches the
+      same expression instead) and body text only for documents from 2025 on, undated
+      ones, and any that mention data centers. Older documents keep title, date, link. -#}
 {%- set projections = {
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
@@ -275,7 +281,19 @@
         'decision_id, subject_id, primary_place_id, place_refs, legislation_refs, '
         'financial_item_refs, headline, decision_statement, primary_theme, outcome, '
         'vote_tally, human_element, competing_views, smart_brevity, source_ai_model, '
-        'extracted_at, search_tsv from gold.event_decision'
+        'extracted_at, search_tsv from gold.event_decision',
+    'rpt_bill_map_aggregate':
+        'select jurisdiction_id, state_code, subject, bill_count, recent_bill_count '
+        'from gold.rpt_bill_map_aggregate',
+    'jurisdiction_finance_category':
+        'select jurisdiction_finance_id, category, amount, share_pct '
+        'from gold.jurisdiction_finance_category',
+    'event_meeting_document':
+        'select event_meeting_document_id, event_meeting_id, jurisdiction_id, census_geoid, '
+        'state_code, state, document_type, document_url, doc_date, body_name, meeting_title, '
+        'case when doc_date is null or doc_date >= date \'2025-01-01\' '
+        'or content ~* \'data cent(er|re)|hyperscale|server farm\' then content end as content, '
+        'word_count, source, created_at from gold.event_meeting_document'
 } -%}
 
 {#- ===================================================================

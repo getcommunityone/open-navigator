@@ -1329,7 +1329,9 @@ async def count_meeting_documents(
 
             if has_query:
                 where_clauses.append(
-                    f"content_tsv @@ plainto_tsquery('english', ${idx})"
+                    "to_tsvector('english', coalesce(content, '') || ' ' || coalesce(meeting_title, '') "
+                    "|| ' ' || coalesce(body_name, '')) "
+                    f"@@ plainto_tsquery('english', ${idx})"
                 )
                 params.append(q)
                 idx += 1
