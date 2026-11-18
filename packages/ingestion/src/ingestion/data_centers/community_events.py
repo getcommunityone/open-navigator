@@ -107,12 +107,13 @@ def strip_html(fragment: str) -> str:
 
 def main_content(page_html: str) -> str:
     """The page's ``<article>`` (else ``<main>``) element, so navigation and footers stay out
-    of the snippet; the whole page when it has neither."""
+    of the snippet; else the page without its head, nav, header and footer."""
     for tag in ("article", "main"):
         m = re.search(rf"(?is)<{tag}\b[^>]*>(.*?)</{tag}>", page_html or "")
         if m and strip_html(m.group(1)):
             return m.group(1)
-    return page_html or ""
+    # no article/main: drop the <head> (page title) and the page chrome
+    return re.sub(r"(?is)<(head|nav|header|footer)\b.*?</\1>", " ", page_html or "")
 
 
 # A sentence ends at . ! or ? before a capital letter or quote, but not after a short
@@ -297,7 +298,8 @@ class PoliteFetcher:
                 self._wait(host)
                 resp = self.client.get(robots_url)
                 ctype = resp.headers.get("content-type", "")
-                if resp.status_code in (401, 403):
+                if resp.status_code in (401, 403) or resp.status_code >= 500:
+                    # RFC 9309: unauthorized or a server error means "don't crawl"
                     parser.disallow_all = True  # type: ignore[union-attr]
                 elif resp.status_code >= 400 or "html" in ctype:
                     parser = None  # no robots.txt: everything allowed
@@ -316,7 +318,12 @@ class PoliteFetcher:
             raise PermissionError(f"robots.txt disallows {url}")
         host = urlsplit(url).hostname or ""
         self._wait(host)
-        return self.client.get(url, params=params)
+        resp = self.client.get(url, params=params)
+        final = str(resp.url)
+        if resp.history and final != url and not self.allowed(final):
+            # a redirect may not land somewhere robots.txt (or the ToS block list) forbids
+            raise PermissionError(f"redirected to a disallowed URL: {final}")
+        return resp
 
 
 def fetch_gdelt(fetcher: PoliteFetcher, query: str, *, retries: int = 4, backoff: float = 30.0) -> list[NewsItem]:
@@ -347,7 +354,7 @@ def fetch_gdelt(fetcher: PoliteFetcher, query: str, *, retries: int = 4, backoff
             continue
         logger.warning("GDELT {} on {!r}: {}", resp.status_code, query, body[:120])
         return []
-    raise RuntimeError(f"GDELT still rate-limiting after {retries + 1} tries: {query!r}")
+    raise RuntimeError(f"GDELT gave no answer after {retries + 1} tries (rate limit or dropped connection): {query!r}")
 
 
 def fetch_google_news(fetcher: PoliteFetcher, query: str) -> list[NewsItem]:
@@ -401,10 +408,15 @@ def fetch_company_feed(fetcher: PoliteFetcher, feed: CompanyFeed, *, max_pages: 
         page_text = ""
         if pages < max_pages and fetcher.allowed(link):
             pages += 1
-            page = fetcher.get(link)
-            if page.status_code == 200:
-                page_text = strip_html(main_content(page.text))
-                snippet_parts = verbatim_passages(page_text, feed.project_names) or snippet_parts
+            try:
+                page = fetcher.get(link)
+            except (PermissionError, httpx.HTTPError) as err:
+                # keep the item with the feed's own text rather than lose the whole feed
+                logger.warning("{}: release page skipped ({})", link, err)
+            else:
+                if page.status_code == 200:
+                    page_text = strip_html(main_content(page.text))
+                    snippet_parts = verbatim_passages(page_text, feed.project_names) or snippet_parts
         items.append(
             NewsItem(
                 source="company_feed",
@@ -524,7 +536,7 @@ def main(argv: list[str] | None = None) -> int:
         for query in gdelt_queries(project_names):
             try:
                 got = fetch_gdelt(fetcher, query, retries=args.gdelt_retries)
-            except (RuntimeError, httpx.HTTPError) as err:
+            except (RuntimeError, PermissionError, httpx.HTTPError) as err:
                 failures += 1
                 logger.error("GDELT: {}", err)
                 continue

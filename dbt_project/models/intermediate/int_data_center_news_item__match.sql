@@ -14,12 +14,14 @@
                       name (case-insensitive, 8+ characters), or whose stated city the item
                       names alongside one of that project's companies.
       jurisdiction_id the project's government (data_center_project.jurisdiction_id).
-      event_kind      the first meeting word named (town_hall, community_meeting, open_house,
-                      information_session, public_meeting).
-      event_date      only a date the text states: "October 7, 2026" (event_date_basis
-                      'stated'), or "Oct. 7" / "Tuesday, Oct. 7" (month capitalised) with the year taken from the
-                      item's publication date, moved to the next year when that would put it
-                      more than 60 days before publication ('stated_month_day').
+      event_kind      the first meeting word named in the text (town_hall, community_meeting,
+                      open_house, information_session, public_meeting).
+      event_date      only a date the text states after the first meeting word, in the same
+                      sentence: "town hall ... October 7, 2026" (event_date_basis 'stated'), or
+                      "Oct. 7" (month capitalised) with the year of publication, moved a year
+                      forward when that is more than 60 days before publication, or back when
+                      it is more than 300 days after ('stated_month_day'). A dateline or an
+                      earlier date is never used; no date there means null.
       recording_url   a YouTube or Facebook video link the item's text carries.
       status          'confirmed' when the item says "data center", names a meeting word,
                       names the host company and resolves a project; 'unconfirmed' when it
@@ -28,6 +30,8 @@
 */
 
 {%- set month_rx = "(Jan(uary)?|Feb(ruary)?|Mar(ch)?|Apr(il)?|May|June?|July?|Aug(ust)?|Sep(t(ember)?)?|Oct(ober)?|Nov(ember)?|Dec(ember)?)\\.?" %}
+{%- set date_rx = "\\m" ~ month_rx ~ "\\s+([0-9]{1,2})(st|nd|rd|th)?\\M(,?\\s+(20[0-9]{2}))?" %}
+{%- set kind_rx = "\\m(town hall|community meeting|open house|information session|public meeting)s?\\M" %}
 
 with items as (
     select * from {{ ref('stg_data_center_news_item') }}
@@ -94,11 +98,24 @@ best_company as (
     order by ch.news_item_id, (pc.project_id is not null) desc, ch.term_len desc, ch.master_org_id
 ),
 
-dated as (
+-- The date must follow the meeting word in the same sentence ("... town hall Oct. 7"),
+-- so a press release's dateline ("DALLAS, Oct. 2, 2026 --") or an announcement date
+-- earlier in the text is never taken as the meeting date.
+after_kind as (
     select
         i.news_item_id,
-        regexp_match(i.body, '\m{{ month_rx }}\s+([0-9]{1,2})(st|nd|rd|th)?\M(,?\s+(20[0-9]{2}))?') as m
+        left(substr(i.body, regexp_instr(i.body, '{{ kind_rx }}', 1, 1, 0, 'i')), 220) as tail
     from items as i
+    where regexp_instr(i.body, '{{ kind_rx }}', 1, 1, 0, 'i') > 0
+),
+
+dated as (
+    select
+        a.news_item_id,
+        regexp_match(a.tail, '{{ date_rx }}') as m,
+        left(a.tail, regexp_instr(a.tail, '{{ date_rx }}') - 1) as before_date
+    from after_kind as a
+    where regexp_instr(a.tail, '{{ date_rx }}') > 0
 ),
 
 event_dates as (
@@ -109,6 +126,8 @@ event_dates as (
         d.m[15] as year_text
     from dated as d
     where d.m is not null
+      -- no sentence break between the meeting word and the date
+      and d.before_date !~ '[.!?]\s+[A-Z]'
 ),
 
 resolved_dates as (
@@ -143,7 +162,13 @@ select
     i.snippet::text                                                   as snippet,
     i.body::text                                                      as body,
     i.kinds::text[]                                                   as kinds,
-    i.kinds[1]::text                                                  as event_kind,
+    (case lower((regexp_match(i.body, '{{ kind_rx }}', 'i'))[1])
+        when 'town hall' then 'town_hall'
+        when 'community meeting' then 'community_meeting'
+        when 'open house' then 'open_house'
+        when 'information session' then 'information_session'
+        when 'public meeting' then 'public_meeting'
+    end)::text                                                        as event_kind,
     bc.master_org_id::text                                            as master_org_id,
     bp.project_id::text                                               as project_id,
     p.jurisdiction_id::text                                           as jurisdiction_id,
@@ -152,6 +177,8 @@ select
     (case
         when rd.event_date_basis = 'stated_month_day' and rd.raw_date < rd.published_on - 60
             then (rd.raw_date + interval '1 year')::date
+        when rd.event_date_basis = 'stated_month_day' and rd.raw_date > rd.published_on + 300
+            then (rd.raw_date - interval '1 year')::date
         else rd.raw_date
     end)::date                                                        as event_date,
     rd.event_date_basis::text                                         as event_date_basis,

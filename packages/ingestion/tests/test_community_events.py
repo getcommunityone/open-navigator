@@ -146,3 +146,34 @@ def test_sentences_do_not_split_after_abbreviations() -> None:
     assert ce.verbatim_passages(text, []) == [
         "DALLAS, Oct. 2, 2026 -- Applied Digital will hold a town hall at St. Mark Hall."
     ]
+
+
+def test_robots_server_error_means_disallow() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(503, text="down")
+        raise AssertionError("must not fetch while robots.txt errors")
+
+    assert not _fetcher(handler).allowed("https://example.com/page")
+
+
+def test_release_page_error_keeps_the_feed_item() -> None:
+    feed_xml = (b'<?xml version="1.0"?><rss><channel><item><title>Data center town hall set</title>'
+                b'<link>https://ir.example.com/r/1</link><pubDate>Mon, 05 Oct 26 08:00:00 -0400</pubDate>'
+                b'<description>Example will hold a town hall.</description></item></channel></rss>')
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404, text="none", headers={"content-type": "text/html"})
+        if request.url.path == "/feed":
+            return httpx.Response(200, content=feed_xml)
+        raise httpx.ConnectError("boom", request=request)
+
+    feed = ce.CompanyFeed("ex", "Example", "https://ir.example.com/feed")
+    items = ce.fetch_company_feed(_fetcher(handler), feed)
+    assert len(items) == 1 and items[0].snippet == "Example will hold a town hall."
+
+
+def test_main_content_without_article_drops_head_and_nav() -> None:
+    page = "<html><head><title>X :: Co</title></head><body><nav>Skip</nav><p>Body.</p></body></html>"
+    assert ce.strip_html(ce.main_content(page)) == "Body."

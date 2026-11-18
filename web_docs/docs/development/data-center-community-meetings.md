@@ -38,8 +38,10 @@ so no meeting crawl finds them; local news and the companies' own press releases
 - **Confirmed or unconfirmed.** An item is an event only when its own text says "data center", names a meeting
   word, names the host company and resolves a tracked project. One that misses the host or project stays
   `unconfirmed`: kept for review, counted on the page, not shown as an event.
-- **Dates only as stated.** `event_date` comes from the text ("October 7, 2026"; or "Oct. 7" with the year of
-  publication, `event_date_basis = 'stated_month_day'`). An impossible date ("February 30") is dropped.
+- **Dates only as stated.** `event_date` comes from the text after the first meeting word, in the same sentence
+  ("town hall ... October 7, 2026"; or "Oct. 7" with the year of publication, `event_date_basis =
+  'stated_month_day'`). A press release's dateline or an earlier date is never the meeting date, and an impossible
+  date ("February 30") is dropped.
 - **Polite fetching.** A descriptive User-Agent with no personal details, robots.txt checked per host, per-host
   spacing. americansentiment.com and prophecygov.com forbid competitors' use and are never fetched.
 - **Timeline stages are read, not guessed.** On a project's timeline a decision is "Planning" or "Council vote"

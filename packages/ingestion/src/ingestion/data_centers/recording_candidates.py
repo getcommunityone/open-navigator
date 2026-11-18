@@ -179,7 +179,11 @@ def main(argv: list[str] | None = None) -> int:
     for i, event in enumerate(events):
         if i:
             time.sleep(args.pause)
-        require_vpn()  # re-checked (cached) before every search
+        try:
+            require_vpn()  # re-checked (cached) before every search
+        except VpnRequiredError as err:
+            logger.error("VPN dropped; recording search stopped: {}", err)
+            return VPN_EXIT_CODE
         query = search_query(event)
         try:
             entries = youtube_search(query, args.limit)

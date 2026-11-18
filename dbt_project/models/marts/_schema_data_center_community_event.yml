@@ -250,8 +250,9 @@ models:
 
 unit_tests:
   # #532: an item naming the host company, a tracked project and a meeting word is
-  # confirmed, with the date only as stated; one missing the project stays unconfirmed;
-  # a "February 30" is dropped, not moved.
+  # confirmed, with the date only as stated after the meeting word; one missing the project
+  # stays unconfirmed; a "February 30" is dropped; a press-release dateline is never the
+  # meeting date; a month-day year rolls back as well as forward.
   - name: news_item_match_is_deterministic
     model: int_data_center_news_item__match
     given:
@@ -275,6 +276,15 @@ unit_tests:
                  'example.test', null, date '2026-02-01', null, null,
                  'Example Digital data center open house February 30, 2026 at Forge Campus Two',
                  array['open_house']::text[], true, null
+          union all
+          select 'n4', 'company_feed', 'https://example.test/4', 'Release', 'Example Digital', null,
+                 date '2026-10-02', null, 'example-digital',
+                 'Release — DALLAS, Oct. 2, 2026 -- Example Digital will host a town hall at Forge Campus Two data center.',
+                 array['town_hall']::text[], true, null
+          union all
+          select 'n5', 'gdelt', 'https://example.test/5', 'x', 'example.test', null, date '2027-01-05', null, null,
+                 'Example Digital data center town hall Dec. 15 at Forge Campus Two',
+                 array['town_hall']::text[], true, null
       - input: ref('mdm_organization_data_center')
         format: sql
         rows: |
@@ -291,3 +301,5 @@ unit_tests:
         - {news_item_id: n1, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: town_hall, event_date: '2026-10-07', event_date_basis: stated_month_day}
         - {news_item_id: n2, status: unconfirmed, master_org_id: null, project_id: null, jurisdiction_id: null, event_kind: open_house, event_date: null, event_date_basis: null}
         - {news_item_id: n3, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: open_house, event_date: null, event_date_basis: null}
+        - {news_item_id: n4, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: town_hall, event_date: null, event_date_basis: null}
+        - {news_item_id: n5, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: town_hall, event_date: '2026-12-15', event_date_basis: stated_month_day}
