@@ -60,3 +60,27 @@ models:
         tests:
           - accepted_values:
               values: ['meeting_source_survey', 'address_city', 'address_county']
+
+  - name: int_data_center_project__base
+    description: >
+      One row per data center project (#531) before figures and governments are attached:
+      curated seed projects plus every other Epoch AI site. data_center_project builds on it.
+    columns:
+      - name: project_id
+        tests: [unique, not_null]
+
+  - name: int_data_center_project__figure
+    description: >
+      One row per (project, metric, source, value) (#531): curated figures with their
+      verbatim excerpt, plus Epoch AI's IT power for a project that is an Epoch site.
+    columns:
+      - name: project_figure_id
+        tests: [unique, not_null]
+
+  - name: int_data_center_project__jurisdiction
+    description: >
+      One row per (project_id, jurisdiction_id) (#531): a curated project's stated city
+      and county, and an Epoch site's governments (int_data_center_site__jurisdiction).
+    columns:
+      - name: project_jurisdiction_id
+        tests: [unique, not_null]

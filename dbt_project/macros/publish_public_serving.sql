@@ -185,7 +185,20 @@
     'decision_company_mention':
         "_s.event_decision_id in (select event_decision_id from gold.event_decision "
         "where state_code in {{states}})",
-    'recent_transcribed_meeting':          "_s.state_code in {{states}}"
+    'recent_transcribed_meeting':          "_s.state_code in {{states}}",
+    'data_center_project':                 "(_s.state_code in {{states}} or _s.state_code is null)",
+    'data_center_project_company':
+        "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_project_jurisdiction':
+        "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_project_figure':
+        "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_project_mention':
+        "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)"
 } -%}
 {#- bill_sponsorship is DROPPED from serving entirely (removed from `served`):
     it has no state column and even scoped to the kept-bill set it is ~53 MB,
@@ -220,7 +233,9 @@
     'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
     'data_center_meeting_mention',
     'decision_place_label', 'decision_company_mention', 'decision_nearby_data_center_site',
-    'recent_transcribed_meeting'
+    'recent_transcribed_meeting',
+    'mdm_organization_data_center', 'data_center_project', 'data_center_project_company',
+    'data_center_project_jurisdiction', 'data_center_project_figure', 'data_center_project_mention'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

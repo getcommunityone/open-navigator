@@ -24,6 +24,9 @@
     matched_text is the exact text matched; evidence is a verbatim excerpt of the field it
     came from with the match in <mark>. The headline wins over the statement when both
     name the company.
+    master_org_id (#531) is the company's organization master row: the operator_name, or
+    the term that matched, equals (case-insensitively) a company name or alias in
+    mdm_organization_data_center. Null when no curated company carries that name.
 */
 
 {%- set dc_regex = data_center_regex() %}
@@ -124,6 +127,13 @@ marked as (
         b.*,
         regexp_replace(b.body, {{ phrase_regex('b.term') }}, '\1<mark>\2</mark>\3') as marked_body
     from best as b
+),
+
+company_names as (
+    select master_org_id, lower(company_name) as name, 1 as name_rank from {{ ref('mdm_organization_data_center') }}
+    union
+    select master_org_id, lower(a), 2
+    from {{ ref('mdm_organization_data_center') }} cross join lateral unnest(aliases) as a
 )
 
 select
@@ -137,7 +147,13 @@ select
         case when w.s > 1 then '… ' else '' end
         || substr(m.marked_body, w.s, w.e - w.s)
         || case when w.e <= length(m.marked_body) then ' …' else '' end
-    )::text                                                       as evidence
+    )::text                                                       as evidence,
+    (
+        select n.master_org_id from company_names as n
+        where n.name in (lower(m.operator_name), lower(m.term))
+        order by (n.name = lower(m.operator_name)) desc, n.name_rank, n.master_org_id
+        limit 1
+    )::text                                                       as master_org_id
 from marked as m
 -- an ~80-character window either side of the <mark>ed match
 cross join lateral (
