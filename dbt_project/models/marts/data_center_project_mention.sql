@@ -17,8 +17,12 @@
       company_and_place  the text names one of the project's companies (its name or an
                          alias, from mdm_organization_data_center; only 'stated' links, not
                          Epoch's likely/speculative ones) AND the record's government is one
-                         of the project's governments (data_center_project_jurisdiction).
-    A company named somewhere else, or a place alone, is not a match.
+                         of the project's governments (data_center_project_jurisdiction),
+                         and the company has no other project in that government; a
+                         company named as a web address ("google.com") doesn't count.
+    A company named somewhere else, or a place alone, is not a match. company_and_place
+    says the record names the company where the project is, not that it names the project:
+    the page labels it that way.
     Decisions match case-sensitively on a whole word or phrase (as decision_company_mention
     does); caption text is mostly lower case, so passages match case-insensitively.
     evidence is a verbatim excerpt of the record's own text, ~120 characters either side,
@@ -32,11 +36,12 @@ with projects as (
 ),
 
 project_terms as (
-    select project_id, state_code, project_name as term, 'project_name' as basis, 1 as basis_rank
+    select project_id, state_code, null::text as master_org_id, project_name as term,
+           'project_name' as basis, 1 as basis_rank
     from projects
     where length(project_name) >= 8
     union
-    select pc.project_id, null, t.term, 'company_and_place', 2
+    select pc.project_id, null, pc.master_org_id, t.term, 'company_and_place', 2
     from {{ ref('data_center_project_company') }} as pc
     inner join {{ ref('mdm_organization_data_center') }} as c on c.master_org_id = pc.master_org_id
     cross join lateral unnest(array_append(c.aliases, c.company_name)) as t(term)
@@ -45,6 +50,17 @@ project_terms as (
 
 project_places as (
     select project_id, jurisdiction_id from {{ ref('data_center_project_jurisdiction') }}
+),
+
+-- How many projects a company has in one government. A company named in a record from a
+-- government where it has two or more projects (Colossus 1 and 2 in Memphis) can't say
+-- which one, so that match is skipped.
+company_place_projects as (
+    select pc.master_org_id, pp.jurisdiction_id, count(distinct pc.project_id) as n_projects
+    from {{ ref('data_center_project_company') }} as pc
+    inner join project_places as pp on pp.project_id = pc.project_id
+    where pc.confidence = 'stated'
+    group by 1, 2
 ),
 
 decisions as (
@@ -77,7 +93,11 @@ hits as (
             (t.basis = 'project_name' and t.state_code = d.state_code)
          or (t.basis = 'company_and_place' and exists (
                 select 1 from project_places as pp
-                where pp.project_id = t.project_id and pp.jurisdiction_id = d.jurisdiction_id))
+                where pp.project_id = t.project_id and pp.jurisdiction_id = d.jurisdiction_id)
+             and (select cp.n_projects from company_place_projects as cp
+                  where cp.master_org_id = t.master_org_id and cp.jurisdiction_id = d.jurisdiction_id) = 1
+             -- a web address ("google.com", "google dot com") is not the company acting
+             and d.body !~* ({{ regex_escape('t.term') }} || '(\s*\.\s*|\s+dot\s+|\s+)com\M'))
        )
     union all
     select t.project_id, 'meeting_passage', p.data_center_meeting_mention_id,
@@ -90,7 +110,11 @@ hits as (
             (t.basis = 'project_name' and t.state_code = p.state_code)
          or (t.basis = 'company_and_place' and exists (
                 select 1 from project_places as pp
-                where pp.project_id = t.project_id and pp.jurisdiction_id = p.jurisdiction_id))
+                where pp.project_id = t.project_id and pp.jurisdiction_id = p.jurisdiction_id)
+             and (select cp.n_projects from company_place_projects as cp
+                  where cp.master_org_id = t.master_org_id and cp.jurisdiction_id = p.jurisdiction_id) = 1
+             -- a web address ("google.com", "google dot com") is not the company acting
+             and p.body !~* ({{ regex_escape('t.term') }} || '(\s*\.\s*|\s+dot\s+|\s+)com\M'))
        )
 ),
 

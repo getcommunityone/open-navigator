@@ -10,7 +10,7 @@ google,Google,Google|Alphabet Inc,owner|operator,https://about.google/,,dataset_
 meta,Meta,Meta Platforms|Meta's|Facebook|Meta data center|Meta Data Center|Meta campus|Meta Campus,owner|operator,https://www.meta.com/about/,,dataset_row,https://epoch.ai/data/data-centers,"Meta Aiken | Owner: Meta"
 microsoft,Microsoft,Microsoft,owner|operator,https://www.microsoft.com/,,dataset_row,https://epoch.ai/data/data-centers,"Microsoft SAT14 | Owner: Microsoft"
 nebius,Nebius,Nebius,owner,https://nebius.com/,,dataset_row,https://epoch.ai/data/data-centers,"Microsoft-Nebius New Jersey | Owner: Nebius"
-openai,OpenAI,OpenAI|Stargate,user,https://openai.com/,,dataset_row,https://epoch.ai/data/data-centers,"OpenAI Stargate Abilene | Users: OpenAI"
+openai,OpenAI,OpenAI,user,https://openai.com/,,dataset_row,https://epoch.ai/data/data-centers,"OpenAI Stargate Abilene | Users: OpenAI"
 oracle,Oracle,Oracle Corporation|Oracle Cloud|Oracle's|Oracle data center|Oracle Data Center,owner,https://www.oracle.com/,,dataset_row,https://epoch.ai/data/data-centers,"OpenAI Stargate Abilene | Owner: Oracle"
 softbank,SoftBank,SoftBank|Softbank,owner,https://group.softbank/en,,dataset_row,https://epoch.ai/data/data-centers,"OpenAI Stargate Lordstown | Owner: Softbank"
 xai,xAI,xAI|SpaceXAI,owner|user,https://x.ai/,,dataset_row,https://epoch.ai/data/data-centers,"Colossus 1 | Owner: SpaceXAI"

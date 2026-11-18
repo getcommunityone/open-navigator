@@ -9,7 +9,8 @@
       developer / operator / tenant   a curated project's stated companies (the
                                       data_center_projects seed), sourced by that row's
                                       company_source_url / company_source_excerpt
-                                      (else its main source);
+                                      (the tenant: tenant_source_url / _excerpt),
+                                      else its main source;
       owner / user                    Epoch AI's "Owner" (owner of the AI hardware) and
                                       "Users" (AI labs using the site) for an Epoch site,
                                       matched to a company by its name or an alias
@@ -34,15 +35,16 @@ company_names as (
 
 curated as (
     select p.project_id, r.role, r.company_key, c.source_kind,
-           coalesce(nullif(btrim(c.company_source_url), ''), c.source_url)         as source_url,
-           coalesce(nullif(btrim(c.company_source_excerpt), ''), c.source_excerpt) as source_excerpt
+           coalesce(r.src_url, nullif(btrim(c.company_source_url), ''), c.source_url)         as source_url,
+           coalesce(r.src_excerpt, nullif(btrim(c.company_source_excerpt), ''), c.source_excerpt) as source_excerpt
     from {{ ref('data_center_projects') }} as c
     inner join projects as p on p.project_key = c.project_key
     cross join lateral (values
-        ('developer', nullif(btrim(c.developer_key), '')),
-        ('operator',  nullif(btrim(c.operator_key), '')),
-        ('tenant',    nullif(btrim(c.tenant_key), ''))
-    ) as r(role, company_key)
+        ('developer', nullif(btrim(c.developer_key), ''), null, null),
+        ('operator',  nullif(btrim(c.operator_key), ''), null, null),
+        ('tenant',    nullif(btrim(c.tenant_key), ''),
+                      nullif(btrim(c.tenant_source_url), ''), nullif(btrim(c.tenant_source_excerpt), ''))
+    ) as r(role, company_key, src_url, src_excerpt)
     where r.company_key is not null
 ),
 

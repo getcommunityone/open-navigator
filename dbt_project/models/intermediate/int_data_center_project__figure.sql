@@ -40,7 +40,7 @@ epoch as (
         'dataset_row'                            as source_kind,
         s.source_url,
         s.site_name || ' | IT power (MW), ' || s.status_as_of::text || ': '
-            || trim(trailing '.' from trim(trailing '0' from s.it_power_mw::numeric::text)) as source_excerpt,
+            || trim_scale(s.it_power_mw::numeric)::text as source_excerpt,
         s.status_as_of                           as published_on
     from {{ ref('data_center_site') }} as s
     inner join projects as p on p.data_center_site_id = s.data_center_site_id

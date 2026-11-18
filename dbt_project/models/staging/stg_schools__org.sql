@@ -37,6 +37,7 @@ select
 from source
 where {{ normalize_org_name('name') }} is not null
 {%- else %}
+{%- do log("stg_schools__org: bronze.bronze_schools_nces is not loaded; no NCES schools reach mdm_organization", info=True) if execute %}
 select
     null::text as source_system, null::text as source_pk, null::text as org_name,
     null::text as org_name_norm, null::text as org_type, null::text as org_subtype,

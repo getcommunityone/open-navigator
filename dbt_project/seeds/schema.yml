@@ -439,6 +439,8 @@ seeds:
         company_source_excerpt: text
         announced_source_url: text
         announced_source_excerpt: text
+        tenant_source_url: text
+        tenant_source_excerpt: text
     description: >
       Curated data center projects (#531) found in company announcements and news, one row
       per project, each with the source that names it (source_url + verbatim
@@ -446,14 +448,27 @@ seeds:
       data_center_companies, blank when no source names one. city / county / state_code
       only as a source states them. data_center_site_name names the Epoch AI site when the
       project is one (folded into data_center_project instead of repeated).
-      company_source_url / company_source_excerpt source the developer / operator / tenant
-      when a different passage names them. Figures go in
+      company_source_url / company_source_excerpt source the developer / operator, and
+      tenant_source_url / tenant_source_excerpt the tenant, when a different passage names them. Figures go in
       data_center_project_figures, one row per figure and source.
     columns:
       - name: project_key
         tests: [unique, not_null]
       - name: project_name
         tests: [not_null]
+      - name: developer_key
+        tests:
+          - relationships: {arguments: {to: ref('data_center_companies'), field: company_key}}
+      - name: operator_key
+        tests:
+          - relationships: {arguments: {to: ref('data_center_companies'), field: company_key}}
+      - name: tenant_key
+        tests:
+          - relationships: {arguments: {to: ref('data_center_companies'), field: company_key}}
+      - name: data_center_site_name
+        description: "The Epoch AI site this project is (data_center_site.site_name); blank when none."
+        tests:
+          - relationships: {arguments: {to: ref('data_center_site'), field: site_name}}
       - name: status
         description: "announced, planned, under_construction, operating or cancelled; blank when no source says."
         tests:

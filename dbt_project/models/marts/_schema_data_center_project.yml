@@ -305,6 +305,13 @@ models:
               arguments:
                 values: ['stated_city', 'meeting_source_survey', 'address_city', 'address_county', 'stated_county']
   - name: data_center_project_figure
+    data_tests:
+      # a dataset-row excerpt quotes the value it states (no digits lost in formatting)
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "source_excerpt like '%: ' || trim_scale(value)::text"
+          config:
+            where: "source_kind = 'dataset_row'"
     description: >
       Every stated figure about a data center project, each with its own source (#531). One row per (project, metric, source, value): conflicting figures keep each source.
     config:
@@ -418,6 +425,13 @@ models:
       - name: event_decision_id
         description: 'The decision, for record_type decision.'
         data_type: text
+        tests:
+          - relationships:
+              arguments:
+                to: ref('event_decision')
+                field: event_decision_id
+              config:
+                severity: warn
       - name: data_center_meeting_mention_id
         description: 'The transcript passage, for record_type meeting_passage.'
         data_type: text
