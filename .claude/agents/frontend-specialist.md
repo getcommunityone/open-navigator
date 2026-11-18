@@ -1,5 +1,6 @@
 ---
 name: frontend-specialist
+model: sonnet
 description: >-
   React/TypeScript frontend specialist for open-navigator. Use for anything touching
   the Vite app (port 5173) or the Docusaurus docs site (port 3000): components,
