@@ -24,6 +24,12 @@ from scrapers.youtube.youtube_channel_enrich import (
 # Probe-only score stored on raw discovery rows (not used for primary selection).
 PATTERN_MATCH_PROBE_CONFIDENCE = 0.1
 
+# ``youtube_channel_selection_method`` for a handle guess that its jurisdiction's own
+# website does not link (#535). The URL is kept for review, but the guess is never
+# crawled: the scraped-table catalog sources skip it. It still starts with
+# ``pattern_match``, so every gate keeps treating it as a guess.
+PATTERN_MATCH_UNVERIFIED_METHOD = "pattern_match_unverified"
+
 # Minimum ``official_meeting_confidence`` to promote pattern_match as primary.
 PATTERN_MATCH_PRIMARY_MIN_OFFICIAL_CONFIDENCE = 0.55
 

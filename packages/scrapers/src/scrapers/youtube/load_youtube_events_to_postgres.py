@@ -109,6 +109,7 @@ from scrapers.youtube.youtube_loader_logging import (
 )
 from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn  # noqa: E402
 from scrapers.discovery.channel_government_mismatch import real_channel_title  # noqa: E402
+from scrapers.youtube.pattern_match_gate import PATTERN_MATCH_UNVERIFIED_METHOD  # noqa: E402
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
 
 # Pilot priority states. Must equal DEFAULT_PRIORITY_STATES in
@@ -1104,8 +1105,10 @@ class YouTubeEventsLoader:
                 ON j.jurisdiction_id = s.jurisdiction_id
             WHERE s.youtube_channel_url IS NOT NULL
               AND BTRIM(s.youtube_channel_url) <> ''
+              -- A handle guess the jurisdiction's own site does not link (#535).
+              AND COALESCE(s.youtube_channel_selection_method, '') <> %s
         """
-        params: list[Any] = []
+        params: list[Any] = [PATTERN_MATCH_UNVERIFIED_METHOD]
         if states_filter:
             query += " AND upper(btrim(s.usps::text)) = ANY(%s)"
             params.append([s.upper() for s in states_filter])
@@ -1212,8 +1215,10 @@ class YouTubeEventsLoader:
                 ON j.jurisdiction_id = s.jurisdiction_id
             WHERE s.youtube_channel_url IS NOT NULL
               AND BTRIM(s.youtube_channel_url) <> ''
+              -- A handle guess the jurisdiction's own site does not link (#535).
+              AND COALESCE(s.youtube_channel_selection_method, '') <> %s
         """
-        params: list[Any] = []
+        params: list[Any] = [PATTERN_MATCH_UNVERIFIED_METHOD]
         if states_filter:
             query += " AND upper(btrim(s.usps::text)) = ANY(%s)"
             params.append([s.upper() for s in states_filter])
