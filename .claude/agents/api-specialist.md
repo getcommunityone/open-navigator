@@ -1,5 +1,6 @@
 ---
 name: api-specialist
+model: sonnet
 description: >-
   FastAPI backend specialist for open-navigator. Use for anything touching the API
   service: route handlers, Pydantic models/validation, auth, error handling, DB

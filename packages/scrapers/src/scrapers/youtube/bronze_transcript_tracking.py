@@ -31,10 +31,32 @@ def transcript_file_size_bytes(file_path: Union[str, Path]) -> int:
     return int(p.stat().st_size)
 
 
+_TRANSCRIPT_COLUMNS = (
+    "transcript_download_at",
+    "transcript_file_path",
+    "transcript_file_size",
+    "transcript_file_error",
+    "transcript_download_attempts",
+)
+_TRANSCRIPT_INDEX = "idx_bronze_youtube_transcript_downloaded"
+
+
 def ensure_bronze_youtube_transcript_columns(conn: Any) -> None:
-    """Apply migration 072 columns if missing (idempotent)."""
+    """Apply migration 072 columns if missing (idempotent).
+
+    Runs no DDL when the columns and index already exist, so a loader starting during a
+    long read of ``bronze_event_youtube`` doesn't queue an ACCESS EXCLUSIVE lock (#534).
+    """
+    from scrapers.youtube.schema_guard import index_exists, missing_columns, set_local_lock_timeout
+
+    if not missing_columns(conn, "bronze", "bronze_event_youtube", _TRANSCRIPT_COLUMNS) and index_exists(
+        conn, "bronze", _TRANSCRIPT_INDEX
+    ):
+        conn.commit()
+        return
     cur = conn.cursor()
     try:
+        set_local_lock_timeout(cur)
         cur.execute(
             """
             ALTER TABLE bronze.bronze_event_youtube

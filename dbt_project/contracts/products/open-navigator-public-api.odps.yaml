@@ -290,3 +290,48 @@ outputPorts:
   contractId: open-navigator-public-recent_transcribed_meeting
   type: table
   description: 'One row per video_id: a meeting from the last 180 days (and not later than today) that has a transcript in event_documents, passes the junk-channel gate (event_youtube_with_jurisdiction), has a title that names a public meeting (meeting_title_regex) and has NOT been AI-analyzed (not in event_meeting).'
+- name: mdm_organization_data_center
+  version: 1.0.0
+  contractId: open-navigator-public-mdm_organization_data_center
+  type: table
+  description: 'MDM satellite (#531): data center detail for organizations that are data center companies.'
+- name: data_center_project
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_project
+  type: table
+  description: 'One row per announced or tracked data center project (#531): curated projects from company announcements and news (data_center_projects seed) plus every other Epoch AI site.'
+- name: data_center_project_company
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_project_company
+  type: table
+  description: Companies on a data center project, by role (#531).
+- name: data_center_project_jurisdiction
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_project_jurisdiction
+  type: table
+  description: 'Governments a data center project sits in (#531; the #445 site mapping carried to projects).'
+- name: data_center_project_figure
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_project_figure
+  type: table
+  description: Every stated figure about a data center project, each with its own source (#531).
+- name: data_center_project_mention
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_project_mention
+  type: table
+  description: Decisions and meeting passages that discuss a data center project (#531).
+- name: data_center_community_event
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_community_event
+  type: table
+  description: Company-hosted data center community meetings (#532).
+- name: data_center_community_event_source
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_community_event_source
+  type: table
+  description: The articles and announcements that report each company-hosted data center meeting (#532).
+- name: data_center_community_event_recording
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_community_event_recording
+  type: table
+  description: Possible recordings of company-hosted data center meetings (#532), from a YouTube search through the VPN guard.

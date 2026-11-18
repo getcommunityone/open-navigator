@@ -16,6 +16,17 @@ DATA_CENTER_SERVING = {
     "decision_place_label",
     "decision_company_mention",
     "decision_nearby_data_center_site",
+    # #531: companies and projects
+    "mdm_organization_data_center",
+    "data_center_project",
+    "data_center_project_company",
+    "data_center_project_jurisdiction",
+    "data_center_project_figure",
+    "data_center_project_mention",
+    # #532: company-hosted community meetings
+    "data_center_community_event",
+    "data_center_community_event_source",
+    "data_center_community_event_recording",
 }
 
 

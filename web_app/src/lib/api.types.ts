@@ -340,6 +340,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/community-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Community Events
+         * @description Company-hosted data center community meetings (town halls, open houses, information
+         *     sessions, community and public meetings) found in news and company announcements,
+         *     newest first, each with every source that reports it and any recording candidates.
+         *     Hosted by a company: these are not government meetings.
+         *
+         *     Example:
+         *         GET /api/data-centers/community-events?state=AL&city=Brookwood
+         */
+        get: operations["list_community_events_api_data_centers_community_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/concerns": {
         parameters: {
             query?: never;
@@ -402,6 +428,31 @@ export interface paths {
          *         GET /api/data-centers/meeting-mentions?state=NC&city=Charlotte
          */
         get: operations["list_data_center_meeting_mentions_api_data_centers_meeting_mentions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data-centers/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Center Projects
+         * @description Data center projects with their companies, every sourced figure and a timeline:
+         *     announced → company-hosted meeting → planning → council vote. Each timeline item says
+         *     who held it (the company or the government) and where it comes from.
+         *
+         *     Example:
+         *         GET /api/data-centers/projects?state=AL
+         */
+        get: operations["list_data_center_projects_api_data_centers_projects_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1255,6 +1306,97 @@ export interface components {
             /** State Code */
             state_code: string;
         };
+        /** CommunityEvent */
+        CommunityEvent: {
+            /** City */
+            city?: string | null;
+            /** Community Event Id */
+            community_event_id: string;
+            /**
+             * Event Date
+             * @description Only when an article states it.
+             */
+            event_date?: string | null;
+            /** Event Date Basis */
+            event_date_basis?: ("stated" | "stated_month_day") | null;
+            /**
+             * Event Kind
+             * @enum {string}
+             */
+            event_kind: "town_hall" | "community_meeting" | "open_house" | "information_session" | "public_meeting";
+            /** First Reported On */
+            first_reported_on?: string | null;
+            /** Host Name */
+            host_name?: string | null;
+            /**
+             * Host Type
+             * @description Always a company: never a government meeting.
+             * @default company
+             * @constant
+             */
+            host_type: "company";
+            /** Jurisdiction Id */
+            jurisdiction_id?: string | null;
+            /** Master Org Id */
+            master_org_id?: string | null;
+            /** Project Id */
+            project_id?: string | null;
+            /** Project Name */
+            project_name?: string | null;
+            /** Recording Candidates */
+            recording_candidates?: components["schemas"]["RecordingCandidate"][];
+            /**
+             * Recording Url
+             * @description A video link an article itself carries.
+             */
+            recording_url?: string | null;
+            /** Sources */
+            sources?: components["schemas"]["CommunityEventSource"][];
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Title */
+            title: string;
+        };
+        /**
+         * CommunityEventSource
+         * @description One article or announcement that reports the meeting (verbatim).
+         */
+        CommunityEventSource: {
+            /**
+             * Evidence
+             * @description The item's title and snippet, verbatim; the meeting word in <mark>.
+             */
+            evidence: string;
+            /** Published On */
+            published_on?: string | null;
+            /** Publisher */
+            publisher?: string | null;
+            /**
+             * Source
+             * @description gdelt, google_news or company_feed (the company's own press release).
+             */
+            source: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** CommunityEventsResponse */
+        CommunityEventsResponse: {
+            /** Items */
+            items: components["schemas"]["CommunityEvent"][];
+            /** Project Id */
+            project_id?: string | null;
+            scope: components["schemas"]["JobClaimScope"];
+            /**
+             * Unconfirmed
+             * @description Items kept for review (host or project unmatched); not shown as events.
+             * @default 0
+             */
+            unconfirmed: number;
+        };
         /** DataCenterAgendaCounts */
         DataCenterAgendaCounts: {
             /**
@@ -1414,6 +1556,71 @@ export interface components {
             /** Items */
             items: components["schemas"]["DataCenterMeetingMention"][];
             scope: components["schemas"]["JobClaimScope"];
+        };
+        /** DataCenterProject */
+        DataCenterProject: {
+            /**
+             * Announced On
+             * @description Only with the passage that dates it.
+             */
+            announced_on?: string | null;
+            /** Announced Source Excerpt */
+            announced_source_excerpt?: string | null;
+            /** Announced Source Url */
+            announced_source_url?: string | null;
+            /** Area */
+            area?: string | null;
+            /** City */
+            city?: string | null;
+            /** Companies */
+            companies?: components["schemas"]["ProjectCompany"][];
+            /** County */
+            county?: string | null;
+            /** Data Center Site Id */
+            data_center_site_id?: string | null;
+            /** Figures */
+            figures?: components["schemas"]["ProjectFigure"][];
+            /**
+             * Has Conflicting Figures
+             * @default false
+             */
+            has_conflicting_figures: boolean;
+            /** Jurisdiction Id */
+            jurisdiction_id?: string | null;
+            /** Project Id */
+            project_id: string;
+            /** Project Name */
+            project_name: string;
+            /**
+             * Project Source
+             * @enum {string}
+             */
+            project_source: "curated" | "epoch";
+            /** Source Excerpt */
+            source_excerpt: string;
+            /** Source Kind */
+            source_kind: string;
+            /** Source Url */
+            source_url: string;
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Timeline */
+            timeline?: components["schemas"]["TimelineItem"][];
+        };
+        /** DataCenterProjectsResponse */
+        DataCenterProjectsResponse: {
+            /** Items */
+            items: components["schemas"]["DataCenterProject"][];
+            scope: components["schemas"]["JobClaimScope"];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /**
          * DataCenterSite
@@ -1955,6 +2162,52 @@ export interface components {
             /** Steps */
             steps?: string[];
         };
+        /** ProjectCompany */
+        ProjectCompany: {
+            /** Company Name */
+            company_name?: string | null;
+            /** Confidence */
+            confidence: string;
+            /** Master Org Id */
+            master_org_id: string;
+            /** Role */
+            role: string;
+            /** Source Excerpt */
+            source_excerpt: string;
+            /** Source Url */
+            source_url: string;
+        };
+        /** ProjectFigure */
+        ProjectFigure: {
+            /** Metric */
+            metric: string;
+            /** Published On */
+            published_on?: string | null;
+            /** Source Excerpt */
+            source_excerpt: string;
+            /** Source Url */
+            source_url: string;
+            /** Unit */
+            unit: string;
+            /** Value */
+            value: number;
+        };
+        /**
+         * RecordingCandidate
+         * @description A video a search found for the meeting: a candidate for review, never attached.
+         */
+        RecordingCandidate: {
+            /** Channel */
+            channel?: string | null;
+            /** Match Reason */
+            match_reason: string;
+            /** Published On */
+            published_on?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Video Url */
+            video_url: string;
+        };
         /** StageBreakdownEntry */
         StageBreakdownEntry: {
             /**
@@ -2065,6 +2318,41 @@ export interface components {
              * @default 0
              */
             stopped: number;
+        };
+        /** TimelineItem */
+        TimelineItem: {
+            /**
+             * Evidence
+             * @description Verbatim excerpt; matched words in <mark> where marked.
+             */
+            evidence?: string | null;
+            /**
+             * Host
+             * @description Who held or did it: the company, or the government.
+             */
+            host: string;
+            /**
+             * Label
+             * @description What happened, from the source's own words.
+             */
+            label: string;
+            /**
+             * On
+             * @description The date the source gives; null when it gives none.
+             */
+            on?: string | null;
+            /**
+             * Source Label
+             * @description Where it comes from: a publisher, a press release, a transcript.
+             */
+            source_label: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "announced" | "company_meeting" | "planning" | "vote" | "government_meeting";
+            /** Url */
+            url?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -2755,6 +3043,43 @@ export interface operations {
             };
         };
     };
+    list_community_events_api_data_centers_community_events_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the city or government name. */
+                city?: string | null;
+                /** @description Only events about this data_center_project. */
+                project_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityEventsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_area_concerns_api_data_centers_concerns_get: {
         parameters: {
             query?: {
@@ -2853,6 +3178,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataCenterMeetingMentionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_data_center_projects_api_data_centers_projects_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; the project's city or one of its governments. */
+                city?: string | null;
+                /** @description One data_center_project. */
+                project_id?: string | null;
+                /** @description curated (announcements/news) or epoch. */
+                source?: ("curated" | "epoch") | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataCenterProjectsResponse"];
                 };
             };
             /** @description Validation Error */

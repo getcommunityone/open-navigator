@@ -104,3 +104,11 @@ schema:
     physicalType: text
     description: Verbatim excerpt of that field around the match, with the match wrapped in <mark>.
     required: true
+  - id: master_org_id
+    name: master_org_id
+    logicalType: string
+    physicalType: text
+    description: The company's organization master row (#531), via mdm_organization_data_center names and aliases; null when no curated company carries the name.
+    relationships:
+    - type: foreignKey
+      to: mdm_organization.odcs.yaml#/schema/mdm_organization/properties/master_org_id

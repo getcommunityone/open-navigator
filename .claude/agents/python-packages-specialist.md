@@ -1,5 +1,6 @@
 ---
 name: python-packages-specialist
+model: sonnet
 description: >-
   Python library/packaging specialist for open-navigator's uv workspace under
   packages/ (accessibility, agents, core, core-lib, datamodels, ingestion, llm,

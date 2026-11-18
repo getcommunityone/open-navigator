@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Gazette</title>
+  <entry>
+    <title type="html">County hears data center plan</title>
+    <link rel="alternate" href="https://gazette.example.test/news/county-data-center"/>
+    <id>tag:gazette.example.test,2026:1</id>
+    <published>2026-10-05T14:30:00Z</published>
+    <summary type="html">&lt;p&gt;Example Digital will hold an open house on Oct. 20.&lt;/p&gt;</summary>
+  </entry>
+  <entry>
+    <title>High school football scores</title>
+    <link href="https://gazette.example.test/sports/scores"/>
+    <updated>2026-10-06T01:00:00-05:00</updated>
+    <summary>Friday night results.</summary>
+  </entry>
+</feed>

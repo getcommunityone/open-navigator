@@ -76,6 +76,7 @@ left out but isn't listed here.
 | `decision_place_label.event_decision_id` | `event_decision.event_decision_id` | the same |
 | `decision_company_mention.event_decision_id` | `event_decision.event_decision_id` | the same |
 | `decision_nearby_data_center_site.event_decision_id` | `event_decision.event_decision_id` | the same |
+| `data_center_project_mention.event_decision_id` | `event_decision.event_decision_id` | the same |
 | `event_decision_place.place_id` | `event_place.place_id` | `event_place`, a dbt model that isn't served, is published in `public` with a contract |
 | `canonical_argument.frame_id` | `policy_frame.frame_id` | `policy_frame`, a dbt seed that isn't served, is published with a contract |
 | `policy_question.topic_code` | `cap_topic.code` | the same, for the seed `cap_topic` |

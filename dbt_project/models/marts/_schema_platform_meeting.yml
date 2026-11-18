@@ -1,0 +1,93 @@
+version: 2
+
+# #536: meetings from Granicus portals and the Legistar Web API. Built into gold only;
+# not on the publish_public_serving list yet (follow-up when the API serves it).
+
+models:
+  - name: platform_meeting
+    description: >
+      One row per meeting read from a Granicus portal or the Legistar Web API: date, body,
+      title, agenda / minutes / video links, whether the platform served agenda or minutes
+      text, and transcription_status (captions | queued_whisper | video_url_unknown |
+      no_video). FK to jurisdictions. Agenda / minutes text lives in event_meeting_document;
+      caption text in event_documents.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: platform_meeting_id
+        description: "Primary key: md5(platform | meeting_uid)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: platform
+        description: "'legistar' or 'granicus'."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: meeting_uid
+        description: "'<portal>:<native id>' (Legistar EventId, Granicus clip/event id)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: portal
+        description: "Legistar client slug or Granicus host."
+        data_type: text
+      - name: jurisdiction_id
+        description: "FK to jurisdictions; null when the portal's government isn't in jurisdictions."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: body_name
+        data_type: text
+      - name: title
+        data_type: text
+      - name: meeting_date
+        data_type: date
+      - name: meeting_time
+        description: "Time as the platform lists it (e.g. '9:00 AM')."
+        data_type: text
+      - name: location
+        data_type: text
+      - name: agenda_url
+        data_type: text
+      - name: minutes_url
+        data_type: text
+      - name: video_url
+        data_type: text
+      - name: video_url_source
+        description: "'legistar' (EventVideoPath), 'granicus_clip' (Legistar clip id on the government's Granicus host) or 'granicus'."
+        data_type: text
+      - name: detail_url
+        description: "The meeting's page on the platform."
+        data_type: text
+      - name: has_agenda_text
+        data_type: boolean
+      - name: has_minutes_text
+        data_type: boolean
+      - name: has_captions
+        data_type: boolean
+      - name: transcription_status
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['captions', 'queued_whisper', 'video_url_unknown', 'no_video']
+      - name: fetched_at
+        description: "When the meeting was last read from the platform."
+        data_type: timestamp

@@ -582,9 +582,20 @@ def fetch_channel_about_links(channel_id: str, *, timeout_s: float = 30.0) -> Li
 
 
 def ensure_bronze_events_channels_link_columns(conn) -> None:
-    """Add About-tab scrape columns if missing (idempotent)."""
+    """Add About-tab scrape columns if missing (idempotent; no DDL when present, #534)."""
+    from scrapers.youtube.schema_guard import missing_columns, set_local_lock_timeout
+
+    if not missing_columns(
+        conn,
+        "bronze",
+        "bronze_events_channels",
+        ("channel_external_links", "channel_external_links_fetched_at", "channel_description", "view_count"),
+    ):
+        conn.commit()
+        return
     cur = conn.cursor()
     try:
+        set_local_lock_timeout(cur)
         cur.execute(
             """
             ALTER TABLE bronze.bronze_events_channels
