@@ -52,10 +52,31 @@ def test_record_success_and_error_sql():
     assert "transcript_download_attempts = COALESCE" in sql2
 
 
-def test_ensure_columns_idempotent():
+def test_ensure_columns_runs_no_ddl_when_present(monkeypatch):
+    # #534: no ALTER when the columns and index already exist, so a loader never
+    # queues an ACCESS EXCLUSIVE lock behind a long read.
+    import scrapers.youtube.schema_guard as sg
+
+    monkeypatch.setattr(sg, "missing_columns", lambda *a, **k: [])
+    monkeypatch.setattr(sg, "index_exists", lambda *a, **k: True)
     conn = MagicMock()
     cur = MagicMock()
     conn.cursor.return_value = cur
     ensure_bronze_youtube_transcript_columns(conn)
-    assert cur.execute.call_count == 2
+    assert not any("ALTER TABLE" in str(c.args[0]) for c in cur.execute.call_args_list)
+    conn.commit.assert_called_once()
+
+
+def test_ensure_columns_adds_missing_columns_once(monkeypatch):
+    import scrapers.youtube.schema_guard as sg
+
+    monkeypatch.setattr(sg, "missing_columns", lambda *a, **k: ["transcript_download_at"])
+    monkeypatch.setattr(sg, "index_exists", lambda *a, **k: False)
+    conn = MagicMock()
+    cur = MagicMock()
+    conn.cursor.return_value = cur
+    ensure_bronze_youtube_transcript_columns(conn)
+    sqls = [str(c.args[0]) for c in cur.execute.call_args_list]
+    assert sum("ALTER TABLE bronze.bronze_event_youtube" in q for q in sqls) == 1
+    assert sum("CREATE INDEX IF NOT EXISTS idx_bronze_youtube_transcript_downloaded" in q for q in sqls) == 1
     conn.commit.assert_called_once()
