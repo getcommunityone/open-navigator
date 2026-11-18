@@ -80,6 +80,9 @@ Data flow:
   bronze_event_youtube_transcript -> stg_bronze_event_youtube_transcript
     -> events_text_search -> event_documents (this model)
   bronze_event_youtube -> event_youtube_with_jurisdiction --(orphan backfill)-->
+  bronze_platform_meeting_caption -> stg_bronze_platform_meeting_caption
+    -> event_documents (document_type 'transcript', transcript_source
+       'granicus_vtt'/'granicus_srt', video_id '<platform>:<meeting_uid>'; #536)
 
 Used by: api/routes/search_postgres.py (search_documents_pg).
 */
@@ -141,6 +144,32 @@ joined AS (
     FROM transcripts t
     LEFT JOIN {{ ref('event') }} e ON e.event_id = t.event_id
     LEFT JOIN youtube y ON y.video_id = t.video_id
+
+    UNION ALL
+
+    -- Caption text served by a meeting platform (Granicus, #536). video_id is
+    -- '<platform>:<meeting_uid>' so it can never collide with a YouTube id; there is
+    -- no golden event yet, so event_id is NULL like the YouTube orphans.
+    SELECT
+        NULL::bigint                                        AS event_id,
+        c.platform || ':' || c.meeting_uid                  AS video_id,
+        c.raw_text,
+        c.segments,
+        c.language,
+        FALSE                                               AS is_auto_generated,
+        c.caption_source                                    AS transcript_source,
+        c.fetched_at::timestamp                             AS created_at,
+        m.title                                             AS event_title,
+        m.meeting_date                                      AS event_date,
+        j.name::text                                        AS jurisdiction_name,
+        j.jurisdiction_type                                 AS jurisdiction_type,
+        m.state_code,
+        m.state,
+        CASE WHEN j.jurisdiction_type <> 'county' THEN j.name::text END AS city,
+        m.video_url
+    FROM {{ ref('stg_bronze_platform_meeting_caption') }} c
+    JOIN {{ ref('stg_bronze_platform_meeting') }} m ON m.platform_meeting_id = c.platform_meeting_id
+    LEFT JOIN {{ ref('int_jurisdictions') }} j ON j.jurisdiction_id = m.jurisdiction_id
 )
 
 SELECT
