@@ -1,0 +1,305 @@
+version: 2
+
+# #532: company-hosted data center community meetings found in news and company
+# announcements, their sources and recording candidates. Published to public, mirrored to Neon.
+
+models:
+  - name: data_center_community_event
+    description: >
+      Company-hosted data center community meetings (#532). One row per event, deduplicated across the articles that report it. Hosted by a company, never a government meeting. status confirmed (host company and project matched) or unconfirmed (kept for review; not shown as an event). event_date only when an article states it.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+      - type: foreign_key
+        columns: [project_id]
+        to: ref('data_center_project')
+        to_columns: [project_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: community_event_id
+        description: 'Primary key: md5 of the event key (host | project | kind | date or month).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: status
+        description: 'confirmed or unconfirmed.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['confirmed', 'unconfirmed']
+      - name: host_type
+        description: "Always 'company'."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['company']
+      - name: master_org_id
+        description: 'The host company (organization master row).'
+        data_type: text
+      - name: host_name
+        description: "The host company's name (mdm_organization_data_center)."
+        data_type: text
+      - name: project_id
+        description: 'The project the meeting is about.'
+        data_type: text
+      - name: project_name
+        description: "The project's name."
+        data_type: text
+      - name: jurisdiction_id
+        description: "The project's government."
+        data_type: text
+      - name: city
+        description: "The project's stated city."
+        data_type: text
+      - name: state_code
+        description: '2-letter state code.'
+        data_type: text
+      - name: state
+        description: 'Full state name.'
+        data_type: text
+      - name: event_kind
+        description: 'town_hall, community_meeting, open_house, information_session or public_meeting.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['town_hall', 'community_meeting', 'open_house', 'information_session', 'public_meeting']
+      - name: event_date
+        description: 'The meeting date, only when an article states it.'
+        data_type: date
+      - name: event_date_basis
+        description: 'stated (with year) or stated_month_day (year from the publication date).'
+        data_type: text
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['stated', 'stated_month_day']
+      - name: recording_url
+        description: 'A video link an article itself carries; null otherwise.'
+        data_type: text
+      - name: recording_candidate_count
+        description: 'Search candidates for review (data_center_community_event_recording).'
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: title
+        description: "The first article's title."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: first_reported_on
+        description: "The earliest article's date."
+        data_type: date
+      - name: source_count
+        description: 'Articles and announcements reporting it.'
+        data_type: integer
+        constraints:
+          - type: not_null
+  - name: data_center_community_event_source
+    description: >
+      The articles and announcements that report each company-hosted data center meeting (#532). One row per (community_event_id, news item), with the verbatim title and snippet and the meeting word in <mark>.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [community_event_id]
+        to: ref('data_center_community_event')
+        to_columns: [community_event_id]
+    columns:
+      - name: community_event_source_id
+        description: 'Primary key: md5(community_event_id | news_item_id).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: community_event_id
+        description: 'The event.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: news_item_id
+        description: 'The bronze news item (md5(source | url)).'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source
+        description: 'gdelt, google_news or company_feed.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['gdelt', 'google_news', 'company_feed']
+      - name: url
+        description: 'The article or press release.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: title
+        description: 'Its title, verbatim.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: publisher
+        description: 'The publisher (domain or company).'
+        data_type: text
+      - name: published_on
+        description: 'Its publication date.'
+        data_type: date
+      - name: matched_kind
+        description: 'The meeting word matched.'
+        data_type: text
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['town_hall', 'community_meeting', 'open_house', 'information_session', 'public_meeting']
+      - name: evidence
+        description: 'Title and snippet, verbatim, the meeting word in <mark>.'
+        data_type: text
+        constraints:
+          - type: not_null
+  - name: data_center_community_event_recording
+    description: >
+      Possible recordings of company-hosted data center meetings (#532), from a YouTube search through the VPN guard. One row per (community_event_id, video_url). review_status is always 'candidate': never attached as the event's recording.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [community_event_id]
+        to: ref('data_center_community_event')
+        to_columns: [community_event_id]
+    columns:
+      - name: recording_candidate_id
+        description: 'Primary key: md5(community_event_id | video_url).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: community_event_id
+        description: 'The event.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: video_url
+        description: 'The video.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: title
+        description: "The video's title."
+        data_type: text
+      - name: channel
+        description: 'The channel.'
+        data_type: text
+      - name: published_on
+        description: "The video's upload date."
+        data_type: date
+      - name: query
+        description: 'The search that found it.'
+        data_type: text
+      - name: match_reason
+        description: 'Why it is a candidate (names matched, date window).'
+        data_type: text
+      - name: review_status
+        description: "Always 'candidate'."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['candidate']
+      - name: searched_at
+        description: 'When it was found.'
+        data_type: timestamp with time zone
+
+unit_tests:
+  # #532: an item naming the host company, a tracked project and a meeting word is
+  # confirmed, with the date only as stated after the meeting word; one missing the project
+  # stays unconfirmed; a "February 30" is dropped; a press-release dateline is never the
+  # meeting date; a month-day year rolls back as well as forward.
+  - name: news_item_match_is_deterministic
+    model: int_data_center_news_item__match
+    given:
+      - input: ref('stg_data_center_news_item')
+        format: sql
+        rows: |
+          select 'n1'::text as news_item_id, 'gdelt'::text as source, 'https://example.test/1'::text as url,
+                 'Example Digital to host town hall on Forge Campus Two data center Oct. 7'::text as title,
+                 'example.test'::text as publisher, null::timestamptz as published_at,
+                 date '2026-10-01' as published_on,
+                 'Example Digital to host town hall on Forge Campus Two data center Oct. 7'::text as snippet,
+                 null::text as company_key,
+                 'Example Digital to host town hall on Forge Campus Two data center Oct. 7'::text as body,
+                 array['town_hall']::text[] as kinds, true as says_data_center, null::timestamptz as first_seen_at
+          union all
+          select 'n2', 'gdelt', 'https://example.test/2', 'Residents pack open house on data center', 'example.test',
+                 null, date '2026-10-02', null, null, 'Residents pack open house on data center',
+                 array['open_house']::text[], true, null
+          union all
+          select 'n3', 'gdelt', 'https://example.test/3', 'Example Digital data center open house February 30, 2026',
+                 'example.test', null, date '2026-02-01', null, null,
+                 'Example Digital data center open house February 30, 2026 at Forge Campus Two',
+                 array['open_house']::text[], true, null
+          union all
+          select 'n4', 'company_feed', 'https://example.test/4', 'Release', 'Example Digital', null,
+                 date '2026-10-02', null, 'example-digital',
+                 'Release — DALLAS, Oct. 2, 2026 -- Example Digital will host a town hall at Forge Campus Two data center.',
+                 array['town_hall']::text[], true, null
+          union all
+          select 'n5', 'gdelt', 'https://example.test/5', 'x', 'example.test', null, date '2027-01-05', null, null,
+                 'Example Digital data center town hall Dec. 15 at Forge Campus Two',
+                 array['town_hall']::text[], true, null
+      - input: ref('mdm_organization_data_center')
+        format: sql
+        rows: |
+          select 'm1'::text as master_org_id, 'example-digital'::text as company_key,
+                 'Example Digital'::text as company_name, array['Example Digital']::text[] as aliases
+      - input: ref('data_center_project')
+        rows:
+          - {project_id: p1, project_name: Forge Campus Two, project_source: curated, city: Exampleton, state_code: AL, jurisdiction_id: exampleton_01}
+      - input: ref('data_center_project_company')
+        rows:
+          - {project_id: p1, master_org_id: m1, role: developer}
+    expect:
+      rows:
+        - {news_item_id: n1, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: town_hall, event_date: '2026-10-07', event_date_basis: stated_month_day}
+        - {news_item_id: n2, status: unconfirmed, master_org_id: null, project_id: null, jurisdiction_id: null, event_kind: open_house, event_date: null, event_date_basis: null}
+        - {news_item_id: n3, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: open_house, event_date: null, event_date_basis: null}
+        - {news_item_id: n4, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: town_hall, event_date: null, event_date_basis: null}
+        - {news_item_id: n5, status: confirmed, master_org_id: m1, project_id: p1, jurisdiction_id: exampleton_01, event_kind: town_hall, event_date: '2026-12-15', event_date_basis: stated_month_day}

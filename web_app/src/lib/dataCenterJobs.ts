@@ -145,3 +145,54 @@ export function concernSummary(
   const pct = Math.round((100 * c.mention_count) / c.objection_count)
   return `${concernLabel(c.concern)} in ${c.mention_count} of ${c.objection_count} objections (${pct}%)`
 }
+
+// --- company-hosted meetings and project timelines (#532) --------------------------------
+
+const COMMUNITY_EVENT_KIND: Record<string, string> = {
+  town_hall: 'Town hall',
+  community_meeting: 'Community meeting',
+  open_house: 'Open house',
+  information_session: 'Information session',
+  public_meeting: 'Public meeting',
+}
+
+/** "Town hall", "Open house", ... for a community event kind. */
+export function communityEventKindLabel(kind: string): string {
+  return COMMUNITY_EVENT_KIND[kind] ?? 'Meeting'
+}
+
+const TIMELINE_STAGE: Record<string, string> = {
+  announced: 'Announced',
+  company_meeting: 'Company meeting',
+  planning: 'Planning',
+  vote: 'Council vote',
+  government_meeting: 'Government meeting',
+}
+
+export function timelineStageLabel(stage: string): string {
+  return TIMELINE_STAGE[stage] ?? stage
+}
+
+/** A sourced figure as the reader sees it: "$3.2 billion investment", "210 MW IT load". */
+export function figureLabel(metric: string, value: number, unit: string): string {
+  if (unit === 'usd') {
+    const billions = value / 1e9
+    const money = billions >= 1 ? `$${+billions.toFixed(2)} billion` : `$${+(value / 1e6).toFixed(1)} million`
+    return `${money} investment`
+  }
+  const n = value.toLocaleString('en-US')
+  switch (metric) {
+    case 'it_mw':
+      return `${n} MW IT load`
+    case 'utility_mw':
+      return `${n} MW utility power`
+    case 'acres':
+      return `${n} acres`
+    case 'square_feet':
+      return `${n} sq ft`
+    case 'jobs':
+      return `${n} jobs`
+    default:
+      return `${n} ${unit}`
+  }
+}

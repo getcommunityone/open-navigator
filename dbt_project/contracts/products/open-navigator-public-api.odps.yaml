@@ -320,3 +320,18 @@ outputPorts:
   contractId: open-navigator-public-data_center_project_mention
   type: table
   description: Decisions and meeting passages that discuss a data center project (#531).
+- name: data_center_community_event
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_community_event
+  type: table
+  description: Company-hosted data center community meetings (#532).
+- name: data_center_community_event_source
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_community_event_source
+  type: table
+  description: The articles and announcements that report each company-hosted data center meeting (#532).
+- name: data_center_community_event_recording
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_community_event_recording
+  type: table
+  description: Possible recordings of company-hosted data center meetings (#532), from a YouTube search through the VPN guard.

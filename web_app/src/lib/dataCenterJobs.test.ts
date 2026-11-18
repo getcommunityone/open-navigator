@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  communityEventKindLabel,
+  figureLabel,
+  timelineStageLabel,
   concernLabel,
   concernSummary,
   dataCentersTitle,
@@ -98,5 +101,19 @@ describe('concerns (DC-4.3)', () => {
     )
     expect(concernSummary(null)).toBeNull()
     expect(concernSummary({ concern: 'water', mention_count: 0, objection_count: 0 })).toBeNull()
+  })
+})
+
+describe('community events and project figures (#532)', () => {
+  it('labels meeting kinds and timeline stages', () => {
+    expect(communityEventKindLabel('town_hall')).toBe('Town hall')
+    expect(communityEventKindLabel('unknown')).toBe('Meeting')
+    expect(timelineStageLabel('vote')).toBe('Council vote')
+    expect(timelineStageLabel('company_meeting')).toBe('Company meeting')
+  })
+  it('renders a figure in the units its source states', () => {
+    expect(figureLabel('investment_usd', 3_200_000_000, 'usd')).toBe('$3.2 billion investment')
+    expect(figureLabel('it_mw', 210, 'mw')).toBe('210 MW IT load')
+    expect(figureLabel('square_feet', 1_260_000, 'sq_ft')).toBe('1,260,000 sq ft')
   })
 })

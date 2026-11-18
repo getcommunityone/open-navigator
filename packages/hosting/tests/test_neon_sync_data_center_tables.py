@@ -23,6 +23,10 @@ DATA_CENTER_SERVING = {
     "data_center_project_jurisdiction",
     "data_center_project_figure",
     "data_center_project_mention",
+    # #532: company-hosted community meetings
+    "data_center_community_event",
+    "data_center_community_event_source",
+    "data_center_community_event_recording",
 }
 
 

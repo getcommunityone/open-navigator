@@ -84,3 +84,30 @@ models:
     columns:
       - name: project_jurisdiction_id
         tests: [unique, not_null]
+
+  - name: int_data_center_news_item__match
+    description: >
+      One row per data center news item (#532): the host company, project, government,
+      meeting kind, stated date and any video link its own text gives, and a status
+      (confirmed, unconfirmed, not_event). Deterministic text matching only.
+    columns:
+      - name: news_item_id
+        tests: [unique, not_null]
+      - name: status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['confirmed', 'unconfirmed', 'not_event']
+
+  - name: int_data_center_community_event__item
+    description: >
+      One row per news item that describes a company-hosted meeting (#532), with the key of
+      the event it reports (community_event_id = md5(event_key)).
+    columns:
+      - name: news_item_id
+        tests: [unique, not_null]
+
+  - name: int_data_center_community_event__recording
+    description: >
+      One row per (community_event_id, video_url) recording candidate from the YouTube
+      search (#532); empty until the search has run.

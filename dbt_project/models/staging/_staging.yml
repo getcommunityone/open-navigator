@@ -1835,6 +1835,28 @@ sources:
             description: "The site name this timeline row belongs to (Epoch's 'Data center' link)."
           - name: record
             description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_news_item
+        config:
+          loaded_at_field: last_seen_at
+          freshness:
+            warn_after: {count: 14, period: day}
+        description: >
+          News and company press-release items about data centers (#532), one per
+          (source, url), landed by `python -m ingestion.data_centers.community_events` from
+          the GDELT DOC API, Google News RSS (only when robots.txt allows it) and the
+          companies' press-release feeds. title and snippet are verbatim.
+        columns:
+          - name: news_item_id
+            description: "md5(source | url)."
+          - name: source
+            description: "gdelt, google_news or company_feed."
+          - name: snippet
+            description: "Verbatim text: the headline (GDELT), the feed description, or whole sentences of a press release that say a meeting word or a project name."
+      - name: bronze_data_center_event_recording_candidate
+        description: >
+          Videos a YouTube search (through the VPN guard) found for a company-hosted data
+          center meeting (#532), landed by `python -m ingestion.data_centers.recording_candidates`.
+          Candidates for review only.
       - name: bronze_jurisdiction_meeting_source
         description: >
           Where each government around a data center site publishes its meetings (#460), one row

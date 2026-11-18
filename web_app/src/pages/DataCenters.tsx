@@ -4,6 +4,10 @@ import CitationLink from '../components/CitationLink'
 import { meetingMomentPath } from '../lib/timestamp'
 import {
   fetchAreaConcerns,
+  fetchCommunityEvents,
+  fetchDataCenterProjects,
+  type CommunityEvent,
+  type DataCenterProject,
   fetchDataCenterAgendaItems,
   fetchDataCenterMeetingMentions,
   fetchDataCenterSites,
@@ -16,6 +20,9 @@ import {
 } from '../api/dataCenters'
 import { fetchApplicationLinks, type ApplicationLink } from '../api/applicationLinks'
 import {
+  communityEventKindLabel,
+  figureLabel,
+  timelineStageLabel,
   formatDateRange,
   formatHeadcount,
   concernLabel,
@@ -124,6 +131,10 @@ export default function DataCenters() {
         <AgendaSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
 
         <MeetingMentionsSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
+
+        <ProjectsSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
+
+        <CommunityEventsSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
 
         <SitesSection rawState={rawState} cityName={cityName} />
 
@@ -692,5 +703,237 @@ function ClaimCard({ claim }: { claim: JobClaim }) {
         )}
       </p>
     </article>
+  )
+}
+
+/**
+ * "Company meetings" (#532): town halls, open houses and information sessions a data center
+ * company holds about its project, found in local news and the company's own press releases.
+ * These are company-hosted, never government meetings, and each card says so. Every card
+ * quotes each source with the meeting word highlighted (match-evidence rule) and names the
+ * publisher. Recording candidates from a search are shown as unreviewed, never as the
+ * recording. Same ?state=&city= scope as the rest of the page.
+ */
+function CommunityEventsSection({ rawState, cityName, scopeLabel }: { rawState?: string; cityName?: string; scopeLabel: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['data-centers', 'community-events', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchCommunityEvents({ state: rawState, city: cityName }),
+  })
+  const events = data?.items ?? []
+  return (
+    <section aria-labelledby="community-events-heading" className="mt-6">
+      <h2 id="community-events-heading" className="mb-1 text-xl font-semibold text-gray-900">
+        Company meetings <span className="font-normal text-gray-400">· {scopeLabel}</span>
+      </h2>
+      <p className="mb-3 text-sm text-gray-600">
+        Town halls, open houses and information sessions held by data center companies, as local news and the
+        companies&apos; own announcements report them. These are hosted by the company, not by a government.
+        {data && data.unconfirmed > 0 && (
+          <>
+            {' '}
+            {data.unconfirmed} more item{data.unconfirmed === 1 ? '' : 's'} mention a meeting but couldn&apos;t be
+            matched to a company and project, so they aren&apos;t listed.
+          </>
+        )}
+      </p>
+      {isLoading ? (
+        <div role="status" className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+          Loading company meetings for {scopeLabel}…
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Couldn&apos;t load company meetings.{' '}
+          <button type="button" onClick={() => refetch()} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      ) : events.length === 0 ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          No company-hosted data center meetings found for {scopeLabel} yet.
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {events.map((e) => (
+            <CommunityEventCard key={e.community_event_id} event={e} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function CommunityEventCard({ event }: { event: CommunityEvent }) {
+  const sources = event.sources ?? []
+  const candidates = event.recording_candidates ?? []
+  const when = formatIsoDate(event.event_date)
+  const where = [event.city, event.state_code].filter(Boolean).join(', ')
+  return (
+    <li className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold text-gray-900">
+          {communityEventKindLabel(event.event_kind)}
+          {event.project_name && <span className="font-normal text-gray-700"> · {event.project_name}</span>}
+          {where && <span className="font-normal text-gray-600"> · {where}</span>}
+        </p>
+        <p className="text-sm text-gray-500">{when ?? 'Date not stated'}</p>
+      </div>
+      <p className="mt-1 text-xs">
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-900">
+          Hosted by {event.host_name ?? 'the company'} · company meeting, not a government meeting
+        </span>
+      </p>
+      <ul className="mt-2 space-y-2">
+        {sources.map((s) => (
+          <li key={s.url}>
+            <blockquote className="line-clamp-4 border-l-4 border-primary-300 pl-3 text-sm text-gray-800">
+              {highlightSnippet(s.evidence)}
+            </blockquote>
+            <p className="ml-4 text-xs text-gray-600">
+              <a href={s.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-700 hover:underline">
+                {s.publisher ?? 'Source'}
+              </a>
+              {s.source === 'company_feed' && ' (company press release)'}
+              {s.published_on && ` · ${formatIsoDate(s.published_on)}`}
+            </p>
+          </li>
+        ))}
+      </ul>
+      {event.recording_url ? (
+        <a href={event.recording_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-medium text-primary-700 hover:underline">
+          Recording (linked by the article)
+        </a>
+      ) : candidates.length > 0 ? (
+        <div className="mt-2 text-xs text-gray-600">
+          <p className="font-medium">Possible recordings, not yet reviewed:</p>
+          <ul className="ml-4 list-disc">
+            {candidates.map((r) => (
+              <li key={r.video_url}>
+                <a href={r.video_url} target="_blank" rel="noopener noreferrer" className="text-primary-700 hover:underline">
+                  {r.title ?? r.video_url}
+                </a>
+                {r.channel && ` · ${r.channel}`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-gray-500">No recording found.</p>
+      )}
+    </li>
+  )
+}
+
+/**
+ * "Projects" (#531/#532): announced and tracked data center projects with their companies,
+ * every figure with its own source, and a timeline: announced → company meeting → planning →
+ * council vote. Each timeline step says who held it (company or government) and where it
+ * comes from. Figures the sources disagree on are listed per source, never merged.
+ */
+function ProjectsSection({ rawState, cityName, scopeLabel }: { rawState?: string; cityName?: string; scopeLabel: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['data-centers', 'projects', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchDataCenterProjects({ state: rawState, city: cityName, source: 'curated' }),
+  })
+  const projects = data?.items ?? []
+  return (
+    <section aria-labelledby="projects-heading" className="mt-6">
+      <h2 id="projects-heading" className="mb-1 text-xl font-semibold text-gray-900">
+        Projects <span className="font-normal text-gray-400">· {scopeLabel}</span>
+      </h2>
+      <p className="mb-3 text-sm text-gray-600">
+        Data center projects named in company announcements and news, with who is building them and each figure
+        quoted from its source. Tracked Epoch AI sites are listed under Sites.
+      </p>
+      {isLoading ? (
+        <div role="status" className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+          Loading projects for {scopeLabel}…
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Couldn&apos;t load projects.{' '}
+          <button type="button" onClick={() => refetch()} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      ) : projects.length === 0 ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          No announced data center projects found for {scopeLabel} yet.
+        </div>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {projects.map((p) => (
+            <ProjectCard key={p.project_id} project={p} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function ProjectCard({ project }: { project: DataCenterProject }) {
+  const companies = project.companies ?? []
+  const figures = project.figures ?? []
+  const timeline = project.timeline ?? []
+  const place = [project.city, project.county, project.state].filter(Boolean).join(', ') || project.area
+  return (
+    <li className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="font-semibold text-gray-900">{project.project_name}</p>
+      {place && <p className="text-xs text-gray-500">{place}</p>}
+      {companies.length > 0 && (
+        <p className="mt-1 text-sm text-gray-700">
+          {companies.map((c) => `${c.company_name ?? 'Company'} (${c.role})`).join(' · ')}
+        </p>
+      )}
+      <blockquote className="mt-2 border-l-4 border-gray-200 pl-3 text-xs italic text-gray-700">
+        “{project.source_excerpt}”{' '}
+        <a href={project.source_url} target="_blank" rel="noopener noreferrer" className="not-italic text-primary-700 hover:underline">
+          source
+        </a>
+      </blockquote>
+      {figures.length > 0 && (
+        <div className="mt-2 text-xs text-gray-700">
+          <p className="font-medium">
+            Figures{project.has_conflicting_figures && <span className="text-amber-700"> (sources disagree; each shown)</span>}
+          </p>
+          <ul className="ml-4 list-disc">
+            {figures.map((f) => (
+              <li key={`${f.metric}-${f.source_url}-${f.value}`}>
+                {figureLabel(f.metric, f.value, f.unit)}: “{f.source_excerpt}”{' '}
+                <a href={f.source_url} target="_blank" rel="noopener noreferrer" className="text-primary-700 hover:underline">
+                  source
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {timeline.length > 0 && (
+        <ol className="mt-3 space-y-2 border-l border-gray-200 pl-3 text-xs">
+          {timeline.map((t, i) => (
+            <li key={`${t.stage}-${i}`}>
+              <p className="font-medium text-gray-900">
+                {timelineStageLabel(t.stage)} · {formatIsoDate(t.on) ?? 'Date not stated'}
+              </p>
+              <p className="text-gray-700">{t.label}</p>
+              <p className="text-gray-500">
+                Held by {t.host} · Source:{' '}
+                {t.url ? (
+                  t.url.startsWith('/') ? (
+                    <Link to={t.url} className="text-primary-700 hover:underline">{t.source_label}</Link>
+                  ) : (
+                    <a href={t.url} target="_blank" rel="noopener noreferrer" className="text-primary-700 hover:underline">
+                      {t.source_label}
+                    </a>
+                  )
+                ) : (
+                  t.source_label
+                )}
+              </p>
+              {t.evidence && <p className="line-clamp-3 text-gray-700">{highlightSnippet(t.evidence)}</p>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </li>
   )
 }
