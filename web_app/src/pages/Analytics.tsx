@@ -1,22 +1,12 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import api from '../lib/api'
+import { useNationalStats } from '../hooks/useNationalStats'
 import {
   ChartBarIcon,
-  CurrencyDollarIcon,
-  ArrowTrendingUpIcon,
   DocumentChartBarIcon,
 } from '@heroicons/react/24/outline'
 
 // Commented out for now - will be used when API is ready
 // import axios from 'axios'
-
-// Subset of the national GET /api/stats rollup (api/routes/stats_neon.py).
-// `governments` = local governments in the catalog (Census geographies minus
-// statistical areas); null when the serving table has no such figure.
-interface NationalStats {
-  governments?: number | null
-}
 
 // interface BudgetData {
 //   jurisdiction: string
@@ -39,14 +29,7 @@ export default function Analytics() {
 
   // Live local-government count from the national /api/stats rollup — never a
   // hard-coded figure. Shows "—" while loading or when unavailable.
-  const { data: nationalStats } = useQuery<NationalStats | null>({
-    queryKey: ['national-stats'],
-    queryFn: async () => {
-      const response = await api.get('/stats')
-      return response.data
-    },
-    staleTime: 30 * 60 * 1000,
-  })
+  const { data: nationalStats } = useNationalStats()
   const governmentsCount = nationalStats?.governments
   const governmentsLabel =
     governmentsCount != null && governmentsCount > 0 ? governmentsCount.toLocaleString() : '—'
@@ -128,47 +111,6 @@ export default function Analytics() {
                 </p>
               </div>
               <DocumentChartBarIcon className="h-12 w-12 text-gray-400" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-6 border-l-4" style={{ borderColor: '#52796F' }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-                  Budget Records
-                </p>
-                <p className="mt-2 text-3xl font-bold" style={{ color: '#52796F' }}>
-                  15,000+
-                </p>
-              </div>
-              <CurrencyDollarIcon className="h-12 w-12 text-gray-400" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-emerald-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-                  Avg Budget Increase
-                </p>
-                <p className="mt-2 text-3xl font-bold text-emerald-600 flex items-center gap-2">
-                  +3.2%
-                  <ArrowTrendingUpIcon className="h-6 w-6" />
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-amber-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-                  States Covered
-                </p>
-                <p className="mt-2 text-3xl font-bold text-amber-600">
-                  50
-                </p>
-              </div>
             </div>
           </div>
         </div>

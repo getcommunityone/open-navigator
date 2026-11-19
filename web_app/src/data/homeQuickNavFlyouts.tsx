@@ -236,7 +236,7 @@ export const HOME_QUICK_NAV_FLYOUTS: Record<HomeQuickNavGroupId, HomeFlyoutItem[
       id: 'np',
       iconKey: 'building',
       label: 'Nonprofits Near Me',
-      description: '1.8M organizations mapped across 5 states',
+      description: 'Organizations mapped by issue and location',
       tag: 'Free',
       to: '/nonprofits',
     },
@@ -245,7 +245,7 @@ export const HOME_QUICK_NAV_FLYOUTS: Record<HomeQuickNavGroupId, HomeFlyoutItem[
       iconKey: 'capitol',
       label: 'Elected Officials',
       description: 'Voting records, contact info, decision patterns',
-      tag: '75K+ leaders',
+      tag: 'Officials',
       to: '/people',
     },
     {
@@ -253,7 +253,7 @@ export const HOME_QUICK_NAV_FLYOUTS: Record<HomeQuickNavGroupId, HomeFlyoutItem[
       iconKey: 'dollar',
       label: 'Grants & Funding',
       description: 'Federal, state, and foundation opportunities',
-      tag: '1,000s available',
+      tag: 'Funding',
       // Grants search: historical 990 grantmaking + open Grants.gov funding.
       // (The bare /opportunities route is the unrelated advocacy-opportunities page.)
       to: '/search?types=grants,grant_opportunities',
