@@ -198,7 +198,7 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
     "meeting_id": "string",
     "body_name": "string",
     "meeting_date": "YYYY-MM-DD",
-    "jurisdiction": "string",
+    "jurisdiction": "string or null — only the government named in THIS recording's MEDIA CONTEXT / transcript; leave null when unknown. Never invent a city that is not named there.",
     "session_info": {
       "is_multi_session": "boolean",
       "session_number": "integer or null",

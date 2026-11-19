@@ -69,7 +69,17 @@ select
     s.body_name,
     {{ coerce_plausible_meeting_date('s.meeting_date', 's.meeting_id') }} as meeting_date,
     s.event_date,
-    s.jurisdiction,
+    -- Drop Tuscaloosa demo labels when the warehouse place is not Tuscaloosa (#593).
+    case
+      when s.jurisdiction ~* 'tuscaloosa'
+       and coalesce(e.jurisdiction_name, '') !~* 'tuscaloosa'
+       and coalesce(e.city, '') !~* 'tuscaloosa'
+      then null
+      when s.jurisdiction ~* '^[[:space:]]*tuscaloosa(_|[[:space:]])?0*[0-9]+[[:space:]]*$'
+        or s.jurisdiction ~* '^[[:space:]]*city_of_tuscaloosa'
+      then null
+      else s.jurisdiction
+    end as jurisdiction,
     s.meeting_summary,
     s.agenda_summary,
     s.session_info,

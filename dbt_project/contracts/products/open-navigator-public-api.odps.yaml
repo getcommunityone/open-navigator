@@ -170,6 +170,11 @@ outputPorts:
   contractId: open-navigator-public-browse_entity_state_transcript_count
   type: table
   description: Per-entity-per-state count of DISTINCT transcript videos (public.event_documents, document_type= 'transcript') linked to each browseable homepage entity.
+- name: browse_entity_place_transcript_count
+  version: 1.0.0
+  contractId: open-navigator-public-browse_entity_place_transcript_count
+  type: table
+  description: Per-entity-per-place count of DISTINCT transcript videos (public.event_documents, document_type= 'transcript') linked to each browseable homepage entity.
 - name: mdm_organization
   version: 1.0.0
   contractId: open-navigator-public-mdm_organization
