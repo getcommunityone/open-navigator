@@ -277,6 +277,43 @@ def test_instances_carry_headline_place_company_and_nearby_sites(get) -> None:
     assert item["nearby_sites"] == [{"data_center_site_id": "s1", "site_name": "Meta Montgomery", "owner": "Meta"}]
 
 
+def test_instances_label_a_company_named_in_the_meeting_and_link_to_it(get) -> None:
+    # #525: a passage of the decision's own meeting; the link is the recording at the passage's moment.
+    mentions = (
+        '[{"operator_name": "Hillwood", "matched_text": "Hillwood", '
+        '"evidence": "on behalf of <mark>Hillwood</mark>. Um, Hillwood is a national developer", '
+        '"evidence_source": "meeting_passage", "start_seconds": 2082.079, '
+        '"video_url": "https://www.youtube.com/watch?v=LGJDZSrSoBU"},'
+        ' {"operator_name": "Amazon", "matched_text": "Amazon", "evidence": "<mark>Amazon</mark> lease", '
+        '"evidence_source": "decision_text", "start_seconds": null, "video_url": null}]'
+    )
+    item = get(_Conn(rows=[_instance_row(company_mentions=mentions)]),
+               f"/api/policy-question/{QID}/instances").json()[0]
+    by_name = {m["operator_name"]: m for m in item["company_mentions"]}
+    assert by_name["Hillwood"]["evidence_source"] == "meeting_passage"
+    assert by_name["Hillwood"]["start_seconds"] == 2082.079
+    assert by_name["Hillwood"]["jump_url"] == "https://www.youtube.com/watch?v=LGJDZSrSoBU&t=2082s"
+    assert "<mark>Hillwood</mark>" in by_name["Hillwood"]["evidence"]
+    # the decision's own text has no recording link, and the raw video_url is not exposed
+    assert by_name["Amazon"]["evidence_source"] == "decision_text" and by_name["Amazon"]["jump_url"] is None
+    assert "video_url" not in by_name["Hillwood"]
+
+
+def test_untimed_meeting_mention_links_to_the_recording_without_a_time(get) -> None:
+    mentions = ('[{"operator_name": "Hillwood", "matched_text": "Hillwood", "evidence": "<mark>Hillwood</mark>", '
+                '"evidence_source": "meeting_passage", "start_seconds": null, '
+                '"video_url": "https://www.youtube.com/watch?v=abc"}]')
+    item = get(_Conn(rows=[_instance_row(company_mentions=mentions)]),
+               f"/api/policy-question/{QID}/instances").json()[0]
+    assert item["company_mentions"][0]["jump_url"] == "https://www.youtube.com/watch?v=abc"
+    assert item["company_mentions"][0]["start_seconds"] is None  # no fake time
+
+
+def test_instances_company_mentions_read_the_meeting_passage_link() -> None:
+    sql = policy_questions._INSTANCES_SQL
+    assert "m.evidence_source" in sql and "public.data_center_meeting_mention" in sql
+
+
 def test_instances_without_context_are_empty_not_invented(get) -> None:
     conn = _Conn(rows=[_instance_row(source_type="state_bill", event_decision_id=None, headline=None,
                                      place_label=None, company_mentions=None, nearby_sites=None)])

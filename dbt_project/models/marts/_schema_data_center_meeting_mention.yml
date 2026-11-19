@@ -56,7 +56,7 @@ models:
         description: "The video's title as the channel lists it."
         data_type: text
       - name: meeting_date
-        description: "The meeting date, from event_youtube_with_jurisdiction."
+        description: "The meeting date, from event_youtube_with_jurisdiction. Null when the source date is later than the load date (a wrong video date, #472)."
         data_type: date
       - name: jurisdiction_id
         description: "The government whose meeting it is (FK to jurisdictions); null when the video's place isn't in jurisdictions."

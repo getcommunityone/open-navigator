@@ -176,7 +176,8 @@ async def extract_contact_directory(
         apply_chunking=False,
         extra_args={"temperature": 0.0, "max_tokens": 2000},
     )
-    browser_config = BrowserConfig(headless=True, enable_stealth=True)
+    # A plain browser: we do not try to get past bot protection (decision 2026-11-16, #443, #462).
+    browser_config = BrowserConfig(headless=True)
     run_config = CrawlerRunConfig(
         extraction_strategy=llm_strategy,
         cache_mode=CacheMode.BYPASS,

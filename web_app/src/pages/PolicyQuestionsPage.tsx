@@ -27,6 +27,7 @@ import {
 import DecisionCardList from '../components/DecisionCardList'
 import { highlightSnippet } from '../lib/highlight'
 import { themeLabel } from '../lib/themeLabel'
+import { companyMentionLabel, companyMentionLink } from '../lib/companyMention'
 import { questionSummary } from '../lib/questionSummary'
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1003,16 +1004,33 @@ function InstanceRow({ ex }: { ex: QuestionInstance }) {
           </span>
         </div>
       )}
-      {mentions.map((m) => (
+      {mentions.map((m) => {
+        const recordingLink = companyMentionLink(m)
+        return (
         <div key={m.operator_name} className="mt-1 flex items-start gap-1 text-xs text-gray-700" data-testid="dashboard-instance-company">
           <BuildingOffice2Icon className="mt-px h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
           <span>
-            <span className="text-gray-400">Company named: </span>
+            <span className="text-gray-400">{companyMentionLabel(m)}: </span>
             <span className="font-medium">{m.operator_name}</span>
             {m.evidence && <span className="text-gray-500"> — “{highlightSnippet(m.evidence)}”</span>}
+            {recordingLink && (
+              <>
+                {' '}
+                <a
+                  href={recordingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:underline"
+                  data-testid="dashboard-instance-company-recording"
+                >
+                  Watch the meeting
+                </a>
+              </>
+            )}
           </span>
         </div>
-      ))}
+        )
+      })}
       {nearby.map((s) => (
         <div key={s.data_center_site_id} className="mt-1 text-xs text-gray-500">
           Nearby tracked site: {s.site_name}

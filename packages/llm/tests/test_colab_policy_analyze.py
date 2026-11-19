@@ -406,6 +406,16 @@ def test_import_saves_through_the_pipeline_with_the_gemma_model(tmp_path, monkey
     assert json.loads(text)["decisions"][0]["decision_id"] == "D001"
 
 
+def test_latest_child_picks_the_newest_dated_folder(tmp_path):
+    root = tmp_path / "policy_export"
+    for name in ("2026-11-10", "2026-11-17-pilot", "2026-11-17"):
+        (root / name).mkdir(parents=True)
+    (root / "notes.txt").write_text("x")
+    store = io_.LocalStore(tmp_path)
+    assert io_.latest_child(store, "policy_export") == "2026-11-17-pilot"
+    assert io_.latest_child(store, "missing") is None
+
+
 @pytest.mark.parametrize("name,repo", [
     ("e4b", "google/gemma-4-E4B-it"),
     ("gemma-4-e4b-it", "google/gemma-4-E4B-it"),

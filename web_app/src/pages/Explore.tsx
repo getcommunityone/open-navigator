@@ -22,6 +22,8 @@ import {
 } from '../data/exploreActionPhases'
 import { CAUSES } from '../data/causes'
 import { flyoutIcons } from '../data/homeQuickNavFlyouts'
+import { useNationalStats } from '../hooks/useNationalStats'
+import { formatLiveStat } from '../utils/liveStats'
 
 const CARD_CTA = 'Take the next step →'
 
@@ -42,6 +44,9 @@ function scrollToExploreTarget(targetId: string) {
 }
 
 function ActionCard({ option, cta = CARD_CTA }: { option: ExploreCard; cta?: string }): ReactNode {
+  // A count on a card is read live from /api/stats; with none available the chip is simply not shown.
+  const { data: nationalStats } = useNationalStats()
+  const chip = option.liveStat ? formatLiveStat(option.liveStat, nationalStats) : option.stats
   const Icon = option.icon
   const isExternal = option.path.startsWith('http')
   const inner = (
@@ -57,9 +62,9 @@ function ActionCard({ option, cta = CARD_CTA }: { option: ExploreCard; cta?: str
         </div>
         <div className="mb-3">
           <h3 className="text-xl font-bold text-gray-900 mb-1 group-hover:text-[#354F52] transition-colors">{option.title}</h3>
-          {option.stats ? (
+          {chip ? (
             <p className="text-sm font-medium" style={{ color: option.color }}>
-              {option.stats}
+              {chip}
             </p>
           ) : null}
         </div>

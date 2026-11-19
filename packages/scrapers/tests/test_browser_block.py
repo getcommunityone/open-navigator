@@ -75,6 +75,19 @@ def test_no_playwright_stealth_import_in_packages_or_api() -> None:
     assert offenders == []
 
 
+def test_no_stealth_in_legacy_scripts_outside_the_archive() -> None:
+    """scripts/ is legacy but still runs; nothing there may import playwright_stealth or turn on crawl4ai stealth (#462)."""
+    flag = re.compile(r"\benable_stealth\s*=\s*True\b")
+    offenders = [
+        str(p.relative_to(REPO_ROOT))
+        for p in (REPO_ROOT / "scripts").rglob("*.py")
+        if ".venv" not in p.parts
+        for text in [p.read_text(encoding="utf-8", errors="ignore")]
+        if _STEALTH_IMPORT.search(text) or flag.search(text)
+    ]
+    assert offenders == []
+
+
 def test_playwright_stealth_not_declared_as_a_dependency() -> None:
     pyproject = (REPO_ROOT / "packages" / "scrapers" / "pyproject.toml").read_text(
         encoding="utf-8"
