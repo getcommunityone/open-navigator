@@ -2681,7 +2681,13 @@ class YouTubeEventsLoader:
                     transcript_data["segments"] = json.dumps(transcript_data["segments"])
                 else:
                     transcript_data["segments"] = None
-                transcript_data["has_transcript"] = bool(transcript_data.get("raw_text"))
+                # #470: flag means "row has caption text" — raw_text OR segments.
+                from scrapers.youtube.has_transcript_flag import compute_has_transcript
+
+                transcript_data["has_transcript"] = compute_has_transcript(
+                    transcript_data.get("raw_text"),
+                    transcript_data.get("segments"),
+                )
                 transcript_data["transcript_quality"] = (
                     "medium" if transcript_data.get("is_auto_generated") else "high"
                 )
