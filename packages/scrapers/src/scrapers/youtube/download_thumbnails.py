@@ -66,7 +66,7 @@ from core_lib.gdrive_paths import resolve_scraped_meetings_output_root  # noqa: 
 from llm.gemini.transcript_cache_paths import (  # noqa: E402
     scraped_meetings_jurisdiction_dir,
 )
-from scripts.discovery.meeting_document_naming import (  # noqa: E402
+from scrapers.discovery.meeting_document_naming import (  # noqa: E402
     slugify_meeting_filename,
 )
 
