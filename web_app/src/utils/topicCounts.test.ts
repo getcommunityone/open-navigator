@@ -16,8 +16,11 @@ describe('topicMeetingCountLabel', () => {
 })
 
 describe('topicCountTitle', () => {
-  it('names the state the count covers, or says nationally', () => {
+  it('names the place the count covers', () => {
     expect(topicCountTitle('AL')).toBe('Meetings whose transcript mentions this topic in AL')
+    expect(topicCountTitle('GA', 'Atlanta')).toBe(
+      'Meetings whose transcript mentions this topic in Atlanta, GA',
+    )
     expect(topicCountTitle(undefined)).toBe('Meetings whose transcript mentions this topic nationally')
   })
 })

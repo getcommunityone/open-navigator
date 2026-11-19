@@ -14,17 +14,19 @@ export interface TopicSummary {
    *  "Data centers"). Older API builds omit it. */
   source?: 'civicsearch' | 'curated' | string
   /** Meetings whose transcript matched the topic, in the requested scope
-   *  (national, or the `state` passed) for every topic. State grain is the
-   *  finest there is: no city-level topic counts exist. null/undefined = no
-   *  count available. */
+   *  (national, state, or city when both `state` and `city` are passed).
+   *  null/undefined = no count available. */
   meeting_count?: number | null
 }
 
-/** Fetch the topic catalog. Pass a 2-letter `state` to restrict to topics
- *  actually discussed in that state (used when arriving from a place filter). */
-export async function fetchTopics(state?: string): Promise<TopicSummary[]> {
+/** Fetch the topic catalog. Pass a 2-letter `state` (and optional `city`) to
+ *  restrict to topics discussed there and get matching meeting_count grain. */
+export async function fetchTopics(state?: string, city?: string): Promise<TopicSummary[]> {
+  const params: Record<string, string> = {}
+  if (state) params.state = state
+  if (state && city) params.city = city
   const res = await api.get<TopicSummary[]>('/topics', {
-    params: state ? { state } : undefined,
+    params: Object.keys(params).length ? params : undefined,
   })
   return res.data
 }
