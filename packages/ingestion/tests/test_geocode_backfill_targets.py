@@ -48,9 +48,46 @@ def test_census_lane_is_street_address_only():
     assert "ep.place_type <> 'street_address'" not in sql
 
 
-def test_nominatim_lane_excludes_street_address():
+def test_nominatim_lane_allow_lists_place_types_only():
     sql, _ = _sql(source="nominatim")
-    assert "AND ep.place_type <> 'street_address'" in sql
+    assert "ep.place_type IN (" in sql
+    assert "facility" in sql
+    assert "street_address" not in sql.split("IN (")[1].split(")")[0]
+    # Non-place extraction noise must not be selected (#497).
+    for noise in ("year", "date", "currency", "person", "fund", "count"):
+        assert f"'{noise}'" not in sql
+
+
+def test_all_source_includes_street_address_and_allow_list():
+    sql, _ = _sql(source="all")
+    assert "ep.place_type = 'street_address'" in sql
+    assert "ep.place_type IN (" in sql
+
+
+def test_split_lanes_drops_non_place_types():
+    from ingestion.geocode.backfill_places import GeocodeTarget, _split_lanes
+
+    targets = [
+        GeocodeTarget(
+            geocode_key="a", query_text="100 Main", place_type="street_address",
+            street_address="100 Main", city="X", state_code="AL",
+        ),
+        GeocodeTarget(
+            geocode_key="b", query_text="City Hall", place_type="facility",
+            street_address=None, city="X", state_code="AL",
+        ),
+        GeocodeTarget(
+            geocode_key="c", query_text="2024", place_type="year",
+            street_address=None, city="X", state_code="AL",
+        ),
+        GeocodeTarget(
+            geocode_key="d", query_text="$1M", place_type="currency",
+            street_address=None, city="X", state_code="AL",
+        ),
+    ]
+    census, nominatim = _split_lanes(targets)
+    assert [t.place_type for t in census] == ["street_address"]
+    assert [t.place_type for t in nominatim] == ["facility"]
 
 
 def test_unknown_source_rejected():
