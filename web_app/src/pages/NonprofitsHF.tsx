@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { searchNonprofits } from '../utils/huggingface'
 import { formatCurrency, formatCityState } from '../utils/formatters'
+import { useNationalStats } from '../hooks/useNationalStats'
+import { formatLiveStat } from '../utils/liveStats'
 
 const DATASET_NAME = "CommunityOne/one-nonprofits-organizations"
 
@@ -90,7 +92,9 @@ const US_STATES = [
 
 export default function Nonprofits() {
   const [searchParams] = useSearchParams()
-  
+  const { data: nationalStats } = useNationalStats()
+  const nonprofitStat = formatLiveStat({ key: 'nonprofits', noun: 'organizations' }, nationalStats)
+
   // Initialize from URL parameters
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || 'dental')
   const [state, setState] = useState(searchParams.get('state') || 'AL')
@@ -148,17 +152,20 @@ export default function Nonprofits() {
             Nonprofit Organizations
           </h1>
           <p className="text-gray-600">
-            Explore 1.9M+ U.S. nonprofits from IRS EO-BMF via HuggingFace Datasets
+            Explore U.S. nonprofits from IRS EO-BMF via HuggingFace Datasets
+            {nonprofitStat ? ` · ${nonprofitStat}` : ''}
           </p>
           <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
             <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
-              📊 Source: HuggingFace Dataset
+              Source: HuggingFace Dataset
             </span>
-            <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
-              ✅ 1,952,238 organizations
-            </span>
+            {nonprofitStat ? (
+              <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
+                {nonprofitStat}
+              </span>
+            ) : null}
             <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded">
-              🔄 Updated Monthly (IRS)
+              Updated Monthly (IRS)
             </span>
           </div>
         </div>
@@ -381,9 +388,11 @@ export default function Nonprofits() {
                 {DATASET_NAME}
               </a>
             </p>
-            <p>
-              <strong>Records:</strong> 1,952,238 organizations
-            </p>
+            {nonprofitStat ? (
+              <p>
+                <strong>Records:</strong> {nonprofitStat}
+              </p>
+            ) : null}
             <p>
               <strong>Updated:</strong> Monthly by IRS
             </p>
