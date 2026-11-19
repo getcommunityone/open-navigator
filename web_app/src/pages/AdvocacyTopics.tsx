@@ -1,4 +1,5 @@
-import { 
+import type { ComponentType, SVGProps } from 'react'
+import {
   BellAlertIcon,
   MegaphoneIcon,
   HeartIcon,
@@ -8,92 +9,125 @@ import {
   SparklesIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useQueries } from '@tanstack/react-query'
+import api from '../lib/api'
+import { advocacyMeetingCountLabel } from '../utils/advocacyMeetingCount'
+
+interface AdvocacyTopic {
+  icon: ComponentType<SVGProps<SVGSVGElement>>
+  title: string
+  description: string
+  color: string
+  keywords: string[]
+}
+
+const TOPICS: AdvocacyTopic[] = [
+  {
+    icon: HeartIcon,
+    title: 'Oral Health',
+    description: 'Track dental programs, fluoridation policies, and oral health initiatives in your community.',
+    color: '#DC143C',
+    keywords: ['dental', 'fluoride', 'oral health', 'teeth'],
+  },
+  {
+    icon: AcademicCapIcon,
+    title: 'Education',
+    description: 'Monitor school budgets, curriculum changes, and educational programs across districts.',
+    color: '#354F52',
+    keywords: ['schools', 'education', 'curriculum', 'budget'],
+  },
+  {
+    icon: HomeModernIcon,
+    title: 'Housing & Development',
+    description: 'Follow zoning decisions, affordable housing initiatives, and development projects.',
+    color: '#52796F',
+    keywords: ['housing', 'zoning', 'development', 'affordable'],
+  },
+  {
+    icon: ShieldCheckIcon,
+    title: 'Public Safety',
+    description: 'Stay informed on police budgets, fire department resources, and emergency services.',
+    color: '#84A98C',
+    keywords: ['police', 'fire', 'safety', 'emergency'],
+  },
+  {
+    icon: UserGroupIcon,
+    title: 'Social Services',
+    description: 'Track programs for seniors, families, mental health, and community support.',
+    color: '#CAD2C5',
+    keywords: ['social services', 'mental health', 'seniors', 'families'],
+  },
+  {
+    icon: SparklesIcon,
+    title: 'Environment & Sustainability',
+    description: 'Monitor climate initiatives, recycling programs, and environmental policies.',
+    color: '#52796F',
+    keywords: ['environment', 'climate', 'sustainability', 'recycling'],
+  },
+]
+
+const HOW_TO_ADVOCATE = [
+  {
+    step: '1',
+    title: 'Find Your Topic',
+    description: 'Browse advocacy topics or search for specific issues affecting your community.',
+  },
+  {
+    step: '2',
+    title: 'Track Meetings',
+    description: 'Monitor upcoming government meetings where your topic will be discussed.',
+  },
+  {
+    step: '3',
+    title: 'Prepare Your Message',
+    description: 'Use our talking points and data to craft compelling testimony.',
+  },
+  {
+    step: '4',
+    title: 'Make Your Voice Heard',
+    description: 'Attend meetings, submit comments, or contact officials directly.',
+  },
+]
+
+/** Meeting total for one keyword set via /api/search type_totals, or null when unavailable. */
+export async function fetchAdvocacyMeetingCount(
+  keywords: string[],
+  scope: { state?: string; city?: string },
+): Promise<number | null> {
+  const q = keywords.map((k) => k.trim()).filter(Boolean).join(' ')
+  if (!q) return null
+  const params: Record<string, string | number> = { types: 'meetings', q, limit: 1 }
+  if (scope.state) params.state = scope.state
+  if (scope.city) params.city = scope.city
+  const res = await api.get('/search/', { params })
+  const n = (res.data?.type_totals as Record<string, number | undefined> | undefined)?.meetings
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null
+}
 
 export default function AdvocacyTopics() {
-  const topics = [
-    {
-      icon: HeartIcon,
-      title: 'Oral Health',
-      description: 'Track dental programs, fluoridation policies, and oral health initiatives in your community.',
-      count: '5,200+ related meetings',
-      color: '#DC143C',
-      keywords: ['dental', 'fluoride', 'oral health', 'teeth'],
-    },
-    {
-      icon: AcademicCapIcon,
-      title: 'Education',
-      description: 'Monitor school budgets, curriculum changes, and educational programs across districts.',
-      count: '15,000+ related meetings',
-      color: '#354F52',
-      keywords: ['schools', 'education', 'curriculum', 'budget'],
-    },
-    {
-      icon: HomeModernIcon,
-      title: 'Housing & Development',
-      description: 'Follow zoning decisions, affordable housing initiatives, and development projects.',
-      count: '8,500+ related meetings',
-      color: '#52796F',
-      keywords: ['housing', 'zoning', 'development', 'affordable'],
-    },
-    {
-      icon: ShieldCheckIcon,
-      title: 'Public Safety',
-      description: 'Stay informed on police budgets, fire department resources, and emergency services.',
-      count: '12,000+ related meetings',
-      color: '#84A98C',
-      keywords: ['police', 'fire', 'safety', 'emergency'],
-    },
-    {
-      icon: UserGroupIcon,
-      title: 'Social Services',
-      description: 'Track programs for seniors, families, mental health, and community support.',
-      count: '7,800+ related meetings',
-      color: '#CAD2C5',
-      keywords: ['social services', 'mental health', 'seniors', 'families'],
-    },
-    {
-      icon: SparklesIcon,
-      title: 'Environment & Sustainability',
-      description: 'Monitor climate initiatives, recycling programs, and environmental policies.',
-      count: '6,400+ related meetings',
-      color: '#52796F',
-      keywords: ['environment', 'climate', 'sustainability', 'recycling'],
-    },
-  ]
+  const [searchParams] = useSearchParams()
+  const stateCode = (searchParams.get('state') || '').trim().toUpperCase() || undefined
+  const cityName = (searchParams.get('city') || '').trim() || undefined
+  const scope = { state: stateCode, city: cityName }
+  const scopeLabel = cityName || stateCode || 'National'
 
-  const howToAdvocate = [
-    {
-      step: '1',
-      title: 'Find Your Topic',
-      description: 'Browse advocacy topics or search for specific issues affecting your community.',
-    },
-    {
-      step: '2',
-      title: 'Track Meetings',
-      description: 'Monitor upcoming government meetings where your topic will be discussed.',
-    },
-    {
-      step: '3',
-      title: 'Prepare Your Message',
-      description: 'Use our talking points and data to craft compelling testimony.',
-    },
-    {
-      step: '4',
-      title: 'Make Your Voice Heard',
-      description: 'Attend meetings, submit comments, or contact officials directly.',
-    },
-  ]
+  const countQueries = useQueries({
+    queries: TOPICS.map((topic) => ({
+      queryKey: ['advocacy-topic-meetings', topic.title, stateCode ?? null, cityName ?? null],
+      queryFn: () => fetchAdvocacyMeetingCount(topic.keywords, scope),
+      staleTime: 5 * 60 * 1000,
+    })),
+  })
 
   return (
     <div className="min-h-screen p-8" style={{ backgroundColor: '#F1F5F9' }}>
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <BellAlertIcon className="h-8 w-8" style={{ color: '#52796F' }} />
             <h1 className="text-3xl font-bold" style={{ color: '#354F52' }}>
-              Advocacy Topics
+              Advocacy Topics · {scopeLabel}
             </h1>
           </div>
           <p className="text-gray-600">
@@ -101,7 +135,6 @@ export default function AdvocacyTopics() {
           </p>
         </div>
 
-        {/* Search Banner */}
         <div className="bg-white rounded-lg shadow-sm p-8 mb-8 text-center border-l-4" style={{ borderColor: '#52796F' }}>
           <MegaphoneIcon className="h-12 w-12 mx-auto mb-4" style={{ color: '#52796F' }} />
           <h2 className="text-2xl font-bold text-gray-900 mb-3">
@@ -128,16 +161,19 @@ export default function AdvocacyTopics() {
           </div>
         </div>
 
-        {/* Topics Grid */}
         <div className="mb-12">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Popular Advocacy Topics</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {topics.map((topic) => {
+            {TOPICS.map((topic, i) => {
               const Icon = topic.icon
+              const label = advocacyMeetingCountLabel(countQueries[i]?.data)
+              const searchTo = new URLSearchParams({ search: topic.keywords[0] })
+              if (stateCode) searchTo.set('state', stateCode)
+              if (cityName) searchTo.set('city', cityName)
               return (
                 <Link
                   key={topic.title}
-                  to={`/documents?search=${encodeURIComponent(topic.keywords[0])}`}
+                  to={`/documents?${searchTo.toString()}`}
                   className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-all group"
                 >
                   <div className="flex items-start justify-between mb-4">
@@ -147,12 +183,14 @@ export default function AdvocacyTopics() {
                     >
                       <Icon className="h-6 w-6" style={{ color: topic.color }} />
                     </div>
-                    <span
-                      className="text-xs font-medium px-2 py-1 rounded-full"
-                      style={{ backgroundColor: `${topic.color}15`, color: topic.color }}
-                    >
-                      {topic.count}
-                    </span>
+                    {label ? (
+                      <span
+                        className="text-xs font-medium px-2 py-1 rounded-full"
+                        style={{ backgroundColor: `${topic.color}15`, color: topic.color }}
+                      >
+                        {label}
+                      </span>
+                    ) : null}
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">
                     {topic.title}
@@ -179,11 +217,10 @@ export default function AdvocacyTopics() {
           </div>
         </div>
 
-        {/* How to Advocate */}
         <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">How to Advocate Effectively</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {howToAdvocate.map((item) => (
+            {HOW_TO_ADVOCATE.map((item) => (
               <div key={item.step} className="text-center">
                 <div
                   className="w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center text-white text-xl font-bold"
@@ -198,7 +235,6 @@ export default function AdvocacyTopics() {
           </div>
         </div>
 
-        {/* Get Started CTA */}
         <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-3">
             Ready to Make a Difference?
