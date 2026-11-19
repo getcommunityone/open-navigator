@@ -791,6 +791,21 @@ def resolve_cause_tsquery(cause_id: str) -> Optional[str]:
     return " | ".join(terms)
 
 
+def require_cause_tsquery(cause_id: str) -> str:
+    """Resolve ``cause_id`` or raise HTTP 400 for unknown / NTEE codes (#578).
+
+    Search and decisions browse both call this so an unresolved cause never
+    silently drops the filter (label would still name the cause).
+    """
+    q = resolve_cause_tsquery(cause_id)
+    if not q:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown cause_id {cause_id}",
+        )
+    return q
+
+
 async def count_events(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -1862,9 +1877,7 @@ async def unified_search(
             if _tq:
                 _facet_parts.append(_tq)
         if cause_id:
-            _cq = resolve_cause_tsquery(cause_id)
-            if _cq:
-                _facet_parts.append(_cq)
+            _facet_parts.append(require_cause_tsquery(cause_id))
         if _facet_parts:
             # Each facet is an OR-cluster; AND the facets so both narrow the result.
             topic_tsquery = " & ".join(f"({p})" for p in _facet_parts)

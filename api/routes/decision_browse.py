@@ -42,7 +42,7 @@ from api.routes.lenses import (
     stats_contested,
     video_id_subquery,
 )
-from api.routes.search import resolve_topic_tsquery, resolve_cause_tsquery
+from api.routes.search import resolve_topic_tsquery, require_cause_tsquery
 from api.routes.search_postgres import get_db_pool, normalize_state_input
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
@@ -305,19 +305,13 @@ async def list_decisions(
 
         # Cause filter: resolve to an OR-tsquery and AND it onto the topic filter
         # (a cause is just another keyword cluster, matched against the same
-        # decision search_tsv — cause -> decision). A supplied-but-unknown cause
-        # means "no matches", so return an honest empty page.
+        # decision search_tsv — cause -> decision). Unknown / NTEE cause_ids are
+        # rejected with 400 so the scope label never claims a filter that was
+        # dropped (#578).
         if cause_id:
-            cause_tsquery = resolve_cause_tsquery(cause_id)
             span.set_attribute("decisions.cause_id", cause_id)
-            span.set_attribute("decisions.cause_resolved", bool(cause_tsquery))
-            if not cause_tsquery:
-                return DecisionListResponse(
-                    items=[],
-                    pagination=DecisionListPagination(
-                        total=0, limit=limit, offset=offset
-                    ),
-                )
+            cause_tsquery = require_cause_tsquery(cause_id)
+            span.set_attribute("decisions.cause_resolved", True)
             topic_tsquery = (
                 f"({topic_tsquery}) & ({cause_tsquery})"
                 if topic_tsquery else cause_tsquery
