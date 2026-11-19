@@ -64,8 +64,8 @@ export default function BrowseTopics() {
   }
 
   const { data, isLoading, isError, error } = useQuery<TopicSummary[]>({
-    queryKey: ['topics', stateCode ?? null],
-    queryFn: () => fetchTopics(stateCode),
+    queryKey: ['topics', stateCode ?? null, scopedCity ?? null],
+    queryFn: () => fetchTopics(stateCode, scopedCity),
   })
 
   const topics = useMemo(() => data ?? [], [data])
@@ -126,12 +126,9 @@ export default function BrowseTopics() {
         : 'text-gray-700 hover:bg-gray-50'
     }`
 
-  // The count shown for every topic is the number of meetings whose transcript
-  // mentions it in the scope the API was asked for (national, or the state), so
-  // it moves with the state filter. The API has no city-grain topic counts, so a
-  // carried-in city does not change it; the note under the pills says so (#504).
+  // Count grain matches the active place filter: national, state, or city (#590).
   const topicCount = (t: TopicSummary): string => topicMeetingCountLabel(t.meeting_count)
-  const topicCountHint = (): string => topicCountTitle(stateCode)
+  const topicCountHint = (): string => topicCountTitle(stateCode, scopedCity)
 
   // Small count badge shown after a topic name.
   const countBadge = (t: TopicSummary, on: boolean) => (
@@ -234,12 +231,6 @@ export default function BrowseTopics() {
               </button>
             )}
           </div>
-          )}
-          {/* Counts are state grain; say so when the decision list below is scoped to a city. */}
-          {scopedCity && stateCode && (
-            <p className="mt-2 text-xs text-gray-500">
-              Topic counts cover all of {stateCode}. Counts for {scopedCity} alone aren&apos;t available yet.
-            </p>
           )}
         </div>
 

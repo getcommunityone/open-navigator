@@ -43,7 +43,7 @@ class TopicSummary(BaseModel):
     # 'civicsearch' (CivicSearch taxonomy) or 'curated' (hand-authored, #500).
     source: str = "civicsearch"
     # Meetings (transcripts) whose text matched the topic, in the requested scope:
-    # national without `state`, that state's count with it. None = no count row.
+    # national / state / city (state+city → place grain). None = no count row.
     meeting_count: Optional[int] = None
 
 
@@ -51,17 +51,22 @@ class TopicSummary(BaseModel):
 # top-N is the topics that actually come up most in the record; name breaks ties.
 # keyword_stats is JSONB (returned as TEXT by this pool) — parsed below.
 #
-# $2 = optional 2-letter state code. When given, restrict to topics actually
-# discussed in that state via browse_entity_state_transcript_count (the per-state
-# bridge) — this is what lets the homepage "Browse topics" land pre-filtered to
-# the user's selected place. NULL state = the full national catalog.
-# meeting_count: transcripts matched to the topic in the same scope as the list —
-# browse_transcript_count (national) or browse_entity_state_transcript_count ($2).
+# $2 = optional 2-letter state code. $3 = optional city / jurisdiction ILIKE
+# pattern (e.g. '%Atlanta%'). When $3 is set, meeting_count and the existence
+# filter come from browse_entity_place_transcript_count (city grain, #590).
+# Otherwise: browse_transcript_count (national) or browse_entity_state_… ($2).
 _TOPICS_SQL = """
     SELECT t.topic_id, t.name, t.query_id, t.keyword_stats, t.transcript_occurrences,
            -- Defensive read: works before the `source` column reaches Neon.
            to_jsonb(t) ->> 'source' AS source,
-           CASE WHEN $2::text IS NULL THEN (
+           CASE
+                WHEN $3::text IS NOT NULL THEN (
+                    SELECT p.transcript_count FROM browse_entity_place_transcript_count p
+                    WHERE p.entity_type = 'topic' AND p.entity_id = t.topic_id::text
+                      AND p.state_code = $2::text
+                      AND p.jurisdiction_name ILIKE $3::text
+                )
+                WHEN $2::text IS NULL THEN (
                     SELECT n.transcript_count FROM browse_transcript_count n
                     WHERE n.entity_type = 'topic' AND n.entity_id = t.topic_id::text
                 ) ELSE (
@@ -71,11 +76,18 @@ _TOPICS_SQL = """
                 ) END AS meeting_count
     FROM civicsearch_topic t
     WHERE ($1::text IS NULL OR t.name ILIKE $1)
-      AND ($2::text IS NULL OR EXISTS (
+      AND ($2::text IS NULL OR $3::text IS NOT NULL OR EXISTS (
             SELECT 1 FROM browse_entity_state_transcript_count b
             WHERE b.entity_type = 'topic'
               AND b.entity_id = t.topic_id::text
               AND b.state_code = $2::text
+      ))
+      AND ($3::text IS NULL OR EXISTS (
+            SELECT 1 FROM browse_entity_place_transcript_count bp
+            WHERE bp.entity_type = 'topic'
+              AND bp.entity_id = t.topic_id::text
+              AND bp.state_code = $2::text
+              AND bp.jurisdiction_name ILIKE $3::text
       ))
     ORDER BY t.transcript_occurrences DESC NULLS LAST, t.name ASC
 """
@@ -105,20 +117,29 @@ def _parse_keywords(raw) -> List[str]:
 async def list_topics(
     q: Optional[str] = Query(None, description="Optional case-insensitive substring filter on topic name."),
     state: Optional[str] = Query(None, description="Optional 2-letter state code; restricts to topics discussed in that state."),
+    city: Optional[str] = Query(
+        None,
+        description="Optional city / jurisdiction name; with state, meeting_count is city grain (#590).",
+    ),
 ) -> List[TopicSummary]:
-    """Civic topics (most-discussed first), optionally narrowed by a name
-    substring and/or restricted to a single state."""
+    """Civic topics (most-discussed first), optionally narrowed by name, state,
+    and/or city (city grain uses browse_entity_place_transcript_count)."""
     with tracer.start_as_current_span("topics-list") as span:
         span.set_attribute("topics.q", (q or "").strip())
         like = f"%{q.strip()}%" if q and q.strip() else None
         # Normalize to the 2-letter upper-case form the bridge stores; blank -> None.
         state_code = state.strip().upper() if state and state.strip() else None
+        city_like = f"%{city.strip()}%" if city and city.strip() else None
+        # City grain needs a state; ignore a lone city rather than invent a scope.
+        if city_like and not state_code:
+            city_like = None
         span.set_attribute("topics.state", state_code or "")
+        span.set_attribute("topics.city", (city or "").strip())
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("topics-query"):
-                    rows = await conn.fetch(_TOPICS_SQL, like, state_code)
+                    rows = await conn.fetch(_TOPICS_SQL, like, state_code, city_like)
         except Exception as exc:  # noqa: BLE001
             logger.exception("topics list failed")
             span.record_exception(exc)

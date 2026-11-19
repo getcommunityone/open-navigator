@@ -91,8 +91,8 @@ def test_topic_list_carries_source_and_scoped_meeting_count(get):
     assert body[1]["meeting_count"] == 81
     assert body[1]["keywords"] == ["data center", "hyperscale"]
     sql, params = conn.calls[0]
-    # state is normalized and drives the per-state count + existence filter
-    assert params == (None, "GA")
+    # state is normalized and drives the per-state count + existence filter; no city
+    assert params == (None, "GA", None)
     assert "browse_entity_state_transcript_count" in sql
     assert "to_jsonb(t) ->> 'source'" in sql
 
@@ -106,11 +106,25 @@ def test_every_topic_gets_the_scoped_count_not_only_curated_ones(get):
     body = get(conn, "/api/topics", {"state": "al"}).json()
     assert body[0]["source"] == "civicsearch" and body[0]["meeting_count"] == 193
     sql, params = conn.calls[0]
-    assert params == (None, "AL")
-    count_expr = sql[sql.index("CASE WHEN $2::text IS NULL"):sql.index("END AS meeting_count")]
+    assert params == (None, "AL", None)
+    count_expr = sql[sql.index("CASE"):sql.index("END AS meeting_count")]
     assert "browse_entity_state_transcript_count" in count_expr
     assert "browse_transcript_count n" in count_expr
     assert "source" not in count_expr and "curated" not in count_expr  # no per-source branch
+
+
+def test_topic_list_city_grain_uses_place_transcript_counts(get):
+    """#590: with state+city, meeting_count comes from browse_entity_place_transcript_count."""
+    conn = _Conn(rows=[
+        dict(topic_id=46, name="Budget & finance", query_id="budget",
+             keyword_stats="[]", transcript_occurrences=100, source="civicsearch", meeting_count=101),
+    ])
+    body = get(conn, "/api/topics", {"state": "ga", "city": "Atlanta"}).json()
+    assert body[0]["meeting_count"] == 101
+    sql, params = conn.calls[0]
+    assert params == (None, "GA", "%Atlanta%")
+    assert "browse_entity_place_transcript_count" in sql
+    assert "jurisdiction_name ILIKE $3" in sql
 
 
 def test_topic_list_source_defaults_when_column_missing(get):
