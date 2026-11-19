@@ -3,7 +3,7 @@ pr: 571
 branch: feat/570-colab-notebook-defaults
 title: "feat(llm): default the Colab policy notebook's bundle date and skip the Drive popup"
 author: jcbowyer
-reviewed_at: 2026-11-18
+reviewed_at: 2026-11-19
 reviewer: AI agent (Cursor subagent), read-only; this is a written review, not a GitHub approval
 verdict: approve-with-nits
 ---
@@ -11,20 +11,21 @@ verdict: approve-with-nits
 # PR Review: feat(llm): default the Colab policy notebook's bundle date and skip the Drive popup
 
 ## Summary
-The PR makes two small changes to `notebooks/colab_gemma_policy_analysis.ipynb`. A blank `export_date` now resolves to
-the newest dated folder under `policy_export/` through a new pure helper, `colab_io.latest_child`, and cell 3 skips
-`drive.mount` when the bundle folder is already on the runtime. The change is small and works for the normal case, and
-the GPU gate is untouched (`owner_said_yes_to_this_run` stays `False`, and the new lookup runs after it). The helper's
-filter is looser than the bundle format the exporter writes: a stray file or a Drive duplicate folder can win "newest"
-and send a run at a bundle that doesn't exist. That's a should-fix, but it fails with a clear error and nothing is
-spent. The docs page also still describes the old behaviour. Verdict: approve-with-nits.
+The PR gives the Colab policy notebook two small defaults: a blank `export_date` resolves to the newest dated
+folder under `policy_export/` via a new pure helper `colab_io.latest_child`, and cell 3 skips `drive.mount` when
+that folder is already on the runtime. The paid-compute gate stays `False`, and the lookup runs after it. The
+helper and its unit test work; the full `packages/llm` suite and CI are green. Two non-blocking gaps remain:
+`latest_child` can pick a dated *file* or a Drive-style duplicate folder name, and the runbook still describes the
+old form boxes. Verdict: approve-with-nits.
 
 ## Scope of Change
-- Files changed: 3 (+29 / -4, no generated files)
+- Files changed: 3 (+29 / -4) for the feature; this review file is rewritten on the branch
 - Areas touched: packages (llm), notebooks
 - Commits:
   - `86253610` feat(llm): default the Colab policy notebook's bundle date and skip the Drive popup
-- Range reviewed: `0ba4fcd2..86253610` (base `main`; not a stacked PR)
+  - `f28303ab` docs(review): PR #571 review (prior review; replaced by this file)
+- Range reviewed: `0ba4fcd2..f28303ab` (base `main`; not a stacked PR). Behaviour reviewed against the feature
+  commit `86253610`; the prior review markdown has no product logic.
 
 ## CI Status
 | Check | Status |
@@ -38,86 +39,92 @@ spent. The docs page also still describes the old behaviour. Verdict: approve-wi
 | Docker Build Test (Full Stack) | SKIPPED (not required) |
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
-- **Secrets:** clean. The notebook reads `HF_TOKEN` and the Databricks values through `colab_io.get_secret`, and only
-  prints "set"/"missing". The diff adds no credentials.
-- **Fabricated data in a served path:** clean. Nothing in `api/` or `web_app/`. The only constant is the empty-string
-  default for `export_date`; it replaces a hard-coded date.
+- **Secrets:** clean. The notebook still only prints "set"/"missing" for secrets via `colab_io.get_secret`. The
+  diff adds no credentials, tokens, or `.env` content.
+- **Fabricated data in a served path:** clean. No `api/` or `web_app/src/` changes. The empty-string
+  `export_date` default replaces a hard-coded date string; it is a form default, not served civic data.
 - **Personal data:** clean.
-- **Destructive or bulky data changes:** clean. No deletions, no data files. The notebook has no committed outputs.
+- **Destructive or bulky data changes:** clean. No `data/cache/` deletes, no large binaries, no warehouse writes.
+  Notebook outputs are not committed. dbt/warehouse: not touched (no models in the diff).
 
 ## Strengths
-- The paid-compute rule is kept: `owner_said_yes_to_this_run` still defaults to `False`, and the bundle lookup sits
-  after the gate, so a blank date can't start a run on its own (`AGENTS.md`, "GPU and paid compute").
-- `latest_child` is a pure function over the existing `Store` protocol, so it works on both `LocalStore` and
-  `DatabricksVolumeStore`. It returns `None` for a missing folder, and the notebook turns that into a clear
-  `SystemExit` that names the store.
-- The notebook prints `bundle: <date>`, so the folder that was picked is visible.
-- An explicit `export_date` still behaves as before (`.strip() or latest_child(...)`).
+- `owner_said_yes_to_this_run` still defaults to `False`, and bundle resolution sits after that gate
+  (`AGENTS.md`, "GPU and paid compute"). No GPU/Colab run was started for this change.
+- `latest_child` is store-agnostic (`Store.list_names`), so it works for Drive and the Databricks volume.
+- A missing `policy_export/` becomes a clear `SystemExit` that names the store; a chosen bundle is printed.
+- Explicit `export_date` is unchanged (`.strip() or latest_child(...)`).
+- New Python stays in `packages/llm`; Conventional Commit + co-author trailer; issue #570 has the four parts and
+  the PR says `Closes #570`.
 
 ## Findings
 ### 🔴 Blocking (Critical)
 None.
 
 ### 🟡 Should fix (Important, non-blocking)
-1. **`packages/llm/src/llm/gpu/colab_io.py:109`: "newest" is matched on a 10-character name prefix, so files and
-   duplicate folders can win.** `_RUN_DATE.match(n[:10])` accepts any name that merely starts with a date, and
-   `list_names` returns files as well as folders (`LocalStore` uses `iterdir()`, and the Databricks store returns every
-   entry). The exporter only writes exact `YYYY-MM-DD` folders (`colab_policy_export.py:373`, `check_run_date` anchors
-   with `$`). *Verified:* in a temp store with `policy_export/2026-11-17/videos.txt`, adding a file
-   `2026-11-18.zip` makes `latest_child` return `2026-11-18.zip`, and a Drive-style duplicate folder
-   `2026-11-17 (1)` also beats `2026-11-17`. The notebook then points `--videos-file` at
-   `policy_export/2026-11-18.zip/videos.txt`, which doesn't exist, and `colab_policy_analyze` stops with "no video ids"
-   (`:732`). It stops cleanly, but only after the owner's yes and after the model setup, and the user has to find the
-   stray name. The new test also locks in the loose rule: it expects `2026-11-17-pilot` to beat `2026-11-17`, a name the
-   exporter never produces. *Fix:* match the full name with `_RUN_DATE.match(n)`, so only `YYYY-MM-DD` counts. Better
-   still, prefer names whose `{n}/videos.txt` exists via `store.read_text`. Change the test to expect `2026-11-17`
-   and add a case with a stray `2026-11-18.zip` file.
-2. **`web_docs/docs/deployment/colab-gemma-policy-analysis.md:66-86`: the runbook still describes the old notebook.**
-   Step 5 says "Set `export_date`", and step 3 and the Drive bullet say Drive is mounted whenever there are no
-   Databricks secrets. Both are now wrong in the common case (blank means newest; the mount is skipped when the bundle
-   folder exists). Per `AGENTS.md` ("Decisions are written down"), the doc should state the blank-date rule and the
-   skip condition. *Verified:* `rg export_date` over the doc shows only the old wording.
+1. **`packages/llm/src/llm/gpu/colab_io.py:107-110`: `latest_child` matches only the first ten characters, so
+   files and Drive duplicates can win.** `_RUN_DATE.match(n[:10])` accepts any name that *starts* with a date.
+   `LocalStore.list_names` (and the Databricks list) returns files and folders alike. *Verified* in the worktree
+   with a temp store: given `2026-11-17/` (with `videos.txt`) plus `2026-11-18.zip`, the helper returns
+   `2026-11-18.zip`; with a Drive-style `2026-11-17 (1)/` it returns that folder. The notebook then builds
+   `policy_export/<name>/videos.txt`. `colab_policy_analyze.main` reads the video list *before* loading a model
+   (`:724-733`), so a bad pick exits with "no video ids" without spending GPU — but only after the owner has
+   already ticked yes, and the error does not name the stray entry. Issue #570's contract says
+   `YYYY-MM-DD...` (suffixes allowed), and the new test locks in `2026-11-17-pilot` over `2026-11-17`, so a
+   bare `_RUN_DATE.match(n)` would fight the written contract. *Fix:* keep prefix/suffix flexibility, but only
+   keep names for which `store.read_text(f"{rel_dir}/{n}/videos.txt")` is not `None` (or otherwise confirm a
+   directory with a bundle). Add cases for a dated `.zip` and a `YYYY-MM-DD (1)` name.
+
+2. **`web_docs/docs/deployment/colab-gemma-policy-analysis.md:70-86`: the runbook still describes the old
+   notebook.** Step 5 says "Set `export_date`"; step 3 / the Drive bullet say Drive is mounted whenever Databricks
+   secrets are missing. Blank-date → newest and the mount skip when `…/policy_export` already exists are the new
+   common path. *Verified:* `rg export_date` / mount wording in that doc shows only the old text. *Fix:* document
+   blank = newest dated folder (printed), and that cell 3 skips `drive.mount` when the bundle folder is already
+   present.
 
 ### 🔵 Nits / suggestions (Minor)
-3. **Notebook cell 3: the skip only helps when `<DRIVE_ROOT>/policy_export` already exists.** On a fresh runtime
-   with Drive unmounted that folder isn't there, so `drive.mount` still opens the popup. The PR body says Cursor's
-   browser "no longer hits the blocked popup". That holds for a re-run on the same runtime, not for the first run.
-   I couldn't test it, because it needs a Colab runtime. Word the PR and doc claim narrowly ("when the bundle is
-   already on the runtime"), or add a Databricks-secrets note as the popup-free path.
-4. **`colab_io.py:107`: the docstring says "names start `YYYY-MM-DD`, so the last in sort order".** After fix 1 it
-   should say "names are exactly `YYYY-MM-DD`". The `"Store"` annotation doesn't need quotes: the module has
-   `from __future__ import annotations` (line 13).
+3. **Notebook cell 3: the skip only applies when `<DRIVE_ROOT>/policy_export` already exists.** On a fresh
+   runtime with Drive unmounted, `drive.mount` still runs and can still hit the blocked popup. The PR body's
+   "no longer hits the blocked popup" is true for a re-run (or when the folder was copied onto the runtime), not
+   the first Drive-backed open. Unverified on a live Colab session (no GPU/runtime used). Narrow the claim or
+   point at Databricks secrets as the popup-free path.
+
+4. **`colab_io.py:108`: docstring says names "start `YYYY-MM-DD`"**, which matches today's loose filter; after
+   finding 1, say that only bundle folders (with `videos.txt`) count. The `"Store"` quotes are fine with
+   `from __future__ import annotations`.
 
 ## Repo-Rule Compliance
 | Rule | Pass? | Notes |
 |---|---|---|
-| Issue first | Yes | Branch `feat/570-colab-notebook-defaults`; body says `Closes #570`; issue #570 has Problem, Done when, Contract, Read first |
-| Conventional Commits | Yes | `feat(llm): ...` with the co-author trailer |
+| Issue first | Yes | Branch `feat/570-colab-notebook-defaults`; `Closes #570`; issue has Problem, Done when, Contract, Read first |
+| Conventional Commits | Yes | `feat(llm): …` with co-author trailer |
 | No fabricated data | Yes | Scan clean |
-| New Python in `packages/` | Yes | Helper added to `packages/llm`; nothing in `scripts/` |
+| New Python in `packages/` | Yes | Helper in `packages/llm`; nothing new under `scripts/` |
 | dbt for transformations | n/a | |
 | Naming | n/a | |
 | Keys | n/a | |
-| Calendar years | n/a | The date is a folder name string, not a year column |
+| Calendar years | n/a | Folder date strings, not warehouse year columns |
 | Scope label matches filter | n/a | |
 | Match evidence on filtered tiles | n/a | |
 | Docs | Partial | Runbook not updated (finding 2) |
-| Telemetry and logging | n/a | No FastAPI work; the notebook uses `print` for user-facing status, as before |
-| Tests | Partial | The helper is tested; the notebook cell changes can't be (see Test Coverage) |
-| Shared libraries | Yes | Full `packages/llm` suite run; the only dependents of `colab_io` are `colab_policy_export` and `colab_policy_analyze`, both inside it |
-| GPU and paid compute | Yes | Gate default unchanged; the lookup runs after it; no GPU run started |
+| Telemetry and logging | n/a | No FastAPI change; notebook still uses `print` for operator status |
+| Tests | Partial | Helper covered; notebook cells not executable in CI (see Test Coverage) |
+| Shared libraries | Yes | Full `packages/llm` suite; `colab_io` dependents are only `colab_policy_*` inside the same package |
+| GPU and paid compute | Yes | Gate default unchanged; lookup after gate; no GPU run started for the review |
 
 ## Test Coverage
-- **Run locally** (worktree code forced through `PYTHONPATH`): `pytest packages/llm/tests` gives 230 passed, including
-  the 26 in `test_colab_policy_analyze.py`. `ruff check` on the two changed Python files is clean. The notebook is valid
-  JSON. This shows the PR's "pytest cannot collect from this machine" caveat is specific to the author's checkout; the
-  suite runs fine from a clean worktree, and CI Backend Tests passed.
-- **Covered:** `latest_child` picks the last dated name, ignores a non-dated file, and returns `None` for a missing
-  folder. It fails without the helper (`AttributeError`). The test is thin: it doesn't cover a dated file or a
-  duplicate-folder name (finding 1).
-- **Not covered / unverified:** the notebook cells. The blank-date resolution and the mount skip ran only by reading
-  the code. The PR body says as much. No GPU run was started, correctly.
+- **Run locally** (worktree forced via `PYTHONPATH=…/packages/*/src:…`):
+  - `pytest packages/llm/tests` → **230 passed**
+  - `pytest …::test_latest_child_picks_the_newest_dated_folder` fails with `AttributeError` when
+    `colab_io.py` is reverted to `main`, and passes again after restore
+  - `ruff check` on the two changed Python files: clean
+  - Frontend `tsc` / dbt: not applicable (no `web_app/` or `dbt_project/` changes)
+- **PR body claims:** blank-date and mount-skip behaviour match the notebook source. The claim that local
+  `pytest` cannot collect (dangling `open-navigator-backups` symlink) was **not** reproduced in this clean
+  worktree; CI Backend Tests also passed. Notebook cells and the popup skip were **not** run on a Colab/GPU
+  runtime (correct per AGENTS.md); those behaviours are code-traced only.
+- **Covered:** newest dated name, ignore undated `notes.txt`, `None` for a missing dir.
+- **Not covered:** dated files, Drive duplicate folder names, notebook integration.
 
 ## Verdict
-**approve-with-nits.** Nothing blocks the merge. Before or soon after it, tighten `latest_child` to exact
-`YYYY-MM-DD` names (finding 1) and update the runbook (finding 2). The rest are wording.
+**approve-with-nits.** Safe to merge as-is. Prefer tightening `latest_child` to real bundles (finding 1) and
+updating the runbook (finding 2) in this PR or a short follow-up; the nits can ride along.
