@@ -48,6 +48,12 @@ schema:
     physicalType: text
     description: FK -> event_decision.event_decision_id. Asserted via relationships test (warn) rather than an enforced constraint because event_decision is partitioned with a composite PK and cannot be a single-column FK target.
     required: true
+    relationships:
+    - type: foreignKey
+      to: event_decision.odcs.yaml#/schema/event_decision/properties/event_decision_id
+      customProperties:
+      - property: dbtTestSeverity
+        value: warn
     quality:
     - type: library
       metric: nullValues

@@ -20,6 +20,11 @@ outputPorts:
   contractId: open-navigator-public-event
   type: table
   description: MDM consolidated event — the single golden-record event surface in the public schema.
+- name: event_meeting
+  version: 1.0.0
+  contractId: open-navigator-public-event_meeting
+  type: table
+  description: Meeting-level PARENT of the AI-extraction family — one row per analysis (analyzed meeting).
 - name: event_documents
   version: 1.0.0
   contractId: open-navigator-public-event_documents
@@ -30,6 +35,11 @@ outputPorts:
   contractId: open-navigator-public-event_meeting_document
   type: table
   description: Scraped meeting AGENDA / MINUTES PDFs linked to the meeting they belong to (public.event_meeting), so the API can show document links on a decision / meeting.
+- name: event_decision
+  version: 1.0.0
+  contractId: open-navigator-public-event_decision
+  type: table
+  description: AI-extracted decisions/actions (scalar cols typed, narrative blocks JSONB).
 - name: event_decision_place
   version: 1.0.0
   contractId: open-navigator-public-event_decision_place
@@ -40,6 +50,26 @@ outputPorts:
   contractId: open-navigator-public-decision_speakers
   type: table
   description: One row per event_decision_id listing the DISTINCT person_id slugs that gave named testimony on that decision, extracted from event_decision.human_element->'personal_stories'.
+- name: event_place_geocoded
+  version: 1.0.0
+  contractId: open-navigator-public-event_place_geocoded
+  type: table
+  description: Public.event_place with cached lat/lon coalesced from bronze.place_geocode_cache (status='ok') and a geocode_source provenance column ('extract' | cache source | NULL).
+- name: event_financial_item
+  version: 1.0.0
+  contractId: open-navigator-public-event_financial_item
+  type: table
+  description: AI-extracted dollar amounts/items.
+- name: event_bill
+  version: 1.0.0
+  contractId: open-navigator-public-event_bill
+  type: table
+  description: AI-referenced legislation/bills (year is a calendar-year string).
+- name: event_topic
+  version: 1.0.0
+  contractId: open-navigator-public-event_topic
+  type: table
+  description: AI-extracted themes/topics (COFOG + NTEE classified).
 - name: contact_official
   version: 1.0.0
   contractId: open-navigator-public-contact_official
@@ -95,6 +125,16 @@ outputPorts:
   contractId: open-navigator-public-opportunity_atlas_mobility_national
   type: table
   description: 'National rollup of the CZ Opportunity Atlas mobility measures: one row per (race, gender, parent_income_level).'
+- name: jurisdiction_mapping_analysis
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_mapping_analysis
+  type: table
+  description: Per-jurisdiction website/YouTube mapping analysis for DQ dashboards.
+- name: jurisdiction_state_aggregate
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_state_aggregate
+  type: table
+  description: Multi-level rollup of nonprofit, event, person, leader, bill and decision counts (plus trending causes JSON) used by the API/UI stats panels.
 - name: jurisdiction_minutes_publish_lag
   version: 1.0.0
   contractId: open-navigator-public-jurisdiction_minutes_publish_lag

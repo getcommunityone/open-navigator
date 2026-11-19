@@ -47,6 +47,9 @@ schema:
     logicalType: integer
     physicalType: integer
     description: FK -> public.event_meeting.event_meeting_id (the matched analyzed meeting). NULLABLE — orphan documents and not-yet-published agenda/minutes keep a NULL value. Enforced FK (event_meeting has a single-column PK).
+    relationships:
+    - type: foreignKey
+      to: event_meeting.odcs.yaml#/schema/event_meeting/properties/event_meeting_id
   - id: jurisdiction_id
     name: jurisdiction_id
     logicalType: string

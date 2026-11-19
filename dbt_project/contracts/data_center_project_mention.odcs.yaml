@@ -78,6 +78,12 @@ schema:
     logicalType: string
     physicalType: text
     description: The decision, for record_type decision.
+    relationships:
+    - type: foreignKey
+      to: event_decision.odcs.yaml#/schema/event_decision/properties/event_decision_id
+      customProperties:
+      - property: dbtTestSeverity
+        value: warn
   - id: data_center_meeting_mention_id
     name: data_center_meeting_mention_id
     logicalType: string
