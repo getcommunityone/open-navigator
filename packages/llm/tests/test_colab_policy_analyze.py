@@ -404,3 +404,23 @@ def test_import_saves_through_the_pipeline_with_the_gemma_model(tmp_path, monkey
     assert kw["generation_source"] == "colab_hf" and kw["extra_meta"]["backend"] == "colab_hf"
     assert kw["extra_meta"]["prompt_sha256"] == "ab" * 32 and "files" not in kw["extra_meta"]
     assert json.loads(text)["decisions"][0]["decision_id"] == "D001"
+
+
+@pytest.mark.parametrize("name,repo", [
+    ("e4b", "google/gemma-4-E4B-it"),
+    ("gemma-4-e4b-it", "google/gemma-4-E4B-it"),
+    ("google/gemma-4-E2B-it", "google/gemma-4-E2B-it"),
+    ("12B", "google/gemma-4-12B-it"),
+    ("gemma-4-12b-it", "google/gemma-4-12B-it"),
+    ("31b", "google/gemma-4-31B-it"),
+])
+def test_small_gemma_aliases_resolve_to_the_repo_ids(name, repo):
+    assert cpa.resolve_model(name) == repo
+
+
+def test_attention_flag_is_optional_and_validated():
+    parser = cpa.build_parser()
+    assert parser.parse_args(["--videos-file", "x"]).attn_implementation is None
+    assert parser.parse_args(["--videos-file", "x", "--attn-implementation", "sdpa"]).attn_implementation == "sdpa"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--videos-file", "x", "--attn-implementation", "bogus"])

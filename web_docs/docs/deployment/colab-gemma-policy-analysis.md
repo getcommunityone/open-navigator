@@ -13,7 +13,8 @@ data center meetings since June that aren't analyzed yet
 ([#510](https://github.com/getcommunityone/open-navigator/issues/510)).
 
 - **Model:** `google/gemma-4-31B-it` by default; `google/gemma-4-26B-A4B-it` (mixture of experts, about 4B active
-  parameters) is the faster option.
+  parameters) is the faster option. Smaller sizes are named by alias: `12b` (`gemma-4-12B-it`), `e4b`
+  (`gemma-4-E4B-it`) and `e2b` (`gemma-4-E2B-it`). Their speed and answer quality are not measured yet.
 - **Precision:** 4-bit (bitsandbytes NF4) when the GPU has under 70 GB, else bf16 (`--quantize auto`).
 - **Decoding:** greedy (no sampling), so a rerun of the same meeting gives the same answer.
 
@@ -100,7 +101,8 @@ python -m llm.gpu.colab_policy_analyze --videos-file policy_export/2026-11-17/vi
 
 Flags: `--videos-file`, `--model`, `--quantize {auto,4bit,none}`, `--pilot N`, `--limit`, `--out` (default
 `policy_analysis`), `--run-date` (to resume an earlier day's run), `--max-new-tokens` (default 32,768),
-`--cu-per-hour`, `--dry-run` (plan only; no model).
+`--cu-per-hour`, `--attn-implementation {sdpa,eager,flash_attention_2}` (passed to transformers only when given; for
+long prompts that run out of GPU memory), `--dry-run` (plan only; no model). Each generation logs its peak GPU memory.
 
 ### What a run writes
 
@@ -145,12 +147,39 @@ are the same scores as every other model comparison, so the Gemma numbers sit ne
 
 ### Pilot results
 
-Filled in after the owner's pilot.
+The first pilot ran on 2026-11-18 on one A100 80 GB (`transformers` 5.x) with the pilot bundle's three meetings.
+**Only one meeting fit:** `Vs1PKup62NA`, a 28,416-token prompt. The other two (about 39,000 and 57,000 tokens) ran out
+of GPU memory on both models ([#569](https://github.com/getcommunityone/open-navigator/issues/569)).
 
-| Model | Precision | GPU | Seconds per meeting | CU per meeting | Valid | Item recall | Decision recall | Quotes verbatim |
-|---|---|---|---|---|---|---|---|---|
-| `google/gemma-4-31B-it` | | | | | | | | |
-| `google/gemma-4-26B-A4B-it` | | | | | | | | |
+| Model | Precision | GPU | Seconds (28,416-token meeting) | Output tokens | Valid | Item and quote scores |
+|---|---|---|---|---|---|---|
+| `google/gemma-4-31B-it` | 4-bit | A100 80 GB | 624 (about 5.6 tokens/s) | not kept | yes | **not scored** |
+| `google/gemma-4-26B-A4B-it` | bf16 | A100 80 GB | 525 (about 9.4 tokens/s) | 4,910 | yes (6 items) | **not scored** |
+
+- **31B in bf16 ran out of memory on every meeting**, so it ran in 4-bit. An 80 GB card does not hold the 62 GB of
+  bf16 weights plus the cache for a long prompt.
+- **The mixture-of-experts model was only about 1.7 times faster per token**, and 16% faster for the meeting, not
+  several times. With transformers' own `generate` the speed is not set by the active parameter count alone.
+- **Cost:** the compute-unit balance fell by 18.11 over the two runs (1889.42 to 1871.31), including loading the
+  weights and the failed long meetings. It is a balance difference, so it also counts any other runtime running on the
+  account at the time. About 2.3 units for the 26B meeting by GPU seconds.
+- **Answer quality was never scored.** The two answers were on the runtime's disk only, and Colab recycled the idle
+  runtime before they were copied down. There are no recall, precision, vote or quote numbers for any Gemma model, so
+  nothing here says Gemma is good enough to replace Gemini. The Gemini baseline for the same meetings is in
+  `data/cache/model_comparison/pilot_baseline_20261118T195423Z/` on the laptop that ran the pilot.
+
+### Lessons from the first pilot
+
+- **Copy the run folder down, and release the runtime, the moment a run finishes.** An idle GPU runtime still bills,
+  and Colab recycles it without notice, taking the disk with it. Pack `crawl/policy_analysis*` and read it back through
+  the page (`colab.global.notebook.kernelFiles.getFile(path).fetch()` returns the bytes) or Drive before anything else.
+- **Check the GPU name with `nvidia-smi`, not by reading a cell's old output.** A reconnected notebook keeps the
+  previous session's output, and Colab may give an L4 when an A100 is not free.
+- **A second A100 may be refused while another notebook holds one.** That is what happened on 2026-11-18 (the
+  limit itself is not documented by Colab, so treat it as likely, not certain). The Active sessions list (Commands, "Manage sessions") shows which notebook holds it. Do not terminate a session that
+  is not yours.
+- **Check the cell's GPU line before ticking the yes box.** The usage-before line prints `gpu=`; if it is not the GPU
+  the run was approved for, stop.
 
 ## 6–7. Import and load
 
@@ -173,17 +202,19 @@ never overwrites a Gemini one. Then the usual path: `python -m ingestion.youtube
 `python -m llm.enrichment.load_analysis_cache_to_bronze` → dbt. What the Gemini path costs for the same work:
 [transcript analysis cost](../development/transcript-analysis-cost.md).
 
-## What wasn't measured before the first run
+## What is still not known
 
-Everything here was built and tested without a GPU. Still unknown until the owner's pilot:
-
-- **Download size and memory.** The 31B weights in bf16 are about 62 GB to download; 4-bit loading quantizes them in
-  memory to roughly 18 GB plus the context's cache. An A100 40 GB should hold 31B in 4-bit with a 60,000-token
-  prompt; an L4 (24 GB) is tight for 31B and better suited to the 26B model. bf16 31B needs an 80 GB GPU.
-- **Seconds per meeting.** Not measured. A Part 1 answer is several thousand output tokens, and 4-bit generation is
-  slower than bf16; expect minutes per meeting, not seconds.
-- **The longest transcripts.** Whether they fit the context, and the memory a 200,000-token prompt needs.
-- **4-bit and the mixture-of-experts model.** Whether bitsandbytes quantizes the 26B model's experts well.
+- **Answer quality.** No Gemma answer has been scored against the Gemini analysis (see the pilot results).
+- **Why prompts of about 39,000 tokens and up run out of memory.** A 28,000-token prompt fits and a 39,000-token one
+  does not, which is what a step that builds an n-by-n attention matrix would give, but this is a guess. The next GPU
+  run should try `--attn-implementation sdpa` against the default on that meeting and read the peak memory the runner
+  now logs.
+- **Smaller models.** The 12B, E4B and E2B sizes have not been run: their speed, their memory and their quality are
+  unmeasured, and the 12B uses a different model class (`Gemma4UnifiedForConditionalGeneration`) that may need a newer
+  transformers.
+- **The longest transcripts.** Prompts run to 952,000 characters; the longest will not fit the context, and the runner
+  fails those clearly rather than cutting the transcript.
+- **4-bit and the mixture-of-experts model.** The 26B model was run only in bf16.
 
 ## Later: the golden dataset and tracing
 

@@ -83,6 +83,17 @@ MODEL_ALIASES = {
     "google/gemma-4-26b-a4b-it": FAST_MODEL,
     "26b": FAST_MODEL,
 }
+# Smaller Gemma 4 sizes: faster per token, quality unscored until a pilot compares them with the Gemini reference.
+SMALL_MODELS = {
+    "12b": "google/gemma-4-12B-it",
+    "e4b": "google/gemma-4-E4B-it",
+    "e2b": "google/gemma-4-E2B-it",
+}
+for _alias, _repo in SMALL_MODELS.items():
+    MODEL_ALIASES[_alias] = _repo
+    MODEL_ALIASES[_repo.lower()] = _repo
+    MODEL_ALIASES[_repo.lower().removeprefix("google/")] = _repo
+ATTN_IMPLEMENTATIONS = ("sdpa", "eager", "flash_attention_2")
 BACKEND = "colab_hf"
 PLATFORM = "colab"
 STEP_NAME = "gemma_policy_analysis"
@@ -221,7 +232,7 @@ class HFGemmaGenerator:
     """Gemma 4 through transformers on the local GPU: 4-bit NF4 (bitsandbytes) or bf16, greedy decoding."""
 
     def __init__(self, model_id: str, quantization: str, *, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
-                 hf_token: str | None = None):
+                 hf_token: str | None = None, attn_implementation: str | None = None):
         import torch
         import transformers
         from transformers import AutoProcessor
@@ -235,6 +246,9 @@ class HFGemmaGenerator:
         t0 = time.monotonic()
         self.processor = AutoProcessor.from_pretrained(model_id, token=hf_token)
         kwargs: dict[str, Any] = {"token": hf_token, "device_map": "auto", "dtype": torch.bfloat16}
+        if attn_implementation:   # only when asked: the default is whatever transformers picks for the model
+            kwargs["attn_implementation"] = attn_implementation
+        self.attn_implementation = attn_implementation
         if quantization == "4bit":
             from transformers import BitsAndBytesConfig
 
@@ -279,10 +293,23 @@ class HFGemmaGenerator:
             raise ContextTooLong(f"the prompt is {input_len:,} tokens; with up to {self.max_new_tokens:,} output "
                                  f"tokens it exceeds {self.model_id}'s context of {self.context_tokens:,}")
         inputs = inputs.to(self.model.device)
+        cuda = torch.cuda.is_available()
+        if cuda:
+            torch.cuda.reset_peak_memory_stats()
         t0 = time.monotonic()
-        with torch.inference_mode():
-            out = self.model.generate(**inputs, do_sample=False, max_new_tokens=self.max_new_tokens)
+        try:
+            with torch.inference_mode():
+                out = self.model.generate(**inputs, do_sample=False, max_new_tokens=self.max_new_tokens)
+        except torch.cuda.OutOfMemoryError:
+            logger.error("out of GPU memory at {:,} input tokens (peak {:.1f} GB, attn {})", input_len,
+                         torch.cuda.max_memory_allocated() / 1e9, self.attn_implementation or "default")
+            torch.cuda.empty_cache()   # so the next meeting starts from a clean allocator
+            raise
         seconds = time.monotonic() - t0
+        if cuda:
+            logger.info("generated {:,} -> {:,} tokens in {:.0f}s; peak GPU memory {:.1f} GB (attn {})", input_len,
+                        int(out[0].shape[-1]) - input_len, seconds, torch.cuda.max_memory_allocated() / 1e9,
+                        self.attn_implementation or "default")
         new = out[0][input_len:]
         text = self.processor.decode(new, skip_special_tokens=True)
         return Generation(text=text.strip(), input_tokens=input_len, output_tokens=int(new.shape[-1]),
@@ -698,6 +725,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help=f"Hugging Face model or alias (default {DEFAULT_MODEL}; faster: gemma-4-26b-a4b-it)")
     p.add_argument("--quantize", choices=("auto", "4bit", "none"), default="auto",
                    help="auto: 4-bit under 70 GB of GPU memory, else bf16")
+    p.add_argument("--attn-implementation", choices=ATTN_IMPLEMENTATIONS, default=None,
+                   help="attention kernel passed to transformers (default: its own choice); try sdpa if long "
+                        "prompts run out of GPU memory")
     p.add_argument("--pilot", type=int, default=0,
                    help="run N meetings from pilot_videos.txt (already analyzed by Gemini) and write a "
                         "compare_models arm")
@@ -751,7 +781,8 @@ def main(argv: list[str] | None = None, *, store: Store | None = None) -> int:
     holder: dict[str, Any] = {}
 
     def factory() -> Generator:
-        holder["gen"] = HFGemmaGenerator(model_id, quant, max_new_tokens=args.max_new_tokens, hf_token=hf_token)
+        holder["gen"] = HFGemmaGenerator(model_id, quant, max_new_tokens=args.max_new_tokens, hf_token=hf_token,
+                                         attn_implementation=args.attn_implementation)
         return holder["gen"]
 
     rows = run_batch(ids, store, bundle=bundle, out=args.out, run_date=run_date, generator_factory=factory,
