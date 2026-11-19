@@ -71,7 +71,7 @@ schema:
     name: gov_type
     logicalType: string
     physicalType: text
-    description: state | county | city (special_district/township/school_district excluded from this serving mart).
+    description: state | county | city | school_district (special_district/township excluded from this serving mart).
     required: true
     quality:
     - type: library
@@ -81,6 +81,7 @@ schema:
         - state
         - county
         - city
+        - school_district
       mustBe: 0
       dimension: conformity
       severity: error
