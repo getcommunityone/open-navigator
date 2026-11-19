@@ -116,6 +116,7 @@ nohup.out
 !packages/llm/src/llm/governance/02_run_meeting_llm.ipynb
 !notebooks/colab_gpu_diarize.ipynb
 !notebooks/colab_gemma_policy_analysis.ipynb
+!notebooks/colab_gemma_attn_memory_test.ipynb
 
 # Data files
 data/
