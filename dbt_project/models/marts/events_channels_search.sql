@@ -9,7 +9,8 @@
         {'columns': ['flagged_as_junk']},
         {'columns': ['activity_status']},
         {'columns': ['quality_score']}
-    ]
+    ],
+    post_hook=[gold_pk_post_hook('channel_id')]
 ) }}
 
 /*

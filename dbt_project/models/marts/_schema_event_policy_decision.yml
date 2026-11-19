@@ -24,6 +24,9 @@ models:
     columns:
       - name: event_policy_decision_id
         description: PK — md5(source_event_id|decision_id|source_ai_model).
+        constraints:
+          - type: not_null
+          - type: primary_key
         tests:
           - unique
           - not_null
