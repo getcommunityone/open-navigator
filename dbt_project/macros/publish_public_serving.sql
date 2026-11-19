@@ -261,9 +261,10 @@
     * rpt_bill_map_aggregate, jurisdiction_finance_category (#557): only the columns
       trending.py and local_finance.py read; the id, code, rank, sample-title and
       load-time columns were never read (about 30 + 15 MB on Neon).
-    * event_meeting_document (#557): no stored content_tsv (24 MB; search matches the
-      same expression instead) and body text only for documents from 2025 on, undated
-      ones, and any that mention data centers. Older documents keep title, date, link. -#}
+    * event_meeting_document (#557, #556): no stored content_tsv (search matches the
+      same expression instead). Full body text only for data-center matches and rows
+      linked from gold.data_center_agenda_item; everyone else gets left(content, 800)
+      so Legistar agenda/minutes (~37 MB of body) fit the Neon budget (~15 MB target). -#}
 {%- set projections = {
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
@@ -292,8 +293,9 @@
     'event_meeting_document':
         'select event_meeting_document_id, event_meeting_id, jurisdiction_id, census_geoid, '
         'state_code, state, document_type, document_url, doc_date, body_name, meeting_title, '
-        'case when doc_date is null or doc_date >= date \'2025-01-01\' '
-        'or content ~* \'data cent(er|re)|hyperscale|server farm\' then content end as content, '
+        'case when content ~* \'data cent(er|re)|hyperscale|server farm\' '
+        'or event_meeting_document_id in (select event_meeting_document_id from gold.data_center_agenda_item) '
+        'then content else left(content, 800) end as content, '
         'word_count, source, created_at from gold.event_meeting_document'
 } -%}
 
