@@ -47,7 +47,7 @@ models:
         tests:
           - not_null
       - name: governments_count
-        description: "Local governments (#351): counties, school districts, and places / county subdivisions with Census FUNCSTAT A, B or C (active governments). Excludes statistical areas (census-designated places, CCDs; FUNCSTAT S) and fictitious, inactive, nonfunctioning or subordinate units. Counties and school districts have no FUNCSTAT in bronze, so all are counted, including a few county equivalents with no government (Alaska census areas, Connecticut planning regions) and dependent school districts. Populated on national and state rows; 0 on county/city rows."
+        description: "Local governments (#351, #356): places/townships/counties with Census FUNCSTAT A/B/C, and school districts with A/B/C/E (TIGER active education agency). Excludes statistical areas (FUNCSTAT S), fictitious county-equivalents for independent cities (F — those count once as places), and fictitious school districts (F). Populated on national and state rows; 0 on county/city rows."
       - name: nonprofits_count
         description: "Number of nonprofits in the geography."
         tests:

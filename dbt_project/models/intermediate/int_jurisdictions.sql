@@ -266,7 +266,9 @@ counties AS (
         'county'                AS jurisdiction_type,
         ansicode,
         NULL::VARCHAR(5)        AS lsad,
-        NULL::VARCHAR(1)        AS funcstat,
+        -- TIGER/Line FUNCSTAT (#356); gazetteer CSV has none — load via
+        -- python -m ingestion.census.load_tiger_funcstat
+        funcstat,
         NULL::VARCHAR(5)        AS lograde,
         NULL::VARCHAR(5)        AS higrade,
         aland_sqmi              AS area_sq_miles,
@@ -321,7 +323,8 @@ school_districts AS (
         'school_district'                                               AS jurisdiction_type,
         NULL::VARCHAR(8)                                                AS ansicode,
         NULL::VARCHAR(5)                                                AS lsad,
-        NULL::VARCHAR(1)                                                AS funcstat,
+        -- TIGER/Line FUNCSTAT (#356); E = active education agency in TIGER.
+        sd.funcstat,
         sd.lograde,
         sd.higrade,
         sd.aland_sqmi                                                   AS area_sq_miles,
