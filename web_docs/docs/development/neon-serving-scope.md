@@ -22,7 +22,11 @@ add the rest. Raw OpenStates `bills` and `bill_sponsorship` are about 1.8 GB mor
   tables. No stand-in numbers are shown (`CLAUDE.md`, "No Fabricated Data").
 - **The API:** `api/routes/money_flow.py` notices the missing table on the first request, logs it once at INFO, and
   stops querying it until the process restarts. Before #284 it logged a warning on every request.
-- **Locally**, against the full warehouse, every lens works.
+- **Locally**, against the full warehouse, every lens works. The default dbt selector
+  (`local_warehouse` in `dbt_project/selectors.yml`) skips `grant` and `serving_grant`
+  because filtering ~6.7M Schedule I rows against ~234k kept orgs took >36 minutes on
+  the laptop warehouse before cancel ([#607](https://github.com/getcommunityone/open-navigator/issues/607)).
+  Build them explicitly with `dbt run --select serving_grant` when preparing a Neon publish.
 
 ## When to revisit
 

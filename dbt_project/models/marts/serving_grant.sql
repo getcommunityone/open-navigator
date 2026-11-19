@@ -18,6 +18,11 @@
     the orgs retained in serving_mdm_organization (the largest-10%-per-jurisdiction
     set). A grant that touches no served org has no served detail page to link
     from, so it is dropped.
+
+    Local warehouse (#607): excluded from the default `local_warehouse` selector.
+    gold.grant is ~4 GB / ~6.7M rows; filtering against ~234k kept orgs (plus the
+    GIN post_hooks below) ran >36 minutes before cancel. Build explicitly with
+    `dbt run --select serving_grant` when preparing a Neon publish.
 */
 
 with kept as (
