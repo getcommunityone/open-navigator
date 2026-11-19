@@ -13,6 +13,9 @@ dependencies = [
     "loguru>=0.7",
 ]
 
+[project.optional-dependencies]
+db = ["psycopg2-binary>=2.9"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
