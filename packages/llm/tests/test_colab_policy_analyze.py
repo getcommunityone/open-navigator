@@ -414,3 +414,23 @@ def test_latest_child_picks_the_newest_dated_folder(tmp_path):
     store = io_.LocalStore(tmp_path)
     assert io_.latest_child(store, "policy_export") == "2026-11-17-pilot"
     assert io_.latest_child(store, "missing") is None
+
+
+@pytest.mark.parametrize("name,repo", [
+    ("e4b", "google/gemma-4-E4B-it"),
+    ("gemma-4-e4b-it", "google/gemma-4-E4B-it"),
+    ("google/gemma-4-E2B-it", "google/gemma-4-E2B-it"),
+    ("12B", "google/gemma-4-12B-it"),
+    ("gemma-4-12b-it", "google/gemma-4-12B-it"),
+    ("31b", "google/gemma-4-31B-it"),
+])
+def test_small_gemma_aliases_resolve_to_the_repo_ids(name, repo):
+    assert cpa.resolve_model(name) == repo
+
+
+def test_attention_flag_is_optional_and_validated():
+    parser = cpa.build_parser()
+    assert parser.parse_args(["--videos-file", "x"]).attn_implementation is None
+    assert parser.parse_args(["--videos-file", "x", "--attn-implementation", "sdpa"]).attn_implementation == "sdpa"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--videos-file", "x", "--attn-implementation", "bogus"])
