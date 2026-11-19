@@ -125,7 +125,7 @@ export interface QuestionInstance {
   headline?: string | null
   // Street-level address that agrees with the decision's own government; null when none.
   place_label?: string | null
-  // Companies the decision's own headline/statement names, with the matched text.
+  // Companies named for the decision (its own text, or its meeting's passages), with the matched text.
   company_names?: string[]
   company_evidence?: string | null
   company_mentions?: QuestionCompanyMention[]
@@ -133,12 +133,17 @@ export interface QuestionInstance {
   nearby_sites?: QuestionNearbySite[]
 }
 
-// A company named in a decision's own text: the exact words matched, and a verbatim
-// excerpt with them in <mark> (render with highlightSnippet).
+// A company named for a decision: the exact words matched, and a verbatim excerpt with
+// them in <mark> (render with highlightSnippet). evidence_source says where the words are:
+// the decision's own text, or (#525) a passage of its own meeting, in which case jump_url
+// opens the recording (at start_seconds, the passage's moment, when the transcript is timed).
 export interface QuestionCompanyMention {
   operator_name: string
   matched_text: string
   evidence: string | null
+  evidence_source?: 'decision_text' | 'meeting_passage'
+  start_seconds?: number | null
+  jump_url?: string | null
 }
 
 export interface QuestionNearbySite {

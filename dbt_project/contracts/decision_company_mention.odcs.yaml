@@ -19,8 +19,8 @@ schema:
   name: decision_company_mention
   physicalName: public.decision_company_mention
   logicalType: object
-  description: One row per (data center decision, company) where the decision's own headline or decision_statement names the company. Matched case-sensitively on a whole word or phrase against the curated seed data_center_operators (company forms only for brand names that are ordinary words) and the owner / users / project names on data_center_site. matched_text is the exact text matched and evidence a verbatim excerpt with it in <mark>. No LLM, no guessed company.
-  dataGranularityDescription: One row per (data center decision, company) where the decision's own headline or decision_statement names the company.
+  description: One row per (data center decision, company) where the decision's own text, or a passage of its own meeting, names the company. evidence_source says which. A decision_text match is on the decision's headline or decision_statement, case-sensitive on a whole word or phrase, against the curated seed data_center_operators (company forms only for brand names that are ordinary words) and the owner / users / project names on data_center_site. A meeting_passage match (#525) is in a transcript passage of the same meeting (inside the decision's discussion window when the analysis gave one), and only where the passage says the company is the applicant or developer next to the name ("on behalf of X", "X is a ... developer"). matched_text is the exact text matched and evidence a verbatim excerpt with it in <mark>. No LLM, no guessed company.
+  dataGranularityDescription: One row per (data center decision, company) where the decision's own text, or a passage of its own meeting, names the company.
   properties:
   - id: decision_company_mention_id
     name: decision_company_mention_id
@@ -64,7 +64,7 @@ schema:
     name: matched_text
     logicalType: string
     physicalType: text
-    description: The exact text in the decision that matched (e.g. 'Amazon Web Services').
+    description: The exact text that matched, in the decision or the passage (e.g. 'Amazon Web Services').
     required: true
   - id: term_source
     name: term_source
@@ -86,7 +86,7 @@ schema:
     name: text_field
     logicalType: string
     physicalType: text
-    description: 'headline or decision_statement: the field the match is in.'
+    description: 'headline, decision_statement or meeting_passage: where the match is.'
     required: true
     quality:
     - type: library
@@ -95,6 +95,7 @@ schema:
         validValues:
         - headline
         - decision_statement
+        - meeting_passage
       mustBe: 0
       dimension: conformity
       severity: error
@@ -102,8 +103,42 @@ schema:
     name: evidence
     logicalType: string
     physicalType: text
-    description: Verbatim excerpt of that field around the match, with the match wrapped in <mark>.
+    description: Verbatim excerpt of that text around the match, with the match wrapped in <mark>.
     required: true
+  - id: evidence_source
+    name: evidence_source
+    logicalType: string
+    physicalType: text
+    description: 'decision_text (the decision''s own headline / decision_statement) or meeting_passage (a transcript passage of the decision''s own meeting, #525). The page labels the second "Named in the meeting".'
+    required: true
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - decision_text
+        - meeting_passage
+      mustBe: 0
+      dimension: conformity
+      severity: error
+  - id: start_seconds
+    name: start_seconds
+    logicalType: number
+    physicalType: numeric(12, 3)
+    description: 'Passages only: seconds into the recording of the passage''s first data center cue (data_center_meeting_mention.start_seconds), the moment to jump to. It is the passage''s moment, not the exact second of the quote. Null for decision_text and for an untimed transcript.'
+  - id: data_center_meeting_mention_id
+    name: data_center_meeting_mention_id
+    logicalType: string
+    physicalType: text
+    description: The passage the quote came from (FK -> data_center_meeting_mention); null for decision_text. Required for meeting_passage.
+    relationships:
+    - type: foreignKey
+      to: data_center_meeting_mention.odcs.yaml#/schema/data_center_meeting_mention/properties/data_center_meeting_mention_id
+    quality:
+    - type: text
+      description: No null values where evidence_source = 'meeting_passage' (dbt test not_null).
+      dimension: completeness
+      severity: error
   - id: master_org_id
     name: master_org_id
     logicalType: string

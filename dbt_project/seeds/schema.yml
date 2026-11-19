@@ -348,9 +348,14 @@ seeds:
       column_types:
         operator_name: text
         aliases: text
+        meeting_aliases: text
+        source_kind: text
+        source_url: text
+        source_passage: text
     description: >
       Curated data center operators and developers (#508), matched against a data center
-      decision's own headline / decision_statement by decision_company_mention. aliases is a
+      decision's own headline / decision_statement by decision_company_mention (and, #525,
+      against the meeting passages tied to the decision, under a developer cue). aliases is a
       '|'-separated list of the exact, case-sensitive forms that name the company. A brand
       name that is also an ordinary word (Switch, Stack, Compass, Aligned, Vantage, Meta,
       Oracle, Tract) is listed only in a company form ("Switch, Inc.", "Stack
@@ -367,6 +372,26 @@ seeds:
       - name: aliases
         description: "'|'-separated exact forms that name it, matched as whole words/phrases."
         tests: [not_null]
+      - name: meeting_aliases
+        description: >
+          '|'-separated forms that name the company ONLY in a meeting passage, and only
+          under a developer cue ("on behalf of X", "teamed up with X", "X is a ... developer").
+          Used for a bare word that is also ordinary English (Powerhouse); never matched in a
+          decision's headline or statement.
+      - name: source_kind
+        description: "meeting_passage for a row added from a meeting's own words (#525); blank for the original curated rows."
+      - name: source_url
+        description: "The recording at the moment the passage is said. Required when source_kind is meeting_passage."
+        tests:
+          - not_null:
+              config:
+                where: "source_kind = 'meeting_passage'"
+      - name: source_passage
+        description: "The verbatim transcript words that name the company. Required when source_kind is meeting_passage."
+        tests:
+          - not_null:
+              config:
+                where: "source_kind = 'meeting_passage'"
 
   - name: data_center_companies
     config:

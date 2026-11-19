@@ -279,7 +279,7 @@ outputPorts:
   version: 1.0.0
   contractId: open-navigator-public-decision_company_mention
   type: table
-  description: One row per (data center decision, company) where the decision's own headline or decision_statement names the company.
+  description: One row per (data center decision, company) where the decision's own text, or a passage of its own meeting, names the company.
 - name: decision_nearby_data_center_site
   version: 1.0.0
   contractId: open-navigator-public-decision_nearby_data_center_site

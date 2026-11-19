@@ -1,7 +1,7 @@
 {{ config(materialized='table', tags=['marts', 'event-extraction', 'data_centers', 'serving']) }}
 
 /*
-    Data center companies a decision's own text names (#508). Grain: one row per
+    Data center companies named for a decision (#508, #525). Grain: one row per
     (event_decision_id, operator_name).
 
     Scope: decisions whose headline or decision_statement says "data center" (the shared
@@ -19,11 +19,36 @@
                site's owner. An Epoch name that is a seed operator or one of its aliases is
                skipped, so the seed's company-form rule governs it (bare "Meta" never
                matches). Names shorter than 4 characters are skipped.
-    Matching is case-sensitive, on a whole word or phrase (phrase_regex): "switch" or
-    "stack" in ordinary lower-case text never match, nor does "AWS" inside "LAWS".
-    matched_text is the exact text matched; evidence is a verbatim excerpt of the field it
-    came from with the match in <mark>. The headline wins over the statement when both
-    name the company.
+
+    Two places a name can be found (evidence_source):
+      decision_text    the decision's own headline or statement. Matching is case-sensitive,
+                       on a whole word or phrase (phrase_regex): "switch" or "stack" in
+                       ordinary lower-case text never match, nor does "AWS" inside "LAWS".
+                       The headline wins over the statement when both name the company.
+      meeting_passage  a transcript passage of the decision's own meeting (#525): the
+                       decision's analysis -> event_meeting.video_id -> the passages in
+                       data_center_meeting_mention (which say "data center"). A passage
+                       counts only when
+                         1. it is in the same meeting (same video_id);
+                         2. it falls in the decision's discussion window when the analysis
+                            gave one (media_anchor start and end seconds, overlapping the
+                            passage's 3-minute window); a decision with no window uses the
+                            whole meeting, and an untimed passage never passes a window;
+                         3. the passage says the company is the applicant or developer next
+                            to the name (cue_before_regex / cue_after_regex: "on behalf of
+                            X", "teamed up with X", "the applicant is X", "X is a ...
+                            developer"). A company named in passing is not a match.
+                       Captions are mostly lower case, so passages match case-insensitively
+                       and the cue is what keeps an ordinary word from matching. The seed's
+                       meeting_aliases (a bare ordinary word such as "Powerhouse") are matched
+                       only here. When a company is found in both places, decision_text wins.
+    matched_text is the exact text matched; evidence is a verbatim excerpt of the text it
+    came from with the match in <mark> (~80 characters either side for a decision, ~120
+    for a passage so the cue is in the quote).
+    start_seconds (passages only) is data_center_meeting_mention.start_seconds: the first
+    data center cue of the passage's 3-minute window, the moment to jump to. It is not the
+    exact second of the quote. Null for decision_text and for an untimed transcript.
+    data_center_meeting_mention_id names the passage the quote came from.
     master_org_id (#531) is the company's organization master row: the operator_name, or
     the term that matched, equals (case-insensitively) a company name or alias in
     mdm_organization_data_center. Null when no curated company carries that name.
@@ -32,10 +57,10 @@
 {%- set dc_regex = data_center_regex() %}
 
 with decisions as (
-    select event_decision_id, headline, decision_statement, state_code
+    select event_decision_id, analysis_id, decision_id, headline, decision_statement, state_code
     from (
         select distinct on (event_decision_id)
-            event_decision_id, headline, decision_statement, state_code
+            event_decision_id, analysis_id, decision_id, headline, decision_statement, state_code
         from {{ ref('event_decision') }}
         order by event_decision_id, extracted_at desc
     ) as d
@@ -61,10 +86,24 @@ seed_terms as (
     where nullif(btrim(a.alias), '') is not null
 ),
 
+-- Bare forms that name a company only in a meeting passage, under a developer cue (#525).
+meeting_terms as (
+    select
+        btrim(o.operator_name) as operator_name,
+        btrim(a.alias)         as term,
+        null::text             as term_state_code,
+        'seed'::text           as term_source
+    from {{ ref('data_center_operators') }} as o
+    cross join lateral unnest(string_to_array(o.meeting_aliases, '|')) as a(alias)
+    where nullif(btrim(a.alias), '') is not null
+),
+
 seed_names as (
     select lower(operator_name) as name from seed_terms
     union
     select lower(term) from seed_terms
+    union
+    select lower(term) from meeting_terms
 ),
 
 epoch_raw as (
@@ -94,6 +133,7 @@ epoch_terms as (
       and (project_state_code is null or project_owner is not null)
 ),
 
+-- The decision's own text: seed and Epoch terms, never the meeting-only forms.
 terms as (
     select * from seed_terms
     union all
@@ -122,11 +162,164 @@ best as (
     order by event_decision_id, operator_name, field_rank, length(term) desc, term
 ),
 
-marked as (
+text_rows as (
     select
-        b.*,
-        regexp_replace(b.body, {{ phrase_regex('b.term') }}, '\1<mark>\2</mark>\3') as marked_body
+        b.event_decision_id,
+        b.operator_name,
+        b.matched_text,
+        b.term_source,
+        b.text_field,
+        'decision_text'::text                                                    as evidence_source,
+        regexp_replace(b.body, {{ phrase_regex('b.term') }}, '\1<mark>\2</mark>\3') as marked_body,
+        b.term,
+        80                                                                       as radius,
+        null::text                                                               as data_center_meeting_mention_id,
+        null::numeric                                                            as start_seconds,
+        0                                                                        as source_rank,
+        b.field_rank                                                             as sort_rank
     from best as b
+),
+
+-- ── #525: the decision's own meeting ───────────────────────────────────────────────
+-- A decision's meeting is its analysis (event_meeting_id = event_decision.analysis_id);
+-- the recording is event_meeting.video_id.
+decision_meetings as (
+    select d.event_decision_id, d.state_code, d.analysis_id, d.decision_id, m.video_id
+    from decisions as d
+    inner join {{ ref('event_meeting') }} as m on m.event_meeting_id = d.analysis_id
+    where nullif(btrim(m.video_id), '') is not null
+),
+
+-- The discussion window the analysis gave each decision (media_anchor), only when both
+-- bounds are clean numbers and in order. No window -> the whole meeting is used.
+anchor_raw as (
+    select
+        a.id                                                                          as analysis_id,
+        x.decision ->> 'decision_id'                                                  as decision_id,
+        {{ safe_nonnegative_double("x.decision -> 'media_anchor' ->> 'timestamp_start_seconds'") }} as window_start,
+        {{ safe_nonnegative_double("x.decision -> 'media_anchor' ->> 'timestamp_end_seconds'") }}   as window_end
+    from {{ source('bronze', 'bronze_events_analysis_ai') }} as a
+    cross join lateral jsonb_array_elements(
+        case when jsonb_typeof(a.structured_analysis -> 'decisions') = 'array'
+             then a.structured_analysis -> 'decisions' else '[]'::jsonb end
+    ) as x(decision)
+    where a.id in (select analysis_id from decision_meetings)
+),
+
+-- A decision_id can repeat inside one analysis. Each bound is then taken across all of
+-- its entries (earliest start, latest end), so no entry's window loses a passage and no
+-- window is built from the start of one entry and the end of another.
+windows as (
+    select analysis_id, decision_id, min(window_start) as window_start, max(window_end) as window_end
+    from anchor_raw
+    where window_start is not null and window_end is not null and window_end >= window_start
+    group by 1, 2
+),
+
+-- The passages of that recording that say "data center", with the passage's own words.
+passages as (
+    select
+        mm.data_center_meeting_mention_id,
+        mm.video_id,
+        mm.passage_index,
+        mm.start_seconds,
+        p.passage_text as body
+    from {{ ref('data_center_meeting_mention') }} as mm
+    inner join {{ ref('int_data_center_transcript__passage') }} as p
+        on p.video_id = mm.video_id and p.passage_index = mm.passage_index
+    where mm.video_id in (select video_id from decision_meetings)
+      and nullif(btrim(p.passage_text), '') is not null
+),
+
+-- A timed passage is the 3-minute window [passage_index * 180, +180); it must overlap the
+-- decision's window. An untimed passage cannot be placed, so it never passes a window.
+decision_passages as (
+    select
+        dm.event_decision_id,
+        dm.state_code,
+        p.data_center_meeting_mention_id,
+        p.start_seconds,
+        p.body
+    from decision_meetings as dm
+    inner join passages as p on p.video_id = dm.video_id
+    left join windows as w on w.analysis_id = dm.analysis_id and w.decision_id = dm.decision_id
+    where w.window_start is null
+       or (p.start_seconds is not null
+           and p.passage_index * 180 <= w.window_end
+           and p.passage_index * 180 + 180 >= w.window_start)
+),
+
+passage_terms as (
+    select * from terms
+    union all
+    select * from meeting_terms
+),
+
+cue_before_hits as (
+    select
+        dp.event_decision_id,
+        dp.data_center_meeting_mention_id,
+        dp.start_seconds,
+        t.operator_name,
+        t.term,
+        t.term_source,
+        (regexp_match(dp.body, {{ cue_before_regex('t.term') }}, 'i'))[3]                          as matched_text,
+        regexp_replace(dp.body, {{ cue_before_regex('t.term') }}, '\1\2<mark>\3</mark>\4', 'i')    as marked_body
+    from decision_passages as dp
+    inner join passage_terms as t
+        on dp.body ~* {{ cue_before_regex('t.term') }}
+       and (t.term_state_code is null or t.term_state_code = dp.state_code)
+),
+
+cue_after_hits as (
+    select
+        dp.event_decision_id,
+        dp.data_center_meeting_mention_id,
+        dp.start_seconds,
+        t.operator_name,
+        t.term,
+        t.term_source,
+        (regexp_match(dp.body, {{ cue_after_regex('t.term') }}, 'i'))[2]                           as matched_text,
+        regexp_replace(dp.body, {{ cue_after_regex('t.term') }}, '\1<mark>\2</mark>\3', 'i')       as marked_body
+    from decision_passages as dp
+    inner join passage_terms as t
+        on dp.body ~* {{ cue_after_regex('t.term') }}
+       and (t.term_state_code is null or t.term_state_code = dp.state_code)
+),
+
+passage_rows as (
+    select
+        h.event_decision_id,
+        h.operator_name,
+        h.matched_text,
+        h.term_source,
+        'meeting_passage'::text          as text_field,
+        'meeting_passage'::text          as evidence_source,
+        h.marked_body,
+        h.term,
+        120                              as radius,
+        h.data_center_meeting_mention_id,
+        h.start_seconds::numeric         as start_seconds,
+        1                                as source_rank,
+        1                                as sort_rank
+    from (
+        select * from cue_before_hits
+        union all
+        select * from cue_after_hits
+    ) as h
+),
+
+-- One row per (decision, company): the decision's own text first, else the earliest
+-- passage that names it.
+chosen as (
+    select distinct on (event_decision_id, operator_name) *
+    from (
+        select * from text_rows
+        union all
+        select * from passage_rows
+    ) as r
+    order by event_decision_id, operator_name, source_rank, sort_rank,
+             start_seconds nulls last, length(term) desc, term, data_center_meeting_mention_id
 ),
 
 company_names as (
@@ -148,16 +341,19 @@ select
         || substr(m.marked_body, w.s, w.e - w.s)
         || case when w.e <= length(m.marked_body) then ' …' else '' end
     )::text                                                       as evidence,
+    m.evidence_source::text                                       as evidence_source,
+    m.start_seconds::numeric(12, 3)                               as start_seconds,
+    m.data_center_meeting_mention_id::text                        as data_center_meeting_mention_id,
     (
         select n.master_org_id from company_names as n
         where n.name in (lower(m.operator_name), lower(m.term))
         order by (n.name = lower(m.operator_name)) desc, n.name_rank, n.master_org_id
         limit 1
     )::text                                                       as master_org_id
-from marked as m
--- an ~80-character window either side of the <mark>ed match
+from chosen as m
+-- an ~80 (decision) or ~120 (passage) character window either side of the <mark>ed match
 cross join lateral (
     select
-        greatest(1, strpos(m.marked_body, '<mark>') - 80) as s,
-        strpos(m.marked_body, '<mark>') + length(m.matched_text) + 13 + 80 as e
+        greatest(1, strpos(m.marked_body, '<mark>') - m.radius) as s,
+        strpos(m.marked_body, '</mark>') + 7 + m.radius as e
 ) as w

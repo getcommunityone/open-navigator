@@ -77,12 +77,21 @@ class ScopeOut(BaseModel):
 
 
 class CompanyMentionOut(BaseModel):
-    """A company the decision's own text names (dbt decision_company_mention, #508)."""
+    """A company named for a decision (dbt decision_company_mention, #508, #525)."""
 
     operator_name: str
     # The exact words matched, and a verbatim excerpt with them in <mark>.
     matched_text: str
     evidence: Optional[str] = None
+    # decision_text: the decision's own headline/statement. meeting_passage: a passage of
+    # its own meeting, where the passage says the company is the applicant or developer
+    # (#525); the page labels it "Named in the meeting".
+    evidence_source: str = "decision_text"
+    # meeting_passage only: the passage's moment in the recording (its first data center
+    # cue, not the exact second of the quote), and a link to it. When the transcript is
+    # untimed the link is the recording itself with no time.
+    start_seconds: Optional[float] = None
+    jump_url: Optional[str] = None
 
 
 class NearbySiteOut(BaseModel):
@@ -111,7 +120,8 @@ class InstanceOut(BaseModel):
     # A street-level address that agrees with the decision's own government
     # (dbt decision_place_label); null when there is none we can trust.
     place_label: Optional[str] = None
-    # Companies the decision's own headline/statement names, with the matched text.
+    # Companies named for the decision: from its own headline/statement, or (#525) from a
+    # passage of its own meeting, each with the matched text and a verbatim quote.
     company_names: List[str] = []
     company_evidence: Optional[str] = None
     company_mentions: List[CompanyMentionOut] = []
@@ -359,8 +369,13 @@ _INSTANCES_SQL_TMPL = f"""
         select jsonb_agg(jsonb_build_object(
                    'operator_name', m.operator_name,
                    'matched_text', m.matched_text,
-                   'evidence', m.evidence) order by m.operator_name) as mentions
+                   'evidence', m.evidence,
+                   'evidence_source', m.evidence_source,
+                   'start_seconds', m.start_seconds::float8,
+                   'video_url', mm.video_url) order by m.operator_name) as mentions
         from public.decision_company_mention m
+        left join public.data_center_meeting_mention mm
+          on mm.data_center_meeting_mention_id = m.data_center_meeting_mention_id
         where m.event_decision_id = d.event_decision_id
     ) cm on true
     left join lateral (
@@ -388,10 +403,19 @@ _INSTANCES_SQL = _INSTANCES_SQL_TMPL.format(order=_INSTANCE_ORDER["relevance"])
 _INSTANCES_RECENT_SQL = _INSTANCES_SQL_TMPL.format(order=_INSTANCE_ORDER["recent"])
 
 
+def _mention(m: dict[str, Any]) -> CompanyMentionOut:
+    """One company mention -> CompanyMentionOut. A meeting_passage link goes to the recording
+    at the passage's moment, or to the recording alone when untimed; decision_text has none."""
+    video_url = m.pop("video_url", None) or ""
+    if m.get("evidence_source") == "meeting_passage" and video_url:
+        m["jump_url"] = jump_url(video_url, m.get("start_seconds")) or video_url
+    return CompanyMentionOut(**m)
+
+
 def _instance(row: Any) -> InstanceOut:
     """One instances row -> InstanceOut, decoding the JSON lists and the company fields."""
     d = dict(row)
-    mentions = [CompanyMentionOut(**m) for m in json.loads(d.pop("company_mentions", None) or "[]")]
+    mentions = [_mention(m) for m in json.loads(d.pop("company_mentions", None) or "[]")]
     sites = [NearbySiteOut(**s) for s in json.loads(d.pop("nearby_sites", None) or "[]")]
     return InstanceOut(
         **d,
