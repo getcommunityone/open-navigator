@@ -14,7 +14,9 @@ export interface TopicSummary {
    *  "Data centers"). Older API builds omit it. */
   source?: 'civicsearch' | 'curated' | string
   /** Meetings whose transcript matched the topic, in the requested scope
-   *  (national, or the `state` passed). null/undefined = no count available. */
+   *  (national, or the `state` passed) for every topic. State grain is the
+   *  finest there is: no city-level topic counts exist. null/undefined = no
+   *  count available. */
   meeting_count?: number | null
 }
 
