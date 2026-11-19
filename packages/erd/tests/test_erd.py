@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from erd import build, build_model, read_models, write
-from erd.dictionary import entity_columns
+from erd.dictionary import area_summary, entity_columns
 
 SCHEMA = """
 version: 2
@@ -118,3 +118,21 @@ def test_write_gives_a_full_and_an_entity_file(model, tmp_path):
     paths = write("marts", model, None, tmp_path / "out")
     assert [p.name for p in paths] == ["marts_full.drawio", "marts_entity.drawio"]
     assert all("<mxfile" in p.read_text() and "Legend" in p.read_text() for p in paths)
+
+
+def test_area_summary_counts_tables_rows_and_primary_keys(model):
+    stats = {"jurisdictions": {"rows": 1200, "pk": True}, "bills": {"rows": 30, "pk": False}}
+    assert area_summary(model, stats, ["jurisdictions"]) == (1, 1200, 1)
+    assert area_summary(model, stats, ["bills"]) == (1, 30, 0), "Postgres's answer beats the dbt declaration"
+    assert area_summary(model, stats, ["event_meeting"]) == (1, None, 1), "unmeasured: no total, declared PK"
+    assert area_summary(model, {}, ["jurisdictions", "bills"]) == (2, None, 2)
+
+
+def test_measured_counts_show_in_headers_and_area_titles_and_gaps_stay_gaps(model):
+    stats = {"jurisdictions": {"rows": 1200, "pk": True}}
+    model.STATS_NOTE = "row counts: exact count(*) of the gold tables, measured 2026-11-18 19:00 UTC"
+    xml = build(model, stats).xml("t")
+    assert "1,200 rows" in xml and "1 table · 1,200 rows · 1 of 1 with a primary key" in xml.replace("&lt;", "<")
+    assert "measured 2026-11-18 19:00 UTC" in xml
+    assert "rows not measured yet" in xml, "a table with no count says so; it is never shown as 0"
+    assert "rows not measured yet" in build(model).xml("t") and "1,200 rows" not in build(model).xml("t")

@@ -97,6 +97,22 @@ def test_topic_list_carries_source_and_scoped_meeting_count(get):
     assert "to_jsonb(t) ->> 'source'" in sql
 
 
+def test_every_topic_gets_the_scoped_count_not_only_curated_ones(get):
+    """#504: under a state the CivicSearch topics carry that state's meeting count too."""
+    conn = _Conn(rows=[
+        dict(topic_id=51, name="Education, schools, students", query_id="education",
+             keyword_stats="[]", transcript_occurrences=63046, source="civicsearch", meeting_count=193),
+    ])
+    body = get(conn, "/api/topics", {"state": "al"}).json()
+    assert body[0]["source"] == "civicsearch" and body[0]["meeting_count"] == 193
+    sql, params = conn.calls[0]
+    assert params == (None, "AL")
+    count_expr = sql[sql.index("CASE WHEN $2::text IS NULL"):sql.index("END AS meeting_count")]
+    assert "browse_entity_state_transcript_count" in count_expr
+    assert "browse_transcript_count n" in count_expr
+    assert "source" not in count_expr and "curated" not in count_expr  # no per-source branch
+
+
 def test_topic_list_source_defaults_when_column_missing(get):
     conn = _Conn(rows=[dict(topic_id=1, name="X", query_id=None, keyword_stats=None,
                             transcript_occurrences=3, source=None, meeting_count=None)])

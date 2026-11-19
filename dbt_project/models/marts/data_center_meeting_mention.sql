@@ -32,7 +32,8 @@ videos as (
         video_id,
         nullif(trim(video_url), '')          as video_url,
         nullif(trim(title), '')              as meeting_title,
-        event_date                           as meeting_date,
+        -- A video dated in the future has a wrong source date (#472, e.g. 2029-10-12): unknown is better than wrong.
+        case when event_date::date > current_date then null else event_date::date end as meeting_date,
         nullif(trim(jurisdiction_id), '')    as jurisdiction_id,
         nullif(trim(jurisdiction_name), '')  as jurisdiction_name,
         nullif(trim(state_code), '')         as state_code

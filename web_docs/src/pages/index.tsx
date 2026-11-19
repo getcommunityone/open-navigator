@@ -320,21 +320,21 @@ function HomepageStats() {
         <div className="row">
           <div className="col col--3 text--center">
             <div className="padding--md">
-              <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#4CAF50' }}>3M+</div>
+              <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#4CAF50' }}>🏢</div>
               <p style={{ fontSize: '1rem', fontWeight: '500' }}>Nonprofit Organizations</p>
               <p style={{ fontSize: '0.9rem', color: '#666' }}>IRS Form 990 data</p>
             </div>
           </div>
           <div className="col col--3 text--center">
             <div className="padding--md">
-              <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#FF9800' }}>13,000+</div>
+              <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#FF9800' }}>🏫</div>
               <p style={{ fontSize: '1rem', fontWeight: '500' }}>School Districts</p>
               <p style={{ fontSize: '0.9rem', color: '#666' }}>Financial & meeting data</p>
             </div>
           </div>
           <div className="col col--3 text--center">
             <div className="padding--md">
-              <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#9C27B0' }}>1,000+</div>
+              <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#9C27B0' }}>🎥</div>
               <p style={{ fontSize: '1rem', fontWeight: '500' }}>Meeting Videos</p>
               <p style={{ fontSize: '0.9rem', color: '#666' }}>Full transcripts available</p>
             </div>

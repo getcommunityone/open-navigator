@@ -21,7 +21,7 @@ DDL: ``packages/hosting/scripts/neon/migrations/020_recreate_bronze_events_meeti
 
 Examples::
 
-    .venv/bin/python scripts/discovery/load_scraped_meetings_manifests_to_bronze.py --state AL --apply-ddl
+    .venv/bin/python scripts/discovery/load_scraped_meetings_manifests_to_bronze.py --state AL --apply-ddl   # empty DB only
     .venv/bin/python scripts/discovery/load_scraped_meetings_manifests_to_bronze.py -s AL
     .venv/bin/python scripts/discovery/load_scraped_meetings_manifests_to_bronze.py -s AL --cache-root /path/to/scrape/root
 """
@@ -64,7 +64,10 @@ from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as
 
 from core_lib.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
 
-MIGRATION_PATH = _root / "scripts" / "deployment" / "neon" / "migrations" / "020_recreate_bronze_events_meetings_scraped_link_document.sql"
+MIGRATION_PATH = (
+    _root / "packages" / "hosting" / "scripts" / "neon" / "migrations"
+    / "020_recreate_bronze_events_meetings_scraped_link_document.sql"
+)
 
 TABLE_FOR_PREFIX = {
     "county": "bronze.bronze_events_meetings_counties_scraped",
@@ -427,9 +430,38 @@ def _classify_jurisdiction(jurisdiction_id: str) -> Optional[str]:
     return jt
 
 
-def _apply_ddl(conn: Any) -> None:
+def _tables_with_rows(conn: Any) -> dict[str, int]:
+    """Row counts of the scraped-meetings tables that exist and are not empty (missing tables are skipped)."""
+    found: dict[str, int] = {}
+    with conn.cursor() as cur:
+        for table in TABLE_FOR_PREFIX.values():
+            cur.execute("SELECT to_regclass(%s) IS NOT NULL", (table,))
+            if not cur.fetchone()[0]:
+                continue
+            cur.execute(f"SELECT count(*) FROM {table}")  # table names are the constants above
+            n = int(cur.fetchone()[0])
+            if n:
+                found[table] = n
+    return found
+
+
+def _apply_ddl(conn: Any, *, drop_existing: bool = False) -> None:
+    """Create the scraped-meetings tables, refusing to drop any that hold rows unless ``drop_existing``.
+
+    The migration DROPs and recreates all three tables (SuiteOne rows included), so a populated
+    warehouse needs the explicit ``--drop-existing`` (#403).
+    """
     if not MIGRATION_PATH.is_file():
         raise FileNotFoundError(f"Migration SQL not found: {MIGRATION_PATH}")
+    populated = _tables_with_rows(conn)
+    if populated and not drop_existing:
+        listing = ", ".join(f"{t} ({n:,} rows)" for t, n in populated.items())
+        raise SystemExit(
+            f"Refusing --apply-ddl: {listing} would be dropped, SuiteOne rows included. "
+            "Leave --apply-ddl off to just load, or add --drop-existing to delete these tables and rebuild them."
+        )
+    if populated:
+        logger.warning("--drop-existing: dropping {} populated table(s): {}", len(populated), ", ".join(populated))
     sql = MIGRATION_PATH.read_text(encoding="utf-8")
     with conn.cursor() as cur:
         cur.execute(sql)
@@ -520,7 +552,8 @@ def main() -> None:
         description=__doc__,
         epilog=(
             "If you omit --state, set SCRAPED_MEETINGS_STATE=AL (or pass -s AL). "
-            "Use --apply-ddl once per DB to run migration 020 (drops and recreates the three tables). "
+            "Use --apply-ddl once per DB to create the three tables (migration 020); it refuses if any holds rows, "
+            "and --drop-existing deletes them first. "
             "Default --cache-root matches SCRAPED_MEETINGS_ROOT / data/cache/scraped_meetings (same as the scraper)."
         ),
     )
@@ -549,10 +582,17 @@ def main() -> None:
     parser.add_argument(
         "--apply-ddl",
         action="store_true",
-        help=f"Run {MIGRATION_PATH.name} (DROP + CREATE link/document-per-row tables).",
+        help=f"Run {MIGRATION_PATH.name} (DROP + CREATE link/document-per-row tables); refuses if a table has rows.",
+    )
+    parser.add_argument(
+        "--drop-existing",
+        action="store_true",
+        help="With --apply-ddl: delete tables that already hold rows (SuiteOne rows too) and rebuild them.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Parse manifests only; no DB writes")
     args = parser.parse_args()
+    if args.drop_existing and not args.apply_ddl:
+        parser.error("--drop-existing only makes sense with --apply-ddl")
 
     state_raw = (args.state or "").strip().upper()
     if len(state_raw) != 2:
@@ -580,7 +620,7 @@ def main() -> None:
     if not args.dry_run:
         conn = psycopg2.connect(resolve_database_url())
         if args.apply_ddl:
-            _apply_ddl(conn)
+            _apply_ddl(conn, drop_existing=args.drop_existing)
 
     n_ok = 0
     n_skip = 0

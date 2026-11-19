@@ -72,7 +72,29 @@ def table_widths(m, stats):
 
 def _head_text(m, name, stats):
     rows = (stats.get(name) or {}).get("rows")
-    return name, (f"{rows:,}" if rows is not None else "rows not measured yet"), m.TABLES[name].description
+    return name, (f"{rows:,} rows" if rows is not None else "rows not measured yet"), m.TABLES[name].description
+
+
+def area_summary(m, stats, tables):
+    """(table count, total rows, tables with a primary key) of one subject area. The total counts only the tables
+    that were measured, and is None when none were, so a gap is never shown as 0. A measured table's primary key
+    is Postgres's; an unmeasured one's is the dbt declaration's."""
+    measured = [(stats.get(n) or {}) for n in tables]
+    rows = [s["rows"] for s in measured if s.get("rows") is not None]
+    pks = sum(s["pk"] if "pk" in s else any("PK" in c.key for c in m.TABLES[n].columns)
+              for n, s in zip(tables, measured))
+    return len(tables), (sum(rows) if rows else None), pks
+
+
+def area_title(m, stats, title, tables):
+    """The subject area's label: its name, then its table count, row total and primary keys."""
+    count, rows, pks = area_summary(m, stats, tables)
+    parts = [f"{count} table{'s' if count != 1 else ''}"]
+    if rows is not None:
+        measured = sum(1 for n in tables if (stats.get(n) or {}).get("rows") is not None)
+        parts.append(f"{rows:,} rows" + ("" if measured == count else f" in {measured} measured"))
+    parts.append(f"{pks} of {count} with a primary key")
+    return f"{_esc(title)}<br><span style='font-size:11px;color:{MUTED}'>{_esc(' · '.join(parts))}</span>"
 
 
 def _head_height(m, name, stats, width):
@@ -192,7 +214,8 @@ def _draw_entity_table(d, m, name, x, y, stats, w, anchors):
     return w, h, [c.name for c in cols]
 
 
-def _legend_items(entity=False, kinds=("fact", "dimension"), profiled=True, labels=None, phi=True, questions=True):
+def _legend_items(entity=False, kinds=("fact", "dimension"), profiled=True, labels=None, phi=True, questions=True,
+                  note=None):
     labels = {**KIND_LABELS, **(labels or {})}
     colour = {FACT: "green", DIM: "orange", SUMMARY: "blue"}
     return [*((HEADER[k], INK, f"{colour[HEADER[k]]} header = {labels[k]}") for k in kinds),
@@ -206,17 +229,19 @@ def _legend_items(entity=False, kinds=("fact", "dimension"), profiled=True, labe
                    if profiled else [])]),
              *([("#FFFFFF", INK, "entity view: the full view's areas and order, each table's header and key columns only")]
                if entity else []),
-             ("#FFFFFF", INK, "lines: crow's foot = many, bar = one; dashed = matched, not a key")]
+             ("#FFFFFF", INK, "lines: crow's foot = many, bar = one; dashed = matched, not a key"),
+             *([("#FFFFFF", INK, note)] if note else [])]
 
 
-def _legend(d, x, y, entity=False, kinds=("fact", "dimension"), profiled=True, labels=None, phi=True, questions=True):
+def _legend(d, x, y, entity=False, kinds=("fact", "dimension"), profiled=True, labels=None, phi=True, questions=True,
+            note=None):
     """Draws the legend; returns the height the full view's legend takes."""
-    items = _legend_items(entity, kinds, profiled, labels, phi, questions)
+    items = _legend_items(entity, kinds, profiled, labels, phi, questions, note)
     h = 34 + 22 * len(items)
     d.v("<b>Legend</b>", x, y, 500, h, f"rounded=1;fillColor=#EEF0FA;strokeColor={INK};fontSize=13;verticalAlign=top;")
     for i, (fill, colour, text) in enumerate(items):
         d.v(text, x + 12, y + 30 + 22 * i, 476, 18, f"rounded=0;fillColor={fill};strokeColor={INK};fontSize=10;fontColor={colour};align=left;spacingLeft=4;")
-    return 34 + 22 * len(_legend_items(False, kinds, profiled, labels, phi, questions))
+    return 34 + 22 * len(_legend_items(False, kinds, profiled, labels, phi, questions, note))
 
 
 def _layout(tables, sizes):
@@ -384,7 +409,8 @@ def build(m, stats=None, entity=False):
     d = Diagram()
     kinds = [k for k in HEADER if k in set(m.KINDS.values())]
     legend_h = _legend(d, 10, 10, entity, kinds, getattr(m, "PROFILE", True), getattr(m, "KIND_LABELS", None),
-                       bool(getattr(m, "PHI", None)), bool(getattr(m, "QUESTIONS", None)))
+                       bool(getattr(m, "PHI", None)), bool(getattr(m, "QUESTIONS", None)),
+                       getattr(m, "STATS_NOTE", None))
     widths = table_widths(m, stats)
     sizes = {n: entity_size(m, n, stats) if entity else _size(m, n, stats, widths[n]) for n in m.TABLES}
 
@@ -403,7 +429,7 @@ def build(m, stats=None, entity=False):
     for title, c, tables in m.GROUPS:
         rows, _, gh = layout(tables)
         gx, gy = col_x[c], tops[title]
-        d.v(f"{_esc(title)}", gx, gy, col_w[c], gh,
+        d.v(area_title(m, stats, title, tables), gx, gy, col_w[c], gh,
             f"rounded=1;arcSize=1;absoluteArcSize=1;fillColor={AREA};strokeColor={INK};fontSize=20;fontColor={INK};verticalAlign=top;spacingTop=6;")
         areas.append((gx, gy, col_w[c], gh))
         ty = gy + 46

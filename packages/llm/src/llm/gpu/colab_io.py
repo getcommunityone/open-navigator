@@ -104,6 +104,12 @@ def today_utc() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d")
 
 
+def latest_child(store: "Store", rel_dir: str) -> str | None:
+    """The newest dated folder name under ``rel_dir`` (names start ``YYYY-MM-DD``, so the last in sort order), or None."""
+    names = sorted(n for n in store.list_names(rel_dir) if _RUN_DATE.match(n[:10]))
+    return names[-1] if names else None
+
+
 def clean_rel(path: str, volume: str = LANDING_VOLUME) -> str:
     """A path relative to the volume: ``crawl/x``, ``x`` and ``/Volumes/.../crawl/x`` all give ``x``.
     Raises for a path that leaves it."""

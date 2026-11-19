@@ -297,7 +297,7 @@ models:
         description: "Denormalized event title for result display."
       - name: event_date
         data_type: date
-        description: "Denormalized event date for sort/display."
+        description: "Denormalized event date for sort/display. Never later than tomorrow for a transcript: a title date after that is replaced by the video's upload day, or null (#564)."
       - name: jurisdiction_name
         data_type: text
         description: "Denormalized jurisdiction name for result display."
