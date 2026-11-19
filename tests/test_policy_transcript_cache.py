@@ -232,3 +232,56 @@ def test_cleanup_policy_transcript_cache_tree_idempotent(tmp_path: Path):
     assert pass2.get("dates_json_event_date_patched", 0) == 0
     assert pass2.get("sidecars_removed_sidecar", 0) == 0
     assert pass2.get("sidecars_kept_orphan_sidecar", 0) == 1
+
+
+def _seed_transcript_with_formatted_sidecar(root: Path, stem: str, *, embedded_formatted):
+    from llm.gemini.transcript_cache_paths import DIR_TRANSCRIPTS
+
+    folder = root / DIR_TRANSCRIPTS
+    folder.mkdir(parents=True, exist_ok=True)
+    main = folder / f"{stem}.json"
+    data = {"video_id": stem, "title": stem}
+    if embedded_formatted is not None:
+        data["caption_formatted"] = embedded_formatted
+    main.write_text(json.dumps(data), encoding="utf-8")
+    sidecar = folder / f"{stem}.caption_formatted.json"
+    sidecar.write_text(json.dumps([{"text": "only copy"}]), encoding="utf-8")
+    return main, sidecar
+
+
+def test_formatted_sidecar_is_kept_when_the_transcript_does_not_embed_it(tmp_path: Path):
+    """#359: a transcript whose formatted captions live only in the sidecar must not lose them."""
+    from llm.gemini.transcript_cache_paths import remove_redundant_transcript_files
+
+    _, sidecar = _seed_transcript_with_formatted_sidecar(tmp_path, "2026-01-01_a", embedded_formatted=None)
+    _, empty_sidecar = _seed_transcript_with_formatted_sidecar(tmp_path, "2026-01-02_b", embedded_formatted=[])
+
+    dry = remove_redundant_transcript_files(tmp_path, dry_run=True)
+    assert dry.get("kept_formatted_sidecar") == 2 and not dry.get("would_remove_formatted")
+    stats = remove_redundant_transcript_files(tmp_path)
+    assert stats.get("kept_formatted_sidecar") == 2 and not stats.get("removed_formatted")
+    assert sidecar.is_file() and empty_sidecar.is_file()
+    assert json.loads(sidecar.read_text(encoding="utf-8")) == [{"text": "only copy"}]
+
+
+def test_formatted_sidecar_is_removed_when_the_transcript_embeds_it(tmp_path: Path):
+    from llm.gemini.transcript_cache_paths import remove_redundant_transcript_files
+
+    _, sidecar = _seed_transcript_with_formatted_sidecar(
+        tmp_path, "2026-01-03_c", embedded_formatted=[{"text": "only copy"}]
+    )
+    dry = remove_redundant_transcript_files(tmp_path, dry_run=True)
+    assert dry.get("would_remove_formatted") == 1 and sidecar.is_file()
+    stats = remove_redundant_transcript_files(tmp_path)
+    assert stats.get("removed_formatted") == 1 and not stats.get("kept_formatted_sidecar")
+    assert not sidecar.exists()
+
+
+def test_formatted_sidecar_is_kept_when_the_transcript_cannot_be_read(tmp_path: Path):
+    from llm.gemini.transcript_cache_paths import DIR_TRANSCRIPTS, remove_redundant_transcript_files
+
+    main, sidecar = _seed_transcript_with_formatted_sidecar(tmp_path, "2026-01-04_d", embedded_formatted=[{"x": 1}])
+    main.write_text("{not json", encoding="utf-8")
+    stats = remove_redundant_transcript_files(tmp_path)
+    assert stats.get("skipped_read_error") == 1 and stats.get("kept_formatted_sidecar") == 1
+    assert sidecar.is_file() and (tmp_path / DIR_TRANSCRIPTS).is_dir()
