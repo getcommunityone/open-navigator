@@ -105,6 +105,7 @@ TYPES = {
                 usps            VARCHAR(2),
                 ansicode        VARCHAR(8),
                 name            VARCHAR(255),
+                funcstat        VARCHAR(1),
                 aland           BIGINT,
                 awater          BIGINT,
                 aland_sqmi      NUMERIC(12, 6),
@@ -118,9 +119,11 @@ TYPES = {
                 UNIQUE (jurisdiction_id)
             )
             """,
+            "ALTER TABLE bronze.bronze_jurisdictions_counties ADD COLUMN IF NOT EXISTS funcstat VARCHAR(1)",
             "CREATE INDEX IF NOT EXISTS idx_bjc_usps            ON bronze.bronze_jurisdictions_counties(usps)",
             "CREATE INDEX IF NOT EXISTS idx_bjc_coords          ON bronze.bronze_jurisdictions_counties(intptlat, intptlong)",
             "CREATE INDEX IF NOT EXISTS idx_bjc_jurisdiction_id ON bronze.bronze_jurisdictions_counties(jurisdiction_id)",
+            "CREATE INDEX IF NOT EXISTS idx_bjc_funcstat        ON bronze.bronze_jurisdictions_counties(funcstat)",
         ],
         "columns": ["geoid", "usps", "ansicode", "name", "aland", "awater", "aland_sqmi", "awater_sqmi", "intptlat", "intptlong"],
         "insert": """
@@ -206,6 +209,7 @@ TYPES = {
                 name            VARCHAR(255),
                 lograde         VARCHAR(5),
                 higrade         VARCHAR(5),
+                funcstat        VARCHAR(1),
                 aland           BIGINT,
                 awater          BIGINT,
                 aland_sqmi      NUMERIC(12, 6),
@@ -219,9 +223,11 @@ TYPES = {
                 UNIQUE (jurisdiction_id)
             )
             """,
+            "ALTER TABLE bronze.bronze_jurisdictions_school_districts ADD COLUMN IF NOT EXISTS funcstat VARCHAR(1)",
             "CREATE INDEX IF NOT EXISTS idx_bjsd_usps            ON bronze.bronze_jurisdictions_school_districts(usps)",
             "CREATE INDEX IF NOT EXISTS idx_bjsd_coords          ON bronze.bronze_jurisdictions_school_districts(intptlat, intptlong)",
             "CREATE INDEX IF NOT EXISTS idx_bjsd_jurisdiction_id ON bronze.bronze_jurisdictions_school_districts(jurisdiction_id)",
+            "CREATE INDEX IF NOT EXISTS idx_bjsd_funcstat        ON bronze.bronze_jurisdictions_school_districts(funcstat)",
         ],
         "columns": ["geoid", "usps", "name", "lograde", "higrade", "aland", "awater", "aland_sqmi", "awater_sqmi", "intptlat", "intptlong"],
         "insert": """

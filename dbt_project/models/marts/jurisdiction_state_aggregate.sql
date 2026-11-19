@@ -269,15 +269,21 @@ jurisdiction_counts AS (
         state_code,
         COUNT(*) FILTER (WHERE jurisdiction_type <> 'state') AS jurisdictions_count,
         COUNT(*) FILTER (WHERE jurisdiction_type = 'school_district') AS school_districts_count,
-        -- governments_count (#351): local governments, not Census geographies.
-        -- Places and county subdivisions count only with Census FUNCSTAT A/B/C
-        -- (active government; partially / fully consolidated). FUNCSTAT S
-        -- (statistical: CDPs, CCDs), F, I, N and G are excluded. Counties and
-        -- school districts carry no FUNCSTAT in bronze, so all are counted.
+        -- governments_count (#351 / #356): local governments, not Census
+        -- geographies. Same FUNCSTAT gate for every type once bronze carries it:
+        --   municipality / township / county → A/B/C
+        --   school_district → A/B/C/E (TIGER marks active education agencies E)
+        -- Independent cities are FUNCSTAT F in the county file and A as places,
+        -- so they count once. Alaska census areas (S) and fictitious school
+        -- districts (F) are excluded.
         COUNT(*) FILTER (
-            WHERE jurisdiction_type IN ('county', 'school_district')
-               OR (jurisdiction_type IN ('municipality', 'township')
-                   AND funcstat IN ('A', 'B', 'C'))
+            WHERE (
+                jurisdiction_type IN ('municipality', 'township', 'county')
+                AND funcstat IN ('A', 'B', 'C')
+            ) OR (
+                jurisdiction_type = 'school_district'
+                AND funcstat IN ('A', 'B', 'C', 'E')
+            )
         ) AS governments_count
     FROM {{ ref('int_jurisdictions') }}
     WHERE state_code IS NOT NULL
