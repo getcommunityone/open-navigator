@@ -193,10 +193,13 @@ shard*.out
 api_server.out
 
 # Versioned Postgres release backups (make backup / make restore) — large dumps,
-# stored off-machine on Google Drive, never committed. `open-navigator-backups` is a
-# per-machine WSL symlink to the Google Drive for Desktop folder (I:\My Drive\...);
+# stored off-machine on Google Drive, never committed. Keep `open-navigator-backups/`
+# as a real directory (README committed); ignore dump contents. Do not replace it
+# with a symlink to an unmounted Drive path — that breaks local pytest (#612).
 # `.backup-staging` is the local fast-disk scratch dir dumps stream to before copy.
-open-navigator-backups
+open-navigator-backups/**
+!open-navigator-backups/
+!open-navigator-backups/README.md
 .backup-staging/
 backups/
 *.dump
