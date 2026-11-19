@@ -3,7 +3,7 @@
 One call sends a ``state`` and named questions to ``POST /v1/systemone`` and gets
 one typed answer per question::
 
-    with JevClient() as client:  # reads TYPESAFE_API_KEY
+    with JevClient() as client:  # reads TYPESAFE_API_KEY or JEV_API_KEY
         response = client.system_one(
             state=transcript_text,
             questions={"has_vote": noul("The body votes on a motion")},
@@ -38,6 +38,13 @@ ENDPOINT = "/v1/systemone"
 LONG_CONTEXT_HEADER = "TypeSafe-Danger-Zone-Long-Context"
 RETRY_STATUSES = frozenset({429, 529})
 PROVIDER = "typesafe"
+
+
+def _api_key_from_env() -> str:
+    """``TYPESAFE_API_KEY`` first; ``JEV_API_KEY`` is the same key under a shorter name."""
+    return (
+        os.environ.get("TYPESAFE_API_KEY") or os.environ.get("JEV_API_KEY") or ""
+    ).strip()
 
 
 class JevError(RuntimeError):
@@ -144,10 +151,11 @@ class JevClient:
         transport: httpx.BaseTransport | None = None,
         sleep: Any = time.sleep,
     ) -> None:
-        key = (api_key or os.environ.get("TYPESAFE_API_KEY") or "").strip()
+        key = (api_key or _api_key_from_env() or "").strip()
         if not key:
             raise JevError(
-                "Set TYPESAFE_API_KEY (get a key at https://console.typesafe.ai/keys)"
+                "Set TYPESAFE_API_KEY or JEV_API_KEY "
+                "(get a key at https://console.typesafe.ai/keys)"
             )
         self.model = (
             model or os.environ.get("TYPESAFE_MODEL") or DEFAULT_MODEL

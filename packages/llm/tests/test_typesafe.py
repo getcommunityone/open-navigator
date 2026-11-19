@@ -140,8 +140,41 @@ def test_gives_up_after_max_attempts():
 
 def test_missing_key(monkeypatch):
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
-    with pytest.raises(jev.JevError, match="TYPESAFE_API_KEY"):
+    monkeypatch.delenv("JEV_API_KEY", raising=False)
+    with pytest.raises(jev.JevError, match="TYPESAFE_API_KEY or JEV_API_KEY"):
         jev.JevClient()
+
+
+def test_accepts_jev_api_key_alias(monkeypatch):
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setenv("JEV_API_KEY", "jev-test-key")
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["auth"] = request.headers["Authorization"]
+        return httpx.Response(200, json=OK_BODY)
+
+    with jev.JevClient(
+        transport=httpx.MockTransport(handler), sleep=lambda s: None
+    ) as client:
+        client.system_one(state="x", questions={"q": jev.noul("x")})
+    assert seen["auth"] == "Bearer jev-test-key"
+
+
+def test_typesafe_api_key_wins_over_jev_alias(monkeypatch):
+    monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-key")
+    monkeypatch.setenv("JEV_API_KEY", "jev-test-key")
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["auth"] = request.headers["Authorization"]
+        return httpx.Response(200, json=OK_BODY)
+
+    with jev.JevClient(
+        transport=httpx.MockTransport(handler), sleep=lambda s: None
+    ) as client:
+        client.system_one(state="x", questions={"q": jev.noul("x")})
+    assert seen["auth"] == "Bearer typesafe-key"
 
 
 def test_question_builders_validate():

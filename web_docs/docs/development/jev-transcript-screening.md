@@ -29,7 +29,8 @@ out the ones with no decision in them.
 <details>
 <summary>How to run it</summary>
 
-Put a key from the [TypeSafe console](https://console.typesafe.ai/keys) in `.env` as `TYPESAFE_API_KEY`.
+Put a key from the [TypeSafe console](https://console.typesafe.ai/keys) in `.env` as
+`TYPESAFE_API_KEY` or `JEV_API_KEY` (either name works; `TYPESAFE_API_KEY` wins if both are set).
 
 ```bash
 # Count the transcripts and estimate the tokens; sends nothing
@@ -50,7 +51,7 @@ when the questions' wording changes (`question_version`).
 
 | Piece | Where | What it does |
 |---|---|---|
-| Client | `llm.typesafe.client` (`JevClient`, `choice`, `score`, `noul`) | `POST https://api.typesafe.ai/v1/systemone` with `Authorization: Bearer $TYPESAFE_API_KEY`. Retries 429 and 529 with backoff. Writes one usage row per call (`provider = "typesafe"`) |
+| Client | `llm.typesafe.client` (`JevClient`, `choice`, `score`, `noul`) | `POST https://api.typesafe.ai/v1/systemone` with `Authorization: Bearer` from `TYPESAFE_API_KEY` or `JEV_API_KEY`. Retries 429 and 529 with backoff. Writes one usage row per call (`provider = "typesafe"`) |
 | Screen | `python -m llm.typesafe.screen_transcripts` | Reads captioned videos from `bronze.bronze_event_youtube_transcript`, newest first, and asks the three questions |
 | Table | `bronze.bronze_transcript_screen_jev` | One row per video. PK `video_id`. `meeting_kind` and its probabilities, `has_decisions_p`, `mentions_data_center_p`, chunk counts, input tokens, the raw answers, `question_version`, `screened_at` |
 | Gate | `llm.gemini.batch_backlog submit --skip-jev-below P` | Leaves out videos whose current screen has `has_decisions_p < P` |
