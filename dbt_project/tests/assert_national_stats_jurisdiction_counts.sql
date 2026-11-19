@@ -9,9 +9,16 @@ with expected as (
     select
         count(*) filter (where jurisdiction_type <> 'state') as jurisdictions_count,
         count(*) filter (where jurisdiction_type = 'school_district') as school_districts_count,
+        -- #356 / #605: same FUNCSTAT gate as jurisdiction_state_aggregate —
+        -- municipality/township/county A/B/C; school_district A/B/C/E.
         count(*) filter (
-            where jurisdiction_type in ('county', 'school_district')
-               or (jurisdiction_type in ('municipality', 'township') and funcstat in ('A', 'B', 'C'))
+            where (
+                jurisdiction_type in ('municipality', 'township', 'county')
+                and funcstat in ('A', 'B', 'C')
+            ) or (
+                jurisdiction_type = 'school_district'
+                and funcstat in ('A', 'B', 'C', 'E')
+            )
         ) as governments_count
     from {{ ref('int_jurisdictions') }}
     where state_code is not null

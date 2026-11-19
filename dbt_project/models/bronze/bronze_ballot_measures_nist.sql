@@ -7,27 +7,25 @@
 }}
 
 /*
-Bronze Ballot Measures — NIST SP 1500-100 / VIP-aligned landing table.
+    Bronze Ballot Measures — NIST SP 1500-100 / VIP-aligned landing table.
 
-Spec: NIST Election Results Reporting Common Data Format (ERR-CDF), SP 1500-100.
-      https://pages.nist.gov/ElectionResultsReporting/
-      Companion VIP CDF: SP 1500-101 (https://vip-specification.readthedocs.io/)
+    Spec: NIST Election Results Reporting Common Data Format (ERR-CDF), SP 1500-100.
+          https://pages.nist.gov/ElectionResultsReporting/
+          Companion VIP CDF: SP 1500-101 (https://vip-specification.readthedocs.io/)
 
-Preserves the raw shape of NIST classes:
-  - BallotMeasureContest      (the contest wrapper for the measure)
-  - BallotMeasureSelection    (the voter choices, typically Yes / No)
-  - BallotMeasureType         (enum: initiative | referendum | recall | other)
-  - GpUnit                    (geo-political unit — joined to OCD Division IDs
-                               via the NIST ExternalIdentifier mechanism)
+    Sources unioned here: Ballotpedia, VIP feeds, AI-extracted measures.
+    `bronze_vip_ballot_measures` is optional locally (#486): when the raw VIP
+    landing table is missing, the VIP leg contributes zero rows so the model
+    still builds.
 
-Sources unioned here: Ballotpedia, VIP feeds, state Secretary-of-State XML,
-AI-extracted measures from meeting minutes. Each row keeps its provenance in
-`source_system` so silver/public layers can resolve conflicts.
-
-Linkage to OCD: every row carries `ocd_division_id` populated from
-`GpUnit.ExternalIdentifier[Type=ocd-id]` so downstream models can join to the
-canonical jurisdiction table without a separate crosswalk.
+    source() is called before the guard so dbt records the dependency at parse time.
 */
+
+{%- set vip_src = source('bronze', 'bronze_vip_ballot_measures') -%}
+{%- set vip_exists = execute and adapter.get_relation(
+        database=vip_src.database,
+        schema=vip_src.schema,
+        identifier=vip_src.identifier) is not none -%}
 
 WITH ballotpedia_measures AS (
     SELECT
@@ -51,11 +49,12 @@ WITH ballotpedia_measures AS (
 ),
 
 vip_measures AS (
+    {% if vip_exists %}
     SELECT
         'vip_cdf'                                           AS source_system,
         vip.contest_object_id                               AS source_record_id,
         vip.ocd_division_id                                 AS ocd_division_id,
-        vip.election_date                                   AS election_date,
+        vip.election_date::text                             AS election_date,
         vip.ballot_measure_identifier                       AS contest_identifier,
         vip.contest_name                                    AS contest_name,
         vip.full_text                                       AS contest_full_text,
@@ -67,8 +66,12 @@ vip_measures AS (
         NULL::bigint                                        AS no_votes,
         NULL::boolean                                       AS passed,
         vip.ingested_at                                     AS extracted_at
-    FROM {{ source('bronze', 'bronze_vip_ballot_measures') }} vip
+    FROM {{ vip_src }} vip
     WHERE vip.ocd_division_id IS NOT NULL
+    {% else %}
+    -- Typed empty set matching ballotpedia_measures (VIP landing table absent locally).
+    SELECT * FROM ballotpedia_measures WHERE false
+    {% endif %}
 ),
 
 ai_extracted_measures AS (
@@ -76,7 +79,7 @@ ai_extracted_measures AS (
         'ai_extraction'                                     AS source_system,
         ai.source_event_id || '_' || ai.measure_id          AS source_record_id,
         ai.ocd_division_id                                  AS ocd_division_id,
-        (ai.measure_data->>'election_date')::date           AS election_date,
+        ai.measure_data->>'election_date'                   AS election_date,
         ai.measure_data->>'identifier'                      AS contest_identifier,
         ai.measure_data->>'title'                           AS contest_name,
         ai.measure_data->>'full_text'                       AS contest_full_text,
@@ -101,32 +104,19 @@ unioned AS (
 )
 
 SELECT
-    -- Composite primary key
     source_system || ':' || source_record_id                AS ballot_measure_uid,
-
-    -- Provenance
     source_system,
     source_record_id,
     source_url,
     extracted_at,
-
-    -- NIST GpUnit linkage (OCD Division ID is the External Identifier we use)
     ocd_division_id,
-
-    -- NIST Election context
     election_date,
-
-    -- NIST BallotMeasureContest fields
     contest_identifier,
     contest_name,
     contest_full_text,
     contest_summary_text,
     subject_areas,
-
-    -- NIST BallotMeasureType (kept raw at bronze; normalized in public layer)
     ballot_measure_type_raw,
-
-    -- NIST ContestResults / BallotMeasureSelectionResults (sparse at bronze)
     yes_votes,
     no_votes,
     passed
