@@ -178,11 +178,12 @@ async def extract_contact_directory(
     )
     # A plain browser: we do not try to get past bot protection (decision 2026-11-16, #443, #462).
     browser_config = BrowserConfig(headless=True)
+    # Do not enable crawl4ai "magic" mode: it acts like override_navigator /
+    # simulate_user and randomizes the UA (#443, #588). Overlays: process_iframes.
     run_config = CrawlerRunConfig(
         extraction_strategy=llm_strategy,
         cache_mode=CacheMode.BYPASS,
         process_iframes=True,
-        magic=True,
     )
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
