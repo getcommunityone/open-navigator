@@ -59,3 +59,20 @@ channel covering several Georgia governments) keep a NULL jurisdiction and remai
 The dbt test `assert_event_documents_covers_captioned_transcripts` (severity warn) lists captioned transcripts that
 meet the rule but have no document, so a new gap shows up after the next build.
 `assert_event_documents_excludes_junk_and_non_us` (severity error) fails if a junk or Canadian transcript is served.
+`assert_event_documents_transcript_lag` (severity warn, #563) fires when the newest captioned bronze transcript is
+more than 24 hours newer than `event_documents`.
+
+## Load then build (#563)
+
+A transcript that lands in bronze **after** `events_text_search` builds stays out of `event_documents` and
+`recent_transcribed_meeting` until those models run again. After any transcript load, rebuild the chain in one go:
+
+```bash
+./scripts/dbt.sh run --select events_text_search+
+# or from repo root with the dbt venv:
+#   export DBT_PROFILES_DIR="$(pwd)/dbt_project"
+#   .venv-dbt/bin/dbt run --project-dir dbt_project --select events_text_search+
+```
+
+That selects `events_text_search` and everything downstream (`event_documents`, `recent_transcribed_meeting`, …) so a
+transcript loaded at time T reaches `public` in the same run.
