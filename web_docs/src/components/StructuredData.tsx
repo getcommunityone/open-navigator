@@ -12,7 +12,7 @@ export default function StructuredData(): JSX.Element {
     "legalName": "CommunityOne",
     "url": "https://www.communityone.com",
     "logo": "https://www.communityone.com/img/communityone_logo.svg",
-    "description": "Track local governments, 1.8M nonprofits, and analyze meeting minutes with AI. The open path to everything local.",
+    "description": "Track local governments and nonprofits, and analyze meeting minutes with AI. The open path to everything local.",
     "email": "johnbowyer@communityone.com",
     "address": {
       "@type": "PostalAddress",
@@ -67,11 +67,11 @@ export default function StructuredData(): JSX.Element {
       "price": "0",
       "priceCurrency": "USD"
     },
-    "description": "Track local governments, 1.8M nonprofits, and analyze meeting minutes with AI",
+    "description": "Track local governments and nonprofits, and analyze meeting minutes with AI",
     "screenshot": "https://www.communityone.com/img/docusaurus-social-card.jpg",
     "featureList": [
       "Track local governments across the U.S.",
-      "Monitor 1.8M nonprofits",
+      "Browse nonprofit organizations",
       "Analyze meeting minutes",
       "Legislative bill tracking",
       "Campaign finance data"
