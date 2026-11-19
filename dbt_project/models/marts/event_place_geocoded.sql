@@ -44,6 +44,24 @@ cache as (
         geocode_source as cache_geocode_source
     from {{ source('bronze', 'place_geocode_cache') }}
     where geocode_status = 'ok'
+),
+
+-- Place-like types that may surface Nominatim/Census cache coordinates (#497).
+-- Non-place extraction noise (year, currency, person, …) kept in the cache is
+-- not joined onto the map. Keep in sync with
+-- ingestion.geocode.backfill_places.NOMINATIM_PLACE_TYPES (+ street_address).
+place_like as (
+    select *
+    from ep
+    where place_type = 'street_address'
+       or place_type in (
+            'facility', 'corridor', 'neighborhood', 'subdivision', 'intersection',
+            'city', 'campus', 'park', 'bridge', 'street', 'region', 'state',
+            'county', 'municipality', 'country', 'jurisdiction', 'parcel',
+            'school', 'infrastructure', 'incorporated_municipality',
+            'natural_feature', 'natural_resource', 'development',
+            'body_of_water', 'river', 'continent', 'government_agency'
+       )
 )
 
 select
@@ -68,14 +86,21 @@ select
     ep.place_state_code,
     ep.geocode_query,
 
-    -- existing coordinates win; cache only fills the gaps
-    coalesce(ep.latitude,  c.cache_latitude)  as latitude,
-    coalesce(ep.longitude, c.cache_longitude) as longitude,
+    -- existing coordinates win; cache only fills gaps for place-like types
+    coalesce(
+        ep.latitude,
+        case when pl.event_place_id is not null then c.cache_latitude end
+    ) as latitude,
+    coalesce(
+        ep.longitude,
+        case when pl.event_place_id is not null then c.cache_longitude end
+    ) as longitude,
 
     -- provenance of the surfaced coordinate
     case
         when ep.latitude is not null and ep.longitude is not null then 'extract'
-        when c.cache_latitude is not null and c.cache_longitude is not null
+        when pl.event_place_id is not null
+             and c.cache_latitude is not null and c.cache_longitude is not null
             then coalesce(c.cache_geocode_source, 'geocode_cache')
         else null
     end                                       as geocode_source,
@@ -88,4 +113,5 @@ select
     ep.source_ai_model,
     ep.extracted_at
 from ep
+left join place_like pl on pl.event_place_id = ep.event_place_id
 left join cache c on c.geocode_key = ep.geocode_key

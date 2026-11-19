@@ -9,8 +9,10 @@ key-less geocoders, writing the results into the additive cache table
 
 * ``place_type='street_address'`` -> US Census Bureau batch geocoder
   (:class:`ingestion.geocode.census_batch.CensusBatchGeocoder`), batched.
-* everything else -> OpenStreetMap Nominatim (reused from
-  ``llm.gemini.enrich_analysis_places._nominatim_geocode``) at 1.1 s/req.
+* place-like types in :data:`NOMINATIM_PLACE_TYPES` -> OpenStreetMap Nominatim
+  (reused from ``llm.gemini.enrich_analysis_places._nominatim_geocode``) at
+  1.1 s/req. Non-place extraction noise (year, currency, person, …) is skipped
+  (#497).
 
 Idempotent / resumable: targets already present in the cache are skipped, so a
 re-run only processes the remainder.
@@ -65,8 +67,52 @@ NOMINATIM_MAX_CONSECUTIVE_ERRORS = 5
 CENSUS_BATCH_SIZE = 1_000
 PROGRESS_EVERY = 100
 
+# Place-like ``event_place.place_type`` values that may hit OpenStreetMap
+# Nominatim (#497). AI extraction also emits non-places (year, date, currency,
+# person, fund, …); those must not consume the 1 req/s budget or put points on
+# the decisions map. ``street_address`` stays on the Census lane;
+# ``jurisdiction_wide`` is excluded entirely. Keep in sync with the allow-list
+# filter in ``dbt_project/models/marts/event_place_geocoded.sql``.
+NOMINATIM_PLACE_TYPES: frozenset[str] = frozenset(
+    {
+        "facility",
+        "corridor",
+        "neighborhood",
+        "subdivision",
+        "intersection",
+        "city",
+        "campus",
+        "park",
+        "bridge",
+        "street",
+        "region",
+        "state",
+        "county",
+        "municipality",
+        "country",
+        "jurisdiction",
+        "parcel",
+        "school",
+        "infrastructure",
+        "incorporated_municipality",
+        "natural_feature",
+        "natural_resource",
+        "development",
+        "body_of_water",
+        "river",
+        "continent",
+        "government_agency",
+    }
+)
+
 DEFAULT_EVENT_PLACE_SCHEMA = "gold"
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _nominatim_place_type_sql() -> str:
+    """SQL ``IN (...)`` fragment for :data:`NOMINATIM_PLACE_TYPES` (sorted for stability)."""
+    inner = ", ".join(f"'{t}'" for t in sorted(NOMINATIM_PLACE_TYPES))
+    return f"ep.place_type IN ({inner})"
 
 
 def resolve_schema(cli_value: str | None = None) -> str:
@@ -161,9 +207,10 @@ _HAS_DECISION_EXPR = (
 )
 
 # DISTINCT pending targets. ``place_type='street_address'`` is mapped to the
-# census lane; everything else (and jurisdiction_wide is excluded entirely) to
-# the nominatim lane. DISTINCT ON keeps one row per cache key, preferring a row
-# linked to a decision; the outer query orders (and limits) the targets.
+# census lane; Nominatim gets only :data:`NOMINATIM_PLACE_TYPES` (and
+# jurisdiction_wide is excluded entirely). DISTINCT ON keeps one row per cache
+# key, preferring a row linked to a decision; the outer query orders (and
+# limits) the targets.
 _SELECT_TARGETS_SQL = """
     SELECT raw_key, query_text, place_type, street_address, city, state_code,
            has_decision
@@ -214,9 +261,14 @@ def build_targets_query(
     if source == "census":
         place_filter = "AND ep.place_type = 'street_address'"
     elif source == "nominatim":
-        place_filter = "AND ep.place_type <> 'street_address'"
+        place_filter = f"AND {_nominatim_place_type_sql()}"
     elif source == "all":
-        place_filter = ""
+        # Census lane + Nominatim allow-list; drop non-place noise and
+        # jurisdiction_wide (already excluded above).
+        place_filter = (
+            "AND (ep.place_type = 'street_address' OR "
+            f"{_nominatim_place_type_sql()})"
+        )
     else:
         raise ValueError(f"Unknown source: {source!r}")
 
@@ -318,7 +370,9 @@ def _split_lanes(
     targets: list[GeocodeTarget],
 ) -> tuple[list[GeocodeTarget], list[GeocodeTarget]]:
     census = [t for t in targets if t.place_type == "street_address"]
-    nominatim = [t for t in targets if t.place_type != "street_address"]
+    nominatim = [
+        t for t in targets if t.place_type in NOMINATIM_PLACE_TYPES
+    ]
     return census, nominatim
 
 
