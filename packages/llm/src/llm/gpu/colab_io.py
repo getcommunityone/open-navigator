@@ -1,10 +1,10 @@
 """Colab GPU runs: secrets, GPU facts, compute units and the landing-volume / Drive storage they read and write.
 
-Shared by the Colab runners (``llm.gpu.colab_policy_analyze``, #511). The pattern is PR #489's
-(``llm.gpu.colab_diarize``, still open when this was written): the Databricks Files API with ``DATABRICKS_HOST`` /
-``DATABRICKS_TOKEN`` from Colab secrets or the environment, else a mounted Google Drive folder. Paths are relative to
-the landing volume ``/Volumes/open_navigator/open_navigator_landing/crawl``, and the Drive folder mirrors it, so a run
-reads and writes the same relative paths either way. Tokens are never printed or logged.
+Shared by the Colab runners (``llm.gpu.colab_policy_analyze``, #511; ``llm.gpu.colab_diarize``, #518): the Databricks
+Files API with ``DATABRICKS_HOST`` / ``DATABRICKS_TOKEN`` from Colab secrets or the environment, else a mounted Google
+Drive folder. Paths are relative to the landing volume ``/Volumes/open_navigator/open_navigator_landing/crawl``, and
+the Drive folder mirrors it, so a run reads and writes the same relative paths either way. Tokens are never printed
+or logged.
 
 Colab has no API for compute units (CU). A row's CU is GPU seconds times a per-GPU rate and says it is an estimate; a
 batch's measured CU is the balance the owner reads in Colab's Resources panel before minus after.
@@ -159,6 +159,7 @@ class Store(Protocol):
     label: str
 
     def list_names(self, rel_dir: str) -> set[str]: ...
+    def local_copy(self, rel: str, dest_dir: Path) -> Path: ...
     def read_text(self, rel: str) -> str | None: ...
     def write_bytes(self, rel: str, data: bytes) -> None: ...
 
@@ -176,6 +177,12 @@ class LocalStore:
     def list_names(self, rel_dir: str) -> set[str]:
         d = self._path(rel_dir)
         return {p.name for p in d.iterdir()} if d.is_dir() else set()
+
+    def local_copy(self, rel: str, dest_dir: Path) -> Path:
+        p = self._path(rel)
+        if not p.is_file():
+            raise FileNotFoundError(f"{rel} not found in {self.label}")
+        return p
 
     def read_text(self, rel: str) -> str | None:
         p = self._path(rel)
@@ -212,6 +219,14 @@ class DatabricksVolumeStore:
             if self._is_not_found(exc):
                 return set()
             raise
+
+    def local_copy(self, rel: str, dest_dir: Path) -> Path:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / posixpath.basename(rel)
+        resp = self.client.files.download(self._path(rel))
+        with dest.open("wb") as f:
+            shutil.copyfileobj(resp.contents, f, 1 << 20)
+        return dest
 
     def read_text(self, rel: str) -> str | None:
         try:
