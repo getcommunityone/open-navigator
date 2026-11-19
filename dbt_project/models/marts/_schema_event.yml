@@ -333,7 +333,10 @@ models:
     columns:
       - name: word
         data_type: text
-        description: "Distinct corpus lexeme (stemmed token). Trigram-indexed (GIN)."
+        description: "Distinct corpus lexeme (stemmed token). Trigram-indexed (GIN). Primary key."
+        constraints:
+          - type: not_null
+          - type: primary_key
         tests:
           - unique
           - not_null

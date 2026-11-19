@@ -1,7 +1,8 @@
 {{
     config(
         materialized='table',
-        unique_key=['level', 'state_code', 'county', 'city']
+        unique_key=['level', 'state_code', 'county', 'city'],
+        post_hook=[gold_pk_post_hook('level, state_code, county, city')]
     )
 }}
 
@@ -377,10 +378,12 @@ national_trending_causes AS (
 national_stats AS (
     SELECT
         'national' as level,
-        NULL::VARCHAR(2) as state_code,
+        -- Empty-string sentinels (#567): PRIMARY KEY columns cannot be NULL.
+        -- Coarser levels use '' for finer-grain dimensions (not applicable).
+        ''::VARCHAR(2) as state_code,
         NULL::VARCHAR(50) as state,
-        NULL::VARCHAR(100) as county,
-        NULL::VARCHAR(100) as city,
+        ''::VARCHAR(100) as county,
+        ''::VARCHAR(100) as city,
         
         COALESCE((SELECT SUM(jurisdictions_count) FROM jurisdiction_counts), 0)::INTEGER as jurisdictions_count,
         COALESCE((SELECT SUM(school_districts_count) FROM jurisdiction_counts), 0)::INTEGER as school_districts_count,
@@ -418,8 +421,8 @@ state_stats AS (
         'state' as level,
         nps.state_code,
         NULL::VARCHAR(50) as state,
-        NULL::VARCHAR(100) as county,
-        NULL::VARCHAR(100) as city,
+        ''::VARCHAR(100) as county,
+        ''::VARCHAR(100) as city,
         
         COALESCE((SELECT jurisdictions_count FROM jurisdiction_counts WHERE state_code = nps.state_code), 0)::INTEGER as jurisdictions_count,
         COALESCE((SELECT school_districts_count FROM jurisdiction_counts WHERE state_code = nps.state_code), 0)::INTEGER as school_districts_count,
@@ -452,7 +455,7 @@ county_stats AS (
         nps.state_code,
         NULL::VARCHAR(50) as state,
         nps.county,
-        NULL::VARCHAR(100) as city,
+        ''::VARCHAR(100) as city,
         
         0 as jurisdictions_count,
         0 as school_districts_count,
@@ -517,8 +520,9 @@ city_stats AS (
         {{ state_code_to_name('ck.state_code') }}::VARCHAR(50) as state,
         -- FIX: carry the city's primary county so the grain is genuinely
         -- (level, state_code, county, city) and distinct same-named places in
-        -- different counties cannot merge into one row.
-        c2c.primary_county::VARCHAR(100) as county,
+        -- different counties cannot merge into one row. COALESCE to '' so the
+        -- composite PK (#567) stays NOT NULL when no county map row exists.
+        COALESCE(c2c.primary_county, '')::VARCHAR(100) as county,
         INITCAP(ck.city_upper)::VARCHAR(100) as city,
 
         0 as jurisdictions_count,

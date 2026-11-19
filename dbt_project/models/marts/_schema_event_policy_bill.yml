@@ -16,6 +16,9 @@ models:
     columns:
       - name: source_event_id_leg_id
         description: PK — already unique in bronze.bronze_bills.
+        constraints:
+          - type: not_null
+          - type: primary_key
         tests:
           - unique
           - not_null

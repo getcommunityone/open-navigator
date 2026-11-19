@@ -2,7 +2,8 @@
     config(
         materialized='table',
         unique_key='source_event_id_leg_id',
-        tags=['marts', 'policy-analysis', 'text', 'ai']
+        tags=['marts', 'policy-analysis', 'text', 'ai'],
+        post_hook=[gold_pk_post_hook('source_event_id_leg_id')]
     )
 }}
 

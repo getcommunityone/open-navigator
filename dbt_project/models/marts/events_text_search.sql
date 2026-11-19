@@ -7,7 +7,8 @@
       {'columns': ['event_id'], 'type': 'btree'},
       {'columns': ['video_id'], 'unique': True},
       {'columns': ['transcript_source'], 'type': 'btree'}
-    ]
+    ],
+    post_hook=[gold_pk_post_hook('video_id')]
   )
 }}
 

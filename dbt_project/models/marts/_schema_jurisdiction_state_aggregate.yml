@@ -8,36 +8,51 @@ models:
       used by the API/UI stats panels. One row per
       (level, state_code, county, city). `level` is one of
       national/state/county/city. For coarser levels the finer-grain columns are
-      NULL by design: national has state_code/county/city NULL; state has
-      county/city NULL; county has city NULL. The compound grain
-      (level, state_code, county, city) is therefore the natural key - the
-      unique_combination_of_columns test below enforces it (Postgres GROUP BY
-      treats NULLs as equal, so the coarse-level NULLs collapse to one row per
-      level/state and do not cause a spurious failure). The model SQL was fixed
-      to carry each city's primary county into the `county` column so distinct
-      same-named cities in different counties stay on separate rows instead of
-      merging and inflating counts.
+      empty-string sentinels (#567) so the composite PRIMARY KEY can be NOT NULL:
+      national has state_code/county/city = ''; state has county/city = '';
+      county has city = ''. The compound grain (level, state_code, county, city)
+      is the natural key — unique_combination_of_columns + PK enforce it. The
+      model SQL carries each city's primary county into the `county` column so
+      distinct same-named cities in different counties stay on separate rows;
+      cities with no county map use '' rather than NULL.
     config:
       materialized: table
+    constraints:
+      - type: primary_key
+        columns: [level, state_code, county, city]
     columns:
       - name: level
-        description: "Aggregation level: national | state | county | city. Natural-key component."
+        description: "Aggregation level: national | state | county | city. Natural-key / PK component."
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - accepted_values:
               values: ['national', 'state', 'county', 'city']
       - name: state_code
-        description: "2-letter state code. NULL only for the national level. Natural-key component."
+        description: "2-letter state code. Empty string for the national level (PK sentinel). Natural-key / PK component."
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
       - name: state
         description: "Full state name (populated for city level via state_code_to_name; NULL at coarser levels)."
       - name: county
         description: >
-          County name. Natural-key component. Populated for county level (the
+          County name. Natural-key / PK component. Populated for county level (the
           county's own name) and for city level (the city's primary county, the
-          county holding the most of that city's nonprofits). NULL for
-          national/state levels.
+          county holding the most of that city's nonprofits). Empty string for
+          national/state levels and for city rows with no county map.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
       - name: city
-        description: "City name. Natural-key component. Populated only for the city level; NULL otherwise."
+        description: "City name. Natural-key / PK component. Populated only for the city level; empty string otherwise."
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
       - name: jurisdictions_count
         description: "Census geographies below the state in int_jurisdictions: counties, Census places (including census-designated places, which have no government), county subdivisions and school districts. A count of mapped geographies, not of governments. Populated on national and state rows; 0 on county/city rows (not yet computed at that grain)."
         tests:
