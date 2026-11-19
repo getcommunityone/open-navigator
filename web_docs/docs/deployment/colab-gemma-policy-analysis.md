@@ -90,6 +90,9 @@ signed in with the owner's Google account. **Runtime → Change runtime type →
    of this session by GPU seconds (labelled an estimate).
 7. **Summary.** A table per meeting: status, items, tokens, attempts, seconds, compute units. Put it and the usage
    lines in the run's issue or PR.
+8. **Finish.** Releases the runtime so it stops using compute units, but only when the results are on the landing
+   volume or a mounted Drive (or you tick that you copied them by hand). If they are only on the runtime's disk it
+   stops and says so, because releasing wipes the disk.
 
 The same run from a terminal on the GPU box:
 
@@ -102,7 +105,9 @@ python -m llm.gpu.colab_policy_analyze --videos-file policy_export/2026-11-17/vi
 Flags: `--videos-file`, `--model`, `--quantize {auto,4bit,none}`, `--pilot N`, `--limit`, `--out` (default
 `policy_analysis`), `--run-date` (to resume an earlier day's run), `--max-new-tokens` (default 32,768),
 `--cu-per-hour`, `--attn-implementation {sdpa,eager,flash_attention_2}` (passed to transformers only when given; for
-long prompts that run out of GPU memory), `--dry-run` (plan only; no model). Each generation logs its peak GPU memory.
+long prompts that run out of GPU memory), `--max-input-tokens N` (a meeting whose prompt is longer fails at once
+with a clear reason instead of running into an out-of-memory error; 28,416 tokens fit an A100 80 GB, 56,752 did not),
+`--dry-run` (plan only; no model). Each generation logs its peak GPU memory.
 
 ### What a run writes
 
