@@ -520,11 +520,17 @@ def rank_websites(rows: Iterable[dict[str, Any]], gov: Government, limit: int = 
 
     Order: curated overrides, hosts that carry the government's name, ``.gov``, source,
     shorter domains. Dropped: department side-sites (sheriff, 911, courts ...), GSA rows
-    registered by a different agency, and Wikidata or scraped rows whose host doesn't
-    carry the name (Wikidata gives some counties another state's county site, #461).
+    registered by a different agency, and (for non-counties) Wikidata or scraped rows
+    whose host doesn't carry the name.
+
+    Counties (#474): after the #461 FIPS/state Wikidata match, do **not** drop
+    Wikidata/scraped county URLs just because the host lacks the full county name
+    (abbreviated domains like ``tuscco.com`` for Tuscaloosa County are real). Ranking
+    still prefers named hosts, ``.gov``, and curated sources (NACO/override) first.
     """
     tokens = name_tokens(gov)
     core = _core_name(gov).lower()
+    require_named_host = gov.jurisdiction_type != "county"
     best: dict[str, tuple[tuple[int, int, int, int, int], str]] = {}
     for row in rows:
         url = str(row.get("website_url") or "").strip()
@@ -541,8 +547,8 @@ def rank_websites(rows: Iterable[dict[str, Any]], gov: Government, limit: int = 
         agency = str(row.get("agency") or "").lower()
         if source == "gsa" and agency and core not in agency:
             continue
-        if source in ("wikidata", "scraped") and not named:
-            continue  # e.g. Wikidata gives some counties another state's county site (#461)
+        if require_named_host and source in ("wikidata", "scraped") and not named:
+            continue
         key = (
             0 if source == "override" else 1,
             0 if named else 1,
