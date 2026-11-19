@@ -148,8 +148,10 @@ are the same scores as every other model comparison, so the Gemma numbers sit ne
 ### Pilot results
 
 The first pilot ran on 2026-11-18 on one A100 80 GB (`transformers` 5.x) with the pilot bundle's three meetings.
-**Only one meeting fit:** `Vs1PKup62NA`, a 28,416-token prompt. The other two (about 39,000 and 57,000 tokens) ran out
-of GPU memory on both models ([#569](https://github.com/getcommunityone/open-navigator/issues/569)).
+**Only one meeting fit:** `Vs1PKup62NA`, a 28,416-token prompt. The other two (56,752 and 81,957 tokens, counted with
+the Gemma tokenizer) ran out of GPU memory on both models
+([#569](https://github.com/getcommunityone/open-navigator/issues/569)). The limit therefore lies somewhere between
+28,416 and 56,752 tokens; the pilot did not test anything in between.
 
 | Model | Precision | GPU | Seconds (28,416-token meeting) | Output tokens | Valid | Item and quote scores |
 |---|---|---|---|---|---|---|
@@ -167,6 +169,24 @@ of GPU memory on both models ([#569](https://github.com/getcommunityone/open-nav
   runtime before they were copied down. There are no recall, precision, vote or quote numbers for any Gemma model, so
   nothing here says Gemma is good enough to replace Gemini. The Gemini baseline for the same meetings is in
   `data/cache/model_comparison/pilot_baseline_20261118T195423Z/` on the laptop that ran the pilot.
+
+### How long the prompts are
+
+Counted on the laptop with the Gemma 4 tokenizer (`tokenizers`, CPU only; the message text only, so the chat template
+adds a few tokens: `Vs1PKup62NA` counts 28,403 here and measured 28,416 on the GPU). The 2026-11-17 bundle has 138
+requests (135 data center meetings and the 3 pilot meetings): smallest 11,060 tokens, median 56,570, largest 436,132.
+
+| Prompt at most | Meetings |
+|---|---|
+| 28,500 tokens (the size that fit) | 25 of 138 |
+| 60,000 tokens | 74 of 138 |
+| 100,000 tokens | 111 of 138 |
+| 131,072 tokens | 120 of 138 |
+| 200,000 tokens | 131 of 138 |
+
+Until the memory problem is understood, **only about 1 meeting in 6 is known to fit** on an A100 80 GB, so a full run of
+the bundle is not yet possible. Whether a given model's context window takes the rest is checked by the runner with the
+real tokenizer.
 
 ### Lessons from the first pilot
 
@@ -205,10 +225,10 @@ never overwrites a Gemini one. Then the usual path: `python -m ingestion.youtube
 ## What is still not known
 
 - **Answer quality.** No Gemma answer has been scored against the Gemini analysis (see the pilot results).
-- **Why prompts of about 39,000 tokens and up run out of memory.** A 28,000-token prompt fits and a 39,000-token one
-  does not, which is what a step that builds an n-by-n attention matrix would give, but this is a guess. The next GPU
-  run should try `--attn-implementation sdpa` against the default on that meeting and read the peak memory the runner
-  now logs.
+- **Why prompts between 28,416 and 56,752 tokens, and up, run out of memory.** The one that fit is 28,416 tokens;
+  the next size up that was tried is 56,752 (at least 4 times the attention memory if attention builds an n-by-n
+  matrix, which is a guess). The next GPU run should try `--attn-implementation sdpa` against the default on a
+  prompt in that range and read the peak memory the runner now logs.
 - **Smaller models.** The 12B, E4B and E2B sizes have not been run: their speed, their memory and their quality are
   unmeasured, and the 12B uses a different model class (`Gemma4UnifiedForConditionalGeneration`) that may need a newer
   transformers.
