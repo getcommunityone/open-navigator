@@ -58,6 +58,44 @@ seeds:
       - name: domain
         description: "FQDN to exclude, e.g. wilcoxcountyal.gov"
 
+  - name: curated_topics
+    description: >
+      Hand-authored, editorial topics unioned into the CivicSearch topic
+      taxonomy (stg_civicsearch__topic -> public.civicsearch_topic, source =
+      'curated'), so Browse Topics, topic pills, meeting_topic_link and the
+      topic counts treat them like the CivicSearch topics (issue #500).
+      topic_id RANGE: curated ids start at 100000. CivicSearch ids are small
+      integers (max 121 today), so a curated id can never collide with one;
+      the next curated topic takes the next free id (100002, ...).
+      keywords are SPECIFIC phrases (unlike CivicSearch's generic keyword_stats),
+      so the transcript keyword models count a single phrase hit as a match for
+      a curated topic (CivicSearch topics need >= 2 distinct phrases), the same
+      rule question_transcript_link uses for curated question aliases.
+      After editing: dbt seed --select curated_topics && dbt build --select stg_civicsearch__topic+.
+    columns:
+      - name: topic_id
+        description: "Curated topic id. Integer, unique, >= 100000 (never collides with a CivicSearch topic_id)."
+        tests:
+          - unique
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 100000
+      - name: name
+        description: "Topic label shown on Browse Topics (e.g. 'Data centers')."
+        tests:
+          - unique
+          - not_null
+      - name: query_id
+        description: "URL-safe slug for the topic (e.g. 'data-centers')."
+        tests:
+          - unique
+          - not_null
+      - name: keywords
+        description: "Pipe-delimited keyword phrases matched against transcripts and decisions (e.g. 'data center|data centre|hyperscale')."
+        tests:
+          - not_null
+
   - name: curated_policy_questions
     description: >
       Hand-authored, editorial "featured" policy questions unioned into
@@ -133,6 +171,47 @@ seeds:
           "Discussed". Never an invented outcome. Normalized in stg_question_instance.
       - name: occurred_at
         description: "When the decision was recorded (event_decision.extracted_at)."
+
+  - name: youtube_channel_attribution_override
+    description: >
+      Hand-reviewed corrections for YouTube channels that discovery filed under the
+      wrong government (#514, #515). One row per channel (video_id empty: the
+      channel-wide default) plus optional per-video rows that win over it. An empty
+      jurisdiction_id means the video is not attributable to any government (a
+      citizen-media channel covering several places): it is served with no
+      jurisdiction rather than a guessed one. Evidence is the channel/video title or
+      website that proves the attribution. Applied by int_youtube__attribution_override
+      in event_youtube_with_jurisdiction (so a re-crawl cannot bring the old
+      attribution back into the served feed) and written back to bronze, the channel
+      catalogs, civic_event and the append-only event_* marts by the
+      repair_youtube_channel_attribution run-operation.
+      After editing: dbt seed --select youtube_channel_attribution_override &&
+      dbt run --select int_youtube__attribution_override &&
+      dbt run-operation repair_youtube_channel_attribution (dry run, then --args '{dry_run: false}').
+    columns:
+      - name: channel_id
+        description: "YouTube channel id (UC...)."
+        tests:
+          - not_null
+      - name: video_id
+        description: "YouTube video id; empty for the channel-wide default row."
+      - name: jurisdiction_id
+        description: "int_jurisdictions.jurisdiction_id the video belongs to; empty = no government."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('int_jurisdictions')
+                field: jurisdiction_id
+      - name: state_code
+        description: "2-letter state of the channel/video, used when jurisdiction_id is empty."
+        tests:
+          - not_null
+      - name: issue
+        description: "GitHub issue that recorded the misattribution."
+      - name: evidence
+        description: "Why this attribution is right: the verbatim title(s), handle or website."
+        tests:
+          - not_null
 
   - name: policy_theme_cofog
     description: >
@@ -263,3 +342,258 @@ seeds:
         description: "Primary key matching int_jurisdictions (e.g. county_01093)"
       - name: website_url
         description: "Full site URL (https://…); normalized like other sources"
+
+  - name: data_center_operators
+    config:
+      column_types:
+        operator_name: text
+        aliases: text
+        meeting_aliases: text
+        source_kind: text
+        source_url: text
+        source_passage: text
+    description: >
+      Curated data center operators and developers (#508), matched against a data center
+      decision's own headline / decision_statement by decision_company_mention (and, #525,
+      against the meeting passages tied to the decision, under a developer cue). aliases is a
+      '|'-separated list of the exact, case-sensitive forms that name the company. A brand
+      name that is also an ordinary word (Switch, Stack, Compass, Aligned, Vantage, Meta,
+      Oracle, Tract) is listed only in a company form ("Switch, Inc.", "Stack
+      Infrastructure", "Meta Platforms", "Meta's", "Oracle Cloud"), never as the bare word.
+      A row here also governs an Epoch AI owner/user name of the same spelling, so Epoch's
+      bare "Meta" or "Cursor" (an Epoch user name that is an ordinary word) never matches.
+      Add a company by adding a row; keep only real company names.
+    columns:
+      - name: operator_name
+        description: "Company name as shown on the page (PK)."
+        tests:
+          - unique
+          - not_null
+      - name: aliases
+        description: "'|'-separated exact forms that name it, matched as whole words/phrases."
+        tests: [not_null]
+      - name: meeting_aliases
+        description: >
+          '|'-separated forms that name the company ONLY in a meeting passage, and only
+          under a developer cue ("on behalf of X", "teamed up with X", "X is a ... developer").
+          Used for a bare word that is also ordinary English (Powerhouse); never matched in a
+          decision's headline or statement.
+      - name: source_kind
+        description: "meeting_passage for a row added from a meeting's own words (#525); blank for the original curated rows."
+      - name: source_url
+        description: "The recording at the moment the passage is said. Required when source_kind is meeting_passage."
+        tests:
+          - not_null:
+              config:
+                where: "source_kind = 'meeting_passage'"
+      - name: source_passage
+        description: "The verbatim transcript words that name the company. Required when source_kind is meeting_passage."
+        tests:
+          - not_null:
+              config:
+                where: "source_kind = 'meeting_passage'"
+
+  - name: data_center_companies
+    config:
+      column_types:
+        company_key: text
+        company_name: text
+        aliases: text
+        roles: text
+        website_url: text
+        press_feed_url: text
+        source_kind: text
+        source_url: text
+        source_excerpt: text
+    description: >
+      Curated data center companies (#531): operators, developers, owners, tenants/users and
+      utility partners. Each row enters the organization master as org_type 'company'
+      (stg_data_center_companies__org -> mdm_organization) and gets a row in the
+      mdm_organization_data_center satellite. A company has no city or state here, so it
+      clusters with a same-name national mention already in the master (the AI-extracted
+      "Google") instead of duplicating it. Every row carries source_url and a verbatim
+      source_excerpt; source_kind is company_announcement, news_article or dataset_row
+      (a quoted field of a published dataset, "<row> | <field>: <value>"). Add only real
+      companies a source names; never a guessed website or feed.
+    columns:
+      - name: company_key
+        description: "Stable slug (PK), e.g. applied-digital."
+        tests: [unique, not_null]
+      - name: company_name
+        description: "The company's name as it is commonly written."
+        tests: [unique, not_null]
+      - name: aliases
+        description: "'|'-separated exact forms that name it."
+      - name: roles
+        description: "'|'-separated roles: developer, operator, owner, tenant, user, utility."
+        tests: [not_null]
+      - name: website_url
+        description: "The company's own website; blank when not confirmed."
+      - name: press_feed_url
+        description: "RSS feed of the company's press releases / investor news, when public and confirmed."
+      - name: source_kind
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['company_announcement', 'news_article', 'dataset_row']
+      - name: source_url
+        tests: [not_null]
+      - name: source_excerpt
+        description: "Verbatim text from source_url that names the company."
+        tests: [not_null]
+
+  - name: local_news_feeds
+    config:
+      column_types:
+        feed_id: text
+        outlet: text
+        state_code: text
+        feed_url: text
+        robots_checked_on: date
+        robots_allowed: boolean
+        enabled: boolean
+        note: text
+    description: >
+      Local news RSS/Atom feeds the data center meeting finder reads (#549), starting with the
+      states that have tracked data center projects. One row per feed. The loader
+      (`python -m ingestion.data_centers.community_events --source rss`) reads only rows that
+      are enabled and whose robots.txt check allowed the feed path for its User-Agent, and
+      checks robots.txt again live before fetching. robots_checked_on / robots_allowed are
+      written by `python -m ingestion.data_centers.news_feeds --check-robots`. A feed_url with
+      {term} is an outlet's own topic feed, expanded per tracked company name and project
+      place. A row with no feed_url records an outlet with no published feed; a disabled row
+      records why (note), e.g. a feed that answers HTTP 429 to automated clients. Never add a
+      search engine's feed (Google News RSS is disallowed by its robots.txt).
+    columns:
+      - name: feed_id
+        description: "Stable slug (PK), e.g. abc3340-local."
+        tests: [unique, not_null]
+      - name: outlet
+        description: "The news outlet as it names itself."
+        tests: [not_null]
+      - name: state_code
+        description: "Two-letter state the outlet covers."
+        tests: [not_null]
+      - name: feed_url
+        description: "The feed URL; blank when the outlet publishes none."
+      - name: robots_checked_on
+        description: "Date robots.txt was last checked for the feed path."
+      - name: robots_allowed
+        description: "Whether robots.txt allowed the feed path for the loader's User-Agent on that date (403, 429 or a bot challenge in place of robots.txt counts as not allowed)."
+        tests: [not_null]
+      - name: enabled
+        description: "false keeps a feed listed but unread (see note)."
+        tests: [not_null]
+      - name: note
+        description: "Why a feed is disabled or blank, or what kind of feed it is."
+
+  - name: data_center_projects
+    config:
+      column_types:
+        project_key: text
+        project_name: text
+        developer_key: text
+        operator_key: text
+        tenant_key: text
+        area: text
+        city: text
+        county: text
+        state_code: text
+        status: text
+        announced_on: text
+        data_center_site_name: text
+        source_kind: text
+        source_url: text
+        source_excerpt: text
+        company_source_url: text
+        company_source_excerpt: text
+        announced_source_url: text
+        announced_source_excerpt: text
+        tenant_source_url: text
+        tenant_source_excerpt: text
+    description: >
+      Curated data center projects (#531) found in company announcements and news, one row
+      per project, each with the source that names it (source_url + verbatim
+      source_excerpt). developer_key / operator_key / tenant_key are company_keys from
+      data_center_companies, blank when no source names one. city / county / state_code
+      only as a source states them. data_center_site_name names the Epoch AI site when the
+      project is one (folded into data_center_project instead of repeated).
+      company_source_url / company_source_excerpt source the developer / operator, and
+      tenant_source_url / tenant_source_excerpt the tenant, when a different passage names them. Figures go in
+      data_center_project_figures, one row per figure and source.
+    columns:
+      - name: project_key
+        tests: [unique, not_null]
+      - name: project_name
+        tests: [not_null]
+      - name: developer_key
+        tests:
+          - relationships: {arguments: {to: ref('data_center_companies'), field: company_key}}
+      - name: operator_key
+        tests:
+          - relationships: {arguments: {to: ref('data_center_companies'), field: company_key}}
+      - name: tenant_key
+        tests:
+          - relationships: {arguments: {to: ref('data_center_companies'), field: company_key}}
+      - name: data_center_site_name
+        description: "The Epoch AI site this project is (data_center_site.site_name); blank when none."
+        tests:
+          - relationships: {arguments: {to: ref('data_center_site'), field: site_name}}
+      - name: status
+        description: "announced, planned, under_construction, operating or cancelled; blank when no source says."
+        tests:
+          - accepted_values:
+              values: ['announced', 'planned', 'under_construction', 'operating', 'cancelled']
+      - name: announced_on
+        description: "Date (YYYY-MM-DD) the announcement is dated; blank when no source dates it. Requires announced_source_url / announced_source_excerpt (the passage that dates it)."
+      - name: source_kind
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['company_announcement', 'news_article', 'dataset_row']
+      - name: source_url
+        tests: [not_null]
+      - name: source_excerpt
+        tests: [not_null]
+
+  - name: data_center_project_figures
+    config:
+      column_types:
+        project_key: text
+        metric: text
+        value: numeric
+        unit: text
+        source_kind: text
+        source_url: text
+        source_excerpt: text
+        published_on: text
+    description: >
+      One row per figure a source states about a curated data center project (#531).
+      Sources that disagree each get their own row; nothing is averaged or picked.
+      value is the number the excerpt states, in unit (e.g. "$3.2 billion" -> 3200000000 usd).
+    columns:
+      - name: project_key
+        tests:
+          - not_null
+          - relationships:
+              to: ref('data_center_projects')
+              field: project_key
+      - name: metric
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['investment_usd', 'it_mw', 'utility_mw', 'acres', 'square_feet', 'jobs']
+      - name: value
+        tests: [not_null]
+      - name: unit
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['usd', 'mw', 'acres', 'sq_ft', 'jobs']
+      - name: source_url
+        tests: [not_null]
+      - name: source_excerpt
+        description: "Verbatim text from source_url that states the figure."
+        tests: [not_null]
+      - name: published_on
+        description: "The source's publication date (YYYY-MM-DD), when it gives one."

@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import type { LiveStatSpec } from '../utils/liveStats'
 import {
   UserGroupIcon,
   BuildingOfficeIcon,
@@ -27,7 +28,10 @@ export interface ExploreCard {
   icon: ComponentType<{ className?: string }>
   path: string
   color: string
+  /** Fixed, non-numeric caption. */
   stats?: string
+  /** Count read live from /api/stats; the chip is hidden while it is unavailable. Never type a number into `stats`. */
+  liveStat?: LiveStatSpec
 }
 
 export interface ActionPhase {
@@ -102,7 +106,7 @@ const phaseLearnCards: ExploreCard[] = [
     icon: DocumentTextIcon,
     path: '/documents',
     color: '#354F52',
-    stats: '500K+ meeting pages',
+    liveStat: { key: 'events', noun: 'meetings' },
   },
   {
     title: 'Budget Analysis',
@@ -120,7 +124,7 @@ const phaseLearnCards: ExploreCard[] = [
     icon: MapIcon,
     path: '/policy-map',
     color: '#84A98C',
-    stats: '13K+ bills',
+    liveStat: { key: 'bills', noun: 'bills' },
   },
   {
     title: 'Fact-Checking',
@@ -150,7 +154,7 @@ const phaseDecideCards: ExploreCard[] = [
     icon: BuildingOfficeIcon,
     path: '/nonprofits',
     color: '#354F52',
-    stats: '43K+ organizations',
+    liveStat: { key: 'nonprofits', noun: 'organizations' },
   },
   {
     title: 'Advocacy Topics',
@@ -177,7 +181,7 @@ const phaseDecideCards: ExploreCard[] = [
     icon: UserGroupIcon,
     path: '/people',
     color: '#CAD2C5',
-    stats: '100K+ officials',
+    liveStat: { key: 'leaders', noun: 'officials' },
   },
 ]
 
@@ -312,7 +316,7 @@ const findHelpCards: ExploreCard[] = [
     icon: BuildingOfficeIcon,
     path: '/nonprofits',
     color: '#354F52',
-    stats: '1.8M+ organizations',
+    liveStat: { key: 'nonprofits', noun: 'organizations' },
   },
   {
     title: 'Elected Officials',
@@ -320,7 +324,7 @@ const findHelpCards: ExploreCard[] = [
     icon: UserGroupIcon,
     path: '/people',
     color: '#52796F',
-    stats: '75K+ leaders',
+    liveStat: { key: 'leaders', noun: 'officials' },
   },
   {
     title: 'Grants & Funding',
@@ -328,7 +332,7 @@ const findHelpCards: ExploreCard[] = [
     icon: BriefcaseIcon,
     path: '/opportunities',
     color: '#84A98C',
-    stats: '1,000s available',
+    stats: 'Federal, state & foundation',
   },
   {
     title: 'Community Services',
@@ -371,7 +375,7 @@ const planProfessionalPathCards: ExploreCard[] = [
     icon: MapIcon,
     path: '/policy-map',
     color: '#354F52',
-    stats: '13K+ bills',
+    liveStat: { key: 'bills', noun: 'bills' },
   },
   {
     title: 'County Administrator',
@@ -389,7 +393,7 @@ const planProfessionalPathCards: ExploreCard[] = [
     icon: BuildingLibraryIcon,
     path: '/nonprofits',
     color: '#84A98C',
-    stats: '43K+ organizations',
+    liveStat: { key: 'nonprofits', noun: 'organizations' },
   },
 ]
 

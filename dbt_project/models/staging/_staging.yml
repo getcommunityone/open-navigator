@@ -1835,6 +1835,39 @@ sources:
             description: "The site name this timeline row belongs to (Epoch's 'Data center' link)."
           - name: record
             description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_news_item
+        config:
+          loaded_at_field: last_seen_at
+          freshness:
+            warn_after: {count: 14, period: day}
+        description: >
+          News and company press-release items about data centers (#532, #549), one per
+          (source, url), landed by `python -m ingestion.data_centers.community_events` from
+          the GDELT DOC API, Google News RSS (only when robots.txt allows it), the
+          companies' press-release feeds, local news RSS/Atom feeds (seed local_news_feeds)
+          and the optional keyed NewsAPI.org, Guardian and Brave Search APIs; and by
+          `python -m ingestion.data_centers.video_search` from the YouTube Data API
+          (source youtube_search). title and snippet are verbatim.
+        columns:
+          - name: news_item_id
+            description: "md5(source | url)."
+          - name: source
+            description: "gdelt, google_news, company_feed, rss, newsapi, guardian, brave or youtube_search."
+          - name: publisher
+            description: "Domain, outlet (rss), company (company_feed) or YouTube channel title (youtube_search)."
+          - name: snippet
+            description: "Verbatim text: the headline (GDELT), the feed or API description, whole sentences of an article or press release that say a meeting word, 'data center' or a tracked name, or a video's description."
+      - name: bronze_data_center_event_recording_candidate
+        description: >
+          Videos a YouTube search (through the VPN guard) found for a company-hosted data
+          center meeting (#532), landed by `python -m ingestion.data_centers.recording_candidates`.
+          Candidates for review only.
+      - name: bronze_data_center_video_search_log
+        description: >
+          One row per YouTube Data API query `python -m ingestion.data_centers.video_search`
+          has run (#549): when, for which Pacific quota day, how many searches that day and
+          how many videos it returned. Keeps the run within its daily quota budget and lets
+          it resume across days. Not read by any model.
       - name: bronze_jurisdiction_meeting_source
         description: >
           Where each government around a data center site publishes its meetings (#460), one row
@@ -1846,6 +1879,47 @@ sources:
             description: "The government (jurisdictions.jurisdiction_id)."
           - name: data_center_site_id
             description: "The data center site (data_center_site.data_center_site_id) the government was surveyed for."
+      - name: bronze_platform_meeting
+        description: >
+          Meetings read from Granicus portals and the Legistar Web API (#536), one row per
+          (platform, meeting_uid). Written idempotently by
+          `python -m scrapers.platforms.run --apply` (scrapers.platforms.store creates the table).
+          agenda_text / minutes_text are the agenda items and minutes notes the platform serves
+          through its API (not PDF extraction). transcription_status 'queued_whisper' marks a
+          video with no captions, waiting for Colab Whisper (#489).
+        config:
+          loaded_at_field: fetched_at
+          freshness:
+            warn_after: {count: 14, period: day}
+            error_after: {count: 60, period: day}
+        columns:
+          - name: platform
+            description: "'legistar' or 'granicus'."
+          - name: meeting_uid
+            description: "'<portal>:<native id>' (Legistar EventId, Granicus clip/event id); with platform, the primary key."
+          - name: jurisdiction_id
+            description: "The government (jurisdictions.jurisdiction_id) the portal belongs to."
+          - name: transcription_status
+            description: "captions | queued_whisper | video_url_unknown | no_video."
+      - name: bronze_platform_meeting_caption
+        description: >
+          Caption / closed-caption text a meeting platform serves for a meeting's video (#536),
+          one row per (platform, meeting_uid), FK to bronze_platform_meeting. segments is a JSON
+          array of {start, duration, text} cues.
+        columns:
+          - name: platform
+          - name: meeting_uid
+          - name: raw_text
+          - name: segments
+      - name: bronze_platform_portal
+        description: >
+          One row per Granicus / Legistar portal read or probed (#536), with its status (ok,
+          empty, robots_disallowed, blocked, not_configured, token_required, error), so a
+          portal that could not be read is on record rather than silently missing.
+        columns:
+          - name: platform
+          - name: portal
+          - name: status
       - name: bronze_events_analysis_ai
         config:
           # Freshness (context-engineering.md, principle 5): `dbt source freshness`

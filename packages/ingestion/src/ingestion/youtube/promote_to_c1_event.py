@@ -136,25 +136,32 @@ def load_youtube_rows(conn, states: tuple[str, ...] | None,
     Default scope: policy-analyzed videos (the curated meeting set whose Gemini
     analyses are cached). ``all_dated`` widens to every video carrying a date.
     """
-    where = ["video_id IS NOT NULL"]
+    where = ["y.video_id IS NOT NULL"]
     args: list = []
     if all_dated:
-        where.append("event_date IS NOT NULL")
+        where.append("y.event_date IS NOT NULL")
     else:
-        where.append("policy_analysis_at IS NOT NULL")
+        where.append("y.policy_analysis_at IS NOT NULL")
     if states:
-        where.append("state_code = ANY(%s)")
+        where.append("y.state_code = ANY(%s)")
         args.append(list(states))
 
+    # jurisdiction_name comes from the dbt staging view, not raw bronze (#501):
+    # older loads stored the jurisdiction ID as the name (`chilton_01021`,
+    # `c-AL-01021`), and stg_youtube__event resolves those from int_jurisdictions.
+    # Copying the raw value would put the id back into civic_event and every
+    # event_* mart built from it.
     sql = f"""
-        SELECT video_id, event_date::text AS event_date, event_time::text AS event_time,
-               title, description, jurisdiction_id, jurisdiction_name, jurisdiction_type,
-               city, state_code, meeting_type, location, location_description,
-               channel_id, channel_url, channel_type, video_url,
-               view_count, duration_minutes, like_count, language
-        FROM bronze.bronze_event_youtube
+        SELECT y.video_id, y.event_date::text AS event_date, y.event_time::text AS event_time,
+               y.title, y.description, y.jurisdiction_id,
+               s.jurisdiction_name, y.jurisdiction_type,
+               y.city, y.state_code, y.meeting_type, y.location, y.location_description,
+               y.channel_id, y.channel_url, y.channel_type, y.video_url,
+               y.view_count, y.duration_minutes, y.like_count, y.language
+        FROM bronze.bronze_event_youtube y
+        LEFT JOIN staging.stg_youtube__event s ON s.video_id = y.video_id
         WHERE {' AND '.join(where)}
-        ORDER BY video_id
+        ORDER BY y.video_id
     """
     rows: list[YouTubeEvent] = []
     with conn.cursor(cursor_factory=RealDictCursor) as cur:

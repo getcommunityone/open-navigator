@@ -9,12 +9,19 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { fetchTopics, type TopicSummary } from '../api/topics'
+import { topicCountTitle, topicMeetingCountLabel } from '../utils/topicCounts'
 import DecisionCardList from '../components/DecisionCardList'
+import TopicMeetingList from '../components/TopicMeetingList'
 
 // How many topic pills to surface inline before the rest move to the flyout.
 // The API returns topics sorted by transcript_occurrences desc, so the first
 // few are the most-discussed.
 const TOP_PILL_COUNT = 5
+
+// Curated topics (hand-authored, e.g. "Data centers"; #500) have no CivicSearch
+// snippet count, so they would sort last. They are editorially featured, so they
+// are always shown inline, and their count is the real meeting count.
+const isCurated = (t: TopicSummary) => t.source === 'curated'
 
 export default function BrowseTopics() {
   const [query, setQuery] = useState('')
@@ -93,11 +100,12 @@ export default function BrowseTopics() {
   // Inline pills: the top N most-discussed topics, plus the active one if the
   // user picked something further down the list via the flyout.
   const topPills = useMemo(() => {
-    const top = topics.slice(0, TOP_PILL_COUNT)
-    if (selectedTopic && !top.some((t) => t.topic_id === selectedTopic.topic_id)) {
-      return [...top, selectedTopic]
+    const top = topics.filter((t) => !isCurated(t)).slice(0, TOP_PILL_COUNT)
+    const pills = [...top, ...topics.filter(isCurated)]
+    if (selectedTopic && !pills.some((t) => t.topic_id === selectedTopic.topic_id)) {
+      return [...pills, selectedTopic]
     }
-    return top
+    return pills
   }, [topics, selectedTopic])
 
   // Pill styling for the topic filter row — solid teal (theme) when active.
@@ -118,14 +126,22 @@ export default function BrowseTopics() {
         : 'text-gray-700 hover:bg-gray-50'
     }`
 
-  // Small count badge shown after a topic name (transcript snippets tagged).
-  const countBadge = (n: number, on: boolean) => (
+  // The count shown for every topic is the number of meetings whose transcript
+  // mentions it in the scope the API was asked for (national, or the state), so
+  // it moves with the state filter. The API has no city-grain topic counts, so a
+  // carried-in city does not change it; the note under the pills says so (#504).
+  const topicCount = (t: TopicSummary): string => topicMeetingCountLabel(t.meeting_count)
+  const topicCountHint = (): string => topicCountTitle(stateCode)
+
+  // Small count badge shown after a topic name.
+  const countBadge = (t: TopicSummary, on: boolean) => (
     <span
+      title={topicCountHint()}
       className={`rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
         on ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
       }`}
     >
-      {n.toLocaleString()}
+      {topicCount(t)}
     </span>
   )
 
@@ -202,7 +218,7 @@ export default function BrowseTopics() {
                     className={chipClass(on)}
                   >
                     {topic.name}
-                    {countBadge(topic.transcript_occurrences, on)}
+                    {countBadge(topic, on)}
                   </button>
                 )
               })
@@ -219,7 +235,27 @@ export default function BrowseTopics() {
             )}
           </div>
           )}
+          {/* Counts are state grain; say so when the decision list below is scoped to a city. */}
+          {scopedCity && stateCode && (
+            <p className="mt-2 text-xs text-gray-500">
+              Topic counts cover all of {stateCode}. Counts for {scopedCity} alone aren&apos;t available yet.
+            </p>
+          )}
         </div>
+
+        {/* Curated topic (e.g. Data centers, #500): the meetings whose transcript
+            mentions it, each quoting the matched passage. Scoped exactly like the
+            label above (state / city), and remounted when that scope changes. */}
+        {selectedTopic && isCurated(selectedTopic) && (
+          <TopicMeetingList
+            key={`${selectedTopic.topic_id}-${stateCode ?? 'national'}-${scopedCity ?? 'state'}`}
+            topicId={selectedTopic.topic_id}
+            topicName={selectedTopic.name}
+            state={stateCode}
+            city={scopedCity}
+            placeLabel={placeLabel}
+          />
+        )}
 
         {/* Decision cards — the shared Contested StoryCard grid with YouTube
             meeting previews, shown immediately. Picking a topic scopes this
@@ -333,8 +369,11 @@ export default function BrowseTopics() {
                           className={rowClass(on)}
                         >
                           <span className="truncate">{topic.name}</span>
-                          <span className="shrink-0 tabular-nums text-xs font-medium text-gray-400">
-                            {topic.transcript_occurrences.toLocaleString()}
+                          <span
+                            title={topicCountHint()}
+                            className="shrink-0 tabular-nums text-xs font-medium text-gray-400"
+                          >
+                            {topicCount(topic)}
                           </span>
                         </button>
                       )

@@ -14,6 +14,11 @@
                                 EIN and adds the ~290k IRS-only nonprofits)
       - stg_parcels__org       (bronze_addresses owner_name flagged as org; the
                                 business/government parcel owners)
+      - stg_data_center_companies__org (seed data_center_companies, #531: data
+                                center operators, developers, tenants and utility
+                                partners, org_type 'company'; national rows with no
+                                city/state, so a same-name national mention such as
+                                the AI-extracted "Google" clusters with it)
       - stg_data_gov__org      (bronze_organizations_gov; Data.gov/CKAN publishing
                                 governments — federal/state/county/city agencies.
                                 Keyed `gov:<ckan_id>` in clustered; detail in the
@@ -38,6 +43,8 @@ with unioned as (
     select * from {{ ref('stg_parcels__org') }}
     union all
     select * from {{ ref('stg_data_gov__org') }}
+    union all
+    select * from {{ ref('stg_data_center_companies__org') }}
 )
 
 select

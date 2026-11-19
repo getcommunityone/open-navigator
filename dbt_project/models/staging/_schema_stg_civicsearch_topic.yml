@@ -3,9 +3,10 @@ version: 2
 models:
   - name: stg_civicsearch__topic
     description: |
-      CivicSearch policy-topic taxonomy — one row per topic_id. 1:1 with
+      Policy-topic taxonomy — one row per topic_id. The CivicSearch topics from
       bronze.bronze_events_civicsearch_topic (raw landing from the CivicSearch
-      harvest loader), cleaned/typed. A FLAT topic -> keyword-cluster dictionary
+      harvest loader), cleaned/typed, unioned with the hand-authored
+      curated_topics seed (topic_id >= 100000, source = 'curated'; issue #500). A FLAT topic -> keyword-cluster dictionary
       (NOT hierarchical). keyword_stats is a JSONB array of representative keyword
       strings. Promoted to the public mart civicsearch_topic.
     config:
@@ -34,3 +35,15 @@ models:
         data_type: jsonb
         constraints:
           - type: not_null
+      - name: source
+        description: >
+          Where the topic comes from: 'civicsearch' (CivicSearch taxonomy) or
+          'curated' (curated_topics seed). Keyword models use it to pick the
+          match threshold (>= 2 distinct phrases for civicsearch, 1 for curated).
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['civicsearch', 'curated']

@@ -44,6 +44,7 @@ from scrapers.youtube.download_audio_to_drive import (  # noqa: E402
     DEFAULT_YOUTUBE_COOKIES_FILE,
     YouTubeAudioDownloader,
 )
+from scrapers.youtube.vpn_guard import exit_if_vpn_off, require_vpn  # noqa: E402
 from scrapers.youtube.load_youtube_events_to_postgres import (  # noqa: E402
     YouTubeEventsLoader,
 )
@@ -169,6 +170,7 @@ def run_download(
     downloader.run()
 
 
+@exit_if_vpn_off
 def main(argv: Sequence[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(
@@ -233,6 +235,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.info("[dry-run] Would catalog (max {}) then download matching titles", args.max_videos)
         return 0
 
+    require_vpn()  # catalog and audio both reach YouTube (#488)
     do_catalog = not args.download_only
     do_download = not args.catalog_only
 

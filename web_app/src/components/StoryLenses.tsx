@@ -14,6 +14,7 @@ import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
 import FollowTheMoney from './FollowTheMoney'
 import MeetingThumbnail from './MeetingThumbnail'
+import { inferThumbnailKind, type ThumbnailKind } from '../lib/youtubeThumbnail'
 import PersonalizeFeedModal from './PersonalizeFeedModal'
 import { useAuth } from '../contexts/AuthContext'
 import { fromSignalSlug } from '../lib/feedSlugs'
@@ -196,6 +197,12 @@ export interface ApiCard {
    *  only when a content filter (topic/cause) produced the card; rendered under
    *  the title via highlightSnippet so the user sees WHY it matched the pill. */
   description?: string | null
+  /** What `description` matched (e.g. a curated topic name); shown as a small
+   *  "Mentions …" caption above the passage. */
+  description_label?: string | null
+  /** Status pill shown on the card (e.g. "Not yet analyzed"). Separate from
+   *  `badge`, which the lens API sets to the lens name and the card never shows. */
+  status?: string | null
 }
 interface ApiLens {
   id: string
@@ -227,10 +234,18 @@ export interface RenderCard {
   stateCode?: string
   /** Bare YouTube id for the optional card thumbnail (undefined when none). */
   videoId?: string
+  /** ISO yyyy-mm-dd date, shown on the "no video preview" cover. */
+  date?: string
+  /** Icon family for the "no video preview" cover (from the card's own text). */
+  kind?: ThumbnailKind
   /** Optional matched-passage excerpt (e.g. a highlighted transcript snippet).
    *  Rendered under the title, clamped to a few lines. Pre-built React nodes so
    *  callers can pass <mark>-highlighted segments without dangerouslySetInnerHTML. */
   excerpt?: React.ReactNode
+  /** What the excerpt matched, shown as a "Mentions …" caption above it. */
+  excerptLabel?: string
+  /** Small status pill next to the lens pill (e.g. "Not yet analyzed"). */
+  badge?: string
   /** Parsed speakers/voices who testified on this decision. When non-empty, the
    *  card shows a compact "Voices" attribution row (overlapping initial avatars +
    *  names). Undefined/empty ⇒ the row doesn't render (never invent a speaker). */
@@ -348,7 +363,20 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
           overflow-hidden + rounded-2xl clips its top corners (no double-round).
           Renders nothing when there's no video, so cards without a recording
           look exactly as before. */}
-      {c.videoId && <MeetingThumbnail videoId={c.videoId} alt={c.h} />}
+      {c.videoId && (
+        <MeetingThumbnail
+          videoId={c.videoId}
+          alt={c.h}
+          place={
+            c.stateCode && !new RegExp(`,\\s*${c.stateCode}$`).test(c.juris)
+              ? [c.juris, c.stateCode].filter(Boolean).join(', ')
+              : c.juris
+          }
+          date={c.date || c.when}
+          kind={c.kind ?? inferThumbnailKind(c.h, 'decision')}
+          accent={lens.clr}
+        />
+      )}
       <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
       <div className="flex flex-1 flex-col p-[18px]">
         <div className="mb-2.5 flex items-center justify-between gap-2">
@@ -365,6 +393,11 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
                 Human review
               </span>
             )}
+            {c.badge && (
+              <span className="inline-flex items-center rounded-full bg-[#f5f5f4] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-[#57534e]">
+                {c.badge}
+              </span>
+            )}
           </div>
           <span className="shrink-0 text-[12px] text-[#8a958f]">{c.when}</span>
         </div>
@@ -378,6 +411,11 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
 
         {/* Optional matched-passage excerpt (transcript snippet). Clamped so a
             long passage never blows out the tile height in the grid. */}
+        {c.excerpt && c.excerptLabel && (
+          <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-wide text-[#8a958f]">
+            Mentions · {c.excerptLabel}
+          </p>
+        )}
         {c.excerpt && (
           <p className="mb-3 text-[13.5px] leading-snug text-[#56635e] line-clamp-3">
             {c.excerpt}
@@ -600,6 +638,13 @@ export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCar
     url: c.url,
     stateCode: c.state_code || undefined,
     videoId: c.video_id ?? undefined,
+    date: c.date || undefined,
+    // Glyph for the no-preview cover, from the card's own headline + matched
+    // passage (tags stripped so "data <mark>center</mark>" still matches).
+    kind: inferThumbnailKind(
+      `${c.headline} ${(c.description ?? '').replace(/<\/?mark>/g, '')}`,
+      'decision',
+    ),
     // Raw speaker slugs → parsed Speakers; empty/absent ⇒ undefined so the
     // "Voices" row stays hidden (never fabricated).
     speakers: c.speakers && c.speakers.length > 0 ? c.speakers.map(parseSpeaker) : undefined,
@@ -607,6 +652,8 @@ export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCar
     // escaped, never dangerouslySetInnerHTML). Absent ⇒ undefined so plain
     // browse (no content filter) shows no excerpt rather than an empty line.
     excerpt: c.description ? highlightSnippet(c.description) : undefined,
+    excerptLabel: c.description && c.description_label ? c.description_label : undefined,
+    badge: c.status || undefined,
   }))
   const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
   const showState = unscoped || distinctStates.size > 1
@@ -833,7 +880,13 @@ export function LensCarousel({
       lens={{ desc: '', ...lens }}
       savedKeys={savedKeys}
       onToggleSave={toggleSave}
-      onOpen={(c) => c.url && navigate(c.url)}
+      onOpen={(c) => {
+        if (!c.url) return
+        // An external link (e.g. a not-yet-analyzed meeting's recording) opens in
+        // a new tab; in-app routes navigate as before.
+        if (/^https?:\/\//.test(c.url)) window.open(c.url, '_blank', 'noopener,noreferrer')
+        else navigate(c.url)
+      }}
       cardKey={cardKey}
     />
   )

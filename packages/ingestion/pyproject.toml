@@ -24,6 +24,7 @@ dependencies = [
     "psycopg2-binary>=2.9",
     # ingestion.data_centers checks job-application links (DC-1.3)
     "httpx>=0.27",
+    "requests>=2.31",  # legacy HTTP in ingestion; new code uses core_lib.http
     # ingestion.argkp pulls the IBM-Debater ArgKP key-point dataset from HF
     "datasets>=2.18",
 ]

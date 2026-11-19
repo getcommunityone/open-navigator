@@ -814,3 +814,477 @@ async def list_data_center_meeting_mentions(
             items.append(DataCenterMeetingMention(**row))
         span.set_attribute("meeting_mentions.count", len(items))
         return DataCenterMeetingMentionsResponse(scope=applied, counts=counts, items=items)
+
+
+# --- company-hosted community meetings and project timelines (#532) ------------------------
+
+CommunityEventKind = Literal[
+    "town_hall", "community_meeting", "open_house", "information_session", "public_meeting"
+]
+
+
+class CommunityEventSource(BaseModel):
+    """One article or announcement that reports the meeting (verbatim)."""
+
+    url: str
+    title: str
+    publisher: str | None = None
+    published_on: date | None = None
+    source: str = Field(..., description="gdelt, google_news or company_feed (the company's own press release).")
+    evidence: str = Field(..., description="The item's title and snippet, verbatim; the meeting word in <mark>.")
+
+
+class RecordingCandidate(BaseModel):
+    """A video a search found for the meeting: a candidate for review, never attached."""
+
+    video_url: str
+    title: str | None = None
+    channel: str | None = None
+    published_on: date | None = None
+    match_reason: str
+
+
+class CommunityEvent(BaseModel):
+    community_event_id: str
+    host_type: Literal["company"] = Field("company", description="Always a company: never a government meeting.")
+    master_org_id: str | None = None
+    host_name: str | None = None
+    project_id: str | None = None
+    project_name: str | None = None
+    jurisdiction_id: str | None = None
+    city: str | None = None
+    state_code: str | None = None
+    state: str | None = None
+    event_kind: CommunityEventKind
+    event_date: date | None = Field(None, description="Only when an article states it.")
+    event_date_basis: Literal["stated", "stated_month_day"] | None = None
+    recording_url: str | None = Field(None, description="A video link an article itself carries.")
+    title: str
+    first_reported_on: date | None = None
+    sources: list[CommunityEventSource] = Field(default_factory=list)
+    recording_candidates: list[RecordingCandidate] = Field(default_factory=list)
+
+
+class CommunityEventsResponse(BaseModel):
+    scope: JobClaimScope
+    project_id: str | None = None
+    unconfirmed: int = Field(0, description="Items kept for review (host or project unmatched); not shown as events.")
+    items: list[CommunityEvent]
+
+
+def build_community_event_queries(
+    scope: JobClaimScope, project_id: str | None, limit: int
+) -> tuple[str, list[Any], str, list[Any]]:
+    """(events SQL, params, unconfirmed-count SQL, params). Confirmed events only; newest first."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"e.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"(e.city ILIKE ${len(params)} OR j.name ILIKE ${len(params)})")
+    if project_id:
+        params.append(project_id)
+        where.append(f"e.project_id = ${len(params)}")
+    scoped = " AND ".join(where) or "TRUE"
+    count_params = list(params)
+    params.append(limit)
+    events_sql = (
+        "SELECT e.community_event_id, e.master_org_id, e.host_name, e.project_id, e.project_name, "
+        "e.jurisdiction_id, e.city, e.state_code, e.state, e.event_kind, e.event_date, "
+        "e.event_date_basis, e.recording_url, e.title, e.first_reported_on "
+        "FROM data_center_community_event e "
+        "LEFT JOIN jurisdictions j ON j.jurisdiction_id = e.jurisdiction_id "
+        f"WHERE e.status = 'confirmed' AND {scoped} "
+        "ORDER BY coalesce(e.event_date, e.first_reported_on) DESC NULLS LAST, e.community_event_id "
+        f"LIMIT ${len(params)}"
+    )
+    unconfirmed_sql = (
+        "SELECT count(*)::int AS n FROM data_center_community_event e "
+        "LEFT JOIN jurisdictions j ON j.jurisdiction_id = e.jurisdiction_id "
+        f"WHERE e.status = 'unconfirmed' AND {scoped}"
+    )
+    return events_sql, params, unconfirmed_sql, count_params
+
+
+_EVENT_SOURCES_SQL = (
+    "SELECT community_event_id, url, title, publisher, published_on, source, evidence "
+    "FROM data_center_community_event_source WHERE community_event_id = ANY($1::text[]) "
+    "ORDER BY published_on NULLS LAST, url"
+)
+_EVENT_RECORDINGS_SQL = (
+    "SELECT community_event_id, video_url, title, channel, published_on, match_reason "
+    "FROM data_center_community_event_recording WHERE community_event_id = ANY($1::text[]) "
+    "ORDER BY published_on NULLS LAST, video_url"
+)
+
+
+async def _fetch_optional(conn: Any, sql: str, *params: Any) -> list[Any]:
+    """Rows, or [] when the relation isn't in this database yet."""
+    try:
+        return await conn.fetch(sql, *params)
+    except asyncpg.exceptions.UndefinedTableError:
+        return []
+
+
+@router.get("/community-events", response_model=CommunityEventsResponse)
+async def list_community_events(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the city or government name."),
+    project_id: str | None = Query(None, description="Only events about this data_center_project."),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+) -> CommunityEventsResponse:
+    """
+    Company-hosted data center community meetings (town halls, open houses, information
+    sessions, community and public meetings) found in news and company announcements,
+    newest first, each with every source that reports it and any recording candidates.
+    Hosted by a company: these are not government meetings.
+
+    Example:
+        GET /api/data-centers/community-events?state=AL&city=Brookwood
+    """
+    scope = build_scope(state, city, None)
+    applied = JobClaimScope(
+        level="city" if scope.city else ("state" if scope.state_code else "national"),
+        state_code=scope.state_code,
+        state=scope.state,
+        city=scope.city,
+    )
+    project_clean = _clean(project_id)
+    events_sql, params, unconfirmed_sql, count_params = build_community_event_queries(
+        applied, project_clean, limit
+    )
+    with tracer.start_as_current_span("data-centers.community-events") as span:
+        span.set_attribute("community_events.scope_level", applied.level)
+        span.set_attribute("community_events.state_code", applied.state_code or "")
+        span.set_attribute("community_events.city", applied.city or "")
+        span.set_attribute("community_events.project_id", project_clean or "")
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(events_sql, *params)
+                unconfirmed_rows = await conn.fetch(unconfirmed_sql, *count_params)
+                ids = [r["community_event_id"] for r in rows]
+                source_rows = await _fetch_optional(conn, _EVENT_SOURCES_SQL, ids) if ids else []
+                recording_rows = await _fetch_optional(conn, _EVENT_RECORDINGS_SQL, ids) if ids else []
+        except asyncpg.exceptions.UndefinedTableError as e:
+            span.set_attribute("community_events.relation_missing", True)
+            logger.warning("data-centers: 'data_center_community_event' isn't here yet ({}); empty list", e)
+            return CommunityEventsResponse(scope=applied, project_id=project_clean, items=[])
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers community-events error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load community events")
+        sources: dict[str, list[CommunityEventSource]] = {}
+        for r in source_rows:
+            row = dict(r)
+            sources.setdefault(row.pop("community_event_id"), []).append(CommunityEventSource(**row))
+        recordings: dict[str, list[RecordingCandidate]] = {}
+        for r in recording_rows:
+            row = dict(r)
+            recordings.setdefault(row.pop("community_event_id"), []).append(RecordingCandidate(**row))
+        items = [
+            CommunityEvent(
+                **dict(r),
+                sources=sources.get(r["community_event_id"], []),
+                recording_candidates=recordings.get(r["community_event_id"], []),
+            )
+            for r in rows
+        ]
+        unconfirmed = int(unconfirmed_rows[0]["n"]) if unconfirmed_rows else 0
+        span.set_attribute("community_events.count", len(items))
+        return CommunityEventsResponse(scope=applied, project_id=project_clean, unconfirmed=unconfirmed, items=items)
+
+
+TimelineStage = Literal["announced", "company_meeting", "planning", "vote", "government_meeting"]
+
+# Deterministic stage words, read from the decision's own headline/statement.
+_PLANNING_RE = r"(?i)\m(planning commission|planning board|zoning|rezon\w*|site plan|land use|variance|annex\w*)\M"
+_VOTE_RE = r"(?i)\m(vot(e|ed|es)|approv\w+|adopt\w*|ordinance|resolution)\M"
+
+
+class ProjectCompany(BaseModel):
+    master_org_id: str
+    company_name: str | None = None
+    role: str
+    confidence: str
+    source_url: str
+    source_excerpt: str
+
+
+class ProjectFigure(BaseModel):
+    metric: str
+    value: float
+    unit: str
+    source_url: str
+    source_excerpt: str
+    published_on: date | None = None
+
+
+class TimelineItem(BaseModel):
+    stage: TimelineStage
+    on: date | None = Field(None, description="The date the source gives; null when it gives none.")
+    label: str = Field(..., description="What happened, from the source's own words.")
+    host: str = Field(..., description="Who held or did it: the company, or the government.")
+    source_label: str = Field(..., description="Where it comes from: a publisher, a press release, a transcript.")
+    url: str | None = None
+    evidence: str | None = Field(None, description="Verbatim excerpt; matched words in <mark> where marked.")
+
+
+class DataCenterProject(BaseModel):
+    project_id: str
+    project_name: str
+    project_source: Literal["curated", "epoch"]
+    data_center_site_id: str | None = None
+    area: str | None = None
+    city: str | None = None
+    county: str | None = None
+    state_code: str | None = None
+    state: str | None = None
+    jurisdiction_id: str | None = None
+    status: str | None = None
+    announced_on: date | None = Field(None, description="Only with the passage that dates it.")
+    announced_source_url: str | None = None
+    announced_source_excerpt: str | None = None
+    has_conflicting_figures: bool = False
+    source_kind: str
+    source_url: str
+    source_excerpt: str
+    companies: list[ProjectCompany] = Field(default_factory=list)
+    figures: list[ProjectFigure] = Field(default_factory=list)
+    timeline: list[TimelineItem] = Field(default_factory=list)
+
+
+class DataCenterProjectsResponse(BaseModel):
+    scope: JobClaimScope
+    total: int = 0
+    items: list[DataCenterProject]
+
+
+def build_project_queries(
+    scope: JobClaimScope, project_id: str | None, source: str | None, limit: int
+) -> tuple[str, list[Any], str, list[Any]]:
+    """(projects SQL, params, count SQL, params). Curated projects first, then by name.
+
+    A city scope matches the project's city or any of its governments' names
+    (data_center_project_jurisdiction), so "Brookwood" also finds a project the sources
+    place in Tuscaloosa County only when that county is one of its governments.
+    """
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"p.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(
+            f"(p.city ILIKE ${len(params)} OR EXISTS (SELECT 1 FROM data_center_project_jurisdiction pj "
+            f"JOIN jurisdictions j ON j.jurisdiction_id = pj.jurisdiction_id "
+            f"WHERE pj.project_id = p.project_id AND j.name ILIKE ${len(params)}))"
+        )
+    if project_id:
+        params.append(project_id)
+        where.append(f"p.project_id = ${len(params)}")
+    if source:
+        params.append(source)
+        where.append(f"p.project_source = ${len(params)}")
+    where_sql = " AND ".join(where) or "TRUE"
+    count_params = list(params)
+    params.append(limit)
+    sql = (
+        "SELECT p.project_id, p.project_name, p.project_source, p.data_center_site_id, p.area, p.city, "
+        "p.county, p.state_code, p.state, p.jurisdiction_id, p.status, p.announced_on, "
+        "p.announced_source_url, p.announced_source_excerpt, "
+        "p.has_conflicting_figures, p.source_kind, p.source_url, p.source_excerpt "
+        f"FROM data_center_project p WHERE {where_sql} "
+        "ORDER BY (p.project_source = 'curated') DESC, p.announced_on DESC NULLS LAST, p.project_name "
+        f"LIMIT ${len(params)}"
+    )
+    count_sql = f"SELECT count(*)::int AS n FROM data_center_project p WHERE {where_sql}"
+    return sql, params, count_sql, count_params
+
+
+_PROJECT_COMPANIES_SQL = (
+    "SELECT pc.project_id, pc.master_org_id, c.company_name, pc.role, pc.confidence, pc.source_url, "
+    "pc.source_excerpt FROM data_center_project_company pc "
+    "LEFT JOIN mdm_organization_data_center c ON c.master_org_id = pc.master_org_id "
+    "WHERE pc.project_id = ANY($1::text[]) ORDER BY pc.project_id, pc.role, c.company_name"
+)
+_PROJECT_FIGURES_SQL = (
+    "SELECT project_id, metric, value::float8 AS value, unit, source_url, source_excerpt, published_on "
+    "FROM data_center_project_figure WHERE project_id = ANY($1::text[]) "
+    "ORDER BY project_id, metric, published_on NULLS LAST, source_url"
+)
+_PROJECT_EVENTS_SQL = (
+    "SELECT e.project_id, e.community_event_id, e.host_name, e.event_kind, e.event_date, "
+    "e.first_reported_on, e.title, s.url, s.publisher, s.evidence "
+    "FROM data_center_community_event e "
+    "LEFT JOIN LATERAL (SELECT url, publisher, evidence FROM data_center_community_event_source "
+    "  WHERE community_event_id = e.community_event_id ORDER BY published_on NULLS LAST, url LIMIT 1) s ON TRUE "
+    "WHERE e.status = 'confirmed' AND e.project_id = ANY($1::text[])"
+)
+_PROJECT_MENTIONS_SQL = (
+    "SELECT pm.project_id, pm.record_type, pm.evidence, pm.event_decision_id, "
+    "m.meeting_date, m.meeting_title, m.jurisdiction_name, m.video_url, "
+    "d.headline, d.jurisdiction_name AS decision_jurisdiction, "
+    f"(coalesce(d.headline, '') || ' ' || coalesce(d.decision_statement, '')) ~ '{_PLANNING_RE}' AS is_planning, "
+    f"(coalesce(d.headline, '') || ' ' || coalesce(d.decision_statement, '')) ~ '{_VOTE_RE}' AS is_vote "
+    "FROM data_center_project_mention pm "
+    "LEFT JOIN data_center_meeting_mention m "
+    "  ON m.data_center_meeting_mention_id = pm.data_center_meeting_mention_id "
+    "LEFT JOIN LATERAL (SELECT headline, decision_statement, jurisdiction_name FROM event_decision "
+    "  WHERE event_decision_id = pm.event_decision_id ORDER BY extracted_at DESC LIMIT 1) d ON TRUE "
+    "WHERE pm.project_id = ANY($1::text[])"
+)
+
+_KIND_LABEL = {
+    "town_hall": "Town hall",
+    "community_meeting": "Community meeting",
+    "open_house": "Open house",
+    "information_session": "Information session",
+    "public_meeting": "Public meeting",
+}
+_STAGE_ORDER = {"announced": 0, "company_meeting": 1, "planning": 2, "government_meeting": 2, "vote": 3}
+
+
+def build_timeline(project: dict[str, Any], events: list[dict], mentions: list[dict]) -> list[TimelineItem]:
+    """announced → company meeting → planning → vote, each labelled by its source and host.
+
+    Dated items sort by date; undated ones follow, in stage order. Nothing is dated that the
+    source doesn't date."""
+    items: list[TimelineItem] = []
+    if project.get("project_source") == "curated":
+        items.append(
+            TimelineItem(
+                stage="announced",
+                on=project.get("announced_on"),
+                label=(f"{project['project_name']} announced" if project.get("announced_on")
+                       else f"{project['project_name']} named in a "
+                       + ("company announcement" if project.get("source_kind") == "company_announcement"
+                          else "news article")),
+                host=next((c.company_name for c in project.get("companies", []) if c.role == "developer"
+                           and c.company_name), "The developer"),
+                source_label="Company announcement" if project.get("source_kind") == "company_announcement"
+                else "News article",
+                # the passage that dates the announcement, when there is one; else the
+                # passage that names the project (then the date is null too)
+                url=project.get("announced_source_url") or project.get("source_url"),
+                evidence=project.get("announced_source_excerpt") or project.get("source_excerpt"),
+            )
+        )
+    for e in events:
+        items.append(
+            TimelineItem(
+                stage="company_meeting",
+                on=e.get("event_date"),
+                label=f"{_KIND_LABEL.get(e['event_kind'], 'Meeting')} hosted by {e.get('host_name') or 'the company'}",
+                host=f"{e.get('host_name') or 'The company'} (company-hosted, not a government meeting)",
+                source_label=e.get("publisher") or "News article",
+                url=e.get("url"),
+                evidence=e.get("evidence") or e.get("title"),
+            )
+        )
+    for m in mentions:
+        if m["record_type"] == "meeting_passage":
+            items.append(
+                TimelineItem(
+                    stage="government_meeting",
+                    on=m.get("meeting_date"),
+                    label=m.get("meeting_title") or "Government meeting",
+                    host=m.get("jurisdiction_name") or "Local government",
+                    source_label="Meeting transcript",
+                    url=m.get("video_url"),
+                    evidence=m.get("evidence"),
+                )
+            )
+        else:
+            stage: TimelineStage = "vote" if m.get("is_vote") else ("planning" if m.get("is_planning") else "government_meeting")
+            items.append(
+                TimelineItem(
+                    stage=stage,
+                    on=None,
+                    label=m.get("headline") or "Government decision",
+                    host=m.get("decision_jurisdiction") or "Local government",
+                    source_label="Meeting decision",
+                    url=f"/decisions/{m['event_decision_id']}" if m.get("event_decision_id") else None,
+                    evidence=m.get("evidence"),
+                )
+            )
+    items.sort(key=lambda t: (t.on is None, t.on or date.max, _STAGE_ORDER[t.stage]))
+    return items
+
+
+@router.get("/projects", response_model=DataCenterProjectsResponse)
+async def list_data_center_projects(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; the project's city or one of its governments."),
+    project_id: str | None = Query(None, description="One data_center_project."),
+    source: Literal["curated", "epoch"] | None = Query(None, description="curated (announcements/news) or epoch."),
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+) -> DataCenterProjectsResponse:
+    """
+    Data center projects with their companies, every sourced figure and a timeline:
+    announced → company-hosted meeting → planning → council vote. Each timeline item says
+    who held it (the company or the government) and where it comes from.
+
+    Example:
+        GET /api/data-centers/projects?state=AL
+    """
+    scope = build_scope(state, city, None)
+    applied = JobClaimScope(
+        level="city" if scope.city else ("state" if scope.state_code else "national"),
+        state_code=scope.state_code,
+        state=scope.state,
+        city=scope.city,
+    )
+    project_clean = _clean(project_id)
+    sql, params, count_sql, count_params = build_project_queries(applied, project_clean, source, limit)
+    with tracer.start_as_current_span("data-centers.projects") as span:
+        span.set_attribute("projects.scope_level", applied.level)
+        span.set_attribute("projects.state_code", applied.state_code or "")
+        span.set_attribute("projects.city", applied.city or "")
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(sql, *params)
+                count_rows = await conn.fetch(count_sql, *count_params)
+                ids = [r["project_id"] for r in rows]
+                company_rows = await _fetch_optional(conn, _PROJECT_COMPANIES_SQL, ids) if ids else []
+                figure_rows = await _fetch_optional(conn, _PROJECT_FIGURES_SQL, ids) if ids else []
+                event_rows = await _fetch_optional(conn, _PROJECT_EVENTS_SQL, ids) if ids else []
+                mention_rows = await _fetch_optional(conn, _PROJECT_MENTIONS_SQL, ids) if ids else []
+        except asyncpg.exceptions.UndefinedTableError as e:
+            span.set_attribute("projects.relation_missing", True)
+            logger.warning("data-centers: 'data_center_project' isn't here yet ({}); empty list", e)
+            return DataCenterProjectsResponse(scope=applied, items=[])
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers projects error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load data center projects")
+
+        def group(rs: list[Any]) -> dict[str, list[dict]]:
+            out: dict[str, list[dict]] = {}
+            for r in rs:
+                row = dict(r)
+                out.setdefault(row.pop("project_id"), []).append(row)
+            return out
+
+        companies, figures = group(company_rows), group(figure_rows)
+        events, mentions = group(event_rows), group(mention_rows)
+        items = []
+        for r in rows:
+            row = dict(r)
+            pid = row["project_id"]
+            project = DataCenterProject(
+                **row,
+                companies=[ProjectCompany(**c) for c in companies.get(pid, [])],
+                figures=[ProjectFigure(**f) for f in figures.get(pid, [])],
+            )
+            project.timeline = build_timeline(
+                {**row, "companies": project.companies}, events.get(pid, []), mentions.get(pid, [])
+            )
+            items.append(project)
+        total = int(count_rows[0]["n"]) if count_rows else len(items)
+        span.set_attribute("projects.count", len(items))
+        return DataCenterProjectsResponse(scope=applied, total=total, items=items)

@@ -38,6 +38,8 @@ from dotenv import load_dotenv
 from loguru import logger
 import psycopg2
 
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn
+
 load_dotenv()
 
 DEFAULT_UA = (
@@ -562,6 +564,7 @@ def fetch_channel_about_html(channel_id: str, *, timeout_s: float = 30.0) -> str
     if not cid or not re.match(r"^[A-Za-z0-9_-]{10,}$", cid):
         raise ValueError(f"invalid channel_id: {channel_id!r}")
     url = ABOUT_URL.format(channel_id=cid)
+    require_vpn()  # YouTube only through the VPN (#488)
     headers = {"User-Agent": DEFAULT_UA, "Accept-Language": "en-US,en;q=0.9"}
     with httpx.Client(timeout=timeout_s, follow_redirects=True, headers=headers) as client:
         r = client.get(url)
@@ -579,9 +582,20 @@ def fetch_channel_about_links(channel_id: str, *, timeout_s: float = 30.0) -> Li
 
 
 def ensure_bronze_events_channels_link_columns(conn) -> None:
-    """Add About-tab scrape columns if missing (idempotent)."""
+    """Add About-tab scrape columns if missing (idempotent; no DDL when present, #534)."""
+    from scrapers.youtube.schema_guard import missing_columns, set_local_lock_timeout
+
+    if not missing_columns(
+        conn,
+        "bronze",
+        "bronze_events_channels",
+        ("channel_external_links", "channel_external_links_fetched_at", "channel_description", "view_count"),
+    ):
+        conn.commit()
+        return
     cur = conn.cursor()
     try:
+        set_local_lock_timeout(cur)
         cur.execute(
             """
             ALTER TABLE bronze.bronze_events_channels
@@ -702,6 +716,7 @@ def _database_url() -> str:
     return os.getenv("NEON_DATABASE_URL_DEV", "postgresql://postgres:password@localhost:5433/open_navigator")
 
 
+@exit_if_vpn_off
 def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Fetch YouTube channel About links (ytInitialData).")
     p.add_argument("--channel-id", action="append", dest="channel_ids", default=[], help="Channel id (repeatable)")
@@ -812,6 +827,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             seen.add(i)
             unique_ids.append(i)
 
+    require_vpn()  # every channel below is fetched from youtube.com (#488)
     if args.dry_run:
         for cid in unique_ids:
             snap = fetch_channel_about_bundle(cid)
@@ -837,6 +853,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                     snap.video_count,
                     snap.view_count,
                 )
+            except VpnRequiredError:
+                raise
             except Exception as e:
                 logger.exception("failed {}: {}", cid, e)
             time.sleep(args.sleep)

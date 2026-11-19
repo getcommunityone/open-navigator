@@ -157,3 +157,18 @@ def test_an_unfilled_template_lacks_all_four_parts(pc):
 def test_headings_inside_comments_or_with_no_text_do_not_count(pc):
     body = "<!--\n## Problem\nx\n-->\n## Done when\n\n## Contract\n- z\n## Read first\n- w\n"
     assert pc.missing_parts(body) == ["Problem", "Done when"]
+
+
+def test_bold_phrase_inside_a_bullet_is_not_a_section_label(pc):
+    # #523: "- **Plain summary.** ..." under "## Done when" must not end the section.
+    body = (
+        "## Problem\nA thing is wrong.\n\n"
+        "## Done when\n- **Plain summary.** The page says it plainly.\n- **No charts.** Gone.\n\n"
+        "## Contract\nNo new names.\n\n## Read first\n- a file\n"
+    )
+    assert pc.missing_parts(body) == []
+
+
+def test_bold_label_at_line_start_still_counts(pc):
+    body = "**Problem:** wrong.\n**Done when:** fixed.\n**Contract:** none.\n**Read first:** a file.\n"
+    assert pc.missing_parts(body) == []

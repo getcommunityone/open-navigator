@@ -42,6 +42,7 @@ from youtube_transcript_api._errors import (
     VideoUnavailable,
 )
 
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off
 from scrapers.youtube.transcript_api_client import (
     fetch_transcript_from_api,
     format_transcript_error,
@@ -440,6 +441,8 @@ def backfill_transcripts(
                     consecutive_rate_limits = 0  # Reset on any clean fetch (incl. "no captions")
                     consecutive_egress_errors = 0  # a clean response ⇒ egress is healthy
                     break
+                except VpnRequiredError:
+                    raise  # VPN off: stop, don't record "no transcript" (#488)
                 except Exception as e:
                     error_msg = format_transcript_error(e)
                     is_block = (
@@ -602,6 +605,7 @@ def backfill_transcripts(
         conn.close()
 
 
+@exit_if_vpn_off
 def main():
     parser = argparse.ArgumentParser(description='Backfill transcripts for YouTube events')
     parser.add_argument(

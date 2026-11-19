@@ -19,7 +19,7 @@ schema:
   name: event_documents
   physicalName: public.event_documents
   logicalType: object
-  description: public.event_documents — searchable documents attached to a golden-record event. One row per (event, document); today the only document_type is 'transcript' (video transcripts from events_text_search), generalizing to agenda / minutes / caption documents later without a schema change. content holds the full searchable body (GIN full-text indexed). FK event_id -> event. Consumed by the API (search_documents_pg). Denormalized title/jurisdiction/state/city are sourced from the golden event when one exists, else COALESCE-backfilled from event_youtube_with_jurisdiction (by video_id) so the ~90% orphan transcripts still carry a location and survive state/city filters.
+  description: 'public.event_documents — searchable documents attached to a golden-record event. One row per (event, document); today the only document_type is ''transcript'' (video transcripts from events_text_search), generalizing to agenda / minutes / caption documents later without a schema change. content holds the full searchable body (GIN full-text indexed). FK event_id -> event. Consumed by the API (search_documents_pg). Denormalized title/jurisdiction/state/city are sourced from the golden event when one exists, else COALESCE-backfilled from event_youtube_with_jurisdiction (by video_id) so the ~90% orphan transcripts still carry a location and survive state/city filters. Inclusion (#533): every bronze transcript with caption text (the text is tested, not the has_transcript flag, see #470) except policy-pipeline rejects (`excluded:%`), tombstones, transcripts under 100 characters, junk-gated channels (bronze_youtube_channel_classification) and Canadian CivicSearch meetings (no US jurisdiction).'
   dataGranularityDescription: One row per (event, document); today the only document_type is 'transcript' (video transcripts from events_text_search), generalizing to agenda / minutes / caption documents later without a schema change.
   properties:
   - id: event_document_id
@@ -124,7 +124,7 @@ schema:
     name: event_date
     logicalType: date
     physicalType: date
-    description: Denormalized event date for sort/display.
+    description: 'Denormalized event date for sort/display. Never later than tomorrow for a transcript: a title date after that is replaced by the video''s upload day, or null (#564).'
   - id: jurisdiction_name
     name: jurisdiction_name
     logicalType: string

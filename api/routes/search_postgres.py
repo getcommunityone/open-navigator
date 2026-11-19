@@ -182,6 +182,14 @@ def _match_trailing_state(tokens: List[str]) -> tuple:
     return None, 0
 
 
+
+# The meeting-document search vector, computed from the text (#557): the served copy
+# no longer carries a stored content_tsv (24 MB). Same inputs as the old stored vector.
+_MEETING_DOC_TSV = (
+    "to_tsvector('english', coalesce(content, '') || ' ' || coalesce(meeting_title, '') "
+    "|| ' ' || coalesce(body_name, ''))"
+)
+
 async def detect_place_in_query(query: Optional[str]) -> tuple:
     """Detect a "<city> <state>" place inside a free-text search query.
 
@@ -2176,14 +2184,14 @@ async def search_meeting_documents_pg(
 
         if query and query.strip():
             where_clauses.append(
-                f"content_tsv @@ plainto_tsquery('english', ${param_idx})"
+                f"{_MEETING_DOC_TSV} @@ plainto_tsquery('english', ${param_idx})"
             )
             params.append(query)
             q_idx = param_idx
             param_idx += 1
 
             order_by = (
-                f"ts_rank(content_tsv, plainto_tsquery('english', ${q_idx})) DESC, "
+                f"ts_rank({_MEETING_DOC_TSV}, plainto_tsquery('english', ${q_idx})) DESC, "
                 "doc_date DESC NULLS LAST"
             )
             snippet_sql = (

@@ -13,6 +13,11 @@ the interface of the ordinary default route instead (the home connection, e.g.
 ``eth3``), so it really leaves outside the VPN. A host that answered only that way
 is remembered for the rest of the process and tried direct first after that.
 
+YouTube hosts (youtube.com, youtu.be, ytimg, googlevideo) are the exception: the
+home connection must never reach them (#488). For those URLs
+``async_get_with_vpn_bypass`` checks ``scrapers.youtube.vpn_guard.require_vpn`` and
+makes one normal request, with no direct-to-home retry. City websites keep the retry.
+
 Environment:
   SCRAPE_VPN_BYPASS_RETRY — ``true`` / ``false`` (default ``true``)
   SCRAPE_HTTPS_PROXY — optional explicit proxy for the *first* attempt only
@@ -304,7 +309,16 @@ async def async_get_with_vpn_bypass(
 ) -> httpx.Response:
     """
     GET ``url``; on VPN/proxy-ish failure, retry once without proxy env.
+
+    A YouTube URL is never retried on the home connection: it needs the VPN
+    (``VpnRequiredError`` otherwise) and gets a single request on the default route.
     """
+    from scrapers.youtube.vpn_guard import is_youtube_url, require_vpn
+
+    if is_youtube_url(url):
+        require_vpn()
+        return await client.get(url, **kwargs)
+
     if not scrape_vpn_bypass_retry_enabled():
         return await client.get(url, **kwargs)
 

@@ -1,6 +1,6 @@
-import { Fragment, useCallback, useMemo, useState } from 'react'
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { Fragment, useCallback, useMemo, useState, type ReactNode } from 'react'
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Dialog, Transition } from '@headlessui/react'
 import {
   ArrowLeftIcon,
@@ -8,17 +8,27 @@ import {
   XMarkIcon,
   ChartBarIcon,
   ArrowRightIcon,
+  MapPinIcon,
+  BuildingOffice2Icon,
 } from '@heroicons/react/24/outline'
 import {
   fetchPolicyQuestions,
   fetchPolicyQuestion,
   fetchQuestionMeetings,
+  fetchQuestionInstances,
+  OUTCOME_FAMILIES,
+  type OutcomeFamily,
   type PolicyQuestionSummary,
   type PolicyQuestionDetail,
   type QuestionTrendPoint,
   type QuestionMeeting,
+  type QuestionInstance,
 } from '../api/policyQuestions'
 import DecisionCardList from '../components/DecisionCardList'
+import { highlightSnippet } from '../lib/highlight'
+import { themeLabel } from '../lib/themeLabel'
+import { companyMentionLabel, companyMentionLink } from '../lib/companyMention'
+import { questionSummary } from '../lib/questionSummary'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Questions That Keep Coming Up — restyled to match Browse Topics / Causes:
@@ -27,10 +37,15 @@ import DecisionCardList from '../components/DecisionCardList'
 // click-into-a-separate-view. Picking a question also surfaces a compact detail
 // panel with its REAL stats (approval, money & talk, arguments, trend).
 //
-// EVERY figure is REAL (CLAUDE.md: No Fabricated Data):
-//   • approval, theme, instances        → /api/policy-question (rollup mart)
-//   • Money & Talk bars + tags          → money_total / money_share / talk_share
-//   • "by quarter" trend                → /api/policy-question/{id}.trend
+// EVERY figure is REAL (CLAUDE.md: No Fabricated Data) and counted for the
+// active place scope (?state=&city=, #499) — the header names that scope:
+//   • outcome breakdown, decisions      → /api/policy-question/{id}?state=&city=
+//   • $ in linked decisions             → money_sources (listed, so it traces)
+//   • discussed in N meetings           → question_transcript_link, same scope
+//   • dashboard summary sentence        → scoped rollup / outcome_rollup (#508)
+//   • dashboard money & talk            → money_sources (absolute $) + decision/meeting counts
+//   • "by quarter" trend                → /api/policy-question/{id}.trend (scoped; 2+ quarters)
+//   • dashboard decision rows           → /instances (headline, place_label, companies, nearby)
 //   • case for / against, instances     → question detail (arguments + instances)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -60,8 +75,46 @@ const pillLabel = (q: PolicyQuestionSummary) => {
   return (q.canonical_text || 'Untitled question').trim()
 }
 
-const approvalRate = (q: PolicyQuestionSummary) =>
-  q.jurisdictions_total > 0 ? (q.jurisdictions_approved / q.jurisdictions_total) * 100 : null
+const OUTCOME_LABEL: Record<OutcomeFamily, string> = {
+  approved: 'Approved',
+  denied: 'Denied',
+  moratorium: 'Moratorium',
+  deferred: 'Deferred',
+  other: 'Other',
+}
+
+const OUTCOME_COLOR: Record<OutcomeFamily, string> = {
+  approved: 'text-teal-700',
+  denied: 'text-rose-700',
+  moratorium: 'text-amber-700',
+  deferred: 'text-slate-600',
+  other: 'text-gray-500',
+}
+
+const outcomeCount = (d: PolicyQuestionDetail, f: OutcomeFamily) =>
+  ({
+    approved: d.rollup.approved_count,
+    denied: d.rollup.denied_count,
+    moratorium: d.rollup.moratorium_count,
+    deferred: d.rollup.deferred_count,
+    other: d.rollup.other_count,
+  })[f] ?? 0
+
+const parseOutcome = (raw: string | null): OutcomeFamily | undefined => {
+  const v = (raw ?? '').trim().toLowerCase()
+  return (OUTCOME_FAMILIES as string[]).includes(v) ? (v as OutcomeFamily) : undefined
+}
+
+// "m:ss" (or "h:mm:ss") for a jump link.
+const clock = (secs: number) => {
+  const t = Math.max(0, Math.floor(secs))
+  const h = Math.floor(t / 3600)
+  const m = Math.floor((t % 3600) / 60)
+  const ss = String(t % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+}
+
+const MEETINGS_ANCHOR = 'discussed-in-meetings'
 
 export default function PolicyQuestionsPage() {
   const navigate = useNavigate()
@@ -72,9 +125,14 @@ export default function PolicyQuestionsPage() {
   const stateCode = (searchParams.get('state') || '').trim().toUpperCase() || undefined
   const cityName = (searchParams.get('city') || '').trim() || undefined
   const questionIdParam = (searchParams.get('question_id') || '').trim() || undefined
+  // ?outcome=<family> (#499): a header outcome count drills the decision list to it.
+  const outcomeParam = parseOutcome(searchParams.get('outcome'))
   const [placeScope, setPlaceScope] = useState<'city' | 'state'>('city')
   const scopedCity = cityName && placeScope === 'city' ? cityName : undefined
   const placeLabel = scopedCity || stateCode
+  const isScoped = Boolean(stateCode || scopedCity)
+  // The scope label the header, the list title and the meetings all share.
+  const scopeLabel = scopedCity ? [scopedCity, stateCode].filter(Boolean).join(', ') : stateCode ?? 'Nationwide'
 
   // Picking a question SCOPES the decision cards shown below — ?question_id=
   // in the URL is the source of truth so deep links, refresh, and homepage picks
@@ -117,11 +175,56 @@ export default function PolicyQuestionsPage() {
       const next = new URLSearchParams(searchParams)
       if (q?.question_id) next.set('question_id', q.question_id)
       else next.delete('question_id')
+      // An outcome belongs to one question; picking another clears it.
+      next.delete('outcome')
       setSearchParams(next, { replace: true })
       setFlyoutOpen(false)
     },
     [searchParams, setSearchParams],
   )
+
+  // Drill the decision list to one outcome family (or back to all), in the URL
+  // alongside state/city so it survives refresh / back / deep links.
+  const setOutcome = useCallback(
+    (f: OutcomeFamily | null) => {
+      const next = new URLSearchParams(searchParams)
+      if (f) next.set('outcome', f)
+      else next.delete('outcome')
+      setSearchParams(next)
+    },
+    [searchParams, setSearchParams],
+  )
+
+  // Broaden to nationwide: drop state/city, keep the question and outcome.
+  const broadenToNation = useCallback(() => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('state')
+    next.delete('city')
+    setPlaceScope('city')
+    setSearchParams(next)
+  }, [searchParams, setSearchParams])
+
+  const activeQuestionId = selectedQuestion?.question_id ?? questionIdParam
+
+  // Every header figure, counted for the active scope (#499).
+  const { data: scopedDetail, isLoading: detailLoading } = useQuery<PolicyQuestionDetail>({
+    queryKey: ['policy-question-detail', activeQuestionId, stateCode ?? null, scopedCity ?? null],
+    queryFn: () => fetchPolicyQuestion(activeQuestionId as string, { state: stateCode, city: scopedCity }),
+    enabled: Boolean(activeQuestionId),
+    staleTime: 5 * 60 * 1000,
+  })
+  // Nationwide figures, only for the "See all N nationwide" broaden links.
+  const { data: nationalDetail } = useQuery<PolicyQuestionDetail>({
+    queryKey: ['policy-question-detail', activeQuestionId, null, null],
+    queryFn: () => fetchPolicyQuestion(activeQuestionId as string),
+    enabled: Boolean(activeQuestionId) && isScoped,
+    staleTime: 5 * 60 * 1000,
+  })
+  const nationalDecisions = nationalDetail
+    ? outcomeParam
+      ? outcomeCount(nationalDetail, outcomeParam)
+      : nationalDetail.rollup.decisions_total
+    : 0
 
   // Full catalog filtered by the flyout keyword search (text or theme).
   const filtered = useMemo(() => {
@@ -159,8 +262,23 @@ export default function PolicyQuestionsPage() {
   )
 
   const listTitle = selectedQuestion
-    ? `Decisions on this question${placeLabel ? ` in ${placeLabel}` : ''}`
+    ? `${outcomeParam ? `${OUTCOME_LABEL[outcomeParam]} decisions` : 'Decisions'} on this question · ${scopeLabel}`
     : `Most contested decisions${placeLabel ? ` in ${placeLabel}` : ''}`
+
+  // Empty scoped list → one click to the same question (and outcome) nationwide.
+  const broadenLink = (noun: string, n: number): ReactNode =>
+    isScoped && n > 0 ? (
+      <span className="flex flex-col items-center gap-2">
+        <span>No {noun} in {scopeLabel} yet.</span>
+        <button
+          type="button"
+          onClick={broadenToNation}
+          className="rounded-full bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+        >
+          See all {n.toLocaleString()} {noun} nationwide
+        </button>
+      </span>
+    ) : undefined
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -239,18 +357,35 @@ export default function PolicyQuestionsPage() {
         </div>
 
         {/* Selected-question detail panel — REAL stats only. Hidden on "All". */}
-        {selectedQuestion && <QuestionDetailPanel question={selectedQuestion} />}
+        {selectedQuestion && (
+          <QuestionDetailPanel
+            question={selectedQuestion}
+            detail={scopedDetail}
+            loading={detailLoading}
+            scopeLabel={scopeLabel}
+            outcome={outcomeParam}
+            onOutcome={setOutcome}
+            stateCode={stateCode}
+            city={scopedCity}
+          />
+        )}
 
         {/* Decision cards — the shared Contested StoryCard grid with YouTube
             previews, search bar, and advanced filters (matching Browse Topics).
             Picking a question scopes this list; the `key` remounts it so the new
             scope applies cleanly. */}
         <DecisionCardList
-          key={`${selectedQuestion?.question_id ?? questionIdParam ?? 'all-questions'}-${scopedCity ?? 'state'}`}
-          questionId={selectedQuestion?.question_id ?? questionIdParam ?? undefined}
+          key={`${activeQuestionId ?? 'all-questions'}-${stateCode ?? 'national'}-${scopedCity ?? 'state'}-${outcomeParam ?? 'all'}`}
+          questionId={activeQuestionId ?? undefined}
+          outcome={activeQuestionId ? outcomeParam : undefined}
           state={stateCode}
           city={scopedCity}
           title={listTitle}
+          emptyState={
+            activeQuestionId
+              ? broadenLink(outcomeParam ? `${OUTCOME_LABEL[outcomeParam].toLowerCase()} decisions` : 'decisions', nationalDecisions)
+              : undefined
+          }
           showAdvancedFilters
           scopeFilter={
             <label className="flex flex-col gap-1 text-xs font-semibold text-gray-600">
@@ -281,10 +416,14 @@ export default function PolicyQuestionsPage() {
             surfaces them honestly (keyword match, NOT an AI-extracted decision). */}
         {selectedQuestion && (
           <QuestionMeetingList
-            key={`meetings-${selectedQuestion.question_id}`}
+            key={`meetings-${selectedQuestion.question_id}-${stateCode ?? 'national'}-${scopedCity ?? 'state'}`}
             question={selectedQuestion}
+            total={scopedDetail?.discussion_meeting_count ?? 0}
+            totalLoading={detailLoading}
             state={stateCode}
             city={scopedCity}
+            scopeLabel={scopeLabel}
+            emptyState={broadenLink('meetings', nationalDetail?.discussion_meeting_count ?? 0)}
           />
         )}
       </div>
@@ -356,7 +495,6 @@ export default function PolicyQuestionsPage() {
                       </button>
                       {filtered.map((q) => {
                         const on = selectedQuestion?.question_id === q.question_id
-                        const r = approvalRate(q)
                         return (
                           <button
                             key={q.question_id}
@@ -370,9 +508,8 @@ export default function PolicyQuestionsPage() {
                           >
                             <span className="block font-medium text-gray-800">{q.canonical_text || 'Untitled question'}</span>
                             <span className="mt-0.5 block text-xs text-gray-500">
-                              {r != null && <>{r.toFixed(0)}% approved · </>}
-                              {q.instances_total} {q.instances_total === 1 ? 'instance' : 'instances'}
-                              {q.primary_theme && q.primary_theme !== '__unthemed__' && <> · {q.primary_theme}</>}
+                              {q.instances_total} {q.instances_total === 1 ? 'decision' : 'decisions'} nationwide
+                              {themeLabel(q.primary_theme) && <> · {themeLabel(q.primary_theme)}</>}
                             </span>
                           </button>
                         )
@@ -395,43 +532,159 @@ export default function PolicyQuestionsPage() {
 }
 
 // ── Selected-question summary card ──
-// A compact, attractive header (approval + theme + instances + headline money/
-// talk figures) with a single drill-down button that opens the full dashboard
-// in a modal — instead of dumping every chart inline at the top of the page.
-function QuestionDetailPanel({ question }: { question: PolicyQuestionSummary }) {
+// Every figure is counted for the active place scope and labelled with it
+// (CLAUDE.md "Scope label must match the active filter", #499). Each figure is a
+// drill-down: an outcome filters the decision list (?outcome=), the decision
+// count clears it, the meetings count jumps to the meetings section, the theme
+// links to Browse Topics, and the money figure lists the decisions it adds up.
+function QuestionDetailPanel({
+  question,
+  detail,
+  loading,
+  scopeLabel,
+  outcome,
+  onOutcome,
+  stateCode,
+  city,
+}: {
+  question: PolicyQuestionSummary
+  detail: PolicyQuestionDetail | undefined
+  loading: boolean
+  scopeLabel: string
+  outcome: OutcomeFamily | undefined
+  onOutcome: (f: OutcomeFamily | null) => void
+  stateCode?: string
+  city?: string
+}) {
   const [dashboardOpen, setDashboardOpen] = useState(false)
-  const r = approvalRate(question)
+  const [moneyOpen, setMoneyOpen] = useState(false)
+  const theme = themeLabel(detail?.primary_theme ?? question.primary_theme)
+
+  // Theme → its Browse Topics topic (e.g. "Data centers") when one is named like an
+  // alias of the question; otherwise Browse Topics in the same place scope.
+  const topicHref = (() => {
+    const q = new URLSearchParams()
+    if (detail?.topic_id != null) q.set('topic_id', String(detail.topic_id))
+    if (stateCode) q.set('state', stateCode)
+    if (city) q.set('city', city)
+    const qs = q.toString()
+    return `/browse-topics${qs ? `?${qs}` : ''}`
+  })()
+
+  const decisions = detail?.rollup.decisions_total ?? 0
+  const meetings = detail?.discussion_meeting_count ?? 0
+  const money = detail?.money_total ?? 0
+  const moneySources = detail?.money_sources ?? []
+  const sep = <span className="text-gray-300">·</span>
+  const chip = (on: boolean) =>
+    `rounded-full px-2 py-0.5 transition-colors hover:bg-indigo-50 hover:text-indigo-700 ${
+      on ? 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-300' : ''
+    }`
 
   return (
     <>
       <div className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold leading-snug text-gray-900">
-              {question.canonical_text || 'Untitled question'}
-            </h2>
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
-              {r != null && (
-                <span className="font-semibold text-teal-700">
-                  {question.jurisdictions_approved}/{question.jurisdictions_total} approved ({r.toFixed(0)}%)
-                </span>
-              )}
-              {question.primary_theme && question.primary_theme !== '__unthemed__' && (
-                <span className="uppercase tracking-wide text-gray-500">{question.primary_theme}</span>
-              )}
-              <span className="text-gray-300">·</span>
-              <span>
-                {question.instances_total} {question.instances_total === 1 ? 'instance' : 'instances'}
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold leading-snug text-gray-900">
+                {question.canonical_text || 'Untitled question'}
+              </h2>
+              <span
+                data-testid="question-scope-label"
+                className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"
+              >
+                {outcome ? `${OUTCOME_LABEL[outcome]} · ` : ''}
+                {scopeLabel === 'Nationwide' ? 'Nationwide' : `in ${scopeLabel}`}
               </span>
-              <span className="text-gray-300">·</span>
-              <span>{fmtMoney(question.money_total ?? 0)} moved</span>
-              {(question.discussion_meeting_count ?? 0) > 0 && (
-                <>
-                  <span className="text-gray-300">·</span>
-                  <span>discussed in {(question.discussion_meeting_count ?? 0).toLocaleString()} meetings</span>
-                </>
-              )}
             </div>
+            {loading || !detail ? (
+              <div className="mt-2 h-5 w-64 animate-pulse rounded bg-gray-100" />
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
+                <button
+                  type="button"
+                  onClick={() => onOutcome(null)}
+                  className={`${chip(!outcome)} font-semibold text-gray-800`}
+                  title="Show every decision in this scope"
+                >
+                  {decisions.toLocaleString()} {decisions === 1 ? 'decision' : 'decisions'}
+                </button>
+                {OUTCOME_FAMILIES.filter((f) => outcomeCount(detail, f) > 0).map((f) => (
+                  <Fragment key={f}>
+                    {sep}
+                    <button
+                      type="button"
+                      onClick={() => onOutcome(outcome === f ? null : f)}
+                      className={`${chip(outcome === f)} ${OUTCOME_COLOR[f]}`}
+                      title={`Show only ${OUTCOME_LABEL[f].toLowerCase()} decisions`}
+                    >
+                      {outcomeCount(detail, f).toLocaleString()} {OUTCOME_LABEL[f].toLowerCase()}
+                    </button>
+                  </Fragment>
+                ))}
+                {theme && (
+                  <>
+                    {sep}
+                    <Link
+                      to={topicHref}
+                      className={chip(false)}
+                      title={detail.topic_name ? `Browse the ${detail.topic_name} topic` : 'Browse topics'}
+                    >
+                      {theme}
+                      {detail.topic_name && <span className="text-gray-400"> › {detail.topic_name}</span>}
+                    </Link>
+                  </>
+                )}
+                {money !== 0 && moneySources.length > 0 && (
+                  <>
+                    {sep}
+                    <button
+                      type="button"
+                      onClick={() => setMoneyOpen((v) => !v)}
+                      className={chip(moneyOpen)}
+                      aria-expanded={moneyOpen}
+                    >
+                      {fmtMoney(money)} in {moneySources.length} linked{' '}
+                      {moneySources.length === 1 ? 'decision' : 'decisions'}
+                    </button>
+                  </>
+                )}
+                {meetings > 0 && (
+                  <>
+                    {sep}
+                    <a
+                      href={`#${MEETINGS_ANCHOR}`}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        document.getElementById(MEETINGS_ANCHOR)?.scrollIntoView({ behavior: 'smooth' })
+                      }}
+                      className={chip(false)}
+                    >
+                      discussed in {meetings.toLocaleString()} {meetings === 1 ? 'meeting' : 'meetings'}
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Where the dollar figure comes from: the linked decisions' own amounts. */}
+            {moneyOpen && moneySources.length > 0 && (
+              <ul className="mt-3 space-y-1 rounded-md border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
+                {moneySources.map((m) => (
+                  <li key={m.event_decision_id} className="flex flex-wrap items-baseline justify-between gap-2">
+                    <Link to={`/decisions/${m.event_decision_id}`} className="text-indigo-700 hover:underline">
+                      {m.title || 'Untitled decision'}
+                    </Link>
+                    <span className="text-xs text-gray-500">
+                      {[m.jurisdiction_name, m.state_code].filter(Boolean).join(', ')}
+                      {m.outcome_family && <> · {m.outcome_family}</>} ·{' '}
+                      <span className="font-semibold text-gray-700">{fmtMoney(m.net_dollar_impact)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Attractive drill-down — opens the full money & talk dashboard. */}
@@ -443,7 +696,7 @@ function QuestionDetailPanel({ question }: { question: PolicyQuestionSummary }) 
             <ChartBarIcon className="h-6 w-6 shrink-0" />
             <span className="flex flex-col leading-tight">
               <span className="text-sm font-semibold">View dashboard</span>
-              <span className="text-[11px] text-white/80">Money &amp; talk · trend · arguments</span>
+              <span className="text-[11px] text-white/80">Summary · where &amp; who · trend</span>
             </span>
             <ArrowRightIcon className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
           </button>
@@ -454,34 +707,65 @@ function QuestionDetailPanel({ question }: { question: PolicyQuestionSummary }) 
         question={question}
         open={dashboardOpen}
         onClose={() => setDashboardOpen(false)}
+        scopeLabel={scopeLabel}
+        stateCode={stateCode}
+        city={city}
+        outcome={outcome}
       />
     </>
   )
 }
 
 // ── Full question dashboard, rendered in a drill-down modal ──
-// Reuses the summary's already-loaded shares for the bars, and lazily fetches
-// the full detail (arguments, trend, recent instances). All REAL data.
+// Follows the page's scope (?state=&city=&outcome=) and says so. Opens with a plain
+// sentence built from the scoped counts, then absolute money & talk figures, the
+// quarterly history (only with 2+ quarters), the arguments, and one readable row per
+// decision: what was decided (headline), when, the outcome, and — only when the
+// warehouse can back it — where (a street-level address that agrees with the
+// decision's government) and who (a company the decision's own text names, quoted).
+// All REAL data (#508); a missing place or company is simply not shown.
 function QuestionDashboardModal({
   question,
   open,
   onClose,
+  scopeLabel,
+  stateCode,
+  city,
+  outcome,
 }: {
   question: PolicyQuestionSummary
   open: boolean
   onClose: () => void
+  scopeLabel: string
+  stateCode?: string
+  city?: string
+  outcome?: OutcomeFamily
 }) {
   const { data: detail, isLoading } = useQuery<PolicyQuestionDetail>({
-    queryKey: ['policy-question-detail', question.question_id],
-    queryFn: () => fetchPolicyQuestion(question.question_id),
+    queryKey: ['policy-question-detail', question.question_id, stateCode ?? null, city ?? null, outcome ?? null],
+    queryFn: () => fetchPolicyQuestion(question.question_id, { state: stateCode, city, outcome }),
+    staleTime: 5 * 60 * 1000,
+    enabled: open,
+  })
+  const { data: instances, isLoading: instancesLoading } = useQuery<QuestionInstance[]>({
+    queryKey: ['policy-question-instances', question.question_id, stateCode ?? null, city ?? null, outcome ?? null],
+    queryFn: () =>
+      fetchQuestionInstances(question.question_id, { state: stateCode, city, outcome, order: 'recent', limit: 100 }),
     staleTime: 5 * 60 * 1000,
     enabled: open,
   })
 
-  const r = approvalRate(question)
-  const mShare = question.money_share ?? 0
-  const tShare = question.talk_share ?? 0
-  const maxS = Math.max(mShare, tShare, 1)
+  const rollup = outcome ? detail?.outcome_rollup : detail?.rollup
+  const summary = detail
+    ? questionSummary(rollup, { outcome, meetings: detail.discussion_meeting_count ?? 0 })
+    : null
+  const decisionsInScope = rollup?.decisions_total ?? 0
+  const meetings = detail?.discussion_meeting_count ?? 0
+  const moneySources = (detail?.money_sources ?? []).filter((m) => !outcome || m.outcome_family === outcome)
+  const money = moneySources.reduce((s, m) => s + m.net_dollar_impact, 0)
+  const trend = detail?.trend ?? []
+  const rows = instances ?? []
+  const scopeChip = `${outcome ? `${OUTCOME_LABEL[outcome]} · ` : ''}${scopeLabel === 'Nationwide' ? 'Nationwide' : `in ${scopeLabel}`}`
 
   const pros = detail?.arguments.filter((a) => a.stance === 'pro') ?? []
   const cons = detail?.arguments.filter((a) => a.stance === 'con') ?? []
@@ -519,23 +803,19 @@ function QuestionDashboardModal({
                       {question.canonical_text || 'Untitled question'}
                     </Dialog.Title>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
-                      {r != null && (
-                        <span className="font-semibold text-teal-700">
-                          {question.jurisdictions_approved}/{question.jurisdictions_total} approved ({r.toFixed(0)}%)
-                        </span>
-                      )}
-                      {question.primary_theme && question.primary_theme !== '__unthemed__' && (
-                        <span className="uppercase tracking-wide text-gray-500">{question.primary_theme}</span>
-                      )}
-                      <span className="text-gray-300">·</span>
-                      <span>
-                        {question.instances_total} {question.instances_total === 1 ? 'instance' : 'instances'}
+                      <span
+                        data-testid="dashboard-scope-label"
+                        className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"
+                      >
+                        {scopeChip}
                       </span>
+                      {themeLabel(question.primary_theme) && <span>{themeLabel(question.primary_theme)}</span>}
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={onClose}
+                    aria-label="Close dashboard"
                     className="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                   >
                     <XMarkIcon className="h-6 w-6" />
@@ -543,103 +823,136 @@ function QuestionDashboardModal({
                 </div>
 
                 <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
-                  {/* Money & talk — REAL shares of all decisions */}
-                  <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[10px] uppercase tracking-widest text-gray-500">Money &amp; talk · share of all decisions</span>
-                      <span className="text-[11px] text-gray-500">
-                        {fmtMoney(question.money_total ?? 0)} moved · came up {question.instances_total}×
-                      </span>
-                    </div>
-                    <div className="grid items-center gap-x-2 gap-y-1" style={{ gridTemplateColumns: '3.5rem minmax(0,1fr) 2.8rem' }}>
-                      <span className="text-[10px] uppercase tracking-wider text-gray-500">Money</span>
-                      <div className="h-3 overflow-hidden rounded-sm bg-gray-200/60">
-                        <div className="h-full rounded-sm" style={{ width: `${Math.max(1.5, (mShare / maxS) * 100)}%`, background: SPEND_COLOR }} />
-                      </div>
-                      <span className="text-right text-xs text-gray-500">{mShare.toFixed(1)}%</span>
-                      <span className="text-[10px] uppercase tracking-wider text-gray-500">Talk</span>
-                      <div className="h-3 overflow-hidden rounded-sm bg-gray-200/60">
-                        <div className="h-full rounded-sm" style={{ width: `${Math.max(1.5, (tShare / maxS) * 100)}%`, background: TALK_COLOR }} />
-                      </div>
-                      <span className="text-right text-xs text-gray-500">{tShare.toFixed(1)}%</span>
-                    </div>
-                  </div>
-
-                  {isLoading ? (
+                  {isLoading || !detail ? (
                     <div className="my-4 h-5 w-5 animate-spin rounded-full border-b-2 border-indigo-600" />
                   ) : (
-                    detail && (
-                      <>
-                        {/* Arguments for / against */}
-                        {(pros.length > 0 || cons.length > 0) && (
-                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                            <div>
-                              <div className="mb-1.5 text-[10px] uppercase tracking-widest text-teal-700">The case for</div>
-                              {pros.length ? (
-                                pros.map((a) => (
-                                  <p key={a.argument_id} className="mb-1.5 text-sm leading-snug text-gray-600">— {a.label || a.summary}</p>
-                                ))
-                              ) : (
-                                <p className="text-sm text-gray-400">No arguments captured yet.</p>
-                              )}
-                            </div>
-                            <div>
-                              <div className="mb-1.5 text-[10px] uppercase tracking-widest text-rose-700">The case against</div>
-                              {cons.length ? (
-                                cons.map((a) => (
-                                  <p key={a.argument_id} className="mb-1.5 text-sm leading-snug text-gray-600">— {a.label || a.summary}</p>
-                                ))
-                              ) : (
-                                <p className="text-sm text-gray-400">No arguments captured yet.</p>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                    <>
+                      {/* Plain summary — every number is a scoped count from the API. */}
+                      <p data-testid="dashboard-summary" className="text-[15px] leading-relaxed text-gray-800">
+                        {summary}
+                      </p>
 
-                        {/* By quarter — real money line + instance bars */}
-                        {detail.trend.length > 0 && (
-                          <div className="mt-4 rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5">
-                            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-[10px] uppercase tracking-widest text-gray-500">By quarter</span>
-                              <span className="flex items-center gap-3 text-[11px] text-gray-500">
-                                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: SPEND_COLOR }} />money</span>
-                                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: TALK_COLOR }} />how often</span>
-                              </span>
-                            </div>
-                            <Trend points={detail.trend} />
-                          </div>
-                        )}
-
-                        {/* Recent instances — real decisions/bills that instantiate the question */}
-                        {detail.sample_instances.length > 0 && (
-                          <div className="mt-4">
-                            <div className="mb-1.5 text-[10px] uppercase tracking-widest text-gray-500">Recent instances</div>
-                            {detail.sample_instances.slice(0, 6).map((ex) => (
-                              <div key={ex.instance_id} className="flex items-start justify-between gap-3 py-1.5 text-sm">
-                                <div className="min-w-0">
-                                  <span className="text-gray-700">
-                                    {[ex.city || ex.jurisdiction_name, ex.state_code].filter(Boolean).join(', ') || 'Unknown jurisdiction'}
-                                  </span>
-                                  {ex.occurred_at && (
-                                    <span className="ml-2 text-xs text-gray-400">
-                                      {new Date(ex.occurred_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                                    </span>
-                                  )}
-                                </div>
-                                {ex.outcome_normalized && (
-                                  <span
-                                    className="shrink-0 text-xs capitalize"
-                                    style={{ color: ex.outcome_normalized === 'approved' || ex.outcome_normalized === 'enacted' ? SPEND_COLOR : '#78716c' }}
-                                  >
-                                    {ex.outcome_normalized}
-                                  </span>
-                                )}
+                      {/* Money & talk — absolute, labelled figures for this scope. */}
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5">
+                          <div className="text-[10px] uppercase tracking-widest" style={{ color: SPEND_COLOR }}>Money</div>
+                          {money !== 0 && moneySources.length > 0 ? (
+                            <>
+                              <div className="text-lg font-semibold text-gray-900">
+                                {fmtMoney(money)}{' '}
+                                <span className="text-sm font-normal text-gray-500">
+                                  in {moneySources.length} {moneySources.length === 1 ? 'decision' : 'decisions'}
+                                </span>
                               </div>
-                            ))}
+                              <ul className="mt-1 space-y-0.5 text-xs text-gray-500">
+                                {moneySources.slice(0, 3).map((m) => (
+                                  <li key={m.event_decision_id} className="truncate">
+                                    <Link to={`/decisions/${m.event_decision_id}`} className="text-indigo-700 hover:underline">
+                                      {m.title || 'Untitled decision'}
+                                    </Link>{' '}
+                                    · {[m.jurisdiction_name, m.state_code].filter(Boolean).join(', ')} · {fmtMoney(m.net_dollar_impact)}
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          ) : (
+                            <div className="text-sm text-gray-500">No dollar amount in these decisions.</div>
+                          )}
+                        </div>
+                        <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5">
+                          <div className="text-[10px] uppercase tracking-widest" style={{ color: TALK_COLOR }}>Talk</div>
+                          <div className="text-lg font-semibold text-gray-900">
+                            {decisionsInScope.toLocaleString()}{' '}
+                            <span className="text-sm font-normal text-gray-500">
+                              {decisionsInScope === 1 ? 'decision' : 'decisions'}
+                              {outcome ? ` (${OUTCOME_LABEL[outcome].toLowerCase()})` : ''}
+                            </span>
                           </div>
+                          <div className="text-xs text-gray-500">
+                            {meetings > 0
+                              ? <>discussed in {meetings.toLocaleString()} {meetings === 1 ? 'meeting' : 'meetings'} (transcript keyword match)</>
+                              : 'No meeting transcripts mention it in this scope.'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* By quarter — only when there is a history to show. */}
+                      <div className="mt-4 rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5">
+                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[10px] uppercase tracking-widest text-gray-500">By quarter</span>
+                          {trend.length >= 2 && (
+                            <span className="flex items-center gap-3 text-[11px] text-gray-500">
+                              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: SPEND_COLOR }} />money</span>
+                              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: TALK_COLOR }} />how often</span>
+                            </span>
+                          )}
+                        </div>
+                        {trend.length >= 2 ? (
+                          <Trend points={trend} />
+                        ) : (
+                          <p data-testid="dashboard-trend-empty" className="text-sm text-gray-500">
+                            Not enough history yet
+                            {trend.length === 1 && (
+                              <>
+                                {': '}every decision here is from {quarterLabel(trend[0].quarter_start)}
+                              </>
+                            )}
+                            .
+                          </p>
                         )}
-                      </>
-                    )
+                      </div>
+
+                      {/* Arguments for / against */}
+                      {(pros.length > 0 || cons.length > 0) && (
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <div className="mb-1.5 text-[10px] uppercase tracking-widest text-teal-700">The case for</div>
+                            {pros.length ? (
+                              pros.map((a) => (
+                                <p key={a.argument_id} className="mb-1.5 text-sm leading-snug text-gray-600">— {a.label || a.summary}</p>
+                              ))
+                            ) : (
+                              <p className="text-sm text-gray-400">No arguments captured yet.</p>
+                            )}
+                          </div>
+                          <div>
+                            <div className="mb-1.5 text-[10px] uppercase tracking-widest text-rose-700">The case against</div>
+                            {cons.length ? (
+                              cons.map((a) => (
+                                <p key={a.argument_id} className="mb-1.5 text-sm leading-snug text-gray-600">— {a.label || a.summary}</p>
+                              ))
+                            ) : (
+                              <p className="text-sm text-gray-400">No arguments captured yet.</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* The decisions — what, when, outcome, and where/who when the data backs it. */}
+                      <div className="mt-5">
+                        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                          <span className="text-[10px] uppercase tracking-widest text-gray-500">
+                            {outcome ? `${OUTCOME_LABEL[outcome]} decisions` : 'Decisions'}, newest first
+                          </span>
+                          {rows.length > 0 && (
+                            <span className="text-[11px] text-gray-400">
+                              {rows.length.toLocaleString()} of {(rollup?.instances_total ?? rows.length).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        {instancesLoading ? (
+                          <div className="my-3 h-5 w-5 animate-spin rounded-full border-b-2 border-indigo-600" />
+                        ) : rows.length === 0 ? (
+                          <p className="text-sm text-gray-400">No decisions in this scope.</p>
+                        ) : (
+                          <ul className="divide-y divide-gray-100">
+                            {rows.map((ex) => (
+                              <InstanceRow key={ex.instance_id} ex={ex} />
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </Dialog.Panel>
@@ -651,88 +964,176 @@ function QuestionDashboardModal({
   )
 }
 
+// One decision in the dashboard: headline (linked), place + date + outcome, and the
+// where / who lines only when dbt could back them (decision_place_label,
+// decision_company_mention, decision_nearby_data_center_site).
+function InstanceRow({ ex }: { ex: QuestionInstance }) {
+  const fam = ex.outcome_family as OutcomeFamily | null | undefined
+  const gov = [ex.city || ex.jurisdiction_name, ex.state_code].filter(Boolean).join(', ') || 'Unknown jurisdiction'
+  const title = ex.headline || `${ex.source_type === 'state_bill' ? 'State bill' : 'Decision'} in ${gov}`
+  const mentions = ex.company_mentions ?? []
+  const nearby = ex.nearby_sites ?? []
+  return (
+    <li data-testid="dashboard-instance" className="py-2.5 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        {ex.event_decision_id ? (
+          <Link to={`/decisions/${ex.event_decision_id}`} className="font-medium leading-snug text-indigo-700 hover:underline">
+            {title}
+          </Link>
+        ) : (
+          <span className="font-medium leading-snug text-gray-800">{title}</span>
+        )}
+        {fam && (
+          <span className={`shrink-0 text-xs font-semibold ${OUTCOME_COLOR[fam] ?? 'text-gray-500'}`}>
+            {OUTCOME_LABEL[fam] ?? fam}
+          </span>
+        )}
+      </div>
+      <div className="mt-0.5 text-xs text-gray-500">
+        {gov}
+        {ex.occurred_at && (
+          <> · {new Date(ex.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
+        )}
+      </div>
+      {ex.place_label && (
+        <div className="mt-1 flex items-start gap-1 text-xs text-gray-700" data-testid="dashboard-instance-place">
+          <MapPinIcon className="mt-px h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
+          <span>
+            <span className="text-gray-400">Where: </span>
+            {ex.place_label}
+          </span>
+        </div>
+      )}
+      {mentions.map((m) => {
+        const recordingLink = companyMentionLink(m)
+        return (
+        <div key={m.operator_name} className="mt-1 flex items-start gap-1 text-xs text-gray-700" data-testid="dashboard-instance-company">
+          <BuildingOffice2Icon className="mt-px h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
+          <span>
+            <span className="text-gray-400">{companyMentionLabel(m)}: </span>
+            <span className="font-medium">{m.operator_name}</span>
+            {m.evidence && <span className="text-gray-500"> — “{highlightSnippet(m.evidence)}”</span>}
+            {recordingLink && (
+              <>
+                {' '}
+                <a
+                  href={recordingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:underline"
+                  data-testid="dashboard-instance-company-recording"
+                >
+                  Watch the meeting
+                </a>
+              </>
+            )}
+          </span>
+        </div>
+        )
+      })}
+      {nearby.map((s) => (
+        <div key={s.data_center_site_id} className="mt-1 text-xs text-gray-500">
+          Nearby tracked site: {s.site_name}
+          {s.owner && <> ({s.owner})</>}
+          <span className="text-gray-400"> — near this government, not necessarily what was decided</span>
+        </div>
+      ))}
+    </li>
+  )
+}
+
 // ── "Discussed in N meetings" — transcript-keyword fallback ──
 // Real meetings whose transcript matched this question's alias keyword(s)
-// (dbt question_transcript_link via /api/policy-question/{id}/meetings). This is
-// a HIGH-RECALL keyword signal, NOT an AI-extracted decision — labeled as such so
-// it's never mistaken for the structured decision list above. Every row is a real
-// meeting (CLAUDE.md: No Fabricated Data); empty → the section hides itself.
+// (dbt question_transcript_link via /api/policy-question/{id}/meetings), scoped
+// server-side to the page's state/city and newest first. A HIGH-RECALL keyword
+// signal, NOT an AI-extracted decision — labelled as such. Every tile quotes the
+// matched passage (ts_headline <mark> → highlightSnippet, never innerHTML) with a
+// jump to the moment it is said; a meeting with no passage is not shown (#499).
 const MEETING_PAGE = 24
 
 function QuestionMeetingList({
   question,
+  total,
+  totalLoading,
   state,
   city,
+  scopeLabel,
+  emptyState,
 }: {
   question: PolicyQuestionSummary
+  total: number
+  totalLoading: boolean
   state?: string
   city?: string
+  scopeLabel: string
+  emptyState?: ReactNode
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const total = question.discussion_meeting_count ?? 0
-
-  const { data, isLoading } = useQuery<QuestionMeeting[]>({
-    queryKey: ['policy-question-meetings', question.question_id],
-    queryFn: () => fetchQuestionMeetings(question.question_id, 200, 0),
+  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteQuery<QuestionMeeting[]>({
+    queryKey: ['policy-question-meetings', question.question_id, state ?? null, city ?? null],
+    queryFn: ({ pageParam }) =>
+      fetchQuestionMeetings(question.question_id, {
+        state,
+        city,
+        limit: MEETING_PAGE,
+        offset: Number(pageParam) || 0,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) =>
+      last.length === MEETING_PAGE ? pages.length * MEETING_PAGE : undefined,
     staleTime: 5 * 60 * 1000,
     enabled: total > 0,
   })
 
-  // Optional place scoping carried over from the homepage (?state=…&city=…): the list honours the same
-  // scope the page's label shows (CLAUDE.md, scope label must match the active filter).
-  const meetings = useMemo(() => {
-    const wantCity = (city ?? '').trim().toLowerCase()
-    return (data ?? []).filter((m) => {
-      if (state && (m.state_code ?? '').toUpperCase() !== state) return false
-      if (wantCity) {
-        const names = [m.city, m.jurisdiction_name].map((n) => (n ?? '').trim().toLowerCase())
-        if (!names.includes(wantCity)) return false
-      }
-      return true
-    })
-  }, [data, state, city])
+  // No passage, no tile: the evidence is what shows why the meeting matched.
+  const meetings = useMemo(
+    () => (data?.pages ?? []).flat().filter((m) => (m.evidence ?? '').includes('<mark>')),
+    [data],
+  )
 
-  if (total === 0) return null
-
-  const shown = expanded ? meetings : meetings.slice(0, MEETING_PAGE)
+  if (!totalLoading && total === 0 && !emptyState) return null
 
   return (
-    <div className="mt-6">
+    <div id={MEETINGS_ANCHOR} className="mt-6 scroll-mt-4">
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h3 className="text-lg font-semibold text-gray-900">
-          Discussed in meetings
+          Discussed in meetings · {scopeLabel}
           <span className="ml-2 text-sm font-normal text-gray-500">
-            {meetings.length.toLocaleString()} meeting{meetings.length === 1 ? '' : 's'} mention it
+            {total.toLocaleString()} meeting{total === 1 ? '' : 's'} mention it · newest first
           </span>
         </h3>
       </div>
       <p className="mb-3 text-xs text-gray-400">
-        Real meetings whose transcript mentions this topic (keyword match) — not yet captured as a
-        formal decision.
+        Real meetings whose transcript mentions this topic (keyword match), quoted where it comes up — not
+        yet captured as a formal decision.
       </p>
 
-      {isLoading ? (
+      {totalLoading || (total > 0 && isLoading) ? (
         <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-400">
           Loading meetings…
         </div>
       ) : meetings.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
-          No meetings here yet{city || state ? ` for ${[city, state].filter(Boolean).join(', ')}` : ''}.
+        <div className="rounded-lg border border-dashed border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+          {emptyState ?? `No meetings in ${scopeLabel} yet.`}
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {shown.map((m) => {
+            {meetings.map((m) => {
               const place = [m.city || m.jurisdiction_name, m.state_code].filter(Boolean).join(', ')
               const date = m.event_date
-                ? new Date(m.event_date).toLocaleDateString('en-US', {
+                ? new Date(`${m.event_date}T00:00:00`).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
                     year: 'numeric',
                   })
                 : null
-              const card = (
-                <>
+              const watchHref = m.jump_url || m.video_url
+              return (
+                <div
+                  key={m.video_id}
+                  data-testid="question-meeting-tile"
+                  className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-indigo-700">{place || 'Unknown place'}</span>
                     {date && <span className="text-xs text-gray-400">{date}</span>}
@@ -740,34 +1141,38 @@ function QuestionMeetingList({
                   <p className="mt-1.5 line-clamp-2 text-sm font-medium text-gray-800">
                     {m.event_title || 'Untitled meeting'}
                   </p>
-                </>
-              )
-              return m.video_url ? (
-                <a
-                  key={m.video_id}
-                  href={m.video_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md"
-                >
-                  {card}
-                </a>
-              ) : (
-                <div key={m.video_id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-                  {card}
+                  <blockquote className="mt-2 line-clamp-4 border-l-2 border-amber-300 pl-2 text-xs italic leading-relaxed text-gray-600">
+                    “{highlightSnippet(m.evidence ?? '')}”
+                  </blockquote>
+                  {watchHref && (
+                    <a
+                      href={watchHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 self-start text-xs font-semibold text-indigo-600 hover:underline"
+                    >
+                      {m.jump_url && m.start_seconds != null ? `▶ Watch at ${clock(m.start_seconds)}` : '▶ Watch the meeting'}
+                    </a>
+                  )}
                 </div>
               )
             })}
           </div>
-          {meetings.length > MEETING_PAGE && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-3 text-sm font-medium text-indigo-600 hover:underline"
-            >
-              {expanded ? 'Show fewer' : `Show all ${meetings.length.toLocaleString()} meetings`}
-            </button>
-          )}
+          <div className="mt-3 flex items-center gap-3 text-sm">
+            <span className="text-gray-500">
+              Showing {meetings.length.toLocaleString()} of {total.toLocaleString()}
+            </span>
+            {hasNextPage && (
+              <button
+                type="button"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="font-medium text-indigo-600 hover:underline disabled:text-gray-400"
+              >
+                {isFetchingNextPage ? 'Loading…' : 'Show more meetings'}
+              </button>
+            )}
+          </div>
         </>
       )}
     </div>

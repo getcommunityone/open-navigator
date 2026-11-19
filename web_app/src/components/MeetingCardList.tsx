@@ -10,6 +10,7 @@ import {
 import { fetchMeetings, type MeetingSort, type MeetingCard } from '../api/meetings'
 import DecisionCardList from './DecisionCardList'
 import MeetingThumbnail from './MeetingThumbnail'
+import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 
 /**
  * MeetingCardList — a reusable, meeting-grain browser.
@@ -88,6 +89,9 @@ function MeetingRow({ meeting }: { meeting: MeetingCard }) {
               videoId={meeting.video_id}
               alt={meeting.title ?? undefined}
               className="rounded-lg"
+              place={placeLabel(meeting)}
+              date={meeting.date}
+              kind={inferThumbnailKind(meeting.title)}
             />
           </div>
         )}
@@ -125,7 +129,7 @@ function MeetingRow({ meeting }: { meeting: MeetingCard }) {
       {/* Inline drill-down: this meeting's decisions. */}
       {canDrill && open && (
         <div className="border-t border-gray-100 bg-gray-50/60 p-5">
-          <DecisionCardList meetingId={meeting.meeting_id} />
+          <DecisionCardList meetingId={meeting.meeting_id ?? undefined} />
         </div>
       )}
     </div>
@@ -264,7 +268,7 @@ export default function MeetingCardList({
         <>
           <div className={`space-y-3 transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
             {meetings.map((m) => (
-              <MeetingRow key={m.meeting_id} meeting={m} />
+              <MeetingRow key={m.meeting_id ?? `video-${m.video_id}`} meeting={m} />
             ))}
           </div>
 

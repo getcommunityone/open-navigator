@@ -25,6 +25,8 @@ from youtube_transcript_api._errors import (
 )
 from youtube_transcript_api.proxies import GenericProxyConfig, WebshareProxyConfig
 
+from scrapers.youtube.vpn_guard import require_vpn
+
 # Descending priority per library docs.
 DEFAULT_TRANSCRIPT_LANGUAGES: tuple[str, ...] = ("en", "en-US", "en-GB", "de", "es")
 
@@ -205,6 +207,7 @@ def verify_webshare_proxy_connectivity(
     proxy_user, proxy_password = resolve_webshare_proxy_credentials()
     if not proxy_user or not proxy_password:
         return False, "PROXY_USER_NAME / PROXY_PASSWORD not set in environment"
+    require_vpn()  # the check fetches youtube.com/robots.txt (#488)
     cfg = _webshare_proxy_config(proxy_user, proxy_password)
     proxies = cfg.to_requests_dict()
     try:
@@ -369,7 +372,10 @@ def build_youtube_transcript_api(
     ``YOUTUBE_TRANSCRIPT_PROXY`` / ``GenericProxyConfig``.
 
     Pass ``cookies_path`` (Netscape ``cookies.txt``) to further reduce blocks.
+
+    Raises ``VpnRequiredError`` when the VPN tunnel is down (#488).
     """
+    require_vpn()
     proxy_config = build_proxy_config(proxy_url)
     http_client = _requests_session_with_cookies(cookies_path)
     if proxy_config is not None:
@@ -427,6 +433,7 @@ def _fetch_object_with_language_priority(
     preserve_formatting: bool = True,
 ) -> Any:
     """Return ``FetchedTranscript`` via ``fetch`` / ``list().find_transcript``."""
+    require_vpn()  # re-checked before every caption request (#488)
     langs = list(languages) or list(DEFAULT_TRANSCRIPT_LANGUAGES)
     try:
         return api.fetch(
@@ -611,7 +618,12 @@ def log_caption_fetch_setup(
     ytdlp_fallback: bool = True,
     verify_webshare: bool = False,
 ) -> None:
-    """Log caption API path, egress, cookies, and optional Webshare connectivity check."""
+    """Log caption API path, egress, cookies, and optional Webshare connectivity check.
+
+    Raises ``VpnRequiredError`` first when the VPN tunnel is down (#488): every
+    caption run calls this before its first YouTube request.
+    """
+    require_vpn()
     info = describe_caption_egress(
         explicit_proxy_url=explicit_proxy_url,
         cookies_path=cookies_path,

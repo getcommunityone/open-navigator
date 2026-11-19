@@ -107,6 +107,9 @@ from scrapers.youtube.youtube_loader_logging import (
     configure_youtube_loader_logging,
     log_progress,
 )
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn  # noqa: E402
+from scrapers.discovery.channel_government_mismatch import real_channel_title  # noqa: E402
+from scrapers.youtube.pattern_match_gate import PATTERN_MATCH_UNVERIFIED_METHOD  # noqa: E402
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
 
 # Pilot priority states. Must equal DEFAULT_PRIORITY_STATES in
@@ -167,6 +170,54 @@ def _channel_id_from_url(channel_url: str) -> Optional[str]:
     """Parse ``UC…`` from a canonical ``/channel/UC…`` URL without network I/O."""
     match = _CHANNEL_ID_RE.search(channel_url or "")
     return match.group(1) if match else None
+
+
+# A jurisdiction id, never a display name (#501): the canonical slug id
+# ``{place_slug}_{geoid}`` (``chilton_01021``) or the legacy county code
+# ``c-{USPS}-{geoid}`` (``c-AL-01021``). Same patterns as the dbt macro
+# ``jurisdiction_name_is_id_shaped`` (dbt_project/macros/jurisdiction_display_name.sql).
+_JURISDICTION_SLUG_ID_RE = re.compile(r"^[a-z0-9_]+_[0-9]{5,10}$")
+_JURISDICTION_COUNTY_CODE_RE = re.compile(r"^c-[A-Z]{2}-[0-9]+$")
+
+
+def is_id_shaped_jurisdiction_name(name: Optional[str]) -> bool:
+    """True when ``name`` looks like a jurisdiction id rather than a display name."""
+    text = (name or "").strip()
+    return bool(
+        _JURISDICTION_SLUG_ID_RE.match(text) or _JURISDICTION_COUNTY_CODE_RE.match(text)
+    )
+
+
+def display_jurisdiction_name(
+    name: Optional[str], jurisdiction_id: Optional[str]
+) -> Optional[str]:
+    """Return a human display name for ``jurisdiction_name``, or ``None``.
+
+    ``jurisdiction_name`` must never hold an id (#501). Returns ``None`` when the
+    name is blank, equals ``jurisdiction_id``, or is id-shaped, so the caller stores
+    NULL (dbt staging then resolves the name from ``int_jurisdictions``).
+    """
+    text = (name or "").strip()
+    if not text:
+        return None
+    if jurisdiction_id is not None and text == str(jurisdiction_id).strip():
+        return None
+    if is_id_shaped_jurisdiction_name(text):
+        return None
+    return text
+
+
+def _log_jurisdiction_name_misses(rows: Sequence[Dict[str, Any]], source_table: str) -> None:
+    """Warn once per jurisdiction whose id has no ``int_jurisdictions`` name."""
+    for row in rows:
+        if row.get("jurisdiction_name") is None:
+            logger.warning(
+                "No int_jurisdictions name for jurisdiction_id={} ({}); "
+                "jurisdiction_name will be NULL — fix the id in {}",
+                row.get("jurisdiction_id"),
+                row.get("geoid"),
+                source_table,
+            )
 
 
 @contextmanager
@@ -319,9 +370,16 @@ class YouTubeEventsLoader:
     
     def _add_jurisdiction_id_column(self):
         """Add jurisdiction_id and channel_id columns to event if they don't exist."""
+        from scrapers.youtube.schema_guard import is_base_table, set_local_lock_timeout
+
+        # ``event`` is a dbt view today; ALTER on it only fails, after waiting for a lock (#534).
+        if not is_base_table(self.conn, "event"):
+            self.conn.commit()
+            return
         cursor = self.conn.cursor()
         
         try:
+            set_local_lock_timeout(cursor)
             # Add jurisdiction_id column
             cursor.execute("""
                 ALTER TABLE event 
@@ -453,6 +511,9 @@ class YouTubeEventsLoader:
         cursor = self.conn.cursor()
         
         try:
+            from scrapers.youtube.schema_guard import set_local_lock_timeout
+
+            set_local_lock_timeout(cursor)
             # Create bronze schema if it doesn't exist
             cursor.execute("CREATE SCHEMA IF NOT EXISTS bronze;")
             
@@ -516,6 +577,9 @@ class YouTubeEventsLoader:
         cursor = self.conn.cursor()
         
         try:
+            from scrapers.youtube.schema_guard import set_local_lock_timeout
+
+            set_local_lock_timeout(cursor)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS bronze.bronze_events_channels (
                     id SERIAL PRIMARY KEY,
@@ -782,6 +846,7 @@ class YouTubeEventsLoader:
 
         for suffix in ("", "/videos", "/about"):
             page_url = f"{base_url}{suffix}"
+            require_vpn()  # outside the try: a VPN drop must stop the run (#488)
             try:
                 with httpx.Client(
                     follow_redirects=True,
@@ -890,8 +955,16 @@ class YouTubeEventsLoader:
     def _ensure_scraped_youtube_channel_id_column(self, table: str) -> None:
         if table in self._scraped_channel_id_columns_ready:
             return
+        from scrapers.youtube.schema_guard import missing_columns, set_local_lock_timeout
+
+        schema, _, name = table.partition(".")
+        if not missing_columns(self.conn, schema, name, ("youtube_channel_id",)):
+            self.conn.commit()
+            self._scraped_channel_id_columns_ready.add(table)
+            return
         cursor = self.conn.cursor()
         try:
+            set_local_lock_timeout(cursor)
             cursor.execute(
                 f"""
                 ALTER TABLE {table}
@@ -1040,7 +1113,9 @@ class YouTubeEventsLoader:
                 s.usps AS state_code,
                 COALESCE(j.state, s.usps) AS state,
                 s.jurisdiction_id,
-                COALESCE(j.name, s.jurisdiction_id) AS jurisdiction_name,
+                -- Display name only; NULL when the id has no int_jurisdictions row.
+                -- Never COALESCE to the id: it would be stored as the name (#501).
+                j.name AS jurisdiction_name,
                 COALESCE(j.jurisdiction_type, 'county') AS jurisdiction_type,
                 BTRIM(s.youtube_channel_url) AS youtube_channel_url,
                 BTRIM(s.youtube_channel_id) AS youtube_channel_id,
@@ -1051,19 +1126,23 @@ class YouTubeEventsLoader:
                 ON j.jurisdiction_id = s.jurisdiction_id
             WHERE s.youtube_channel_url IS NOT NULL
               AND BTRIM(s.youtube_channel_url) <> ''
+              -- A handle guess the jurisdiction's own site does not link (#535).
+              AND COALESCE(s.youtube_channel_selection_method, '') <> %s
         """
-        params: list[Any] = []
+        params: list[Any] = [PATTERN_MATCH_UNVERIFIED_METHOD]
         if states_filter:
             query += " AND upper(btrim(s.usps::text)) = ANY(%s)"
             params.append([s.upper() for s in states_filter])
         if jurisdiction_id:
             query += " AND s.jurisdiction_id = %s"
             params.append(jurisdiction_id.strip())
-        query += " ORDER BY s.usps, jurisdiction_name"
+        query += " ORDER BY s.usps, s.jurisdiction_id"
 
         cursor.execute(query, params)
         rows = cursor.fetchall()
         cursor.close()
+
+        _log_jurisdiction_name_misses(rows, "bronze.bronze_jurisdictions_counties_scraped")
 
         jurisdictions: List[Dict] = []
         counties_table = "bronze.bronze_jurisdictions_counties_scraped"
@@ -1144,7 +1223,9 @@ class YouTubeEventsLoader:
                 s.usps AS state_code,
                 COALESCE(j.state, s.usps) AS state,
                 s.jurisdiction_id,
-                COALESCE(j.name, s.jurisdiction_id) AS jurisdiction_name,
+                -- Display name only; NULL when the id has no int_jurisdictions row.
+                -- Never COALESCE to the id: it would be stored as the name (#501).
+                j.name AS jurisdiction_name,
                 COALESCE(j.jurisdiction_type, 'municipality') AS jurisdiction_type,
                 BTRIM(s.youtube_channel_url) AS youtube_channel_url,
                 BTRIM(s.youtube_channel_id) AS youtube_channel_id,
@@ -1155,19 +1236,23 @@ class YouTubeEventsLoader:
                 ON j.jurisdiction_id = s.jurisdiction_id
             WHERE s.youtube_channel_url IS NOT NULL
               AND BTRIM(s.youtube_channel_url) <> ''
+              -- A handle guess the jurisdiction's own site does not link (#535).
+              AND COALESCE(s.youtube_channel_selection_method, '') <> %s
         """
-        params: list[Any] = []
+        params: list[Any] = [PATTERN_MATCH_UNVERIFIED_METHOD]
         if states_filter:
             query += " AND upper(btrim(s.usps::text)) = ANY(%s)"
             params.append([s.upper() for s in states_filter])
         if jurisdiction_id:
             query += " AND s.jurisdiction_id = %s"
             params.append(jurisdiction_id.strip())
-        query += " ORDER BY s.usps, jurisdiction_name"
+        query += " ORDER BY s.usps, s.jurisdiction_id"
 
         cursor.execute(query, params)
         rows = cursor.fetchall()
         cursor.close()
+
+        _log_jurisdiction_name_misses(rows, "bronze.bronze_jurisdictions_municipalities_scraped")
 
         jurisdictions: List[Dict] = []
         municipalities_table = "bronze.bronze_jurisdictions_municipalities_scraped"
@@ -1542,7 +1627,7 @@ class YouTubeEventsLoader:
         self,
         video: Dict,
         jurisdiction_id: str,
-        jurisdiction_name: str,
+        jurisdiction_name: Optional[str],
         jurisdiction_type: str,
         state_code: str,
         state: str,
@@ -1575,7 +1660,7 @@ class YouTubeEventsLoader:
         
         # Extract city from jurisdiction name if it's a city
         city = None
-        if jurisdiction_type == 'city':
+        if jurisdiction_type == 'city' and jurisdiction_name:
             # Remove state suffix like ", AL" from "Birmingham, AL"
             city = jurisdiction_name.split(',')[0].strip()
         
@@ -1950,6 +2035,7 @@ class YouTubeEventsLoader:
                 proxy_override=proxy,
                 player_clients=player_clients,
             )
+            require_vpn()
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     return ydl.extract_info(url, download=False)
@@ -2000,6 +2086,8 @@ class YouTubeEventsLoader:
                     clients,
                     self._youtube_video_log_label(video_id),
                 )
+            except VpnRequiredError:
+                raise
             except Exception as exc:
                 last_err = exc
                 err = str(exc)
@@ -2014,6 +2102,8 @@ class YouTubeEventsLoader:
                         )
                         if self._ytdlp_has_caption_tracks(info):
                             return info
+                    except VpnRequiredError:
+                        raise
                     except Exception as exc_relaxed:
                         last_err = exc_relaxed
         if last_err:
@@ -2029,6 +2119,8 @@ class YouTubeEventsLoader:
             url = f'https://www.youtube.com/watch?v={video_id}'
             try:
                 info = self._ytdlp_extract_info_for_subtitles(url, video_id)
+            except VpnRequiredError:
+                raise
             except Exception as exc:
                 self._last_ytdlp_transcript_error = f"yt-dlp: {format_transcript_error(exc, max_len=300)}"
                 return None
@@ -2057,6 +2149,7 @@ class YouTubeEventsLoader:
 
             import requests
 
+            require_vpn()
             response = requests.get(subtitle_url, timeout=10)
             response.raise_for_status()
 
@@ -2076,6 +2169,8 @@ class YouTubeEventsLoader:
                 'transcript_source': 'yt-dlp',
             }
 
+        except VpnRequiredError:
+            raise
         except Exception as e:
             error_msg = format_transcript_error(e)
             self._last_ytdlp_transcript_error = f"yt-dlp: {error_msg}"
@@ -2093,9 +2188,14 @@ class YouTubeEventsLoader:
             return None
     
     def fetch_transcript(self, video_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch transcript/captions for a YouTube video."""
+        """Fetch transcript/captions for a YouTube video.
+
+        Raises ``VpnRequiredError`` (never swallowed into a "no transcript" result)
+        when the VPN tunnel is down (#488).
+        """
         if not video_id:
             return None
+        require_vpn()
         with _transcript_fetch_slot():
             return self._fetch_transcript_unlocked(video_id)
 
@@ -2129,6 +2229,8 @@ class YouTubeEventsLoader:
                 proxy_url=None,
                 cookies_file=cookies_path,
             )
+        except VpnRequiredError:
+            raise
         except TranscriptsDisabled:
             if self.use_ytdlp_fallback:
                 logger.debug(
@@ -2222,7 +2324,18 @@ class YouTubeEventsLoader:
             -- loaded_at is when the video was first loaded: set on insert, never on update.
             ON CONFLICT (video_id) DO UPDATE SET
                 jurisdiction_id = EXCLUDED.jurisdiction_id,
-                jurisdiction_name = EXCLUDED.jurisdiction_name,
+                -- NULL incoming name (id had no display name) keeps a real stored
+                -- name but never keeps an id-shaped one (#501).
+                jurisdiction_name = COALESCE(
+                    EXCLUDED.jurisdiction_name,
+                    CASE
+                        WHEN y.jurisdiction_name ~ '^[a-z0-9_]+_[0-9]{5,10}$'
+                          OR y.jurisdiction_name ~ '^c-[A-Z]{2}-[0-9]+$'
+                          OR y.jurisdiction_name = EXCLUDED.jurisdiction_id
+                        THEN NULL
+                        ELSE y.jurisdiction_name
+                    END
+                ),
                 jurisdiction_type = EXCLUDED.jurisdiction_type,
                 state_code = EXCLUDED.state_code,
                 state = EXCLUDED.state,
@@ -2525,6 +2638,8 @@ class YouTubeEventsLoader:
             ) -> Tuple[str, Optional[Dict[str, Any]], Optional[str]]:
                 try:
                     return video_id, self.fetch_transcript(video_id), None
+                except VpnRequiredError:
+                    raise
                 except Exception as exc:
                     if "RATE_LIMITED" in str(exc):
                         return video_id, None, self._rate_limit_detail(exc)
@@ -2746,7 +2861,11 @@ class YouTubeEventsLoader:
                 logger.warning(f"  💡 Consider increasing --transcript-delay (current: {self.transcript_delay}s)")
             
             return inserted
-            
+
+        except VpnRequiredError:
+            # Keep the transcripts already saved, then stop the run (#488).
+            self.conn.commit()
+            raise
         except Exception as e:
             self.conn.rollback()
             logger.error(f"Error inserting transcripts: {e}")
@@ -2789,12 +2908,23 @@ class YouTubeEventsLoader:
     def process_jurisdiction(self, jurisdiction: Dict) -> int:
         """Process all YouTube channels for a single jurisdiction."""
         jurisdiction_id = jurisdiction['jurisdiction_id']
-        jurisdiction_name = jurisdiction['jurisdiction_name']
+        # Never store an id as the display name (#501). The bronze fallback source
+        # re-reads names from bronze_event_youtube itself, so an id written once
+        # would otherwise be copied forward on every refresh.
+        jurisdiction_name = display_jurisdiction_name(
+            jurisdiction.get('jurisdiction_name'), jurisdiction_id
+        )
+        if jurisdiction_name is None:
+            logger.warning(
+                "No display name for jurisdiction_id={} (got {!r}); storing jurisdiction_name NULL",
+                jurisdiction_id,
+                jurisdiction.get('jurisdiction_name'),
+            )
         state_code = jurisdiction['state_code']
         state = jurisdiction['state']
         jurisdiction_type = jurisdiction['jurisdiction_type']
         
-        logger.info(f"Processing: {jurisdiction_name}, {state_code}")
+        logger.info(f"Processing: {jurisdiction_name or jurisdiction_id}, {state_code}")
         
         # Extract channel IDs from JSONB (trust bronze catalog — skip policy_score gate on refresh)
         channels = self.extract_channel_ids(
@@ -2814,6 +2944,10 @@ class YouTubeEventsLoader:
         for channel in channels:
             channel_id = channel['channel_id']
             channel_title = channel.get('channel_title', 'Unknown Channel')
+            # The channel queries fill channel_title with the jurisdiction's name when
+            # the real title is unknown. Never store that in the channel catalog: it
+            # makes any channel read as the jurisdiction's own (#514, #515).
+            catalog_channel_title = real_channel_title(channel_title, jurisdiction_name)
             channel_url = channel.get('channel_url', f"https://www.youtube.com/channel/{channel_id}")
             channel_type = channel.get('channel_type', 'unknown')
             discovery_method = str(channel.get('discovery_method') or 'jurisdictions_details').strip() or 'jurisdictions_details'
@@ -2829,7 +2963,7 @@ class YouTubeEventsLoader:
             self.upsert_channel(
                 channel_id=channel_id,
                 channel_url=channel_url,
-                channel_title=channel_title,
+                channel_title=catalog_channel_title,
                 channel_type=channel_type,
                 jurisdiction_id=jurisdiction_id,
                 jurisdiction_name=jurisdiction_name,
@@ -2934,6 +3068,8 @@ class YouTubeEventsLoader:
                     )
                     all_events.append(event)
                 
+            except VpnRequiredError:
+                raise
             except Exception as e:
                 logger.error(f"    Error fetching videos from channel {channel_id}: {e}")
                 continue
@@ -3069,6 +3205,7 @@ class YouTubeEventsLoader:
         workers = max(1, int(workers or 1))
         if workers == 1:
             for i, jurisdiction in enumerate(jurisdictions, 1):
+                require_vpn()  # re-checked (at most every 120 s) before each jurisdiction
                 logger.info(f"\n[{i}/{len(jurisdictions)}] Processing jurisdiction...")
                 total_inserted += self.process_jurisdiction(jurisdiction)
         else:
@@ -3098,6 +3235,10 @@ class YouTubeEventsLoader:
                             jurisdiction.get("state_code"),
                             inserted,
                         )
+                    except VpnRequiredError:
+                        for pending in futures:
+                            pending.cancel()
+                        raise
                     except Exception as exc:
                         logger.error(
                             "[{}/{}] {} failed: {}",
@@ -3217,8 +3358,9 @@ class YouTubeEventsLoader:
         }
 
 
+@exit_if_vpn_off
 def main():
-    """Main entry point."""
+    """Main entry point. Exits 5 when the VPN tunnel is down (#488)."""
     parser = argparse.ArgumentParser(description='Load YouTube events from jurisdictions into event')
     
     parser.add_argument(
@@ -3452,6 +3594,7 @@ def main():
     jurisdiction_id = (args.jurisdiction_id or '').strip() or None
 
     try:
+        require_vpn()
         if args.backfill_scraped_channel_ids:
             if args.channel_source not in YouTubeEventsLoader._SCRAPED_CHANNEL_TABLES:
                 logger.error(
@@ -3473,6 +3616,8 @@ def main():
             workers=args.workers,
         )
         return 0
+    except VpnRequiredError:
+        raise
     except Exception as e:
         logger.error(f"✗ Loading failed: {e}")
         import traceback

@@ -88,6 +88,14 @@ seeds:
       +column_types:
         code: varchar
         major_code: varchar
+    curated_topics:
+      # Hand-authored topics unioned into stg_civicsearch__topic (issue #500).
+      # topic_id >= 100000 so it can never collide with a CivicSearch id.
+      +column_types:
+        topic_id: integer
+        name: text
+        query_id: text
+        keywords: text
     curated_policy_questions:
       # Hand-authored "featured" policy questions unioned into public.policy_question.
       # Pin types: topic_code/cofog_code seed empty (all-null) which dbt would
@@ -111,6 +119,17 @@ seeds:
         city: text
         outcome_raw: text
         occurred_at: timestamp
+    youtube_channel_attribution_override:
+      # Hand-reviewed YouTube channel/video -> jurisdiction corrections (#514, #515).
+      # Pin text types: video_id/jurisdiction_id are empty on channel-wide rows and
+      # issue is a number dbt would otherwise infer to integer.
+      +column_types:
+        channel_id: text
+        video_id: text
+        jurisdiction_id: text
+        state_code: text
+        issue: text
+        evidence: text
 
 # Snapshots configuration
 snapshots:

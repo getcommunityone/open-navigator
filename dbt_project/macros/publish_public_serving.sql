@@ -173,12 +173,39 @@
     'meeting_question_link':               "_s.state_code in {{states}}",
     'question_instance':                   "_s.state_code in {{states}}",
     'question_transcript_link':            "_s.state_code in {{states}}",
+    'topic_transcript_link':               "_s.state_code in {{states}}",
     'grant':                               "(_s.grantee_state_code in {{states}} or _s.grantor_state_code in {{states}})",
     'mdm_organization':                    "_s.state_code in {{states}}",
     'bills':                               "_s.state_code in {{states}}",
     'job_claim':                           "_s.state_code in {{states}}",
     'data_center_agenda_item':             "_s.state_code in {{states}}",
-    'data_center_meeting_mention':         "_s.state_code in {{states}}"
+    'data_center_meeting_mention':         "_s.state_code in {{states}}",
+    'decision_place_label':                "_s.state_code in {{states}}",
+    'decision_nearby_data_center_site':    "_s.state_code in {{states}}",
+    'decision_company_mention':
+        "_s.event_decision_id in (select event_decision_id from gold.event_decision "
+        "where state_code in {{states}})",
+    'recent_transcribed_meeting':          "_s.state_code in {{states}}",
+    'data_center_project':                 "(_s.state_code in {{states}} or _s.state_code is null)",
+    'data_center_project_company':
+        "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_project_jurisdiction':
+        "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_project_figure':
+        "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_project_mention':
+        "_s.project_id in (select project_id from gold.data_center_project "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_community_event':         "(_s.state_code in {{states}} or _s.state_code is null)",
+    'data_center_community_event_source':
+        "_s.community_event_id in (select community_event_id from gold.data_center_community_event "
+        "where state_code in {{states}} or state_code is null)",
+    'data_center_community_event_recording':
+        "_s.community_event_id in (select community_event_id from gold.data_center_community_event "
+        "where state_code in {{states}} or state_code is null)"
 } -%}
 {#- bill_sponsorship is DROPPED from serving entirely (removed from `served`):
     it has no state column and even scoped to the kept-bill set it is ~53 MB,
@@ -209,13 +236,33 @@
     'policy_question', 'canonical_argument', 'question_instance', 'instance_argument',
     'policy_question_relation', 'policy_question_trend', 'question_transcript_link',
     'meeting_browse', 'meeting_topic_link', 'meeting_question_link',
+    'topic_transcript_link',
     'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
-    'data_center_meeting_mention'
+    'data_center_meeting_mention',
+    'decision_place_label', 'decision_company_mention', 'decision_nearby_data_center_site',
+    'recent_transcribed_meeting',
+    'mdm_organization_data_center', 'data_center_project', 'data_center_project_company',
+    'data_center_project_jurisdiction', 'data_center_project_figure', 'data_center_project_mention',
+    'data_center_community_event', 'data_center_community_event_source',
+    'data_center_community_event_recording'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
     full SELECT * pass-through. Use this to drop/redact PII before it reaches the
     public API. Applies to BOTH modes (view body / table body). -#}
+{#- Neon size trims (#493):
+    * event_place_geocoded: only rows with coordinates. The decisions map and
+      alerts read only latitude is not null; the ~84k ungeocoded mentions were
+      31.6 MB of Neon's 512 MB.
+    * event_decision: without the four diagram_* columns (13.1 MB on Neon), which
+      no API route or page reads. An explicit list, so a new gold column must be
+      added here to be served.
+    * rpt_bill_map_aggregate, jurisdiction_finance_category (#557): only the columns
+      trending.py and local_finance.py read; the id, code, rank, sample-title and
+      load-time columns were never read (about 30 + 15 MB on Neon).
+    * event_meeting_document (#557): no stored content_tsv (24 MB; search matches the
+      same expression instead) and body text only for documents from 2025 on, undated
+      ones, and any that mention data centers. Older documents keep title, date, link. -#}
 {%- set projections = {
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
@@ -225,7 +272,28 @@
         'select person_id, master_person_id, full_name, title, jurisdiction, '
         'jurisdiction_id, office, state_code, state, party, district, '
         'null::text as email, null::text as phone, photo_url, biography, '
-        'website_url, is_current from gold.person_government'
+        'website_url, is_current from gold.person_government',
+    'event_place_geocoded':
+        'select * from gold.event_place_geocoded where latitude is not null',
+    'event_decision':
+        'select event_decision_id, extraction_key, analysis_id, legacy_event_id, '
+        'c1_event_id, state_code, state, jurisdiction_name, jurisdiction_type, city, '
+        'decision_id, subject_id, primary_place_id, place_refs, legislation_refs, '
+        'financial_item_refs, headline, decision_statement, primary_theme, outcome, '
+        'vote_tally, human_element, competing_views, smart_brevity, source_ai_model, '
+        'extracted_at, search_tsv from gold.event_decision',
+    'rpt_bill_map_aggregate':
+        'select jurisdiction_id, state_code, subject, bill_count, recent_bill_count '
+        'from gold.rpt_bill_map_aggregate',
+    'jurisdiction_finance_category':
+        'select jurisdiction_finance_id, category, amount, share_pct '
+        'from gold.jurisdiction_finance_category',
+    'event_meeting_document':
+        'select event_meeting_document_id, event_meeting_id, jurisdiction_id, census_geoid, '
+        'state_code, state, document_type, document_url, doc_date, body_name, meeting_title, '
+        'case when doc_date is null or doc_date >= date \'2025-01-01\' '
+        'or content ~* \'data cent(er|re)|hyperscale|server farm\' then content end as content, '
+        'word_count, source, created_at from gold.event_meeting_document'
 } -%}
 
 {#- ===================================================================
@@ -475,6 +543,10 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
       {%- set kind = run_query("select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = '" ~ name ~ "'") -%}
       {%- if kind and kind.rows and kind.rows[0][0] in ('r', 'p') -%}
         {%- do run_query("drop table if exists public." ~ q ~ " cascade") -%}
+      {%- elif name in projections and kind and kind.rows and kind.rows[0][0] == 'v' -%}
+        {#- CREATE OR REPLACE VIEW can't drop columns; a projection that narrows a
+            view (#493) needs the old view gone first. -#}
+        {%- do run_query("drop view if exists public." ~ q) -%}
       {%- endif -%}
       {%- do run_query("create or replace view public." ~ q ~ " as " ~ body) -%}
       {%- if name in projections -%}{%- do redacted.append(name) -%}{%- else -%}{%- do created.append(name) -%}{%- endif -%}

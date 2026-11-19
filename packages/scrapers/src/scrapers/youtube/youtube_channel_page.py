@@ -17,6 +17,8 @@ from urllib.parse import unquote
 
 import requests
 
+from scrapers.youtube.vpn_guard import require_vpn_for_url
+
 _CHANNEL_ID_RE = re.compile(r"/channel/((?:UC)[A-Za-z0-9_-]{20,})", re.I)
 _HANDLE_RE = re.compile(r"youtube\.com/@([^/?#]+)", re.I)
 _UC_ID_CAPTURE = r"((?:UC)[A-Za-z0-9_-]{22})"
@@ -172,6 +174,7 @@ def fetch_youtube_channel_videos_page(
     if cookie_header:
         sess.headers["Cookie"] = cookie_header
     page_url = channel_url.rstrip("/") + "/videos"
+    require_vpn_for_url(page_url)  # YouTube only through the VPN (#488)
     try:
         resp = sess.get(page_url, timeout=timeout_s, allow_redirects=True)
         if resp.status_code == 200 and resp.text:
@@ -201,6 +204,7 @@ def fetch_latest_upload_date_from_rss(
         "Mozilla/5.0 (compatible; OpenNavigatorJurisdictionPilot/1.0)",
     )
     url = f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
+    require_vpn_for_url(url)  # YouTube only through the VPN (#488)
     try:
         resp = sess.get(url, timeout=timeout_s, allow_redirects=True)
         if resp.status_code != 200 or not resp.text:
@@ -257,6 +261,7 @@ def fetch_youtube_channel_page(
         sess.headers["Cookie"] = cookie_header
     base = channel_url.rstrip("/")
     for page_url in (f"{base}/about", base, f"{base}/videos"):
+        require_vpn_for_url(page_url)  # YouTube only through the VPN (#488)
         try:
             resp = sess.get(page_url, timeout=timeout_s, allow_redirects=True)
             if resp.status_code == 200 and resp.text:

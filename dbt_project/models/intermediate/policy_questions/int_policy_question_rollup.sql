@@ -2,7 +2,8 @@
 -- how they voted. Powers the "32 of 47 jurisdictions approved" surface and the
 -- per-outcome breakdown. Grain: one row per question_id.
 --
--- Outcome buckets unify the decision and bill vocabularies into one "outcome
+-- Outcome buckets (macro question_outcome_family, shared with question_instance)
+-- unify the decision and bill vocabularies into one "outcome
 -- family" so cross-level comparison works:
 --   moratorium = moratorium (decisions: an adopted/recommended moratorium, #483;
 --                see stg_question_instance for the matcher rule). Its own family,
@@ -38,13 +39,7 @@ juris as (
         coalesce(state_code, '') || '|' || coalesce(jurisdiction_name, '') as juris_key,
         source_type,
         state_code,
-        case
-            when outcome_normalized = 'moratorium' then 'moratorium'
-            when outcome_normalized in ('approved', 'enacted') then 'approved'
-            when outcome_normalized in ('denied', 'failed', 'died_in_committee') then 'denied'
-            when outcome_normalized in ('deferred', 'carried_over') then 'deferred'
-            else 'other'
-        end as outcome_family
+        {{ question_outcome_family('outcome_normalized') }} as outcome_family
     from inst
 )
 select

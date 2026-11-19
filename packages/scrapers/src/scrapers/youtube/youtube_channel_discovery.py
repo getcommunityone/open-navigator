@@ -26,7 +26,9 @@ from scrapers.discovery.browser_block import (
 
 import os
 
+from scrapers.discovery.channel_government_mismatch import title_names_other_government
 from scrapers.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn_for_url
 
 
 def _response_block(response: Any) -> Optional[str]:
@@ -220,6 +222,9 @@ class YouTubeChannelDiscovery:
         
         j_display_name = (county_name or resolved_city_name or "").strip()
         can_pattern_match = bool((homepage_url or "").strip())
+        # Name-only evidence (handle guesses, API name search) must not assign a
+        # channel whose title or @handle names another government (#514, #515).
+        j_type_for_guard = "county" if (county_name and not city_name) else "municipality"
 
         for handle in patterns_to_test:
             url = f"https://www.youtube.com/@{handle}"
@@ -295,6 +300,29 @@ class YouTubeChannelDiscovery:
                 await asyncio.sleep(0.3)
                 continue
 
+            other_gov = title_names_other_government(
+                str(enriched.get("channel_title") or ""),
+                jurisdiction_name=j_display_name,
+                jurisdiction_type=j_type_for_guard,
+                state_code=state_code,
+                channel_url=url,
+            )
+            if other_gov:
+                self._record_channel_probe(
+                    {
+                        "channel_url": url,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "discovery_method": "pattern_match",
+                        "outcome": "rejected_other_government",
+                        "http_status": None,
+                        "reason": other_gov,
+                        "channel_id": enriched.get("channel_id"),
+                        "channel_title": (enriched.get("channel_title") or "")[:500],
+                    }
+                )
+                await asyncio.sleep(0.3)
+                continue
+
             discovered.append(enriched)
             logger.success(
                 "✓ pattern_match accepted: {} (conf={})",
@@ -325,6 +353,19 @@ class YouTubeChannelDiscovery:
 
             for channel in api_channels:
                 url = channel['channel_url']
+                other_gov = title_names_other_government(
+                    str(channel.get('channel_title') or ''),
+                    jurisdiction_name=j_display_name,
+                    jurisdiction_type=j_type_for_guard,
+                    state_code=state_code,
+                    channel_url=url,
+                )
+                if other_gov:
+                    logger.info(
+                        "✗ API name-search hit names another government ({}): {} {}",
+                        other_gov, channel.get('channel_title'), url,
+                    )
+                    continue
                 if url not in tested_urls:
                     tested_urls.add(url)
                     discovered.append(channel)
@@ -546,6 +587,8 @@ class YouTubeChannelDiscovery:
                 ),
             }
 
+        except VpnRequiredError:
+            raise
         except Exception as e:
             msg = str(e)[:500]
             logger.trace(f"YouTube probe failed for {channel_url!r}: {e}")
@@ -774,6 +817,8 @@ class YouTubeChannelDiscovery:
                 return None, f"{BLOCKED_PREFIX}{blk}"
             if response.status_code == 200 and (response.text or "").strip():
                 return response.text, ""
+        except VpnRequiredError:
+            raise  # never fall back to a browser on the home IP (#488)
         except Exception as exc:
             logger.debug(f"httpx fetch failed for {url}: {exc}")
 
@@ -784,7 +829,17 @@ class YouTubeChannelDiscovery:
         return None, "fetch_failed"
 
     async def _scrape_website_for_channels(self, url: str) -> List[str]:
+        """Scrape a website for YouTube channel links (see ``scrape_website_with_status``)."""
+        channels, _ = await self.scrape_website_with_status(url)
+        return channels
+
+    async def scrape_website_with_status(self, url: str) -> tuple[List[str], str]:
         """Scrape a website for YouTube channel links.
+
+        Returns ``(channels, homepage_error)``. ``homepage_error`` is ``""`` when the
+        seed page loaded, else the fetch reason (``fetch_failed``, ``blocked:<reason>``).
+        A caller can then tell "the site links no channel" (page loaded, nothing found)
+        from "the site could not be read" (#535).
 
         Layered fallback:
 
@@ -806,16 +861,17 @@ class YouTubeChannelDiscovery:
         search_pw_max = self._youtube_int_env("YOUTUBE_SITE_SEARCH_PLAYWRIGHT_MAX", 2)
 
         homepage_html, home_err = await self._fetch_page_html(url)
+        home_status = "" if homepage_html else (home_err or "fetch_failed")
         if homepage_html:
             add_channels(self._extract_youtube_links_from_html(homepage_html, base_url=url))
         elif is_blocked_reason(home_err):
             # The host refuses automated access: record it and move on (issue #443).
-            return channels
+            return channels, home_status
         else:
             logger.debug(f"Could not load homepage HTML for YouTube scrape: {url}")
 
         if channels:
-            return channels
+            return channels, home_status
 
         if not homepage_html:
             # Avoid dozens of blind search/Playwright probes when the seed page never loaded.
@@ -828,7 +884,7 @@ class YouTubeChannelDiscovery:
             ):
                 page_html, page_err = await self._fetch_page_html(follow_url)
                 if is_blocked_reason(page_err):
-                    return channels
+                    return channels, home_status
                 if not page_html:
                     continue
                 add_channels(self._extract_youtube_links_from_html(page_html, base_url=follow_url))
@@ -838,7 +894,7 @@ class YouTubeChannelDiscovery:
                         follow=follow_url,
                         seed=url,
                     )
-                    return channels
+                    return channels, home_status
 
         attempted_search_urls: list[str] = []
         blocked_search_urls: set[str] = set()
@@ -872,7 +928,7 @@ class YouTubeChannelDiscovery:
                 except Exception as exc:
                     logger.trace(f"Site search scrape failed for {search_url}: {exc}")
                 if channels:
-                    return channels
+                    return channels, home_status
             if http_attempts >= search_http_max:
                 break
 
@@ -885,7 +941,7 @@ class YouTubeChannelDiscovery:
             if channels:
                 break
 
-        return channels
+        return channels, home_status
 
     def _build_site_search_urls(self, homepage_url: str, query: str) -> list[str]:
         parsed = urlparse(homepage_url)
@@ -1002,6 +1058,7 @@ class YouTubeChannelDiscovery:
         municipal sites (CivicPlus, Granicus) render search results via
         JavaScript so the link list is invisible without a browser.
         """
+        require_vpn_for_url(url)  # a YouTube page only through the VPN (#488)
         try:
             from scrapers.discovery.meetings_playwright_fetch import (
                 fetch_html_via_playwright,
@@ -1244,6 +1301,7 @@ class YouTubeChannelDiscovery:
 
 
 # Example usage
+@exit_if_vpn_off
 async def main():
     """Example: Discover all Tuscaloosa YouTube channels."""
     

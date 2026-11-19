@@ -8,6 +8,10 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping, Optional
 
+from scrapers.discovery.channel_government_mismatch import (
+    real_channel_title,
+    title_names_other_government,
+)
 from scrapers.youtube.pattern_match_gate import (
     has_meeting_signal,
     is_pattern_match_discovery,
@@ -138,6 +142,33 @@ _COUNTY_GOV_TITLE_SIGNALS = (
 )
 
 
+def _names_other_government_without_proof(
+    row: Mapping[str, Any],
+    *,
+    jurisdiction_type: str,
+    jurisdiction_name: str,
+    jurisdiction_state_code: str,
+) -> Optional[str]:
+    """Reason when the channel's title or @handle names another government and
+    nothing but name evidence ties it to this jurisdiction (#514, #515).
+
+    A channel linked from the jurisdiction's own website, or linking back to it,
+    carries its own proof and is not checked.
+    """
+    method = str(row.get("discovery_method") or "").strip().lower()
+    if is_official_website_discovery(method) or row.get("back_links_to_jurisdiction_website"):
+        return None
+    # A title equal to the jurisdiction's own name is a loader fallback, not the
+    # channel's title: it must not vouch for the channel, so judge by the handle.
+    return title_names_other_government(
+        real_channel_title(row.get("channel_title"), jurisdiction_name) or "",
+        jurisdiction_name=jurisdiction_name,
+        jurisdiction_type=jurisdiction_type,
+        state_code=jurisdiction_state_code,
+        channel_url=str(row.get("youtube_channel_url") or row.get("channel_url") or ""),
+    )
+
+
 def rejection_reason_for_channel(
     row: Mapping[str, Any],
     *,
@@ -191,6 +222,14 @@ def rejection_reason_for_channel(
 
     if title in _JUNK_CHANNEL_TITLES and conf < min_confidence:
         return "junk_channel_title"
+
+    if _names_other_government_without_proof(
+        row,
+        jurisdiction_type=jurisdiction_type,
+        jurisdiction_name=jurisdiction_name,
+        jurisdiction_state_code=jurisdiction_state_code,
+    ):
+        return "title_names_other_government"
 
     if conf < min_confidence:
         return "low_official_confidence"
@@ -282,6 +321,14 @@ def qualifies_for_bronze_jurisdiction_youtube(
         return False
 
     if title in _JUNK_CHANNEL_TITLES and not backlink and conf < 0.7:
+        return False
+
+    if _names_other_government_without_proof(
+        row,
+        jurisdiction_type=jurisdiction_type,
+        jurisdiction_name=jurisdiction_name,
+        jurisdiction_state_code=jurisdiction_state_code,
+    ):
         return False
 
     if is_pattern_match_discovery(row):

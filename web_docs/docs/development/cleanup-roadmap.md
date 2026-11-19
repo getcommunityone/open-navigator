@@ -127,6 +127,12 @@ bootstraps add the same. Unit tests under `packages/core-lib/tests/test_gdrive_p
   ballotpedia_integration.py (1570L), google_civic (1147L), wikidata (18 files), youtube (29 files).
 - _HTTP downloaders (BaseAsyncClient migration, not DataSourcePipeline):_ download_gsa_domains,
   download_hifld, download_state_dot_public_pages, load_fec_bulk.
+- _HTTP clients (#466):_ new HTTP code uses `core_lib.http` (httpx, with retries). `requests` stays declared in
+  `requirements.txt` and the three packages below until each file moves; none of the sessions mounts a retry adapter.
+  Move one scraper per issue, when it is next touched. Files that import `requests` today (27):
+  - `ingestion` (5): `ingestion/census/counties.py`, `ingestion/census/postal_codes.py`, `ingestion/fec/bulk.py`, `ingestion/publication/gold/create_contacts_gold_tables.py`, `ingestion/publication/gold/create_nonprofits_gold_tables.py`
+  - `llm` (1): `llm/gpu/modal_diarize.py`
+  - `scrapers` (21): `scrapers/census/download_census_municipalities.py`, `scrapers/census/download_census_school_districts.py`, `scrapers/census/download_census_shapefiles.py`, `scrapers/discovery/county_municipality_websites.py`, `scrapers/discovery/http_fetch.py`, `scrapers/discovery/mayor_url_discovery.py`, `scrapers/discovery/website_youtube_search.py`, `scrapers/fec/fec_integration.py`, `scrapers/irs/nonprofit_discovery.py`, `scrapers/openstates/load_openstates_documents.py`, `scrapers/openstates/openstates_sources.py`, `scrapers/parcels/esri_endpoints.py`, `scrapers/parcels/extract_parcel_attributes.py`, `scrapers/parcels/parse_openaddresses_sources.py`, `scrapers/parcels/scout_arcgis_hub.py`, `scrapers/wikidata/wikidata_fips_gnis_extract_local.py`, `scrapers/youtube/fetch_transcript_playwright.py`, `scrapers/youtube/load_youtube_events_to_postgres.py`, `scrapers/youtube/transcript_api_client.py`, `scrapers/youtube/youtube_channel_enrich.py`, `scrapers/youtube/youtube_channel_page.py`
 - _Skip (not pipelines):_ one-off SQL fixes, demos, helper modules, READMEs.
 
 **Remaining `scripts/` subdirs still to triage:** data, database, datasources,

@@ -19,6 +19,9 @@
   the WHOLE OR down to a parallel seq scan (~3.5s reading ~3.3GB over ~120k
   transcripts). The trigram index lets the planner BitmapOr the two index scans
   (~56ms), preserving title recall AND speed.
+  ANALYZE runs last so the downstream link models built in the same dbt run
+  (int_question_transcript_link__evidence, the keyword links) are planned with
+  statistics on the fresh table rather than before autovacuum gets to it (#533).
   (This note lives in a Jinja comment, NOT inside the config() list below --
   a `--` SQL comment inside the post_hook list is not valid Jinja and breaks
   `dbt parse` for the whole project.)
@@ -40,7 +43,8 @@
         "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)",
         "CREATE INDEX IF NOT EXISTS event_documents_content_fts_idx ON {{ this }} USING gin (to_tsvector('english', content))",
         "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-        "CREATE INDEX IF NOT EXISTS event_documents_event_title_trgm_idx ON {{ this }} USING gin (event_title gin_trgm_ops)"
+        "CREATE INDEX IF NOT EXISTS event_documents_event_title_trgm_idx ON {{ this }} USING gin (event_title gin_trgm_ops)",
+        "ANALYZE {{ this }}"
       ] if target.name != 'neon' else []
     )
   )
@@ -76,10 +80,16 @@ This model:
   golden event value still wins when it exists (COALESCE order); the YouTube
   metadata is the fallback. event_id stays NULL for orphans (no fake FK).
 
+- Drops junk-gated and non-US (Canadian CivicSearch) transcripts; see the
+  Exclusions CTEs below (#533).
+
 Data flow:
   bronze_event_youtube_transcript -> stg_bronze_event_youtube_transcript
     -> events_text_search -> event_documents (this model)
   bronze_event_youtube -> event_youtube_with_jurisdiction --(orphan backfill)-->
+  bronze_platform_meeting_caption -> stg_bronze_platform_meeting_caption
+    -> event_documents (document_type 'transcript', transcript_source
+       'granicus_vtt'/'granicus_srt', video_id '<platform>:<meeting_uid>'; #536)
 
 Used by: api/routes/search_postgres.py (search_documents_pg).
 */
@@ -96,6 +106,38 @@ WITH transcripts AS (
         created_at
     FROM {{ ref('events_text_search') }}
     WHERE raw_text IS NOT NULL
+),
+
+-- ── Exclusions (#533) ───────────────────────────────────────────────────────
+-- Every transcript with caption text reaches this model (the staging view tests
+-- the text, not the has_transcript flag). Two groups are then dropped on purpose:
+--
+-- 1. Junk gate. Videos on channels positively classified as junk / non-government
+--    (bronze_youtube_channel_classification, the gate in
+--    event_youtube_with_jurisdiction). A video that IS in the bronze catalog but
+--    NOT in that view was removed by the gate (the view is otherwise one row per
+--    bronze row). Gameplay, vlogs, music videos, land-sale ads: not meetings.
+--    Videos with no catalog row at all are kept (unscored, never dropped).
+junk_gated_videos AS (
+    SELECT b.video_id
+    FROM {{ source('bronze', 'bronze_event_youtube') }} b
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM {{ ref('event_youtube_with_jurisdiction') }} w
+        WHERE w.video_id = b.video_id
+    )
+),
+
+-- 2. Outside the US. CivicSearch also indexes Canadian municipal meetings
+--    (Toronto, Ottawa, Halifax, ...). They have no US jurisdiction to resolve to
+--    (the jurisdiction model is US-only), so they would show up in national search
+--    and topic / question counts with no place. Identified by the CivicSearch
+--    location ending in a Canadian province or territory; on 2026-11-17 these were
+--    exactly the 696 CivicSearch transcripts with no resolved jurisdiction.
+non_us_videos AS (
+    SELECT DISTINCT c.vid_id AS video_id
+    FROM {{ ref('stg_civicsearch__event') }} c
+    WHERE c.location ~ '{{ canadian_location_regex() }}'
 ),
 
 -- One row per video_id with junk-gated, jurisdiction-resolved metadata. Used to
@@ -141,6 +183,34 @@ joined AS (
     FROM transcripts t
     LEFT JOIN {{ ref('event') }} e ON e.event_id = t.event_id
     LEFT JOIN youtube y ON y.video_id = t.video_id
+    WHERE NOT EXISTS (SELECT 1 FROM junk_gated_videos j WHERE j.video_id = t.video_id)
+      AND NOT EXISTS (SELECT 1 FROM non_us_videos n WHERE n.video_id = t.video_id)
+
+    UNION ALL
+
+    -- Caption text served by a meeting platform (Granicus, #536). video_id is
+    -- '<platform>:<meeting_uid>' so it can never collide with a YouTube id; there is
+    -- no golden event yet, so event_id is NULL like the YouTube orphans.
+    SELECT
+        NULL::bigint                                        AS event_id,
+        c.platform || ':' || c.meeting_uid                  AS video_id,
+        c.raw_text,
+        c.segments,
+        c.language,
+        FALSE                                               AS is_auto_generated,
+        c.caption_source                                    AS transcript_source,
+        c.fetched_at::timestamp                             AS created_at,
+        m.title                                             AS event_title,
+        m.meeting_date                                      AS event_date,
+        j.name::text                                        AS jurisdiction_name,
+        j.jurisdiction_type                                 AS jurisdiction_type,
+        m.state_code,
+        m.state,
+        CASE WHEN j.jurisdiction_type <> 'county' THEN j.name::text END AS city,
+        m.video_url
+    FROM {{ ref('stg_bronze_platform_meeting_caption') }} c
+    JOIN {{ ref('stg_bronze_platform_meeting') }} m ON m.platform_meeting_id = c.platform_meeting_id
+    LEFT JOIN {{ ref('int_jurisdictions') }} j ON j.jurisdiction_id = m.jurisdiction_id
 )
 
 SELECT

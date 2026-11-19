@@ -39,6 +39,7 @@ from scrapers.youtube.download_audio_to_drive import (  # noqa: E402
 from scrapers.youtube.load_youtube_events_to_postgres import (  # noqa: E402
     YouTubeEventsLoader,
 )
+from scrapers.youtube.vpn_guard import exit_if_vpn_off, require_vpn  # noqa: E402
 
 
 def _resolve_cookies_path(explicit: str | None) -> str | None:
@@ -52,6 +53,7 @@ def _resolve_cookies_path(explicit: str | None) -> str | None:
     return None
 
 
+@exit_if_vpn_off
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(
@@ -116,6 +118,7 @@ def main() -> None:
         help="Postgres URL (default NEON_DATABASE_URL_DEV / NEON_DATABASE_URL)",
     )
     args = parser.parse_args()
+    require_vpn()  # channel listing and captions reach YouTube (#488)
 
     db_url = (
         args.database_url

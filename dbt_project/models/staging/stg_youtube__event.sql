@@ -19,6 +19,11 @@
         the landed channel_type as a fallback.
       - dedup: collapse to ONE row per video_id (keep most recently loaded),
         replacing the Python dedupe_meeting_videos step.
+      - jurisdiction_name (#501): older loads stored the jurisdiction ID as the
+        name (`chilton_01021`, `c-AL-01021`) when the loader's join missed. When
+        the stored name is NULL, equals jurisdiction_id, or looks like an id, the
+        name is resolved from int_jurisdictions by jurisdiction_id (NULL if the
+        id is unknown) so existing bronze rows heal without a reload.
 
     All done in SQL against the raw bronze columns. Four-CTE template:
     source -> renamed -> derived -> final. See dbt_project/CONVENTIONS.md.
@@ -67,6 +72,22 @@ renamed as (
       and length(trim(video_id)) > 0
 ),
 
+-- Authoritative display names, to heal id-shaped jurisdiction_name (#501).
+juris as (
+    select jurisdiction_id, name
+    from {{ ref('int_jurisdictions') }}
+    where jurisdiction_id is not null
+),
+
+named as (
+    select
+        r.*,
+        {{ heal_jurisdiction_name('r.jurisdiction_name', 'r.jurisdiction_id', 'j.name') }} as jurisdiction_name_healed
+    from renamed r
+    left join juris j
+        on j.jurisdiction_id = r.jurisdiction_id
+),
+
 derived as (
     select
         video_id,
@@ -75,7 +96,7 @@ derived as (
         description,
         published_at,
         jurisdiction_id,
-        jurisdiction_name,
+        jurisdiction_name_healed                             as jurisdiction_name,
         jurisdiction_type,
         state_code,
         state,
@@ -120,13 +141,13 @@ derived as (
         )                                                    as event_date,
 
         -- channel_type: keyword classification (city/county/state/school) from
-        -- jurisdiction_name then title, else the landed channel_type, else unknown.
+        -- the (healed) jurisdiction_name then title, else the landed channel_type, else unknown.
         coalesce(
             case
-                when lower(coalesce(jurisdiction_name, '') || ' ' || coalesce(title, '')) ~ '\m(county|parish)\M'  then 'county'
-                when lower(coalesce(jurisdiction_name, '') || ' ' || coalesce(title, '')) ~ '\m(state|commonwealth)\M' then 'state'
-                when lower(coalesce(jurisdiction_name, '') || ' ' || coalesce(title, '')) ~ '\m(school|district|education)\M' then 'school'
-                when lower(coalesce(jurisdiction_name, '') || ' ' || coalesce(title, '')) ~ '\m(city|town|village|municipal)\M' then 'municipal'
+                when lower(coalesce(jurisdiction_name_healed, '') || ' ' || coalesce(title, '')) ~ '\m(county|parish)\M'  then 'county'
+                when lower(coalesce(jurisdiction_name_healed, '') || ' ' || coalesce(title, '')) ~ '\m(state|commonwealth)\M' then 'state'
+                when lower(coalesce(jurisdiction_name_healed, '') || ' ' || coalesce(title, '')) ~ '\m(school|district|education)\M' then 'school'
+                when lower(coalesce(jurisdiction_name_healed, '') || ' ' || coalesce(title, '')) ~ '\m(city|town|village|municipal)\M' then 'municipal'
             end,
             -- Source labels 'municipality' (noun) leak through the raw fallback;
             -- normalize to the accepted-values set the contract expects.
@@ -137,7 +158,7 @@ derived as (
             end,
             'unknown'
         )                                                    as channel_type
-    from renamed
+    from named
 ),
 
 final as (

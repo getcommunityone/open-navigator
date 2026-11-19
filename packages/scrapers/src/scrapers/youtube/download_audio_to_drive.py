@@ -109,6 +109,7 @@ DEFAULT_YOUTUBE_COOKIES_FILE = project_root / "youtube_cookies.txt"
 # ``core_lib.jurisdictions`` can use it without depending up into ``scrapers``.
 # Re-exported here for backward compatibility with existing call sites.
 from core_lib.text import slug_snake_case  # noqa: E402
+from scrapers.youtube.vpn_guard import exit_if_vpn_off, require_vpn  # noqa: E402
 
 
 def channel_cache_dir_name(channel_title: str, channel_id: str, *, title_max: int = 56) -> str:
@@ -739,7 +740,11 @@ class YouTubeAudioDownloader:
         return videos
     
     def download_audio(self, video: Dict, output_path: Path) -> bool:
-        """Download audio from YouTube video."""
+        """Download audio from YouTube video.
+
+        Raises ``VpnRequiredError`` before any request when the VPN is down (#488).
+        """
+        require_vpn()
         try:
             used_cookie_auth = False
             # yt-dlp: prefer **audio-only** streams first (``ba``, then ``worstaudio``). Only if those
@@ -1388,8 +1393,9 @@ def _explicit_database_url_on_cli(argv: List[str]) -> bool:
     return False
 
 
+@exit_if_vpn_off
 def main():
-    """Main entry point."""
+    """Main entry point. Exits 5 when the VPN tunnel is down (#488)."""
     # Load .env here (CLI entrypoint) rather than at import time: importing this
     # module as a library must not mutate os.environ for unrelated callers/tests.
     load_dotenv()
@@ -1551,6 +1557,7 @@ def main():
     )
     
     args = parser.parse_args()
+    require_vpn()  # audio downloads reach YouTube only through the VPN (#488)
 
     if getattr(args, "cookies", None) == "":
         args.cookies = None

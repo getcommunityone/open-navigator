@@ -210,6 +210,11 @@ models:
       event when one exists, else COALESCE-backfilled from
       event_youtube_with_jurisdiction (by video_id) so the ~90% orphan
       transcripts still carry a location and survive state/city filters.
+      Inclusion (#533): every bronze transcript with caption text (the text is
+      tested, not the has_transcript flag, see #470) except policy-pipeline
+      rejects (`excluded:%`), tombstones, transcripts under 100 characters,
+      junk-gated channels (bronze_youtube_channel_classification) and Canadian
+      CivicSearch meetings (no US jurisdiction).
     config:
       materialized: table
       contract:
@@ -292,7 +297,7 @@ models:
         description: "Denormalized event title for result display."
       - name: event_date
         data_type: date
-        description: "Denormalized event date for sort/display."
+        description: "Denormalized event date for sort/display. Never later than tomorrow for a transcript: a title date after that is replaced by the video's upload day, or null (#564)."
       - name: jurisdiction_name
         data_type: text
         description: "Denormalized jurisdiction name for result display."

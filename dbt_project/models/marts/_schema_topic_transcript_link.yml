@@ -1,0 +1,89 @@
+version: 2
+
+# public.topic_transcript_link — curated topic <-> meeting transcript links with a
+# stored, highlighted, verbatim evidence passage (issue #500). The passage is cut
+# in dbt because production event_documents has no transcript content (#496).
+# civicsearch_topic has a single-column PK (topic_id), so the FK is a REAL
+# enforced constraint.
+
+models:
+  - name: topic_transcript_link
+    description: >
+      public.topic_transcript_link — one row per (topic_id, video_id): a curated
+      topic (civicsearch_topic.source = 'curated', e.g. "Data centers") whose
+      keyword phrase(s) matched a real meeting transcript, with a verbatim
+      ts_headline passage marking the matched words. Powers the topic meeting
+      tiles on Browse Topics. Keyword signal (NOT an AI theme), NO LLM.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'meeting-browse', 'topic', 'transcript']
+      contract:
+        enforced: true
+    columns:
+      - name: topic_transcript_link_id
+        description: "Primary key — md5(topic_id || '|' || video_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: topic_id
+        description: "FK -> civicsearch_topic.topic_id (enforced). Curated topics only (>= 100000)."
+        data_type: integer
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('civicsearch_topic')
+            to_columns: [topic_id]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('civicsearch_topic')
+                field: topic_id
+      - name: video_id
+        description: "Transcript/video key (event_documents.video_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: event_title
+        description: "Meeting/video title (passthrough from event_documents)."
+        data_type: text
+      - name: event_date
+        description: "Meeting date (event_documents.event_date)."
+        data_type: date
+      - name: state_code
+        description: "2-letter state code (passthrough from event_documents). Never null: the link model keeps placed transcripts only."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: state
+        description: "Full state name (passthrough from event_documents)."
+        data_type: text
+      - name: city
+        description: "City (passthrough from event_documents)."
+        data_type: text
+      - name: jurisdiction_name
+        description: "Jurisdiction name (passthrough from event_documents)."
+        data_type: text
+      - name: video_url
+        description: "YouTube/video URL for the tile."
+        data_type: text
+      - name: n_keyword_hits
+        description: "Count of DISTINCT topic keyword phrases found in the transcript (relevance order)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: evidence_passage
+        description: >
+          Verbatim transcript excerpt (ts_headline, up to 2 fragments joined by
+          ' … ') with the matched keyword words wrapped in <mark>…</mark>. The
+          match evidence for the tile; rendered via highlightSnippet (React-escaped).
+        data_type: text

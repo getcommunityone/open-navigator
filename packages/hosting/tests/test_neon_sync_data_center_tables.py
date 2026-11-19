@@ -13,6 +13,20 @@ DATA_CENTER_SERVING = {
     "data_center_agenda_item",
     "area_concern",
     "data_center_meeting_mention",
+    "decision_place_label",
+    "decision_company_mention",
+    "decision_nearby_data_center_site",
+    # #531: companies and projects
+    "mdm_organization_data_center",
+    "data_center_project",
+    "data_center_project_company",
+    "data_center_project_jurisdiction",
+    "data_center_project_figure",
+    "data_center_project_mention",
+    # #532: company-hosted community meetings
+    "data_center_community_event",
+    "data_center_community_event_source",
+    "data_center_community_event_recording",
 }
 
 
@@ -75,3 +89,15 @@ def test_peak_over_the_hard_cap_is_refused_even_under_budget() -> None:
                        largest_replaced_bytes=60 * MB)
     problem = budget_problem(p, DEFAULT_MAX_MB)
     assert problem and f"{NEON_HARD_CAP_MB} MB cap" in problem
+
+
+def test_meeting_document_index_matches_the_search_expression() -> None:
+    # #557: document search matches this exact expression, so the target index must too.
+    from hosting.neon.sync_public_to_neon import TARGET_INDEXES
+
+    (ddl,) = TARGET_INDEXES["event_meeting_document"]
+    assert "gin" in ddl.lower()
+    expr = "to_tsvector('english', coalesce(content, '') || ' ' || coalesce(meeting_title, '') || ' ' || coalesce(body_name, ''))"
+    assert expr in ddl
+    api = (Path(__file__).resolve().parents[3] / "api" / "routes" / "search_postgres.py").read_text()
+    assert "coalesce(content, '') || ' ' || coalesce(meeting_title, '')" in api

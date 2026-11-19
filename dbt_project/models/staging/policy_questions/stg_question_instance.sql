@@ -45,6 +45,30 @@ with src as (
         1.0::double precision                                           as assign_score
     from {{ ref('curated_question_instance') }}
 ),
+-- #501: jurisdiction_name must be a display name, never an id. Some clustered
+-- rows carry the jurisdiction id instead (`chilton_01021`, `c-AL-01021`). These
+-- rows have no jurisdiction_id column, but the id-shaped name IS the id, so it is
+-- resolved against int_jurisdictions: a slug id by jurisdiction_id, a legacy
+-- `c-{USPS}-{geoid}` county code by county geoid. Unresolvable ids become NULL.
+juris as (
+    select jurisdiction_id, geoid, name, jurisdiction_type
+    from {{ ref('int_jurisdictions') }}
+    where jurisdiction_id is not null
+),
+src_named as (
+    select
+        s.instance_id, s.question_id, s.source_type, s.source_id, s.state_code,
+        {{ heal_jurisdiction_name('s.jurisdiction_name', none, 'coalesce(j_id.name, j_cty.name)') }}
+            as jurisdiction_name,
+        s.city, s.outcome_raw, s.occurred_at, s.session, s.assign_score
+    from src s
+    left join juris j_id
+      on j_id.jurisdiction_id = s.jurisdiction_name
+    left join juris j_cty
+      on s.jurisdiction_name ~ {{ jurisdiction_county_code_regex() }}
+     and j_cty.jurisdiction_type = 'county'
+     and j_cty.geoid = substring(s.jurisdiction_name from '^c-[A-Z]{2}-([0-9]+)$')
+),
 -- Headline + statement of the underlying local decision, for the moratorium
 -- family only. One row per event_decision_id; null for bills.
 decision_text as (
@@ -65,7 +89,7 @@ flagged as (
         and coalesce(s.outcome_raw, '') !~* '\m(lift|ends?|ending|ended|repeal|rescind|terminat)\w*\s+(\S+\s+){0,3}moratori'
         and coalesce(dt.txt, '') !~* '\m(lift|ends?|ending|ended|repeal|rescind|terminat)\w*\s+(\S+\s+){0,3}moratori'
             as names_moratorium
-    from src s
+    from src_named s
     left join decision_text dt
       on s.source_type = 'local_decision'
      and dt.event_decision_id = s.source_id

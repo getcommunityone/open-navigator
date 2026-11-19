@@ -198,6 +198,9 @@ CIVIC_SERVING = frozenset(
         "meeting_question_link",
         "question_transcript_link",
         "civicsearch_topic",
+        # curated-topic meeting tiles + their stored evidence passage (#500;
+        # ~1-2 MB — Neon event_documents has no transcript content, #496)
+        "topic_transcript_link",
         "topic_money_and_talk",
         "policy_question_trend",
         # decision detail + arguments
@@ -223,6 +226,27 @@ CIVIC_SERVING = frozenset(
         "area_concern",
         # transcript passages that discuss data centers (#445), ~4.5 MB (#481)
         "data_center_meeting_mention",
+        # question dashboard: place label, company named, nearby tracked site (#508), ~0.5 MB (#528)
+        "decision_place_label",
+        "decision_company_mention",
+        "decision_nearby_data_center_site",
+        # data center companies (MDM satellite) and projects with their companies,
+        # governments, figures and matched decisions / passages (#531)
+        "mdm_organization_data_center",
+        "data_center_project",
+        "data_center_project_company",
+        "data_center_project_jurisdiction",
+        "data_center_project_figure",
+        "data_center_project_mention",
+        # company-hosted community meetings from news / press releases, their
+        # sources and recording candidates (#532)
+        "data_center_community_event",
+        "data_center_community_event_source",
+        "data_center_community_event_recording",
+        # recent transcribed-but-unanalyzed meetings for the homepage "What's New"
+        # rail (#509): one small row per meeting from the last 180 days, with the
+        # stored topic/question evidence passage (no transcript text, #496).
+        "recent_transcribed_meeting",
         # NOTE: meeting_topic_link (60 MB) still deferred (budget headroom).
     }
 )
@@ -413,6 +437,11 @@ def _copy_one(local_conn, neon_conn, name: str) -> int:
         cur.execute(f'ALTER TABLE public."{load_tbl}" RENAME TO "{name}"')
     neon_conn.commit()
     buf.close()
+    for ddl in TARGET_INDEXES.get(name, []):
+        with neon_conn.cursor() as cur:
+            cur.execute(ddl)
+        neon_conn.commit()
+        logger.debug("   🗂️  {} — index built on target", name)
     return rows
 
 
@@ -469,6 +498,21 @@ def budget_problem(p: SizeProjection, max_mb: float, hard_cap_mb: float = NEON_H
     return None
 
 
+# Indexes built on the target after a table is copied (the copy itself carries none).
+# event_meeting_document is served without a stored tsvector (#557); document search matches
+# this exact expression (api/routes/search_postgres.py `_MEETING_DOC_TSV`, search.py), so the
+# index must use the same one. Without it that search takes seconds; with it, milliseconds.
+TARGET_INDEXES: Dict[str, List[str]] = {
+    "event_meeting_document": [
+        "CREATE INDEX IF NOT EXISTS event_meeting_document_fts_idx ON public.event_meeting_document "
+        "USING gin ((to_tsvector('english', coalesce(content, '') || ' ' || coalesce(meeting_title, '') "
+        "|| ' ' || coalesce(body_name, ''))))"
+    ],
+}
+# Bytes those indexes add (measured locally), counted in the size projection.
+TARGET_INDEX_BYTES: Dict[str, int] = {"event_meeting_document": 9 * 1024 * 1024}
+
+
 def _local_object_bytes(local_conn, name: str) -> int:
     with local_conn.cursor() as cur:
         cur.execute(
@@ -477,7 +521,7 @@ def _local_object_bytes(local_conn, name: str) -> int:
             )
         )
         column_bytes, rows = cur.fetchone()
-    return estimate_copy_bytes(int(column_bytes), int(rows))
+    return estimate_copy_bytes(int(column_bytes), int(rows)) + TARGET_INDEX_BYTES.get(name, 0)
 
 
 def _target_sizes(neon_conn, names: List[str]) -> Tuple[int, Dict[str, int]]:

@@ -41,7 +41,14 @@ def _nominatim_geocode(
     city: str = "",
     state: str = "",
     country: str = "us",
+    raise_on_error: bool = False,
 ) -> Optional[Dict[str, Any]]:
+    """Look up one place on Nominatim; ``None`` means no match.
+
+    With ``raise_on_error`` a transport/HTTP failure (503, timeout, DNS) is
+    re-raised instead of returning ``None``, so a caller that caches misses can
+    tell "not found" apart from "could not ask".
+    """
     q = query.strip()
     if city and city.lower() not in q.lower():
         q = f"{q}, {city}"
@@ -60,6 +67,8 @@ def _nominatim_geocode(
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
+        if raise_on_error:
+            raise
         logger.warning("Nominatim failed for {!r}: {}", query, exc)
         return None
     if not data:

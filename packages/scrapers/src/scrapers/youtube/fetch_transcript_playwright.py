@@ -36,6 +36,7 @@ from urllib.parse import parse_qs, urlparse
 from loguru import logger
 
 from core_lib.paths import repo_root
+from scrapers.youtube.vpn_guard import exit_if_vpn_off, require_vpn
 _REPO_ROOT = repo_root(__file__)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -189,6 +190,7 @@ def fetch_transcript_via_playwright(
 
     from scrapers.discovery.meetings_playwright_fetch import _chromium_launch_options
 
+    require_vpn()  # the browser opens youtube.com (#488)
     video_id = _video_id_from_arg(video_id)
     url = _watch_url(video_id)
     captured: list[dict[str, Any]] = []
@@ -255,6 +257,7 @@ def fetch_transcript_via_playwright(
             base = (tr.get("baseUrl") or "").strip()
             if not base:
                 continue
+            require_vpn()  # timedtext is a youtube.com URL (#488)
             try:
                 r = requests.get(base, timeout=20, headers={"User-Agent": _USER_AGENT})
                 r.raise_for_status()
@@ -293,6 +296,7 @@ def fetch_transcript_via_playwright(
     }
 
 
+@exit_if_vpn_off
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Experimental Playwright transcript capture (network intercept)."

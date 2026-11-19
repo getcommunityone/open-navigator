@@ -21,6 +21,12 @@ models:
       fans out — row count equals bronze.bronze_event_youtube MINUS rows on channels
       positively classified as junk / non-government.
 
+      REVIEWED ATTRIBUTION (#514, #515): int_youtube__attribution_override (seed
+      youtube_channel_attribution_override) wins over both the resolved model and
+      bronze for the geo columns, including city and a NULL jurisdiction for videos
+      that name no government, so a re-crawl that writes the old attribution back
+      into bronze cannot bring it back into the served feed.
+
       JUNK GATE: rows whose channel_id is positively classified as junk
       (is_junk = TRUE) or non-government (is_government = FALSE) in
       bronze.bronze_youtube_channel_classification are EXCLUDED here, so

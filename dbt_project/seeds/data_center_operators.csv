@@ -1,0 +1,22 @@
+operator_name,aliases,meeting_aliases,source_kind,source_url,source_passage
+Google,Google|Alphabet Inc,,,,
+Microsoft,Microsoft,,,,
+Meta,Meta Platforms|Meta's|Facebook|Meta data center|Meta Data Center|Meta campus|Meta Campus,,,,
+Amazon,Amazon|Amazon Web Services|AWS,,,,
+Oracle,Oracle Corporation|Oracle Cloud|Oracle's|Oracle data center|Oracle Data Center,,,,
+OpenAI,OpenAI|Stargate,,,,
+xAI,xAI|SpaceXAI,,,,
+CoreWeave,CoreWeave,,,,
+QTS,QTS|QTS Realty|Quality Technology Services,,,,
+Compass Datacenters,Compass Datacenters|Compass Data Centers,,,,
+Vantage Data Centers,Vantage Data Centers,,,,
+CyrusOne,CyrusOne,,,,
+STACK Infrastructure,STACK Infrastructure|Stack Infrastructure,,,,
+Aligned Data Centers,Aligned Data Centers|Aligned Energy,,,,
+Switch,"Switch, Inc.|Switch Inc|Switch Ltd",,,,
+Digital Realty,Digital Realty|Digital Realty Trust,,,,
+Equinix,Equinix,,,,
+Tract,Tract data center park|Tract Data Center Park,,,,
+Cursor,Anysphere|Cursor AI,,,,
+Hillwood,Hillwood,,meeting_passage,https://www.youtube.com/watch?v=LGJDZSrSoBU&t=2082s,"I'm pleased to present this application on behalf of Hillwood. Um, Hillwood is a national developer. They have great experience developing industrial properties throughout the country."
+PowerHouse Data Centers,PowerHouse Data Centers,Powerhouse,meeting_passage,https://www.youtube.com/watch?v=LGJDZSrSoBU&t=2082s,"With this application, Hillwood has teamed up with Powerhouse. Powerhouse is a best-in-class developer of data centers throughout the country in a number of states."

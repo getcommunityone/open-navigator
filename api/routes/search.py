@@ -668,8 +668,11 @@ async def resolve_topic_tsquery(topic_id: int) -> Optional[str]:
     try:
         pool = await search_postgres.get_db_pool()
         async with pool.acquire() as conn:
+            # to_jsonb(t)->>'source' is a defensive read: it works on a serving
+            # copy that predates the `source` column (issue #500).
             row = await conn.fetchrow(
-                "SELECT name, keyword_stats FROM civicsearch_topic WHERE topic_id = $1",
+                "SELECT name, keyword_stats, to_jsonb(t) ->> 'source' AS source "
+                "FROM civicsearch_topic t WHERE topic_id = $1",
                 topic_id,
             )
     except Exception as e:  # noqa: BLE001
@@ -690,6 +693,9 @@ async def resolve_topic_tsquery(topic_id: int) -> Optional[str]:
         except (TypeError, ValueError):
             keywords = []
 
+    if row["source"] == "curated":
+        return _curated_topic_tsquery(row["name"], keywords)
+
     terms: List[str] = []
     seen: set[str] = set()
     for blob in [row["name"], *keywords]:
@@ -704,6 +710,31 @@ async def resolve_topic_tsquery(topic_id: int) -> Optional[str]:
     if not terms:
         return None
     return " | ".join(terms)
+
+
+def _curated_topic_tsquery(name: Optional[str], keywords: List[str]) -> Optional[str]:
+    """Phrase OR-tsquery for a curated topic (issue #500).
+
+    Curated keywords are specific phrases ("data center", "server farm"), so each
+    is matched as an ordered phrase (``data <-> center``) rather than split into
+    loose words: splitting would make "data", "center" and "farm" match on their
+    own. Only ``[a-z]+`` tokens are emitted, so the result is injection-safe for
+    to_tsquery. The topic name is not added: it is a label, and the keywords
+    already cover it. Returns None when no keyword yields a token.
+    """
+    parts: List[str] = []
+    seen: set[str] = set()
+    for kw in keywords:
+        toks = re.findall(r"[a-z]+", str(kw).lower())
+        if not toks:
+            continue
+        frag = " <-> ".join(toks)
+        if frag not in seen:
+            seen.add(frag)
+            parts.append(f"({frag})" if len(toks) > 1 else frag)
+    if not parts:
+        return None
+    return " | ".join(parts)
 
 
 # EveryOrg cause -> keyword vocabulary. KEEP IN SYNC with the dbt models
@@ -1298,7 +1329,9 @@ async def count_meeting_documents(
 
             if has_query:
                 where_clauses.append(
-                    f"content_tsv @@ plainto_tsquery('english', ${idx})"
+                    "to_tsvector('english', coalesce(content, '') || ' ' || coalesce(meeting_title, '') "
+                    "|| ' ' || coalesce(body_name, '')) "
+                    f"@@ plainto_tsquery('english', ${idx})"
                 )
                 params.append(q)
                 idx += 1

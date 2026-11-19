@@ -1,0 +1,464 @@
+version: 2
+
+# #508: what a decision is about, where and who — the readable question-dashboard rows.
+# Built into gold and published to public (publish_public_serving's served list). All three
+# are small (a few dozen rows for data center decisions; one row per labelled decision).
+#
+# FKs to event_decision are relationships tests, not enforced constraints: event_decision is
+# partitioned with a composite PK (event_decision_id, extracted_at) and cannot be a
+# single-column FK target (the event_* family convention, see _schema_event_decision_place.yml).
+
+models:
+  - name: decision_place_label
+    description: >
+      One row per AI-extracted decision that gets a place label: a street-level address or
+      named road from the decision's own primary place that agrees with the decision's own
+      government (state, city/county) — see the model header for the exact rule. A decision
+      with no row shows no place; vague or contradicting places (speech-to-text county names
+      such as "Dicab County") are never labelled.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: event_decision_id
+        description: >
+          Primary key, and FK -> event_decision.event_decision_id (asserted via a
+          relationships test: event_decision is partitioned with a composite PK).
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: state_code
+        description: "2-letter state code of the decision's government."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction_id
+        description: "The decision's own government (FK to jurisdictions), which the place agrees with."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: place_id
+        description: "The event_place slug the label comes from (within the decision's analysis)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: place_type
+        description: "street_address, intersection or corridor."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['street_address', 'intersection', 'corridor']
+      - name: place_label
+        description: "The address as extracted (normalized_address, else raw_text), e.g. '1571 West Samford Ave, Auburn, AL'."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: agreement_basis
+        description: "Why the place agrees with the government: place_city, city_in_county or address_names_jurisdiction."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['place_city', 'city_in_county', 'address_names_jurisdiction']
+      - name: latitude
+        description: "Geocoded latitude of the place, when known (event_place_geocoded)."
+        data_type: double precision
+      - name: longitude
+        description: "Geocoded longitude of the place, when known."
+        data_type: double precision
+
+  - name: decision_company_mention
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+      - type: foreign_key
+        columns: [data_center_meeting_mention_id]
+        to: ref('data_center_meeting_mention')
+        to_columns: [data_center_meeting_mention_id]
+    description: >
+      One row per (data center decision, company) where the decision's own text, or a
+      passage of its own meeting, names the company. evidence_source says which. A
+      decision_text match is on the decision's headline or decision_statement, case-sensitive
+      on a whole word or phrase, against the curated seed data_center_operators (company
+      forms only for brand names that are ordinary words) and the owner / users / project
+      names on data_center_site. A meeting_passage match (#525) is in a transcript passage of
+      the same meeting (inside the decision's discussion window when the analysis gave one),
+      and only where the passage says the company is the applicant or developer next to the
+      name ("on behalf of X", "X is a ... developer"). matched_text is the exact text matched
+      and evidence a verbatim excerpt with it in <mark>. No LLM, no guessed company.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: decision_company_mention_id
+        description: "Primary key: md5(event_decision_id | operator_name)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_decision_id
+        description: >
+          FK -> event_decision.event_decision_id (asserted via a relationships test:
+          event_decision is partitioned with a composite PK).
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: operator_name
+        description: "The company: the seed's operator_name, or the Epoch owner/user name (a project name is credited to its site's owner)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: matched_text
+        description: "The exact text that matched, in the decision or the passage (e.g. 'Amazon Web Services')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: term_source
+        description: "seed (data_center_operators) or epoch (data_center_site owner / users / project)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['seed', 'epoch']
+      - name: text_field
+        description: "headline, decision_statement or meeting_passage: where the match is."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['headline', 'decision_statement', 'meeting_passage']
+      - name: evidence
+        description: "Verbatim excerpt of that text around the match, with the match wrapped in <mark>."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "like '%<mark>%'"
+      - name: evidence_source
+        description: >
+          decision_text (the decision's own headline / decision_statement) or meeting_passage
+          (a transcript passage of the decision's own meeting, #525). The page labels the
+          second "Named in the meeting".
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['decision_text', 'meeting_passage']
+          - dbt_utils.expression_is_true:
+              expression: "= case when text_field = 'meeting_passage' then 'meeting_passage' else 'decision_text' end"
+      - name: start_seconds
+        description: >
+          Passages only: seconds into the recording of the passage's first data center cue
+          (data_center_meeting_mention.start_seconds), the moment to jump to. It is the
+          passage's moment, not the exact second of the quote. Null for decision_text and
+          for an untimed transcript.
+        data_type: numeric(12, 3)
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null"
+              config:
+                where: "evidence_source = 'decision_text'"
+      - name: data_center_meeting_mention_id
+        description: >
+          The passage the quote came from (FK -> data_center_meeting_mention); null for
+          decision_text. Required for meeting_passage.
+        data_type: text
+        tests:
+          - not_null:
+              config:
+                where: "evidence_source = 'meeting_passage'"
+      - name: master_org_id
+        description: "The company's organization master row (#531), via mdm_organization_data_center names and aliases; null when no curated company carries the name."
+        data_type: text
+
+  - name: decision_nearby_data_center_site
+    description: >
+      One row per (data center decision, tracked Epoch AI site) where the site is near the
+      decision's own government (int_data_center_site__jurisdiction, #445). Nearby only: it
+      does not say the decision is about that site, and the page labels it "Nearby tracked
+      site".
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [data_center_site_id]
+        to: ref('data_center_site')
+        to_columns: [data_center_site_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: decision_nearby_data_center_site_id
+        description: "Primary key: md5(event_decision_id | data_center_site_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_decision_id
+        description: >
+          FK -> event_decision.event_decision_id (asserted via a relationships test:
+          event_decision is partitioned with a composite PK).
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: data_center_site_id
+        description: "The nearby tracked site (FK to data_center_site)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction_id
+        description: "The decision's government, one of the governments around the site (FK to jurisdictions)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code of that government."
+        data_type: text
+      - name: link_basis
+        description: "How the site is linked to the government: meeting_source_survey, address_city or address_county."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['meeting_source_survey', 'address_city', 'address_county']
+
+unit_tests:
+  # #508: a company is named only by a whole-word, case-sensitive company form; ordinary
+  # words (switch, stack, compass, meta, oracle, "LAWS") never match; an Epoch project name
+  # counts only in its site's state and is credited to the site's owner.
+  - name: company_mention_only_for_company_forms
+    model: decision_company_mention
+    given:
+      - input: ref('event_decision')
+        rows:
+          - {event_decision_id: d1, extracted_at: '2026-06-01', state_code: GA, headline: 'Amazon Web Services Data Center Rezoning Approved', decision_statement: 'The board approved the rezoning.'}
+          - {event_decision_id: d2, extracted_at: '2026-06-01', state_code: GA, headline: 'Board Votes to Switch Data Center Rules', decision_statement: 'Members will stack the hearings, use a compass of priorities under new LAWS, and Meta will be discussed as the oracle of growth.'}
+          - {event_decision_id: d3, extracted_at: '2026-06-01', state_code: AL, headline: 'Data Center Lease Approved', decision_statement: 'The council approved a data center lease with Stack Infrastructure and Meta Platforms.'}
+          - {event_decision_id: d4, extracted_at: '2026-06-01', state_code: LA, headline: 'Hyperion Data Center Tax Abatement Approved', decision_statement: 'Approved.'}
+          - {event_decision_id: d5, extracted_at: '2026-06-01', state_code: TX, headline: 'Hyperion Data Center Tax Abatement Approved', decision_statement: 'Approved.'}
+          - {event_decision_id: d6, extracted_at: '2026-06-01', state_code: GA, headline: 'Google Fiber Franchise Renewed', decision_statement: 'The council renewed the Google Fiber franchise.'}
+      - input: ref('data_center_operators')
+        rows:
+          - {operator_name: Amazon, aliases: 'Amazon|Amazon Web Services|AWS'}
+          - {operator_name: Google, aliases: 'Google|Alphabet Inc'}
+          - {operator_name: Meta, aliases: "Meta Platforms|Meta's|Facebook"}
+          - {operator_name: Switch, aliases: 'Switch, Inc.|Switch Inc'}
+          - {operator_name: STACK Infrastructure, aliases: 'STACK Infrastructure|Stack Infrastructure'}
+          - {operator_name: Compass Datacenters, aliases: 'Compass Datacenters'}
+          - {operator_name: Oracle, aliases: 'Oracle Cloud'}
+      - input: ref('data_center_site')
+        rows:
+          - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA}
+      # #531: the company's organization master row, by name (Amazon) or alias
+      - input: ref('mdm_organization_data_center')
+        format: sql
+        rows: |
+          select 'm_amazon'::text as master_org_id, 'Amazon'::text as company_name,
+                 array['Amazon Web Services', 'AWS']::text[] as aliases
+      # #525: no decision here has a meeting, so the passage path adds nothing
+      - input: ref('event_meeting')
+        format: sql
+        rows: |
+          select null::integer as event_meeting_id, null::varchar as video_id where false
+      - input: ref('data_center_meeting_mention')
+        format: sql
+        rows: |
+          select null::text as data_center_meeting_mention_id, null::text as video_id,
+                 null::integer as passage_index, null::numeric as start_seconds where false
+      - input: ref('int_data_center_transcript__passage')
+        format: sql
+        rows: |
+          select null::text as video_id, null::integer as passage_index, null::text as passage_text where false
+      - input: source('bronze', 'bronze_events_analysis_ai')
+        format: sql
+        rows: |
+          select null::integer as id, null::jsonb as structured_analysis where false
+    expect:
+      rows:
+        - {event_decision_id: d1, operator_name: Amazon, matched_text: 'Amazon Web Services', text_field: headline, evidence_source: decision_text, start_seconds: null, data_center_meeting_mention_id: null, evidence: '<mark>Amazon Web Services</mark> Data Center Rezoning Approved', master_org_id: m_amazon}
+        - {event_decision_id: d3, operator_name: Meta, matched_text: 'Meta Platforms', text_field: decision_statement, evidence_source: decision_text, start_seconds: null, data_center_meeting_mention_id: null, evidence: 'The council approved a data center lease with Stack Infrastructure and <mark>Meta Platforms</mark>.', master_org_id: null}
+        - {event_decision_id: d3, operator_name: STACK Infrastructure, matched_text: 'Stack Infrastructure', text_field: decision_statement, evidence_source: decision_text, start_seconds: null, data_center_meeting_mention_id: null, evidence: 'The council approved a data center lease with <mark>Stack Infrastructure</mark> and Meta Platforms.', master_org_id: null}
+        - {event_decision_id: d4, operator_name: Meta, matched_text: 'Hyperion', text_field: headline, evidence_source: decision_text, start_seconds: null, data_center_meeting_mention_id: null, evidence: '<mark>Hyperion</mark> Data Center Tax Abatement Approved', master_org_id: null}
+
+  # #525: a company is named from the meeting's own words only when the passage is in the
+  # decision's own meeting, inside its discussion window when it has one, and says the
+  # company is the applicant or developer next to the name.
+  - name: company_mention_from_meeting_passage
+    model: decision_company_mention
+    given:
+      - input: ref('event_decision')
+        rows:
+          # p1: meeting v1, no window -> the whole meeting
+          - {event_decision_id: p1, extracted_at: '2026-06-01', analysis_id: 1, decision_id: D001, state_code: GA, headline: 'Data Center Campus Amendment Denied', decision_statement: 'Denied.'}
+          # p5: same meeting; its own headline names Hillwood, so decision_text wins for Hillwood
+          - {event_decision_id: p5, extracted_at: '2026-06-01', analysis_id: 1, decision_id: D002, state_code: GA, headline: 'Hillwood Data Center Rezoning Approved', decision_statement: 'Approved.'}
+          # p2: meeting v2, window 100-200 s -> only the passage that overlaps it
+          - {event_decision_id: p2, extracted_at: '2026-06-01', analysis_id: 2, decision_id: D001, state_code: GA, headline: 'Data Center Special Exception Denied', decision_statement: 'Denied.'}
+          # p3: meeting v3, only passing mentions, no cue
+          - {event_decision_id: p3, extracted_at: '2026-06-01', analysis_id: 3, decision_id: D001, state_code: GA, headline: 'Data Center Moratorium Adopted', decision_statement: 'Adopted.'}
+          # p4: meeting v4, window 100-200 s, but its only passage is untimed
+          - {event_decision_id: p4, extracted_at: '2026-06-01', analysis_id: 4, decision_id: D001, state_code: GA, headline: 'Data Center Ordinance Tabled', decision_statement: 'Tabled.'}
+          # p6: meeting v5, its analysis lists D001 twice (windows 100-200 s and 900-1000 s)
+          - {event_decision_id: p6, extracted_at: '2026-06-01', analysis_id: 5, decision_id: D001, state_code: GA, headline: 'Data Center Site Plan Approved', decision_statement: 'Approved.'}
+      - input: ref('event_meeting')
+        format: sql
+        rows: |
+          select 1 as event_meeting_id, 'v1'::varchar as video_id
+          union all select 2, 'v2'
+          union all select 3, 'v3'
+          union all select 4, 'v4'
+          union all select 5, 'v5'
+      - input: source('bronze', 'bronze_events_analysis_ai')
+        format: sql
+        rows: |
+          select 2 as id, '{"decisions": [{"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 100, "timestamp_end_seconds": 200}}]}'::jsonb as structured_analysis
+          union all
+          select 4, '{"decisions": [{"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 100, "timestamp_end_seconds": 200}}]}'::jsonb
+          union all
+          select 1, '{"decisions": [{"decision_id": "D001", "media_anchor": null}, {"decision_id": "D002"}]}'::jsonb
+          union all
+          select 5, '{"decisions": [{"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 100, "timestamp_end_seconds": 200}}, {"decision_id": "D001", "media_anchor": {"timestamp_start_seconds": 900, "timestamp_end_seconds": 1000}}]}'::jsonb
+      - input: ref('data_center_meeting_mention')
+        format: sql
+        rows: |
+          select 'mm1'::text as data_center_meeting_mention_id, 'v1'::text as video_id, 11 as passage_index, 2082.079::numeric as start_seconds
+          union all select 'mm2', 'v2', 0, 10
+          union all select 'mm3', 'v2', 5, 900
+          union all select 'mm4', 'v3', 0, 5
+          union all select 'mm5', 'v4', 0, null
+          union all select 'mm6', 'v5', 0, 10
+          union all select 'mm7', 'v5', 5, 900
+      - input: ref('int_data_center_transcript__passage')
+        rows:
+          - {video_id: v1, passage_index: 11, passage_text: 'on behalf of Hillwood. Powerhouse is a best-in-class developer of data centers.'}
+          - {video_id: v2, passage_index: 0, passage_text: 'the applicant is Hillwood and the hearing is tonight.'}
+          - {video_id: v2, passage_index: 5, passage_text: 'the applicant is Equinix.'}
+          - {video_id: v3, passage_index: 0, passage_text: "Google and Meta haven't come to me. a Meta data center in Newton County."}
+          - {video_id: v4, passage_index: 0, passage_text: 'on behalf of Hillwood.'}
+          - {video_id: v5, passage_index: 0, passage_text: 'the applicant is Hillwood tonight.'}
+          - {video_id: v5, passage_index: 5, passage_text: 'the applicant is Equinix tonight.'}
+      - input: ref('data_center_operators')
+        rows:
+          - {operator_name: Hillwood, aliases: Hillwood}
+          - {operator_name: PowerHouse Data Centers, aliases: PowerHouse Data Centers, meeting_aliases: Powerhouse}
+          - {operator_name: Equinix, aliases: Equinix}
+          - {operator_name: Google, aliases: Google}
+          - {operator_name: Meta, aliases: 'Meta Platforms|Meta data center'}
+      - input: ref('data_center_site')
+        rows:
+          - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA}
+      - input: ref('mdm_organization_data_center')
+        format: sql
+        rows: |
+          select null::text as master_org_id, null::text as company_name, null::text[] as aliases where false
+    expect:
+      rows:
+        # p1: "on behalf of Hillwood" (cue before) and "Powerhouse is a ... developer" (cue after)
+        - {event_decision_id: p1, operator_name: Hillwood, matched_text: Hillwood, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm1, start_seconds: 2082.079, evidence: 'on behalf of <mark>Hillwood</mark>. Powerhouse is a best-in-class developer of data centers.'}
+        - {event_decision_id: p1, operator_name: PowerHouse Data Centers, matched_text: Powerhouse, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm1, start_seconds: 2082.079, evidence: 'on behalf of Hillwood. <mark>Powerhouse</mark> is a best-in-class developer of data centers.'}
+        # p5: its own headline names Hillwood (decision_text wins); Powerhouse comes from the meeting
+        - {event_decision_id: p5, operator_name: Hillwood, matched_text: Hillwood, text_field: headline, evidence_source: decision_text, data_center_meeting_mention_id: null, start_seconds: null, evidence: '<mark>Hillwood</mark> Data Center Rezoning Approved'}
+        - {event_decision_id: p5, operator_name: PowerHouse Data Centers, matched_text: Powerhouse, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm1, start_seconds: 2082.079, evidence: 'on behalf of Hillwood. <mark>Powerhouse</mark> is a best-in-class developer of data centers.'}
+        # p2: the passage inside the 100-200 s window; Equinix at 900 s is outside it
+        - {event_decision_id: p2, operator_name: Hillwood, matched_text: Hillwood, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm2, start_seconds: 10, evidence: 'the applicant is <mark>Hillwood</mark> and the hearing is tonight.'}
+        # p6: D001 listed twice in its analysis -> the window spans both entries (100-1000 s),
+        # so both passages count; a window made of one entry's start and the other's end would not
+        - {event_decision_id: p6, operator_name: Hillwood, matched_text: Hillwood, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm6, start_seconds: 10, evidence: 'the applicant is <mark>Hillwood</mark> tonight.'}
+        - {event_decision_id: p6, operator_name: Equinix, matched_text: Equinix, text_field: meeting_passage, evidence_source: meeting_passage, data_center_meeting_mention_id: mm7, start_seconds: 900, evidence: 'the applicant is <mark>Equinix</mark> tonight.'}
+        # p3 (companies named in passing, no cue) and p4 (untimed passage, window known): no rows
+
+  # #508: only a street-level place that agrees with the decision's own government is
+  # labelled; speech-to-text county names and contradicting places are not.
+  - name: place_label_only_when_street_level_and_agreeing
+    model: decision_place_label
+    given:
+      - input: ref('event_decision')
+        rows:
+          - {event_decision_id: auburn, extracted_at: '2026-06-01', analysis_id: 1, primary_place_id: p_samford, place_refs: '["p_samford"]'}
+          - {event_decision_id: dekalb, extracted_at: '2026-06-01', analysis_id: 2, primary_place_id: p_dicab, place_refs: '["p_dicab"]'}
+          - {event_decision_id: spalding_road, extracted_at: '2026-06-01', analysis_id: 3, primary_place_id: p_road, place_refs: '["p_road", "p_atl"]'}
+          - {event_decision_id: spalding_wrong_state, extracted_at: '2026-06-01', analysis_id: 4, primary_place_id: p_corr, place_refs: '["p_corr"]'}
+          - {event_decision_id: spalding_griffin, extracted_at: '2026-06-01', analysis_id: 5, primary_place_id: p_griffin, place_refs: '["p_griffin"]'}
+          - {event_decision_id: spalding_atlanta, extracted_at: '2026-06-01', analysis_id: 6, primary_place_id: p_atl, place_refs: '["p_atl"]'}
+          - {event_decision_id: no_primary_two_refs, extracted_at: '2026-06-01', analysis_id: 7, primary_place_id: null, place_refs: '["p_a", "p_b"]'}
+      - input: ref('event_place_geocoded')
+        rows:
+          - {analysis_id: 1, place_id: p_samford, extracted_at: '2026-06-01', place_type: street_address, raw_text: '1571 West Samford Avenue', normalized_address: '1571 West Samford Ave, Auburn, AL', street_address: '1571 West Samford Ave', place_city: Auburn, place_state_code: AL}
+          - {analysis_id: 2, place_id: p_dicab, extracted_at: '2026-06-01', place_type: jurisdiction_wide, raw_text: 'dicap county', normalized_address: 'Dicab County, GA', place_city: Dicab County, place_state_code: GA}
+          - {analysis_id: 3, place_id: p_road, extracted_at: '2026-06-01', place_type: corridor, raw_text: 'Tomachici Road', normalized_address: 'Tomachici Road, Spalding County, GA', place_state_code: GA}
+          - {analysis_id: 3, place_id: p_atl, extracted_at: '2026-06-01', place_type: street_address, raw_text: '1441 Dunwoody Village Parkway', normalized_address: '1441 Dunwoody Village Parkway, Atlanta, GA', street_address: '1441 Dunwoody Village Parkway', place_city: Atlanta, place_state_code: GA}
+          - {analysis_id: 4, place_id: p_corr, extracted_at: '2026-06-01', place_type: corridor, raw_text: 'Old Atlanta Road', normalized_address: 'Old Atlanta Road, Spalding County, AL', place_state_code: AL}
+          - {analysis_id: 5, place_id: p_griffin, extracted_at: '2026-06-01', place_type: street_address, raw_text: '1221 Tomachici Road', normalized_address: '1221 Tomachici Road, Griffin, Georgia', street_address: '1221 Tomachici Road', place_city: Griffin, place_state_code: GA}
+          - {analysis_id: 6, place_id: p_atl, extracted_at: '2026-06-01', place_type: street_address, raw_text: '1441 Dunwoody Village Parkway', normalized_address: '1441 Dunwoody Village Parkway, Atlanta, GA', street_address: '1441 Dunwoody Village Parkway', place_city: Atlanta, place_state_code: GA}
+          - {analysis_id: 7, place_id: p_a, extracted_at: '2026-06-01', place_type: street_address, raw_text: '10 Main Street', normalized_address: '10 Main Street, Auburn, AL', street_address: '10 Main Street', place_city: Auburn, place_state_code: AL}
+          - {analysis_id: 7, place_id: p_b, extracted_at: '2026-06-01', place_type: street_address, raw_text: '12 Main Street', normalized_address: '12 Main Street, Auburn, AL', street_address: '12 Main Street', place_city: Auburn, place_state_code: AL}
+      - input: ref('int_event_decision__jurisdiction')
+        rows:
+          - {event_decision_id: auburn, jurisdiction_id: auburn_0103076, jurisdiction_geoid: '0103076', jurisdiction_name: Auburn, jurisdiction_type: city, state_code: AL}
+          - {event_decision_id: dekalb, jurisdiction_id: dekalb_13089, jurisdiction_geoid: '13089', jurisdiction_name: DeKalb County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: spalding_road, jurisdiction_id: spalding_13255, jurisdiction_geoid: '13255', jurisdiction_name: Spalding County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: spalding_wrong_state, jurisdiction_id: spalding_13255, jurisdiction_geoid: '13255', jurisdiction_name: Spalding County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: spalding_griffin, jurisdiction_id: spalding_13255, jurisdiction_geoid: '13255', jurisdiction_name: Spalding County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: spalding_atlanta, jurisdiction_id: spalding_13255, jurisdiction_geoid: '13255', jurisdiction_name: Spalding County, jurisdiction_type: county, state_code: GA}
+          - {event_decision_id: no_primary_two_refs, jurisdiction_id: auburn_0103076, jurisdiction_geoid: '0103076', jurisdiction_name: Auburn, jurisdiction_type: city, state_code: AL}
+      - input: ref('jurisdiction_county_crosswalk')
+        rows:
+          - {geoid: '1335324', name: Griffin, state_code: GA, county_fips: '13255'}
+          - {geoid: '1304000', name: Atlanta, state_code: GA, county_fips: '13121'}
+    expect:
+      rows:
+        - {event_decision_id: auburn, place_label: '1571 West Samford Ave, Auburn, AL', agreement_basis: place_city}
+        - {event_decision_id: spalding_road, place_label: 'Tomachici Road, Spalding County, GA', agreement_basis: address_names_jurisdiction}
+        - {event_decision_id: spalding_griffin, place_label: '1221 Tomachici Road, Griffin, Georgia', agreement_basis: city_in_county}

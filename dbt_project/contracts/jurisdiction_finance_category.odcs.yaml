@@ -22,26 +22,6 @@ schema:
   description: 'public.jurisdiction_finance_category — tidy/long companion to jurisdiction_finance: one row per (government x expenditure category) with amount (whole dollars) and share_pct of direct_expenditure. NULL-amount categories are omitted (no zero-fill). Shares per government sum to ~100.'
   dataGranularityDescription: One row per (government x expenditure category) with amount (whole dollars) and share_pct of direct_expenditure.
   properties:
-  - id: jurisdiction_finance_category_id
-    name: jurisdiction_finance_category_id
-    logicalType: string
-    physicalType: text
-    description: PK — md5(jurisdiction_finance_id || '|' || category_code).
-    required: true
-    unique: true
-    primaryKey: true
-    primaryKeyPosition: 1
-    quality:
-    - type: library
-      metric: duplicateValues
-      mustBe: 0
-      dimension: uniqueness
-      severity: error
-    - type: library
-      metric: nullValues
-      mustBe: 0
-      dimension: completeness
-      severity: error
   - id: jurisdiction_finance_id
     name: jurisdiction_finance_id
     logicalType: string
@@ -51,28 +31,6 @@ schema:
     relationships:
     - type: foreignKey
       to: jurisdiction_finance.odcs.yaml#/schema/jurisdiction_finance/properties/jurisdiction_finance_id
-  - id: category_code
-    name: category_code
-    logicalType: string
-    physicalType: text
-    description: Stable machine code for the category.
-    required: true
-    quality:
-    - type: library
-      metric: invalidValues
-      arguments:
-        validValues:
-        - education
-        - public_safety
-        - infrastructure_highways
-        - parks_recreation
-        - health_welfare
-        - utilities
-        - administration_government
-        - other_debt
-      mustBe: 0
-      dimension: conformity
-      severity: error
   - id: category
     name: category
     logicalType: string

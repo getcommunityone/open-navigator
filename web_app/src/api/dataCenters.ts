@@ -23,6 +23,10 @@ export type DataCenterMeetingMention = Schemas['DataCenterMeetingMention']
 export type DataCenterMeetingMentionsResponse = Schemas['DataCenterMeetingMentionsResponse']
 export type AreaConcern = Schemas['AreaConcern']
 export type AreaConcernsResponse = Schemas['AreaConcernsResponse']
+export type CommunityEvent = Schemas['CommunityEvent']
+export type CommunityEventsResponse = Schemas['CommunityEventsResponse']
+export type DataCenterProject = Schemas['DataCenterProject']
+export type DataCenterProjectsResponse = Schemas['DataCenterProjectsResponse']
 
 export async function fetchJobClaims(params: {
   state?: string
@@ -102,6 +106,50 @@ export async function fetchDataCenterMeetingMentions(params: {
     async (span) => {
       const res = await api.get<DataCenterMeetingMentionsResponse>('/data-centers/meeting-mentions', { params: q })
       span.setAttribute('data_centers.meeting_mentions.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
+}
+
+/** Company-hosted data center meetings found in news and press releases (#532). */
+export async function fetchCommunityEvents(params: {
+  state?: string
+  city?: string
+  projectId?: string
+}): Promise<CommunityEventsResponse> {
+  const q: Record<string, string> = {}
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  if (params.projectId) q.project_id = params.projectId
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.community-events.load',
+    async (span) => {
+      const res = await api.get<CommunityEventsResponse>('/data-centers/community-events', { params: q })
+      span.setAttribute('data_centers.community_events.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
+}
+
+/** Data center projects with companies, sourced figures and a timeline (#531/#532). */
+export async function fetchDataCenterProjects(params: {
+  state?: string
+  city?: string
+  source?: 'curated' | 'epoch'
+}): Promise<DataCenterProjectsResponse> {
+  const q: Record<string, string> = {}
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  if (params.source) q.source = params.source
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.projects.load',
+    async (span) => {
+      const res = await api.get<DataCenterProjectsResponse>('/data-centers/projects', { params: q })
+      span.setAttribute('data_centers.projects.count', res.data?.items?.length ?? 0)
       return res.data
     },
     { 'data_centers.scope_level': scopeLevel },

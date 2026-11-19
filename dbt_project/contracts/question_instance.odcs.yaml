@@ -95,6 +95,30 @@ schema:
     logicalType: string
     physicalType: text
     description: 'decisions: approved|denied|deferred|moratorium|other (moratorium = an adopted/recommended moratorium, #483); bills: enacted|vetoed|failed|carried_over|died_in_committee|pending.'
+  - id: outcome_family
+    name: outcome_family
+    logicalType: string
+    physicalType: text
+    description: 'Outcome family shared with the policy_question rollup (macro question_outcome_family, #499): approved | denied | moratorium | deferred | other. The API counts and filters a question''s instances by state/city with it.'
+    required: true
+    quality:
+    - type: library
+      metric: nullValues
+      mustBe: 0
+      dimension: completeness
+      severity: error
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - approved
+        - denied
+        - moratorium
+        - deferred
+        - other
+      mustBe: 0
+      dimension: conformity
+      severity: error
   - id: occurred_at
     name: occurred_at
     logicalType: timestamp
