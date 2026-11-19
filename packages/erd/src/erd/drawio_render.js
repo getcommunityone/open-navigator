@@ -23,13 +23,15 @@ function embed(png, xml) {
   const browser = await chromium.launch();
   for (const file of files) {
     const xml = fs.readFileSync(file, 'utf8');
-    // the viewer fits the diagram to the viewport: size it to the diagram (top-level cells) and render at 2x,
-    // capped at 16000 px on the longer side, Chromium's limit for one screenshot
+    // the viewer fits the diagram to the viewport: size it to the diagram (top-level cells) and render at 1x
+    // (SCALE=2 for a denser print). Cap the longer side at MAX_SIDE (default 3500) so the PNG opens in an IDE.
     const geoms = [...xml.matchAll(/<mxGeometry x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)" as="geometry"/g)]
       .map(m => m.slice(1).map(Number)).filter(([, , w]) => w > 60);
     const width = Math.ceil(Math.max(...geoms.map(([x, , w]) => x + w))) + 48;
     const height = Math.ceil(Math.max(...geoms.map(([, y, , h]) => y + h))) + 48;
-    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: Math.min(2, 16000 / Math.max(width, height)) });
+    const maxSide = Number(process.env.MAX_SIDE || 3500);
+    const scale = Math.min(Number(process.env.SCALE || 1) || 1, maxSide / Math.max(width, height, 1));
+    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: scale });
     page.on('pageerror', e => console.error('page error:', e.message));
     await page.setContent(`<body style="margin:0;background:#fff"><div id="d"></div><script src="${VIEWER}"></script></body>`, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof GraphViewer !== 'undefined', null, { timeout: 30000 });

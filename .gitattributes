@@ -25,6 +25,10 @@ web_app/public/wikicommons/** -filter -diff -merge
 # that can't upload LFS objects. Last so it wins over the *.png LFS line above.
 web_docs/static/img/deck-cover.png -filter -diff -merge
 
+# Marts ERD PNGs: one normal-sized diagram per subject area (#614). Plain blobs so a checkout can preview them
+# without git-lfs (the old single-canvas PNGs were LFS pointers and unopenable). Last so it wins over *.png above.
+web_docs/static/img/erd/** -filter -diff -merge
+
 # Small site icons, logos and bug screenshots committed as normal blobs (#257). Kept plain so a checkout matches the
 # commit (otherwise git status lists them as modified and `git add -A` moves them into LFS) and sessions that can't
 # upload LFS objects can still commit next to them. Last so they win over the *.png / *.jpg / *.svg / *.ico lines above.

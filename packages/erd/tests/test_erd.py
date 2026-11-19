@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from erd import build, build_model, read_models, write
-from erd.dictionary import area_summary, entity_columns
+from erd.dictionary import area_slug, area_summary, entity_columns, for_area
 
 SCHEMA = """
 version: 2
@@ -115,9 +115,20 @@ def test_lines_are_right_angled_and_never_cross_a_table(model):
 
 
 def test_write_gives_a_full_and_an_entity_file(model, tmp_path):
-    paths = write("marts", model, None, tmp_path / "out")
+    paths = write("marts", model, None, tmp_path / "out", per_area=False)
     assert [p.name for p in paths] == ["marts_full.drawio", "marts_entity.drawio"]
     assert all("<mxfile" in p.read_text() and "Legend" in p.read_text() for p in paths)
+
+
+def test_write_per_area_one_pair_per_subject_area_and_drops_cross_area_lines(model, tmp_path):
+    assert area_slug("People and organizations (MDM)") == "people_and_organizations_mdm"
+    paths = write("marts", model, None, tmp_path / "out")
+    names = {p.name for p in paths}
+    assert "marts_jurisdictions_entity.drawio" in names and "marts_jurisdictions_full.drawio" in names
+    assert "marts_bills_and_policy_entity.drawio" in names
+    assert "marts_full.drawio" not in names
+    bills = for_area(model, "Bills and policy")
+    assert set(bills.TABLES) == {"bills"} and bills.RELATIONSHIPS == [], "FK to jurisdictions is another area"
 
 
 def test_area_summary_counts_tables_rows_and_primary_keys(model):

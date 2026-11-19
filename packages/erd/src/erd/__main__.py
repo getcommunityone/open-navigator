@@ -2,7 +2,8 @@
 
     python -m erd --models dbt_project/models/marts --out web_docs/static/img/erd --name marts
 
-writes <out>/<name>_full.drawio (every column) and <out>/<name>_entity.drawio (the same arrangement, keys only).
+By default writes one entity and one full diagram per subject area
+(`<out>/<name>_<area>_{entity,full}.drawio`). Pass `--one-canvas` for the old single mega pair.
 Render them to PNG with `node packages/erd/src/erd/drawio_render.js <files>` (needs playwright).
 """
 
@@ -24,6 +25,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--out", type=Path, required=True, help="folder for the .drawio files")
     parser.add_argument("--name", default="marts", help="file prefix")
     parser.add_argument("--page-columns", type=int, default=4)
+    parser.add_argument("--one-canvas", action="store_true",
+                        help="one entity/full pair with every area on one canvas (huge; not for viewing)")
     parser.add_argument("--dsn", help="Postgres URL: show each table's exact row count and the area totals "
                                       "(needs `pip install 'communityone-erd[db]'`)")
     parser.add_argument("--schema", default="gold", help="schema the models are built in (with --dsn)")
@@ -40,7 +43,7 @@ def main(argv: list[str] | None = None) -> None:
         model.STATS_NOTE = measured_note(args.schema)
         logger.info("measured {} of {} tables in {}; the rest are not built there", len(stats), len(model.TABLES),
                     args.schema)
-    for path in write(args.name, model, stats, args.out):
+    for path in write(args.name, model, stats, args.out, per_area=not args.one_canvas):
         logger.success("wrote {}", path)
 
 

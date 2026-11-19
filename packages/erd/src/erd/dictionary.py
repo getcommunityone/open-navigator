@@ -17,13 +17,15 @@ The Router keeps lines out of tables, in the gaps between tables and subject are
 from __future__ import annotations
 
 import math
+import re
 from itertools import pairwise
 from pathlib import Path
+from types import SimpleNamespace
 
 from .drawio import CARD, INK, MUTED, Diagram
 
 LIMITS = ((90, 170), (80, 220), (110, 210))     # min, max width of: name, type and meaning, profile
-CHAR, LINE, PAD, GAP, HEAD_LINE = 5.6, 13, 56, 120, 14
+CHAR, LINE, PAD, GAP, HEAD_LINE = 5.6, 13, 32, 64, 14
 FACT, DIM, SUMMARY, AREA, BAND = "#E3F8DF", "#FFD9A8", "#DCE9F7", "#FDF8C8", "#E6E6E6"
 # header colour and legend label per kind; a model may relabel kinds with KIND_LABELS (open-navigator names tables by
 # entity, not fact/dimension, so its kinds are "event", "entity" and "summary")
@@ -244,15 +246,15 @@ def _legend(d, x, y, entity=False, kinds=("fact", "dimension"), profiled=True, l
     return 34 + 22 * len(_legend_items(False, kinds, profiled, labels, phi, questions, note))
 
 
-def _layout(tables, sizes):
-    """Two tables a row: the rows, and the subject area's width and height."""
-    rows = [tables[i:i + 2] for i in range(0, len(tables), 2)]
-    gw = max(sum(sizes[n][0] for n in row) + PAD * (len(row) + 1) for row in rows)
+def _layout(tables, sizes, per_row=2):
+    """Tables packed `per_row` across: the rows, and the subject area's width and height."""
+    rows = [tables[i:i + per_row] for i in range(0, len(tables), per_row)] or [[]]
+    gw = max((sum(sizes[n][0] for n in row) + PAD * (len(row) + 1) for row in rows), default=PAD * 2)
     gh = 46 + sum(max(sizes[n][1] for n in row) + PAD for row in rows)
     return rows, gw, gh
 
 
-def group_tops(m, stats, top=0, sizes=None):
+def group_tops(m, stats, top=0, sizes=None, per_row=2):
     """{subject area: y}: stacked down each column, the column then placed by COLUMN_ALIGN (top, middle or bottom)
     against the tallest column. sizes: each table's (width, height); the full view's by default."""
     if sizes is None:
@@ -260,7 +262,7 @@ def group_tops(m, stats, top=0, sizes=None):
         sizes = {n: _size(m, n, stats, widths[n]) for n in m.TABLES}
     heights = {}
     for title, c, tables in m.GROUPS:
-        heights.setdefault(c, []).append((title, _layout(tables, sizes)[2]))
+        heights.setdefault(c, []).append((title, _layout(tables, sizes, per_row)[2]))
     tallest = max(sum(h for _, h in col) + GAP * (len(col) - 1) for col in heights.values())
     tops = {}
     for c, col in heights.items():
@@ -413,9 +415,12 @@ def build(m, stats=None, entity=False):
                        getattr(m, "STATS_NOTE", None))
     widths = table_widths(m, stats)
     sizes = {n: entity_size(m, n, stats) if entity else _size(m, n, stats, widths[n]) for n in m.TABLES}
+    # pack 3 across when an area (or the whole canvas) has many tables, so height stays viewable; same count
+    # for entity and full so their arrangements stay aligned
+    per_row = 3 if len(m.TABLES) > 6 else 2
 
     def layout(tables):
-        return _layout(tables, sizes)
+        return _layout(tables, sizes, per_row)
 
     columns = sorted({c for _, c, _ in m.GROUPS})
     col_w = {c: max(layout(t)[1] for _, gc, t in m.GROUPS if gc == c) for c in columns}
@@ -423,7 +428,7 @@ def build(m, stats=None, entity=False):
     for c in columns:
         col_x[c] = x
         x += col_w[c] + GAP
-    tops = group_tops(m, stats, 10 + legend_h + GAP, sizes)
+    tops = group_tops(m, stats, 10 + legend_h + GAP, sizes, per_row)
     anchors, tables_drawn, areas = {}, [], []
     d.tables, d.columns = {}, {}
     for title, c, tables in m.GROUPS:
@@ -467,12 +472,39 @@ def build(m, stats=None, entity=False):
     return d
 
 
-def write(prefix, m, stats=None, src: Path = Path(".")):
-    """<prefix>_full.drawio (the data dictionary) and <prefix>_entity.drawio (its arrangement, keys only) in src."""
+def area_slug(title: str) -> str:
+    """Filesystem slug for a subject-area title: lowercased, non-alnum runs become `_`."""
+    return re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")
+
+
+def for_area(m, title: str):
+    """A model with only one subject area's tables and the relationships whose both ends are in it."""
+    group = next(g for g in m.GROUPS if g[0] == title)
+    names = set(group[2])
+    return SimpleNamespace(
+        TABLES={n: m.TABLES[n] for n in group[2]},
+        RELATIONSHIPS=[r for r in m.RELATIONSHIPS if r.parent in names and r.child in names],
+        GROUPS=[(title, 0, list(group[2]))],
+        KINDS={n: m.KINDS[n] for n in names},
+        PHI={p for p in getattr(m, "PHI", set()) if (p[0] if isinstance(p, tuple) else p) in names},
+        QUESTIONS={k: v for k, v in getattr(m, "QUESTIONS", {}).items() if k in names},
+        PROFILE=getattr(m, "PROFILE", True),
+        KIND_LABELS=getattr(m, "KIND_LABELS", None),
+        COLUMN_ALIGN=getattr(m, "COLUMN_ALIGN", {}),
+        STATS_NOTE=getattr(m, "STATS_NOTE", None),
+    )
+
+
+def write(prefix, m, stats=None, src: Path = Path("."), *, per_area: bool = True):
+    """Write draw.io files under src. With per_area (the default), one entity and one full file per subject area
+    (`<prefix>_<area-slug>_{entity,full}.drawio`), each a normal-sized diagram. With per_area=False, the single
+    mega pair `<prefix>_{entity,full}.drawio` (every area on one canvas)."""
     src.mkdir(parents=True, exist_ok=True)
     out = []
-    for view, entity in (("full", False), ("entity", True)):
-        stem = f"{prefix}_{view}"
-        (src / f"{stem}.drawio").write_text(build(m, stats, entity).xml(stem))
-        out.append(src / f"{stem}.drawio")
+    models = [(area_slug(title), for_area(m, title)) for title, _, _ in m.GROUPS] if per_area else [("", m)]
+    for slug, model in models:
+        for view, entity in (("full", False), ("entity", True)):
+            stem = f"{prefix}_{slug}_{view}" if slug else f"{prefix}_{view}"
+            (src / f"{stem}.drawio").write_text(build(model, stats, entity).xml(stem))
+            out.append(src / f"{stem}.drawio")
     return out
