@@ -1,19 +1,7 @@
-# Development & Debugging Scripts
+# eBoard and cookie helpers
 
-This directory contains scripts for development, debugging, and testing.
+- `export_chrome_cookies.py` - exports YouTube cookies from a local Chrome profile (for yt-dlp).
 
-## Files
-
-- `debug_eboard.py` - Debug script to examine eBoard page structure using Playwright
-
-## Usage
-
-These scripts are for development purposes and are not part of the production pipeline.
-
-### Debug eBoard
-
-```bash
-python scripts/development/debug_eboard.py
-```
-
-Examines eBoard meeting page structure to help debug scraping issues.
+`debug_eboard.py` and `try_scrape_with_cookies.py` moved to `archive/datasources/eboard/` (#462): nothing imported
+them, and both used `playwright_stealth`, which the project no longer uses. Scrapers run a plain browser and report
+bot protection as blocked (`scrapers.discovery.browser_block`).
