@@ -82,6 +82,23 @@ code. The six principles and where each applies: [Context engineering](web_docs/
 - **Version and test it.** Prompts, output schemas and tool definitions live in git with a version that changes when
   they do, and are checked against known answers, not by asking another model whether the result looks right.
 
+## Deliverables go on Google Drive, not Downloads
+
+Do **not** write user-facing deliverables to the Windows Downloads folder (`C:\Users\…\Downloads` or
+`/mnt/c/Users/…/Downloads`). Downloads is for the browser; files there get locked when open, do not sit with the
+Colab/Drive tree, and are easy to lose.
+
+- **Durable root:** Google Drive `My Drive/CommunityOne/open-navigator/`
+  - Windows: `G:\My Drive\CommunityOne\open-navigator\`
+  - Colab: `/content/drive/MyDrive/CommunityOne/open-navigator/`
+- **Pipeline / comparison / GPU pilot outputs:** under `…/crawl/` (for example
+  `crawl/policy_analysis_compare/<run-date>/comparison/<video_id>/` for Gemma–Gemini–Jev comparison workbooks and
+  JSON). Create the folder if it is missing; put the file there as the primary copy.
+- **Scratch only:** `/tmp` (or the session temp dir) while building a file. When the deliverable is ready, write or
+  copy it to the Drive path above and tell the user that Drive path. Do not leave the only copy in Downloads.
+- **Repo checkout** stays for code, prompts, and docs in git. Generated comparison artifacts and run outputs that
+  belong with Colab/Drive stay on Drive, not in the repo and not in Downloads.
+
 ## GPU and paid compute
 
 GPU steps (WhisperX diarization, local Gemma generation; #262, #297) run on paid or shared machines. The decision and
@@ -96,3 +113,5 @@ its reasons: [GPU compute decisions](web_docs/docs/development/gpu-compute-decis
   compute units Colab shows) and put the cost in the run's issue or PR.
 - **Recorded outputs and CPU come first.** Re-run a question on outputs already saved, or on CPU, before asking for a
   GPU; a GPU run is for what they can't answer.
+- **GPU and comparison outputs land on Drive** under `CommunityOne/open-navigator/crawl/` (see Deliverables above),
+  not in Downloads.
