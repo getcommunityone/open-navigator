@@ -113,10 +113,16 @@ Useful flags:
 | `--meeting-seed-urls URL,...` | Single-jurisdiction runs only: start from a known meetings page when the homepage hides it |
 | `--civicclerk-tenant <slug>` | Single-jurisdiction runs only: also sync a CivicClerk portal through its OData API |
 
-`--retry-failed-shallow` (re-crawl only failed or shallow sites) doesn't find folders named by the current
-jurisdiction ids yet, so it retries nothing for recent crawls
-([#401](https://github.com/getcommunityone/open-navigator/issues/401)). Until that's fixed, re-run the batch for
-the state, or use `--resume` on a single site.
+Re-crawl only failed (0 pages) or shallow sites from existing manifests:
+
+```bash
+.venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \
+  --state AL --type all --from-db --retry-failed-shallow --concurrency 6 --timeout 120
+```
+
+Use `--type county` (or `municipality`) to limit one folder tree. Both legacy
+`county/county_01001` and current `municipality/tuscaloosa_0177256` layouts are
+recognized ([#401](https://github.com/getcommunityone/open-navigator/issues/401)).
 
 Defaults are 80 pages and 80 PDFs per jurisdiction. The crawl writes one folder per jurisdiction, with a
 `_manifest.json` plus the PDFs, under
