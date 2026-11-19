@@ -424,3 +424,19 @@ def test_attention_flag_is_optional_and_validated():
     assert parser.parse_args(["--videos-file", "x", "--attn-implementation", "sdpa"]).attn_implementation == "sdpa"
     with pytest.raises(SystemExit):
         parser.parse_args(["--videos-file", "x", "--attn-implementation", "bogus"])
+
+
+def test_check_prompt_fits_applies_the_context_and_the_cap():
+    cpa.check_prompt_fits(20_000, context_tokens=262_144, max_new_tokens=32_768)            # fits
+    cpa.check_prompt_fits(28_416, context_tokens=262_144, max_new_tokens=32_768, max_input_tokens=30_000)
+    with pytest.raises(cpa.ContextTooLong, match="max-input-tokens"):
+        cpa.check_prompt_fits(56_752, context_tokens=262_144, max_new_tokens=32_768, max_input_tokens=30_000)
+    with pytest.raises(cpa.ContextTooLong, match="context"):
+        cpa.check_prompt_fits(240_000, context_tokens=262_144, max_new_tokens=32_768)
+    cpa.check_prompt_fits(56_752, context_tokens=None, max_new_tokens=32_768)              # no cap, unknown context
+
+
+def test_max_input_tokens_flag_defaults_to_off():
+    parser = cpa.build_parser()
+    assert parser.parse_args(["--videos-file", "x"]).max_input_tokens is None
+    assert parser.parse_args(["--videos-file", "x", "--max-input-tokens", "30000"]).max_input_tokens == 30000

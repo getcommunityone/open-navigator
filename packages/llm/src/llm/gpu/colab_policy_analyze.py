@@ -228,11 +228,24 @@ class ContextTooLong(RuntimeError):
     pass
 
 
+def check_prompt_fits(input_len: int, *, context_tokens: int | None, max_new_tokens: int,
+                      max_input_tokens: int | None = None) -> None:
+    """Raise ``ContextTooLong`` when a prompt of ``input_len`` tokens can't be run: over the model's context once the
+    output allowance is added, or over ``max_input_tokens`` (a size known not to fit in GPU memory; #569)."""
+    if max_input_tokens and input_len > max_input_tokens:
+        raise ContextTooLong(f"the prompt is {input_len:,} tokens, over --max-input-tokens {max_input_tokens:,} "
+                             "(a size not known to fit in this GPU's memory)")
+    if context_tokens and input_len + max_new_tokens > context_tokens:
+        raise ContextTooLong(f"the prompt is {input_len:,} tokens; with up to {max_new_tokens:,} output "
+                             f"tokens it exceeds the model's context of {context_tokens:,}")
+
+
 class HFGemmaGenerator:
     """Gemma 4 through transformers on the local GPU: 4-bit NF4 (bitsandbytes) or bf16, greedy decoding."""
 
     def __init__(self, model_id: str, quantization: str, *, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
-                 hf_token: str | None = None, attn_implementation: str | None = None):
+                 hf_token: str | None = None, attn_implementation: str | None = None,
+                 max_input_tokens: int | None = None):
         import torch
         import transformers
         from transformers import AutoProcessor
@@ -249,6 +262,7 @@ class HFGemmaGenerator:
         if attn_implementation:   # only when asked: the default is whatever transformers picks for the model
             kwargs["attn_implementation"] = attn_implementation
         self.attn_implementation = attn_implementation
+        self.max_input_tokens = max_input_tokens
         if quantization == "4bit":
             from transformers import BitsAndBytesConfig
 
@@ -289,9 +303,8 @@ class HFGemmaGenerator:
 
         inputs = self._inputs(messages)
         input_len = int(inputs["input_ids"].shape[-1])
-        if self.context_tokens and input_len + self.max_new_tokens > self.context_tokens:
-            raise ContextTooLong(f"the prompt is {input_len:,} tokens; with up to {self.max_new_tokens:,} output "
-                                 f"tokens it exceeds {self.model_id}'s context of {self.context_tokens:,}")
+        check_prompt_fits(input_len, context_tokens=self.context_tokens, max_new_tokens=self.max_new_tokens,
+                          max_input_tokens=self.max_input_tokens)
         inputs = inputs.to(self.model.device)
         cuda = torch.cuda.is_available()
         if cuda:
@@ -728,6 +741,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--attn-implementation", choices=ATTN_IMPLEMENTATIONS, default=None,
                    help="attention kernel passed to transformers (default: its own choice); try sdpa if long "
                         "prompts run out of GPU memory")
+    p.add_argument("--max-input-tokens", type=int, default=None,
+                   help="fail a meeting at once when its prompt is longer than this many tokens, instead of "
+                        "running it into an out-of-memory error (28,416 tokens fit an A100 80 GB; 56,752 did not)")
     p.add_argument("--pilot", type=int, default=0,
                    help="run N meetings from pilot_videos.txt (already analyzed by Gemini) and write a "
                         "compare_models arm")
@@ -782,7 +798,8 @@ def main(argv: list[str] | None = None, *, store: Store | None = None) -> int:
 
     def factory() -> Generator:
         holder["gen"] = HFGemmaGenerator(model_id, quant, max_new_tokens=args.max_new_tokens, hf_token=hf_token,
-                                         attn_implementation=args.attn_implementation)
+                                         attn_implementation=args.attn_implementation,
+                                         max_input_tokens=args.max_input_tokens)
         return holder["gen"]
 
     rows = run_batch(ids, store, bundle=bundle, out=args.out, run_date=run_date, generator_factory=factory,
