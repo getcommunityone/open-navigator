@@ -9,6 +9,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { fetchTopics, type TopicSummary } from '../api/topics'
+import { topicCountTitle, topicMeetingCountLabel } from '../utils/topicCounts'
 import DecisionCardList from '../components/DecisionCardList'
 import TopicMeetingList from '../components/TopicMeetingList'
 
@@ -125,24 +126,17 @@ export default function BrowseTopics() {
         : 'text-gray-700 hover:bg-gray-50'
     }`
 
-  // The count shown for a topic: CivicSearch topics show their tagged
-  // transcript-snippet count (unchanged); curated topics show the real number of
-  // meetings in the current scope, with the unit spelled out. A missing count
-  // renders as an em dash, never a made-up number.
-  const topicCount = (t: TopicSummary): string => {
-    if (!isCurated(t)) return t.transcript_occurrences.toLocaleString()
-    if (t.meeting_count == null) return '—'
-    return `${t.meeting_count.toLocaleString()} ${t.meeting_count === 1 ? 'meeting' : 'meetings'}`
-  }
-  const topicCountTitle = (t: TopicSummary): string =>
-    isCurated(t)
-      ? `Meetings whose transcript mentions this topic${placeLabel ? ` in ${placeLabel}` : ' nationally'}`
-      : 'CivicSearch transcript snippets tagged with this topic'
+  // The count shown for every topic is the number of meetings whose transcript
+  // mentions it in the scope the API was asked for (national, or the state), so
+  // it moves with the state filter. The API has no city-grain topic counts, so a
+  // carried-in city does not change it; the note under the pills says so (#504).
+  const topicCount = (t: TopicSummary): string => topicMeetingCountLabel(t.meeting_count)
+  const topicCountHint = (): string => topicCountTitle(stateCode)
 
   // Small count badge shown after a topic name.
   const countBadge = (t: TopicSummary, on: boolean) => (
     <span
-      title={topicCountTitle(t)}
+      title={topicCountHint()}
       className={`rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
         on ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
       }`}
@@ -240,6 +234,12 @@ export default function BrowseTopics() {
               </button>
             )}
           </div>
+          )}
+          {/* Counts are state grain; say so when the decision list below is scoped to a city. */}
+          {scopedCity && stateCode && (
+            <p className="mt-2 text-xs text-gray-500">
+              Topic counts cover all of {stateCode}. Counts for {scopedCity} alone aren&apos;t available yet.
+            </p>
           )}
         </div>
 
@@ -370,7 +370,7 @@ export default function BrowseTopics() {
                         >
                           <span className="truncate">{topic.name}</span>
                           <span
-                            title={topicCountTitle(topic)}
+                            title={topicCountHint()}
                             className="shrink-0 tabular-nums text-xs font-medium text-gray-400"
                           >
                             {topicCount(topic)}
