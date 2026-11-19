@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: int_preferred_event_analysis
+    description: >
+      One preferred bronze_events_analysis_ai row per meeting video (#519).
+      Gemini beats Gemma; newest created_at wins ties. See
+      web_docs/docs/development/analysis-model-preference.md.
+    columns:
+      - name: analysis_id
+        description: bronze_events_analysis_ai.id (preferred)
+        tests:
+          - unique
+          - not_null
+      - name: legacy_event_id
+        description: Meeting / video key (bronze_events_analysis_ai.event_id)
+        tests:
+          - unique
+          - not_null
+      - name: source_ai_model
+        description: ai_model of the preferred analysis row
+      - name: created_at
+        description: created_at of the preferred analysis row

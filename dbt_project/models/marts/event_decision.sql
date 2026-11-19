@@ -51,9 +51,9 @@ decisions as (
 
 analysis as (
     select
-        id        as analysis_id,
-        event_id  as legacy_event_id
-    from {{ source('bronze', 'bronze_events_analysis_ai') }}
+        analysis_id,
+        legacy_event_id
+    from {{ ref('int_preferred_event_analysis') }}
 ),
 
 events as (
@@ -135,5 +135,6 @@ select
 
 from decisions dd
 join meeting_keys mk on mk.event_meeting_id = dd.source_event_id
-left join analysis a on a.analysis_id = dd.source_event_id
+-- Prefer one analysis per video (#519); drop decisions from non-preferred models.
+join analysis a on a.analysis_id = dd.source_event_id
 left join events   e on e.legacy_id   = a.legacy_event_id

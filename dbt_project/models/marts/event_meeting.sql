@@ -42,10 +42,11 @@ src as (
     ) d where _rn = 1
 ),
 
+-- One analysis per video (#519): Gemini preferred over Gemma (see
+-- int_preferred_event_analysis / analysis-model-preference.md).
 analysis as (
-    select id as analysis_id, event_id as legacy_event_id
-    from {{ source('bronze', 'bronze_events_analysis_ai') }}
-    where {{ is_publishable_governance_analysis('structured_analysis') }}
+    select analysis_id, legacy_event_id
+    from {{ ref('int_preferred_event_analysis') }}
 ),
 
 events as (
