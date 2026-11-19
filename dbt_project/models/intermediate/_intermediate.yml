@@ -33,14 +33,23 @@ models:
 
   - name: int_jurisdictions
     description: >
-      Unified silver jurisdictions table — union of Census Gazetteer counties,
-      municipalities, school districts, and townships. Each row is one jurisdiction
-      with standardized identifiers (GEOID, FIPS), state code, full state name,
-      and location metadata.
+      Unified silver jurisdictions table — union of Census Gazetteer states,
+      counties, municipalities, school districts, and townships. Each row is one
+      jurisdiction with standardized identifiers (GEOID, FIPS), state code, full
+      state name, and location metadata. GEOID alone is not unique across types:
+      municipality place FIPS and school-district LEAID are both 7-digit strings
+      and collide (~315 pairs); uniqueness is (jurisdiction_type, geoid) and
+      jurisdiction_id.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [jurisdiction_type, geoid]
 
     columns:
       - name: jurisdiction_id
-        description: "Type-prefixed GEOID primary key (e.g. municipality_0601234)"
+        description: "Canonical primary key from bronze ({place_slug}_{geoid}; states use USPS)."
+        tests:
+          - unique
+          - not_null
       - name: open_states_jurisdiction_id
         description: |
           Same as ``openstates_id`` — OCD jurisdiction id when the Open States ``division_id`` matches a
@@ -52,9 +61,10 @@ models:
       - name: openstates_classification
         description: "Open States jurisdiction classification (e.g. government) when matched; NULL otherwise"
       - name: geoid
-        description: "Padded Census GEOID — 5 chars (county), 7 chars (municipality/school_district), 10 chars (township)"
+        description: >
+          Padded Census GEOID — 2 chars (state), 5 (county), 7 (municipality /
+          school_district), 10 (township). Not unique alone across types (#486).
         tests:
-          - unique
           - not_null
       - name: fips_code
         description: "FIPS code (same as geoid for all types)"
@@ -73,12 +83,12 @@ models:
         tests:
           - not_null
       - name: jurisdiction_type
-        description: "One of: county, municipality, school_district, township"
+        description: "One of: state, county, municipality, school_district, township"
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ['county', 'municipality', 'school_district', 'township']
+                values: ['state', 'county', 'municipality', 'school_district', 'township']
       - name: ansicode
         description: "8-digit ANSI code (not available for school_districts)"
       - name: lsad
