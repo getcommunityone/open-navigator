@@ -3,7 +3,7 @@ pr: 568
 branch: feat/566-erd-row-counts
 title: "feat(erd): show live row counts and subject-area totals on the marts ERD"
 author: jcbowyer
-reviewed_at: 2026-11-18
+reviewed_at: 2026-11-19
 reviewer: AI agent (Cursor subagent), read-only; this is a written review, not a GitHub approval
 verdict: approve-with-nits
 ---
@@ -11,23 +11,24 @@ verdict: approve-with-nits
 # PR Review: feat(erd): show live row counts and subject-area totals on the marts ERD
 
 ## Summary
-The branch adds `--dsn` and `--schema` to `python -m erd`. A new `erd.stats.table_stats` counts each mart with an
-exact `count(*)` and reads whether Postgres holds a primary key on it. The ERD then shows `N rows` in each table
-header and a table count, row total and PK count in each subject-area title. The legend says which schema was
-counted and when. A mart that isn't built as a table says "rows not measured yet", never 0, and an area total
-covers only measured tables and says so. I reproduced the PR body's claims about the warehouse (108 marts, 96
-measured, 12 not, 10 absent and 2 views; `public` 11 tables with a PK and 74 views; 16 `gold` tables without a PK),
-and the 6 package tests pass. Nothing is fabricated: every number comes from the database or is shown as a gap. The
-one real gap is that the new query logic (`table_stats`, `--dsn` wiring) has no test. The rest are nits. Approve
-with nits.
+The branch adds `--dsn` / `--schema` to `python -m erd`. New `erd.stats.table_stats` runs an exact
+`count(*)` per mart and reads whether Postgres holds a primary key; table headers show `N rows`, subject-area
+titles show table count / row total / PK count, and the legend names the schema and measurement minute. Gaps
+stay gaps ("rows not measured yet"; area totals omit unmeasured tables and say so). I reproduced the PR body's
+warehouse claims on `localhost:5433/open_navigator` (108 marts, 96 measured, 2 views, 10 absent; Jurisdictions
+exact total 580,674; Browse 104,275; Topics 14,119; `public` 11/11 PK + 74 views; 16 `gold` tables without a PK).
+The six package tests pass and required CI is green. Nothing fabricated is served. Remaining gaps: no test of
+`table_stats` / `--dsn`, a stale `uv.lock` for the new `db` extra, and a quiet break of the issue Contract that
+promised an unchanged diagram when `--dsn` is omitted. Approve with nits.
 
 ## Scope of Change
-- Files changed: 8 (+125 / -15; the two regenerated `.drawio` files are one long line each and are generated output)
+- Files changed: 8 (+123 / -13 excluding the two regenerated `.drawio` files; those are one long line each)
 - Areas touched: packages (`erd`) / web_docs (`marts-erd.md`, two regenerated `.drawio` diagrams)
 - Commits:
   - `2e46c972` feat(erd): show live row counts and subject-area totals on the marts ERD (#566)
   - `960e50db` docs(erd): regenerate the marts ERD with live row counts and subject-area totals (#566)
-- Range reviewed: `0ba4fcd2..960e50db` (base is `main`, merge base `0ba4fcd2`)
+  - `220e42b1` docs(review): PR #568 review (prior review; this file supersedes it)
+- Range reviewed: `0ba4fcd2..220e42b1` (base is `main`)
 
 ## CI Status
 | Check | Status |
@@ -40,117 +41,115 @@ with nits.
 | Docker Build Test (Full Stack) | skipped (not required; no Docker files changed) |
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
-- **Secrets:** clean. The docs command example uses `postgresql://postgres:password@localhost:5433/open_navigator`,
-  the repo's local-warehouse default (the same string is in 6 other docs under `web_docs/docs`), not a real
-  credential. The `.drawio` diffs contain no DSN; the "password/token" matches are column descriptions
-  ("Prompt tokens…", "stemmed token").
-- **Fabricated data in a served path:** clean. `packages/erd` is an offline generator, not `api/` or `web_app/src`.
-  Counts come from `count(*)`; an absent or view mart gets "rows not measured yet"; an area with no measured table
-  shows no row total at all (`area_summary` returns `None`), so a gap is never drawn as 0. I re-derived the area
-  tables, measured counts and totals from `pg_class` and they match the diagram and the PR body.
+- **Secrets:** clean. Docs example DSN `postgresql://postgres:password@localhost:5433/open_navigator` is the repo's
+  local-warehouse default (same string elsewhere under `web_docs/docs`), not a real credential. No tokens or
+  `.env` content in the diff.
+- **Fabricated data in a served path:** clean. `packages/erd` is an offline diagram generator, not `api/` /
+  `web_app/src`. Counts come from `count(*)`. Absent or view marts stay "rows not measured yet"; an area with no
+  measured table shows no row total (`area_summary` → `None`). Verified Jurisdictions / Browse / Topics exact
+  totals match the committed diagram and the PR body.
 - **Personal data:** clean. Only table names, row counts and PK flags are read.
-- **Destructive or bulky data changes:** clean. The query is `SELECT` only. The two `.drawio` files are already
-  tracked and are regenerated in place (entity 181 KB to 256 KB, full 1.04 MB to 1.38 MB, because the model now has
-  108 marts instead of 85 plus the new headers). The PNGs are LFS pointers and are untouched.
+- **Destructive or bulky data changes:** clean. Queries are `SELECT` only. The two `.drawio` files are already
+  tracked and regenerated in place (entity ~182 KB → 257 KB, full ~1.04 MB → 1.38 MB, from more marts plus
+  headers). PNGs remain LFS pointers and are untouched. Nothing touches `data/cache/`.
 
 ## Strengths
-- Honest empty states: unmeasured tables, partial area totals ("in 11 measured") and an all-unmeasured area
-  (Elections) each render as a gap, and a test asserts it.
-- `table_stats` skips views and partition children and only returns tables that exist. I ran it read-only: a view
-  (`event_place_geocoded`) and a missing model (`dim_fake`) are omitted, and `jurisdiction_state_aggregate` is
-  reported with `pk: False` and `jurisdictions` with `pk: True`, matching `pg_constraint`.
-- `psycopg2` is an optional `db` extra, with a clear `SystemExit` message when it is missing, so the package's
-  default install and the docs build are unaffected.
-- Identifiers go through `psycopg2.sql.Identifier`, and the table list is a bound parameter.
-- The PK shown for a measured table is Postgres's own, so a declared-but-missing key shows up. This surfaced the
-  16 tables tracked in #567, which is a good use of the feature.
-- The legend line names the schema and the minute of measurement, so a stale diagram is recognisable as stale.
-- Docs updated in the same PR (`marts-erd.md`), including the regenerate command and how PKs are read.
+- Honest empty states: unmeasured tables, partial area totals ("in 11 measured"), and all-unmeasured Elections
+  (no row line) each render as a gap; a unit test asserts it.
+- `table_stats` skips views and partition children and only returns tables that exist. Read-only call:
+  `event_place_geocoded` (view) and `dim_fake` omitted; `jurisdictions` → `pk: True`,
+  `jurisdiction_state_aggregate` → `pk: False`, matching `pg_constraint`.
+- `psycopg2` is an optional `db` extra with a clear `SystemExit` when missing, so the default install and docs
+  build stay free of it.
+- Identifiers go through `psycopg2.sql.Identifier`; the table list is a bound parameter.
+- Measured PK comes from Postgres, so declared-but-missing keys surface; that discovery is tracked in #567.
+- Legend names schema and UTC minute, so a stale diagram is recognisable.
+- Docs updated in the same PR; loguru on the measured/modelled counts.
 
 ## Findings
 ### 🔴 Blocking (Critical)
 None.
 
 ### 🟡 Should fix (Important, non-blocking)
-1. **`packages/erd/src/erd/stats.py:13-39` and `__main__.py:37-43`: the new database logic has no test.** The 2 new
-   tests cover `area_summary` and the rendering with hand-built `stats` dicts. Nothing exercises `table_stats` (the
-   `relkind IN ('r','p','m')` filter, `NOT relispartition`, the PK `EXISTS`, skipping absent tables), `measured_note`
-   or the `--dsn` branch of `main`. Those are the parts that decide what the diagram claims. *Verified:* I
-   reverted `dictionary.py` to base; the whole test module then fails at import (`area_summary` missing), so the
-   rendering tests do guard that file, but `stats.py` has no test that would fail if the filter or the PK check
-   regressed. I checked its behaviour by hand with a read-only call (above), so it works today. *Fix:* a test that
-   fakes `psycopg2.connect` (a cursor returning `[("a", True), ("b", False)]` for the catalog query and counts for the
-   `count(*)` calls) and asserts the returned dict, plus a test of `measured_note` with a fixed `when`, and one of
-   `main(["--dsn", ...])` with `table_stats` monkeypatched, asserting `STATS_NOTE` reaches the legend.
+1. **`packages/erd/src/erd/stats.py` and `__main__.py:37-42`: the new database path has no test.** The two new
+   tests cover `area_summary` and rendering with hand-built `stats`. Nothing exercises `table_stats` (relkind
+   filter, `NOT relispartition`, PK `EXISTS`, skipping absent/views), `measured_note`, or the `--dsn` branch of
+   `main`. *Verified:* `rg` finds those names only in `stats.py` / `__main__.py`, not under `packages/erd/tests`.
+   Reverting `dictionary.py` to base makes the new tests fail at import (`area_summary` missing), so rendering is
+   guarded; `stats.py` is not. Behaviour was checked by hand against the warehouse (above). *Fix:* fake
+   `psycopg2.connect` (catalog rows + `count(*)` returns), assert the dict; test `measured_note` with a fixed
+   `when`; monkeypatch `table_stats` in `main(["--dsn", ...])` and assert `STATS_NOTE` reaches the legend.
 
-2. **`packages/erd/pyproject.toml:16-17` and `uv.lock`: the new `db` extra leaves the lockfile stale.** The PR adds
-   `[project.optional-dependencies] db = ["psycopg2-binary>=2.9"]` but doesn't touch `uv.lock`. *Verified:*
-   `uv lock --check` passes on the base commit `0ba4fcd2` and fails on the head ("The lockfile at `uv.lock` needs
-   to be updated"). The `communityone-erd` entry still lists only loguru, numpy and pyyaml. CI is green, so it
-   doesn't use `--locked`, but anyone running `uv sync --locked` or `uv lock --check` will fail. *Fix:* run `uv lock`
-   and commit the change.
+2. **`packages/erd/pyproject.toml` optional `db` extra leaves `uv.lock` stale.** *Verified:* `uv lock --check`
+   fails on HEAD ("The lockfile at `uv.lock` needs to be updated"); the `communityone-erd` block still lists only
+   loguru / numpy / pyyaml and has no `psycopg2-binary` optional metadata. CI is green (does not use `--locked`),
+   but `uv sync --locked` / `uv lock --check` fail. *Fix:* run `uv lock` and commit.
+
+3. **Issue Contract says "With no `--dsn` the output is unchanged", but area titles always change.**
+   `dictionary.py:432` always calls `area_title(...)` (after `stats = stats or {}`), so even without a DSN every
+   subject-area box gains "N tables · K of N with a primary key" from dbt declarations. *Verified:* `build(model)`
+   with `stats=None` embeds those subtitles; base `marts_entity.drawio` had plain `Jurisdictions`, HEAD has the
+   measured subtitle. Headers without counts still say "rows not measured yet" (good). The docs soften this
+   ("Leave out `--dsn` … no counts") but the issue Contract does not. *Fix:* either gate the subtitle on
+   `STATS_NOTE` / a non-empty measured `stats`, or add a dated Contract line on #566 that area titles always show
+   table/PK counts from declarations when unmeasured.
 
 ### 🔵 Nits / suggestions (Minor)
-3. **`dictionary.py:78-86` and `area_title`: "N of M with a primary key" mixes two sources.** For measured tables it
-   is Postgres's answer; for unmeasured ones it is the dbt declaration. The docs say so, but the diagram title does
-   not. Elections reads "5 tables · 0 of 5 with a primary key" although none of the five is built here
-   (`dim_candidate_contests`, `dim_election_divisions`, `fct_*` declare no key column). Likewise "Topics and tags"
-   reads "8 of 8" but only 7 were measured (7 of 7 by Postgres, plus one declared). Consider counting the PK over
-   measured tables only (as the row total does), or adding "declared" for the unmeasured part. No number is
-   invented, so this is wording.
-4. **`stats.py:24-37`: the connection is not read-only, has no statement timeout, and is never closed.** The tool
-   runs `count(*)` on every mart, including 15 to 17 GB tables (about 2.5 minutes, as the PR says), against any DSN
-   the caller passes. `with psycopg2.connect(...) as conn` ends the transaction but doesn't close the connection.
-   *Fix:* `conn.set_session(readonly=True)` after connecting, close the connection (`contextlib.closing`), and
-   consider a `--statement-timeout` so a lock wait can't hang a 25-minute run silently.
-5. **`__main__.py:38-40`: counts are not a single snapshot.** Each table is counted in a separate statement, so
-   tables that change during the run (the warehouse was being rebuilt at the time) are measured at different
-   moments, while the legend gives one minute. The docs could say "about" or name the start time. Minor, since the
-   legend already says it is when the counts were taken.
-6. **The regenerated diagram contains a few more tables than the old one (108 vs 85).** That is main's marts moving
-   on, not this PR, but it makes the `.drawio` diff unreviewable line by line. The PR says it rendered
-   `marts_entity.drawio` in headless Chromium; I could not reproduce that here (see Test Coverage), so that claim
-   is unverified. I did check the XML: 104 "N rows" labels (96 tables plus 8 area totals), 12 "rows not measured yet",
-   9 area titles, one legend line each.
+4. **`area_summary` / `area_title`: "N of M with a primary key" mixes Postgres and dbt.** Measured tables use
+   `pg_constraint`; unmeasured ones use the declaration. Elections reads "0 of 5" though none are built here;
+   Topics reads "8 of 8" with only 7 measured. Docs explain it; the title does not. Prefer counting PK over
+   measured tables only (as rows do), or mark the declared part.
+
+5. **`stats.py:21-36`: connection is not read-only, has no statement timeout, and is not closed.**
+   `with psycopg2.connect(...) as conn` ends the transaction but leaves the connection open (`closed == 0` after
+   the `with`). The tool `count(*)`s every mart, including multi‑GB tables. *Fix:* `set_session(readonly=True)`,
+   `contextlib.closing`, and consider a statement timeout.
+
+6. **Counts are not one snapshot.** Each table is a separate `count(*)`; the legend shows one minute. Fine for a
+   diagram; docs could say "about" or name the start time.
+
+7. **Issue Contract names `erd.stats.row_counts`; the code ships `table_stats` and also returns `pk`.** Per
+   `AGENTS.md`, add a dated Contract line rather than rewriting the original. The Chromium render claim in the PR
+   test plan was not reproduced here (unverified); XML was checked instead (104 "N rows" labels, 12 "rows not
+   measured yet", nine area titles, one legend line).
 
 ## Repo-Rule Compliance
 | Rule | Pass? | Notes |
 |---|---|---|
-| Issue first | Yes | Branch `feat/566-erd-row-counts`; body says `Closes #566` and `Refs #567`. #566 and #567 both have Problem, Done when, Contract and Read first; #567 is an `action-item` for the 16 PK-less tables found. PR conventions check passes |
-| Conventional Commits | Yes | `feat(erd): …` and `docs(erd): …`, both with the co-author trailer |
-| No fabricated data | Yes | Scan above |
-| New Python in `packages/` | Yes | New module is `packages/erd/src/erd/stats.py`; entry point stays `python -m erd`; nothing in `scripts/` |
-| dbt for transformations | n/a | No SQL logic over data. The catalog query reads metadata and counts rows for a diagram; the transformation rule isn't engaged |
-| Naming | n/a | No models or columns added |
-| Keys | n/a | No `public` model changed; the PR reports the PK gap (#567) |
+| Issue first | Yes | Branch `feat/566-erd-row-counts`; body `Closes #566` / `Refs #567`. #566 and #567 have Problem, Done when, Contract, Read first; #567 is the `action-item` for the 16 PK-less tables. PR conventions check passes |
+| Conventional Commits | Yes | `feat(erd): …` and `docs(erd): …`, both with co-author trailer |
+| No fabricated data | Yes | Scan above; measured totals match exact `count(*)` where checked |
+| New Python in `packages/` | Yes | `packages/erd/src/erd/stats.py`; entry point stays `python -m erd`; nothing in `scripts/` |
+| dbt for transformations | n/a | Catalog/count for a diagram only; no warehouse transform in Python |
+| Naming | n/a | No models/columns added |
+| Keys | n/a | No `public` model changed; gap reported via #567 |
 | Calendar years | n/a | None |
 | Scope label matches filter | n/a | No `web_app` change |
 | Match evidence on filtered tiles | n/a | No `web_app` change |
-| Docs | Yes | `web_docs/docs/data-sources/marts-erd.md` updated; frontmatter and path unchanged; no new root `.md` |
-| Telemetry and logging | Yes | The package logs with `loguru` (`logger.info` of measured vs modelled tables) |
-| Tests | Partial | Rendering and `area_summary` covered; `table_stats`, `measured_note` and the `--dsn` path are not (finding 1) |
-| Shared libraries | Yes | `packages/erd` tests run; no other package or `api/` imports `erd` (checked by grep); `uv.lock` is stale (finding 2) |
+| Docs | Yes | `web_docs/docs/data-sources/marts-erd.md`; no new root `.md` |
+| Telemetry and logging | Yes | loguru for measured vs modelled counts |
+| Tests | Partial | `area_summary` + rendering covered; `table_stats` / `--dsn` not (finding 1); no-dsn contract untested (finding 3) |
+| Shared libraries | Yes | `packages/erd` tests run; no other package imports `erd` for runtime; `uv.lock` stale (finding 2) |
 
 ## Test Coverage
-- **Run locally** (worktree code forced with `PYTHONPATH`):
+- **Run locally** (worktree code forced with `PYTHONPATH` over the main `.venv`):
   - `pytest packages/erd/tests`: 6 passed.
   - `ruff check packages/erd`: clean.
-  - `uv lock --check`: passes on base, fails on head (finding 2).
-  - Reverting `dictionary.py` to base makes the test module fail at import, restored afterwards.
-  - `erd.stats.table_stats` called read-only against `localhost:5433/open_navigator` for four names: the view and
-    the unknown model were omitted; the two tables came back with counts and correct PK flags.
-- **Warehouse reproduction (read-only, `default_transaction_read_only=on`):** of 108 modelled marts, 96 are tables in
-  `gold`, 2 are views (`event_place_geocoded`, `event_youtube_with_jurisdiction`) and 10 are absent. `public` has 11
-  tables (all with a PK) and 74 views. 16 `gold` tables have no PK, 4 of them among the measured marts. Per-area
-  table counts, measured counts and PK counts match the diagram titles. Row totals from `pg_class.reltuples` match
-  the PR's exact counts for Jurisdictions (580,674) and are within about 1% elsewhere (estimates drift), e.g.
-  Events and meetings 1,314,344 vs 1,313,971. I did not run `count(*)` on the 15 to 17 GB tables, so the exact
-  totals for the large areas are unverified beyond the estimates.
-- **Not run:** the 25-minute generator end to end, and the headless-Chromium render and the draw.io open in the test
-  plan (the last is the PR's own unchecked reviewer item). No frontend or API files changed, so `tsc` was not needed.
-- **Not covered by tests:** finding 1.
+  - `uv lock --check`: fails on HEAD (finding 2).
+  - Reverting `dictionary.py` to base → import error on the new tests; restored afterwards; 6 passed again.
+- **Warehouse (read-only, `localhost:5433/open_navigator`, `default_transaction_read_only` / `set_session(readonly=True)`):**
+  - 108 modelled marts; 96 tables in `gold`; views `event_place_geocoded`, `event_youtube_with_jurisdiction`; 10
+    absent (5 elections dims/facts, `dim_jurisdictions_master`, `llm_usage_daily`, `ordinance*`, `tag_organization`).
+  - Exact area totals: Jurisdictions 580,674; Browse and reports 104,275; Topics and tags 14,119 — match the
+    diagram and PR body. Large areas (Bills, MDM, Nonprofits, Events) were not re-`count(*)`'d end-to-end (multi‑GB);
+    their diagram titles match the PR body and the committed XML.
+  - `public`: 11 tables all with PK, 74 views. `gold`: 16 tables without PK.
+- **Not run:** full 25-minute generator; headless Chromium / draw.io open (PR's unchecked reviewer item). No
+  frontend/API/dbt model changes, so `tsc` and dbt compile were not required.
+- **Not covered by tests:** findings 1 and 3.
 
 ## Verdict
-**approve-with-nits.** Nothing blocks the merge on correctness: the numbers are real, gaps stay gaps, and the checks are green. Please
-add the `table_stats`/`measured_note`/`--dsn` test (finding 1) and regenerate `uv.lock` (finding 2) before merge, and consider the wording and
-read-only-connection nits (3 and 4). Findings 3 to 6 can go into one `action-item` issue.
+**approve-with-nits.** Correctness of the measured diagram is solid and CI is green. Before merge, please add
+tests for `table_stats` / `measured_note` / `--dsn` (finding 1), refresh `uv.lock` (finding 2), and either gate
+area titles when there is no DSN or date-amend the Contract on #566 (finding 3). Nits 4–7 can land as one
+`action-item` issue.
