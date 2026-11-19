@@ -3,7 +3,7 @@
     materialized='incremental',
     incremental_strategy='append',
     full_refresh=false,
-    on_schema_change='ignore',
+    on_schema_change='fail',
     tags=['marts', 'event-extraction', 'ai']
   )
 }}

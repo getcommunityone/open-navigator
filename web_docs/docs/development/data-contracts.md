@@ -37,50 +37,38 @@ and gives every column a type. When this was written, 45 of the 55 served relati
 
 ### Served without a contract
 
-These 10 have nothing typed to generate from.
-[#271](https://github.com/getcommunityone/open-navigator/issues/271) gives them typed, enforced dbt contracts, or takes
-them out of `served`. A test fails when a served relation has no contract and isn't listed here.
+[#271](https://github.com/getcommunityone/open-navigator/issues/271) typed and enforced contracts for the eight
+served dbt models that were missing them (`event_meeting`, `event_decision`, `event_financial_item`, `event_bill`,
+`event_topic`, `event_place_geocoded`, `jurisdiction_state_aggregate`, `jurisdiction_mapping_analysis`). A test fails
+when a served relation has no contract and isn't listed here.
+
+**2026-11-19 choice (#271):** `meeting_document` and `civic_jurisdiction` stay on the `served` list (Neon and the API
+still need them) but are not dbt models yet, so they keep no ODCS file. Wrapping them as contracted dbt models (or
+dropping them from `served`) is [#619](https://github.com/getcommunityone/open-navigator/issues/619) — do not remove
+them from Neon sync in the meantime.
 
 | Relation | Why it has no contract |
 |---|---|
-| `event_meeting` | declared in `_schema_event_extractions.yml` with no column types and no enforced contract |
-| `event_decision` | the same; it is also partitioned with a composite primary key |
-| `event_financial_item` | declared in `_schema_event_extractions.yml` with no column types and no enforced contract |
-| `event_bill` | the same |
-| `event_topic` | the same |
-| `event_place_geocoded` | declared in `_schema_event_place_geocoded.yml` with no column types and no enforced contract |
-| `jurisdiction_state_aggregate` | declared in `_schema_jurisdiction_state_aggregate.yml` with no column types and no enforced contract |
 | `meeting_document` | not a dbt model: a Python loader (`packages/llm/src/llm/gemini/meeting_document_enrichment.py`) writes it |
-| `civic_jurisdiction` | no dbt model in `dbt_project/models` |
-| `jurisdiction_mapping_analysis` | a dbt model with no `schema.yml` entry |
+| `civic_jurisdiction` | no dbt model in `dbt_project/models` (loaded via hosting/neon migrate) |
 
 ### Foreign keys left out
 
-A foreign key points at a column in its parent's contract, so these 16 are left out of their contracts while the parent
-has none. Each one comes back by itself once the parent's contract holds the column: the generator writes every
-foreign key it can resolve. `python -m models.odcs --write` lists the ones it leaves out, and a test fails when one is
-left out but isn't listed here.
+A foreign key points at a column in its parent's contract. These are left out because the target is a source, an
+unserved model, or a seed without a served contract. `python -m models.odcs --write` lists them, and a test fails when
+one is left out but isn't listed here.
 
 | Column | Points at | Comes back when |
 |---|---|---|
-| `event_meeting_document.event_meeting_id` | `event_meeting.event_meeting_id` | `event_meeting` gets a contract ([#271](https://github.com/getcommunityone/open-navigator/issues/271)) |
-| `mdm_bridge_event_analysis.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
-| `meeting_browse.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
-| `meeting_question_link.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
-| `meeting_topic_link.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
-| `job_claim.event_meeting_id` | `event_meeting.event_meeting_id` | the same |
-| `decision_speakers.event_decision_id` | `event_decision.event_decision_id` | `event_decision` gets a contract (#271) |
-| `event_decision_place.event_decision_id` | `event_decision.event_decision_id` | the same |
-| `item_interestingness.event_decision_id` | `event_decision.event_decision_id` | the same |
-| `question_instance.source_id` | `event_decision.event_decision_id` | the same |
-| `decision_place_label.event_decision_id` | `event_decision.event_decision_id` | the same |
-| `decision_company_mention.event_decision_id` | `event_decision.event_decision_id` | the same |
-| `decision_nearby_data_center_site.event_decision_id` | `event_decision.event_decision_id` | the same |
-| `data_center_project_mention.event_decision_id` | `event_decision.event_decision_id` | the same |
-| `event_decision_place.place_id` | `event_place.place_id` | `event_place`, a dbt model that isn't served, is published in `public` with a contract |
-| `canonical_argument.frame_id` | `policy_frame.frame_id` | `policy_frame`, a dbt seed that isn't served, is published with a contract |
-| `policy_question.topic_code` | `cap_topic.code` | the same, for the seed `cap_topic` |
-| `topic_money_and_talk.canonical_theme` | `policy_theme_cofog.primary_theme` | the same, for the seed `policy_theme_cofog` |
+| `event_meeting.legacy_event_id` | `source('civic_core', 'civic_event').legacy_id` | `civic_event` is served with a contract, or the FK is dropped |
+| `event_decision.c1_event_id` | `source('civic_core', 'civic_event').id` | the same |
+| `event_financial_item.c1_event_id` | `source('civic_core', 'civic_event').id` | the same |
+| `event_bill.c1_event_id` | `source('civic_core', 'civic_event').id` | the same |
+| `event_topic.c1_event_id` | `source('civic_core', 'civic_event').id` | the same |
+| `event_decision_place.place_id` | `event_place.place_id` | `event_place` (unserved) is published with a contract |
+| `canonical_argument.frame_id` | `policy_frame.frame_id` | seed `policy_frame` is published with a contract |
+| `policy_question.topic_code` | `cap_topic.code` | seed `cap_topic` is published with a contract |
+| `topic_money_and_talk.canonical_theme` | `policy_theme_cofog.primary_theme` | seed `policy_theme_cofog` is published with a contract |
 
 ## What a contract holds
 

@@ -12,255 +12,592 @@ version: 2
 # bridge coverage is incomplete by design), and extracted_at (partition key).
 
 models:
-  - name: event_meeting
+- name: event_meeting
+  data_tests:
+  - dbt_utils.recency:
+      arguments:
+        datepart: day
+        field: extracted_at
+        interval: 14
+      config:
+        severity: warn
+        tags:
+        - freshness
+  description: "Meeting-level PARENT of the AI-extraction family \u2014 one row per analysis (analyzed\
+    \ meeting). Non-partitioned; child event_* tables FK into event_meeting_id. Promoted from bronze.bronze_meetings_from_ai."
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+    contract:
+      enforced: true
+    on_schema_change: fail
+  columns:
+  - name: event_meeting_id
+    data_type: integer
+    description: "Primary key \u2014 the bronze analysis id (== each child's analysis_id, the FK target)."
     data_tests:
-      - dbt_utils.recency:
-          # Freshness (context-engineering.md, principle 5): no newly analyzed meeting in 14 days
-          arguments:
-            datepart: day
-            field: extracted_at
-            interval: 14
-          config:
-            severity: warn
-            tags: ['freshness']
-    description: "Meeting-level PARENT of the AI-extraction family — one row per analysis (analyzed meeting). Non-partitioned; child event_* tables FK into event_meeting_id. Promoted from bronze.bronze_meetings_from_ai."
-    config:
-      tags: ['marts', 'event-extraction', 'ai']
-    columns:
-      - name: event_meeting_id
-        description: "Primary key — the bronze analysis id (== each child's analysis_id, the FK target)."
-        data_tests: [not_null, unique]
-      - name: legacy_event_id
-        description: "Legacy event id; FK -> civic_event.legacy_id (the canonical event)."
-        data_tests:
-          - relationships:
-              arguments: {to: "source('civic_core', 'civic_event')", field: legacy_id}
-              config: {severity: warn}
-      - name: extracted_at
-        description: "When the AI analysis that produced this meeting was generated."
-        data_tests: [not_null]
-
-  - name: event_person
-    description: "AI-extracted people mentioned in analyzed events. One row per (analysis, person); partitioned by extracted_at."
-    config:
-      tags: ['marts', 'event-extraction', 'ai']
-    columns:
-      - name: extraction_key
-        description: "Stable dedup key (source_event_id || '_' || person_id)."
-        data_tests: [not_null, unique]
-      - name: event_person_id
-        description: "md5 surrogate of extraction_key — primary key (with extracted_at)."
-        data_tests: [not_null]
-      - name: analysis_id
-        description: "FK -> event_meeting.event_meeting_id (the parent meeting)."
-        data_tests:
-          - relationships:
-              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
-              config: {severity: warn}
-      - name: c1_event_id
-        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
-        data_tests:
-          - relationships:
-              arguments: {to: "source('civic_core', 'civic_event')", field: id}
-              config: {severity: warn}
-      - name: extracted_at
-        description: "Partition key — when the AI extraction was produced."
-        data_tests: [not_null]
-
-  - name: event_decision
+    - not_null
+    - unique
+    constraints:
+    - type: not_null
+    - type: primary_key
+  - name: legacy_event_id
+    data_type: integer
+    description: Legacy event id; FK -> civic_event.legacy_id (the canonical event).
     data_tests:
-      - dbt_utils.recency:
-          # Freshness (context-engineering.md, principle 5): no newly extracted decision in 14 days
-          arguments:
-            datepart: day
-            field: extracted_at
-            interval: 14
-          config:
-            severity: warn
-            tags: ['freshness']
-    description: "AI-extracted decisions/actions (scalar cols typed, narrative blocks JSONB). One row per (analysis, decision); partitioned by extracted_at."
-    config:
-      tags: ['marts', 'event-extraction', 'ai']
-    columns:
-      - name: extraction_key
-        description: "Stable dedup key (source_event_id || '_' || decision_id)."
-        data_tests: [not_null, unique]
-      - name: event_decision_id
-        description: "md5 surrogate of extraction_key — primary key (with extracted_at)."
-        data_tests: [not_null]
-      - name: analysis_id
-        description: "FK -> event_meeting.event_meeting_id (the parent meeting)."
-        data_tests:
-          - relationships:
-              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
-              config: {severity: warn}
-      - name: c1_event_id
-        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
-        data_tests:
-          - relationships:
-              arguments: {to: "source('civic_core', 'civic_event')", field: id}
-              config: {severity: warn}
-      - name: search_tsv
-        description: >-
-          Persisted full-text-search vector (STORED generated column) over
-          to_tsvector('english', headline || decision_statement || primary_theme).
-          Defined on the partitioned parent in bootstrap_event_decision and backed
-          by the GIN index ix_event_decision_search_tsv so decisions search uses a
-          Bitmap Index Scan instead of a per-row tsvector recompute. Not emitted by
-          the model SELECT (generated columns reject supplied values). Query as
-          `search_tsv @@ plainto_tsquery('english', :q)`.
-      - name: extracted_at
-        description: "Partition key — when the AI extraction was produced."
-        data_tests: [not_null]
-
-  - name: event_place
-    description: "AI-extracted/geocoded places. One row per (analysis, place); event jurisdiction in state_code/state, place's own location in place_* cols. Partitioned by extracted_at."
-    config:
-      tags: ['marts', 'event-extraction', 'ai']
-    columns:
-      - name: extraction_key
-        description: "Stable dedup key (source_event_id || '_' || place_id)."
-        data_tests: [not_null, unique]
-      - name: event_place_id
-        description: "md5 surrogate of extraction_key — primary key (with extracted_at)."
-        data_tests: [not_null]
-      - name: analysis_id
-        description: "FK -> event_meeting.event_meeting_id (the parent meeting)."
-        data_tests:
-          - relationships:
-              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
-              config: {severity: warn}
-      - name: c1_event_id
-        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
-        data_tests:
-          - relationships:
-              arguments: {to: "source('civic_core', 'civic_event')", field: id}
-              config: {severity: warn}
-      - name: extracted_at
-        description: "Partition key — when the AI extraction was produced."
-        data_tests: [not_null]
-
-  - name: event_financial_item
-    description: "AI-extracted dollar amounts/items. One row per (analysis, financial_item); partitioned by extracted_at."
-    config:
-      tags: ['marts', 'event-extraction', 'ai']
+    - relationships:
+        arguments:
+          to: source('civic_core', 'civic_event')
+          field: legacy_id
+        config:
+          severity: warn
+  - name: c1_event_id
+    data_type: varchar(50)
+  - name: state_code
+    data_type: varchar(2)
+  - name: state
+    data_type: text
+  - name: jurisdiction_name
+    data_type: varchar(200)
+  - name: jurisdiction_type
+    data_type: varchar(50)
+  - name: city
+    data_type: varchar(100)
+  - name: meeting_id
+    data_type: text
+  - name: body_name
+    data_type: text
+  - name: meeting_date
+    data_type: text
+  - name: event_date
+    data_type: text
+  - name: jurisdiction
+    data_type: text
+  - name: meeting_summary
+    data_type: text
+  - name: agenda_summary
+    data_type: text
+  - name: session_info
+    data_type: jsonb
+  - name: source_ai_model
+    data_type: varchar(100)
+  - name: extracted_at
+    data_type: timestamp
+    description: When the AI analysis that produced this meeting was generated.
     data_tests:
-      # (analysis_id, financial_item_id) is the real grain. financial_item_id
-      # ALONE is NOT globally unique (it collides across analyses) — any join
-      # that resolves event_decision.financial_item_refs MUST also match
-      # analysis_id, or one decision fans out to financial items nationwide.
-      # See int_civic__item_signals.decision_money.
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns: ['analysis_id', 'financial_item_id']
+    - not_null
+  - name: video_id
+    data_type: varchar(64)
+- name: event_person
+  description: AI-extracted people mentioned in analyzed events. One row per (analysis, person); partitioned
+    by extracted_at.
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+  columns:
+  - name: extraction_key
+    description: Stable dedup key (source_event_id || '_' || person_id).
+    data_tests:
+    - not_null
+    - unique
+  - name: event_person_id
+    description: "md5 surrogate of extraction_key \u2014 primary key (with extracted_at)."
+    data_tests:
+    - not_null
+  - name: analysis_id
+    description: FK -> event_meeting.event_meeting_id (the parent meeting).
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('event_meeting')
+          field: event_meeting_id
+        config:
+          severity: warn
+  - name: c1_event_id
+    description: Resolved canonical OCD event id (nullable until the event is promoted).
+    data_tests:
+    - relationships:
+        arguments:
+          to: source('civic_core', 'civic_event')
+          field: id
+        config:
+          severity: warn
+  - name: extracted_at
+    description: "Partition key \u2014 when the AI extraction was produced."
+    data_tests:
+    - not_null
+- name: event_decision
+  data_tests:
+  - dbt_utils.recency:
+      arguments:
+        datepart: day
+        field: extracted_at
+        interval: 14
+      config:
+        severity: warn
+        tags:
+        - freshness
+  description: AI-extracted decisions/actions (scalar cols typed, narrative blocks JSONB). One row per
+    (analysis, decision); partitioned by extracted_at.
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+    contract:
+      enforced: true
+    on_schema_change: fail
+  columns:
+  - name: event_decision_id
+    data_type: text
+    description: "md5 surrogate of extraction_key \u2014 primary key (with extracted_at)."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+  - name: extraction_key
+    data_type: text
+    description: Stable dedup key (source_event_id || '_' || decision_id).
+    data_tests:
+    - not_null
+    - unique
+  - name: analysis_id
+    data_type: integer
+    description: FK -> event_meeting.event_meeting_id (the parent meeting).
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('event_meeting')
+          field: event_meeting_id
+        config:
+          severity: warn
+  - name: legacy_event_id
+    data_type: integer
+  - name: c1_event_id
+    data_type: varchar(50)
+    description: Resolved canonical OCD event id (nullable until the event is promoted).
+    data_tests:
+    - relationships:
+        arguments:
+          to: source('civic_core', 'civic_event')
+          field: id
+        config:
+          severity: warn
+  - name: state_code
+    data_type: varchar(2)
+  - name: state
+    data_type: text
+  - name: jurisdiction_name
+    data_type: varchar(200)
+  - name: jurisdiction_type
+    data_type: varchar(50)
+  - name: city
+    data_type: varchar(100)
+  - name: decision_id
+    data_type: text
+  - name: subject_id
+    data_type: text
+  - name: primary_place_id
+    data_type: text
+  - name: place_refs
+    data_type: jsonb
+  - name: legislation_refs
+    data_type: jsonb
+  - name: financial_item_refs
+    data_type: jsonb
+  - name: headline
+    data_type: text
+  - name: decision_statement
+    data_type: text
+  - name: primary_theme
+    data_type: text
+  - name: outcome
+    data_type: text
+  - name: vote_tally
+    data_type: jsonb
+  - name: human_element
+    data_type: jsonb
+  - name: competing_views
+    data_type: jsonb
+  - name: smart_brevity
+    data_type: jsonb
+  - name: diagram_timeline
+    data_type: text
+  - name: diagram_timeline_lines
+    data_type: jsonb
+  - name: diagram_mindmap
+    data_type: text
+  - name: diagram_mindmap_lines
+    data_type: jsonb
+  - name: source_ai_model
+    data_type: varchar(100)
+  - name: extracted_at
+    data_type: timestamp
+    description: "Partition key \u2014 when the AI extraction was produced."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+  - name: search_tsv
+    data_type: tsvector
+    description: Persisted full-text-search vector (STORED generated column) over to_tsvector('english',
+      headline || decision_statement || primary_theme). Defined on the partitioned parent in bootstrap_event_decision
+      and backed by the GIN index ix_event_decision_search_tsv so decisions search uses a Bitmap Index
+      Scan instead of a per-row tsvector recompute. Not emitted by the model SELECT (generated columns
+      reject supplied values). Query as `search_tsv @@ plainto_tsquery('english', :q)`.
+  constraints:
+  - type: primary_key
     columns:
-      - name: extraction_key
-        description: "Stable dedup key (source_event_id || '_' || financial_item_id)."
-        data_tests: [not_null, unique]
-      - name: event_financial_item_id
-        description: "md5 surrogate of extraction_key — primary key (with extracted_at). Globally unique; use this for any cross-analysis join."
-        data_tests: [not_null]
-      - name: analysis_id
-        description: "FK -> event_meeting.event_meeting_id (the parent meeting)."
-        data_tests:
-          - relationships:
-              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
-              config: {severity: warn}
-      - name: financial_item_id
-        description: "Per-analysis extraction id referenced by event_decision.financial_item_refs. UNIQUE ONLY WITHIN analysis_id — never join on it alone (it collides across analyses); always pair with analysis_id."
-      - name: c1_event_id
-        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
-        data_tests:
-          - relationships:
-              arguments: {to: "source('civic_core', 'civic_event')", field: id}
-              config: {severity: warn}
-      - name: extracted_at
-        description: "Partition key — when the AI extraction was produced."
-        data_tests: [not_null]
-
-  - name: event_topic
-    description: "AI-extracted themes/topics (COFOG + NTEE classified). One row per (analysis, decision); partitioned by extracted_at."
-    config:
-      tags: ['marts', 'event-extraction', 'ai']
+    - event_decision_id
+    - extracted_at
+- name: event_place
+  description: AI-extracted/geocoded places. One row per (analysis, place); event jurisdiction in state_code/state,
+    place's own location in place_* cols. Partitioned by extracted_at.
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+  columns:
+  - name: extraction_key
+    description: Stable dedup key (source_event_id || '_' || place_id).
+    data_tests:
+    - not_null
+    - unique
+  - name: event_place_id
+    description: "md5 surrogate of extraction_key \u2014 primary key (with extracted_at)."
+    data_tests:
+    - not_null
+  - name: analysis_id
+    description: FK -> event_meeting.event_meeting_id (the parent meeting).
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('event_meeting')
+          field: event_meeting_id
+        config:
+          severity: warn
+  - name: c1_event_id
+    description: Resolved canonical OCD event id (nullable until the event is promoted).
+    data_tests:
+    - relationships:
+        arguments:
+          to: source('civic_core', 'civic_event')
+          field: id
+        config:
+          severity: warn
+  - name: extracted_at
+    description: "Partition key \u2014 when the AI extraction was produced."
+    data_tests:
+    - not_null
+- name: event_financial_item
+  description: AI-extracted dollar amounts/items. One row per (analysis, financial_item); partitioned
+    by extracted_at.
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+    contract:
+      enforced: true
+    on_schema_change: fail
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - analysis_id
+        - financial_item_id
+  columns:
+  - name: event_financial_item_id
+    data_type: text
+    description: "md5 surrogate of extraction_key \u2014 primary key (with extracted_at). Globally unique;\
+      \ use this for any cross-analysis join."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+  - name: extraction_key
+    data_type: text
+    description: Stable dedup key (source_event_id || '_' || financial_item_id).
+    data_tests:
+    - not_null
+    - unique
+  - name: analysis_id
+    data_type: integer
+    description: FK -> event_meeting.event_meeting_id (the parent meeting).
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('event_meeting')
+          field: event_meeting_id
+        config:
+          severity: warn
+  - name: legacy_event_id
+    data_type: integer
+  - name: c1_event_id
+    data_type: varchar(50)
+    description: Resolved canonical OCD event id (nullable until the event is promoted).
+    data_tests:
+    - relationships:
+        arguments:
+          to: source('civic_core', 'civic_event')
+          field: id
+        config:
+          severity: warn
+  - name: state_code
+    data_type: varchar(2)
+  - name: state
+    data_type: text
+  - name: jurisdiction_name
+    data_type: varchar(200)
+  - name: jurisdiction_type
+    data_type: varchar(50)
+  - name: city
+    data_type: varchar(100)
+  - name: financial_item_id
+    data_type: text
+    description: "Per-analysis extraction id referenced by event_decision.financial_item_refs. UNIQUE\
+      \ ONLY WITHIN analysis_id \u2014 never join on it alone (it collides across analyses); always pair\
+      \ with analysis_id."
+  - name: event_description
+    data_type: text
+  - name: amount
+    data_type: numeric
+  - name: amount_type
+    data_type: text
+  - name: currency
+    data_type: text
+  - name: funding_source
+    data_type: text
+  - name: source_ai_model
+    data_type: varchar(100)
+  - name: extracted_at
+    data_type: timestamp
+    description: "Partition key \u2014 when the AI extraction was produced."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+  - name: item_date
+    data_type: date
+  - name: item_date_type
+    data_type: text
+  constraints:
+  - type: primary_key
     columns:
-      - name: extraction_key
-        description: "Stable dedup key (source_event_id || '_' || decision_id)."
-        data_tests: [not_null, unique]
-      - name: event_topic_id
-        description: "md5 surrogate of extraction_key — primary key (with extracted_at)."
-        data_tests: [not_null]
-      - name: analysis_id
-        description: "FK -> event_meeting.event_meeting_id (the parent meeting)."
-        data_tests:
-          - relationships:
-              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
-              config: {severity: warn}
-      - name: c1_event_id
-        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
-        data_tests:
-          - relationships:
-              arguments: {to: "source('civic_core', 'civic_event')", field: id}
-              config: {severity: warn}
-      - name: extracted_at
-        description: "Partition key — when the AI extraction was produced."
-        data_tests: [not_null]
-
-  - name: event_organization
-    description: "AI-extracted organizations, AGGREGATED to one row per org (normalized name + state) across events. Resolves first/last-seen events instead of a single c1_event_id. Partitioned by extracted_at."
-    config:
-      tags: ['marts', 'event-extraction', 'ai']
+    - event_financial_item_id
+    - extracted_at
+- name: event_topic
+  description: AI-extracted themes/topics (COFOG + NTEE classified). One row per (analysis, decision);
+    partitioned by extracted_at.
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+    contract:
+      enforced: true
+    on_schema_change: fail
+  columns:
+  - name: event_topic_id
+    data_type: text
+    description: "md5 surrogate of extraction_key \u2014 primary key (with extracted_at)."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+  - name: extraction_key
+    data_type: text
+    description: Stable dedup key (source_event_id || '_' || decision_id).
+    data_tests:
+    - not_null
+    - unique
+  - name: analysis_id
+    data_type: integer
+    description: FK -> event_meeting.event_meeting_id (the parent meeting).
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('event_meeting')
+          field: event_meeting_id
+        config:
+          severity: warn
+  - name: legacy_event_id
+    data_type: integer
+  - name: c1_event_id
+    data_type: varchar(50)
+    description: Resolved canonical OCD event id (nullable until the event is promoted).
+    data_tests:
+    - relationships:
+        arguments:
+          to: source('civic_core', 'civic_event')
+          field: id
+        config:
+          severity: warn
+  - name: state_code
+    data_type: varchar(2)
+  - name: state
+    data_type: text
+  - name: jurisdiction_name
+    data_type: varchar(200)
+  - name: jurisdiction_type
+    data_type: varchar(50)
+  - name: city
+    data_type: varchar(100)
+  - name: decision_id
+    data_type: text
+  - name: primary_theme
+    data_type: text
+  - name: headline
+    data_type: text
+  - name: source_ai_model
+    data_type: varchar(100)
+  - name: extracted_at
+    data_type: timestamp
+    description: "Partition key \u2014 when the AI extraction was produced."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+  constraints:
+  - type: primary_key
     columns:
-      - name: extraction_key
-        description: "Stable key (org_name_normalized_state_code) — already unique per org+state."
-        data_tests: [not_null, unique]
-      - name: id
-        description: "md5 surrogate of extraction_key — FK target for downstream models."
-        data_tests: [not_null]
-      - name: first_seen_analysis_id
-        description: "FK -> event_meeting.event_meeting_id — the earliest meeting the org was seen in."
-        data_tests:
-          - relationships:
-              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
-              config: {severity: warn}
-      - name: last_seen_analysis_id
-        description: "FK -> event_meeting.event_meeting_id — the most recent meeting the org was seen in."
-        data_tests:
-          - relationships:
-              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
-              config: {severity: warn}
-      - name: last_c1_event_id
-        description: "Resolved canonical OCD event id for the most recent event the org was seen in (nullable)."
-        data_tests:
-          - relationships:
-              arguments: {to: "source('civic_core', 'civic_event')", field: id}
-              config: {severity: warn}
-      - name: extracted_at
-        description: "Partition key — when the AI extraction was produced."
-        data_tests: [not_null]
-
-  - name: event_bill
-    description: "AI-referenced legislation/bills (year is a calendar-year string). One row per (analysis, leg ref); partitioned by extracted_at."
-    config:
-      tags: ['marts', 'event-extraction', 'ai']
+    - event_topic_id
+    - extracted_at
+- name: event_organization
+  description: AI-extracted organizations, AGGREGATED to one row per org (normalized name + state) across
+    events. Resolves first/last-seen events instead of a single c1_event_id. Partitioned by extracted_at.
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+  columns:
+  - name: extraction_key
+    description: "Stable key (org_name_normalized_state_code) \u2014 already unique per org+state."
+    data_tests:
+    - not_null
+    - unique
+  - name: id
+    description: "md5 surrogate of extraction_key \u2014 FK target for downstream models."
+    data_tests:
+    - not_null
+  - name: first_seen_analysis_id
+    description: "FK -> event_meeting.event_meeting_id \u2014 the earliest meeting the org was seen in."
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('event_meeting')
+          field: event_meeting_id
+        config:
+          severity: warn
+  - name: last_seen_analysis_id
+    description: "FK -> event_meeting.event_meeting_id \u2014 the most recent meeting the org was seen\
+      \ in."
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('event_meeting')
+          field: event_meeting_id
+        config:
+          severity: warn
+  - name: last_c1_event_id
+    description: Resolved canonical OCD event id for the most recent event the org was seen in (nullable).
+    data_tests:
+    - relationships:
+        arguments:
+          to: source('civic_core', 'civic_event')
+          field: id
+        config:
+          severity: warn
+  - name: extracted_at
+    description: "Partition key \u2014 when the AI extraction was produced."
+    data_tests:
+    - not_null
+- name: event_bill
+  description: AI-referenced legislation/bills (year is a calendar-year string). One row per (analysis,
+    leg ref); partitioned by extracted_at.
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+    contract:
+      enforced: true
+    on_schema_change: fail
+  columns:
+  - name: event_bill_id
+    data_type: text
+    description: "md5 surrogate of extraction_key \u2014 primary key (with extracted_at)."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+  - name: extraction_key
+    data_type: text
+    description: Stable dedup key (source_event_id || '_' || leg_id).
+    data_tests:
+    - not_null
+    - unique
+  - name: analysis_id
+    data_type: integer
+    description: FK -> event_meeting.event_meeting_id (the parent meeting).
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('event_meeting')
+          field: event_meeting_id
+        config:
+          severity: warn
+  - name: legacy_event_id
+    data_type: integer
+  - name: c1_event_id
+    data_type: varchar(50)
+    description: Resolved canonical OCD event id (nullable until the event is promoted).
+    data_tests:
+    - relationships:
+        arguments:
+          to: source('civic_core', 'civic_event')
+          field: id
+        config:
+          severity: warn
+  - name: state_code
+    data_type: varchar(2)
+  - name: state
+    data_type: text
+  - name: jurisdiction_name
+    data_type: varchar(200)
+  - name: jurisdiction_type
+    data_type: varchar(50)
+  - name: city
+    data_type: varchar(100)
+  - name: leg_id
+    data_type: text
+  - name: leg_type
+    data_type: text
+  - name: official_number
+    data_type: text
+  - name: title
+    data_type: text
+  - name: status
+    data_type: text
+  - name: relevance
+    data_type: text
+  - name: source_ai_model
+    data_type: varchar(100)
+  - name: extracted_at
+    data_type: timestamp
+    description: "Partition key \u2014 when the AI extraction was produced."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+  constraints:
+  - type: primary_key
     columns:
-      - name: extraction_key
-        description: "Stable dedup key (source_event_id || '_' || leg_id)."
-        data_tests: [not_null, unique]
-      - name: event_bill_id
-        description: "md5 surrogate of extraction_key — primary key (with extracted_at)."
-        data_tests: [not_null]
-      - name: analysis_id
-        description: "FK -> event_meeting.event_meeting_id (the parent meeting)."
-        data_tests:
-          - relationships:
-              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
-              config: {severity: warn}
-      - name: c1_event_id
-        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
-        data_tests:
-          - relationships:
-              arguments: {to: "source('civic_core', 'civic_event')", field: id}
-              config: {severity: warn}
-      - name: extracted_at
-        description: "Partition key — when the AI extraction was produced."
-        data_tests: [not_null]
+    - event_bill_id
+    - extracted_at

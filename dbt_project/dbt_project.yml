@@ -77,7 +77,9 @@ models:
     marts:
       +materialized: incremental
       +schema: gold
-      +on_schema_change: sync_all_columns
+      # append_new_columns (not sync_all_columns): contracted incremental models
+      # require append_new_columns or fail (#271). Uncontracted models keep working.
+      +on_schema_change: append_new_columns
       +unique_key: id
 
 # Seeds configuration

@@ -48,6 +48,12 @@ schema:
     physicalType: integer
     description: 'The meeting: event_meeting.event_meeting_id (= bronze_events_analysis_ai.id). Guaranteed by the inner join in the model and checked by a relationships test. Not a Postgres FK constraint: event_meeting is not contract-enforced in dbt, and its primary key exists only where the bootstrap_event_meeting macro created gold.event_meeting by hand, so a declared FK would fail on any build where that macro hasn''t run.'
     required: true
+    relationships:
+    - type: foreignKey
+      to: event_meeting.odcs.yaml#/schema/event_meeting/properties/event_meeting_id
+      customProperties:
+      - property: dbtTestSeverity
+        value: warn
     quality:
     - type: library
       metric: nullValues

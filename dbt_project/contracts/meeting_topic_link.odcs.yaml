@@ -48,6 +48,9 @@ schema:
     physicalType: integer
     description: FK -> event_meeting.event_meeting_id (enforced).
     required: true
+    relationships:
+    - type: foreignKey
+      to: event_meeting.odcs.yaml#/schema/event_meeting/properties/event_meeting_id
     quality:
     - type: library
       metric: nullValues

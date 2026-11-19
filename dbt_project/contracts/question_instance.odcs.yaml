@@ -68,6 +68,12 @@ schema:
     physicalType: text
     description: The decision/bill id. For local_decision -> event_decision.event_decision_id, asserted via relationships(warn) (partitioned composite-PK parent).
     required: true
+    relationships:
+    - type: foreignKey
+      to: event_decision.odcs.yaml#/schema/event_decision/properties/event_decision_id
+      customProperties:
+      - property: dbtTestSeverity
+        value: warn
     quality:
     - type: library
       metric: nullValues
