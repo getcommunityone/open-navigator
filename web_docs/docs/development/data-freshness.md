@@ -36,6 +36,7 @@ cd dbt_project
 | `bronze.bronze_epoch_data_centers` | `loaded_at` | 8 days | 31 days |
 | `intermediate.int_events_channels` (verified channels, written by scripts) | `loaded_at` | 30 days | 90 days |
 | `public.event_documents` (transcript search) | newest `created_at` | 7 days | — |
+| `event_documents` vs bronze transcripts (#563) | bronze newest `created_at` − docs newest | warn if lag > 24h (`assert_event_documents_transcript_lag`) | — |
 | `public.event_meeting`, `public.event_decision` | newest `extracted_at` | 14 days | — |
 | `public.recent_transcribed_meeting` (homepage "What's New") | newest `meeting_date` | 14 days | — |
 | `public.jurisdiction_state_aggregate` (stats) | `last_updated` | 7 days | — |
