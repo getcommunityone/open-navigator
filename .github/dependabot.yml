@@ -1,0 +1,33 @@
+# Dependabot security updates for the pinned Python requirements (#378).
+#
+# Why this file exists: the OpenTelemetry packages are pinned together in these requirements files, and each release
+# train needs its siblings at the same version (opentelemetry-sdk==X needs opentelemetry-api==X and
+# opentelemetry-semantic-conventions==Y; every opentelemetry-instrumentation-* needs the same Y). An advisory for one
+# package made Dependabot open a PR that moved only that line, and pip could not install it. Grouping the family
+# makes Dependabot raise one pull request for it.
+#
+# Version updates stay off (`open-pull-requests-limit: 0`); this file only shapes security updates, as GitHub
+# documents. Security updates for every ecosystem not listed here keep their default behavior.
+# The decision and what is still unproven: web_docs/docs/development/opentelemetry-pins.md
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      opentelemetry:
+        applies-to: security-updates
+        patterns:
+          - "opentelemetry-*"
+  - package-ecosystem: pip
+    directory: /apps/open-navigator-web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      opentelemetry:
+        applies-to: security-updates
+        patterns:
+          - "opentelemetry-*"

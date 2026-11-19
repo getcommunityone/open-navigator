@@ -31,17 +31,28 @@ The PNG copies are stored with git LFS, so they may be missing from some checkou
 - **Column names**: blue is the primary key, purple a foreign key, grey a column no key uses.
 - **Lines**: right-angled, from the foreign-key row to the key row it points at. A crow's foot means many, a bar
   means one.
-- **Row counts**: the headers say "rows not measured yet". The diagrams are drawn from the dbt declarations, not
-  from the warehouse, so they show no counts.
+- **Row counts**: with `--dsn` the generator counts every mart that is built as a table in the `gold` schema
+  (an exact `count(*)`) and shows `N rows` in its header. A mart that isn't built there says "rows not measured yet",
+  never 0. The legend names the schema and the minute the counts were taken.
+- **Subject-area totals**: each area's title shows its table count, its row total and how many of its tables have a
+  primary key. The total adds up only the tables that were measured, and the title says how many that was when some
+  weren't. For a measured table the key is Postgres's own (`pg_constraint`), so a model that declares a key the
+  database doesn't hold shows as missing. For an unmeasured one it is the dbt declaration.
+- **Views in `public`**: the API reads `public`, which holds views over `gold`. A view can't carry a primary key, so
+  the keys are checked on the `gold` tables the views read.
 
 ## Regenerate
 
 The drawer is the `erd` workspace package (`packages/erd`):
 
 ```bash
-PYTHONPATH=packages/erd/src python -m erd --models dbt_project/models/marts --out web_docs/static/img/erd --name marts
+PYTHONPATH=packages/erd/src python -m erd --models dbt_project/models/marts --out web_docs/static/img/erd --name marts \
+  --dsn postgresql://postgres:password@localhost:5433/open_navigator --schema gold
 node packages/erd/src/erd/drawio_render.js web_docs/static/img/erd/marts_entity.drawio web_docs/static/img/erd/marts_full.drawio
 ```
+
+Leave out `--dsn` to draw from the dbt declarations alone (no counts). `--dsn` needs `psycopg2`
+(`pip install 'communityone-erd[db]'`). The first command takes several minutes: it routes every line around the tables.
 
 The second command needs Node 20.15 or later and `playwright` (`npm install playwright`). It loads draw.io's viewer
 from viewer.diagrams.net. Where that site is blocked, set `VIEWER=` to a local copy of `viewer-static.min.js` from the

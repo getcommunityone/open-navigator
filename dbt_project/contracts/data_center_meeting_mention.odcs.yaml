@@ -63,7 +63,7 @@ schema:
     name: meeting_date
     logicalType: date
     physicalType: date
-    description: The meeting date, from event_youtube_with_jurisdiction.
+    description: 'The meeting date, from event_youtube_with_jurisdiction. Null when the source date is later than the load date (a wrong video date, #472).'
   - id: jurisdiction_id
     name: jurisdiction_id
     logicalType: string

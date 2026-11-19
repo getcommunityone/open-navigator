@@ -13,6 +13,7 @@ dependencies = [
     "openai>=1.0",  # DeepSeek (OpenAI-compatible Chat Completions) analysis provider
     "python-dotenv>=1.0",
     "httpx>=0.25",  # llm.typesafe (Jev transcript screening)
+    "requests>=2.31",  # legacy HTTP in llm; new code uses core_lib.http
     "loguru>=0.7",
     "pyyaml>=6",  # usage/prices.yaml (llm.usage.prices)
     "psycopg2-binary>=2.9",

@@ -124,7 +124,7 @@ schema:
     name: event_date
     logicalType: date
     physicalType: date
-    description: Denormalized event date for sort/display.
+    description: 'Denormalized event date for sort/display. Never later than tomorrow for a transcript: a title date after that is replaced by the video''s upload day, or null (#564).'
   - id: jurisdiction_name
     name: jurisdiction_name
     logicalType: string

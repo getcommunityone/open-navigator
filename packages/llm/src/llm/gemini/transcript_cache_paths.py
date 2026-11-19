@@ -2465,35 +2465,55 @@ def remove_redundant_transcript_files(
         if name == README_NAME:
             continue
 
-        for formatted in (
-            path.parent / f"{path.stem}.caption_formatted.json",
-            path.parent / f"{path.stem}_.caption_formatted.json",
-        ):
-            if formatted.is_file():
-                if dry_run:
-                    stats["would_remove_formatted"] += 1
-                else:
-                    formatted.unlink()
-                    stats["removed_formatted"] += 1
-
+        formatted_sidecars = [
+            f
+            for f in (
+                path.parent / f"{path.stem}.caption_formatted.json",
+                path.parent / f"{path.stem}_.caption_formatted.json",
+            )
+            if f.is_file()
+        ]
         sidecar = policy_transcript_sidecar_path(path)
         if not sidecar.is_file():
             legacy = path.parent / f"{path.stem}_.caption_raw_data.json"
             if legacy.is_file():
                 sidecar = legacy
-        if not sidecar.is_file():
+        if not formatted_sidecars and not sidecar.is_file():
             continue
-        has_embedded = False
+
+        # A sidecar is only redundant when the main transcript JSON already embeds the same payload (#359).
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            raw = data.get("caption_raw_data")
-            has_embedded = isinstance(raw, list) and len(raw) > 0
-            if not has_embedded and isinstance(data.get("youtube"), dict):
-                segs = data["youtube"].get("segments")
-                has_embedded = isinstance(segs, list) and len(segs) > 0
         except (json.JSONDecodeError, OSError):
             stats["skipped_read_error"] += 1
+            if formatted_sidecars:
+                stats["kept_formatted_sidecar"] += len(formatted_sidecars)
             continue
+        if not isinstance(data, dict):
+            stats["skipped_read_error"] += 1
+            if formatted_sidecars:
+                stats["kept_formatted_sidecar"] += len(formatted_sidecars)
+            continue
+
+        embedded_formatted = data.get("caption_formatted")
+        has_formatted = bool(embedded_formatted) and isinstance(embedded_formatted, (list, dict, str))
+        for formatted in formatted_sidecars:
+            if not has_formatted:
+                stats["kept_formatted_sidecar"] += 1
+                continue
+            if dry_run:
+                stats["would_remove_formatted"] += 1
+            else:
+                formatted.unlink()
+                stats["removed_formatted"] += 1
+
+        if not sidecar.is_file():
+            continue
+        raw = data.get("caption_raw_data")
+        has_embedded = isinstance(raw, list) and len(raw) > 0
+        if not has_embedded and isinstance(data.get("youtube"), dict):
+            segs = data["youtube"].get("segments")
+            has_embedded = isinstance(segs, list) and len(segs) > 0
         if not has_embedded:
             stats["kept_orphan_sidecar"] += 1
             continue

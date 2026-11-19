@@ -97,7 +97,14 @@ select
     b.video_id,
 
     -- Event details
-    b.event_date,
+    -- A recorded video cannot be from the future, so a title date after tomorrow is a
+    -- typo (2926 for 2026, a two-digit year read as 20xx) and is replaced by the upload
+    -- day, or by NULL when the video has no upload time (#564).
+    case
+        when b.event_date > current_date + 1
+            then case when b.published_at::date <= current_date + 1 then b.published_at::date end
+        else b.event_date
+    end as event_date,
     b.event_time,
     b.title,
     b.description,

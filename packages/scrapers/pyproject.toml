@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "core-lib",
     "httpx>=0.27",
+    "requests>=2.31",  # legacy HTTP in scrapers; new code uses core_lib.http
     "beautifulsoup4>=4.12",
     "loguru>=0.7",
     # wikidata hydrators call hosting.neon.ensure_bronze_jurisdictions_cloud
