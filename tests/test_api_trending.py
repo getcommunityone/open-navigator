@@ -334,13 +334,13 @@ async def test_inflight_lock_is_kept_while_a_waiter_needs_it_and_never_removes_a
             pass
 
     t1 = asyncio.create_task(first())
-    await first_in.wait()
+    await asyncio.wait_for(first_in.wait(), timeout=5)   # fail, don't hang, if the first holder never starts
     t2 = asyncio.create_task(second())
     await asyncio.sleep(0)                 # second is now waiting on the same lock
     assert trending._inflight_users[key] == 2
     held = trending._inflight_locks[key]
     release_first.set()
-    await asyncio.gather(t1, t2)
+    await asyncio.wait_for(asyncio.gather(t1, t2), timeout=5)
     assert trending._inflight_locks == {} and trending._inflight_users == {}
 
     # a lock another request put in the map is never removed by a request that held an older one
