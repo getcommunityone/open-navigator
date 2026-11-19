@@ -493,7 +493,7 @@ def save_transcript_policy_output(
 
     if not _part1_json_ok(parsed):
         if isinstance(parsed, dict) and isinstance(parsed.get("meeting"), dict):
-            analysis_payload = _normalize_part1_analysis(parsed)
+            analysis_payload = _normalize_part1_analysis(parsed, video=video)
             analysis_payload["_error"] = str(
                 parsed.get("_error")
                 or "No decisions or uncontested items extracted from transcript."
@@ -508,7 +508,7 @@ def save_transcript_policy_output(
             json_parsed = False
     else:
         analysis_payload = enrich_uncontested_media_anchors(
-            _normalize_part1_analysis(parsed),
+            _normalize_part1_analysis(parsed, video=video),
             video_url=video.video_url or "",
         )
         from llm.gemini.meeting_date_qa import qa_recorded_video_meeting_date
@@ -1689,12 +1689,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--jurisdiction-id",
         default=DEFAULT_JURISDICTION_ID,
-        help="e.g. municipality_0177256",
+        help="e.g. municipality_0177256 (required for a real run; no Tuscaloosa demo default, #593)",
     )
     parser.add_argument(
         "--state",
-        default="AL",
-        help="Two-letter state for policy cache and scraped_meetings paths (e.g. GA/municipality/5583)",
+        default="",
+        help="Two-letter state for policy cache and scraped_meetings paths (e.g. GA)",
     )
     parser.add_argument(
         "--scraped-cache-dir",

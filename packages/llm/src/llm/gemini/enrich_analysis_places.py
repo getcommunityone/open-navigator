@@ -149,8 +149,9 @@ def infer_places_from_analysis(
         or ""
     ).strip()
     hint = JURISDICTION_GEO_HINTS.get(jid, {})
-    city = hint.get("city", "Tuscaloosa")
-    state = hint.get("state", "AL")
+    # No demo-city fallback (#593): unknown jurisdictions stay unbiased.
+    city = hint.get("city", "")
+    state = hint.get("state", "")
 
     subjects_by_id: Dict[str, Dict[str, Any]] = {
         s["subject_id"]: s

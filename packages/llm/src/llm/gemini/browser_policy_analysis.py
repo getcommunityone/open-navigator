@@ -78,7 +78,9 @@ DEFAULT_PROMPT_PATH = _REPO_ROOT / "prompts" / "policy_analysis_v1.md"
 DEFAULT_PROMPT_PART_1 = _REPO_ROOT / "prompts" / "policy_analysis_part_1.md"
 DEFAULT_PROMPT_PART_2 = _REPO_ROOT / "prompts" / "policy_analysis_part_2.md"
 PART2_USER_MARKER = "JSON from Step 1"
-DEFAULT_JURISDICTION_ID = "tuscaloosa_0177256"
+# Empty on purpose (#593): a Tuscaloosa default filed foreign meetings under the
+# demo city. Callers that need a place must pass --jurisdiction-id explicitly.
+DEFAULT_JURISDICTION_ID = ""
 DEFAULT_GEMINI_URL = "https://gemini.google.com/app"
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "cache" / "gemini_browser_policy"
 
@@ -543,8 +545,16 @@ def _part1_json_ok(obj: Any) -> bool:
     return len(decisions) + n_unc > 0
 
 
-def _normalize_part1_analysis(parsed: dict[str, Any]) -> dict[str, Any]:
-    """Split legacy procedural rows; add diagram strings for contested decisions only."""
+def _normalize_part1_analysis(
+    parsed: dict[str, Any],
+    *,
+    video: VideoRow | None = None,
+) -> dict[str, Any]:
+    """Split legacy procedural rows; add diagram strings for contested decisions only.
+
+    When ``video`` is given, clear a Tuscaloosa demo ``meeting.jurisdiction`` that
+    does not match the video's warehouse place (#593).
+    """
     out = json.loads(json.dumps(parsed, ensure_ascii=False))
     raw_decisions = out.get("decisions")
     if not isinstance(raw_decisions, list):
@@ -573,6 +583,14 @@ def _normalize_part1_analysis(parsed: dict[str, Any]) -> dict[str, Any]:
         kept.append(d)
     out["decisions"] = kept
     out["uncontested_items"] = uncontested
+    if video is not None:
+        from llm.gemini.meeting_jurisdiction import scrub_meeting_jurisdiction
+
+        out = scrub_meeting_jurisdiction(
+            out,
+            place_name=video.jurisdiction_name or "",
+            jurisdiction_id=video.jurisdiction_id or "",
+        )
     return out
 
 
@@ -2502,7 +2520,7 @@ def run_video_batch(
                                 save_raw_response=save_raw_response,
                             )
                             continue
-                        parsed_part1 = _normalize_part1_analysis(parsed_part1)
+                        parsed_part1 = _normalize_part1_analysis(parsed_part1, video=video)
                         part2_message = build_part2_message(part2_prompt, parsed_part1)
                         logger.info("Sending part 2 ({} chars) …", len(part2_message))
                         part2_capture = _send_prompt_on_page(
@@ -2720,7 +2738,7 @@ def save_run_output(
         }
         json_parsed = False
     else:
-        analysis_payload = _normalize_part1_analysis(parsed)
+        analysis_payload = _normalize_part1_analysis(parsed, video=video)
         json_parsed = True
         _warn_if_sparse_decisions(
             analysis_payload, video_id=video.video_id, prompt_name=prompt_name
@@ -2834,7 +2852,7 @@ def save_two_part_run_output(
     if parsed is None and span:
         parsed = span[0]
     if _part1_json_ok(parsed):
-        analysis_payload = _normalize_part1_analysis(parsed)
+        analysis_payload = _normalize_part1_analysis(parsed, video=video)
         json_parsed = True
         _warn_if_sparse_decisions(
             analysis_payload,
@@ -2969,7 +2987,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--jurisdiction-id",
         default=DEFAULT_JURISDICTION_ID,
-        help=f"bronze.bronze_event_youtube.jurisdiction_id (default: {DEFAULT_JURISDICTION_ID})",
+        required=False,
+        help="bronze.bronze_event_youtube.jurisdiction_id (required for a real run; no demo default, #593)",
     )
     parser.add_argument("--database-url", default=None)
     parser.add_argument("--limit", type=int, default=None)
