@@ -17,10 +17,16 @@ Examples::
     python -m llm.gemini.browser_policy_analysis --dry-run
 
     # Analyze the most recently updated video only
-    python -m llm.gemini.browser_policy_analysis --limit 1
+    python -m llm.gemini.browser_policy_analysis --jurisdiction-id tuscaloosa_0177256 --limit 1
+
+    # Subscription drip: newest 5 recent meetings not yet analyzed (no API $) (#624)
+    python -m llm.gemini.browser_policy_analysis \\
+        --jurisdiction-id tuscaloosa_0177256 --newest 5 --dry-run
+    python -m llm.gemini.browser_policy_analysis \\
+        --jurisdiction-id tuscaloosa_0177256 --newest 5 --cdp-url http://127.0.0.1:9222
 
     # One specific video
-    python -m llm.gemini.browser_policy_analysis --video-id dQw4w9WgXcQ
+    python -m llm.gemini.browser_policy_analysis --jurisdiction-id tuscaloosa_0177256 --video-id dQw4w9WgXcQ
 
     # Debug blank page / login (no prompt sent)
     python -m llm.gemini.browser_policy_analysis --open-only --pause-after-open
@@ -63,7 +69,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, List, Optional, Sequence
 
@@ -152,6 +158,108 @@ class VideoRow:
     jurisdiction_type: Optional[str] = None
     state_code: Optional[str] = None
     state: Optional[str] = None
+    # Raw catalog upload time; used with event_date for --since-days (#624).
+    published_at: Optional[datetime] = None
+
+
+def _parse_meeting_day(value: Any) -> Optional[date]:
+    """Best-effort calendar day from event_date / published_at."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    if "T" in text:
+        text = text.split("T", 1)[0]
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def video_meeting_day(video: VideoRow) -> Optional[date]:
+    """COALESCE(event_date, published_at::date) for recent-queue cuts (#624)."""
+    return _parse_meeting_day(video.event_date) or _parse_meeting_day(video.published_at)
+
+
+def browser_analysis_exists(
+    output_dir: Path, jurisdiction_id: str, video_id: str
+) -> bool:
+    """True when a non-error browser analysis for ``video_id`` is already on disk.
+
+    Browser runs write ``data/cache/gemini_browser_policy/<jid>/*_analysis.json``
+    (and ``*_meta.json``). Error stubs with ``_error`` do not count as done, so a
+    failed scrape can be retried (#624).
+    """
+    folder = Path(output_dir) / jurisdiction_id
+    if not folder.is_dir():
+        return False
+    needle = (video_id or "").strip()
+    if not needle:
+        return False
+    for path in folder.glob("*_analysis.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("_error"):
+            continue
+        if str(payload.get("video_id") or "").strip() == needle:
+            return True
+        meeting = payload.get("meeting")
+        if isinstance(meeting, dict) and str(meeting.get("video_id") or "").strip() == needle:
+            return True
+        # Stem / filename often embeds the video id when title is missing.
+        if needle in path.stem:
+            return True
+    for path in folder.glob("*_meta.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("json_parsed") is False:
+            continue
+        if str(payload.get("video_id") or "").strip() == needle:
+            return True
+    return False
+
+
+def filter_videos_for_browser_queue(
+    videos: Sequence[VideoRow],
+    *,
+    since_days: Optional[int] = None,
+    today: Optional[date] = None,
+    skip_analyzed: bool = False,
+    output_dir: Path,
+    limit: Optional[int] = None,
+) -> List[VideoRow]:
+    """Apply recent-window and skip-analyzed cuts, then ``limit`` (#624)."""
+    as_of = today or date.today()
+    out: List[VideoRow] = []
+    cutoff: Optional[date] = None
+    if since_days is not None and since_days >= 0:
+        cutoff = as_of - timedelta(days=int(since_days))
+    for video in videos:
+        if cutoff is not None:
+            day = video_meeting_day(video)
+            if day is None or day < cutoff:
+                continue
+        if skip_analyzed and browser_analysis_exists(
+            output_dir, video.jurisdiction_id, video.video_id
+        ):
+            continue
+        out.append(video)
+        if limit is not None and len(out) >= int(limit):
+            break
+    return out
 
 
 @dataclass
@@ -324,6 +432,8 @@ def fetch_videos(
     order_by: str = "last_updated",
     dedupe_duplicate_meetings: bool = True,
     only_has_transcript: bool = False,
+    since_days: Optional[int] = None,
+    include_untyped_meetings: bool = False,
 ) -> List[VideoRow]:
     import os
 
@@ -371,6 +481,14 @@ def fetch_videos(
         params.append(video_id)
     if only_has_transcript:
         sql += " AND t.has_transcript IS TRUE"
+    if since_days is not None and since_days >= 0 and not video_id:
+        # Recent drip (#624): cut on meeting/upload day so LIMIT is not wasted on
+        # stale catalog rows. Single --video-id bypasses the window.
+        sql += """
+          AND COALESCE(y.published_at, y.event_date::timestamp)
+              >= (CURRENT_DATE - (%s * INTERVAL '1 day'))
+        """
+        params.append(int(since_days))
     sql += """
           AND (
             t.video_id IS NULL
@@ -382,9 +500,18 @@ def fetch_videos(
     # on legit government channels (meeting_type 'Other'/'UNKNOWN') or videos on
     # channels positively classified as junk (migration 107). A single --video-id
     # request bypasses this so a targeted re-run can force any video.
+    # Empty meeting_type is common on recent catalog rows that are still real
+    # meetings; --newest / --include-untyped-meetings keeps those (#624).
     if not video_id:
-        sql += """
+        if include_untyped_meetings:
+            sql += """
+          AND UPPER(COALESCE(y.meeting_type, '')) NOT IN ('OTHER', 'UNKNOWN')
+            """
+        else:
+            sql += """
           AND UPPER(COALESCE(y.meeting_type, '')) NOT IN ('OTHER', 'UNKNOWN', '')
+            """
+        sql += """
           AND NOT EXISTS (
             SELECT 1 FROM bronze.bronze_youtube_channel_classification c
             WHERE c.channel_id = y.channel_id AND c.is_junk IS TRUE
@@ -439,6 +566,7 @@ def fetch_videos(
                 jurisdiction_type=(str(r.get("jurisdiction_type") or "").strip() or None),
                 state_code=(str(r.get("state_code") or "").strip() or None),
                 state=(str(r.get("state") or "").strip() or None),
+                published_at=r.get("published_at"),
             )
         )
 
@@ -2995,6 +3123,44 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--video-id", default=None, help="Single YouTube video_id")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
+        "--since-days",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Only meetings with COALESCE(published_at, event_date) within the last N days (#624)",
+    )
+    parser.add_argument(
+        "--order-by",
+        choices=("meeting_date", "last_updated", "published_at"),
+        default="last_updated",
+        help="Batch sort: published_at / meeting_date = newest first; last_updated = catalog touch (#624)",
+    )
+    parser.add_argument(
+        "--only-has-transcript",
+        action="store_true",
+        help="Only rows with bronze.bronze_event_youtube_transcript.has_transcript (#624)",
+    )
+    parser.add_argument(
+        "--skip-analyzed",
+        action="store_true",
+        help="Skip video_ids that already have a non-error *_analysis.json under --output-dir (#624)",
+    )
+    parser.add_argument(
+        "--include-untyped-meetings",
+        action="store_true",
+        help="Keep rows with empty meeting_type (still drops OTHER/UNKNOWN and junk channels) (#624)",
+    )
+    parser.add_argument(
+        "--newest",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Subscription drip shortcut: newest N unanalyzed meetings "
+        "(sets order-by=published_at, skip-analyzed, include-untyped-meetings; "
+        "default --since-days 90 when unset). "
+        "Does not require a bronze transcript — Gemini web can use the YouTube URL (#624)",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT_DIR,
@@ -3066,20 +3232,64 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    newest_n = int(getattr(args, "newest", 0) or 0)
+    if newest_n > 0:
+        args.limit = newest_n
+        args.order_by = "published_at"
+        args.skip_analyzed = True
+        args.include_untyped_meetings = True
+        if args.since_days is None:
+            args.since_days = 90
+
+    if not (args.jurisdiction_id or "").strip() and not args.open_only:
+        logger.error("--jurisdiction-id is required (no demo default, #593)")
+        return 1
+
     db_url = _database_url(args.database_url)
+    # When skip-analyzed is on, fetch the full recent window then trim after the
+    # disk check so LIMIT is "N still needed", not "N catalog rows".
+    fetch_limit = None if args.skip_analyzed else args.limit
     videos = fetch_videos(
         db_url,
         args.jurisdiction_id,
-        limit=args.limit,
+        limit=fetch_limit,
         video_id=args.video_id,
+        order_by=args.order_by,
+        only_has_transcript=bool(args.only_has_transcript),
+        since_days=args.since_days,
+        include_untyped_meetings=bool(args.include_untyped_meetings),
+    )
+    videos = filter_videos_for_browser_queue(
+        videos,
+        since_days=None,  # already applied in SQL when set
+        skip_analyzed=bool(args.skip_analyzed),
+        output_dir=Path(args.output_dir).resolve(),
+        limit=args.limit if args.skip_analyzed else None,
     )
     if not videos:
-        logger.error("No videos found for jurisdiction_id={}", args.jurisdiction_id)
+        logger.error(
+            "No videos in queue for jurisdiction_id={} (since_days={} skip_analyzed={})",
+            args.jurisdiction_id,
+            args.since_days,
+            args.skip_analyzed,
+        )
         return 1
 
-    logger.info("Found {} video(s) for {}", len(videos), args.jurisdiction_id)
+    logger.info(
+        "Queue {} video(s) for {} (since_days={} order_by={} skip_analyzed={})",
+        len(videos),
+        args.jurisdiction_id,
+        args.since_days,
+        args.order_by,
+        args.skip_analyzed,
+    )
     for v in videos:
-        logger.info("  {} | {} | {}", v.video_id, v.last_updated, (v.title or "")[:70])
+        logger.info(
+            "  {} | day={} | {}",
+            v.video_id,
+            video_meeting_day(v),
+            (v.title or "")[:70],
+        )
 
     user_data = args.chrome_user_data_dir or default_chrome_user_data_dir()
     profile = args.chrome_profile or default_chrome_profile()
