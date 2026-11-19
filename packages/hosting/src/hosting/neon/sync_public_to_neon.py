@@ -224,7 +224,8 @@ CIVIC_SERVING = frozenset(
         "data_center_site",
         "data_center_agenda_item",
         "area_concern",
-        # transcript passages that discuss data centers (#445), ~4.5 MB (#481)
+        # transcript passages that discuss data centers (#445); meeting docs trimmed in
+        # publish_public_serving (#556) so Legistar agenda/minutes stay under the Neon budget
         "data_center_meeting_mention",
         # question dashboard: place label, company named, nearby tracked site (#508), ~0.5 MB (#528)
         "decision_place_label",
