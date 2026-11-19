@@ -255,7 +255,19 @@ def test_rank_websites_prefers_named_gov_hosts_and_drops_wrong_rows():
         {"website_url": "http://www.allencounty.us/", "website_source": "naco"},
         {"website_url": "https://limestonecounty-al.gov/", "website_source": "scraped"},
     ]
-    assert sms.rank_websites(county_rows, _gov("Allen County", "county", "IN", "Indiana")) == ["http://www.allencounty.us/"]
+    # NACO named host still ranks first; #474 no longer drops the other county
+    # Wikidata/scraped URLs solely for lacking the name token (wrong QIDs are
+    # fixed upstream in #461 — ranking still prefers the named NACO row).
+    allen = sms.rank_websites(county_rows, _gov("Allen County", "county", "IN", "Indiana"))
+    assert allen[0] == "http://www.allencounty.us/"
+    assert len(allen) >= 1
+
+    # Abbreviated county domains (Tuscaloosa → tuscco.com) must survive for Wikidata.
+    tusc = _gov("Tuscaloosa County", "county", "AL", "Alabama")
+    assert sms.rank_websites(
+        [{"website_url": "http://www.tuscco.com", "website_source": "wikidata"}],
+        tusc,
+    ) == ["http://www.tuscco.com"]
 
 
 def test_youtube_channel_must_name_government_and_state():
