@@ -1,0 +1,881 @@
+{
+  "meeting": {
+    "meeting_id": "MS001",
+    "body_name": "Hancock County Parks and Recreation Board",
+    "meeting_date": "2026-05-21",
+    "jurisdiction": "hancock_county",
+    "session_info": {
+      "is_multi_session": false,
+      "session_number": null,
+      "total_sessions": null
+    },
+    "meeting_summary": "The Hancock County Parks and Recreation Board approved minutes, reviewed financial reports, and discussed new business including a grant subscription, the five-year master plan approval, park property proposals, trail development, and the election of board officers. They also approved a letter of support for a student internship program.",
+    "agenda_summary": "Minutes approval, financial report, Grant Station subscription, five-year master plan, park property acquisition, trail development, Octagon House artwork, Ninstar Park grant, executive development program, board officer nominations, and a letter of support for Danny's Dreams."
+  },
+  "people": [
+    {
+      "person_id": "miriam_rolls_board_member_hancock_county",
+      "full_name": "Miriam Rolls",
+      "role": "Board Member",
+      "appeared_as": "Board Member"
+    },
+    {
+      "person_id": "heather_van_dyk_board_member_hancock_county",
+      "full_name": "Heather Van Djk",
+      "role": "Board Member",
+      "appeared_as": "Board Member"
+    },
+    {
+      "person_id": "kelly_mclaren_board_member_hancock_county",
+      "full_name": "Kelly McLaren",
+      "role": "Board Member",
+      "appeared_as": "Board Member"
+    },
+    {
+      "person_id": "jenny_shiveley_board_member_hancock_county",
+      "full_name": "Jenny Shiveley",
+      "role": "Board Member",
+      "appeared_as": "Board Member"
+    },
+    {
+      "person_id": "terry_gotcha_board_member_hancock_county",
+      "full_name": "Terry Gotcha",
+      "role": "Board Member",
+      "appeared_as": "Board Member"
+    },
+    {
+      "person_id": "dennis_west_president_octagon_house_hancock_county",
+      "full_name": "Dennis West",
+      "role": "President of the Octagon House",
+      "appeared_as": "President of the Octagon House"
+    },
+    {
+      "person_id": "jamie_sabach_founder_110_percent_hancock_county",
+      "full_name": "Jamie Sabach",
+      "role": "Founder and President of 110%",
+      "appeared_as": "Speaker"
+    },
+    {
+      "person_id": "donna_griffin_danny_s_dream_hancock_county",
+      "full_name": "Donna Griffin",
+      "role": "Danny's Dream",
+      "appeared_as": "Applicant"
+    },
+    {
+      "person_id": "katie_oddinger_community_foundation_hancock_county",
+      "full_name": "Katie Oddinger",
+      "role": "Grant Organizer, Community Foundation",
+      "appeared_as": "Contact Person"
+    }
+  ],
+  "organizations": [
+    {
+      "org_id": "community_foundation_of_hancock_county_hancock_county",
+      "org_name": "Community Foundation of Hancock County",
+      "org_type": "Community Foundation",
+      "ntee_code": "X99"
+    },
+    {
+      "org_id": "indiana_department_of_natural_resources_indiana",
+      "org_name": "Indiana Department of Natural Resources",
+      "org_type": "Government Agency",
+      "ntee_code": "B20"
+    },
+    {
+      "org_id": "danny_s_dream_hancock_county",
+      "org_name": "Danny's Dream",
+      "org_type": "Youth Development",
+      "ntee_code": "Y00"
+    },
+    {
+      "org_id": "octagon_house_hancock_county",
+      "org_name": "Octagon House",
+      "org_type": "Historic Preservation",
+      "ntee_code": "G20"
+    },
+    {
+      "org_id": "zion_lutheran_school_hancock_county",
+      "org_name": "Zion Lutheran School",
+      "org_type": "School",
+      "ntee_code": "P20"
+    },
+    {
+      "org_id": "new_palestine_high_school_hancock_county",
+      "org_name": "New Palestine High School",
+      "org_type": "School",
+      "ntee_code": "P20"
+    },
+    {
+      "org_id": "110_percent_hancock_county",
+      "org_name": "110%",
+      "org_type": "Consulting",
+      "ntee_code": "V00"
+    }
+  ],
+  "legislation": [],
+  "financial_items": [
+    {
+      "financial_item_id": "FIN001",
+      "event_description": "Parks and Recreation Board balance as of May 19th",
+      "amount": 8240,
+      "amount_type": "balance",
+      "funding_source": null
+    },
+    {
+      "financial_item_id": "FIN002",
+      "event_description": "Grant Station subscription cost",
+      "amount": null,
+      "amount_type": "subscription",
+      "funding_source": "Community Foundation of Hancock County"
+    },
+    {
+      "financial_item_id": "FIN003",
+      "event_description": "Land and Water Conservation Fund grant potential",
+      "amount": null,
+      "amount_type": "grant",
+      "funding_source": "State and Federal"
+    },
+    {
+      "financial_item_id": "FIN004",
+      "event_description": "Land and Water Conservation Fund grant match",
+      "amount": 2000000,
+      "amount_type": "match",
+      "funding_source": null
+    },
+    {
+      "financial_item_id": "FIN005",
+      "event_description": "Land and Water Conservation Fund grant minimum",
+      "amount": 250000,
+      "amount_type": "minimum grant",
+      "funding_source": null
+    },
+    {
+      "financial_item_id": "FIN006",
+      "event_description": "Ignite Grant for trailstone",
+      "amount": null,
+      "amount_type": "grant",
+      "funding_source": "Community Foundation"
+    },
+    {
+      "financial_item_id": "FIN007",
+      "event_description": "Indiana Trails Plan Grant for Ninstar Park",
+      "amount": 376496,
+      "amount_type": "grant",
+      "funding_source": null
+    },
+    {
+      "financial_item_id": "FIN008",
+      "event_description": "Danny's Dream Internship Program cost per internship",
+      "amount": 2000,
+      "amount_type": "program cost",
+      "funding_source": "White Family Grant"
+    },
+    {
+      "financial_item_id": "FIN009",
+      "event_description": "Danny's Dream Internship Program cost for two positions",
+      "amount": 4000,
+      "amount_type": "program cost",
+      "funding_source": "White Family Grant"
+    },
+    {
+      "financial_item_id": "FIN010",
+      "event_description": "Danny's Dream Internship Program fundraising goal",
+      "amount": 10000,
+      "amount_type": "fundraising goal",
+      "funding_source": null
+    }
+  ],
+  "places": [
+    {
+      "place_id": "place_mohawk_area_hancock_county",
+      "raw_text": "Mohawk area",
+      "normalized_address": "Mohawk Area, Hancock County, IN",
+      "place_type": "neighborhood",
+      "street_address": null,
+      "city": null,
+      "state": "IN",
+      "geocode_query": "Mohawk Area, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [],
+      "linked_item_ids": [],
+      "mention_count": 1
+    },
+    {
+      "place_id": "place_octagon_house_hancock_county",
+      "raw_text": "Octagon House",
+      "normalized_address": "Octagon House, Hancock County, IN",
+      "place_type": "facility",
+      "street_address": null,
+      "city": null,
+      "state": "IN",
+      "geocode_query": "Octagon House, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [
+        "D002"
+      ],
+      "linked_item_ids": [],
+      "mention_count": 5
+    },
+    {
+      "place_id": "place_ninstar_park_hancock_county",
+      "raw_text": "Ninstar Park",
+      "normalized_address": "Ninstar Park, Hancock County, IN",
+      "place_type": "facility",
+      "street_address": null,
+      "city": null,
+      "state": "IN",
+      "geocode_query": "Ninstar Park, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [
+        "D001",
+        "D003"
+      ],
+      "linked_item_ids": [],
+      "mention_count": 7
+    },
+    {
+      "place_id": "place_100_south_hancock_county",
+      "raw_text": "100 south",
+      "normalized_address": "100 South, Hancock County, IN",
+      "place_type": "street_address",
+      "street_address": "100 South",
+      "city": null,
+      "state": "IN",
+      "geocode_query": "100 South, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [],
+      "linked_item_ids": [],
+      "mention_count": 1
+    },
+    {
+      "place_id": "place_400_west_hancock_county",
+      "raw_text": "400 west",
+      "normalized_address": "400 West, Hancock County, IN",
+      "place_type": "street_address",
+      "street_address": "400 West",
+      "city": null,
+      "state": "IN",
+      "geocode_query": "400 West, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [],
+      "linked_item_ids": [],
+      "mention_count": 2
+    },
+    {
+      "place_id": "place_300_hancock_county",
+      "raw_text": "300",
+      "normalized_address": "300, Hancock County, IN",
+      "place_type": "street_address",
+      "street_address": "300",
+      "city": null,
+      "state": "IN",
+      "geocode_query": "300, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [],
+      "linked_item_ids": [],
+      "mention_count": 1
+    },
+    {
+      "place_id": "place_350_west_hancock_county",
+      "raw_text": "350 West",
+      "normalized_address": "350 West, Hancock County, IN",
+      "place_type": "street_address",
+      "street_address": "350 West",
+      "city": null,
+      "state": "IN",
+      "geocode_query": "350 West, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [],
+      "linked_item_ids": [],
+      "mention_count": 1
+    },
+    {
+      "place_id": "place_brown_county_state_park_indiana",
+      "raw_text": "Brown County State Park",
+      "normalized_address": "Brown County State Park, IN",
+      "place_type": "facility",
+      "street_address": null,
+      "city": null,
+      "state": "IN",
+      "geocode_query": "Brown County State Park, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [],
+      "linked_item_ids": [],
+      "mention_count": 2
+    },
+    {
+      "place_id": "place_new_palestine_high_school_hancock_county",
+      "raw_text": "New Palestine High School",
+      "normalized_address": "New Palestine High School, Hancock County, IN",
+      "place_type": "campus",
+      "street_address": null,
+      "city": null,
+      "state": "IN",
+      "geocode_query": "New Palestine High School, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [
+        "D004"
+      ],
+      "linked_item_ids": [],
+      "mention_count": 3
+    },
+    {
+      "place_id": "place_zion_lutheran_school_hancock_county",
+      "raw_text": "Zion Lutheran School",
+      "normalized_address": "Zion Lutheran School, Hancock County, IN",
+      "place_type": "campus",
+      "street_address": null,
+      "city": null,
+      "state": "IN",
+      "geocode_query": "Zion Lutheran School, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [
+        "D004"
+      ],
+      "linked_item_ids": [],
+      "mention_count": 2
+    },
+    {
+      "place_id": "place_new_pal_elementary_schools_hancock_county",
+      "raw_text": "New Pal Elementary Schools",
+      "normalized_address": "New Pal Elementary Schools, Hancock County, IN",
+      "place_type": "campus",
+      "street_address": null,
+      "city": null,
+      "state": "IN",
+      "geocode_query": "New Pal Elementary Schools, Hancock County, IN",
+      "latitude": null,
+      "longitude": null,
+      "geocode_status": "pending",
+      "linked_decision_ids": [
+        "D004"
+      ],
+      "linked_item_ids": [],
+      "mention_count": 1
+    }
+  ],
+  "subjects": [
+    {
+      "subject_id": "subject_grant_station_subscription_hancock_county",
+      "subject_label": "Grant Station Subscription",
+      "subject_description": "A limited-time subscription to Grant Station provided by the Community Foundation of Hancock County.",
+      "canonical_leg_id": null,
+      "primary_place_id": null
+    },
+    {
+      "subject_id": "subject_five_year_master_plan_hancock_county",
+      "subject_label": "Five-Year Master Plan Approval",
+      "subject_description": "The approval of the five-year master plan for parks, trails, natural resources, and recreation by the Indiana Department of Natural Resources.",
+      "canonical_leg_id": null,
+      "primary_place_id": null
+    },
+    {
+      "subject_id": "subject_park_property_acquisition_hancock_county",
+      "subject_label": "Park Property Acquisition",
+      "subject_description": "Exploring strategic land acquisitions and green space preservation for future generations, including options like conservation easements and land donations.",
+      "canonical_leg_id": null,
+      "primary_place_id": null
+    },
+    {
+      "subject_id": "subject_trail_development_hancock_county",
+      "subject_label": "Trail Development",
+      "subject_description": "Progress on the trail-based stone, including the installation of photoluminescent aggregate and multi-use trail construction.",
+      "canonical_leg_id": null,
+      "primary_place_id": "place_octagon_house_hancock_county"
+    },
+    {
+      "subject_id": "subject_octagon_house_artwork_hancock_county",
+      "subject_label": "Octagon House Artwork",
+      "subject_description": "Installation of additional artwork on the Octagon House frontage, including silver dollar art coins with historic fun facts.",
+      "canonical_leg_id": null,
+      "primary_place_id": "place_octagon_house_hancock_county"
+    },
+    {
+      "subject_id": "subject_ninstar_park_trails_plan_grant_hancock_county",
+      "subject_label": "Ninstar Park Trails Plan Grant",
+      "subject_description": "Award of the Trails Plan Grant for Ninstar Park to support the development of a 3/4 mile trail.",
+      "canonical_leg_id": null,
+      "primary_place_id": "place_ninstar_park_hancock_county"
+    },
+    {
+      "subject_id": "subject_executive_development_program_hancock_county",
+      "subject_label": "Executive Development Program",
+      "subject_description": "Attendance at an executive development program through IU School of Public Health, covering various topics including emerging technologies and public sector ethics.",
+      "canonical_leg_id": null,
+      "primary_place_id": "place_brown_county_state_park_indiana"
+    },
+    {
+      "subject_id": "subject_board_officer_nominations_hancock_county",
+      "subject_label": "Board Officer Nominations",
+      "subject_description": "Nomination and election of a secretary and treasurer for the Hancock County Parks and Recreation Board.",
+      "canonical_leg_id": null,
+      "primary_place_id": null
+    },
+    {
+      "subject_id": "subject_danny_s_dream_internship_program_hancock_county",
+      "subject_label": "Danny's Dream Internship Program",
+      "subject_description": "A proposal for a letter of support for Danny's Dream's grant application for a student internship program.",
+      "canonical_leg_id": null,
+      "primary_place_id": "place_new_palestine_high_school_hancock_county"
+    }
+  ],
+  "uncontested_items": [
+    {
+      "item_id": "U001",
+      "headline": "Approval of April 16th, 2026 Minutes",
+      "outcome": "Approved",
+      "vote": "Unanimous",
+      "one_line_summary": "The board unanimously approved the minutes from the April 16th, 2026 meeting.",
+      "subject_id": null,
+      "primary_place_id": null,
+      "place_refs": [],
+      "legislation_refs": [],
+      "financial_item_refs": [],
+      "primary_theme": "Governance",
+      "presenter_person_ids": [],
+      "council_question_person_ids": [],
+      "motion": {
+        "moved_by_person_id": null,
+        "seconded_by_person_id": null
+      },
+      "media_anchor": {
+        "timestamp_start_seconds": 107,
+        "timestamp_end_seconds": 209,
+        "playback_url": "https://www.youtube.com/watch?v=Vs1PKup62NA&t=107s"
+      }
+    },
+    {
+      "item_id": "U002",
+      "headline": "Financial Report",
+      "outcome": "Received",
+      "vote": "Unanimous",
+      "one_line_summary": "The board reviewed the financial report, noting a balance of $8,240 as of May 19th.",
+      "subject_id": null,
+      "primary_place_id": null,
+      "place_refs": [],
+      "legislation_refs": [],
+      "financial_item_refs": [
+        "FIN001"
+      ],
+      "primary_theme": "Finance",
+      "presenter_person_ids": [],
+      "council_question_person_ids": [],
+      "motion": null,
+      "media_anchor": {
+        "timestamp_start_seconds": 212,
+        "timestamp_end_seconds": 444,
+        "playback_url": "https://www.youtube.com/watch?v=Vs1PKup62NA&t=212s"
+      }
+    },
+    {
+      "item_id": "U003",
+      "headline": "Grant Station Subscription",
+      "outcome": "Information Provided",
+      "vote": "Unanimous",
+      "one_line_summary": "The board was informed about a generous subscription to Grant Station provided by the Community Foundation of Hancock County.",
+      "subject_id": "subject_grant_station_subscription_hancock_county",
+      "primary_place_id": null,
+      "place_refs": [],
+      "legislation_refs": [],
+      "financial_item_refs": [
+        "FIN002"
+      ],
+      "primary_theme": "Fundraising",
+      "presenter_person_ids": [],
+      "council_question_person_ids": [],
+      "motion": null,
+      "media_anchor": {
+        "timestamp_start_seconds": 296,
+        "timestamp_end_seconds": 446,
+        "playback_url": "https://www.youtube.com/watch?v=Vs1PKup62NA&t=296s"
+      }
+    },
+    {
+      "item_id": "U004",
+      "headline": "Election of Secretary",
+      "outcome": "Elected",
+      "vote": "Voice Vote",
+      "one_line_summary": "Jenny Shiveley was elected as the new secretary for the Hancock County Parks and Recreation Board.",
+      "subject_id": "subject_board_officer_nominations_hancock_county",
+      "primary_place_id": null,
+      "place_refs": [],
+      "legislation_refs": [],
+      "financial_item_refs": [],
+      "primary_theme": "Governance",
+      "presenter_person_ids": [],
+      "council_question_person_ids": [],
+      "motion": {
+        "moved_by_person_id": "jenny_shiveley_board_member_hancock_county",
+        "seconded_by_person_id": "jenny_shiveley_board_member_hancock_county"
+      },
+      "media_anchor": {
+        "timestamp_start_seconds": 3454,
+        "timestamp_end_seconds": 3513,
+        "playback_url": "https://www.youtube.com/watch?v=Vs1PKup62NA&t=3454s"
+      }
+    },
+    {
+      "item_id": "U005",
+      "headline": "Election of Treasurer",
+      "outcome": "Elected",
+      "vote": "Voice Vote",
+      "one_line_summary": "Kelly McLaren was elected as the new treasurer for the Hancock County Parks and Recreation Board.",
+      "subject_id": "subject_board_officer_nominations_hancock_county",
+      "primary_place_id": null,
+      "place_refs": [],
+      "legislation_refs": [],
+      "financial_item_refs": [],
+      "primary_theme": "Governance",
+      "presenter_person_ids": [],
+      "council_question_person_ids": [],
+      "motion": {
+        "moved_by_person_id": "kelly_mclaren_board_member_hancock_county",
+        "seconded_by_person_id": "kelly_mclaren_board_member_hancock_county"
+      },
+      "media_anchor": {
+        "timestamp_start_seconds": 3540,
+        "timestamp_end_seconds": 3609,
+        "playback_url": "https://www.youtube.com/watch?v=Vs1PKup62NA&t=3540s"
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "decision_id": "D001",
+      "subject_id": "subject_five_year_master_plan_hancock_county",
+      "primary_place_id": null,
+      "place_refs": [],
+      "legislation_refs": [],
+      "financial_item_refs": [
+        "FIN003",
+        "FIN004",
+        "FIN005"
+      ],
+      "headline": "Five-Year Master Plan Approved, Opening Grant Opportunities",
+      "decision_statement": "The board discussed the approval of the five-year master plan by the Indiana Department of Natural Resources, which makes the county eligible for significant state and federal grant opportunities, including the Land Water and Conservation Fund.",
+      "primary_theme": "Parks and Recreation",
+      "outcome": "Approved",
+      "vote_tally": {
+        "yes": null,
+        "no": null
+      },
+      "human_element": {
+        "personal_stories": [],
+        "humor_and_light_moments": [],
+        "emotional_tone": {
+          "supporters": {
+            "intensity": "Low",
+            "primary_emotions": [
+              "Excitement"
+            ],
+            "plain_summary": "The board expressed enthusiasm for the master plan's approval and its implications for future funding."
+          },
+          "opponents": {
+            "intensity": "Not applicable",
+            "primary_emotions": [],
+            "plain_summary": null
+          }
+        }
+      },
+      "competing_views": null,
+      "smart_brevity": {
+        "one_big_thing": "Hancock County's five-year parks master plan has been officially approved by the state, unlocking access to crucial grant funding for park development and conservation.",
+        "why_it_matters": "This approval signifies a long-term vision for parks and recreation, making the county eligible for significant state and federal grants that can fund trails, park expansions, and future recreational assets.",
+        "big_picture": "The approved plan serves as a roadmap for well-planned growth in outdoor recreation, aligning with the board's goals for enhancing the county's park system.",
+        "by_the_numbers": "The plan is for five years and makes the county eligible for grants like the Land Water and Conservation Fund.",
+        "whats_next": "The board plans to apply for the Land Water and Conservation Fund grant as early as August, partnering with the highway department for the application.",
+        "for_it_summary": "The board is enthusiastic about the plan's approval and the opportunities it presents for securing funding for park improvements and land acquisition.",
+        "against_it_summary": null
+      },
+      "diagram_timeline": "timeline\n    title Parks Master Plan Approval and Grant Application\n    section Prior\n        2026-05-21 : Five-Year Master Plan approved by Indiana DNR\n    section This Meeting\n        2026-05-21 : Board discusses eligibility for state and federal grants\n    section Next\n        August 2026 : Application for Land Water and Conservation Fund grant",
+      "diagram_mindmap": "mindmap\n  root((Five-Year Master Plan Approval))\n    Proposal\n      State approval of parks; trails; natural resources; and recreation plan\n    Arguments For\n      Meets state requirements - public input; accessibility; environmental...\n      Eligibility for significant state and federal grants - e.g.; Land Water and...\n      Supports trails; park expansions; improvements; and future recreation assets\n    Stakeholders\n      Hancock County Parks and Recreation Board\n      Indiana Department of Natural Resources\n    Outcome\n      Plan approved; opening doors for grant applications\n    Next Steps\n      Apply for Land Water and Conservation Fund grant in August\n      Partner with highway department for application",
+      "diagram_timeline_lines": [
+        "Five-Year Master Plan approved by Indiana DNR",
+        "Board discusses eligibility for state and federal grants",
+        "Application for Land Water and Conservation Fund grant"
+      ],
+      "diagram_mindmap_lines": [
+        "State approval of parks, trails, natural resources, and recreation plan",
+        "Meets state requirements (public input, accessibility, environmental review, strategic planning)",
+        "Eligibility for significant state and federal grants (e.g., Land Water and Conservation Fund)",
+        "Supports trails, park expansions, improvements, and future recreation assets",
+        "Hancock County Parks and Recreation Board",
+        "Indiana Department of Natural Resources",
+        "Plan approved, opening doors for grant applications",
+        "Apply for Land Water and Conservation Fund grant in August",
+        "Partner with highway department for application"
+      ]
+    },
+    {
+      "decision_id": "D002",
+      "subject_id": "subject_park_property_acquisition_hancock_county",
+      "primary_place_id": null,
+      "place_refs": [],
+      "legislation_refs": [],
+      "financial_item_refs": [],
+      "headline": "Board Seeks Landowners for Park Preservation",
+      "decision_statement": "The board is exploring strategic land acquisitions and green space preservation for future generations, encouraging landowners in unincorporated areas to consider options like conservation easements, life estates, or land donations to preserve their property as parkland.",
+      "primary_theme": "Land Use",
+      "outcome": "Discussion and Outreach",
+      "vote_tally": {
+        "yes": null,
+        "no": null
+      },
+      "human_element": {
+        "personal_stories": [],
+        "humor_and_light_moments": [],
+        "emotional_tone": {
+          "supporters": {
+            "intensity": "Low",
+            "primary_emotions": [
+              "Enthusiasm",
+              "Community focus"
+            ],
+            "plain_summary": "The board is enthusiastic about preserving natural beauty and creating park spaces for future generations."
+          },
+          "opponents": {
+            "intensity": "Not applicable",
+            "primary_emotions": [],
+            "plain_summary": null
+          }
+        }
+      },
+      "competing_views": null,
+      "smart_brevity": {
+        "one_big_thing": "The Parks and Recreation Board is actively seeking landowners interested in preserving their property as parkland through various voluntary legacy tools.",
+        "why_it_matters": "This initiative aims to conserve natural beauty, protect wildlife, and create permanent park spaces for children, families, and future generations, ensuring land is never used for development like data centers.",
+        "big_picture": "The board is proactively planning for the growth of the park system by exploring strategic land acquisitions and meaningful green space preservation.",
+        "by_the_numbers": "Options include conservation easements, life estates, partial land donations, or gifted land. The preferred method is fee simple conveyance for fair market value.",
+        "whats_next": "Landowners interested in exploring these possibilities are encouraged to contact Miriam Rolls at 317-477-1828 or miriam.rolls@hancockin.gov.",
+        "for_it_summary": "The board supports this initiative as a way to permanently protect and conserve land for public use and enjoyment.",
+        "against_it_summary": null
+      },
+      "diagram_timeline": "timeline\n    title Park Land Preservation Outreach\n    section This Meeting\n        2026-05-21 : Board announces initiative to seek landowners for park preservation\n    section Next\n        Ongoing : Landowners encouraged to contact the board",
+      "diagram_mindmap": "mindmap\n  root((Park Property Acquisition Initiative))\n    Proposal\n      Explore strategic land acquisitions and green space preservation\n      Encourage landowners to preserve property as parkland\n    Options\n      Conservation easements\n      Life estates\n      Partial land donations\n      Gifted land\n      Fee simple conveyance for fair market value\n      Goals\n      Conserve natural beauty\n      Protect wildlife\n      Create park spaces for current and future generations\n      Ensure permanent protection of land\n    Stakeholders\n      Hancock County Parks and Recreation Board\n      Landowners in unincorporated areas\n      Call to Action\n      Contact Miriam Rolls for inquiries\n      Phone - 317-477-1828\n      Email - miriam.rolls@hancockin.gov",
+      "diagram_timeline_lines": [
+        "Board announces initiative to seek landowners for park preservation",
+        "Landowners encouraged to contact the board"
+      ],
+      "diagram_mindmap_lines": [
+        "Explore strategic land acquisitions and green space preservation",
+        "Encourage landowners to preserve property as parkland",
+        "Conservation easements",
+        "Life estates",
+        "Partial land donations",
+        "Gifted land",
+        "Fee simple conveyance for fair market value",
+        "Conserve natural beauty",
+        "Protect wildlife",
+        "Create park spaces for current and future generations",
+        "Ensure permanent protection of land",
+        "Hancock County Parks and Recreation Board",
+        "Landowners in unincorporated areas",
+        "Contact Miriam Rolls for inquiries",
+        "Phone: 317-477-1828",
+        "Email: miriam.rolls@hancockin.gov"
+      ]
+    },
+    {
+      "decision_id": "D003",
+      "subject_id": "subject_trail_development_hancock_county",
+      "primary_place_id": "place_octagon_house_hancock_county",
+      "place_refs": [
+        "place_octagon_house_hancock_county",
+        "place_ninstar_park_hancock_county"
+      ],
+      "legislation_refs": [],
+      "financial_item_refs": [
+        "FIN006"
+      ],
+      "headline": "Glowing Trail and Octagon House Artwork Nearing Completion",
+      "decision_statement": "The board provided an update on the trail-based stone, noting that the base is walkable and the photoluminescent aggregate is on-site. Additional artwork, including silver dollar art coins with historic fun facts, is being installed on the Octagon House frontage.",
+      "primary_theme": "Infrastructure",
+      "outcome": "Update and Progress Report",
+      "vote_tally": {
+        "yes": null,
+        "no": null
+      },
+      "human_element": {
+        "personal_stories": [],
+        "humor_and_light_moments": [
+          {
+            "speaker_id": "UNKNOWN",
+            "summary": "Comment about being afraid of the dark in relation to the photoluminescent trail.",
+            "tone": "Humor"
+          }
+        ],
+        "emotional_tone": {
+          "supporters": {
+            "intensity": "Low",
+            "primary_emotions": [
+              "Excitement",
+              "Anticipation"
+            ],
+            "plain_summary": "The board members expressed excitement and anticipation for the unique glowing trail and artwork."
+          },
+          "opponents": {
+            "intensity": "Not applicable",
+            "primary_emotions": [],
+            "plain_summary": null
+          }
+        }
+      },
+      "competing_views": null,
+      "smart_brevity": {
+        "one_big_thing": "The unique photoluminescent trail and Octagon House artwork are nearing completion, promising a visually striking addition to the county's recreational offerings.",
+        "why_it_matters": "The trail will offer a one-of-a-kind glowing experience, enhancing the appeal of Ninstar Park and the Octagon House area for visitors and residents.",
+        "big_picture": "This project represents a significant investment in public art and recreational infrastructure, funded in part by the Ignite Grant.",
+        "by_the_numbers": "The trail base is walkable, photoluminescent aggregate is on-site, and artwork includes 10 historic fun facts. The trail connects to Ninstar Park and is located between 400 and 300 West.",
+        "whats_next": "The binder will be laid on Wednesday of next week, followed by the scattering of photoluminescent stones on Thursday, May 28th. Board members are invited to participate in the stone scattering.",
+        "for_it_summary": "The board is excited about the innovative design and the collaborative effort to bring this project to fruition.",
+        "against_it_summary": null
+      },
+      "diagram_timeline": "timeline\n    title Trail and Artwork Completion\n    section Prior\n        Delayed delivery of photoluminescent aggregate due to Canadian postal strike\n    section This Meeting\n        2026-05-21 : Trail base walkable, photoluminescent aggregate on site\n        2026-05-21 2 : Octagon House artwork installation underway\n    section Next\n        Next Wednesday : Binder to be laid on the trail\n        Thursday May 28th : Photoluminescent stones to be scattered\n        Following paving : Slatted fence, bench, and landscaping to be installed",
+      "diagram_mindmap": "mindmap\n  root((Trail and Artwork Progress))\n    Trail Development\n    Trail-based stone in place; base walkable\n    Photoluminescent aggregate delivered\n    Connects to Ninstar Park\n    Located between 400 and 300 West\n    Octagon House Artwork\n    Silver dollar art coins with historic fun facts\n    Designed by Dennis West; President of Octagon House\n    Phrases include build date - 1819; designer - Jane Ross Reeves; cost - $2500...\n    Funding\n      Ignite Grant from Community Foundation\n    Timeline\n      Binder laid next Wednesday\n      Stones scattered Thursday; May 28th\n      Artwork installation following paving\n      Future Additions\n      Slatted fence\n      Bench\n      Low-maintenance landscaping\n      Call to Action\n      Board members invited to help scatter aggregate",
+      "diagram_timeline_lines": [
+        "Delayed delivery of photoluminescent aggregate due to Canadian postal strike",
+        "Trail base walkable, photoluminescent aggregate on site",
+        "Octagon House artwork installation underway",
+        "Binder to be laid on the trail",
+        "Photoluminescent stones to be scattered",
+        "Artwork installation following paving",
+        "Slatted fence, bench, and landscaping to be installed"
+      ],
+      "diagram_mindmap_lines": [
+        "Trail-based stone in place, base walkable",
+        "Photoluminescent aggregate delivered",
+        "Connects to Ninstar Park",
+        "Located between 400 and 300 West",
+        "Silver dollar art coins with historic fun facts",
+        "Designed by Dennis West, President of Octagon House",
+        "Phrases include build date (1819), designer (Jane Ross Reeves), cost ($2500 silver dollars), number of rooms/closets (16), and preservation efforts",
+        "Ignite Grant from Community Foundation",
+        "Binder laid next Wednesday",
+        "Stones scattered Thursday, May 28th",
+        "Artwork installation following paving",
+        "Slatted fence",
+        "Bench",
+        "Low-maintenance landscaping",
+        "Board members invited to help scatter aggregate"
+      ]
+    },
+    {
+      "decision_id": "D004",
+      "subject_id": "subject_danny_s_dream_internship_program_hancock_county",
+      "primary_place_id": "place_new_palestine_high_school_hancock_county",
+      "place_refs": [
+        "place_new_palestine_high_school_hancock_county",
+        "place_zion_lutheran_school_hancock_county",
+        "place_new_pal_elementary_schools_hancock_county"
+      ],
+      "legislation_refs": [],
+      "financial_item_refs": [
+        "FIN008",
+        "FIN009",
+        "FIN010"
+      ],
+      "headline": "Board Approves Letter of Support for Danny's Dream Internship Program",
+      "decision_statement": "The board unanimously approved a letter of support for Danny's Dream's grant application for a two-year internship program for New Palestine High School students, aimed at fostering interest in science and discovery through outdoor education.",
+      "primary_theme": "Education",
+      "outcome": "Approved",
+      "vote_tally": {
+        "yes": null,
+        "no": null
+      },
+      "human_element": {
+        "personal_stories": [],
+        "humor_and_light_moments": [],
+        "emotional_tone": {
+          "supporters": {
+            "intensity": "Low",
+            "primary_emotions": [
+              "Support",
+              "Appreciation"
+            ],
+            "plain_summary": "The board expressed strong support for Danny's Dreams' passion for students and their collaboration with the park system."
+          },
+          "opponents": {
+            "intensity": "Not applicable",
+            "primary_emotions": [],
+            "plain_summary": null
+          }
+        }
+      },
+      "competing_views": null,
+      "smart_brevity": {
+        "one_big_thing": "The Parks and Recreation Board has formally endorsed Danny's Dream's initiative to establish paid internships for high school students focused on outdoor education and STEM.",
+        "why_it_matters": "This program aims to foster an interest in science and discovery, promote appreciation for the natural world, and provide students with valuable hands-on experience, potentially leading to self-sustaining fundraising efforts.",
+        "big_picture": "Danny's Dream seeks to expand its community events and student involvement across Hancock County school districts through collaboration with local organizations and schools.",
+        "by_the_numbers": "The program offers two-year-long internships at $1,000 per semester ($2,000 total per internship), totaling $4,000 for two positions. The fundraising goal is $10,000.",
+        "whats_next": "The letter of support will be submitted to the White Family Grant, and the board wishes Danny's Dreams the best of luck with their application.",
+        "for_it_summary": "The board supports the program's mission to encourage creativity, foster interest in science, and develop responsibility and concern for the natural world among students.",
+        "against_it_summary": null
+      },
+      "diagram_timeline": "timeline\n    title Danny's Dream Internship Program Support\n    section Prior\n        Grant application deadline was earlier last week\n    section This Meeting\n        2026-05-21 : Board reviews summary of Danny's Dream grant proposal\n        2026-05-21 2 : Board approves letter of support\n    section Next\n        Letter of support to be submitted to White Family Grant\n        Community Foundation notified of late submission",
+      "diagram_mindmap": "mindmap\n  root((Danny's Dream Internship Program Support))\n    Program Overview\n    Two-year-long internships for New Palestine High School students\n    Focus on outdoor education; science; and discovery\n    5 hours/week at $20/hour; 10 weeks per semester\n    Goals\n    Foster interest in science and discovery\n    Promote appreciation; responsibility; and concern for the natural world\n    Become self-sustaining through fundraising\n    Expand to other school districts\n    Activities\n    Website updates; social media marketing\n    Digital newsletters\n    Event planning; fundraising coordination - e.g.; Earth Day\n    Assisting with Danny's Dream Club activities\n    Funding\n      White Family Grant application\n      Fundraising goal - $10;000 via social media; website; and activities\n      Collaboration\n      New Palestine High School Work-Based Learning and Earth Club\n      Hancock County Parks\n      Recycle Hancock\n      Area businesses; school districts; civic organizations\n      Zion Lutheran School - home base\n    Outcome\n      Board approved letter of support for grant application",
+      "diagram_timeline_lines": [
+        "Grant application deadline was earlier last week",
+        "Board reviews summary of Danny's Dream grant proposal",
+        "Board approves letter of support",
+        "Letter of support to be submitted to White Family Grant",
+        "Community Foundation notified of late submission"
+      ],
+      "diagram_mindmap_lines": [
+        "Two-year-long internships for New Palestine High School students",
+        "Focus on outdoor education, science, and discovery",
+        "5 hours/week at $20/hour, 10 weeks per semester",
+        "Foster interest in science and discovery",
+        "Promote appreciation, responsibility, and concern for the natural world",
+        "Become self-sustaining through fundraising",
+        "Expand to other school districts",
+        "Website updates, social media marketing",
+        "Digital newsletters",
+        "Event planning, fundraising coordination (e.g., Earth Day)",
+        "Assisting with Danny's Dream Club activities",
+        "White Family Grant application",
+        "Fundraising goal: $10,000 via social media, website, and activities",
+        "New Palestine High School Work-Based Learning and Earth Club",
+        "Hancock County Parks",
+        "Recycle Hancock",
+        "Area businesses, school districts, civic organizations",
+        "Zion Lutheran School (home base)",
+        "Board approved letter of support for grant application"
+      ]
+    }
+  ],
+  "agenda_legislation_map": [],
+  "_agenda_legislation_ingest": {
+    "labels_mapped": 0,
+    "refs_added": 0,
+    "agenda_rows": 0
+  },
+  "_legislation_validation": {
+    "legislation_count": 0,
+    "orphan_refs": [],
+    "fixed_refs": [],
+    "invalid_canonical_leg_id": [],
+    "items_checked": 0,
+    "ok": true
+  },
+  "event_date": "2026-05-21"
+}
