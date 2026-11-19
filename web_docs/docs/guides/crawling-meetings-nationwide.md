@@ -134,8 +134,10 @@ The loader writes one row per page, link or PDF, and replaces only its own rows 
 [#393](https://github.com/getcommunityone/open-navigator/issues/393) it leaves SuiteOne rows alone, so the order
 of the manifest load and the SuiteOne scrape doesn't matter.
 
-**Never pass `--apply-ddl` on a populated warehouse.** It drops and recreates the scraped meetings tables,
-SuiteOne rows included.
+`--apply-ddl` creates the three scraped meetings tables (migration 020). The migration drops and recreates them,
+SuiteOne rows included, so the loader **refuses** when any of them already holds rows and names the tables and their
+counts ([#403](https://github.com/getcommunityone/open-navigator/issues/403)). To rebuild on purpose, add
+`--drop-existing`; that deletes the rows. On a populated warehouse, leave both flags off and just load.
 
 ### Step 3b: extract the PDF text
 
