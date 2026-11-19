@@ -1597,18 +1597,21 @@ class YouTubeEventsLoader:
                             logger.debug(f"  ⏭️  Skipping unverified channel: {channel_title}")
                             continue
                     
-                    # Determine channel type
-                    channel_type = 'unknown'
+                    # Determine channel type (#562: one canonical label per kind)
+                    from scrapers.youtube.channel_type_normalize import normalize_channel_type
+
+                    channel_type = "unknown"
                     if channel_title:
                         title_lower = channel_title.lower()
-                        if any(word in title_lower for word in ['city', 'town', 'village', 'municipal']):
-                            channel_type = 'municipal'
-                        elif any(word in title_lower for word in ['county']):
-                            channel_type = 'county'
-                        elif any(word in title_lower for word in ['state', 'commonwealth']):
-                            channel_type = 'state'
-                        elif any(word in title_lower for word in ['school', 'district', 'education']):
-                            channel_type = 'school'
+                        if any(word in title_lower for word in ["city", "town", "village", "municipal"]):
+                            channel_type = "municipal"
+                        elif any(word in title_lower for word in ["county"]):
+                            channel_type = "county"
+                        elif any(word in title_lower for word in ["state", "commonwealth"]):
+                            channel_type = "state"
+                        elif any(word in title_lower for word in ["school", "district", "education"]):
+                            channel_type = "school"
+                    channel_type = normalize_channel_type(channel_type)
                     
                     # Add channel to list
                     channel_url = item.get('channel_url') or f"https://www.youtube.com/channel/{channel_id}"
@@ -2955,7 +2958,9 @@ class YouTubeEventsLoader:
             # makes any channel read as the jurisdiction's own (#514, #515).
             catalog_channel_title = real_channel_title(channel_title, jurisdiction_name)
             channel_url = channel.get('channel_url', f"https://www.youtube.com/channel/{channel_id}")
-            channel_type = channel.get('channel_type', 'unknown')
+            from scrapers.youtube.channel_type_normalize import normalize_channel_type
+
+            channel_type = normalize_channel_type(channel.get("channel_type", "unknown"))
             discovery_method = str(channel.get('discovery_method') or 'jurisdictions_details').strip() or 'jurisdictions_details'
             confidence_score_raw = channel.get('confidence_score')
             confidence_score = None
