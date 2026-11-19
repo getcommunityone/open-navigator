@@ -251,6 +251,10 @@ from scrapers.discovery.contact_extract_from_html import (
     infer_profile_url_from_source_page,
     merge_contact_manifest_rows,
 )
+from scrapers.discovery.retry_failed_shallow import (
+    collect_retry_geoids_from_scraped_manifests,
+    discover_scraped_jurisdiction_types,
+)
 from scripts.discovery.contact_directory_heuristics import classify_contact_directory_page
 from scripts.discovery.bronze_contacts_scraped_persist import insert_bronze_contacts_scraped
 from scripts.discovery.contacts_bundle import build_contacts_bundle, write_contacts_bundle_json
@@ -1264,58 +1268,6 @@ def load_meeting_scrape_jobs_for_geoids(
             }
         )
     return jobs
-
-
-def _manifest_page_count(path: Path) -> int:
-    try:
-        d = json.loads(path.read_text(encoding="utf-8"))
-        return len(d.get("pages_fetched") or [])
-    except Exception:
-        return -1
-
-
-def collect_retry_geoids_from_scraped_manifests(
-    *,
-    state: str,
-    jtype: str,
-    scraped_root: Path,
-    shallow_max_pages: int,
-    retry_modes: Set[str],
-) -> List[str]:
-    """
-    GEOIDs whose manifest under ``scraped_root`` qualifies for retry: **failed** (0 HTML pages
-    fetched) or **shallow** (``1 <= pages < shallow_max_pages``). Unreadable or missing manifests
-    are skipped.
-    """
-    st = (state or "").strip().upper()
-    jt = (jtype or "").strip().lower()
-    if not jt or jt == "all":
-        raise ValueError("collect_retry_geoids_from_scraped_manifests requires a concrete jtype (e.g. county)")
-    cap = max(2, int(shallow_max_pages))
-    base = scraped_root / _fs_safe_segment(st) / _fs_safe_segment(jt)
-    prefix = f"{jt}_"
-    found: Set[str] = set()
-    if not base.is_dir():
-        return []
-    for mf in sorted(base.glob(f"{jt}_*/_manifest.json")):
-        n = _manifest_page_count(mf)
-        if n < 0:
-            continue
-        folder = mf.parent.name
-        if not folder.startswith(prefix):
-            continue
-        geoid = folder[len(prefix) :]
-        if not geoid:
-            continue
-        if "failed" in retry_modes and n == 0:
-            found.add(geoid)
-        if "shallow" in retry_modes and 0 < n < cap:
-            found.add(geoid)
-
-    def _sort_key(g: str) -> Tuple[int, Any]:
-        return (0, int(g)) if g.isdigit() else (1, g)
-
-    return sorted(found, key=_sort_key)
 
 
 def _site_root_url(url: str) -> str:
@@ -3784,33 +3736,54 @@ def main() -> None:
             raise SystemExit("--retry-failed-shallow requires --from-db")
         if (args.geoids or "").strip() or (args.geoid or "").strip():
             raise SystemExit("--retry-failed-shallow cannot be combined with --geoid or --geoids")
-        if (args.type or "").strip().lower() in ("all", ""):
-            raise SystemExit("--retry-failed-shallow requires a concrete --type (e.g. county), not 'all'")
         scraped_root = Path(args.output_root).expanduser() if args.output_root else default_scraped_meetings_root()
         retry_modes = {m.strip().lower() for m in (args.retry_mode or "").split(",") if m.strip()}
-        geoids = collect_retry_geoids_from_scraped_manifests(
-            state=state,
-            jtype=args.type,
-            scraped_root=scraped_root,
-            shallow_max_pages=args.shallow_max_pages,
-            retry_modes=retry_modes,
-        )
-        logger.info(
-            "meetings_retry_manifest_targets state={} type={} n_geoids={} retry_modes={} shallow_max_pages={} root={}",
-            state,
-            args.type,
-            len(geoids),
-            ",".join(sorted(retry_modes)) or "(none)",
-            args.shallow_max_pages,
-            scraped_root,
-        )
-        if not geoids:
-            rel = scraped_root / _fs_safe_segment(state) / _fs_safe_segment(args.type)
-            raise SystemExit(
-                f"No failed/shallow manifests found under {rel} for --retry-mode={args.retry_mode!r}. "
-                "Run a normal scrape first, or adjust --shallow-max-pages / paths."
+        type_arg = (args.type or "").strip().lower()
+        if type_arg in ("", "all"):
+            jtypes = discover_scraped_jurisdiction_types(scraped_root, state)
+            if not jtypes:
+                raise SystemExit(
+                    f"No jurisdiction-type folders under {scraped_root / _fs_safe_segment(state)} "
+                    "for --retry-failed-shallow --type all. Run a normal scrape first."
+                )
+        else:
+            jtypes = [args.type]
+        jobs = []
+        total_geoids = 0
+        for jt in jtypes:
+            geoids = collect_retry_geoids_from_scraped_manifests(
+                state=state,
+                jtype=jt,
+                scraped_root=scraped_root,
+                shallow_max_pages=args.shallow_max_pages,
+                retry_modes=retry_modes,
             )
-        jobs = load_meeting_scrape_jobs_for_geoids(state, args.type, ",".join(geoids))
+            logger.info(
+                "meetings_retry_manifest_targets state={} type={} n_geoids={} retry_modes={} shallow_max_pages={} root={}",
+                state,
+                jt,
+                len(geoids),
+                ",".join(sorted(retry_modes)) or "(none)",
+                args.shallow_max_pages,
+                scraped_root,
+            )
+            if not geoids:
+                continue
+            total_geoids += len(geoids)
+            jobs.extend(load_meeting_scrape_jobs_for_geoids(state, jt, ",".join(geoids)))
+        if not jobs:
+            rel = scraped_root / _fs_safe_segment(state)
+            raise SystemExit(
+                f"No failed/shallow manifests found under {rel} for --retry-mode={args.retry_mode!r} "
+                f"(types={','.join(jtypes)}). Run a normal scrape first, or adjust --shallow-max-pages / paths."
+            )
+        logger.info(
+            "meetings_retry_manifest_total state={} types={} n_geoids={} n_jobs={}",
+            state,
+            ",".join(jtypes),
+            total_geoids,
+            len(jobs),
+        )
     elif (args.geoids or "").strip():
         if not args.from_db:
             raise SystemExit("--geoids requires --from-db to resolve website_url from the warehouse")
