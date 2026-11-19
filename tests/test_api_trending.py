@@ -290,3 +290,63 @@ def test_bounded_cache_evicts_oldest_when_full(monkeypatch: pytest.MonkeyPatch):
     assert trending._get_cached("k1") is None
     assert trending._get_cached("k2") == "v2"
     assert trending._get_cached("k4") == "v4"
+
+
+@pytest.mark.asyncio
+async def test_inflight_locks_do_not_grow_across_distinct_cities(monkeypatch: pytest.MonkeyPatch):
+    """#447: one lock per free-text ?city= value used to stay in the map for the life of the process."""
+    monkeypatch.setattr(
+        trending,
+        "get_everyorg_causes",
+        lambda limit=20, state=None, city=None: [
+            trending.CauseItem(cause_id="environment", name="Environment", icon="🌍", category="environment")
+        ],
+    )
+    for i in range(200):
+        await trending.get_trending_causes(source="everyorg", limit=6, level=None, state="Georgia", city=f"City {i}")
+    assert trending._inflight_locks == {}
+    assert trending._inflight_users == {}
+
+
+@pytest.mark.asyncio
+async def test_inflight_lock_is_removed_even_when_the_fill_fails(monkeypatch: pytest.MonkeyPatch):
+    def boom(limit=20, state=None, city=None):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(trending, "get_everyorg_causes", boom)
+    with pytest.raises(RuntimeError):
+        await trending.get_trending_causes(source="everyorg", limit=6, level=None, state=None, city="Atlanta")
+    assert trending._inflight_locks == {} and trending._inflight_users == {}
+
+
+@pytest.mark.asyncio
+async def test_inflight_lock_is_kept_while_a_waiter_needs_it_and_never_removes_a_newer_lock():
+    key = "causes:test"
+    first_in, release_first = asyncio.Event(), asyncio.Event()
+
+    async def first():
+        async with trending._inflight(key):
+            first_in.set()
+            await release_first.wait()
+
+    async def second():
+        async with trending._inflight(key):
+            pass
+
+    t1 = asyncio.create_task(first())
+    await first_in.wait()
+    t2 = asyncio.create_task(second())
+    await asyncio.sleep(0)                 # second is now waiting on the same lock
+    assert trending._inflight_users[key] == 2
+    held = trending._inflight_locks[key]
+    release_first.set()
+    await asyncio.gather(t1, t2)
+    assert trending._inflight_locks == {} and trending._inflight_users == {}
+
+    # a lock another request put in the map is never removed by a request that held an older one
+    stale = asyncio.Lock()
+    trending._inflight_locks[key] = stale
+    trending._inflight_users[key] = 1
+    async with trending._inflight("other"):
+        pass
+    assert trending._inflight_locks[key] is stale and held is not stale

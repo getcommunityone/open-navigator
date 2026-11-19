@@ -11,7 +11,7 @@ not been run yet (during the Stage-2 transition).
 import asyncio
 import os
 import time
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -53,12 +53,37 @@ _CACHE_TTL_S: float = 300.0
 _MAX_CACHE_ENTRIES: int = 128
 _trending_cache: Dict[str, Tuple[float, Any]] = {}
 _inflight_locks: Dict[str, asyncio.Lock] = {}
+_inflight_users: Dict[str, int] = {}
 
 
 def clear_trending_cache() -> None:
     """Clear in-memory trending cache and inflight locks."""
     _trending_cache.clear()
     _inflight_locks.clear()
+    _inflight_users.clear()
+
+
+@asynccontextmanager
+async def _inflight(cache_key: str):
+    """Hold the per-key lock that dedupes concurrent cache fills, and drop it once the last user is done.
+
+    ``?city=`` is free text, so keeping every key's lock for the life of the process would grow the map without
+    bound (#447). The lock is removed when its last waiter leaves, and only if the map still holds *this* lock,
+    so one request can never remove a lock another request just created.
+    """
+    lock = _inflight_locks.setdefault(cache_key, asyncio.Lock())
+    _inflight_users[cache_key] = _inflight_users.get(cache_key, 0) + 1
+    try:
+        async with lock:
+            yield
+    finally:
+        left = _inflight_users.get(cache_key, 1) - 1
+        if left > 0:
+            _inflight_users[cache_key] = left
+        else:
+            _inflight_users.pop(cache_key, None)
+            if _inflight_locks.get(cache_key) is lock:
+                del _inflight_locks[cache_key]
 
 
 def _get_cached(key: str) -> Optional[Any]:
@@ -369,8 +394,7 @@ async def get_trending_causes(
     if cached is not None:
         return cached
 
-    lock = _inflight_locks.setdefault(cache_key, asyncio.Lock())
-    async with lock:
+    async with _inflight(cache_key):
         cached = _get_cached(cache_key)
         if cached is not None:
             return cached
@@ -463,8 +487,7 @@ async def get_trending_topics(
     if cached is not None:
         return cached
 
-    lock = _inflight_locks.setdefault(cache_key, asyncio.Lock())
-    async with lock:
+    async with _inflight(cache_key):
         cached = _get_cached(cache_key)
         if cached is not None:
             return cached
@@ -532,8 +555,7 @@ async def get_trending_stats():
     if cached is not None:
         return cached
 
-    lock = _inflight_locks.setdefault(cache_key, asyncio.Lock())
-    async with lock:
+    async with _inflight(cache_key):
         cached = _get_cached(cache_key)
         if cached is not None:
             return cached
