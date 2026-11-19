@@ -13,34 +13,45 @@ Each item writes ``<name>.diarized.json`` and one row in ``usage.jsonl``: GPU, s
 cost (GPU time at Modal's published rate; CPU and memory are extra, so the invoice is a little higher). A batch is
 capped (``--limit``, default 3) so one run can't use the month's free credit.
 
+Colab is where runs go (``llm.gpu.colab_diarize``, ``web_docs/docs/deployment/colab-gpu-diarize.md``, #297); this
+Modal path is kept but isn't used for runs.
+
 The plain parts (``plan_batch``, ``estimated_cost_usd``, ``usage_row``, ``source_of``, ``output_name``) need no Modal
-and are tested in ``tests/test_modal_diarize.py``.
+and are tested in ``tests/test_modal_diarize.py``; the ones Colab shares live in ``llm.gpu.diarize_common``.
 """
 
 from __future__ import annotations
 
-import html as html_lib
 import json
 import posixpath
-import re
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+
+from llm.gpu.diarize_common import (  # noqa: F401 - re-exported for callers and tests of the Modal path
+    DEFAULT_LIMIT,
+    FETCH_HEADERS,
+    MEDIA_EXTENSIONS,
+    MEETING_LANGUAGE,
+    WHISPERX_PACKAGES,
+    base_usage_row,
+    exit_code,
+    fetch_media,
+    is_url,
+    media_link_from_html,
+    output_name,
+    plan_batch,
+    player_sources,
+)
 
 APP_NAME = "open-navigator-gpu"
 VOLUME_NAME = "open-navigator-audio"
 VOLUME_MOUNT = "/audio"
 HF_SECRET_NAME = "huggingface"      # Modal secret holding HF_TOKEN (pyannote's diarization models are gated)
 DEFAULT_GPU = "T4"                  # cheapest; WhisperX "small" fits in its 16 GB
-DEFAULT_LIMIT = 3
-MEETING_LANGUAGE = "en"             # US local meetings; a guess from a silent opening can pick a language with no aligner
 TIMEOUT_SECONDS = 3600              # one long meeting on a T4; a hung run stops here
-# whisperx 3.8 needs numpy>=2.1 and ctranslate2>=4.5. A numpy<2 pin made pip fall back to ctranslate2 4.4.0, which
-# Debian trixie (Modal's base) refuses to load ("cannot enable executable stack"); whisperx pins torch itself.
-IMAGE_PACKAGES = ["whisperx>=3.8,<4", "ctranslate2>=4.6,<5", "requests"]
-# Some city archives answer python-requests with an error page; a plain browser identity gets the real one.
-FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"}
+IMAGE_PACKAGES = WHISPERX_PACKAGES  # the same pins the Colab notebook installs
 RETRIES = 1                         # a lost or preempted GPU can pass on its own; bad audio fails again and stops
 
 # Modal's published GPU rates, US$ per second (modal.com/pricing, as reported 2026-11-14). GPU time only.
@@ -56,16 +67,6 @@ GPU_USD_PER_SECOND = {
 }
 
 
-def plan_batch(items: list[str], limit: int = DEFAULT_LIMIT) -> list[str]:
-    """Items to run: trimmed, empty and repeated ones dropped, at most ``limit`` (at least one)."""
-    out: list[str] = []
-    for item in items:
-        item = (item or "").strip()
-        if item and item not in out:
-            out.append(item)
-    return out[: max(1, int(limit))]
-
-
 def estimated_cost_usd(seconds: float, gpu: str, rates: dict[str, float] | None = None) -> float | None:
     """GPU seconds at the published rate; None for a GPU with no rate (never a guessed figure)."""
     rate = (rates or GPU_USD_PER_SECOND).get(gpu.upper())
@@ -74,78 +75,17 @@ def estimated_cost_usd(seconds: float, gpu: str, rates: dict[str, float] | None 
 
 def usage_row(item: str, gpu: str, started_ts: str, seconds: float, status_code: str) -> dict:
     """One usage row per item, in the shape of ``llm.usage`` GPU rows, marked as an estimate."""
-    return {
-        "platform_name": "modal",
-        "step_name": "whisperx_diarization",
-        "item_name": item,
-        "gpu_name": gpu.upper(),
-        "started_ts": started_ts,
-        "duration_seconds": round(float(seconds), 3),
-        "gpu_hours": float(seconds) / 3600.0,
-        "estimated_cost_usd": estimated_cost_usd(seconds, gpu),
-        "is_estimated": True,
-        "run_status_code": status_code,
-    }
+    return base_usage_row("modal", item, gpu, started_ts, seconds, status_code, estimated_cost_usd(seconds, gpu))
 
 
 def source_of(item: str) -> tuple[str, str]:
     """('url', item) for an http(s) URL, else ('volume', path inside the mounted volume)."""
-    if re.match(r"^https?://", item):
+    if is_url(item):
         return "url", item
     path = posixpath.normpath(posixpath.join(VOLUME_MOUNT, item.lstrip("/")))
     if not path.startswith(VOLUME_MOUNT + "/"):
         raise ValueError(f"{item!r} points outside the volume {VOLUME_NAME}")
     return "volume", path
-
-
-MEDIA_EXTENSIONS = (".mp4", ".mp3", ".m4a", ".opus", ".wav", ".webm", ".ogg", ".m3u8")
-_ANCHOR = re.compile(r"<a\b[^>]*?href\s*=\s*[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", re.IGNORECASE | re.DOTALL)
-_PLAYER_SRC = re.compile(r"<(?:video|audio|source|iframe|embed)\b[^>]*?\bsrc\s*=\s*[\"']([^\"']+)", re.IGNORECASE)
-_OG_VIDEO = re.compile(r"<meta\b[^>]*?property\s*=\s*[\"']og:video(?::secure_url|:url)?[\"'][^>]*?"
-                       r"content\s*=\s*[\"']([^\"']+)", re.IGNORECASE)
-_QUOTED_URL = re.compile(r"[\"'](https?:(?:\\?/){2}[^\"'\s<>]+)[\"']")
-
-
-def _is_media(url: str) -> bool:
-    return urlsplit(url).path.lower().endswith(MEDIA_EXTENSIONS)
-
-
-def media_link_from_html(html: str, page_url: str) -> str | None:
-    """The meeting page's media file: a labelled or direct link, the embedded player's source, its og:video, or a
-    media URL inside a script (HLS ``.m3u8`` included); None if there is none.
-
-    Archives such as CCTV hide a short-lived signed file link behind "Download", which is hard to copy on a phone.
-    """
-    def full(u: str) -> str:
-        return urljoin(page_url, html_lib.unescape(u.strip()).replace("\\/", "/"))
-
-    for href, text in _ANCHOR.findall(html):
-        url, label = full(href), re.sub(r"<[^>]+>", " ", text)
-        if _is_media(url) or (re.search(r"download", label, re.IGNORECASE)
-                              and re.search(r"mp4|mp3|audio|video", label, re.IGNORECASE)):
-            return url
-    for found in (_PLAYER_SRC.findall(html), _OG_VIDEO.findall(html), _QUOTED_URL.findall(html)):
-        for u in found:
-            if _is_media(full(u)):
-                return full(u)
-    return None
-
-
-def player_sources(html: str, page_url: str) -> list[str]:
-    """Up to 5 iframe, embed and player sources on a page, so a page with no media link says where to look next."""
-    return [urljoin(page_url, html_lib.unescape(u)) for u in _PLAYER_SRC.findall(html)][:5]
-
-
-def exit_code(rows: list[dict]) -> int:
-    """1 when a batch ran items and none succeeded, so the GitHub run shows failed instead of green."""
-    return 1 if rows and not any(r.get("run_status_code") == "ok" for r in rows) else 0
-
-
-def output_name(item: str) -> str:
-    """A file-safe output name for an item."""
-    base = re.sub(r"^https?://[^/]+/", "", item).split("?")[0]
-    base = re.sub(r"\.[A-Za-z0-9]{2,4}$", "", base)
-    return re.sub(r"[^A-Za-z0-9._-]+", "_", base).strip("_") + ".diarized.json"
 
 
 # ---------------------------------------------------------------------------- Modal (only when modal is installed)
@@ -168,40 +108,13 @@ if modal is not None:
                   volumes={VOLUME_MOUNT: _volume}, secrets=[modal.Secret.from_name(HF_SECRET_NAME)])
     def diarize(item: str, model_size: str = "small") -> dict:
         """Run WhisperX on one item; returns {result, usage}. Never logs transcript text."""
-        import tempfile
-
-        import requests
-
         from llm.gemini.diarize_postprocess import diarize_audio_whisperx
 
         started = datetime.now(UTC).isoformat()
         t0 = time.monotonic()
         kind, where = source_of(item)
         try:
-            if kind == "url":
-                tmp = Path(tempfile.mkdtemp()) / "audio"
-                head = requests.get(where, stream=True, timeout=120, headers=FETCH_HEADERS)
-                head.raise_for_status()
-                if head.headers.get("content-type", "").startswith("text/html"):
-                    link = media_link_from_html(head.text, head.url)
-                    if not link:
-                        raise ValueError(f"no audio or video link on that page; players: {player_sources(head.text, head.url)}")
-                    where = link
-                head.close()
-                if urlsplit(where).path.lower().endswith(".m3u8"):   # a stream: ffmpeg pulls just the audio
-                    import subprocess
-                    tmp = tmp.with_suffix(".wav")
-                    subprocess.run(["ffmpeg", "-loglevel", "error", "-user_agent", FETCH_HEADERS["User-Agent"], "-i", where, "-vn", "-ac", "1", "-ar", "16000",
-                                    str(tmp)], check=True, timeout=TIMEOUT_SECONDS)
-                else:
-                    with requests.get(where, stream=True, timeout=120, headers=FETCH_HEADERS) as r:
-                        r.raise_for_status()
-                        with tmp.open("wb") as f:
-                            for chunk in r.iter_content(1 << 20):
-                                f.write(chunk)
-                audio = tmp
-            else:
-                audio = Path(where)
+            audio = fetch_media(where, Path(tempfile.mkdtemp())) if kind == "url" else Path(where)
             result = diarize_audio_whisperx(audio, model_size=model_size, device="cuda", language=MEETING_LANGUAGE,
                                             allow_no_speakers=True)
             status = "ok"

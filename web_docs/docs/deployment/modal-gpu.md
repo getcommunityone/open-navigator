@@ -8,7 +8,11 @@ description: Run speech-to-text and speaker separation on a Modal GPU from GitHu
 **What it's for:** the GPU step that turns a meeting recording into a transcript with speakers (WhisperX), without a
 local GPU. It runs on Modal, a serverless GPU service whose free Starter plan includes a monthly compute credit, and
 starts from GitHub Actions, so it can be run from a phone
-([#314](https://github.com/getcommunityone/open-navigator/issues/314)). Colab (#297) stays the hands-on option.
+([#314](https://github.com/getcommunityone/open-navigator/issues/314)).
+
+**Runs go to Colab, not here.** On November 17, 2026, the owner decided that diarization runs on the owner's Colab
+([GPU compute decisions](../development/gpu-compute-decisions.md)). Use [GPU speakers on Colab](colab-gpu-diarize.md).
+This workflow and its code are kept but not used for runs.
 
 <details>
 <summary><b>Set it up from a phone (about 10 minutes)</b></summary>

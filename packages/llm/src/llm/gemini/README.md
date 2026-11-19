@@ -146,6 +146,11 @@ Single video:
   --jurisdiction-id municipality_0177256 --state AL
 ```
 
+**WhisperX on a GPU:** run it on the owner's Colab with
+[`notebooks/colab_gpu_diarize.ipynb`](../../../../../notebooks/colab_gpu_diarize.ipynb) (`python -m llm.gpu.colab_diarize`).
+It reads audio from the Databricks landing volume and writes `crawl/diarized/<run_date>/`. Steps, secrets and cost:
+`web_docs/docs/deployment/colab-gpu-diarize.md` (#297). Each run needs the owner's yes (`AGENTS.md`, "GPU and paid compute").
+
 **WhisperX** (`HF_TOKEN` + `.venv/bin/pip install -r requirements-transcript-diarize.txt`):
 
 If enrich skips with `numpy.core.multiarray failed to import`, WhisperX pulled NumPy 2.x into `.venv`. Pin 1.x:
