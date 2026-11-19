@@ -74,8 +74,14 @@ WHERE contact_submission_id = <id>;
 - Rule: clear `sender_email` (set it to `NULL`) 180 days after `created_at`. The rest of the row stays, so the issue link
   still works.
 - 180 days is enough time to reply and follow up on any issue.
-- **This is not automated yet.** Until [#456](https://github.com/getcommunityone/open-navigator/issues/456) ships, a
-  maintainer runs this by hand:
+- **This is automated** ([#456](https://github.com/getcommunityone/open-navigator/issues/456)). The job is
+  `python -m hosting.retention.contact_submission` (`packages/hosting/src/hosting/retention/contact_submission.py`).
+  The `Contact form retention` workflow (`.github/workflows/contact-retention.yml`) runs it every Monday at 04:17 UTC
+  against the API's database, using the repository secret `API_DATABASE_URL`. If that secret is missing the run
+  warns and clears nothing, so the secret is part of keeping this promise.
+- Check it with `python -m hosting.retention.contact_submission --dry-run`, which counts the rows it would clear and
+  changes nothing. The output is a count, never an email.
+- The job does exactly what this SQL does, so a maintainer can still run it by hand:
 
 ```sql
 UPDATE contact_submission

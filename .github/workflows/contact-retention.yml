@@ -1,0 +1,50 @@
+# Clears contact-form senders' emails 180 days after they wrote (#456). The rule and the reason are in
+# web_docs/docs/development/contact-form-privacy.md. It runs against the API's own database, and only there:
+# the secret API_DATABASE_URL must be that database's PostgreSQL URL. Without the secret the job says so and stops.
+name: Contact form retention
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'   # Mondays 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Count the rows that would be cleared and change nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  clear-expired-emails:
+    name: Clear expired sender emails
+    if: github.repository == 'getcommunityone/open-navigator'
+    runs-on: ubuntu-latest
+    env:
+      API_DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
+    steps:
+      - name: Check the database secret is set
+        id: gate
+        run: |
+          if [ -z "$API_DATABASE_URL" ]; then
+            echo "::warning title=Retention not run::The API_DATABASE_URL secret is not set, so no emails were cleared (#456)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: '3.11'
+      - name: Install the two libraries the job uses
+        if: steps.gate.outputs.run == 'true'
+        run: pip install psycopg2-binary loguru
+      - name: Clear sender emails older than 180 days
+        if: steps.gate.outputs.run == 'true'
+        env:
+          PYTHONPATH: packages/hosting/src
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+        run: python -m hosting.retention.contact_submission --days 180 --database-url "$API_DATABASE_URL" $DRY_RUN
