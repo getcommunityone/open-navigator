@@ -1,5 +1,5 @@
 /**
- * ChatGPT-style thread built on assistant-ui primitives, styled to Open Navigator.
+ * Main conversation pane — assistant-ui primitives (#630 / #652).
  */
 import {
   ComposerPrimitive,
@@ -27,19 +27,10 @@ function UserBubble() {
   )
 }
 
-export function MeetingChatThread({ scopeLabel }: { scopeLabel: string }) {
+export function MeetingChatThread() {
   return (
-    <ThreadPrimitive.Root className="flex h-full min-h-[28rem] flex-col bg-gradient-to-b from-slate-50 to-white">
-      <div className="border-b border-slate-200/80 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Ask meetings
-        </p>
-        <p className="text-sm text-slate-700">
-          Scope: <span className="font-medium text-primary-700">{scopeLabel}</span>
-        </p>
-      </div>
-
-      <ThreadPrimitive.Viewport className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+    <ThreadPrimitive.Root className="flex h-full min-h-0 flex-col bg-gradient-to-b from-slate-50 to-white">
+      <ThreadPrimitive.Viewport className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-6">
         <ThreadPrimitive.Messages
           components={{
             UserMessage: UserBubble,
@@ -49,8 +40,8 @@ export function MeetingChatThread({ scopeLabel }: { scopeLabel: string }) {
         <ThreadPrimitive.ViewportFooter />
       </ThreadPrimitive.Viewport>
 
-      <ComposerPrimitive.Root className="border-t border-slate-200/80 bg-white p-3">
-        <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
+      <ComposerPrimitive.Root className="border-t border-slate-200/80 bg-white p-3 sm:px-6">
+        <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
           <ComposerPrimitive.Input
             placeholder="Ask about budgets, zoning, fluoride…"
             rows={1}
@@ -60,8 +51,8 @@ export function MeetingChatThread({ scopeLabel }: { scopeLabel: string }) {
             Send
           </ComposerPrimitive.Send>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Answers use meeting summaries only unless you ask for a quote. Never invents figures.
+        <p className="mx-auto mt-2 max-w-3xl text-xs text-slate-500">
+          Never invents figures. Cite only meetings returned for this scope.
         </p>
       </ComposerPrimitive.Root>
     </ThreadPrimitive.Root>
