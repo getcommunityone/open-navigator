@@ -31,3 +31,11 @@ def test_create_sql_has_no_text_payload_and_singular_name():
     assert "context" not in CREATE_SQL.lower()
     assert "file_sha256" in CREATE_SQL
     assert "git_commit_sha" in CREATE_SQL
+
+
+def test_estimate_scales_to_200k():
+    from llm.ner.spot_vote_phrases import estimate_full_catalog
+
+    est = estimate_full_catalog(videos_scanned=100, hits=250, table_rows=250, table_bytes=50_000)
+    assert est["estimate_200k_hits"] == 500_000
+    assert est["estimate_200k_bytes"] == 100_000_000
