@@ -39,3 +39,16 @@ def test_estimate_scales_to_200k():
     est = estimate_full_catalog(videos_scanned=100, hits=250, table_rows=250, table_bytes=50_000)
     assert est["estimate_200k_hits"] == 500_000
     assert est["estimate_200k_bytes"] == 100_000_000
+
+
+def test_cluster_groups_nearby_hits():
+    from llm.ner.candidates import cluster_candidates
+    from llm.ner.spot import VotePhraseHit
+
+    hits = [
+        VotePhraseHit("v", "motion_made", 10.0, 0, 5),
+        VotePhraseHit("v", "result", 40.0, 0, 5),
+        VotePhraseHit("v", "motion_made", 400.0, 0, 5),
+    ]
+    clusters = cluster_candidates("v", [{"text": "x", "start": 10.0}], hits, window_seconds=90.0)
+    assert len(clusters) == 2

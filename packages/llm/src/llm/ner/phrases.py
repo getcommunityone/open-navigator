@@ -4,6 +4,46 @@ from __future__ import annotations
 
 import re
 
+# Plain strings for spaCy EntityRuler (Task 4 candidates JSONL).
+PHRASE_STRINGS: dict[str, list[str]] = {
+    "motion_made": [
+        "i move to",
+        "motion to adopt",
+        "motion to approve",
+        "so moved",
+    ],
+    "seconded": [
+        "second",
+        "i'll second",
+        "i second",
+        "i second that",
+    ],
+    "vote_called": [
+        "all in favor",
+        "roll call",
+        "call the question",
+    ],
+    "vote_cast": [
+        "aye",
+        "nay",
+        "yes",
+        "no",
+        "abstain",
+    ],
+    "result": [
+        "motion carries",
+        "motion passes",
+        "motion fails",
+        "unanimous",
+    ],
+    "subject_cue": [
+        "ordinance number",
+        "resolution",
+        "agenda item",
+        "public hearing",
+    ],
+}
+
 # Raw alternation fragments per phrase_code (design table + stock council phrasing).
 _PHRASE_RAW: dict[str, list[str]] = {
     "motion_made": [
