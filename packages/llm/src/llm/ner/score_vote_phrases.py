@@ -13,7 +13,7 @@ from loguru import logger
 
 from core_lib.paths import repo_root
 from llm.ner.score import load_gemini_anchors, load_hits_by_video, score_anchors
-from llm.ner.store import TABLE, table_stats
+from llm.ner.store import TABLE, ensure_table, table_stats
 
 
 def _resolve_database_url(args: argparse.Namespace) -> str | None:
@@ -50,6 +50,7 @@ def main(argv: list[str] | None = None) -> int:
 
     conn = psycopg2.connect(database_url)
     try:
+        ensure_table(conn)
         stats = table_stats(conn)
     finally:
         conn.close()
