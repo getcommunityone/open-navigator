@@ -4,28 +4,37 @@ import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'fs'
 import path from 'path'
 
-/** Local writable @assistant-ui tree when root-owned node_modules blocks npm (#630). */
+/**
+ * Local writable @assistant-ui tree when root-owned node_modules blocks npm.
+ * Only alias when the real packages are missing — directory aliases break
+ * package exports subpaths (@assistant-ui/core/react, …) under Vite 8/rolldown.
+ */
+const auiFromNodeModules = path.resolve(
+  __dirname,
+  'node_modules/@assistant-ui/react/package.json',
+)
 const auiVendor = path.resolve(__dirname, 'vendor/aui-nm/node_modules/@assistant-ui/react')
-const auiAliases = fs.existsSync(auiVendor)
-  ? {
-      '@assistant-ui/react': path.resolve(
-        __dirname,
-        'vendor/aui-nm/node_modules/@assistant-ui/react',
-      ),
-      '@assistant-ui/core': path.resolve(
-        __dirname,
-        'vendor/aui-nm/node_modules/@assistant-ui/core',
-      ),
-      '@assistant-ui/store': path.resolve(
-        __dirname,
-        'vendor/aui-nm/node_modules/@assistant-ui/store',
-      ),
-      '@assistant-ui/tap': path.resolve(
-        __dirname,
-        'vendor/aui-nm/node_modules/@assistant-ui/tap',
-      ),
-    }
-  : {}
+const auiAliases =
+  !fs.existsSync(auiFromNodeModules) && fs.existsSync(auiVendor)
+    ? {
+        '@assistant-ui/react': path.resolve(
+          __dirname,
+          'vendor/aui-nm/node_modules/@assistant-ui/react',
+        ),
+        '@assistant-ui/core': path.resolve(
+          __dirname,
+          'vendor/aui-nm/node_modules/@assistant-ui/core',
+        ),
+        '@assistant-ui/store': path.resolve(
+          __dirname,
+          'vendor/aui-nm/node_modules/@assistant-ui/store',
+        ),
+        '@assistant-ui/tap': path.resolve(
+          __dirname,
+          'vendor/aui-nm/node_modules/@assistant-ui/tap',
+        ),
+      }
+    : {}
 
 // https://vitejs.dev/config/
 export default defineConfig({
