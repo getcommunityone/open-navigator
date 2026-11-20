@@ -203,3 +203,4 @@ open-navigator-backups/**
 .backup-staging/
 backups/
 *.dump
+.worktrees/
