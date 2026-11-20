@@ -19,7 +19,7 @@ Examples::
     # Analyze the most recently updated video only
     python -m llm.gemini.browser_policy_analysis --jurisdiction-id tuscaloosa_0177256 --limit 1
 
-    # Subscription drip: newest 5 recent meetings not yet analyzed (no API $) (#624)
+    # Subscription drip: newest 5 with warehouse YouTube captions (no API $) (#624, #626)
     python -m llm.gemini.browser_policy_analysis \\
         --jurisdiction-id tuscaloosa_0177256 --newest 5 --dry-run
     python -m llm.gemini.browser_policy_analysis \\
@@ -31,8 +31,10 @@ Examples::
     # Debug blank page / login (no prompt sent)
     python -m llm.gemini.browser_policy_analysis --open-only --pause-after-open
 
-    # Recommended on WSL: start Chrome yourself, then attach (avoids about:blank + profile locks)
-    google-chrome --remote-debugging-port=9222
+    # Recommended on WSL: start Chrome yourself, then attach (avoids about:blank + profile locks).
+    # Newer Chrome requires --user-data-dir for --remote-debugging-port (else CDP never listens).
+    mkdir -p "$HOME/.config/chrome-cdp"
+    google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/.config/chrome-cdp"
     python -m llm.gemini.browser_policy_analysis --cdp-url http://127.0.0.1:9222 --open-only --pause-after-open
 
     # Or isolated Playwright Chromium profile (sign into Google once)
@@ -41,7 +43,7 @@ Examples::
     # Loop URLs in one Gemini tab (reloads gemini.google.com between videos)
     python -m llm.gemini.browser_policy_analysis --fresh-profile --limit 3
 
-    # With CDP (Chrome already running with --remote-debugging-port=9222)
+    # With CDP (Chrome already running with --remote-debugging-port=9222 --user-data-dir=...)
     python -m llm.gemini.browser_policy_analysis --cdp-url http://127.0.0.1:9222 --limit 5
 
     # WSL: point at Windows Chrome user data (optional)
@@ -98,11 +100,17 @@ INPUT_SELECTORS = (
     'div[contenteditable="true"]',
     "textarea",
 )
+# Gemini Neon: aria is "Send message"; container is data-test-id=send-button-container.
+# Plain Enter / Ctrl+Enter do NOT submit (#629).
 SEND_BUTTON_SELECTORS = (
-    'button[aria-label*="Send" i]',
+    'button[aria-label*="Send message" i]',
+    'button[aria-label="Send" i]',
+    '[data-test-id="send-button-container"] button',
+    "gem-icon-button.send-button button",
+    "gem-icon-button.send-button",
+    '[data-test-id="send-button-container"]',
     'button[aria-label*="Submit" i]',
     'button[data-test-id="send-button"]',
-    "button.send-button",
 )
 RESPONSE_SELECTORS = (
     '[data-message-author-role="model"]',
@@ -118,11 +126,13 @@ RESPONSE_SELECTORS = (
     ".presented-response-container",
     "message-content",
 )
-# Only match *inside* the chat area (broad selectors false-positive on sidebar).
+# Only match *inside* the chat area. Prefer Stop / Generating — a broad
+# ``[class*="thinking"]`` false-positive keeps the waiter stuck for 10 minutes
+# after Gemini already finished (e.g. a short ``_error`` JSON stub).
 GENERATING_SELECTORS = (
-    '[class*="thinking" i]',
-    '[aria-label*="Generating" i]',
     'button[aria-label*="Stop" i]',
+    '[aria-label*="Stop generating" i]',
+    '[aria-label*="Generating" i]',
 )
 CHAT_ROOT_SELECTORS = ("main", '[role="main"]', '[class*="conversation"]')
 # Policy prompt output sections — if present, Gemini is done (do not wait on sidebar spinners).
@@ -153,6 +163,8 @@ class VideoRow:
     channel_id: Optional[str] = None
     duration_minutes: Optional[int] = None
     has_transcript: bool = False
+    # Approx caption size from bronze (for shortest-first drip ordering, #628).
+    transcript_chars: int = 0
     # From event_youtube_with_jurisdiction; named in the prompt's MEDIA CONTEXT (#265).
     jurisdiction_name: Optional[str] = None
     jurisdiction_type: Optional[str] = None
@@ -306,19 +318,41 @@ def resolve_chrome_launch(
 
 
 def _dismiss_startup_dialogs(page: Any) -> None:
-    """Best-effort dismissals for consent / onboarding overlays."""
+    """Best-effort dismissals for consent / onboarding overlays.
+
+    Includes Gemini feature promos (e.g. Gmail/Calendar/Photos "Try it" / "Not now")
+    whose ``cdk-overlay-backdrop`` otherwise blocks the chat input click.
+    """
     from playwright.sync_api import TimeoutError as PwTimeout
 
-    for label in ("Got it", "Accept all", "I agree", "Continue", "OK", "Dismiss"):
+    for label in (
+        "Not now",
+        "No thanks",
+        "Got it",
+        "Accept all",
+        "I agree",
+        "Continue",
+        "OK",
+        "Dismiss",
+        "Close",
+    ):
         try:
             page.get_by_role("button", name=re.compile(rf"^{re.escape(label)}$", re.I)).first.click(
                 timeout=1_500
             )
+            logger.info("Dismissed overlay via '{}'", label)
             time.sleep(0.5)
         except PwTimeout:
             pass
         except Exception:
             pass
+    # Escape often closes remaining CDK dialogs / backdrops.
+    try:
+        if page.locator(".cdk-overlay-backdrop-showing").count():
+            page.keyboard.press("Escape")
+            time.sleep(0.3)
+    except Exception:
+        pass
 
 
 def _is_blank_chrome_url(url: str) -> bool:
@@ -370,6 +404,8 @@ def _navigate_to_gemini(
             logger.warning("Address bar navigation failed: {}", exc)
 
     page.wait_for_timeout(2_000)
+    _ensure_desktop_window(page)
+    _ensure_chat_mode(page)
 
     try:
         page.wait_for_url(
@@ -399,7 +435,7 @@ def _navigate_to_gemini(
             return
         raise RuntimeError(
             f"Browser stuck on {page.url!r}. Try:\n"
-            f"  1) python ... --cdp-url http://127.0.0.1:9222  (start Chrome with --remote-debugging-port=9222 first)\n"
+            f"  1) python ... --cdp-url http://127.0.0.1:9222  (start Chrome with --remote-debugging-port=9222 --user-data-dir=... first)\n"
             f"  2) python ... --fresh-profile  (Playwright Chromium profile; sign in once)\n"
             f"  3) python ... --open-only --pause-after-open"
         )
@@ -462,7 +498,8 @@ def fetch_videos(
             y.jurisdiction_type,
             y.state_code,
             y.state,
-            COALESCE(t.has_transcript, false) AS has_transcript
+            COALESCE(t.has_transcript, false) AS has_transcript,
+            COALESCE(length(t.raw_text), 0) AS transcript_chars
         -- Read jurisdiction_id from the resolved serving view, not raw bronze:
         -- public.event_youtube_with_jurisdiction is a column-superset of
         -- bronze_event_youtube that COALESCEs jurisdiction/geo from the dbt model
@@ -502,10 +539,18 @@ def fetch_videos(
     # request bypasses this so a targeted re-run can force any video.
     # Empty meeting_type is common on recent catalog rows that are still real
     # meetings; --newest / --include-untyped-meetings keeps those (#624).
+    # Also keep OTHER/UNKNOWN when the title clearly names a meeting body (#627) —
+    # Tuscaloosa committee/pre-council rows are often typed Other but have captions.
     if not video_id:
         if include_untyped_meetings:
             sql += """
-          AND UPPER(COALESCE(y.meeting_type, '')) NOT IN ('OTHER', 'UNKNOWN')
+          AND (
+            UPPER(COALESCE(y.meeting_type, '')) NOT IN ('OTHER', 'UNKNOWN')
+            OR (
+              UPPER(COALESCE(y.meeting_type, '')) IN ('OTHER', 'UNKNOWN')
+              AND COALESCE(y.title, '') ~* '(meeting|council|commission|committee|board|hearing|briefing)'
+            )
+          )
             """
         else:
             sql += """
@@ -562,6 +607,7 @@ def fetch_videos(
                 channel_id=str(r.get("channel_id") or "").strip() or None,
                 duration_minutes=r.get("duration_minutes"),
                 has_transcript=bool(r.get("has_transcript")),
+                transcript_chars=int(r.get("transcript_chars") or 0),
                 jurisdiction_name=(str(r.get("jurisdiction_name") or "").strip() or None),
                 jurisdiction_type=(str(r.get("jurisdiction_type") or "").strip() or None),
                 state_code=(str(r.get("state_code") or "").strip() or None),
@@ -594,6 +640,14 @@ def fetch_videos(
     return out
 
 
+def prefer_shorter_transcripts(videos: Sequence[VideoRow]) -> List[VideoRow]:
+    """Shortest warehouse captions first — paste/generation succeed more often (#628)."""
+    return sorted(
+        list(videos),
+        key=lambda v: (max(0, int(v.transcript_chars or 0)), v.video_id),
+    )
+
+
 def load_policy_prompt(prompt_path: Path) -> str:
     if not prompt_path.is_file():
         raise FileNotFoundError(f"Policy prompt not found: {prompt_path}")
@@ -601,13 +655,102 @@ def load_policy_prompt(prompt_path: Path) -> str:
 
 
 def _prepare_part1_prompt(prompt_text: str) -> str:
-    """Part 1 uses YouTube via MEDIA CONTEXT — drop placeholder transcript block."""
-    return re.sub(
-        r"<transcript>.*?</transcript>",
-        "Use the YouTube recording in MEDIA CONTEXT as the transcript source.",
-        prompt_text,
-        flags=re.DOTALL | re.IGNORECASE,
+    """Keep the ``<transcript>`` slot so warehouse captions can be injected (#626).
+
+    Older builds replaced the slot with “use the YouTube URL” — Gemini often could
+    not watch the video and returned ``_error``. Whisper/auto-ASR stays out of this
+    module; captions come from ``bronze.bronze_event_youtube_transcript``.
+    """
+    return prompt_text.strip()
+
+
+# Gemini's chat box often never starts generation on huge Quill pastes. Keep
+# captions under this cap (full bronze text stays available for API/Colab).
+# Empirically ~76k total prompts stalled with best_chars=0 (#628).
+BROWSER_TRANSCRIPT_MAX_CHARS = 28_000
+
+
+def _format_warehouse_transcript_block(
+    yt: dict[str, Any],
+    *,
+    max_chars: int = BROWSER_TRANSCRIPT_MAX_CHARS,
+) -> str:
+    """Timed transcript body for the part-1 ``<transcript>`` slot."""
+    from llm.gemini.diarize_postprocess import format_diarized_transcript
+
+    segments = yt.get("segments") or []
+    body = format_diarized_transcript(segments) if segments else str(yt.get("raw_text") or "").strip()
+    truncated = False
+    if max_chars > 0 and len(body) > max_chars:
+        body = body[:max_chars].rstrip() + "\n\n[… transcript truncated for browser paste cap …]"
+        truncated = True
+        logger.warning(
+            "Truncated warehouse transcript to {} chars for browser Gemini paste (#626)",
+            max_chars,
+        )
+    source = yt.get("transcript_source") or "database:bronze_event_youtube_transcript"
+    if truncated:
+        source = f"{source} (truncated_to={max_chars})"
+    return (
+        f"=== TRANSCRIPT SOURCE ===\n{source}\n\n"
+        f"=== TRANSCRIPT ===\n{body}\n"
+    )
+
+
+def _inject_transcript_into_prompt(prompt_text: str, transcript_block: str) -> str:
+    block = transcript_block.strip()
+    if re.search(r"<transcript>.*?</transcript>", prompt_text, flags=re.DOTALL | re.IGNORECASE):
+        return re.sub(
+            r"<transcript>.*?</transcript>",
+            f"<transcript>\n{block}\n</transcript>",
+            prompt_text,
+            count=1,
+            flags=re.DOTALL | re.IGNORECASE,
+        ).strip()
+    return f"{prompt_text.strip()}\n\n<transcript>\n{block}\n</transcript>"
+
+
+def load_warehouse_transcript_for_video(
+    database_url: str,
+    video_id: str,
+) -> Optional[dict[str, Any]]:
+    """Warehouse YouTube captions only — no live fetch, no Whisper (#626)."""
+    from llm.gemini.transcript_db import fetch_db_transcript
+
+    try:
+        return fetch_db_transcript(database_url, video_id)
+    except Exception as exc:  # noqa: BLE001 — skip this video, do not abort the batch
+        logger.warning("Warehouse transcript lookup failed for {}: {}", video_id, exc)
+        return None
+
+
+def build_part1_message_with_warehouse_transcript(
+    part1_prompt: str,
+    video: VideoRow,
+    yt: dict[str, Any],
+    *,
+    media_source_id: str = "MS001",
+    task_line: Optional[str] = None,
+) -> str:
+    """MEDIA CONTEXT + policy prompt with bronze captions in ``<transcript>`` (#626)."""
+    default_task = (
+        "Apply **Step 1** (part 1) instructions below using the warehouse transcript "
+        "in `<transcript>` as the primary source. The YouTube URL in MEDIA CONTEXT is "
+        "metadata / `media_sources` only — do not require watching the video. "
+        "Output **only** the JSON object — no markdown summary. "
+        "Put **debated** items in `decisions[]` (full schema + diagrams). "
+        "Put **unanimous / no-debate** items in `uncontested_items[]` "
+        "(lite one-line rows only). Do not merge unrelated actions."
+    )
+    media = build_user_message(
+        "",
+        video,
+        media_source_id=media_source_id,
+        task_line=task_line or default_task,
+        require_video_watch=False,
     ).strip()
+    prompted = _inject_transcript_into_prompt(part1_prompt, _format_warehouse_transcript_block(yt))
+    return f"{media}\n\n{prompted}"
 
 
 def _diagram_lines_to_mermaid(value: Any) -> str:
@@ -926,12 +1069,18 @@ def build_user_message(
     media_source_id: str = "MS001",
     task_line: Optional[str] = None,
     jurisdiction_label: Any = _FROM_VIDEO,
+    require_video_watch: bool = False,
 ) -> str:
     """Full Gemini user turn: policy instructions + MEDIA CONTEXT for one recording.
 
     ``jurisdiction_label`` is the display line for the meeting's jurisdiction; by
     default it is built from the video's own columns, and ``None`` (or an unknown
-    name) leaves the line out."""
+    name) leaves the line out.
+
+    When ``require_video_watch`` is False (default for warehouse-transcript drip #626),
+    MEDIA CONTEXT treats the YouTube URL as metadata and points the model at
+    ``<transcript>``. Set True only for legacy “watch the URL” runs.
+    """
     label = _jurisdiction_label(video) if jurisdiction_label is _FROM_VIDEO else jurisdiction_label
     jurisdiction_line = f"\n**Jurisdiction:** {label}.\n" if label else ""
     title = (video.title or "Untitled meeting recording").strip()
@@ -940,14 +1089,36 @@ def build_user_message(
     if video.audio_file_path:
         local_note = (
             f"\n- local_relative_path: data/cache/youtube_audio/{video.audio_file_path}"
-            "\n  (Opus audio on disk; use the YouTube URL below as the canonical recording if you cannot open the local file.)"
+            "\n  (Opus audio on disk; canonical recording URL is still the YouTube link below.)"
+        )
+
+    if require_video_watch:
+        source_line = (
+            "Analyze **one** governance meeting recording. Use the YouTube watch URL "
+            "as the primary source."
+        )
+        default_task = (
+            "Apply the policy analysis instructions below to this recording. "
+            'If you cannot access the video directly, state that limitation in JSON '
+            'under a top-level `"_error"` field with a short explanation.'
+        )
+    else:
+        source_line = (
+            "Analyze **one** governance meeting recording. Use the warehouse YouTube "
+            "transcript in `<transcript>` as the primary source. The watch URL below "
+            "is for `media_sources` / citation only — do not require playing the video."
+        )
+        default_task = (
+            "Apply the policy analysis instructions below to the transcript in "
+            "`<transcript>`. If the transcript block is empty or unusable, state that "
+            'in JSON under a top-level `"_error"` field with a short explanation.'
         )
 
     media_block = f"""
 ---
 ## MEDIA CONTEXT (required for this analysis)
 
-Analyze **one** governance meeting recording. Use the YouTube watch URL as the primary source.
+{source_line}
 Set `meeting.input_modality` to `video_recording` (or `audio_recording` if only audio is available).
 Populate `meeting.media_sources[]` from this block exactly — do not invent URLs.
 
@@ -964,11 +1135,13 @@ Populate `meeting.media_sources[]` from this block exactly — do not invent URL
 | event_date | {event_date} |
 {local_note}
 {jurisdiction_line}
-**Task:** {task_line or "Apply the policy analysis instructions below to this recording."} If you cannot access the video directly, state that limitation in JSON under a top-level `"_error"` field with a short explanation.
+**Task:** {task_line or default_task}
 
 ---
 """.strip()
 
+    if not policy_prompt:
+        return media_block
     return f"{media_block}\n\n{policy_prompt}"
 
 
@@ -988,23 +1161,222 @@ def _first_visible_locator(page: Any, selectors: Sequence[str]) -> Any:
     )
 
 
-def _click_send_if_present(page: Any) -> None:
+def _stop_control_visible(page: Any) -> bool:
+    """True when Gemini's Stop button is showing (response streaming)."""
+    root = _chat_root(page)
+    try:
+        return bool(root.locator('button[aria-label*="Stop" i]').first.is_visible(timeout=400))
+    except Exception:
+        return False
+
+
+def _ensure_desktop_window(page: Any, *, width: int = 1400, height: int = 900) -> None:
+    """Set real OS window bounds (viewport alone leaves a ~945px Chrome shell) (#629)."""
+    try:
+        page.set_viewport_size({"width": width, "height": height})
+    except Exception:
+        pass
+    try:
+        cdp = page.context.new_cdp_session(page)
+        win = cdp.send("Browser.getWindowForTarget")
+        cdp.send(
+            "Browser.setWindowBounds",
+            {
+                "windowId": win["windowId"],
+                "bounds": {"width": width, "height": height, "windowState": "normal"},
+            },
+        )
+        logger.info("Desktop window set to {}x{}", width, height)
+    except Exception as exc:
+        logger.warning("Could not set OS window bounds ({})", type(exc).__name__)
+
+
+def _ensure_chat_mode(page: Any) -> None:
+    """Gemini Neon Chat/Task switch — stay on Chat so the Quill prompt box is active (#629)."""
+    try:
+        btn = page.get_by_role("button", name="Chat", exact=True).first
+        if btn.is_visible(timeout=1_500):
+            btn.click(timeout=2_000)
+            time.sleep(0.3)
+            logger.info("Ensured Chat mode (not Task)")
+    except Exception:
+        pass
+
+
+def _editor_text(page: Any) -> str:
+    try:
+        return str(
+            page.evaluate(
+                """() => {
+                  const el = document.querySelector('div.ql-editor[contenteditable="true"]')
+                    || document.querySelector('div[contenteditable="true"][aria-label*="Enter" i]');
+                  return (el && (el.innerText || el.textContent) || '').trim();
+                }"""
+            )
+            or ""
+        )
+    except Exception:
+        return ""
+
+
+def _empty_start_page(page: Any) -> bool:
+    try:
+        return bool(
+            page.evaluate(
+                "() => /Where should we start\\?/i.test(document.body.innerText || '')"
+            )
+        )
+    except Exception:
+        return False
+
+
+def _nudge_editor_for_send(page: Any) -> None:
+    """Quill ``setText`` alone often leaves Neon without a Send control (#629).
+
+    A real keystroke wakes Angular so ``send-button-container`` / Send message appear.
+    """
+    try:
+        page.evaluate(
+            """() => {
+              const el = document.querySelector('div.ql-editor[contenteditable="true"]');
+              if (el) el.focus();
+            }"""
+        )
+        page.keyboard.press("End")
+        page.keyboard.type(" ", delay=15)
+        page.keyboard.press("Backspace")
+    except Exception as exc:
+        logger.warning("Editor send-nudge failed ({})", type(exc).__name__)
+    time.sleep(0.35)
+
+
+def _dismiss_composer_menus(page: Any) -> None:
+    """Close Upload & tools / suggestion menus that sit over Send (#629).
+
+    Do **not** click the ``+`` / Upload control — a force-click on the editor often
+    opens that menu and hides the Send arrow.
+    """
+    for _ in range(3):
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+        time.sleep(0.15)
+    page.evaluate(
+        """() => {
+          document.querySelectorAll('.cdk-overlay-backdrop-showing, .cdk-overlay-backdrop').forEach((b) => {
+            try { b.click(); } catch (e) {}
+          });
+        }"""
+    )
+    time.sleep(0.2)
+
+
+def _click_send_if_present(page: Any) -> bool:
+    """Click Neon ``Send message`` once. Never use Enter (it does not submit) (#629)."""
     from playwright.sync_api import TimeoutError as PwTimeout
+
+    if _stop_control_visible(page):
+        logger.info("Stop visible — skip send click (avoid abort)")
+        return False
+
+    _dismiss_composer_menus(page)
+
+    # Wait briefly for Neon to flip the send container to has-input / visible.
+    for _ in range(10):
+        ready = page.evaluate(
+            """() => {
+              const cont = document.querySelector('[data-test-id="send-button-container"]');
+              const btn = document.querySelector('button[aria-label*="Send message" i]');
+              if (!btn) return false;
+              const r = btn.getBoundingClientRect();
+              return r.width > 0 && r.height > 0 && !(btn.disabled);
+            }"""
+        )
+        if ready:
+            break
+        time.sleep(0.25)
+
+    # Prefer coordinate click on the live send container — Playwright force-click often
+    # times out when the tools menu or a huge Quill paste is open (#629).
+    box = page.evaluate(
+        """() => {
+          const el = document.querySelector('button[aria-label*="Send message" i]')
+            || document.querySelector('[data-test-id="send-button-container"] button')
+            || document.querySelector('gem-icon-button.send-button.has-input')
+            || document.querySelector('[data-test-id="send-button-container"]');
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height) return null;
+          el.scrollIntoView({block: 'nearest', inline: 'nearest'});
+          const r2 = el.getBoundingClientRect();
+          return {x: r2.x + r2.width / 2, y: r2.y + r2.height / 2};
+        }"""
+    )
+    if box and isinstance(box, dict) and "x" in box:
+        try:
+            page.mouse.click(float(box["x"]), float(box["y"]))
+            logger.info("Clicked send via mouse at ({:.0f},{:.0f})", box["x"], box["y"])
+            return True
+        except Exception as exc:
+            logger.warning("Mouse send click failed ({})", type(exc).__name__)
 
     for sel in SEND_BUTTON_SELECTORS:
         btn = page.locator(sel).first
         try:
-            if btn.is_visible(timeout=1_500):
-                btn.click()
-                return
+            btn.wait_for(state="attached", timeout=1_500)
+            try:
+                label = (btn.get_attribute("aria-label") or "").lower()
+            except Exception:
+                label = ""
+            if "stop" in label:
+                logger.info("Visible control is Stop — skip click (avoid abort)")
+                return False
+            try:
+                btn.scroll_into_view_if_needed(timeout=1_000)
+            except Exception:
+                pass
+            btn.click(force=True, timeout=3_000)
+            logger.info("Clicked send via {}", sel)
+            return True
         except PwTimeout:
             continue
-    page.keyboard.press("Enter")
+        except Exception:
+            continue
+    clicked = page.evaluate(
+        """() => {
+          const candidates = [
+            document.querySelector('button[aria-label*="Send message" i]'),
+            document.querySelector('[data-test-id="send-button-container"] button'),
+            document.querySelector('gem-icon-button.send-button.has-input'),
+            document.querySelector('gem-icon-button.send-button'),
+            document.querySelector('[data-test-id="send-button-container"]'),
+          ].filter(Boolean);
+          for (const el of candidates) {
+            try {
+              el.scrollIntoView({block: 'nearest', inline: 'nearest'});
+              el.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, view: window}));
+              el.click();
+              return true;
+            } catch (e) {}
+          }
+          return false;
+        }"""
+    )
+    if clicked:
+        logger.info("Clicked send via DOM evaluate")
+        return True
+    return False
 
 
 USER_PROMPT_MARKERS = (
     "MEDIA CONTEXT (required for this analysis)",
     "Analyze **one** governance meeting recording",
+)
+# Paste-verify only (not used to reject scraped model text — reports say "Smart Brevity").
+PASTE_VERIFY_MARKERS = USER_PROMPT_MARKERS + (
+    "Smart Brevity",
+    "resident-facing summary",
 )
 
 
@@ -1289,6 +1661,26 @@ def _locate_latest_model_response(page: Any) -> Optional[Any]:
     return None
 
 
+def _looks_like_error_stub(text: str) -> bool:
+    """Gemini returned the prompt's allowed ``{"_error": "..."}`` limitation stub."""
+    if not text or '"_error"' not in text:
+        return False
+    slice_ = _model_reply_slice(text)
+    blob = slice_ or text
+    # Short stubs are valid — do not require a full Document 1 schema.
+    if re.search(r'\{\s*"_error"\s*:\s*"', blob):
+        return True
+    try:
+        start = blob.find("{")
+        end = blob.rfind("}")
+        if start < 0 or end <= start:
+            return False
+        obj = json.loads(blob[start : end + 1])
+        return isinstance(obj, dict) and bool(obj.get("_error"))
+    except Exception:
+        return False
+
+
 def _accept_candidate(
     text: str,
     *,
@@ -1296,12 +1688,14 @@ def _accept_candidate(
     page: Any,
     response_phase: str = "json",
 ) -> bool:
-    if not text or len(text) < 80:
+    if not text or len(text) < 40:
         return False
     if _looks_like_user_prompt(text):
         return False
     if _looks_like_attachment_chrome(text):
         return False
+    if response_phase == "json" and _looks_like_error_stub(text):
+        return True
     if _response_looks_complete(text, response_phase=response_phase):
         return True
     if _looks_like_policy_json_blob(text):
@@ -1371,6 +1765,16 @@ def _wait_for_model_response(
                 response_phase=response_phase,
             ):
                 continue
+            if (
+                response_phase == "json"
+                and _looks_like_error_stub(text)
+                and (not generating or idle_polls >= 2)
+            ):
+                logger.info(
+                    "Detected Gemini _error stub ({} chars) — accepting",
+                    len(text),
+                )
+                return text
             if _response_looks_complete(text, response_phase=response_phase):
                 logger.info(
                     "Detected complete policy analysis ({} chars) — accepting response",
@@ -1387,12 +1791,13 @@ def _wait_for_model_response(
                     len(text),
                 )
                 return text
-            if response_phase != "json" and _looks_like_policy_json_blob(text) and not generating:
-                logger.info(
-                    "Detected policy JSON in response ({} chars) — accepting",
-                    len(text),
-                )
-                return text
+            # Part 2 must be markdown — never treat Document 1 JSON as the report (#628).
+            if (
+                response_phase == "markdown"
+                and _looks_like_policy_json_blob(text)
+                and not _part2_looks_done(text)
+            ):
+                continue
             if response_phase == "markdown" and _part2_looks_done(text) and not generating:
                 logger.info("Detected part 2 report ({} chars) — accepting", len(text))
                 return text
@@ -1409,16 +1814,44 @@ def _wait_for_model_response(
 
         # UI shows a reply but narrow scrape stuck on YouTube card / short snippet
         if idle_polls >= 4 and best and not _looks_like_attachment_chrome(best):
-            if _looks_like_policy_json_blob(best) or _part2_looks_done(best):
+            if response_phase == "markdown" and _looks_like_policy_json_blob(best) and not _part2_looks_done(best):
+                pass  # still the part-1 bubble — keep waiting for the report
+            elif _looks_like_policy_json_blob(best) or _part2_looks_done(best):
                 logger.info(
                     "Accepting after idle scrape ({} chars, phase={})",
                     len(best),
                     response_phase,
                 )
                 return best
-            if response_phase == "markdown" and len(best) >= 400:
+            if response_phase == "markdown" and len(best) >= 400 and not _looks_like_policy_json_blob(best):
                 logger.info("Accepting idle part 2 text ({} chars)", len(best))
                 return best
+
+        # Fail fast: huge paste / silent send often never starts generation (#628).
+        if (
+            response_phase == "json"
+            and not generating
+            and idle_polls >= 45
+            and len(best) < 80
+        ):
+            raise RuntimeError(
+                "Gemini never started a model reply (no Stop control, scrape empty). "
+                "Likely paste/send failed or quota — skipping for max success rate (#628)."
+            )
+        # Fail fast: part 2 sometimes regenerates Document 1 JSON instead of markdown
+        # (especially when sent in a fresh chat). Do not burn the full timeout (#629).
+        if (
+            response_phase == "markdown"
+            and not generating
+            and idle_polls >= 12
+            and best
+            and _looks_like_policy_json_blob(best)
+            and not _part2_looks_done(best)
+        ):
+            raise RuntimeError(
+                "Part 2 returned Document 1 JSON instead of a markdown report "
+                "(same-chat follow-up required; not a scrape miss)."
+            )
 
         now = time.time()
         if now - last_logged >= 30:
@@ -1575,12 +2008,25 @@ def _open_page(
     mode is 'cdp' | 'persistent'.
     """
     if cdp_url:
-        logger.info("Connecting via CDP to {} (use your normal Chrome — start it with --remote-debugging-port=9222)", cdp_url)
+        logger.info(
+            "Connecting via CDP to {} (start Chrome with --remote-debugging-port=9222 --user-data-dir=...)",
+            cdp_url,
+        )
         browser = p.chromium.connect_over_cdp(cdp_url)
         context = browser.contexts[0] if browser.contexts else browser.new_context(
-            viewport={"width": 1280, "height": 800}
+            viewport={"width": 1400, "height": 900}
         )
-        page = context.new_page()
+        # Reuse an existing Gemini tab when possible — new_page() floods the CDP profile (#629).
+        page = None
+        for existing in list(context.pages):
+            try:
+                if "gemini.google.com" in (existing.url or ""):
+                    page = existing
+                    break
+            except Exception:
+                continue
+        if page is None:
+            page = context.pages[0] if context.pages else context.new_page()
         return page, browser, "cdp", False
 
     if fresh_profile:
@@ -1768,6 +2214,143 @@ def _playwright_context(handle: Any, mode: str) -> Any:
     return handle
 
 
+def _paste_prompt_into_input(page: Any, input_field: Any, prompt_text: str) -> None:
+    """Put a large prompt into Gemini's contenteditable without choking Playwright fill.
+
+    Prefer DOM/Quill injection over click+type — overlays and large pastes often make
+    Playwright ``fill`` / ``click`` time out even when the editor is present.
+    """
+    _dismiss_startup_dialogs(page)
+
+    # 1) Quill / contenteditable: set text via the editor API when possible.
+    injected = page.evaluate(
+        """(text) => {
+          const pick = () =>
+            document.querySelector('div.ql-editor[contenteditable="true"]')
+            || document.querySelector('div[contenteditable="true"][aria-label*="Enter" i]')
+            || document.querySelector('div[contenteditable="true"]');
+          const el = pick();
+          if (!el) return 'missing';
+          el.focus();
+          // Dismiss any leftover overlay that steals focus.
+          document.querySelectorAll('.cdk-overlay-backdrop-showing').forEach((b) => {
+            try { b.click(); } catch (e) {}
+          });
+          const quill = el.__quill || el.closest('.ql-container')?.__quill;
+          if (quill && typeof quill.setText === 'function') {
+            quill.setText(text);
+            return 'quill';
+          }
+          try {
+            document.execCommand('selectAll', false, null);
+            if (document.execCommand('insertText', false, text)) return 'insertText';
+          } catch (e) {}
+          el.textContent = text;
+          el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+          return 'textContent';
+        }""",
+        prompt_text,
+    )
+    if injected and injected != "missing":
+        logger.info("Pasted prompt via DOM ({}, {} chars)", injected, len(prompt_text))
+        return
+
+    try:
+        input_field.fill(prompt_text, timeout=60_000)
+        logger.info("Pasted prompt via fill() ({} chars)", len(prompt_text))
+        return
+    except Exception as exc:
+        logger.warning("fill() failed ({}) — trying clipboard", type(exc).__name__)
+
+    try:
+        page.evaluate(
+            """async (text) => { await navigator.clipboard.writeText(text); }""",
+            prompt_text,
+        )
+        # Focus editor without relying on a click that overlays can intercept.
+        page.evaluate(
+            """() => {
+              const el = document.querySelector('div.ql-editor[contenteditable="true"]')
+                || document.querySelector('div[contenteditable="true"]');
+              if (el) el.focus();
+            }"""
+        )
+        page.keyboard.press("Control+a")
+        page.keyboard.press("Control+v")
+        logger.info("Pasted prompt via clipboard ({} chars)", len(prompt_text))
+        return
+    except Exception as exc:
+        logger.warning("clipboard paste failed ({})", type(exc).__name__)
+        raise RuntimeError(
+            f"Could not paste {len(prompt_text)}-char prompt into Gemini input "
+            f"(DOM={injected!r})"
+        ) from exc
+
+
+def _plain_prompt_windows(prompt_text: str) -> List[str]:
+    """Substrings that survive Quill markdown stripping (``##``, ``**``, etc.)."""
+    plain = re.sub(r"[#*`_>~\[\]()]+", " ", prompt_text)
+    plain = re.sub(r"\s+", " ", plain).strip()
+    windows: List[str] = []
+    for start in (0, 24, 80, 200, 400, max(0, len(plain) // 2)):
+        chunk = plain[start : start + 36].strip()
+        if len(chunk) >= 18:
+            windows.append(chunk)
+    return windows
+
+
+def _verify_prompt_in_editor(page: Any, prompt_text: str) -> bool:
+    """True when the Quill box actually holds the prompt (not an empty start page)."""
+    editor = _editor_text(page)
+    if not editor or len(editor) < 40:
+        return False
+    markers = [m for m in PASTE_VERIFY_MARKERS if m in prompt_text]
+    if markers and any(m in editor for m in markers):
+        return True
+    editor_flat = re.sub(r"\s+", " ", editor)
+    if any(w in editor_flat for w in _plain_prompt_windows(prompt_text)):
+        return True
+    # Large paste: length alone is enough when Quill accepted most of the payload.
+    if len(prompt_text) >= 500 and len(editor) >= min(int(len(prompt_text) * 0.4), 2_000):
+        return True
+    return False
+
+
+def _user_message_count(page: Any) -> int:
+    try:
+        return int(page.locator('[data-message-author-role="user"]').count())
+    except Exception:
+        return 0
+
+
+def _verify_message_sent(
+    page: Any,
+    *,
+    baseline_user_count: int = 0,
+    prompt_marker: str = "",
+    timeout_seconds: float = 12.0,
+) -> bool:
+    """True when Stop shows, user bubble count rises, or prompt left the editor (#629).
+
+    Do not treat ``Where should we start?`` alone — Neon keeps that hero visible while
+    text sits unsent in Quill.
+    """
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        if _stop_control_visible(page):
+            return True
+        if _user_message_count(page) > baseline_user_count:
+            return True
+        # Prompt left the Quill box after a successful submit.
+        editor = _editor_text(page)
+        if prompt_marker and prompt_marker not in editor and len(editor) < 120:
+            return True
+        if not prompt_marker and len(editor) < 40 and not _empty_start_page(page):
+            return True
+        time.sleep(0.4)
+    return False
+
+
 def _send_prompt_on_page(
     page: Any,
     prompt_text: str,
@@ -1777,32 +2360,73 @@ def _send_prompt_on_page(
     response_phase: str = "json",
 ) -> GeminiRunCapture:
     logger.info("Waiting for chat input at {} …", page.url)
+    _ensure_desktop_window(page)
+    _dismiss_startup_dialogs(page)
+    page.keyboard.press("Escape")
+    _ensure_chat_mode(page)
     try:
         input_field = _first_visible_locator(page, INPUT_SELECTORS)
     except RuntimeError:
         if debug_dir:
-            _debug_screenshot(page, debug_dir, "no_input_found")
-        raise
-    input_field.click()
+            _debug_screenshot(page, debug_dir, "input_box_not_found")
+        raise RuntimeError("input box not found")
+    # Focus via DOM only — Playwright force-click on the composer often hits the
+    # Upload & tools (+) control and opens a menu that hides Send (#629).
+    focused = page.evaluate(
+        """() => {
+          const el = document.querySelector('div.ql-editor[contenteditable="true"]')
+            || document.querySelector('div[contenteditable="true"][aria-label*="Enter" i]')
+            || document.querySelector('div[contenteditable="true"]');
+          if (!el) return false;
+          el.focus();
+          return true;
+        }"""
+    )
+    if not focused:
+        if debug_dir:
+            _debug_screenshot(page, debug_dir, "input_box_not_found")
+        raise RuntimeError("input box not found")
+    _dismiss_composer_menus(page)
     baseline_model_count = _model_response_count(page)
+    baseline_user_count = _user_message_count(page)
     logger.info("Sending prompt ({} chars) …", len(prompt_text))
-    try:
-        input_field.fill(prompt_text, timeout=120_000)
-    except Exception:
-        logger.warning("fill() failed — trying keyboard.type in chunks")
-        input_field.click()
-        chunk_size = 4000
-        for i in range(0, len(prompt_text), chunk_size):
-            input_field.type(prompt_text[i : i + chunk_size], delay=0)
-    time.sleep(0.5)
-    _click_send_if_present(page)
-    time.sleep(1.0)
-    _click_send_if_present(page)
-    logger.info("Waiting for streamed response …")
-    try:
-        page.locator("text=MEDIA CONTEXT").first.wait_for(state="visible", timeout=120_000)
-    except Exception:
-        logger.warning("User message bubble not confirmed — continuing anyway")
+    _paste_prompt_into_input(page, input_field, prompt_text)
+    _dismiss_composer_menus(page)
+    time.sleep(0.4)
+    if not _verify_prompt_in_editor(page, prompt_text):
+        if debug_dir:
+            _debug_screenshot(page, debug_dir, "input_box_not_found")
+        raise RuntimeError("input box not found")
+    logger.info("Prompt verified in editor ({} chars)", len(_editor_text(page)))
+    _nudge_editor_for_send(page)
+    _dismiss_composer_menus(page)
+    paste_marker = next(
+        (m for m in PASTE_VERIFY_MARKERS if m in prompt_text),
+        next(iter(_plain_prompt_windows(prompt_text)), prompt_text.strip()[:48]),
+    )
+
+    sent = _click_send_if_present(page)
+    time.sleep(0.8)
+    if not _verify_message_sent(
+        page,
+        baseline_user_count=baseline_user_count,
+        prompt_marker=paste_marker,
+        timeout_seconds=8.0,
+    ):
+        # Always retry once — first click often misses under an open tools menu (#629).
+        logger.info("Send not confirmed (sent={}) — dismiss menus and retry", sent)
+        _dismiss_composer_menus(page)
+        _click_send_if_present(page)
+        if not _verify_message_sent(
+            page,
+            baseline_user_count=baseline_user_count,
+            prompt_marker=paste_marker,
+            timeout_seconds=8.0,
+        ):
+            if debug_dir:
+                _debug_screenshot(page, debug_dir, "message_not_sent")
+            raise RuntimeError("message not sent")
+    logger.info("Message sent confirmed — waiting for streamed response …")
     gemini_model = _detect_gemini_model(page, cli_override=gemini_model_override)
     if gemini_model:
         logger.info("Gemini model: {}", gemini_model)
@@ -2557,10 +3181,18 @@ def run_video_batch(
     part2_prompt: str = "",
     prompt_part1_path: Optional[Path] = None,
     prompt_part2_path: Optional[Path] = None,
+    database_url: Optional[str] = None,
+    require_warehouse_transcript: bool = True,
 ) -> int:
-    """One browser session; loop URLs → prompt(s) → save response for each video."""
+    """One browser session; loop URLs → prompt(s) → save response for each video.
+
+    By default (#626) each video must have usable captions in
+    ``bronze.bronze_event_youtube_transcript``; those are injected into part 1.
+    Whisper / auto-ASR is out of scope here.
+    """
     from playwright.sync_api import sync_playwright
 
+    db_url = _database_url(database_url)
     saved = 0
     with sync_playwright() as p:
         page, handle, mode, should_close = _open_page(
@@ -2606,22 +3238,36 @@ def run_video_batch(
                         time.sleep(delay_between_videos)
 
                 try:
+                    yt = load_warehouse_transcript_for_video(db_url, video.video_id)
+                    if require_warehouse_transcript and yt is None:
+                        logger.error(
+                            "Skip {} — no usable warehouse YouTube transcript "
+                            "(bronze.bronze_event_youtube_transcript). "
+                            "Caption backfill is separate; Whisper/ASR is a separate module (#626).",
+                            video.video_id,
+                        )
+                        if debug_dir:
+                            _debug_screenshot(page, debug_dir, f"no_transcript_{video.video_id}")
+                        continue
+
                     if two_part:
                         if not prompt_part1_path or not prompt_part2_path:
                             raise RuntimeError("two_part mode requires prompt_part1_path and prompt_part2_path")
-                        part1_message = build_user_message(
+                        if yt is None:
+                            raise RuntimeError(
+                                f"two_part warehouse mode requires a transcript for {video.video_id}"
+                            )
+                        part1_message = build_part1_message_with_warehouse_transcript(
                             part1_prompt,
                             video,
+                            yt,
                             media_source_id=f"MS{i:03d}",
-                            task_line=(
-                                "Apply **Step 1** (part 1) instructions below. "
-                                "Output **only** the JSON object — no markdown summary. "
-                                "Put **debated** items in `decisions[]` (full schema + diagrams). "
-                                "Put **unanimous / no-debate** items in `uncontested_items[]` "
-                                "(lite one-line rows only). Do not merge unrelated actions."
-                            ),
                         )
-                        logger.info("Sending part 1 ({} chars) …", len(part1_message))
+                        logger.info(
+                            "Sending part 1 ({} chars, transcript_chars={}) …",
+                            len(part1_message),
+                            len(yt.get("raw_text") or ""),
+                        )
                         part1_capture = _send_prompt_on_page(
                             page,
                             part1_message,
@@ -2651,13 +3297,42 @@ def run_video_batch(
                         parsed_part1 = _normalize_part1_analysis(parsed_part1, video=video)
                         part2_message = build_part2_message(part2_prompt, parsed_part1)
                         logger.info("Sending part 2 ({} chars) …", len(part2_message))
-                        part2_capture = _send_prompt_on_page(
-                            page,
-                            part2_message,
-                            debug_dir=debug_dir,
-                            gemini_model_override=gemini_model_override,
-                            response_phase="markdown",
-                        )
+                        try:
+                            part2_capture = _send_prompt_on_page(
+                                page,
+                                part2_message,
+                                debug_dir=debug_dir,
+                                gemini_model_override=gemini_model_override,
+                                response_phase="markdown",
+                            )
+                        except Exception as part2_exc:
+                            logger.error(
+                                "Part 2 failed for {} ({}) — saving part 1 JSON only",
+                                video.video_id,
+                                part2_exc,
+                            )
+                            if debug_dir:
+                                _debug_screenshot(page, debug_dir, f"part2_fail_{video.video_id}")
+                            out_path = save_two_part_run_output(
+                                output_dir,
+                                video,
+                                part1_capture,
+                                GeminiRunCapture(
+                                    response_text="",
+                                    gemini_model=part1_capture.gemini_model,
+                                ),
+                                prompt_part1_path=prompt_part1_path,
+                                prompt_part2_path=prompt_part2_path,
+                                parsed_part1=parsed_part1,
+                                save_raw_response=save_raw_response,
+                            )
+                            logger.success(
+                                "Saved {} (part1={} chars, part2=missing)",
+                                out_path,
+                                len(part1_capture.response_text),
+                            )
+                            saved += 1
+                            continue
                         time.sleep(hold_open_seconds)
                         out_path = save_two_part_run_output(
                             output_dir,
@@ -2677,16 +3352,33 @@ def run_video_batch(
                             part2_capture.gemini_model or "unknown",
                         )
                     else:
-                        user_message = build_user_message(
-                            policy_prompt,
-                            video,
-                            media_source_id=f"MS{i:03d}",
-                            task_line=(
-                                "Apply the policy analysis instructions below. "
-                                "Document 1: debated votes in `decisions[]`, routine votes in "
-                                "`uncontested_items[]`. Document 2: contested prose + uncontested bullets."
-                            ),
-                        )
+                        if yt is not None:
+                            user_message = build_part1_message_with_warehouse_transcript(
+                                policy_prompt,
+                                video,
+                                yt,
+                                media_source_id=f"MS{i:03d}",
+                                task_line=(
+                                    "Apply the policy analysis instructions below to the "
+                                    "warehouse transcript in `<transcript>`. "
+                                    "Document 1: debated votes in `decisions[]`, routine votes in "
+                                    "`uncontested_items[]`. Document 2: contested prose + "
+                                    "uncontested bullets."
+                                ),
+                            )
+                        else:
+                            user_message = build_user_message(
+                                policy_prompt,
+                                video,
+                                media_source_id=f"MS{i:03d}",
+                                require_video_watch=True,
+                                task_line=(
+                                    "Apply the policy analysis instructions below. "
+                                    "Document 1: debated votes in `decisions[]`, routine votes in "
+                                    "`uncontested_items[]`. Document 2: contested prose + "
+                                    "uncontested bullets."
+                                ),
+                            )
                         capture = _send_prompt_on_page(
                             page,
                             user_message,
@@ -3148,7 +3840,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--include-untyped-meetings",
         action="store_true",
-        help="Keep rows with empty meeting_type (still drops OTHER/UNKNOWN and junk channels) (#624)",
+        help="Keep empty meeting_type, and OTHER/UNKNOWN titles that look like meetings "
+        "(meeting|council|commission|committee|board|hearing|briefing); still drops junk channels (#624, #627)",
     )
     parser.add_argument(
         "--newest",
@@ -3156,9 +3849,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=0,
         metavar="N",
         help="Subscription drip shortcut: newest N unanalyzed meetings "
-        "(sets order-by=published_at, skip-analyzed, include-untyped-meetings; "
-        "default --since-days 90 when unset). "
-        "Does not require a bronze transcript — Gemini web can use the YouTube URL (#624)",
+        "(sets order-by=published_at, skip-analyzed, include-untyped-meetings, "
+        "only-has-transcript; default --since-days 90 when unset). "
+        "Requires bronze YouTube captions — Whisper/ASR is a separate module (#624, #626)",
     )
     parser.add_argument(
         "--output-dir",
@@ -3238,6 +3931,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.order_by = "published_at"
         args.skip_analyzed = True
         args.include_untyped_meetings = True
+        args.only_has_transcript = True
         if args.since_days is None:
             args.since_days = 90
 
@@ -3264,8 +3958,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         since_days=None,  # already applied in SQL when set
         skip_analyzed=bool(args.skip_analyzed),
         output_dir=Path(args.output_dir).resolve(),
-        limit=args.limit if args.skip_analyzed else None,
+        limit=None if args.skip_analyzed else args.limit,
     )
+    # Max success: warehouse captions required + shortest first, then apply limit (#628).
+    videos = prefer_shorter_transcripts(videos)
+    if args.skip_analyzed and args.limit is not None:
+        videos = videos[: int(args.limit)]
     if not videos:
         logger.error(
             "No videos in queue for jurisdiction_id={} (since_days={} skip_analyzed={})",
@@ -3276,7 +3974,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
 
     logger.info(
-        "Queue {} video(s) for {} (since_days={} order_by={} skip_analyzed={})",
+        "Queue {} video(s) for {} (since_days={} order_by={} skip_analyzed={} shortest_first=True)",
         len(videos),
         args.jurisdiction_id,
         args.since_days,
@@ -3285,10 +3983,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     for v in videos:
         logger.info(
-            "  {} | day={} | {}",
+            "  {} | day={} | chars≈{} | {}",
             v.video_id,
             video_meeting_day(v),
-            (v.title or "")[:70],
+            v.transcript_chars,
+            (v.title or "")[:60],
         )
 
     user_data = args.chrome_user_data_dir or default_chrome_user_data_dir()
@@ -3358,6 +4057,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             part2_prompt=part2_prompt,
             prompt_part1_path=part1_path,
             prompt_part2_path=part2_path,
+            database_url=db_url,
+            require_warehouse_transcript=True,
         )
     else:
         prompt_path = args.prompt_file.resolve()
@@ -3381,6 +4082,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             gemini_model_override=args.gemini_model,
             select_model=args.select_model,
             save_raw_response=args.save_raw_response,
+            database_url=db_url,
+            require_warehouse_transcript=True,
         )
     return 0
 
