@@ -462,6 +462,40 @@ def test_shipped_deepseek_flash_prices_one_call_at_each_time():
     assert "deepseek-chat" not in shipped["models"]  # DeepSeek's page neither lists nor accepts it
 
 
+def test_shipped_claude_haiku_5_5_prices():
+    """#631: Anthropic Haiku 5.5 rates from anthropic.com/pricing (read 2026-11-19)."""
+    shipped = prices.load_prices()
+    entry = shipped["models"]["claude-haiku-5-5"]
+    assert entry["source"] == "https://www.anthropic.com/pricing"
+    assert entry["read_date"] == "2026-11-19"
+    row = {
+        "model": "claude-haiku-5-5",
+        "api_mode": "interactive",
+        "input_token_count": 1_000_000,
+        "cached_input_token_count": 0,
+        "output_token_count": 1_000_000,
+    }
+    assert prices.call_cost_usd(row, shipped) == pytest.approx(0.10 + 0.50)
+
+
+def test_usage_from_anthropic_response():
+    from llm.usage.calls import usage_from_anthropic_response
+
+    class _U:
+        input_tokens = 100
+        output_tokens = 40
+        cache_read_input_tokens = 10
+
+    class _R:
+        usage = _U()
+
+    u = usage_from_anthropic_response(_R())
+    assert u.input_token_count == 100
+    assert u.output_token_count == 40
+    assert u.cached_input_token_count == 10
+    assert u.total_token_count == 140
+
+
 def test_shipped_prices_cite_google_and_have_batch_rates():
     shipped = prices.load_prices()["models"]
     for name in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash-lite", "gemini-3.8-flash"):

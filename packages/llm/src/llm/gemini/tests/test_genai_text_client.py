@@ -335,3 +335,33 @@ def test_check_gemini_api_key_still_rejects_invalid_key(monkeypatch):
     )
     with pytest.raises(SystemExit):
         m.check_gemini_api_key("AIzaBADKEY", model="gemini-2.5-flash-lite")
+
+
+def test_claude_model_routes_to_anthropic(monkeypatch):
+    """#631: claude-* arms use Anthropic, not Gemini."""
+    called = {}
+
+    def _fake(**kwargs):
+        called.update(kwargs)
+        return m.TextGenAIResult(text='{"ok":true}', model=kwargs["model"], usage=None)
+
+    monkeypatch.setattr(m, "_call_anthropic_text", _fake)
+    out = m.call_gemini_text(
+        api_key="unused",
+        model="claude-haiku-5-5",
+        user_text="hello",
+        json_mode=True,
+    )
+    assert out.text == '{"ok":true}'
+    assert called["model"] == "claude-haiku-5-5"
+    assert called["json_mode"] is True
+
+
+def test_claude_rejects_pdf_bytes():
+    with pytest.raises(ValueError, match="text-only"):
+        m.call_gemini_text(
+            api_key="unused",
+            model="claude-haiku-5-5",
+            user_text="x",
+            pdf_bytes=b"%PDF",
+        )

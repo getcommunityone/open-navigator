@@ -790,6 +790,130 @@ def _stream_enabled() -> bool:
     )
 
 
+def _call_anthropic_text(
+    *,
+    model: str,
+    user_text: str,
+    system_instruction: str = "",
+    temperature: float = 0.1,
+    max_output_tokens: int = 65536,
+    json_mode: bool = False,
+) -> TextGenAIResult:
+    """Single-turn generation via Anthropic Messages API (#631).
+
+    Text-only: callers must extract any PDF text first (``call_gemini_text``
+    rejects ``pdf_bytes`` for ``claude-*`` models). Requires ``ANTHROPIC_API_KEY``.
+    """
+    import anthropic
+    from anthropic import Anthropic
+
+    key = _strip_api_key(os.getenv("ANTHROPIC_API_KEY", ""))
+    if not key:
+        from dotenv import load_dotenv
+
+        env_file = Path(__file__).resolve().parents[5] / ".env"
+        if env_file.is_file():
+            load_dotenv(env_file, override=False)
+            key = _strip_api_key(os.getenv("ANTHROPIC_API_KEY", ""))
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
+
+    client = Anthropic(api_key=key)
+    from llm.usage.calls import usage_from_anthropic_response
+
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_output_tokens,
+        "messages": [{"role": "user", "content": user_text}],
+    }
+    # Haiku 5.5 / current Claude 4.5+ reject temperature (400 deprecated).
+    model_l = model.lower()
+    if not any(x in model_l for x in ("haiku-5", "haiku-4-5", "sonnet-5", "sonnet-4-5", "opus-5", "opus-4-5")):
+        kwargs["temperature"] = temperature
+    if system_instruction.strip():
+        kwargs["system"] = system_instruction.strip()
+    if json_mode:
+        # Prefer structured JSON without requiring a tool schema; Haiku follows
+        # a plain instruction reliably for Part 1 compare_models runs.
+        kwargs["system"] = (
+            (kwargs.get("system") or "")
+            + "\n\nRespond with a single JSON object only. No markdown fences."
+        ).strip()
+
+    max_attempts = 4
+    last_exc: Optional[Exception] = None
+    started = time.monotonic()
+
+    def _failed(exc: BaseException, attempts: int) -> None:
+        _record_usage(
+            provider="anthropic",
+            model=model,
+            usage=None,
+            started=started,
+            attempts=attempts,
+            error=exc,
+        )
+
+    for attempt in range(max_attempts):
+        try:
+            # Streaming is required for long Part 1 prompts (SDK raises otherwise).
+            parts: list[str] = []
+            with client.messages.stream(**kwargs) as stream:
+                for text in stream.text_stream:
+                    if text:
+                        parts.append(text)
+                resp = stream.get_final_message()
+            content = "".join(parts).strip()
+            if not content:
+                # Fallback to final message blocks if the text stream was empty.
+                for block in getattr(resp, "content", None) or []:
+                    text = getattr(block, "text", None)
+                    if text:
+                        parts.append(text)
+                content = "".join(parts).strip()
+            if not content:
+                empty = RuntimeError(f"Empty response from {model}")
+                _failed(empty, attempt + 1)
+                raise empty
+            usage = _record_usage(
+                provider="anthropic",
+                model=model,
+                usage=usage_from_anthropic_response(resp),
+                started=started,
+                attempts=attempt + 1,
+            )
+            return TextGenAIResult(text=content, model=model, raw_response=resp, usage=usage)
+        except anthropic.RateLimitError as exc:
+            last_exc = exc
+            if attempt == max_attempts - 1:
+                break
+        except anthropic.APIConnectionError as exc:
+            last_exc = exc
+            if attempt == max_attempts - 1:
+                break
+        except anthropic.APIStatusError as exc:
+            if exc.status_code < 500:
+                _failed(exc, attempt + 1)
+                raise RuntimeError(f"Anthropic call failed for {model}: {exc}") from exc
+            last_exc = exc
+            if attempt == max_attempts - 1:
+                break
+        delay = 2.0 * (2**attempt)
+        logger.warning(
+            "Anthropic {} error ({}): sleeping {:.0f}s, retry {}/{}",
+            model,
+            type(last_exc).__name__ if last_exc else "error",
+            delay,
+            attempt + 1,
+            max_attempts,
+        )
+        time.sleep(delay)
+
+    assert last_exc is not None
+    _failed(last_exc, max_attempts)
+    raise RuntimeError(f"Anthropic call failed for {model}: {last_exc}") from last_exc
+
+
 def _call_deepseek_text(
     *,
     model: str,
@@ -1023,6 +1147,8 @@ def call_gemini_text(
 
     A ``deepseek-*`` model name routes to DeepSeek's OpenAI-compatible Chat
     Completions endpoint instead of Gemini (text-only; no ``pdf_bytes`` support).
+    A ``claude-*`` model name routes to Anthropic's Messages API (also text-only;
+    requires ``ANTHROPIC_API_KEY``) (#631).
 
     ``thinking_budget`` caps the model's thinking tokens (``0`` turns thinking
     off); they are billed as output and add latency. It is sent only to models
@@ -1034,6 +1160,20 @@ def call_gemini_text(
     models that take a level instead of a budget (:func:`thinking_levels`); a
     caller can pass both, and each model gets the setting its family takes.
     """
+    if model.startswith("claude"):
+        if pdf_bytes:
+            raise ValueError(
+                "Anthropic Claude routing is text-only and cannot read pdf_bytes; "
+                "extract text first or use a Gemini model for scanned PDFs."
+            )
+        return _call_anthropic_text(
+            model=model,
+            user_text=user_text,
+            system_instruction=system_instruction,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            json_mode=json_mode,
+        )
     if model.startswith("deepseek"):
         if pdf_bytes:
             raise ValueError(

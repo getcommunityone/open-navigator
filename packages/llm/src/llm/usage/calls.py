@@ -127,6 +127,31 @@ def usage_from_openai_response(raw: Any) -> LLMCallUsage:
     )
 
 
+def usage_from_anthropic_response(raw: Any) -> LLMCallUsage:
+    """Token counts from an Anthropic Messages API response (#631).
+
+    ``input_tokens`` is the billed prompt size; cache reads/writes are reported
+    separately and stored in ``cached_input_token_count`` when present (cache
+    read). Thinking/reasoning tokens are not broken out on Haiku responses.
+    """
+    meta = _field(raw, "usage") if raw is not None else None
+    if meta is None:
+        return LLMCallUsage()
+    input_tokens = _int_or_none(_field(meta, "input_tokens"))
+    output_tokens = _int_or_none(_field(meta, "output_tokens"))
+    cached = _int_or_none(_field(meta, "cache_read_input_tokens"))
+    total = None
+    if input_tokens is not None or output_tokens is not None:
+        total = (input_tokens or 0) + (output_tokens or 0)
+    return LLMCallUsage(
+        input_token_count=input_tokens,
+        cached_input_token_count=cached,
+        output_token_count=output_tokens,
+        thinking_token_count=None,
+        total_token_count=total,
+    )
+
+
 @contextmanager
 def llm_call_context(**labels: Any) -> Iterator[None]:
     """Labels for every model call made inside the block (see ``CONTEXT_LABELS``)."""

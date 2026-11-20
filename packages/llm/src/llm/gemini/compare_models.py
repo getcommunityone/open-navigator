@@ -9,6 +9,10 @@ analysis in the policy cache, or one of the arms (``--reference``)::
     # 10 meetings that already have an analysis, the default arms
     python -m llm.gemini.compare_models --jurisdiction-id municipality_0177256 --state AL --limit 10
 
+    # Cheap 3-way: Gemini Flash-Lite, 3.5 Flash-Lite, Claude Haiku 5.5 (#631)
+    python -m llm.gemini.compare_models --jurisdiction-id tuscaloosa_0177256 --state AL --limit 3 \\
+        --arms gemini-2.5-flash-lite:0,gemini-3.5-flash-lite,claude-haiku-5-5
+
     # Named meetings and arms; score against Flash with thinking instead of the cache
     python -m llm.gemini.compare_models --jurisdiction-id municipality_0177256 --state AL \\
         --video-id ajsME66iXbY --video-id x1y2z3 \\
@@ -78,6 +82,13 @@ DEFAULT_ARMS = (
     "gemma-4-26b-a4b-it",
     "gemma-4-31b-it",
 )
+# Cheap 3-way for scale decisions (#631): Flash-Lite, backlog lead, Claude Haiku 5.5.
+# Pass via --arms (not the default list — Gemma arms stay opt-in for speed).
+THREE_WAY_ARMS = (
+    "gemini-2.5-flash-lite:0",
+    "gemini-3.5-flash-lite",
+    "claude-haiku-5-5",
+)
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 1200
 REFERENCE_EXISTING = "existing"
 
@@ -134,8 +145,10 @@ def parse_arm(spec: str) -> Arm:
     return Arm(label=spec, model=model, thinking_budget=None if value < 0 else value)
 
 
-def parse_arms(spec: str | None) -> list[Arm]:
-    raw = [s for s in re.split(r"[,\s]+", spec or "") if s.strip()] or list(DEFAULT_ARMS)
+def parse_arms(spec: str | None, *, three_way: bool = False) -> list[Arm]:
+    raw = [s for s in re.split(r"[,\s]+", spec or "") if s.strip()]
+    if not raw:
+        raw = list(THREE_WAY_ARMS if three_way else DEFAULT_ARMS)
     arms: list[Arm] = []
     for item in raw:
         arm = parse_arm(item)
@@ -626,6 +639,8 @@ def _requests(args: argparse.Namespace) -> list[Any]:
     )
     from llm.gemini.transcript_cache_paths import resolve_canonical_jurisdiction_id
 
+    from llm.gemini.meeting_transcript_policy import _database_url, fetch_videos
+
     database_url = _resolve_database_url(args.database_url or None)
     plan = JurisdictionPlan(jurisdiction_id=args.jurisdiction_id, state_code=args.state or "",
                             pending=0, newest_pending=None)  # fmt: skip
@@ -634,11 +649,26 @@ def _requests(args: argparse.Namespace) -> list[Any]:
     ns.limit = None if args.video_id else max(args.limit * 4, args.limit)
     jurisdiction_id = resolve_canonical_jurisdiction_id(args.jurisdiction_id)
     speaker_hints, known = load_speaker_context(ns, jurisdiction_id)
-    wanted = set(args.video_id or [])
+    wanted = [v for v in (args.video_id or []) if v]
+    # Named --video-id rows must be fetched one-by-one: jurisdiction-wide fetch
+    # dedupes "duplicate meetings" and can drop the exact ids we asked for (#631).
+    if wanted:
+        db_url = _database_url(database_url)
+        videos = []
+        for vid in wanted:
+            videos.extend(
+                fetch_videos(
+                    db_url,
+                    jurisdiction_id,
+                    video_id=vid,
+                    order_by=getattr(ns, "order_by", "last_updated") or "last_updated",
+                    dedupe_duplicate_meetings=False,
+                )
+            )
+    else:
+        videos = select_bronze_videos(ns, jurisdiction_id)
     requests: list[Any] = []
-    for video in select_bronze_videos(ns, jurisdiction_id):
-        if wanted and video.video_id not in wanted:
-            continue
+    for video in videos:
         request = prepare_part1_request(video, ns, speaker_hints=speaker_hints, known=known)
         if request is None:
             continue
@@ -655,7 +685,7 @@ def run_comparison(args: argparse.Namespace) -> Path:
     from llm.gemini.browser_policy_analysis import _REPO_ROOT
     from llm.gemini.genai_text_client import ensure_valid_gemini_api_key
 
-    arms = parse_arms(args.arms)
+    arms = parse_arms(args.arms, three_way=bool(getattr(args, "three_way", False)))
     meta: dict[str, Any] = {}
     if args.rescore:
         run_dir = Path(args.rescore)
@@ -712,6 +742,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--video-id", action="append", default=None, help="A meeting to compare (repeatable)")
     parser.add_argument("--limit", type=int, default=10, help="Meetings to compare when no --video-id is given")
     parser.add_argument("--arms", default="", help=f"Comma-separated model[:thinking_budget] (default: {','.join(DEFAULT_ARMS)})")
+    parser.add_argument(
+        "--three-way",
+        action="store_true",
+        help="Use the cheap 3-way arms (Flash-Lite, 3.5 Flash-Lite, Claude Haiku 5.5; #631). Ignored if --arms is set.",
+    )
     parser.add_argument("--reference", default=REFERENCE_EXISTING,
                         help="'existing' (the meeting's analysis in the policy cache) or one of the arms")  # fmt: skip
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Policy cache root (read only)")

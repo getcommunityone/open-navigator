@@ -85,6 +85,18 @@ models:
     source: https://docs.typesafe.ai/models.md
     read_date: "2026-11-15"
     interactive: {input_usd_per_1m: 0.042, output_usd_per_1m: 0.0}
+  # Claude Haiku 5.5 (#631): Anthropic API pricing page, per 1M tokens, prompts
+  # ≤100k tokens (longer prompts cost more; those rates are not recorded here yet).
+  # Prefix match covers `claude-haiku-5-5` and dated aliases.
+  claude-haiku-5-5:
+    source: https://www.anthropic.com/pricing
+    read_date: "2026-11-19"
+    interactive: {input_usd_per_1m: 0.10, cached_input_usd_per_1m: 0.01, output_usd_per_1m: 0.50}
+  # Claude Haiku 4.5 (same page, read same day).
+  claude-haiku-4-5:
+    source: https://www.anthropic.com/pricing
+    read_date: "2026-11-19"
+    interactive: {input_usd_per_1m: 1.00, cached_input_usd_per_1m: 0.10, output_usd_per_1m: 5.00}
 
 # GPU prices in USD per GPU-hour, matched against the name `nvidia-smi` reports
 # (the key is searched for in the name, so "T4" matches "Tesla T4"). These are

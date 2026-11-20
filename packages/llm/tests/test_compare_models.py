@@ -55,6 +55,15 @@ def test_parse_arms_defaults_and_dedupes():
     assert cm.parse_arm("gemini-2.5-flash:-1").slug == "gemini-2.5-flash_-1"
 
 
+def test_three_way_arms_include_claude_haiku():
+    labels = [a.label for a in cm.parse_arms("", three_way=True)]
+    assert labels == list(cm.THREE_WAY_ARMS)
+    assert "claude-haiku-5-5" in labels
+    assert "gemini-2.5-flash-lite:0" in labels
+    # explicit --arms wins over three_way
+    assert [a.label for a in cm.parse_arms("claude-haiku-5-5", three_way=True)] == ["claude-haiku-5-5"]
+
+
 def test_gemma_output_is_capped():
     assert cm.output_token_cap("gemma-4-31b-it", 65536) == 32768
     assert cm.output_token_cap("gemma-4-31b-it", 1000) == 1000
