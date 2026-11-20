@@ -40,6 +40,7 @@ import OpenSource from './pages/OpenSource'
 import AdvocacyTopics from './pages/AdvocacyTopics'
 import FactChecking from './pages/FactChecking'
 import UnifiedSearch from './pages/UnifiedSearch'
+import MeetingChat from './pages/MeetingChat'
 import JurisdictionsSearch from './pages/JurisdictionsSearch'
 import PolicyMap from './pages/PolicyMap'
 import DecisionsMapPage from './pages/DecisionsMapPage'
@@ -158,6 +159,7 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route path="explore" element={<Explore />} />
         <Route path="search" element={<UnifiedSearch />} />
+        <Route path="chat" element={<MeetingChat />} />
         <Route path="jurisdictions" element={<JurisdictionsSearch />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="analytics" element={<Analytics />} />

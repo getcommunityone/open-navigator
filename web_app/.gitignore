@@ -1,5 +1,7 @@
 # Frontend dependencies
 node_modules/
+# Local writable mirror of @assistant-ui when root-owned node_modules blocks npm
+vendor/
 dist/
 *.log
 .DS_Store
