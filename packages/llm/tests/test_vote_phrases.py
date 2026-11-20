@@ -52,3 +52,23 @@ def test_cluster_groups_nearby_hits():
     ]
     clusters = cluster_candidates("v", [{"text": "x", "start": 10.0}], hits, window_seconds=90.0)
     assert len(clusters) == 2
+
+
+def test_score_hit_within_60s():
+    from llm.ner.score import score_anchors
+
+    anchors = [{"video_id": "v", "decision_id": "D001", "headline": "Rezone", "anchor_seconds": 100.0}]
+    hits = {"v": [(95.0, "motion_made"), (110.0, "result")]}
+    out = score_anchors(anchors, hits, window=60.0)
+    assert out["decisions_hit"] == 1
+    assert out["decisions_missed"] == []
+
+
+def test_score_miss_outside_60s():
+    from llm.ner.score import score_anchors
+
+    anchors = [{"video_id": "v", "decision_id": "D001", "headline": "Rezone", "anchor_seconds": 100.0}]
+    hits = {"v": [(20.0, "result")]}
+    out = score_anchors(anchors, hits, window=60.0)
+    assert out["decisions_hit"] == 0
+    assert len(out["decisions_missed"]) == 1
