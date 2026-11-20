@@ -22,9 +22,10 @@ dependencies = [
     "communityone-ingestion",
 ]
 
-# Optional extras only needed by the PDF -> parquet helper.
+# Optional extras only needed by the PDF -> parquet helper / Azure Blob transcripts (#630).
 [project.optional-dependencies]
 pdf = ["httpx>=0.27", "pypdf>=6.21.4"]
+azure = ["azure-storage-blob>=12.19", "azure-identity>=1.15"]
 
 [tool.uv.sources]
 core-lib = { workspace = true }
@@ -32,6 +33,7 @@ communityone-ingestion = { workspace = true }
 
 [project.scripts]
 on-hf = "hosting.huggingface.cli:main"
+on-azure-transcripts = "hosting.azure.transcript_blobs:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

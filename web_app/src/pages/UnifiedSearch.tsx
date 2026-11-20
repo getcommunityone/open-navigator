@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopics, type TopicSummary } from '../api/topics'
@@ -1620,7 +1620,19 @@ function UnifiedSearchInner() {
               Back to home
             </button>
           )}
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Search</h1>
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+            <h1 className="text-3xl font-bold text-gray-900">Search</h1>
+            <Link
+              to={`/chat?${new URLSearchParams({
+                ...(selectedState ? { state: selectedState } : {}),
+                ...(selectedCity && !countyScopeOn ? { city: selectedCity } : {}),
+                ...(activeCountyFips ? { county_fips: activeCountyFips } : {}),
+              }).toString()}`}
+              className="text-sm font-medium text-primary-600 hover:text-primary-700 hover:underline"
+            >
+              Ask meetings
+            </Link>
+          </div>
           
           {/* Search Bar + Filters on the same row */}
           <div className="flex items-stretch gap-3">
