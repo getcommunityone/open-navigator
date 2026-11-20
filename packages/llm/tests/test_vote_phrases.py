@@ -20,3 +20,14 @@ def test_spot_motion_and_result_with_seconds():
     assert "subject_cue" in codes
     assert any(h.start_seconds == 115.0 and h.phrase_code == "result" for h in hits)
     assert len(file_sha256(segs)) == 64
+
+
+def test_create_sql_has_no_text_payload_and_singular_name():
+    from llm.ner.store import CREATE_SQL, TABLE
+
+    assert TABLE == "bronze.transcript_vote_phrase"
+    assert "bronze.bronze_" not in TABLE
+    assert "raw_text" not in CREATE_SQL.lower()
+    assert "context" not in CREATE_SQL.lower()
+    assert "file_sha256" in CREATE_SQL
+    assert "git_commit_sha" in CREATE_SQL
