@@ -68,6 +68,11 @@ def event_items_url(client: str, event_id: int | str) -> str:
     return f"{API_BASE}/{client}/events/{event_id}/eventitems?AgendaNote=1&MinutesNote=1&Attachments=0"
 
 
+def event_item_votes_url(client: str, event_item_id: int | str) -> str:
+    """Roll-call votes for one agenda/minutes item (separate from the event-items feed)."""
+    return f"{API_BASE}/{client}/eventitems/{event_item_id}/votes"
+
+
 def classify_error(payload: Any) -> Optional[tuple[str, str]]:
     """``(status, message)`` when a Web API response is an error message, else None."""
     if not isinstance(payload, dict):
@@ -204,13 +209,40 @@ def agenda_text(items: Sequence[dict[str, Any]]) -> Optional[str]:
     return "\n\n".join(lines) or None
 
 
-def minutes_text(items: Sequence[dict[str, Any]]) -> Optional[str]:
-    """Minutes the API carries: each item's minutes note, action and vote result.
+def _format_roll_call(votes: Sequence[dict[str, Any]]) -> Optional[str]:
+    """One line per voter from ``/eventitems/{id}/votes`` (VotePersonName / VoteValueName)."""
+    bits: list[str] = []
+    for v in sorted(votes, key=lambda row: (row.get("VoteSort") is None, row.get("VoteSort") or 0, row.get("VoteId") or 0)):
+        person = _clean(v.get("VotePersonName"))
+        value = _clean(v.get("VoteValueName"))
+        if person and value:
+            bits.append(f"{person}: {value}")
+        elif person:
+            bits.append(person)
+    return ("Roll call: " + "; ".join(bits)) if bits else None
 
-    None unless at least one item has a minutes note or action text; a vote flag on its
-    own is not minutes.
+
+def minutes_text(
+    items: Sequence[dict[str, Any]],
+    votes_by_item: Optional[dict[int, Sequence[dict[str, Any]]]] = None,
+) -> Optional[str]:
+    """Minutes the API carries: each item's minutes note, action, passed flag, and roll call.
+
+    Action / passed flag / minutes note come from the event-items feed. Roll-call rows
+    come from ``/eventitems/{id}/votes`` (not embedded on the item). None unless at least
+    one item has a minutes note, action text, or a non-empty roll call; a passed flag alone
+    is not minutes.
     """
-    if not any(_clean(it.get("EventItemMinutesNote")) or _clean(it.get("EventItemActionText")) for it in items):
+    votes_by_item = votes_by_item or {}
+    if not any(
+        _clean(it.get("EventItemMinutesNote"))
+        or _clean(it.get("EventItemActionText"))
+        or (
+            it.get("EventItemId") is not None
+            and votes_by_item.get(int(it["EventItemId"]))
+        )
+        for it in items
+    ):
         return None
     lines: list[str] = []
     for it in _ordered(items, "EventItemMinutesSequence"):
@@ -218,7 +250,9 @@ def minutes_text(items: Sequence[dict[str, Any]]) -> Optional[str]:
         action_text = rtf_to_text(_clean(it.get("EventItemActionText")))
         action = _clean(it.get("EventItemActionName"))
         passed = _clean(it.get("EventItemPassedFlagName"))
-        if not (note or action_text or action or passed):
+        iid = it.get("EventItemId")
+        roll = _format_roll_call(votes_by_item.get(int(iid), ())) if iid is not None else None
+        if not (note or action_text or action or passed or roll):
             continue
         title = rtf_to_text(_clean(it.get("EventItemTitle")))
         parts = [p for p in (title,) if p]
@@ -229,6 +263,8 @@ def minutes_text(items: Sequence[dict[str, Any]]) -> Optional[str]:
             parts.append(action_text)
         if note:
             parts.append(note)
+        if roll:
+            parts.append(roll)
         lines.append("\n".join(parts))
     return "\n\n".join(lines) or None
 
@@ -237,11 +273,48 @@ def granicus_player_url(host: str, clip_id: str) -> str:
     return f"https://{host}/MediaPlayer.php?clip_id={clip_id}"
 
 
+def votes_json_payload(
+    items: Sequence[dict[str, Any]],
+    votes_by_item: dict[int, Sequence[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Structured roll-call rows for bronze ``votes_json`` (one object per voted item)."""
+    out: list[dict[str, Any]] = []
+    for it in _ordered(items, "EventItemMinutesSequence"):
+        iid = it.get("EventItemId")
+        if iid is None:
+            continue
+        votes = list(votes_by_item.get(int(iid), ()))
+        if not votes:
+            continue
+        out.append(
+            {
+                "event_item_id": int(iid),
+                "title": rtf_to_text(_clean(it.get("EventItemTitle"))),
+                "action_name": _clean(it.get("EventItemActionName")),
+                "passed_flag_name": _clean(it.get("EventItemPassedFlagName")),
+                "votes": [
+                    {
+                        "vote_id": v.get("VoteId"),
+                        "person_id": v.get("VotePersonId"),
+                        "person_name": _clean(v.get("VotePersonName")),
+                        "value_id": v.get("VoteValueId"),
+                        "value_name": _clean(v.get("VoteValueName")),
+                        "result": v.get("VoteResult"),
+                        "sort": v.get("VoteSort"),
+                    }
+                    for v in votes
+                ],
+            }
+        )
+    return out
+
+
 def meeting_from_event(
     client: str,
     event: dict[str, Any],
     items: Optional[Sequence[dict[str, Any]]] = None,
     *,
+    votes_by_item: Optional[dict[int, Sequence[dict[str, Any]]]] = None,
     jurisdiction_id: Optional[str] = None,
     state_code: Optional[str] = None,
     granicus_host: Optional[str] = None,
@@ -259,6 +332,8 @@ def meeting_from_event(
     elif clip and clip.isdigit() and granicus_host:
         video_url, video_source = granicus_player_url(granicus_host, clip), "granicus_clip"
     raw = {k: v for k, v in event.items() if k != "EventItems"}
+    votes_by_item = dict(votes_by_item or {})
+    vjson = votes_json_payload(items, votes_by_item) if items else []
     return PlatformMeeting(
         platform=PLATFORM,
         meeting_uid=f"{client}:{event_id}",
@@ -277,7 +352,8 @@ def meeting_from_event(
         video_clip_id=clip,
         detail_url=_clean(event.get("EventInSiteURL")),
         agenda_text=agenda_text(items) if items else None,
-        minutes_text=minutes_text(items) if items else None,
+        minutes_text=minutes_text(items, votes_by_item) if items else None,
+        votes_json=vjson or None,
         source_modified_at=_parse_utc(event.get("EventLastModifiedUtc")),
         raw=raw,
         has_video=bool(video_path or clip),
@@ -374,6 +450,7 @@ async def read_client(
         if uid in known and known[uid] is not None and modified is not None and known[uid] == modified:
             continue  # unchanged since it was landed
         items: Optional[list[dict[str, Any]]] = None
+        votes_by_item: dict[int, list[dict[str, Any]]] = {}
         has_agenda = bool(_clean(event.get("EventAgendaFile")))
         held = (_parse_date(event.get("EventDate")) or date.max) <= (today or date.today())
         if held or has_agenda:
@@ -382,9 +459,35 @@ async def read_client(
                 items = got if isinstance(got, list) else None
             except PlatformFetchError as exc:
                 logger.debug("legistar {} items for {}: {}", client, uid, exc)
+            if items:
+                for it in items:
+                    iid = it.get("EventItemId")
+                    if iid is None:
+                        continue
+                    # Only request votes when the item already shows an action/result —
+                    # avoids N empty GETs for agenda-only items.
+                    if not (
+                        _clean(it.get("EventItemActionName"))
+                        or _clean(it.get("EventItemActionText"))
+                        or _clean(it.get("EventItemPassedFlagName"))
+                        or it.get("EventItemPassedFlag") is not None
+                    ):
+                        continue
+                    try:
+                        votes = await _get_json(http, event_item_votes_url(client, iid))
+                        if isinstance(votes, list) and votes:
+                            votes_by_item[int(iid)] = votes
+                    except PlatformFetchError as exc:
+                        logger.debug("legistar {} votes for item {}: {}", client, iid, exc)
         result.meetings.append(
             meeting_from_event(
-                client, event, items, jurisdiction_id=jurisdiction_id, state_code=state_code, granicus_host=granicus_host
+                client,
+                event,
+                items,
+                votes_by_item=votes_by_item,
+                jurisdiction_id=jurisdiction_id,
+                state_code=state_code,
+                granicus_host=granicus_host,
             )
         )
     result.status = "ok" if events else "empty"
