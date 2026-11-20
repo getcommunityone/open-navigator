@@ -38,6 +38,7 @@
 #   CATALOG_YTDLP=1    — unset YOUTUBE_API_KEY for catalog (avoid googleapis.com hangs; use yt-dlp)
 #   CHANNEL_SOURCE=    — override per-jurisdiction catalog source (auto|counties-scraped|municipalities-scraped)
 #   ROUND_ROBIN=0      — process state-by-state (default: interleave states for diversity)
+#   VPN_WAIT_POLL_SECONDS=30  — on child exit 5, poll vpn_guard this often until up, then retry (#644)
 #   DATABASE_URL=...   — override .env
 
 set -euo pipefail
@@ -79,23 +80,45 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 1
 fi
 
-# YouTube is only reached through the VPN (#488). Every YouTube step exits 5 when the
-# tunnel is down; this crawl stops with exit 5 too instead of moving on.
-stop_on_vpn_exit() {
-  local ec="$1" what="$2"
-  if [[ "$ec" -eq 5 ]]; then
-    echo "STOP: the VPN is off ($what exited 5). Connect Surfshark, then re-run." >&2
-    exit 5
-  fi
-  echo "WARN: $what failed (exit $ec)" >&2
+# YouTube is only reached through the VPN (#488). Children exit 5 when the tunnel
+# (or the vpn_guard check) fails. This crawl waits and retries the same step (#644)
+# instead of ending the whole overnight job.
+VPN_WAIT_POLL_SECONDS="${VPN_WAIT_POLL_SECONDS:-30}"
+
+wait_until_vpn_up() {
+  local what="${1:-YouTube step}"
+  echo "VPN down during $what; waiting until vpn_guard passes (poll ${VPN_WAIT_POLL_SECONDS}s)..." >&2
+  while true; do
+    if "$PYTHON" -m scrapers.youtube.vpn_guard; then
+      echo "VPN up again; retrying $what" >&2
+      return 0
+    fi
+    sleep "$VPN_WAIT_POLL_SECONDS"
+  done
+}
+
+# Run "$@"; on exit 5 wait for VPN and retry forever; other non-zero returns that code.
+run_with_vpn_retry() {
+  local what="$1"
+  shift
+  while true; do
+    local ec=0
+    "$@" || ec=$?
+    if [[ "$ec" -eq 0 ]]; then
+      return 0
+    fi
+    if [[ "$ec" -eq 5 ]]; then
+      wait_until_vpn_up "$what"
+      continue
+    fi
+    echo "WARN: $what failed (exit $ec)" >&2
+    return "$ec"
+  done
 }
 
 if [[ -z "${DRY_RUN:-}" ]]; then
-  vpn_ec=0
-  "$PYTHON" -m scrapers.youtube.vpn_guard || vpn_ec=$?
-  if [[ "$vpn_ec" -ne 0 ]]; then
-    echo "STOP: the VPN check failed (exit $vpn_ec); no YouTube request was made." >&2
-    exit 5
+  if ! "$PYTHON" -m scrapers.youtube.vpn_guard; then
+    wait_until_vpn_up "startup vpn_guard"
   fi
 fi
 
@@ -266,11 +289,13 @@ run_catalog() {
     )
     [[ -n "${CATALOG_FORCE:-}" ]] && cat_argv+=(--force)
     if [[ -n "${CATALOG_YTDLP:-}" ]]; then
-      env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-        "${cat_argv[@]}" "${extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
+      run_with_vpn_retry "catalog for $jid" \
+        env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
+        "${cat_argv[@]}" "${extra[@]}" || true
     else
-      "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-        "${cat_argv[@]}" "${extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
+      run_with_vpn_retry "catalog for $jid" \
+        "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
+        "${cat_argv[@]}" "${extra[@]}" || true
     fi
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN=1; list_jurisdictions)
 }
@@ -341,11 +366,11 @@ run_captions() {
       cap_args+=(--dry-run)
     fi
     local cap_ec=0
-    "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
+    run_with_vpn_retry "captions for $jid" \
+      "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
       || cap_ec=$?
     if [[ "$cap_ec" -ne 0 ]]; then
       ((failed+=1))
-      stop_on_vpn_exit "$cap_ec" "captions for $jid"
     else
       ((success+=1))
     fi
@@ -449,11 +474,13 @@ run_each_jurisdiction() {
         )
         [[ -n "${CATALOG_FORCE:-}" ]] && cat_argv+=(--force)
         if [[ -n "${CATALOG_YTDLP:-}" ]]; then
-          env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-            "${cat_argv[@]}" "${cat_extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
+          run_with_vpn_retry "catalog for $jid" \
+            env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
+            "${cat_argv[@]}" "${cat_extra[@]}" || true
         else
-          "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-            "${cat_argv[@]}" "${cat_extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
+          run_with_vpn_retry "catalog for $jid" \
+            "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
+            "${cat_argv[@]}" "${cat_extra[@]}" || true
         fi
       fi
     fi
@@ -492,12 +519,9 @@ run_each_jurisdiction() {
     if [[ -n "${DRY_RUN:-}" ]]; then
       cap_args+=(--dry-run)
     else
-      cap_ec=0
-      "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
-        || cap_ec=$?
-      if [[ "$cap_ec" -ne 0 ]]; then
-        stop_on_vpn_exit "$cap_ec" "captions for $jid"
-      fi
+      run_with_vpn_retry "captions for $jid" \
+        "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
+        || true
     fi
     echo "--- Analyze: $st — $name ($jid) ---"
     local -a ana_args=(
