@@ -110,10 +110,38 @@ candidates are good enough, Jev can score approve/reject/table over a known
 window. Until then, Gemini (or [Gemma on Colab](../deployment/colab-gemma-policy-analysis.md))
 remains the extractor of record.
 
+## How to run
+
+From the repo root with `OPEN_NAVIGATOR_DATABASE_URL` set (local warehouse on
+`localhost:5433`):
+
+```bash
+.venv/bin/python -m llm.ner.spot_vote_phrases --limit 50 --dry-run
+.venv/bin/python -m llm.ner.spot_vote_phrases --limit 50
+.venv/bin/python -m llm.ner.spot_vote_phrases --limit 50 --candidates
+.venv/bin/python -m llm.ner.score_vote_phrases --limit 50
+```
+
+Flags:
+
+- `--database-url` — override the database URL (default: env
+  `OPEN_NAVIGATOR_DATABASE_URL`).
+- `--limit` — cap Part 1 videos scanned or decisions scored.
+- `--dry-run` — spot only; no `bronze.transcript_vote_phrase` writes (still prints
+  row counts and ~200k estimates).
+- `--candidates` — also write spaCy EntityRuler clusters to
+  `data/cache/vote_phrase_candidates/<run>/candidates.jsonl` (requires
+  `en_core_web_sm`).
+- `--video-id` — repeatable; spot specific videos instead of the Part 1 default
+  set.
+
+If `python -m llm.ner…` fails on import, install the package in the worktree
+venv (`pip install -e packages/llm`) or run with
+`PYTHONPATH=packages/llm/src`.
+
 ## Out of scope (this design)
 
 - Writing `public.event_decision` from phrase hits or candidates.
 - Screening the full YouTube catalog.
 - GLiNER (see [#641](https://github.com/getcommunityone/open-navigator/issues/641)).
 - Person/place MDM ([#623](https://github.com/getcommunityone/open-navigator/issues/623)).
-EOF

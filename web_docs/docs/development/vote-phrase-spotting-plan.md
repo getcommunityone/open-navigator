@@ -418,7 +418,7 @@ EOF
 - Modify: `web_docs/docs/development/vote-phrase-spotting-plan.md` (check off completed tasks only when done)
 - Modify: `web_docs/sidebars.ts` if the plan page should appear (optional; design page is enough — add plan under AI category only if you want it browsable)
 
-- [ ] **Step 1: Add “How to run” to the design doc**
+- [x] **Step 1: Add “How to run” to the design doc**
 
 ```bash
 .venv/bin/python -m llm.ner.spot_vote_phrases --limit 50 --dry-run
@@ -427,7 +427,7 @@ EOF
 .venv/bin/python -m llm.ner.score_vote_phrases --limit 50
 ```
 
-- [ ] **Step 2: Run limited load + score on the warehouse**
+- [x] **Step 2: Run limited load + score on the warehouse**
 
 ```bash
 .venv/bin/python -m llm.ner.spot_vote_phrases --limit 50
@@ -436,7 +436,7 @@ EOF
 
 Expected: table created; report includes `estimate_200k_*`; score summary with hit/miss counts; no transcript text in `SELECT * FROM bronze.transcript_vote_phrase LIMIT 5`.
 
-- [ ] **Step 3: Commit docs**
+- [x] **Step 3: Commit docs**
 
 ```bash
 git add web_docs/docs/development/vote-phrase-spotting.md \
