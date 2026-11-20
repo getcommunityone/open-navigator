@@ -13,6 +13,7 @@ from typing import IO, TextIO
 
 import psycopg2
 from loguru import logger
+from psycopg2 import errorcodes
 
 from core_lib.paths import repo_root
 from llm.gemini.transcript_db import fetch_db_transcript
@@ -143,6 +144,26 @@ def _scan_videos(
     return len(video_ids), videos_with_hits, total_hits, file_sha256s, rows
 
 
+def load_table_stats_for_report(
+    conn,
+    *,
+    dry_run: bool,
+    file_sha256s: list[str],
+    rows: list[dict],
+) -> tuple[int, int]:
+    """Return current bronze table size; insert new hits unless ``dry_run``."""
+    if not dry_run:
+        ensure_table(conn)
+        replace_hits(conn, file_sha256s=file_sha256s, rows=rows)
+    try:
+        stats = table_stats(conn)
+    except psycopg2.Error as exc:
+        if dry_run and exc.pgcode == errorcodes.UNDEFINED_TABLE:
+            return 0, 0
+        raise
+    return stats["row_count"], stats["total_bytes"]
+
+
 def _candidates_output_path(utc_run_id: str) -> Path:
     return (
         repo_root(__file__)
@@ -245,25 +266,23 @@ def main(argv: list[str] | None = None) -> int:
         if candidates_out is not None:
             candidates_out.close()
 
-    table_rows = 0
-    table_bytes = 0
-    if not args.dry_run:
-        conn = psycopg2.connect(database_url)
-        try:
-            ensure_table(conn)
-            replace_hits(conn, file_sha256s=file_sha256s, rows=rows)
-            stats = table_stats(conn)
-            table_rows = stats["row_count"]
-            table_bytes = stats["total_bytes"]
-        finally:
-            conn.close()
+    conn = psycopg2.connect(database_url)
+    try:
+        table_rows, table_bytes = load_table_stats_for_report(
+            conn,
+            dry_run=args.dry_run,
+            file_sha256s=file_sha256s,
+            rows=rows,
+        )
+    finally:
+        conn.close()
 
     report = _format_report(
         videos_scanned=videos_scanned,
         videos_with_hits=videos_with_hits,
         hits=hits,
-        table_rows=table_rows if not args.dry_run else 0,
-        table_bytes=table_bytes if not args.dry_run else 0,
+        table_rows=table_rows,
+        table_bytes=table_bytes,
     )
     print(report)
     return 0

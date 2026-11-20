@@ -41,6 +41,41 @@ def test_estimate_scales_to_200k():
     assert est["estimate_200k_bytes"] == 100_000_000
 
 
+def test_estimate_uses_empty_table_bytes_per_hit():
+    from llm.ner.spot_vote_phrases import estimate_full_catalog
+
+    est = estimate_full_catalog(videos_scanned=10, hits=20, table_rows=0, table_bytes=0)
+    assert est["estimate_200k_hits"] == 400_000
+    assert est["estimate_200k_bytes"] == 400_000 * 120
+
+
+def test_merge_preferred_anchors_before_fallback():
+    from llm.ner.score import merge_anchor_rows
+
+    preferred = [{"video_id": "v1", "decision_id": "D1", "headline": "A", "anchor_seconds": 1.0}]
+    fallback = [
+        {"video_id": "v1", "decision_id": "D1", "headline": "dup", "anchor_seconds": 2.0},
+        {"video_id": "v2", "decision_id": "D2", "headline": "B", "anchor_seconds": 3.0},
+    ]
+    merged, fallback_only = merge_anchor_rows(preferred, fallback)
+    assert fallback_only == 1
+    assert len(merged) == 2
+    assert merged[0]["headline"] == "A"
+
+
+def test_nearby_transcript_lines_picks_closest():
+    from llm.ner.score import nearby_transcript_lines
+
+    segments = [
+        {"text": "far", "start": 0.0},
+        {"text": "close", "start": 98.0},
+        {"text": "mid", "start": 150.0},
+        {"text": "also", "start": 200.0},
+    ]
+    lines = nearby_transcript_lines(segments, 100.0, max_lines=3)
+    assert lines == ["close", "mid", "far"]
+
+
 def test_cluster_groups_nearby_hits():
     from llm.ner.candidates import cluster_candidates
     from llm.ner.spot import VotePhraseHit

@@ -12,7 +12,13 @@ import psycopg2
 from loguru import logger
 
 from core_lib.paths import repo_root
-from llm.ner.score import load_gemini_anchors, load_hits_by_video, score_anchors
+from llm.gemini.transcript_db import fetch_db_transcript
+from llm.ner.score import (
+    load_gemini_anchors,
+    load_hits_by_video,
+    nearby_transcript_lines,
+    score_anchors,
+)
 from llm.ner.store import TABLE, ensure_table, table_stats
 
 
@@ -78,9 +84,22 @@ def main(argv: list[str] | None = None) -> int:
     utc_run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out_path = _misses_output_path(utc_run_id)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    segment_cache: dict[str, list[dict]] = {}
+
+    def _segments(video_id: str) -> list[dict]:
+        if video_id not in segment_cache:
+            yt = fetch_db_transcript(database_url, video_id)
+            segment_cache[video_id] = list((yt or {}).get("segments") or [])
+        return segment_cache[video_id]
+
     with out_path.open("w", encoding="utf-8") as fh:
         for record in missed:
-            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+            enriched = dict(record)
+            enriched["nearby_lines"] = nearby_transcript_lines(
+                _segments(record["video_id"]),
+                float(record["anchor_seconds"]),
+            )
+            fh.write(json.dumps(enriched, ensure_ascii=False) + "\n")
 
     logger.info("Wrote {} miss record(s) to {}", len(missed), out_path)
 

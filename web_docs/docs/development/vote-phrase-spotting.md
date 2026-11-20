@@ -90,8 +90,9 @@ For each decision in the scored set with
 - **Hit** if at least one `transcript_vote_phrase` row for that `video_id` falls
   within **±60 seconds** of the anchor.
 - Report: decisions with a hit / decisions with an anchor; list misses.
-- For misses: re-read nearby caption lines from the file and record which
-  `phrase_code`s were absent (what stock phrases we still need).
+- For misses: each `misses.jsonl` row includes `nearby_phrase_codes` /
+  `missing_codes_guess` from bronze hits within ±120s, plus up to three
+  `nearby_lines` caption excerpts re-read from the transcript at score time.
 
 This does not invent decisions. It only measures whether the free layer fires
 near decisions Gemini already extracted.
