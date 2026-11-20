@@ -1,14 +1,14 @@
 /**
- * Public meeting Q&A chat (#630) — assistant-ui thread + FastAPI summaries path.
- * Scope comes from URL (?state=&city=&county_fips=) so the label matches the filter.
+ * Meeting Q&A chat (#630 / #652) — ChatGPT-style sidebar + thread.
+ * Scope from URL (?state=&city=&county_fips=); label matches the filter.
  */
-import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { useSearchParams } from 'react-router-dom'
 import { expandStateName } from '../utils/formatters'
 import {
   MeetingChatRuntimeProvider,
   type MeetingChatScope,
 } from '../components/meeting-chat/MeetingChatRuntime'
+import { MeetingChatSidebar } from '../components/meeting-chat/MeetingChatSidebar'
 import { MeetingChatThread } from '../components/meeting-chat/MeetingChatThread'
 
 function scopeLabel(scope: MeetingChatScope): string {
@@ -32,26 +32,15 @@ export default function MeetingChat() {
     county_fips: params.get('county_fips') || undefined,
   }
   const label = scopeLabel(scope)
-  const searchBack = params.toString() ? `?${params.toString()}` : ''
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl flex-col px-4 py-6">
-      <div className="mb-4 flex items-center gap-3">
-        <Link
-          to={`/search${searchBack}`}
-          className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-primary-700"
-        >
-          <ArrowLeftIcon className="h-4 w-4" />
-          Search
-        </Link>
-        <h1 className="font-serif text-2xl text-slate-900">Meeting chat · {label}</h1>
-      </div>
-
-      <div className="flex-1 overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-        <MeetingChatRuntimeProvider scope={scope}>
-          <MeetingChatThread scopeLabel={label} />
-        </MeetingChatRuntimeProvider>
-      </div>
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-white">
+      <MeetingChatRuntimeProvider scope={scope}>
+        <MeetingChatSidebar scopeLabel={label} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <MeetingChatThread />
+        </div>
+      </MeetingChatRuntimeProvider>
     </div>
   )
 }
