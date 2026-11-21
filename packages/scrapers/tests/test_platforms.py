@@ -153,6 +153,32 @@ def test_minutes_text_needs_a_note_or_action_text():
     assert legistar.minutes_text([{"EventItemTitle": "Item", "EventItemPassedFlagName": "Pass"}]) is None
 
 
+def test_minutes_text_includes_roll_call_votes():
+    items = [
+        {
+            "EventItemId": 1,
+            "EventItemTitle": "Approve agenda",
+            "EventItemMinutesSequence": 1,
+            "EventItemActionName": "Approved",
+            "EventItemActionText": "Motion carried.",
+            "EventItemPassedFlagName": "Pass",
+        }
+    ]
+    votes = {
+        1: [
+            {"VoteId": 10, "VotePersonName": "Ada", "VoteValueName": "Ayes", "VoteSort": 1},
+            {"VoteId": 11, "VotePersonName": "Bea", "VoteValueName": "Nays", "VoteSort": 2},
+        ]
+    }
+    text = legistar.minutes_text(items, votes)
+    assert text is not None
+    assert "Action: Approved - Pass" in text
+    assert "Roll call: Ada: Ayes; Bea: Nays" in text
+    payload = legistar.votes_json_payload(items, votes)
+    assert payload[0]["event_item_id"] == 1
+    assert payload[0]["votes"][0]["person_name"] == "Ada"
+
+
 def test_events_url_filters_dates():
     url = legistar.events_url("dakota", date(2025, 1, 1), until=date(2026, 1, 1))
     assert "datetime%272025-01-01%27" in url and "datetime%272026-01-01%27" in url and "%24top" not in url
@@ -168,6 +194,8 @@ def test_read_client_skips_unchanged_and_reports_not_configured():
             return httpx.Response(404)
         if req.url.path.startswith("/v1/loudoun/"):
             return httpx.Response(500, text=fx("legistar_not_configured.json"))
+        if req.url.path.endswith("/votes"):
+            return httpx.Response(200, json=[])
         if req.url.path.endswith("/eventitems"):
             item_calls.append(req.url.path)
             return httpx.Response(200, text=items)
@@ -314,7 +342,8 @@ def test_store_rows_and_upsert_sql():
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     row = meeting_row(m, now)
-    assert row[6] == "Council" and row[18] is True and row[19] == "captions"
+    # title, votes_json, has_captions, transcription_status (#633 inserted votes_json)
+    assert row[6] == "Council" and row[18] is None and row[19] is True and row[20] == "captions"
     cap = caption_row(m, now)
     assert json.loads(cap[7]) == [{"start": 1.0, "duration": 2.0, "text": "hi there"}] and cap[8] == 1
     assert caption_row(PlatformMeeting("legistar", "a:1", "a"), now) is None
