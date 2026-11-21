@@ -29,6 +29,11 @@ from typing import Any, Iterable, Sequence
 from loguru import logger
 
 from llm.typesafe.client import JevClient, JevError, choice, noul
+from llm.typesafe.keep_decision import (
+    DEFAULT_KEEP_THRESHOLD,
+    decide_row,
+    write_review_csv,
+)
 from llm.typesafe.screen_transcripts import (
     MEETING_KEEP_KIND_KEYS,
     MEETING_KINDS,
@@ -103,6 +108,9 @@ ON CONFLICT (video_id) DO UPDATE SET
 
 DEFAULT_COMPARE_CSV = Path(
     "data/cache/jev_meta_vs_transcript_al_review.csv"
+)
+DEFAULT_REVIEW_CSV = Path(
+    "data/cache/jev_meta_vs_transcript_al_final_review.csv"
 )
 
 
@@ -407,6 +415,12 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
             agree += 1
         else:
             disagree += 1
+        meta_adj, final = decide_row(
+            title=r.get("title"),
+            transcript_keep=t_keep,
+            meta_keep=m_keep,
+            threshold=threshold,
+        )
         out_rows.append(
             {
                 "video_id": r["video_id"],
@@ -417,15 +431,80 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
                 "meta_kind": r["meta_kind"],
                 "transcript_keep_score": t_keep,
                 "meta_keep_score": m_keep,
+                "meta_keep_score_adj": meta_adj,
                 "transcript_gate": t_gate,
                 "meta_gate": m_gate,
                 "agree_at_threshold": same,
+                "final_decision": final,
                 "threshold": threshold,
                 "youtube_url": f"https://www.youtube.com/watch?v={r['video_id']}",
                 "keep_kind_keys": ",".join(MEETING_KEEP_KIND_KEYS),
             }
         )
 
+    return _write_compare_outputs(
+        out_rows, out_path, threshold, agree, disagree, DEFAULT_REVIEW_CSV
+    )
+
+
+def reprocess_compare_csv(
+    input_path: Path,
+    *,
+    output_path: Path | None = None,
+    review_path: Path | None = None,
+    threshold: float = DEFAULT_KEEP_THRESHOLD,
+) -> dict[str, Any]:
+    """Re-apply title cues + final decision on an existing compare CSV (no DB/Jev)."""
+    rows_in = list(csv.DictReader(input_path.open(encoding="utf-8")))
+    out_rows: list[dict[str, Any]] = []
+    agree = disagree = 0
+    for r in rows_in:
+        t_keep = _float_or_none(r.get("transcript_keep_score"))
+        m_keep = _float_or_none(r.get("meta_keep_score"))
+        t_gate = r.get("transcript_gate") or (
+            "skip" if meeting_keep_p_below(t_keep, threshold) else "keep"
+        )
+        m_gate = r.get("meta_gate") or (
+            "skip" if meeting_keep_p_below(m_keep, threshold) else "keep"
+        )
+        same = t_gate == m_gate
+        if same:
+            agree += 1
+        else:
+            disagree += 1
+        meta_adj, final = decide_row(
+            title=r.get("title"),
+            transcript_keep=t_keep,
+            meta_keep=m_keep,
+            threshold=threshold,
+        )
+        row = dict(r)
+        row["meta_keep_score_adj"] = meta_adj
+        row["final_decision"] = final
+        row["threshold"] = threshold
+        row["agree_at_threshold"] = same
+        out_rows.append(row)
+
+    out = output_path or input_path
+    rev = review_path or DEFAULT_REVIEW_CSV
+    return _write_compare_outputs(out_rows, out, threshold, agree, disagree, rev)
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    return float(value)
+
+
+def _write_compare_outputs(
+    out_rows: list[dict[str, Any]],
+    out_path: Path,
+    threshold: float,
+    agree: int,
+    disagree: int,
+    review_path: Path,
+) -> dict[str, Any]:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as fh:
         if out_rows:
             w = csv.DictWriter(fh, fieldnames=list(out_rows[0].keys()))
@@ -434,8 +513,15 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
         else:
             fh.write("")
 
+    n_review = write_review_csv(out_rows, review_path)
+
     n = len(out_rows)
     rate = (agree / n) if n else 0.0
+    by_final = {"keep": 0, "skip": 0, "review": 0}
+    for r in out_rows:
+        d = str(r.get("final_decision") or "skip")
+        by_final[d] = by_final.get(d, 0) + 1
+
     logger.success(
         "Compare {:,} video(s): agree={:,} disagree={:,} ({:.1%} agree) at T={:.2f} → {}",
         n,
@@ -445,20 +531,23 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
         threshold,
         out_path,
     )
-    # Disagreement breakdown (meta skip / transcript keep is the risky caption miss)
+    logger.info(
+        "Final decisions: keep={keep:,} skip={skip:,} review={review:,} → {}",
+        review_path,
+        **by_final,
+    )
     meta_skip_tx_keep = sum(
         1
         for r in out_rows
-        if r["meta_gate"] == "skip" and r["transcript_gate"] == "keep"
+        if r.get("meta_gate") == "skip" and r.get("transcript_gate") == "keep"
     )
     meta_keep_tx_skip = sum(
         1
         for r in out_rows
-        if r["meta_gate"] == "keep" and r["transcript_gate"] == "skip"
+        if r.get("meta_gate") == "keep" and r.get("transcript_gate") == "skip"
     )
     logger.info(
-        "Disagreements: meta_skip∩transcript_keep={:,} (would miss caption for a "
-        "transcript-keeper); meta_keep∩transcript_skip={:,}",
+        "Disagreements: meta_skip∩transcript_keep={:,}; meta_keep∩transcript_skip={:,}",
         meta_skip_tx_keep,
         meta_keep_tx_skip,
     )
@@ -469,7 +558,12 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
         "agree_rate": rate,
         "meta_skip_transcript_keep": meta_skip_tx_keep,
         "meta_keep_transcript_skip": meta_keep_tx_skip,
+        "final_keep": by_final.get("keep", 0),
+        "final_skip": by_final.get("skip", 0),
+        "final_review": by_final.get("review", 0),
+        "review_count": n_review,
         "output": str(out_path),
+        "review_output": str(review_path),
     }
 
 
@@ -505,6 +599,17 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help=f"Compare CSV path (default {DEFAULT_COMPARE_CSV})",
     )
+    p.add_argument(
+        "--reprocess-csv",
+        default="",
+        metavar="PATH",
+        help="Re-apply title cues + final keep/skip/review on an existing compare CSV",
+    )
+    p.add_argument(
+        "--review-output",
+        default="",
+        help=f"Review-only CSV path (default {DEFAULT_REVIEW_CSV})",
+    )
     return p
 
 
@@ -514,7 +619,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     load_dotenv()
     args = build_parser().parse_args(argv)
     try:
-        if args.compare:
+        if args.reprocess_csv:
+            reprocess_compare_csv(
+                Path(args.reprocess_csv),
+                output_path=Path(args.output) if args.output else None,
+                review_path=Path(args.review_output) if args.review_output else None,
+                threshold=float(args.threshold),
+            )
+        elif args.compare:
             run_compare(args)
         else:
             run_screen(args)
