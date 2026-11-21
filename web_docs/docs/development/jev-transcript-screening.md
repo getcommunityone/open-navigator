@@ -19,7 +19,8 @@ out the ones with no decision in them.
 - **Three questions per transcript:** what kind of video it is (Choice), whether the body votes on or approves
   anything (Noul), and whether a data center is discussed (Noul).
 - **Nothing is skipped by default.** `batch_backlog submit --skip-jev-below P` leaves out videos whose screen gives
-  a decision probability below `P`. Unscreened videos are always sent.
+  a decision probability below `P`. Unscreened videos are always sent. A separate meeting-kind gate
+  (`--skip-jev-meeting-below T`) is specified in [Jev meeting-kind analysis gate](./jev-meeting-kind-gate.md).
 - **The screen never changes a transcript.** It writes its own table. The existing non-meeting exclusion
   (`llm.gemini.policy_exclusions`) deletes the transcript text, which is too destructive for an automatic screen.
 - **Price:** $0.042 per million input tokens, and output is free
@@ -36,12 +37,17 @@ Put a key from the [TypeSafe console](https://console.typesafe.ai/keys) in `.env
 .venv/bin/python -m llm.typesafe.screen_transcripts --state AL --limit 50 --dry-run
 # Screen them
 .venv/bin/python -m llm.typesafe.screen_transcripts --state AL --limit 50
-# Batch analysis that leaves out screened videos unlikely to hold a decision
+# Calibrate P(government_meeting)+P(town_hall) against already-analyzed videos (no Jev calls)
+.venv/bin/python -m llm.typesafe.screen_transcripts --calibrate --state AL --limit 300
+# Batch analysis that leaves out screened non-meetings and/or low-decision videos
+# (town halls are kept via the keep-score sum)
+.venv/bin/python -m llm.gemini.batch_backlog submit --state AL --skip-jev-meeting-below 0.6 --dry-run
 .venv/bin/python -m llm.gemini.batch_backlog submit --state AL --skip-jev-below 0.2 --dry-run
 ```
 
 `--jurisdiction-id` screens one place, and `--rescreen` screens videos again. A video is screened again on its own
-when the questions' wording changes (`question_version`).
+when the questions' wording changes (`question_version`). Meeting-kind skip details:
+[Jev meeting-kind analysis gate](./jev-meeting-kind-gate.md).
 
 </details>
 
@@ -54,6 +60,8 @@ when the questions' wording changes (`question_version`).
 | Screen | `python -m llm.typesafe.screen_transcripts` | Reads captioned videos from `bronze.bronze_event_youtube_transcript`, newest first, and asks the three questions |
 | Table | `bronze.bronze_transcript_screen_jev` | One row per video. PK `video_id`. `meeting_kind` and its probabilities, `has_decisions_p`, `mentions_data_center_p`, chunk counts, input tokens, the raw answers, `question_version`, `screened_at` |
 | Gate | `llm.gemini.batch_backlog submit --skip-jev-below P` | Leaves out videos whose current screen has `has_decisions_p < P` |
+| Gate | `… submit --skip-jev-meeting-below T` | Leaves out videos whose keep-score `P(government_meeting)+P(town_hall) < T` |
+| Calibrate | `llm.typesafe.screen_transcripts --calibrate` | Keep/skip rates at candidate T on already-analyzed videos |
 
 </details>
 

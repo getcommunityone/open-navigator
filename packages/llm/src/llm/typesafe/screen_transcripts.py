@@ -3,8 +3,8 @@
 For each captioned video not yet screened, Jev answers three questions about the
 transcript:
 
-- ``meeting_kind`` (Choice): an official public meeting of a governing body, other
-  government video (press conference, ceremony, training), or not government at all.
+- ``meeting_kind`` (Choice): governing-body meeting, town hall, other government
+  video (press conference, ceremony, training), or not government at all.
 - ``has_decisions`` (Noul): the body votes on or approves something.
 - ``mentions_data_center`` (Noul): a data center is discussed.
 
@@ -54,15 +54,23 @@ MEETING_KINDS = {
         "An official public meeting of a governing body: a city or town council, county "
         "commission, school board, planning or zoning board, authority, or a public hearing"
     ),
+    "town_hall": (
+        "A government town hall or community listening session: elected officials or staff "
+        "taking public comment or Q&A with residents, without (or aside from) a formal vote "
+        "of a governing body"
+    ),
     "government_other": (
-        "A government video that isn't a meeting of a governing body: a press conference, "
-        "ceremony, proclamation event, training, town hall Q&A or public service announcement"
+        "A government video that isn't a governing-body meeting or town hall: a press "
+        "conference, ceremony, proclamation event, training, or public service announcement"
     ),
     "not_government": (
         "Not a government video: entertainment, sports, worship service, news commentary, "
         "a business or a private event"
     ),
 }
+
+# Probabilities summed for ``--skip-jev-meeting-below`` (meetings + town halls stay in).
+MEETING_KEEP_KIND_KEYS: tuple[str, ...] = ("government_meeting", "town_hall")
 
 QUESTIONS: dict[str, dict[str, Any]] = {
     "meeting_kind": choice(
@@ -283,10 +291,17 @@ def estimate_tokens(
 
 
 def select_sql(
-    *, states: Iterable[str], jurisdiction_id: str, rescreen: bool
+    *,
+    states: Iterable[str],
+    jurisdiction_id: str,
+    rescreen: bool,
+    analyzed_only: bool = False,
 ) -> tuple[str, list[Any]]:
     """Captioned videos to screen, newest first. Already screened with the current
-    questions are left out unless ``rescreen``."""
+    questions are left out unless ``rescreen``.
+
+    ``analyzed_only`` keeps videos Gemini has already analyzed
+    (``policy_analysis_at``) — use this to build a calibrate sample."""
     where = ["t.has_transcript IS TRUE"]
     params: list[Any] = []
     state_list = [s.strip().upper() for s in states if s and s.strip()]
@@ -296,6 +311,8 @@ def select_sql(
     if jurisdiction_id:
         where.append("e.jurisdiction_id = %s")
         params.append(jurisdiction_id)
+    if analyzed_only:
+        where.append("e.policy_analysis_at IS NOT NULL")
     if not rescreen:
         where.append(
             f"NOT EXISTS (SELECT 1 FROM {TABLE} s WHERE s.video_id = t.video_id "
@@ -340,6 +357,98 @@ def jev_skip_video_ids(database_url: str, min_decisions_p: float) -> set[str]:
         conn.close()
 
 
+def meeting_keep_p(probabilities: dict[str, Any] | None) -> float | None:
+    """``P(government_meeting) + P(town_hall)`` from a screen's kind probabilities.
+
+    Returns ``None`` when neither keep-kind key is present (treat like unscreened)."""
+    if not probabilities:
+        return None
+    total = 0.0
+    saw = False
+    for key in MEETING_KEEP_KIND_KEYS:
+        if key not in probabilities:
+            continue
+        raw = probabilities.get(key)
+        if raw is None:
+            continue
+        saw = True
+        total += float(raw)
+    return total if saw else None
+
+
+def meeting_keep_p_below(keep_p: float | None, min_meeting_p: float) -> bool:
+    """True when the keep-score is strictly below the floor.
+
+    ``None`` never skips — same spirit as unscreened."""
+    return keep_p is not None and keep_p < min_meeting_p
+
+
+# Back-compat alias used by older tests / callers.
+gov_meeting_p_below = meeting_keep_p_below
+
+
+def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[str]:
+    """Videos whose keep-score ``P(government_meeting)+P(town_hall)`` is below ``min_meeting_p``.
+
+    Unscreened videos, older question wording, and screens missing both keep-kind
+    keys are never returned."""
+    import psycopg2
+
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass(%s)", [TABLE])
+            if cur.fetchone()[0] is None:
+                return set()
+            cur.execute(
+                f"""
+                SELECT video_id FROM {TABLE}
+                WHERE question_version = %s
+                  AND (
+                    meeting_kind_probabilities ? 'government_meeting'
+                    OR meeting_kind_probabilities ? 'town_hall'
+                  )
+                  AND (
+                    COALESCE((meeting_kind_probabilities->>'government_meeting')::float, 0)
+                    + COALESCE((meeting_kind_probabilities->>'town_hall')::float, 0)
+                  ) < %s
+                """,
+                [QUESTION_VERSION, min_meeting_p],
+            )
+            return {row[0] for row in cur.fetchall()}
+    finally:
+        conn.close()
+
+
+CALIBRATE_THRESHOLDS: tuple[float, ...] = (0.5, 0.6, 0.7)
+
+
+def calibrate_threshold_table(
+    rows: Sequence[tuple[str, float | None]],
+    *,
+    thresholds: Sequence[float] = CALIBRATE_THRESHOLDS,
+) -> list[dict[str, Any]]:
+    """Keep/skip counts if ``--skip-jev-meeting-below T`` had gated these analyzed videos.
+
+    Each row is ``(video_id, P(government_meeting)+P(town_hall) | None)``. Null
+    keep-score is never a skip. ``false_skip_rate`` is skip/n among this sample.
+    """
+    n = len(rows)
+    out: list[dict[str, Any]] = []
+    for t in thresholds:
+        skip = sum(1 for _, p in rows if meeting_keep_p_below(p, t))
+        out.append(
+            {
+                "threshold": float(t),
+                "n": n,
+                "keep": n - skip,
+                "skip": skip,
+                "false_skip_rate": (skip / n) if n else 0.0,
+            }
+        )
+    return out
+
+
 def _segment_texts(row: dict[str, Any]) -> list[str]:
     from llm.gemini.transcript_db import normalize_transcript_row
 
@@ -355,16 +464,108 @@ def _database_url(explicit: str) -> str:
     return _resolve_database_url(explicit)
 
 
+def _calibrate_analyzed_rows(
+    database_url: str,
+    *,
+    states: Sequence[str],
+    jurisdiction_id: str,
+    limit: int,
+) -> list[tuple[str, float | None]]:
+    """Current-version screens joined to videos Gemini has already analyzed."""
+    import psycopg2
+
+    where = [
+        "s.question_version = %s",
+        "e.policy_analysis_at IS NOT NULL",
+    ]
+    params: list[Any] = [QUESTION_VERSION]
+    state_list = [s.strip().upper() for s in states if s and s.strip()]
+    if state_list:
+        where.append("e.state_code = ANY(%s)")
+        params.append(state_list)
+    if jurisdiction_id:
+        where.append("e.jurisdiction_id = %s")
+        params.append(jurisdiction_id)
+    sql = f"""
+        SELECT s.video_id,
+               CASE
+                 WHEN s.meeting_kind_probabilities ? 'government_meeting'
+                   OR s.meeting_kind_probabilities ? 'town_hall'
+                 THEN COALESCE((s.meeting_kind_probabilities->>'government_meeting')::float, 0)
+                    + COALESCE((s.meeting_kind_probabilities->>'town_hall')::float, 0)
+                 ELSE NULL
+               END AS keep_p
+        FROM {TABLE} s
+        JOIN bronze.bronze_event_youtube e ON e.video_id = s.video_id
+        WHERE {" AND ".join(where)}
+        ORDER BY e.policy_analysis_at DESC NULLS LAST
+        LIMIT %s
+    """
+    params.append(limit)
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass(%s)", [TABLE])
+            if cur.fetchone()[0] is None:
+                return []
+            cur.execute(sql, params)
+            return [(str(vid), p) for vid, p in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def run_calibrate(args: argparse.Namespace) -> dict[str, Any]:
+    """Print keep/skip rates at candidate T values; does not call Jev."""
+    database_url = _database_url(args.database_url)
+    states = [s for part in (args.state or []) for s in part.split(",")]
+    rows = _calibrate_analyzed_rows(
+        database_url,
+        states=states,
+        jurisdiction_id=args.jurisdiction_id or "",
+        limit=args.limit,
+    )
+    table = calibrate_threshold_table(rows)
+    logger.info(
+        "Calibrate on {:,} already-analyzed video(s) with current Jev screens "
+        "(questions {}); keep-score = P(government_meeting)+P(town_hall)",
+        len(rows),
+        QUESTION_VERSION,
+    )
+    if not rows:
+        logger.warning(
+            "No joined rows — screen some analyzed videos first, or widen --state/--limit."
+        )
+        return {"n": 0, "thresholds": table}
+    for row in table:
+        logger.success(
+            "T={threshold:.2f}: keep {keep:,} / skip {skip:,} "
+            "(false-skip rate {false_skip_rate:.1%} of this sample)",
+            **row,
+        )
+    logger.info(
+        "Pick T from the table, record it under Chosen threshold in "
+        "web_docs/docs/development/jev-meeting-kind-gate.md, then submit with "
+        "--skip-jev-meeting-below T."
+    )
+    return {"n": len(rows), "thresholds": table}
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
     from llm.usage.prices import load_prices, model_price
 
+    if getattr(args, "calibrate", False):
+        return run_calibrate(args)
+
     database_url = _database_url(args.database_url)
     states = [s for part in (args.state or []) for s in part.split(",")]
     sql, params = select_sql(
-        states=states, jurisdiction_id=args.jurisdiction_id, rescreen=args.rescreen
+        states=states,
+        jurisdiction_id=args.jurisdiction_id,
+        rescreen=args.rescreen,
+        analyzed_only=bool(getattr(args, "analyzed_only", False)),
     )
 
     conn = psycopg2.connect(database_url)
@@ -488,6 +689,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--dry-run", action="store_true", help="Count and estimate tokens; send nothing"
+    )
+    p.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="Join current screens to already-analyzed videos and report "
+        "keep/skip rates at P(government_meeting)+P(town_hall) thresholds; "
+        "does not call Jev",
+    )
+    p.add_argument(
+        "--analyzed-only",
+        action="store_true",
+        help="Only screen videos that already have Gemini analysis "
+        "(policy_analysis_at); for building a calibrate sample",
     )
     return p
 

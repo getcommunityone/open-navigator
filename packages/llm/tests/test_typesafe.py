@@ -140,8 +140,26 @@ def test_gives_up_after_max_attempts():
 
 def test_missing_key(monkeypatch):
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
-    with pytest.raises(jev.JevError, match="TYPESAFE_API_KEY"):
+    monkeypatch.delenv("JEV_API_KEY", raising=False)
+    with pytest.raises(jev.JevError, match="TYPESAFE_API_KEY or JEV_API_KEY"):
         jev.JevClient()
+
+
+def test_jev_api_key_alias(monkeypatch):
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setenv("JEV_API_KEY", "from-jev-alias")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer from-jev-alias"
+        return httpx.Response(200, json=OK_BODY)
+
+    with _client(handler) as c:
+        # _client passes api_key= explicitly; construct without it to hit env
+        pass
+    with jev.JevClient(
+        transport=httpx.MockTransport(handler), sleep=lambda s: None
+    ) as c:
+        c.system_one(state="x", questions={"q": jev.noul("x")})
 
 
 def test_question_builders_validate():
@@ -236,6 +254,11 @@ def test_select_sql_filters():
     assert sql.rstrip().endswith("LIMIT %s")
     sql, params = screen.select_sql(states=[], jurisdiction_id="", rescreen=True)
     assert "NOT EXISTS" not in sql and params == []
+    sql, params = screen.select_sql(
+        states=["AL"], jurisdiction_id="", rescreen=False, analyzed_only=True
+    )
+    assert "policy_analysis_at IS NOT NULL" in sql
+    assert params[0] == ["AL"] and params[1] == screen.QUESTION_VERSION
 
 
 def test_jev_price_on_file():
@@ -257,6 +280,64 @@ def test_batch_backlog_flag_parses():
     args = build_parser().parse_args(["submit", "--skip-jev-below", "0.2"])
     assert args.skip_jev_below == pytest.approx(0.2)
     assert build_parser().parse_args(["submit"]).skip_jev_below is None
+
+
+def test_batch_backlog_meeting_flag_parses():
+    from llm.gemini.batch_backlog import build_parser
+
+    args = build_parser().parse_args(["submit", "--skip-jev-meeting-below", "0.6"])
+    assert args.skip_jev_meeting_below == pytest.approx(0.6)
+    assert build_parser().parse_args(["submit"]).skip_jev_meeting_below is None
+    both = build_parser().parse_args(
+        ["submit", "--skip-jev-below", "0.2", "--skip-jev-meeting-below", "0.7"]
+    )
+    assert both.skip_jev_below == pytest.approx(0.2)
+    assert both.skip_jev_meeting_below == pytest.approx(0.7)
+
+
+def test_calibrate_threshold_counts():
+    # Already-analyzed sample: null gov_p must not count as a skip.
+    rows = [
+        ("a", 0.9),
+        ("b", 0.55),
+        ("c", 0.4),
+        ("d", None),
+    ]
+    table = screen.calibrate_threshold_table(rows, thresholds=(0.5, 0.6, 0.7))
+    assert [r["threshold"] for r in table] == [0.5, 0.6, 0.7]
+    # T=0.5 skips only c (0.4); d null kept
+    assert table[0] == {
+        "threshold": 0.5,
+        "n": 4,
+        "keep": 3,
+        "skip": 1,
+        "false_skip_rate": pytest.approx(0.25),
+    }
+    # T=0.6 skips b+c
+    assert table[1]["skip"] == 2 and table[1]["keep"] == 2
+    # T=0.7 skips b+c (a=0.9 kept)
+    assert table[2]["skip"] == 2 and table[2]["keep"] == 2
+
+
+def test_meeting_keep_p_and_below():
+    assert screen.meeting_keep_p(
+        {"government_meeting": 0.4, "town_hall": 0.3, "government_other": 0.3}
+    ) == pytest.approx(0.7)
+    assert screen.meeting_keep_p({"government_other": 1.0}) is None
+    assert screen.meeting_keep_p_below(0.59, 0.6) is True
+    assert screen.meeting_keep_p_below(0.6, 0.6) is False
+    assert screen.meeting_keep_p_below(None, 0.6) is False
+    assert "town_hall" in screen.MEETING_KINDS
+    # Town halls are their own Choice; government_other only mentions them to exclude.
+    assert screen.MEETING_KEEP_KIND_KEYS == ("government_meeting", "town_hall")
+    assert "press conference" in screen.MEETING_KINDS["government_other"].lower()
+
+
+def test_screen_calibrate_flag_parses():
+    args = screen.build_parser().parse_args(["--calibrate", "--state", "AL", "--limit", "50"])
+    assert args.calibrate is True
+    assert args.state == ["AL"] and args.limit == 50
+    assert screen.build_parser().parse_args([]).calibrate is False
 
 
 def test_screen_usage_rows_name_the_stage_and_video(usage_dir):
