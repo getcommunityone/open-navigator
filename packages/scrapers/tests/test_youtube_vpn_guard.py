@@ -277,8 +277,26 @@ def test_home_public_ip_failure_is_none(monkeypatch):
     async def boom(iface: str, timeout: float) -> str:
         raise OSError("no such device")
 
+    monkeypatch.setenv("VPN_IP_LOOKUP_ATTEMPTS", "1")
     monkeypatch.setattr(vg, "_bound_public_ip", boom)
     assert vg.home_public_ip("eth9") is None
+
+
+def test_home_public_ip_retries_transient_miss(monkeypatch):
+    calls = {"n": 0}
+
+    async def flaky(iface: str, timeout: float) -> str | None:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return None
+        return "1.2.3.4"
+
+    monkeypatch.setenv("VPN_IP_LOOKUP_ATTEMPTS", "3")
+    monkeypatch.setenv("VPN_IP_LOOKUP_DELAY_SECONDS", "0")
+    monkeypatch.setattr(vg, "_bound_public_ip", flaky)
+    monkeypatch.setattr(vg.time, "sleep", lambda _s: None)
+    assert vg.home_public_ip("eth3") == "1.2.3.4"
+    assert calls["n"] == 3
 
 
 def test_exit_if_vpn_off_sync_and_async():
