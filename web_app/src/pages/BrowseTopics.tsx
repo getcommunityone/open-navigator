@@ -49,9 +49,12 @@ export default function BrowseTopics() {
     }
   }
 
+  // The catalog now scopes to the chosen place — both the list AND each topic's
+  // count badge — so toggling 📍 city ⇄ All of {state} refetches and the numbers
+  // change. scopedCity is undefined in state scope, which broadens to the state.
   const { data, isLoading, isError, error } = useQuery<TopicSummary[]>({
-    queryKey: ['topics', stateCode ?? null],
-    queryFn: () => fetchTopics(stateCode),
+    queryKey: ['topics', stateCode ?? null, scopedCity ?? null],
+    queryFn: () => fetchTopics(stateCode, scopedCity),
   })
 
   const topics = useMemo(() => data ?? [], [data])
