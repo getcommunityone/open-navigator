@@ -19,8 +19,9 @@ from llm.gemini.genai_text_client import (
 )
 
 _KEY_ENV_VARS = (
-    ["GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"]
+    ["GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_KEY_TIER", "GEMINI_USE_TIER"]
     + [f"GEMINI_API_KEY_{i}" for i in range(1, 11)]
+    + [f"GEMINI_KEY_TIER_{i}" for i in range(1, 11)]
 )
 
 
@@ -29,6 +30,10 @@ def clean_key_env(monkeypatch):
     """Strip every Gemini key env var so tests see only what they set."""
     for var in _KEY_ENV_VARS:
         monkeypatch.delenv(var, raising=False)
+    # Cached pool must not leak tier filters across tests (#654).
+    monkeypatch.setattr(m, "_KEY_POOL", None)
+    monkeypatch.setattr(m, "_KEY_POOL_TIER", None)
+    monkeypatch.setattr(m, "_KEY_IDX", None)
     return monkeypatch
 
 
@@ -51,6 +56,40 @@ def test_resolve_gemini_api_keys_dedupes_and_preserves_order(clean_key_env):
     clean_key_env.setenv("GEMINI_API_KEY", "AIzaB")
 
     assert resolve_gemini_api_keys(env_path="/nonexistent/.env") == ["AIzaA", "AIzaB"]
+
+
+def test_resolve_gemini_api_keys_filters_by_tier_tag(clean_key_env):
+    clean_key_env.setenv("GEMINI_API_KEY_1", "AIzaFree")
+    clean_key_env.setenv("GEMINI_KEY_TIER_1", "free")
+    clean_key_env.setenv("GEMINI_API_KEY_2", "AIzaPaid")
+    clean_key_env.setenv("GEMINI_KEY_TIER_2", "paid")
+    clean_key_env.setenv("GEMINI_API_KEY_3", "AIzaUntagged")
+
+    assert resolve_gemini_api_keys(env_path="/nonexistent/.env", tier="free") == ["AIzaFree"]
+    assert resolve_gemini_api_keys(env_path="/nonexistent/.env", tier="paid") == ["AIzaPaid"]
+    assert resolve_gemini_api_keys(env_path="/nonexistent/.env", tier="all") == [
+        "AIzaFree",
+        "AIzaPaid",
+        "AIzaUntagged",
+    ]
+
+
+def test_resolve_gemini_api_keys_use_tier_env(clean_key_env):
+    clean_key_env.setenv("GEMINI_API_KEY_1", "AIzaFree")
+    clean_key_env.setenv("GEMINI_KEY_TIER_1", "free")
+    clean_key_env.setenv("GEMINI_API_KEY_2", "AIzaPaid")
+    clean_key_env.setenv("GEMINI_KEY_TIER_2", "paid")
+    clean_key_env.setenv("GEMINI_USE_TIER", "free")
+
+    assert resolve_gemini_api_keys(env_path="/nonexistent/.env") == ["AIzaFree"]
+
+
+def test_resolve_gemini_api_keys_free_tier_empty_raises(clean_key_env):
+    clean_key_env.setenv("GEMINI_API_KEY_1", "AIzaPaidOnly")
+    clean_key_env.setenv("GEMINI_KEY_TIER_1", "paid")
+
+    with pytest.raises(RuntimeError, match="GEMINI_USE_TIER='free'"):
+        resolve_gemini_api_keys(env_path="/nonexistent/.env", tier="free")
 
 
 def test_transient_network_giveup_raises_distinct_subtype(monkeypatch):
