@@ -1,31 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import fs from 'fs'
 import path from 'path'
-
-/** Local writable @assistant-ui tree when root-owned node_modules blocks npm (#630). */
-const auiVendor = path.resolve(__dirname, 'vendor/aui-nm/node_modules/@assistant-ui/react')
-const auiAliases = fs.existsSync(auiVendor)
-  ? {
-      '@assistant-ui/react': path.resolve(
-        __dirname,
-        'vendor/aui-nm/node_modules/@assistant-ui/react',
-      ),
-      '@assistant-ui/core': path.resolve(
-        __dirname,
-        'vendor/aui-nm/node_modules/@assistant-ui/core',
-      ),
-      '@assistant-ui/store': path.resolve(
-        __dirname,
-        'vendor/aui-nm/node_modules/@assistant-ui/store',
-      ),
-      '@assistant-ui/tap': path.resolve(
-        __dirname,
-        'vendor/aui-nm/node_modules/@assistant-ui/tap',
-      ),
-    }
-  : {}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -71,11 +47,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      ...auiAliases,
     },
   },
   server: {
     port: 5173,
+    // Listen on all interfaces so Windows browsers can reach the WSL2 Vite
+    // server (127.0.0.1-only binds often show "can't be reached" from the host).
+    host: true,
     // WSL2's inotify often misses edits made from the Linux side, so HMR never
     // fires and the browser keeps serving the build from when Vite started.
     // Polling reliably picks up changes (slightly higher idle CPU is the trade).

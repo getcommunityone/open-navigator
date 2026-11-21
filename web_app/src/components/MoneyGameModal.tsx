@@ -1946,7 +1946,7 @@ export default function MoneyGameModal({
           <div className="fixed inset-0 bg-[#0f2b2b]/50 backdrop-blur-sm" aria-hidden="true" />
         </Transition.Child>
 
-        <div className="fixed inset-0 overflow-y-auto">
+        <div className="fixed inset-0 overflow-y-auto scrollbar-hide">
           <div className="flex min-h-full items-center justify-center p-3 sm:p-6">
             <Transition.Child
               as={Fragment}
@@ -2042,7 +2042,7 @@ export default function MoneyGameModal({
 
                 {/* Scrollable body — only this region scrolls vertically, so the
                     title and step tabs above stay fixed in view. */}
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5 sm:px-7 sm:pb-7">
+                <div className="scrollbar-soft min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5 sm:px-7 sm:pb-7">
                 <div className="mt-2 sm:mt-3">
                   {!hasPlace ? (
                     /* ── Tab 1 gate: resolve a real place before any bill ── */
