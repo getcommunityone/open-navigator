@@ -19,7 +19,8 @@ out the ones with no decision in them.
 - **Three questions per transcript:** what kind of video it is (Choice), whether the body votes on or approves
   anything (Noul), and whether a data center is discussed (Noul).
 - **Nothing is skipped by default.** `batch_backlog submit --skip-jev-below P` leaves out videos whose screen gives
-  a decision probability below `P`. Unscreened videos are always sent.
+  a decision probability below `P`. Unscreened videos are always sent. A separate meeting-kind gate
+  (`--skip-jev-meeting-below T`) is specified in [Jev meeting-kind analysis gate](./jev-meeting-kind-gate.md).
 - **The screen never changes a transcript.** It writes its own table. The existing non-meeting exclusion
   (`llm.gemini.policy_exclusions`) deletes the transcript text, which is too destructive for an automatic screen.
 - **Price:** $0.042 per million input tokens, and output is free
