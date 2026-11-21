@@ -19,15 +19,16 @@
 # in by ./build.sh before deploy — they are git-ignored, not committed. Run the
 # build first:  ./build.sh        (build + validate only; does NOT deploy)
 
+# Run via `sh -c` so ${DATABRICKS_APP_PORT} is shell-expanded. In exec (list)
+# form uvicorn gets the literal "${DATABRICKS_APP_PORT:-8000}" string and crashes
+# ("Invalid value for '--port': ... is not a valid integer").
 command:
-  - uvicorn
-  - api.main:app
-  - --host
-  - "0.0.0.0"
-  - --port
-  - "${DATABRICKS_APP_PORT:-8000}"
-  - --proxy-headers
-  - --no-access-log   # request logging is handled by the app's own middleware
+  - sh
+  - -c
+  # cd into the deployed source root so the relative PYTHONPATH entries (".",
+  # "packages/*") resolve — Databricks does NOT run the command from there, which
+  # caused "ModuleNotFoundError: No module named 'api'".
+  - "cd /app/python/source_code && exec uvicorn api.main:app --host 0.0.0.0 --port ${DATABRICKS_APP_PORT:-8000} --proxy-headers --no-access-log"
 
 env:
   # --- Workspace package imports ------------------------------------------

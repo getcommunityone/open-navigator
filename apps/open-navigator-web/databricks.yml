@@ -21,6 +21,19 @@
 bundle:
   name: open-navigator-web
 
+# build.sh STAGES the app source (api/, packages/, web_app/, config/, scripts/)
+# into this dir as GIT-IGNORED files (so they're never committed). But
+# `bundle deploy` honors .gitignore and would skip them → the app crashes with
+# "ModuleNotFoundError: No module named 'api'". Force-include the staged trees in
+# the bundle upload (they stay git-ignored).
+sync:
+  include:
+    - api/**
+    - packages/**
+    - config/**
+    - scripts/**
+    - web_app/**
+
 resources:
   apps:
     open-navigator:
@@ -40,15 +53,14 @@ resources:
 
       # Mirrors app.yaml. Applied on `bundle run`.
       config:
+        # Run via `sh -c` so ${DATABRICKS_APP_PORT} is shell-expanded; exec (list)
+        # form passes the literal string to uvicorn → "not a valid integer" crash.
         command:
-          - uvicorn
-          - api.main:app
-          - --host
-          - "0.0.0.0"
-          - --port
-          - "${DATABRICKS_APP_PORT:-8000}"
-          - --proxy-headers
-          - --no-access-log
+          - sh
+          - -c
+          # cd into the deployed source root so relative PYTHONPATH (".", "packages/*")
+          # resolves (fixes "ModuleNotFoundError: No module named 'api'").
+          - "cd /app/python/source_code && exec uvicorn api.main:app --host 0.0.0.0 --port ${DATABRICKS_APP_PORT:-8000} --proxy-headers --no-access-log"
         env:
           - name: PYTHONPATH
             value: ".:packages/core:packages/agents:packages/datamodels:packages/core-lib/src:packages/scrapers/src:packages/ingestion/src:packages/llm/src:packages/accessibility/src:packages/hosting/src"
