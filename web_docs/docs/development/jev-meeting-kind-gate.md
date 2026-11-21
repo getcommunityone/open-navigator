@@ -1,7 +1,7 @@
 ---
 sidebar_position: 33
 title: Jev meeting-kind analysis gate
-description: Calibrate a government_meeting probability floor and skip non-meetings before Gemini, alongside the existing decisions skip.
+description: Calibrate a keep-score floor on P(government_meeting)+P(town_hall) and skip the rest before Gemini, alongside the existing decisions skip.
 ---
 
 # Jev meeting-kind analysis gate
@@ -25,7 +25,8 @@ Sending them to Gemini wastes quota and time. Jev already stores
 ## Goal
 
 Screen transcripts that already exist, calibrate a floor **T** on
-`P(government_meeting)`, then optionally leave non-meetings out of Gemini submit.
+`P(government_meeting) + P(town_hall)` (town halls stay in even without votes),
+then optionally leave press/ceremony/non-government out of Gemini submit.
 Keep the existing decisions skip as a separate, independent flag.
 
 ## Decisions
@@ -33,7 +34,7 @@ Keep the existing decisions skip as a separate, independent flag.
 | Choice | Decision |
 |---|---|
 | Where to screen | Captioned videos only (Option A) — Jev needs transcript text; this gates analysis, not caption fetch |
-| Primary filter | `P(government_meeting) >= T` (probability floor), not hard top-label alone |
+| Primary filter | `P(government_meeting) + P(town_hall) >= T` (probability floor); town halls are their own Choice label |
 | How to pick T | Calibrate first against videos Gemini has already analyzed |
 | Flags | Both independent: `--skip-jev-meeting-below T` and existing `--skip-jev-below P` |
 | Implementation shape | Thin gate + separate calibrate report (Approach 1) |
@@ -69,8 +70,9 @@ Keep the existing decisions skip as a separate, independent flag.
 
 - `--skip-jev-meeting-below T` (float, opt-in, default unset).
 - Skip set: `video_id` where `question_version` is current and
-  `(meeting_kind_probabilities->>'government_meeting')::float < T`.
-- Null / missing probability ⇒ do not skip (same spirit as unscreened).
+  `P(government_meeting) + P(town_hall) < T` (missing keys count as 0 in the
+  sum; if both keys are absent, do not skip).
+- Null / missing keep-score ⇒ do not skip (same spirit as unscreened).
 - Independent of `--skip-jev-below`; if both are set, a video is skipped if it
   fails either gate.
 - Unscreened videos and older `question_version` rows are never in the skip set.
@@ -96,17 +98,18 @@ Keep the existing decisions skip as a separate, independent flag.
 
 ## Chosen threshold
 
-**T = 0.6** (set 2026-11-21).
+**T = 0.6** (set 2026-11-21; rescreened same day after adding `town_hall`).
 
-- Sample: 300 AL videos with `policy_analysis_at` already set, screened with
-  current `question_version` (`--state AL --analyzed-only --limit 300`).
-- Kind mix: 240 `government_meeting`, 35 `government_other`, 25 `not_government`.
-- At T=0.6: **keep 239 / skip 61**. Skips are 35 other + 25 not-government +
-  **1** labeled `government_meeting` with `P < 0.6`. Keeps are all
-  `government_meeting`. So among top-label meetings, false-skip is ~0.4% (1/240);
-  the ~20% “false-skip vs historically analyzed” rate is mostly correct drops of
-  non-meetings the old pipeline still analyzed.
-- T=0.5 / 0.7 differ by only a few rows (curve is flat below 0.5).
+- Keep-score: `P(government_meeting) + P(town_hall)`.
+- Sample: 300 AL videos with `policy_analysis_at`, `--analyzed-only --rescreen`
+  under `question_version` `2aae0cd94045`.
+- Kind mix: 240 `government_meeting`, 2 `town_hall`, 33 `government_other`,
+  25 `not_government`.
+- At T=0.6: **keep 241 / skip 59**. Skips are 33 other + 25 not-government +
+  **1** borderline `government_meeting`. Both `town_hall` rows are kept.
+  Spreadsheet review file: `data/cache/jev_screen_al_calibrate_review.csv`
+  (gitignored cache; regenerate after a rescreen).
+- T=0.5 / 0.7 still nearly flat (keep 242 / 240).
 
 ## Testing
 

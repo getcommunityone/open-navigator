@@ -3,8 +3,8 @@
 For each captioned video not yet screened, Jev answers three questions about the
 transcript:
 
-- ``meeting_kind`` (Choice): an official public meeting of a governing body, other
-  government video (press conference, ceremony, training), or not government at all.
+- ``meeting_kind`` (Choice): governing-body meeting, town hall, other government
+  video (press conference, ceremony, training), or not government at all.
 - ``has_decisions`` (Noul): the body votes on or approves something.
 - ``mentions_data_center`` (Noul): a data center is discussed.
 
@@ -54,15 +54,23 @@ MEETING_KINDS = {
         "An official public meeting of a governing body: a city or town council, county "
         "commission, school board, planning or zoning board, authority, or a public hearing"
     ),
+    "town_hall": (
+        "A government town hall or community listening session: elected officials or staff "
+        "taking public comment or Q&A with residents, without (or aside from) a formal vote "
+        "of a governing body"
+    ),
     "government_other": (
-        "A government video that isn't a meeting of a governing body: a press conference, "
-        "ceremony, proclamation event, training, town hall Q&A or public service announcement"
+        "A government video that isn't a governing-body meeting or town hall: a press "
+        "conference, ceremony, proclamation event, training, or public service announcement"
     ),
     "not_government": (
         "Not a government video: entertainment, sports, worship service, news commentary, "
         "a business or a private event"
     ),
 }
+
+# Probabilities summed for ``--skip-jev-meeting-below`` (meetings + town halls stay in).
+MEETING_KEEP_KIND_KEYS: tuple[str, ...] = ("government_meeting", "town_hall")
 
 QUESTIONS: dict[str, dict[str, Any]] = {
     "meeting_kind": choice(
@@ -349,17 +357,41 @@ def jev_skip_video_ids(database_url: str, min_decisions_p: float) -> set[str]:
         conn.close()
 
 
-def gov_meeting_p_below(gov_meeting_p: float | None, min_meeting_p: float) -> bool:
-    """True when a screen's government_meeting probability is strictly below the floor.
+def meeting_keep_p(probabilities: dict[str, Any] | None) -> float | None:
+    """``P(government_meeting) + P(town_hall)`` from a screen's kind probabilities.
 
-    ``None`` (missing key / null JSON) never skips — same spirit as unscreened."""
-    return gov_meeting_p is not None and gov_meeting_p < min_meeting_p
+    Returns ``None`` when neither keep-kind key is present (treat like unscreened)."""
+    if not probabilities:
+        return None
+    total = 0.0
+    saw = False
+    for key in MEETING_KEEP_KIND_KEYS:
+        if key not in probabilities:
+            continue
+        raw = probabilities.get(key)
+        if raw is None:
+            continue
+        saw = True
+        total += float(raw)
+    return total if saw else None
+
+
+def meeting_keep_p_below(keep_p: float | None, min_meeting_p: float) -> bool:
+    """True when the keep-score is strictly below the floor.
+
+    ``None`` never skips — same spirit as unscreened."""
+    return keep_p is not None and keep_p < min_meeting_p
+
+
+# Back-compat alias used by older tests / callers.
+gov_meeting_p_below = meeting_keep_p_below
 
 
 def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[str]:
-    """Videos whose current screen puts ``P(government_meeting)`` below ``min_meeting_p``.
+    """Videos whose keep-score ``P(government_meeting)+P(town_hall)`` is below ``min_meeting_p``.
 
-    Unscreened videos, older question wording, and null probabilities are never returned."""
+    Unscreened videos, older question wording, and screens missing both keep-kind
+    keys are never returned."""
     import psycopg2
 
     conn = psycopg2.connect(database_url)
@@ -372,8 +404,14 @@ def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[s
                 f"""
                 SELECT video_id FROM {TABLE}
                 WHERE question_version = %s
-                  AND meeting_kind_probabilities ? 'government_meeting'
-                  AND (meeting_kind_probabilities->>'government_meeting')::float < %s
+                  AND (
+                    meeting_kind_probabilities ? 'government_meeting'
+                    OR meeting_kind_probabilities ? 'town_hall'
+                  )
+                  AND (
+                    COALESCE((meeting_kind_probabilities->>'government_meeting')::float, 0)
+                    + COALESCE((meeting_kind_probabilities->>'town_hall')::float, 0)
+                  ) < %s
                 """,
                 [QUESTION_VERSION, min_meeting_p],
             )
@@ -392,13 +430,13 @@ def calibrate_threshold_table(
 ) -> list[dict[str, Any]]:
     """Keep/skip counts if ``--skip-jev-meeting-below T`` had gated these analyzed videos.
 
-    Each row is ``(video_id, P(government_meeting) | None)``. Null probability is never
-    a skip. ``false_skip_rate`` is skip/n among this already-analyzed sample.
+    Each row is ``(video_id, P(government_meeting)+P(town_hall) | None)``. Null
+    keep-score is never a skip. ``false_skip_rate`` is skip/n among this sample.
     """
     n = len(rows)
     out: list[dict[str, Any]] = []
     for t in thresholds:
-        skip = sum(1 for _, p in rows if gov_meeting_p_below(p, t))
+        skip = sum(1 for _, p in rows if meeting_keep_p_below(p, t))
         out.append(
             {
                 "threshold": float(t),
@@ -452,9 +490,11 @@ def _calibrate_analyzed_rows(
         SELECT s.video_id,
                CASE
                  WHEN s.meeting_kind_probabilities ? 'government_meeting'
-                 THEN (s.meeting_kind_probabilities->>'government_meeting')::float
+                   OR s.meeting_kind_probabilities ? 'town_hall'
+                 THEN COALESCE((s.meeting_kind_probabilities->>'government_meeting')::float, 0)
+                    + COALESCE((s.meeting_kind_probabilities->>'town_hall')::float, 0)
                  ELSE NULL
-               END AS gov_meeting_p
+               END AS keep_p
         FROM {TABLE} s
         JOIN bronze.bronze_event_youtube e ON e.video_id = s.video_id
         WHERE {" AND ".join(where)}
@@ -487,7 +527,7 @@ def run_calibrate(args: argparse.Namespace) -> dict[str, Any]:
     table = calibrate_threshold_table(rows)
     logger.info(
         "Calibrate on {:,} already-analyzed video(s) with current Jev screens "
-        "(questions {})",
+        "(questions {}); keep-score = P(government_meeting)+P(town_hall)",
         len(rows),
         QUESTION_VERSION,
     )
@@ -654,7 +694,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--calibrate",
         action="store_true",
         help="Join current screens to already-analyzed videos and report "
-        "keep/skip rates at P(government_meeting) thresholds; does not call Jev",
+        "keep/skip rates at P(government_meeting)+P(town_hall) thresholds; "
+        "does not call Jev",
     )
     p.add_argument(
         "--analyzed-only",

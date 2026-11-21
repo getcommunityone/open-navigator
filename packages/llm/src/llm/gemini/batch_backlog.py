@@ -389,7 +389,8 @@ def run_submit(args: argparse.Namespace) -> list[dict[str, Any]]:
             database_url, args.skip_jev_meeting_below
         )
         logger.info(
-            "{:,} screened video(s) have P(government_meeting) below {} and will be skipped",
+            "{:,} screened video(s) have P(government_meeting)+P(town_hall) below {} "
+            "and will be skipped",
             len(meeting_skip),
             args.skip_jev_meeting_below,
         )
@@ -683,7 +684,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     submit.add_argument(
         "--skip-jev-meeting-below", type=float, default=None, metavar="T",
-        help="Leave out videos whose Jev screen P(government_meeting) is below T; "
+        help="Leave out videos whose Jev keep-score "
+             "P(government_meeting)+P(town_hall) is below T; "
              "unscreened videos and null probabilities are never skipped; "
              "independent of --skip-jev-below",
     )

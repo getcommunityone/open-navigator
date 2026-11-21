@@ -319,10 +319,18 @@ def test_calibrate_threshold_counts():
     assert table[2]["skip"] == 2 and table[2]["keep"] == 2
 
 
-def test_gov_meeting_p_below():
-    assert screen.gov_meeting_p_below(0.59, 0.6) is True
-    assert screen.gov_meeting_p_below(0.6, 0.6) is False
-    assert screen.gov_meeting_p_below(None, 0.6) is False
+def test_meeting_keep_p_and_below():
+    assert screen.meeting_keep_p(
+        {"government_meeting": 0.4, "town_hall": 0.3, "government_other": 0.3}
+    ) == pytest.approx(0.7)
+    assert screen.meeting_keep_p({"government_other": 1.0}) is None
+    assert screen.meeting_keep_p_below(0.59, 0.6) is True
+    assert screen.meeting_keep_p_below(0.6, 0.6) is False
+    assert screen.meeting_keep_p_below(None, 0.6) is False
+    assert "town_hall" in screen.MEETING_KINDS
+    # Town halls are their own Choice; government_other only mentions them to exclude.
+    assert screen.MEETING_KEEP_KIND_KEYS == ("government_meeting", "town_hall")
+    assert "press conference" in screen.MEETING_KINDS["government_other"].lower()
 
 
 def test_screen_calibrate_flag_parses():
