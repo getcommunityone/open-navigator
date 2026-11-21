@@ -31,6 +31,9 @@ schema:
     unique: true
     primaryKey: true
     primaryKeyPosition: 1
+    relationships:
+    - type: foreignKey
+      to: event_meeting.odcs.yaml#/schema/event_meeting/properties/event_meeting_id
     quality:
     - type: library
       metric: duplicateValues
