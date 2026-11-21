@@ -340,6 +340,26 @@ def test_screen_calibrate_flag_parses():
     assert screen.build_parser().parse_args([]).calibrate is False
 
 
+def test_meta_state_and_flags():
+    from llm.typesafe import screen_video_meta as meta
+
+    assert meta.build_meta_state(title=None, description=None) == ""
+    text = meta.build_meta_state(
+        title=" City Council ",
+        description="Agenda",
+        channel_title="Tuscaloosa",
+    )
+    assert "Channel: Tuscaloosa" in text
+    assert "Title: City Council" in text
+    assert "Description: Agenda" in text
+    assert "town_hall" in meta.META_QUESTIONS["meeting_kind"]["criteria"]
+    args = meta.build_parser().parse_args(
+        ["--compare", "--state", "AL", "--threshold", "0.6", "--analyzed-only"]
+    )
+    assert args.compare is True and args.threshold == pytest.approx(0.6)
+    assert args.analyzed_only is True
+
+
 def test_screen_usage_rows_name_the_stage_and_video(usage_dir):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=OK_BODY)
