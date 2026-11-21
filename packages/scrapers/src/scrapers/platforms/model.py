@@ -58,7 +58,8 @@ class PlatformMeeting:
     video_clip_id: Optional[str] = None
     detail_url: Optional[str] = None
     agenda_text: Optional[str] = None  # agenda item text the platform serves (not PDF extraction)
-    minutes_text: Optional[str] = None  # minutes notes / actions the platform serves
+    minutes_text: Optional[str] = None  # minutes notes / actions / roll call the platform serves
+    votes_json: Optional[list[dict[str, Any]]] = None  # structured roll-call (#633); Legistar only today
     source_modified_at: Optional[datetime] = None
     raw: dict[str, Any] = field(default_factory=dict)
     caption: Optional[MeetingCaption] = None
