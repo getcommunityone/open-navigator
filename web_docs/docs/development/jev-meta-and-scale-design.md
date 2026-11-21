@@ -85,6 +85,12 @@ kept them. Spreadsheet:
 **opt-in** with the same T=0.6, but do **not** turn it on by default until a
 human spot-checks those 6 (and any similar title patterns) in the CSV.
 
+**Multi-state calibration (follow-up):** the AL file is historical Phase 1
+evidence only. Choose the production metadata threshold from the stratified
+validation sample — see
+[Jev metadata gate validation sample](./jev-meta-gate-validation-design.md)
+([#666](https://github.com/getcommunityone/open-navigator/issues/666)).
+
 ### Final keep / skip / review (2026-11-21, #664)
 
 Threshold stays **0.6**. After compare scores are written:
