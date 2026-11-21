@@ -712,44 +712,119 @@ def ensure_valid_gemini_api_key(
 _KEY_LOCK = threading.Lock()
 _CLIENT_CACHE: dict[str, Any] = {}
 _KEY_POOL: Optional[list[str]] = None
+_KEY_POOL_TIER: Optional[str] = None
 _KEY_IDX: Optional[int] = None
 
 
-def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> list[str]:
-    """All configured Gemini keys, de-duplicated, in order. Sources (merged):
-    ``GEMINI_API_KEYS`` (comma/space/newline list), ``GEMINI_API_KEY`` /
-    ``GOOGLE_API_KEY``, and ``GEMINI_API_KEY_1``..``GEMINI_API_KEY_10``."""
+def _normalize_key_tier(raw: Optional[str]) -> str:
+    """Normalize a tier tag to ``free``, ``paid``, or ``untagged``."""
+    t = (raw or "").strip().lower()
+    if t in ("free", "paid"):
+        return t
+    return "untagged"
+
+
+def _gemini_use_tier() -> str:
+    """Active pool filter from ``GEMINI_USE_TIER`` (``free`` | ``paid`` | ``all``)."""
+    use = (os.getenv("GEMINI_USE_TIER") or "all").strip().lower()
+    if use in ("", "all", "*"):
+        return "all"
+    if use in ("free", "paid"):
+        return use
+    logger.warning("Unknown GEMINI_USE_TIER={!r}; using all", use)
+    return "all"
+
+
+def resolve_gemini_api_keys(
+    *,
+    env_path: Optional[os.PathLike[str]] = None,
+    tier: Optional[str] = None,
+) -> list[str]:
+    """Configured Gemini keys, de-duplicated, in order.
+
+    Sources (merged): ``GEMINI_API_KEYS`` (comma/space/newline list),
+    ``GEMINI_API_KEY`` / ``GOOGLE_API_KEY``, and ``GEMINI_API_KEY_1``..``10``.
+
+    Tier filter (#654): set ``GEMINI_KEY_TIER`` (plain key) or
+    ``GEMINI_KEY_TIER_{N}`` to ``free`` / ``paid``. ``GEMINI_USE_TIER`` (or the
+    ``tier`` arg) selects the pool: ``free``, ``paid``, or ``all`` (default).
+    Keys in ``GEMINI_API_KEYS`` and any key without a tier tag are ``untagged``
+    and only appear when the filter is ``all``. A ``free``/``paid`` filter with
+    no matching keys raises ``RuntimeError`` so a free run never silently falls
+    back onto paid keys.
+    """
     from dotenv import load_dotenv
 
     path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
     if path.is_file():
         load_dotenv(path)
-    raw: list[str] = list(re.split(r"[,\s]+", os.getenv("GEMINI_API_KEYS") or ""))
-    raw += [os.getenv("GEMINI_API_KEY") or "", os.getenv("GOOGLE_API_KEY") or ""]
-    raw += [os.getenv(f"GEMINI_API_KEY_{i}") or "" for i in range(1, 11)]
+
+    # (key, tier_label) — first occurrence of a key wins.
+    tagged: list[tuple[str, str]] = []
+    for k in (_strip_api_key(x) for x in re.split(r"[,\s]+", os.getenv("GEMINI_API_KEYS") or "")):
+        if k:
+            tagged.append((k, "untagged"))
+    plain = _strip_api_key(os.getenv("GEMINI_API_KEY") or "")
+    if plain:
+        tagged.append((plain, _normalize_key_tier(os.getenv("GEMINI_KEY_TIER"))))
+    google = _strip_api_key(os.getenv("GOOGLE_API_KEY") or "")
+    if google:
+        # Same tier knob as GEMINI_API_KEY when used as an alias.
+        tagged.append((google, _normalize_key_tier(os.getenv("GEMINI_KEY_TIER"))))
+    for i in range(1, 11):
+        k = _strip_api_key(os.getenv(f"GEMINI_API_KEY_{i}") or "")
+        if k:
+            tagged.append((k, _normalize_key_tier(os.getenv(f"GEMINI_KEY_TIER_{i}"))))
+
     out: list[str] = []
     seen: set[str] = set()
-    for k in (_strip_api_key(x) for x in raw):
+    use = (tier.strip().lower() if tier is not None else _gemini_use_tier())
+    if use in ("", "all", "*"):
+        use = "all"
+    elif use not in ("free", "paid"):
+        logger.warning("Unknown tier filter {!r}; using all", use)
+        use = "all"
+
+    for k, key_tier in tagged:
         # No prefix filtering. Both "AIza…" (classic, 39 chars) and "AQ.…" strings
         # are valid Gemini API keys — verified live that an AQ. key authenticates via
         # x-goog-api-key (HTTP 200). An invalid/expired key surfaces at call time as a
         # clean 401 (non-retryable), which is the right layer to handle it — not a
         # brittle prefix guess that also drops perfectly good keys.
-        if k and k not in seen:
-            seen.add(k)
-            out.append(k)
+        if not k or k in seen:
+            continue
+        if use != "all" and key_tier != use:
+            continue
+        seen.add(k)
+        out.append(k)
+
+    if use != "all" and not out:
+        raise RuntimeError(
+            f"GEMINI_USE_TIER={use!r} but no keys are tagged "
+            f"GEMINI_KEY_TIER[_N]={use!r}. Tag keys in .env or set "
+            f"GEMINI_USE_TIER=all."
+        )
     return out
 
 
 def _key_pool(fallback: str) -> list[str]:
-    global _KEY_POOL
-    if _KEY_POOL is None:
-        pool = resolve_gemini_api_keys()
-        if fallback and fallback not in pool:
+    global _KEY_POOL, _KEY_POOL_TIER, _KEY_IDX
+    use = _gemini_use_tier()
+    if _KEY_POOL is None or _KEY_POOL_TIER != use:
+        pool = resolve_gemini_api_keys(tier=use)
+        if fallback and fallback not in pool and use == "all":
             pool = [fallback, *pool]
-        _KEY_POOL = pool or ([fallback] if fallback else [])
+        _KEY_POOL = pool or ([fallback] if fallback and use == "all" else pool)
+        _KEY_POOL_TIER = use
+        _KEY_IDX = None
         if len(_KEY_POOL) > 1:
-            logger.info("Gemini key rotation enabled: {} keys in pool", len(_KEY_POOL))
+            logger.info(
+                "Gemini key rotation enabled: {} keys in pool (tier={})",
+                len(_KEY_POOL),
+                use,
+            )
+        elif _KEY_POOL:
+            logger.info("Gemini key pool: 1 key (tier={})", use)
     return _KEY_POOL
 
 
