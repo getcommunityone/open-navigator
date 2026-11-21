@@ -283,10 +283,17 @@ def estimate_tokens(
 
 
 def select_sql(
-    *, states: Iterable[str], jurisdiction_id: str, rescreen: bool
+    *,
+    states: Iterable[str],
+    jurisdiction_id: str,
+    rescreen: bool,
+    analyzed_only: bool = False,
 ) -> tuple[str, list[Any]]:
     """Captioned videos to screen, newest first. Already screened with the current
-    questions are left out unless ``rescreen``."""
+    questions are left out unless ``rescreen``.
+
+    ``analyzed_only`` keeps videos Gemini has already analyzed
+    (``policy_analysis_at``) — use this to build a calibrate sample."""
     where = ["t.has_transcript IS TRUE"]
     params: list[Any] = []
     state_list = [s.strip().upper() for s in states if s and s.strip()]
@@ -296,6 +303,8 @@ def select_sql(
     if jurisdiction_id:
         where.append("e.jurisdiction_id = %s")
         params.append(jurisdiction_id)
+    if analyzed_only:
+        where.append("e.policy_analysis_at IS NOT NULL")
     if not rescreen:
         where.append(
             f"NOT EXISTS (SELECT 1 FROM {TABLE} s WHERE s.video_id = t.video_id "
@@ -513,7 +522,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     database_url = _database_url(args.database_url)
     states = [s for part in (args.state or []) for s in part.split(",")]
     sql, params = select_sql(
-        states=states, jurisdiction_id=args.jurisdiction_id, rescreen=args.rescreen
+        states=states,
+        jurisdiction_id=args.jurisdiction_id,
+        rescreen=args.rescreen,
+        analyzed_only=bool(getattr(args, "analyzed_only", False)),
     )
 
     conn = psycopg2.connect(database_url)
@@ -643,6 +655,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Join current screens to already-analyzed videos and report "
         "keep/skip rates at P(government_meeting) thresholds; does not call Jev",
+    )
+    p.add_argument(
+        "--analyzed-only",
+        action="store_true",
+        help="Only screen videos that already have Gemini analysis "
+        "(policy_analysis_at); for building a calibrate sample",
     )
     return p
 

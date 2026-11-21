@@ -140,8 +140,26 @@ def test_gives_up_after_max_attempts():
 
 def test_missing_key(monkeypatch):
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
-    with pytest.raises(jev.JevError, match="TYPESAFE_API_KEY"):
+    monkeypatch.delenv("JEV_API_KEY", raising=False)
+    with pytest.raises(jev.JevError, match="TYPESAFE_API_KEY or JEV_API_KEY"):
         jev.JevClient()
+
+
+def test_jev_api_key_alias(monkeypatch):
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setenv("JEV_API_KEY", "from-jev-alias")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer from-jev-alias"
+        return httpx.Response(200, json=OK_BODY)
+
+    with _client(handler) as c:
+        # _client passes api_key= explicitly; construct without it to hit env
+        pass
+    with jev.JevClient(
+        transport=httpx.MockTransport(handler), sleep=lambda s: None
+    ) as c:
+        c.system_one(state="x", questions={"q": jev.noul("x")})
 
 
 def test_question_builders_validate():
@@ -236,6 +254,11 @@ def test_select_sql_filters():
     assert sql.rstrip().endswith("LIMIT %s")
     sql, params = screen.select_sql(states=[], jurisdiction_id="", rescreen=True)
     assert "NOT EXISTS" not in sql and params == []
+    sql, params = screen.select_sql(
+        states=["AL"], jurisdiction_id="", rescreen=False, analyzed_only=True
+    )
+    assert "policy_analysis_at IS NOT NULL" in sql
+    assert params[0] == ["AL"] and params[1] == screen.QUESTION_VERSION
 
 
 def test_jev_price_on_file():

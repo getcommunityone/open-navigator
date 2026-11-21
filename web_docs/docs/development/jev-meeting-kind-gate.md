@@ -96,9 +96,17 @@ Keep the existing decisions skip as a separate, independent flag.
 
 ## Chosen threshold
 
-_Not set yet._ After the first calibration run, replace this line with the T value,
-date, sample size, and a one-line reason (e.g. “T=0.6 on N=… AL+GA analyzed
-videos; false-skip rate under …%”).
+**T = 0.6** (set 2026-11-21).
+
+- Sample: 300 AL videos with `policy_analysis_at` already set, screened with
+  current `question_version` (`--state AL --analyzed-only --limit 300`).
+- Kind mix: 240 `government_meeting`, 35 `government_other`, 25 `not_government`.
+- At T=0.6: **keep 239 / skip 61**. Skips are 35 other + 25 not-government +
+  **1** labeled `government_meeting` with `P < 0.6`. Keeps are all
+  `government_meeting`. So among top-label meetings, false-skip is ~0.4% (1/240);
+  the ~20% “false-skip vs historically analyzed” rate is mostly correct drops of
+  non-meetings the old pipeline still analyzed.
+- T=0.5 / 0.7 differ by only a few rows (curve is flat below 0.5).
 
 ## Testing
 
