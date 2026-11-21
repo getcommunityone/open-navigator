@@ -375,12 +375,25 @@ def run_submit(args: argparse.Namespace) -> list[dict[str, Any]]:
     if getattr(args, "skip_jev_below", None) is not None:
         from llm.typesafe.screen_transcripts import jev_skip_video_ids
 
-        jev_skip = jev_skip_video_ids(database_url, args.skip_jev_below)
+        decision_skip = jev_skip_video_ids(database_url, args.skip_jev_below)
         logger.info(
             "{:,} screened video(s) have has_decisions_p below {} and will be skipped",
-            len(jev_skip),
+            len(decision_skip),
             args.skip_jev_below,
         )
+        jev_skip |= decision_skip
+    if getattr(args, "skip_jev_meeting_below", None) is not None:
+        from llm.typesafe.screen_transcripts import jev_skip_meeting_video_ids
+
+        meeting_skip = jev_skip_meeting_video_ids(
+            database_url, args.skip_jev_meeting_below
+        )
+        logger.info(
+            "{:,} screened video(s) have P(government_meeting) below {} and will be skipped",
+            len(meeting_skip),
+            args.skip_jev_meeting_below,
+        )
+        jev_skip |= meeting_skip
 
     requests = prepare_requests(args, database_url, skip, jev_skip)
     if not requests:
@@ -667,6 +680,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-jev-below", type=float, default=None, metavar="P",
         help="Leave out videos the Jev screen (llm.typesafe.screen_transcripts) gives a "
              "has_decisions probability below P; unscreened videos are never skipped",
+    )
+    submit.add_argument(
+        "--skip-jev-meeting-below", type=float, default=None, metavar="T",
+        help="Leave out videos whose Jev screen P(government_meeting) is below T; "
+             "unscreened videos and null probabilities are never skipped; "
+             "independent of --skip-jev-below",
     )
     submit.set_defaults(func=run_submit)
 

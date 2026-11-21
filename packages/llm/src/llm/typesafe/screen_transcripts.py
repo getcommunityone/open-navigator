@@ -340,6 +340,68 @@ def jev_skip_video_ids(database_url: str, min_decisions_p: float) -> set[str]:
         conn.close()
 
 
+def gov_meeting_p_below(gov_meeting_p: float | None, min_meeting_p: float) -> bool:
+    """True when a screen's government_meeting probability is strictly below the floor.
+
+    ``None`` (missing key / null JSON) never skips — same spirit as unscreened."""
+    return gov_meeting_p is not None and gov_meeting_p < min_meeting_p
+
+
+def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[str]:
+    """Videos whose current screen puts ``P(government_meeting)`` below ``min_meeting_p``.
+
+    Unscreened videos, older question wording, and null probabilities are never returned."""
+    import psycopg2
+
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass(%s)", [TABLE])
+            if cur.fetchone()[0] is None:
+                return set()
+            cur.execute(
+                f"""
+                SELECT video_id FROM {TABLE}
+                WHERE question_version = %s
+                  AND meeting_kind_probabilities ? 'government_meeting'
+                  AND (meeting_kind_probabilities->>'government_meeting')::float < %s
+                """,
+                [QUESTION_VERSION, min_meeting_p],
+            )
+            return {row[0] for row in cur.fetchall()}
+    finally:
+        conn.close()
+
+
+CALIBRATE_THRESHOLDS: tuple[float, ...] = (0.5, 0.6, 0.7)
+
+
+def calibrate_threshold_table(
+    rows: Sequence[tuple[str, float | None]],
+    *,
+    thresholds: Sequence[float] = CALIBRATE_THRESHOLDS,
+) -> list[dict[str, Any]]:
+    """Keep/skip counts if ``--skip-jev-meeting-below T`` had gated these analyzed videos.
+
+    Each row is ``(video_id, P(government_meeting) | None)``. Null probability is never
+    a skip. ``false_skip_rate`` is skip/n among this already-analyzed sample.
+    """
+    n = len(rows)
+    out: list[dict[str, Any]] = []
+    for t in thresholds:
+        skip = sum(1 for _, p in rows if gov_meeting_p_below(p, t))
+        out.append(
+            {
+                "threshold": float(t),
+                "n": n,
+                "keep": n - skip,
+                "skip": skip,
+                "false_skip_rate": (skip / n) if n else 0.0,
+            }
+        )
+    return out
+
+
 def _segment_texts(row: dict[str, Any]) -> list[str]:
     from llm.gemini.transcript_db import normalize_transcript_row
 
@@ -355,11 +417,98 @@ def _database_url(explicit: str) -> str:
     return _resolve_database_url(explicit)
 
 
+def _calibrate_analyzed_rows(
+    database_url: str,
+    *,
+    states: Sequence[str],
+    jurisdiction_id: str,
+    limit: int,
+) -> list[tuple[str, float | None]]:
+    """Current-version screens joined to videos Gemini has already analyzed."""
+    import psycopg2
+
+    where = [
+        "s.question_version = %s",
+        "e.policy_analysis_at IS NOT NULL",
+    ]
+    params: list[Any] = [QUESTION_VERSION]
+    state_list = [s.strip().upper() for s in states if s and s.strip()]
+    if state_list:
+        where.append("e.state_code = ANY(%s)")
+        params.append(state_list)
+    if jurisdiction_id:
+        where.append("e.jurisdiction_id = %s")
+        params.append(jurisdiction_id)
+    sql = f"""
+        SELECT s.video_id,
+               CASE
+                 WHEN s.meeting_kind_probabilities ? 'government_meeting'
+                 THEN (s.meeting_kind_probabilities->>'government_meeting')::float
+                 ELSE NULL
+               END AS gov_meeting_p
+        FROM {TABLE} s
+        JOIN bronze.bronze_event_youtube e ON e.video_id = s.video_id
+        WHERE {" AND ".join(where)}
+        ORDER BY e.policy_analysis_at DESC NULLS LAST
+        LIMIT %s
+    """
+    params.append(limit)
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass(%s)", [TABLE])
+            if cur.fetchone()[0] is None:
+                return []
+            cur.execute(sql, params)
+            return [(str(vid), p) for vid, p in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def run_calibrate(args: argparse.Namespace) -> dict[str, Any]:
+    """Print keep/skip rates at candidate T values; does not call Jev."""
+    database_url = _database_url(args.database_url)
+    states = [s for part in (args.state or []) for s in part.split(",")]
+    rows = _calibrate_analyzed_rows(
+        database_url,
+        states=states,
+        jurisdiction_id=args.jurisdiction_id or "",
+        limit=args.limit,
+    )
+    table = calibrate_threshold_table(rows)
+    logger.info(
+        "Calibrate on {:,} already-analyzed video(s) with current Jev screens "
+        "(questions {})",
+        len(rows),
+        QUESTION_VERSION,
+    )
+    if not rows:
+        logger.warning(
+            "No joined rows — screen some analyzed videos first, or widen --state/--limit."
+        )
+        return {"n": 0, "thresholds": table}
+    for row in table:
+        logger.success(
+            "T={threshold:.2f}: keep {keep:,} / skip {skip:,} "
+            "(false-skip rate {false_skip_rate:.1%} of this sample)",
+            **row,
+        )
+    logger.info(
+        "Pick T from the table, record it under Chosen threshold in "
+        "web_docs/docs/development/jev-meeting-kind-gate.md, then submit with "
+        "--skip-jev-meeting-below T."
+    )
+    return {"n": len(rows), "thresholds": table}
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
     from llm.usage.prices import load_prices, model_price
+
+    if getattr(args, "calibrate", False):
+        return run_calibrate(args)
 
     database_url = _database_url(args.database_url)
     states = [s for part in (args.state or []) for s in part.split(",")]
@@ -488,6 +637,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--dry-run", action="store_true", help="Count and estimate tokens; send nothing"
+    )
+    p.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="Join current screens to already-analyzed videos and report "
+        "keep/skip rates at P(government_meeting) thresholds; does not call Jev",
     )
     return p
 

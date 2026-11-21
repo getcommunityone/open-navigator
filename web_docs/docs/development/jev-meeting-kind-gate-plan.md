@@ -35,18 +35,18 @@ description: Implementation plan for #658 (calibrate + --skip-jev-meeting-below)
 
 ### Task 1: Meeting-kind skip set + submit flag
 
-- [ ] Failing tests for parse flag, skip SQL semantics (current version, null excluded), union with decisions skip
-- [ ] `jev_skip_meeting_video_ids(database_url, min_meeting_p) -> set[str]`
-- [ ] `batch_backlog` `--skip-jev-meeting-below`; merge into `jev_skip` with distinct log lines
-- [ ] Tests pass; commit
+- [x] Failing tests for parse flag, skip SQL semantics (current version, null excluded), union with decisions skip
+- [x] `jev_skip_meeting_video_ids(database_url, min_meeting_p) -> set[str]`
+- [x] `batch_backlog` `--skip-jev-meeting-below`; merge into `jev_skip` with distinct log lines
+- [x] Tests pass; commit
 
 ### Task 2: `--calibrate`
 
-- [ ] Failing test for threshold table over fixture probs
-- [ ] `--calibrate` path: join screens to `policy_analysis_at IS NOT NULL`; print keep/skip at 0.5/0.6/0.7
-- [ ] Tests pass; commit
+- [x] Failing test for threshold table over fixture probs
+- [x] `--calibrate` path: join screens to `policy_analysis_at IS NOT NULL`; print keep/skip at 0.5/0.6/0.7
+- [x] Tests pass; commit
 
 ### Task 3: Docs + PR
 
-- [ ] Update screening + gate docs with flag/calibrate usage
+- [x] Update screening + gate docs with flag/calibrate usage
 - [ ] PR closes #658

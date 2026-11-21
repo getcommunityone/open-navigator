@@ -79,6 +79,15 @@ Keep the existing decisions skip as a separate, independent flag.
 
 ### Rollout
 
+```bash
+# 1. Calibrate (needs screens already joined to analyzed videos)
+.venv/bin/python -m llm.typesafe.screen_transcripts --calibrate --state AL --limit 300
+# 2. Record T under Chosen threshold below, then screen more of the captioned backlog
+.venv/bin/python -m llm.typesafe.screen_transcripts --state AL --limit 500
+# 3. Gate Gemini submit (either/both flags)
+.venv/bin/python -m llm.gemini.batch_backlog submit --state AL --skip-jev-meeting-below T --dry-run
+```
+
 1. Run calibrate on a few hundred already-analyzed videos (priority states first).
 2. Write the chosen T into **Chosen threshold** on this page.
 3. Screen the captioned backlog state-by-state with `screen_transcripts`.

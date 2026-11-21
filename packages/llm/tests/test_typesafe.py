@@ -259,6 +259,56 @@ def test_batch_backlog_flag_parses():
     assert build_parser().parse_args(["submit"]).skip_jev_below is None
 
 
+def test_batch_backlog_meeting_flag_parses():
+    from llm.gemini.batch_backlog import build_parser
+
+    args = build_parser().parse_args(["submit", "--skip-jev-meeting-below", "0.6"])
+    assert args.skip_jev_meeting_below == pytest.approx(0.6)
+    assert build_parser().parse_args(["submit"]).skip_jev_meeting_below is None
+    both = build_parser().parse_args(
+        ["submit", "--skip-jev-below", "0.2", "--skip-jev-meeting-below", "0.7"]
+    )
+    assert both.skip_jev_below == pytest.approx(0.2)
+    assert both.skip_jev_meeting_below == pytest.approx(0.7)
+
+
+def test_calibrate_threshold_counts():
+    # Already-analyzed sample: null gov_p must not count as a skip.
+    rows = [
+        ("a", 0.9),
+        ("b", 0.55),
+        ("c", 0.4),
+        ("d", None),
+    ]
+    table = screen.calibrate_threshold_table(rows, thresholds=(0.5, 0.6, 0.7))
+    assert [r["threshold"] for r in table] == [0.5, 0.6, 0.7]
+    # T=0.5 skips only c (0.4); d null kept
+    assert table[0] == {
+        "threshold": 0.5,
+        "n": 4,
+        "keep": 3,
+        "skip": 1,
+        "false_skip_rate": pytest.approx(0.25),
+    }
+    # T=0.6 skips b+c
+    assert table[1]["skip"] == 2 and table[1]["keep"] == 2
+    # T=0.7 skips b+c (a=0.9 kept)
+    assert table[2]["skip"] == 2 and table[2]["keep"] == 2
+
+
+def test_gov_meeting_p_below():
+    assert screen.gov_meeting_p_below(0.59, 0.6) is True
+    assert screen.gov_meeting_p_below(0.6, 0.6) is False
+    assert screen.gov_meeting_p_below(None, 0.6) is False
+
+
+def test_screen_calibrate_flag_parses():
+    args = screen.build_parser().parse_args(["--calibrate", "--state", "AL", "--limit", "50"])
+    assert args.calibrate is True
+    assert args.state == ["AL"] and args.limit == 50
+    assert screen.build_parser().parse_args([]).calibrate is False
+
+
 def test_screen_usage_rows_name_the_stage_and_video(usage_dir):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=OK_BODY)
