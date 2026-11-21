@@ -1825,16 +1825,21 @@ export default function BatchJobStatusPage() {
                       </button>
                       <div className="flex items-center gap-1.5 text-sm">
                         {running ? (
-                          <>
-                            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                            <span className="font-medium text-emerald-600">running…</span>
-                          </>
+                          <span
+                            className="inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500"
+                            title="Stage worker is running"
+                          />
                         ) : (
-                          <>
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400" />
-                            <span className="text-slate-600">{ago ?? '—'}</span>
-                          </>
+                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
                         )}
+                        <span
+                          className={
+                            running ? 'font-medium tabular-nums text-emerald-700' : 'tabular-nums text-slate-600'
+                          }
+                          title={running ? 'Last activity (stage is running)' : 'Last activity'}
+                        >
+                          {ago ?? '—'}
+                        </span>
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm tabular-nums text-slate-700">
