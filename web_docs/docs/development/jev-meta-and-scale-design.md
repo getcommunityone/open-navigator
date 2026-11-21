@@ -85,6 +85,21 @@ kept them. Spreadsheet:
 **opt-in** with the same T=0.6, but do **not** turn it on by default until a
 human spot-checks those 6 (and any similar title patterns) in the CSV.
 
+### Final keep / skip / review (2026-11-21, #664)
+
+Threshold stays **0.6**. After compare scores are written:
+
+1. Metadata title cues (`pre-council`, `briefing`, `meeting room`) lift
+   `meta_keep` to at least 0.6 when present (`llm.typesafe.keep_decision`).
+2. Final decision: transcript ≥ 0.9 and meta in [0.4, 0.6] → **keep**;
+   transcript in [0.6, 0.7] and meta < 0.1 → **review**; else keep only if
+   both ≥ 0.6.
+3. Review rows: `data/cache/jev_meta_vs_transcript_al_final_review.csv`.
+
+AL reprocess (N=300): old both≥0.6 was keep 235 / skip 65; new is keep **240** /
+skip **59** / review **1**. The six changes are the five cue/rule keeps above
+plus Employee Recognitions → review.
+
 ## Read first
 
 - `packages/llm/src/llm/typesafe/screen_transcripts.py`
