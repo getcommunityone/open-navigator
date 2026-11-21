@@ -49,4 +49,4 @@ description: Implementation plan for #658 (calibrate + --skip-jev-meeting-below)
 ### Task 3: Docs + PR
 
 - [x] Update screening + gate docs with flag/calibrate usage
-- [ ] PR closes #658
+- [x] PR closes #658 (https://github.com/getcommunityone/open-navigator/pull/659)
