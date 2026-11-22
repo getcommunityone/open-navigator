@@ -17,19 +17,20 @@ export interface ZoomableImageProps {
   src: string;
   alt: string;
   title?: string;
-  /** Max height of the inline preview (CSS). Default 280px. */
-  previewMaxHeight?: string;
+  /** Height of the inline preview frame (CSS). Default 360px. */
+  previewHeight?: string;
 }
 
 /**
  * Inline preview of a large diagram/PNG with an **Open & zoom** control that
  * opens a fullscreen lightbox (pan + wheel zoom via react-zoom-pan-pinch).
+ * Preview fills the card width and crops from the top so tall diagrams stay readable.
  */
 export default function ZoomableImage({
   src,
   alt,
   title,
-  previewMaxHeight = '280px',
+  previewHeight = '360px',
 }: ZoomableImageProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -202,14 +203,16 @@ export default function ZoomableImage({
           Open &amp; zoom
         </button>
       </div>
-      <img
-        className={styles.preview}
-        src={src}
-        alt={alt}
-        style={{maxHeight: previewMaxHeight}}
-        loading="lazy"
-        decoding="async"
-      />
+      <div className={styles.previewFrame} style={{height: previewHeight}}>
+        <img
+          className={styles.preview}
+          src={src}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+        />
+        <span className={styles.previewFade} aria-hidden="true" />
+      </div>
       {lightbox}
     </div>
   );
