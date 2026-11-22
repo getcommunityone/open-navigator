@@ -752,6 +752,9 @@ def resolve_gemini_api_keys(
     and only appear when the filter is ``all``. A ``free``/``paid`` filter with
     no matching keys raises ``RuntimeError`` so a free run never silently falls
     back onto paid keys.
+
+    When ``tier``/``GEMINI_USE_TIER`` is ``all`` (#719), keys are ordered
+    **free → paid → untagged** so daily free quota is burned before prepaid.
     """
     from dotenv import load_dotenv
 
@@ -776,8 +779,6 @@ def resolve_gemini_api_keys(
         if k:
             tagged.append((k, _normalize_key_tier(os.getenv(f"GEMINI_KEY_TIER_{i}"))))
 
-    out: list[str] = []
-    seen: set[str] = set()
     use = (tier.strip().lower() if tier is not None else _gemini_use_tier())
     if use in ("", "all", "*"):
         use = "all"
@@ -785,6 +786,11 @@ def resolve_gemini_api_keys(
         logger.warning("Unknown tier filter {!r}; using all", use)
         use = "all"
 
+    # Preserve first-seen order within each tier; when use=all, emit free first (#719).
+    free: list[str] = []
+    paid: list[str] = []
+    untagged: list[str] = []
+    seen: set[str] = set()
     for k, key_tier in tagged:
         # No prefix filtering. Both "AIza…" (classic, 39 chars) and "AQ.…" strings
         # are valid Gemini API keys — verified live that an AQ. key authenticates via
@@ -796,7 +802,19 @@ def resolve_gemini_api_keys(
         if use != "all" and key_tier != use:
             continue
         seen.add(k)
-        out.append(k)
+        if key_tier == "free":
+            free.append(k)
+        elif key_tier == "paid":
+            paid.append(k)
+        else:
+            untagged.append(k)
+
+    if use == "all":
+        out = [*free, *paid, *untagged]
+    elif use == "free":
+        out = free
+    else:
+        out = paid
 
     if use != "all" and not out:
         raise RuntimeError(
@@ -813,15 +831,19 @@ def _key_pool(fallback: str) -> list[str]:
     if _KEY_POOL is None or _KEY_POOL_TIER != use:
         pool = resolve_gemini_api_keys(tier=use)
         if fallback and fallback not in pool and use == "all":
-            pool = [fallback, *pool]
+            # Keep free-first order: do not prepend an untagged fallback ahead of free.
+            pool = [*pool, fallback]
         _KEY_POOL = pool or ([fallback] if fallback and use == "all" else pool)
         _KEY_POOL_TIER = use
-        _KEY_IDX = None
+        # Start at the front of the ordered pool (free first when use=all).
+        # PID offset only for a single-tier filter so workers still spread load.
+        _KEY_IDX = None if use != "all" else 0
         if len(_KEY_POOL) > 1:
             logger.info(
-                "Gemini key rotation enabled: {} keys in pool (tier={})",
+                "Gemini key rotation enabled: {} keys in pool (tier={}, free-first={})",
                 len(_KEY_POOL),
                 use,
+                use == "all",
             )
         elif _KEY_POOL:
             logger.info("Gemini key pool: 1 key (tier={})", use)
@@ -842,9 +864,13 @@ def _client_for(key: str) -> Any:
 
 
 def _next_client(pool: list[str]) -> Any:
-    """Round-robin a client from the pool, offsetting the start by PID so separate
-    worker processes don't all hit the same key first. Retries advance the key,
-    so a 429/quota error moves off the hot key."""
+    """Round-robin a client from the pool.
+
+    When the pool was built with ``GEMINI_USE_TIER=all``, ``_KEY_IDX`` starts at
+    0 so free-tagged keys are tried before paid (#719). For a single-tier
+    filter, the first index is PID-offset so workers spread load. Retries
+    advance the key, so a 429/quota error moves off the hot key.
+    """
     global _KEY_IDX
     with _KEY_LOCK:
         if _KEY_IDX is None:

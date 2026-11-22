@@ -25,6 +25,10 @@ OK_BODY = {
         },
         "has_decisions": {"type": "noul", "noul": 0.97},
         "mentions_data_center": {"type": "noul", "noul": 0.04},
+        "mentions_zoning": {"type": "noul", "noul": 0.2},
+        "mentions_budget": {"type": "noul", "noul": 0.1},
+        "mentions_housing": {"type": "noul", "noul": 0.05},
+        "mentions_environment": {"type": "noul", "noul": 0.15},
     },
     "usage": {"input_tokens": 1200, "output_tokens": 30},
 }
@@ -194,7 +198,7 @@ def test_pick_chunks_keeps_first_and_last():
     assert screen.pick_chunks([], 4) == []
 
 
-def _resp(kind_probs, decisions, dc):
+def _resp(kind_probs, decisions, dc, *, zoning=0.0, budget=0.0, housing=0.0, env=0.0):
     return jev.JevResponse.from_json(
         {
             "model": "jev-1.14.0",
@@ -202,6 +206,10 @@ def _resp(kind_probs, decisions, dc):
                 "meeting_kind": {"type": "choice", "probabilities": kind_probs},
                 "has_decisions": {"type": "noul", "noul": decisions},
                 "mentions_data_center": {"type": "noul", "noul": dc},
+                "mentions_zoning": {"type": "noul", "noul": zoning},
+                "mentions_budget": {"type": "noul", "noul": budget},
+                "mentions_housing": {"type": "noul", "noul": housing},
+                "mentions_environment": {"type": "noul", "noul": env},
             },
             "usage": {"input_tokens": 10, "output_tokens": 1},
         }
@@ -211,14 +219,38 @@ def _resp(kind_probs, decisions, dc):
 def test_aggregate_averages_choice_and_takes_noul_max():
     out = screen.aggregate(
         [
-            _resp({"government_meeting": 0.6, "government_other": 0.4}, 0.1, 0.0),
-            _resp({"government_meeting": 1.0, "government_other": 0.0}, 0.9, 0.3),
+            _resp(
+                {"government_meeting": 0.6, "government_other": 0.4},
+                0.1,
+                0.0,
+                zoning=0.2,
+                budget=0.4,
+            ),
+            _resp(
+                {"government_meeting": 1.0, "government_other": 0.0},
+                0.9,
+                0.3,
+                zoning=0.8,
+                budget=0.1,
+                housing=0.5,
+                env=0.7,
+            ),
         ]
     )
     assert out["meeting_kind"] == "government_meeting"
     assert out["meeting_kind_probabilities"]["government_meeting"] == pytest.approx(0.8)
     assert out["has_decisions_p"] == pytest.approx(0.9)
     assert out["mentions_data_center_p"] == pytest.approx(0.3)
+    assert out["mentions_zoning_p"] == pytest.approx(0.8)
+    assert out["mentions_budget_p"] == pytest.approx(0.4)
+    assert out["mentions_housing_p"] == pytest.approx(0.5)
+    assert out["mentions_environment_p"] == pytest.approx(0.7)
+
+
+def test_questions_include_topic_flags():
+    for key in screen.TOPIC_NOUL_KEYS:
+        assert key in screen.QUESTIONS
+        assert screen.QUESTIONS[key]["type"] == "noul"
 
 
 def test_screen_transcript_sends_each_picked_chunk():

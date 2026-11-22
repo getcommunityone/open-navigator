@@ -423,14 +423,27 @@ append_jev_analyze_flags() {
   fi
 }
 
+# ANALYZE_TIER=light|full (default light). FULL_FILTERS=comma keys for full.
+# PART2_ONLY=1 → --part-2-only (reports-light / reports-full).
 analyze_one() {
   local st="$1" jid="$2" name="$3"
-  echo "=== Analyze ($N newest): $st — $name ($jid) ==="
+  local tier="${ANALYZE_TIER:-light}"
+  local label="Analyze"
+  [[ -n "${PART2_ONLY:-}" ]] && label="Reports"
+  echo "=== ${label} ${tier} ($N newest): $st — $name ($jid) ==="
   local -a ana_args=(
-    --newest "$N"
     --jurisdiction-id "$jid"
     --state "$st"
+    --analysis-tier "$tier"
   )
+  if [[ -n "${PART2_ONLY:-}" ]]; then
+    ana_args+=(--part-2-only --limit "$N")
+  else
+    ana_args+=(--newest "$N")
+  fi
+  if [[ -n "${FULL_FILTERS:-}" ]]; then
+    ana_args+=(--full-filters "$FULL_FILTERS")
+  fi
   append_jev_analyze_flags ana_args
   if [[ -n "${DRY_RUN:-}" ]]; then
     ana_args+=(--dry-run)
@@ -439,9 +452,9 @@ analyze_one() {
   "$PYTHON" -m llm.gemini.meeting_transcript_policy "${ana_args[@]}" || ec=$?
   if (( ec != 0 )); then
     if (( ec == 1 )); then
-      echo "WARN: analyze skipped for $jid (usually no captions yet — run: $0 captions)" >&2
+      echo "WARN: ${label} skipped for $jid (usually no captions/analysis yet)" >&2
     else
-      echo "WARN: analyze failed for $jid (exit $ec)" >&2
+      echo "WARN: ${label} failed for $jid (exit $ec)" >&2
     fi
   fi
 }
@@ -463,6 +476,22 @@ run_analyze() {
   if (( PARALLEL > 1 )); then
     wait
   fi
+}
+
+run_analyze_light() {
+  ANALYZE_TIER=light PART2_ONLY= run_analyze
+}
+
+run_reports_light() {
+  ANALYZE_TIER=light PART2_ONLY=1 run_analyze
+}
+
+run_analyze_full() {
+  ANALYZE_TIER=full PART2_ONLY= run_analyze
+}
+
+run_reports_full() {
+  ANALYZE_TIER=full PART2_ONLY=1 run_analyze
 }
 
 # One jurisdiction at a time (round-robin list order): catalog (optional) → captions → analyze.
@@ -543,23 +572,10 @@ run_each_jurisdiction() {
         "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
         || true
     fi
-    echo "--- Analyze: $st — $name ($jid) ---"
-    local -a ana_args=(
-      --newest "$N"
-      --jurisdiction-id "$jid"
-      --state "$st"
-    )
-    append_jev_analyze_flags ana_args
-    if [[ -n "${DRY_RUN:-}" ]]; then
-      ana_args+=(--dry-run)
-    elif ! "$PYTHON" -m llm.gemini.meeting_transcript_policy "${ana_args[@]}"; then
-      ec=$?
-      if [[ $ec -eq 1 ]]; then
-        echo "WARN: analyze skipped for $jid (usually no captions yet)" >&2
-      else
-        echo "WARN: analyze failed for $jid (exit $ec)" >&2
-      fi
-    fi
+    echo "--- Analyze light: $st — $name ($jid) ---"
+    ANALYZE_TIER=light PART2_ONLY= analyze_one "$st" "$jid" "$name"
+    echo "--- Reports light: $st — $name ($jid) ---"
+    ANALYZE_TIER=light PART2_ONLY=1 analyze_one "$st" "$jid" "$name"
     ((processed+=1))
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
 }
@@ -567,20 +583,27 @@ run_each_jurisdiction() {
 case "$STEP" in
   catalog) run_catalog ;;
   captions) run_captions ;;
-  analyze) run_analyze ;;
+  analyze|analyze-light) run_analyze_light ;;
+  reports-light) run_reports_light ;;
+  analyze-full) run_analyze_full ;;
+  reports-full) run_reports_full ;;
   each) run_each_jurisdiction ;;
   all)
+    # Stages 2–5 of Run all (#755): catalog → captions → analyze-light → reports-light.
+    # Discover is chained by the API before this shell step.
     [[ -z "${SKIP_CATALOG:-}" ]] && run_catalog
     run_captions
-    run_analyze
+    run_analyze_light
+    run_reports_light
     ;;
   list)
     export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"
     list_jurisdictions
     ;;
   *)
-    echo "Usage: $0 [catalog|captions|analyze|each|all|list]" >&2
-    echo "  each — round-robin: per jurisdiction, captions then analyze, then next" >&2
+    echo "Usage: $0 [catalog|captions|analyze|analyze-light|reports-light|analyze-full|reports-full|each|all|list]" >&2
+    echo "  each — round-robin: per jurisdiction, captions then light analyze/report" >&2
+    echo "  all  — catalog → captions → analyze-light → reports-light (#755)" >&2
     exit 1
     ;;
 esac

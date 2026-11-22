@@ -2,6 +2,11 @@
 """Discover candidate YouTube channels for county jurisdictions missing channel mappings.
 
 Outputs a CSV suitable for manual review and downstream catalog loading.
+
+With ``--load``, each state's CSV is immediately fed to
+``load_channel_candidates_to_catalog.py`` so bronze scraped-channel columns
+(and ``discovered_at``) update as loads land — the Discover dashboard clock
+(#740).
 """
 
 from __future__ import annotations
@@ -10,6 +15,7 @@ import argparse
 import asyncio
 import csv
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -23,7 +29,13 @@ _REPO_ROOT = repo_root(__file__)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
+
+_LOAD_SCRIPT = (
+    _REPO_ROOT
+    / "packages/scrapers/src/scrapers/youtube/load_channel_candidates_to_catalog.py"
+)
 
 
 def resolve_database_url(explicit: str | None) -> str:
@@ -229,6 +241,15 @@ async def discover_channels(
                     state_code=state_code,
                     homepage_url=website,
                 )
+            except VpnRequiredError:
+                # Do not keep grinding counties while Surfshark is down — abort so
+                # the launch log ends with a clear error the dashboard can surface (#750).
+                logger.error(
+                    "VPN required — aborting discover for {} (Surfshark off). "
+                    "Connect the VPN and re-run.",
+                    state_code,
+                )
+                raise
             except Exception as exc:
                 logger.warning("Discovery failed for {}: {}", county_name, exc)
                 channels = []
@@ -300,6 +321,41 @@ def _state_output_path(output: str, state_code: str, multi: bool) -> Path:
     return base.with_name(f"{base.stem}_{state_code}{base.suffix}")
 
 
+def load_candidates_for_state(
+    csv_path: Path,
+    state_code: str,
+    *,
+    python: str,
+    max_videos: int = 100,
+    min_duration_seconds: int = 120,
+) -> int:
+    """Load a state's candidate CSV into bronze; return subprocess exit code."""
+    if not _LOAD_SCRIPT.is_file():
+        logger.error("Load script missing: {}", _LOAD_SCRIPT)
+        return 2
+    if not csv_path.is_file():
+        logger.warning("No CSV to load for {}: {}", state_code, csv_path)
+        return 0
+    argv = [
+        python,
+        str(_LOAD_SCRIPT),
+        "--input",
+        str(csv_path),
+        "--state",
+        state_code,
+        "--jurisdiction-type",
+        "county",
+        "--max-videos",
+        str(max_videos),
+        "--min-duration-seconds",
+        str(min_duration_seconds),
+        "--python",
+        python,
+    ]
+    logger.info("Loading candidates for {} from {}", state_code, csv_path)
+    return subprocess.run(argv, cwd=str(_REPO_ROOT)).returncode
+
+
 def discover_one_state(
     state_code: str,
     db_url: str,
@@ -308,8 +364,16 @@ def discover_one_state(
     multi: bool,
     skip_homepage_scrape: bool,
     data_center_jids: frozenset[str] | None = None,
+    load: bool = False,
+    python: str | None = None,
+    max_videos: int = 100,
+    min_duration_seconds: int = 120,
 ) -> int:
-    """Discover candidate channels for one state; returns # rows with a channel."""
+    """Discover candidate channels for one state; returns # rows with a channel.
+
+    When ``load`` is true, immediately catalogs each candidate with a channel_id
+    so scraped bronze ``discovered_at`` advances during the run (#740).
+    """
     missing = fetch_missing_counties(
         db_url, state_code, data_center_jids=data_center_jids,
     )
@@ -335,9 +399,25 @@ def discover_one_state(
         out_path,
         with_channel,
     )
+
+    if load and with_channel > 0:
+        ec = load_candidates_for_state(
+            out_path,
+            state_code,
+            python=python or sys.executable,
+            max_videos=max_videos,
+            min_duration_seconds=min_duration_seconds,
+        )
+        if ec != 0:
+            logger.warning(
+                "Load for {} exited {} — Discover last activity may lag for failed rows",
+                state_code,
+                ec,
+            )
     return with_channel
 
 
+@exit_if_vpn_off
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--state", default="GA", help="Two-letter state code (default: GA)")
@@ -362,7 +442,29 @@ def main() -> int:
         default="",
         help="Launch cohort (e.g. data_centers restricts to data-center jurisdictions)",
     )
+    p.add_argument(
+        "--load",
+        action="store_true",
+        help=(
+            "After each state CSV, load candidates with a channel_id into bronze "
+            "(updates Discover last activity as loads land; #740)"
+        ),
+    )
+    p.add_argument(
+        "--max-videos",
+        type=int,
+        default=100,
+        help="When --load, max videos per channel cataloged (default: 100)",
+    )
+    p.add_argument(
+        "--min-duration-seconds",
+        type=int,
+        default=120,
+        help="When --load, skip videos shorter than this (default: 120)",
+    )
     args = p.parse_args()
+
+    require_vpn()
 
     cohort = (args.cohort or "").strip().lower()
     data_center_jids: frozenset[str] | None = None
@@ -383,6 +485,7 @@ def main() -> int:
 
     multi = len(states) > 1
     for state_code in states:
+        require_vpn()
         discover_one_state(
             state_code,
             db_url,
@@ -390,6 +493,10 @@ def main() -> int:
             multi=multi,
             skip_homepage_scrape=args.skip_homepage_scrape,
             data_center_jids=data_center_jids,
+            load=bool(args.load),
+            python=sys.executable,
+            max_videos=int(args.max_videos),
+            min_duration_seconds=int(args.min_duration_seconds),
         )
     return 0
 
