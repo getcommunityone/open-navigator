@@ -2,6 +2,10 @@ import { useEffect, useState, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
+import { DATA_EXPLORER_MAP_BASE } from '../utils/dataExplorerPaths'
+
+/** Stable map entry for header / profile menu (ACS national income choropleth). */
+const DATA_EXPLORER_ENTRY = `${DATA_EXPLORER_MAP_BASE}/us/2024/median_household_income`
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -90,9 +94,15 @@ export default function SiteHeader() {
     }
   }
 
+  const onDataExplorer = location.pathname.startsWith('/data-explorer')
   const navItems: { label: string; onClick: () => void; active: boolean }[] = [
     { label: 'Search', onClick: () => navigate('/search'), active: location.pathname === '/search' },
     { label: 'Chat', onClick: () => navigate('/chat'), active: location.pathname === '/chat' },
+    {
+      label: 'Data explorer',
+      onClick: () => navigate(DATA_EXPLORER_ENTRY),
+      active: onDataExplorer,
+    },
     { label: 'How It Works', onClick: () => goSection('how-it-works'), active: location.pathname === '/' && activeSection === 'how-it-works' },
     { label: 'Impact', onClick: () => goSection('impact'), active: location.pathname === '/' && activeSection === 'impact' },
     { label: 'Contact', onClick: () => navigate('/support'), active: location.pathname === '/support' },
@@ -183,7 +193,7 @@ export default function SiteHeader() {
               </button>
               {showLoginMenu && (
                 <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 200, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
-                  <button onClick={() => { setShowLoginMenu(false); navigate('/data-explorer/map/us/2024/median_household_income') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, fontWeight: 600, color: TEAL_DARK, cursor: 'pointer', fontFamily: 'inherit', borderBottom: '1px solid #f5f5f4', marginBottom: 4, borderRadius: 8 }}>Explore Now</button>
+                  <button onClick={() => { setShowLoginMenu(false); navigate(DATA_EXPLORER_ENTRY) }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, fontWeight: 600, color: TEAL_DARK, cursor: 'pointer', fontFamily: 'inherit', borderBottom: '1px solid #f5f5f4', marginBottom: 4, borderRadius: 8 }}>Data explorer</button>
                   <button onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>My Profile</button>
                   <button onClick={() => { setShowLoginMenu(false); navigate('/settings') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Settings</button>
                   {user.is_admin && (
