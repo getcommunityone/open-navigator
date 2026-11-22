@@ -9,7 +9,7 @@ export function MeetingChatSidebar({ scopeLabel }: { scopeLabel: string }) {
     useMeetingChatControls()
 
   return (
-    <aside className="flex h-full w-[min(100%,16.5rem)] shrink-0 flex-col border-l border-slate-200 bg-slate-50 text-slate-800">
+    <aside className="flex h-full w-[min(100%,11.5rem)] shrink-0 flex-col border-l border-slate-200 bg-slate-50 text-slate-800 sm:w-44">
       <div className="border-b border-slate-200 px-3 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           Ask meetings
