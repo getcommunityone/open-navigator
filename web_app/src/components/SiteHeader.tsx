@@ -1,7 +1,35 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
+import { DATA_EXPLORER_MAP_BASE } from '../utils/dataExplorerPaths'
+
+const DATA_EXPLORER_ENTRY = `${DATA_EXPLORER_MAP_BASE}/us/2024/median_household_income`
+
+const menuBtn: CSSProperties = {
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  background: 'none',
+  border: 'none',
+  padding: '10px 12px',
+  fontSize: 14,
+  color: '#44403c',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  borderRadius: 8,
+}
+
+const menuSectionLabel: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0.4,
+  textTransform: 'uppercase',
+  color: '#a8a29e',
+  padding: '8px 12px 2px',
+  borderTop: '1px solid #f5f5f4',
+  marginTop: 4,
+}
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -182,21 +210,48 @@ export default function SiteHeader() {
                 </span>
               </button>
               {showLoginMenu && (
-                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 200, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
-                  <button onClick={() => { setShowLoginMenu(false); navigate('/data-explorer/map/us/2024/median_household_income') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, fontWeight: 600, color: TEAL_DARK, cursor: 'pointer', fontFamily: 'inherit', borderBottom: '1px solid #f5f5f4', marginBottom: 4, borderRadius: 8 }}>Explore Now</button>
-                  <button onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>My Profile</button>
-                  <button onClick={() => { setShowLoginMenu(false); navigate('/settings') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Settings</button>
-                  {user.is_admin && (
-                    <button onClick={() => { setShowLoginMenu(false); navigate('/admin') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Admin</button>
-                  )}
+                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
+                  <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={menuBtn}>My Profile</button>
+                  <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/settings?section=account&tab=profile') }} style={menuBtn}>Settings</button>
+
+                  <div style={menuSectionLabel}>Site</div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); navigate('/settings?section=site') }}
+                    style={{ ...menuBtn, fontWeight: 600, color: TEAL_DARK }}
+                  >
+                    Site settings
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); navigate(DATA_EXPLORER_ENTRY) }}
+                    style={{ ...menuBtn, fontWeight: 600, color: TEAL_DARK }}
+                  >
+                    Data explorer
+                  </button>
+
                   {user.is_admin && (
                     <>
-                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: '#a8a29e', padding: '8px 12px 2px', borderTop: '1px solid #f5f5f4', marginTop: 4 }}>Databricks</div>
-                      <a href={DATABRICKS_WORKSPACE_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8, textDecoration: 'none' }}>Workspace ↗</a>
-                      <a href={DATABRICKS_APP_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8, textDecoration: 'none' }}>App ↗</a>
+                      <div style={menuSectionLabel}>Admin</div>
+                      <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/settings?section=admin') }} style={menuBtn}>
+                        Admin settings
+                      </button>
+                      <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/admin') }} style={menuBtn}>
+                        Admin home
+                      </button>
+                      <div style={menuSectionLabel}>Databricks</div>
+                      <a href={DATABRICKS_WORKSPACE_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ ...menuBtn, textDecoration: 'none' }}>Workspace ↗</a>
+                      <a href={DATABRICKS_APP_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ ...menuBtn, textDecoration: 'none' }}>App ↗</a>
                     </>
                   )}
-                  <button onClick={() => { setShowLoginMenu(false); logout() }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#dc2626', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', borderTop: '1px solid #f5f5f4', marginTop: 4, borderRadius: 8 }}>Sign out</button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); logout() }}
+                    style={{ ...menuBtn, color: '#dc2626', fontWeight: 600, borderTop: '1px solid #f5f5f4', marginTop: 4 }}
+                  >
+                    Sign out
+                  </button>
                 </div>
               )}
             </div>
