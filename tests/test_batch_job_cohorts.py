@@ -37,9 +37,6 @@ class TestClient:
     def post(self, url: str, **kwargs) -> httpx.Response:
         return self.request("POST", url, **kwargs)
 
-    def post(self, url: str, **kwargs) -> httpx.Response:
-        return self.request("POST", url, **kwargs)
-
 
 @pytest.fixture
 def api_app():
@@ -153,7 +150,16 @@ def test_launch_sets_cohort_env(launch_client, monkeypatch):
 
         return P()
 
+    class _FakeConn:
+        def close(self) -> None:
+            pass
+
     monkeypatch.setattr("subprocess.Popen", fake_popen)
+    # launch opens a DB conn for data_centers before resolve_launch_states
+    monkeypatch.setattr(
+        "api.batch_jobs.batch_job_db.get_db_connection",
+        lambda: _FakeConn(),
+    )
     monkeypatch.setattr(
         "api.batch_jobs.cohorts.resolve_launch_states",
         lambda cohort, states, **kw: ["AL"],
