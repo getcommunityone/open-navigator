@@ -8,24 +8,24 @@ displayed_sidebar: developersSidebar
 
 The **Jurisdiction Discovery System** finds the official websites and meeting minutes URLs of local governments across the United States using **pattern-based matching** and **public datasets**. The U.S. has about 91,000 local governments ([Census Bureau, 2025](https://www.census.gov/library/publications/2026/econ/govtorg2225.html)). About 40% are special districts, which Open Navigator does not include.
 
-## ✅ Sustainable Approach (No Deprecated APIs)
+## Yes Sustainable Approach (No Deprecated APIs)
 
 This system uses **vendor-neutral, production-ready methods**:
 
-✅ **Pattern Matching** - Generate URLs from jurisdiction names using common government patterns  
-✅ **GSA .gov Registry** - Direct matching with authoritative domain list  
-✅ **Web Crawling** - Verify URLs and discover minutes pages  
-✅ **Public Datasets** - Census Bureau + GSA official data
+Yes **Pattern Matching** - Generate URLs from jurisdiction names using common government patterns
+Yes **GSA .gov Registry** - Direct matching with authoritative domain list
+Yes **Web Crawling** - Verify URLs and discover minutes pages
+Yes **Public Datasets** - Census Bureau + GSA official data
 
 **Does NOT use:**
-❌ Google Custom Search API (deprecated for production)  
-❌ Bing Search API (legacy, not recommended)
+No Google Custom Search API (deprecated for production)
+No Bing Search API (legacy, not recommended)
 
 **Benefits:**
 - 🆓 **Zero API costs** - No search API fees
-- 🔒 **Reliable** - No rate limits or quotas
-- ♻️ **Sustainable** - Vendor-neutral, future-proof
-- 📊 **Reproducible** - Deterministic pattern matching
+- **Reliable** - No rate limits or quotas
+- **Sustainable** - Vendor-neutral, future-proof
+- **Reproducible** - Deterministic pattern matching
 
 ## Architecture
 
@@ -33,44 +33,44 @@ This system uses **vendor-neutral, production-ready methods**:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│            BRONZE LAYER (Public Datasets)                │
+│ BRONZE LAYER (Public Datasets) │
 ├─────────────────────────────────────────────────────────┤
-│  Census of Governments 2022: 90,837 local govts        │
-│  GSA .gov Registry: 12,000+ validated domains          │
+│ Census of Governments 2022: 90,837 local govts │
+│ GSA .gov Registry: 12,000+ validated domains │
 └─────────────────────────────────────────────────────────┘
-                          │
-                          ▼
+ │
+
 ┌─────────────────────────────────────────────────────────┐
-│         SILVER LAYER (Pattern-Based Discovery)          │
+│ SILVER LAYER (Pattern-Based Discovery) │
 ├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  Strategy 1: GSA Domain Matching                        │
-│  • Direct lookup: "Sacramento County" → sacramento.gov  │
-│  • Fuzzy matching with 75%+ similarity                 │
-│  • Confidence: 0.95-1.0                                │
-│                                                          │
-│  Strategy 2: URL Pattern Generation                     │
-│  • Counties: co.{{name}}.{{state}}.us, {{name}}county.gov   │
-│  • Cities: www.{{name}}.gov, cityof{{name}}.gov           │
-│  • Schools: {{name}}.k12.{{state}}.us, {{name}}schools.org  │
-│  • Verify accessibility with HTTP HEAD/GET             │
-│  • Confidence: 0.6-0.9                                 │
-│                                                          │
-│  Strategy 3: Web Crawling                               │
-│  • Find "minutes" or "agendas" links on homepage       │
-│  • Detect CMS platforms (Granicus, CivicClerk, etc.)   │
-│  • Confidence boost for .gov domains                    │
-│                                                          │
+│ │
+│ Strategy 1: GSA Domain Matching │
+│ • Direct lookup: "Sacramento County" → sacramento.gov │
+│ • Fuzzy matching with 75%+ similarity │
+│ • Confidence: 0.95-1.0 │
+│ │
+│ Strategy 2: URL Pattern Generation │
+│ • Counties: co.{{name}}.{{state}}.us, {{name}}county.gov │
+│ • Cities: www.{{name}}.gov, cityof{{name}}.gov │
+│ • Schools: {{name}}.k12.{{state}}.us, {{name}}schools.org │
+│ • Verify accessibility with HTTP HEAD/GET │
+│ • Confidence: 0.6-0.9 │
+│ │
+│ Strategy 3: Web Crawling │
+│ • Find "minutes" or "agendas" links on homepage │
+│ • Detect CMS platforms (Granicus, CivicClerk, etc.) │
+│ • Confidence boost for .gov domains │
+│ │
 └─────────────────────────────────────────────────────────┘
-                          │
-                          ▼
+ │
+
 ┌─────────────────────────────────────────────────────────┐
-│            GOLD LAYER (Scraping Targets)                 │
+│ GOLD LAYER (Scraping Targets) │
 ├─────────────────────────────────────────────────────────┤
-│  • Confidence score > 0.6                               │
-│  • Has minutes URL or known CMS                         │
-│  • Prioritized by population & domain quality           │
-│  • Ready for scraper agents                             │
+│ • Confidence score > 0.6 │
+│ • Has minutes URL or known CMS │
+│ • Prioritized by population & domain quality │
+│ • Ready for scraper agents │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -93,10 +93,10 @@ python main.py scrape-batch --source discovered
 
 | Jurisdiction Type | Success Rate | Notes |
 |-------------------|--------------|-------|
-| Counties          | **85-95%**   | Best coverage (official .gov domains) |
-| Cities > 10k pop  | **75-90%**   | Good pattern matching |
-| School Districts  | **70-85%**   | Consistent naming conventions |
-| Townships         | **50-65%**   | More variation in URLs |
+| Counties | **85-95%** | Best coverage (official .gov domains) |
+| Cities > 10k pop | **75-90%** | Good pattern matching |
+| School Districts | **70-85%** | Consistent naming conventions |
+| Townships | **50-65%** | More variation in URLs |
 
 ### Benchmarks
 
@@ -114,7 +114,7 @@ For detailed documentation, see [JURISDICTION_DISCOVERY_SETUP.md](JURISDICTION_D
 
 ---
 
-**Production-ready with zero external API dependencies!** 🦷✨
+**Production-ready with zero external API dependencies!**
 # Jurisdiction Discovery System
 
 ## Overview
@@ -127,57 +127,57 @@ The **Jurisdiction Discovery System** finds the official websites and meeting mi
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   BRONZE LAYER                           │
-│              (Raw Data Ingestion)                        │
+│ BRONZE LAYER │
+│ (Raw Data Ingestion) │
 ├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  Census of Governments (2022):                          │
-│  • 3,031 counties                                       │
-│  • 19,491 municipalities                                │
-│  • 16,214 townships                                     │
-│  • 12,546 independent school districts                  │
-│  • 39,555 special districts                             │
-│  ────────────────                                       │
-│  Total: 90,837 local governments                        │
-│                                                          │
-│  GSA .gov Domain List:                                  │
-│  • 12,000+ validated .gov domains                       │
-│  • Domain type classification                           │
-│  • Organization mapping                                 │
-│                                                          │
+│ │
+│ Census of Governments (2022): │
+│ • 3,031 counties │
+│ • 19,491 municipalities │
+│ • 16,214 townships │
+│ • 12,546 independent school districts │
+│ • 39,555 special districts │
+│ ──────────────── │
+│ Total: 90,837 local governments │
+│ │
+│ GSA .gov Domain List: │
+│ • 12,000+ validated .gov domains │
+│ • Domain type classification │
+│ • Organization mapping │
+│ │
 └─────────────────────────────────────────────────────────┘
-                          │
-                          ▼
+ │
+
 ┌─────────────────────────────────────────────────────────┐
-│                   SILVER LAYER                           │
-│              (URL Discovery & Validation)                │
+│ SILVER LAYER │
+│ (URL Discovery & Validation) │
 ├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  For each jurisdiction:                                 │
-│  1. Search for official website (Google/Bing API)       │
-│  2. Validate against .gov domain list                   │
-│  3. Crawl homepage for "minutes" links                  │
-│  4. Detect CMS platform (Granicus, CivicClerk, etc.)    │
-│  5. Assign confidence score                             │
-│                                                          │
-│  Output: Discovered URLs with metadata                  │
-│                                                          │
+│ │
+│ For each jurisdiction: │
+│ 1. Search for official website (Google/Bing API) │
+│ 2. Validate against .gov domain list │
+│ 3. Crawl homepage for "minutes" links │
+│ 4. Detect CMS platform (Granicus, CivicClerk, etc.) │
+│ 5. Assign confidence score │
+│ │
+│ Output: Discovered URLs with metadata │
+│ │
 └─────────────────────────────────────────────────────────┘
-                          │
-                          ▼
+ │
+
 ┌─────────────────────────────────────────────────────────┐
-│                    GOLD LAYER                            │
-│              (Scraping Targets)                          │
+│ GOLD LAYER │
+│ (Scraping Targets) │
 ├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  Filtered & Prioritized:                                │
-│  • Has minutes URL                                      │
-│  • Confidence score > 0.6                               │
-│  • Preferably .gov domain                               │
-│  • Population-weighted priority                         │
-│                                                          │
-│  Ready for: Scraper Agent                               │
-│                                                          │
+│ │
+│ Filtered & Prioritized: │
+│ • Has minutes URL │
+│ • Confidence score > 0.6 │
+│ • Preferably .gov domain │
+│ • Population-weighted priority │
+│ │
+│ Ready for: Scraper Agent │
+│ │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -258,7 +258,7 @@ pipeline = DiscoveryPipeline()
 await pipeline.run_bronze_ingestion()
 
 # 2. Silver Layer: Discover URLs
-await pipeline.run_url_discovery(limit=100)  # limit for testing
+await pipeline.run_url_discovery(limit=100) # limit for testing
 
 # 3. Gold Layer: Create scraping targets
 pipeline.create_scraping_targets()
@@ -273,50 +273,50 @@ await pipeline.run_full_pipeline(discovery_limit=100)
 
 ```
 bronze/jurisdictions/
-├── counties/              # 3,143 U.S. counties
-├── municipalities/        # 19,495 cities/towns
-├── townships/             # 16,504 townships
-├── school_districts/      # 13,051 school districts
-├── special_districts/     # 38,542 special districts
-└── unified/               # Combined view
+├── counties/ # 3,143 U.S. counties
+├── municipalities/ # 19,495 cities/towns
+├── townships/ # 16,504 townships
+├── school_districts/ # 13,051 school districts
+├── special_districts/ # 38,542 special districts
+└── unified/ # Combined view
 
-bronze/gov_domains/        # 12,000+ .gov domains
+bronze/gov_domains/ # 12,000+ .gov domains
 ```
 
 ### Silver Layer
 
 ```
-silver/discovered_urls/    # URLs with metadata
-    Columns:
-    - jurisdiction_id (FIPS code)
-    - jurisdiction_name
-    - state
-    - homepage_url
-    - minutes_url
-    - cms_platform
-    - is_gov_domain
-    - confidence_score
-    - discovery_method
-    - last_verified
+silver/discovered_urls/ # URLs with metadata
+ Columns:
+ - jurisdiction_id (FIPS code)
+ - jurisdiction_name
+ - state
+ - homepage_url
+ - minutes_url
+ - cms_platform
+ - is_gov_domain
+ - confidence_score
+ - discovery_method
+ - last_verified
 ```
 
 ### Gold Layer
 
 ```
-gold/scraping_targets/     # Ready for scraping
-    Columns:
-    - jurisdiction_id
-    - jurisdiction_name
-    - jurisdiction_type
-    - state
-    - population
-    - homepage_url
-    - minutes_url
-    - cms_platform
-    - priority_score
-    - scraping_status
-    - last_scraped
-    - documents_found
+gold/scraping_targets/ # Ready for scraping
+ Columns:
+ - jurisdiction_id
+ - jurisdiction_name
+ - jurisdiction_type
+ - state
+ - population
+ - homepage_url
+ - minutes_url
+ - cms_platform
+ - priority_score
+ - scraping_status
+ - last_scraped
+ - documents_found
 ```
 
 ## URL Discovery Agent
@@ -326,34 +326,34 @@ The `URLDiscoveryAgent` performs intelligent website discovery:
 ### Discovery Strategy
 
 1. **Search Phase**
-   ```python
-   query = f"{jurisdiction_name} {state} {type} official website"
-   urls = await search_google(query)
-   ```
+ ```python
+ query = f"{jurisdiction_name} {state} {type} official website"
+ urls = await search_google(query)
+ ```
 
 2. **Validation Phase**
-   ```python
-   is_valid = validate_against_gsa_domains(url)
-   ```
+ ```python
+ is_valid = validate_against_gsa_domains(url)
+ ```
 
 3. **Crawling Phase**
-   ```python
-   minutes_url = await crawl_for_minutes(homepage)
-   ```
+ ```python
+ minutes_url = await crawl_for_minutes(homepage)
+ ```
 
 4. **CMS Detection**
-   ```python
-   cms = detect_cms_platform(url, html)
-   # Detects: Granicus, CivicClerk, Municode, Laserfiche, etc.
-   ```
+ ```python
+ cms = detect_cms_platform(url, html)
+ # Detects: Granicus, CivicClerk, Municode, Laserfiche, etc.
+ ```
 
 ### Confidence Scoring
 
 ```python
 confidence = (
-    1.0 if is_gov_domain else 0.5 +
-    0.3 if has_minutes_url else 0.0 +
-    0.2 if cms_detected else 0.0
+ 1.0 if is_gov_domain else 0.5 +
+ 0.3 if has_minutes_url else 0.0 +
+ 0.2 if cms_detected else 0.0
 )
 ```
 
@@ -375,10 +375,10 @@ Jurisdictions are prioritized based on:
 
 ```python
 priority_score = (
-    100 if is_gov_domain else 50 +
-    50 if cms_platform_detected else 0 +
-    int(confidence_score * 100) +
-    population_weight
+ 100 if is_gov_domain else 50 +
+ 50 if cms_platform_detected else 0 +
+ int(confidence_score * 100) +
+ population_weight
 )
 ```
 
@@ -439,7 +439,7 @@ For 30,000 jurisdictions:
 
 **Parallel Processing:**
 ```python
-batch_size = 10  # Process 10 jurisdictions simultaneously
+batch_size = 10 # Process 10 jurisdictions simultaneously
 # Reduces 30,000 jurisdiction discovery to ~4-5 hours
 ```
 
@@ -461,11 +461,11 @@ high_priority = targets_df.filter(col("priority_score") > 150)
 
 # Pass to scraper agent
 for target in high_priority.collect():
-    await scraper_agent.scrape(
-        url=target.minutes_url,
-        jurisdiction_id=target.jurisdiction_id,
-        cms_platform=target.cms_platform
-    )
+ await scraper_agent.scrape(
+ url=target.minutes_url,
+ jurisdiction_id=target.jurisdiction_id,
+ cms_platform=target.cms_platform
+ )
 ```
 
 ## Monitoring
@@ -474,19 +474,19 @@ for target in high_priority.collect():
 
 ```sql
 -- Discovery success rate
-SELECT 
-    COUNT(*) as total,
-    COUNT(homepage_url) as homepages_found,
-    COUNT(minutes_url) as minutes_found,
-    AVG(confidence_score) as avg_confidence
+SELECT
+ COUNT(*) as total,
+ COUNT(homepage_url) as homepages_found,
+ COUNT(minutes_url) as minutes_found,
+ AVG(confidence_score) as avg_confidence
 FROM silver.discovered_urls;
 
 -- By state
-SELECT 
-    state,
-    COUNT(*) as total,
-    COUNT(minutes_url) as with_minutes,
-    ROUND(COUNT(minutes_url) * 100.0 / COUNT(*), 1) as success_rate
+SELECT
+ state,
+ COUNT(*) as total,
+ COUNT(minutes_url) as with_minutes,
+ ROUND(COUNT(minutes_url) * 100.0 / COUNT(*), 1) as success_rate
 FROM silver.discovered_urls
 GROUP BY state
 ORDER BY success_rate DESC;
@@ -496,16 +496,16 @@ ORDER BY success_rate DESC;
 
 ```sql
 -- Scraping progress
-SELECT 
-    scraping_status,
-    COUNT(*) as count
+SELECT
+ scraping_status,
+ COUNT(*) as count
 FROM gold.scraping_targets
 GROUP BY scraping_status;
 
 -- Documents found
-SELECT 
-    jurisdiction_type,
-    SUM(documents_found) as total_docs
+SELECT
+ jurisdiction_type,
+ SUM(documents_found) as total_docs
 FROM gold.scraping_targets
 GROUP BY jurisdiction_type;
 ```
@@ -522,7 +522,7 @@ curl "https://www.googleapis.com/customsearch/v1?key=YOUR_KEY&cx=YOUR_CX&q=test"
 
 # Test Bing API
 curl -H "Ocp-Apim-Subscription-Key: YOUR_KEY" \
-  "https://api.bing.microsoft.com/v7.0/search?q=test"
+ "https://api.bing.microsoft.com/v7.0/search?q=test"
 ```
 
 ### Issue: Census download fails
@@ -545,32 +545,32 @@ csv_path = await census.download_census_data("municipalities")
 ```python
 # Increase memory
 spark = SparkSession.builder \
-    .config("spark.driver.memory", "8g") \
-    .config("spark.executor.memory", "8g") \
-    .getOrCreate()
+ .config("spark.driver.memory", "8g") \
+ .config("spark.executor.memory", "8g") \
+ .getOrCreate()
 
 # Or process in state-by-state batches
 for state in ["CA", "TX", "NY", ...]:
-    df = jurisdictions_df.filter(col("state") == state)
-    await discover_batch(df)
+ df = jurisdictions_df.filter(col("state") == state)
+ await discover_batch(df)
 ```
 
 ## Next Steps
 
 1. **Run initial discovery**
-   ```bash
-   python main.py discover-jurisdictions --limit 1000
-   ```
+ ```bash
+ python main.py discover-jurisdictions --limit 1000
+ ```
 
 2. **Review results**
-   ```bash
-   python main.py show-discovery-stats
-   ```
+ ```bash
+ python main.py show-discovery-stats
+ ```
 
 3. **Start scraping**
-   ```bash
-   python main.py scrape --source discovered
-   ```
+ ```bash
+ python main.py scrape --source discovered
+ ```
 
 ## References
 
@@ -581,4 +581,4 @@ for state in ["CA", "TX", "NY", ...]:
 
 ---
 
-**Your jurisdiction discovery system is now ready to identify tens of thousands of local governments for oral health policy monitoring!** 🦷✨
+**Your jurisdiction discovery system is now ready to identify tens of thousands of local governments for oral health policy monitoring!**

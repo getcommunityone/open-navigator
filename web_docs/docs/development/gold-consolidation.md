@@ -14,54 +14,54 @@ The gold data directory has been consolidated from **86 files to 21 files** (75%
 ```
 data/gold/
 ├── national/
-│   ├── bill_map_aggregate.parquet
-│   ├── events.parquet
-│   ├── nonprofits_financials.parquet
-│   ├── nonprofits_locations.parquet
-│   ├── nonprofits_organizations.parquet
-│   └── nonprofits_programs.parquet
+│ ├── bill_map_aggregate.parquet
+│ ├── events.parquet
+│ ├── nonprofits_financials.parquet
+│ ├── nonprofits_locations.parquet
+│ ├── nonprofits_organizations.parquet
+│ └── nonprofits_programs.parquet
 ├── reference/
-│   ├── causes_everyorg_causes.parquet
-│   ├── causes_ntee_codes
-│   ├── domains_gsa_domains.parquet
-│   ├── jurisdictions_cities.parquet
-│   ├── jurisdictions_counties.parquet
-│   ├── jurisdictions_school_districts.parquet
-│   ├── jurisdictions_townships.parquet
-│   └── zip_county_mapping.parquet
+│ ├── causes_everyorg_causes.parquet
+│ ├── causes_ntee_codes
+│ ├── domains_gsa_domains.parquet
+│ ├── jurisdictions_cities.parquet
+│ ├── jurisdictions_counties.parquet
+│ ├── jurisdictions_school_districts.parquet
+│ ├── jurisdictions_townships.parquet
+│ └── zip_county_mapping.parquet
 └── states/
-    ├── AL/  (16 files)
-    ├── GA/  (16 files)
-    ├── IN/  (partial)
-    ├── MA/  (17 files)
-    ├── WA/  (16 files)
-    └── WI/  (6 files)
+ ├── AL/ (16 files)
+ ├── GA/ (16 files)
+ ├── IN/ (partial)
+ ├── MA/ (17 files)
+ ├── WA/ (16 files)
+ └── WI/ (6 files)
 ```
 
 ### After (21 files)
 ```
 data/gold/
-├── bills_bill_actions.parquet          (52 MB)
-├── bills_bill_sponsorships.parquet     (39 MB)
-├── bills_bills.parquet                 (15 MB)
-├── bill_map_aggregate.parquet        (142 KB)
-├── causes_everyorg_causes.parquet      (11 KB)
-├── causes_ntee_codes           (11 KB)
-├── contacts_local_officials.parquet    (15 KB)
-├── contact_official.parquet          (461 KB)
-├── domains_gsa_domains.parquet         (596 KB)
-├── events_documents.parquet             (366 MB)
-├── events_participants.parquet          (808 KB)
-├── events.parquet                      (1.8 MB)
-├── jurisdictions_cities.parquet        (2.0 MB)
-├── jurisdictions_counties.parquet      (244 KB)
+├── bills_bill_actions.parquet (52 MB)
+├── bills_bill_sponsorships.parquet (39 MB)
+├── bills_bills.parquet (15 MB)
+├── bill_map_aggregate.parquet (142 KB)
+├── causes_everyorg_causes.parquet (11 KB)
+├── causes_ntee_codes (11 KB)
+├── contacts_local_officials.parquet (15 KB)
+├── contact_official.parquet (461 KB)
+├── domains_gsa_domains.parquet (596 KB)
+├── events_documents.parquet (366 MB)
+├── events_participants.parquet (808 KB)
+├── events.parquet (1.8 MB)
+├── jurisdictions_cities.parquet (2.0 MB)
+├── jurisdictions_counties.parquet (244 KB)
 ├── jurisdictions_school_districts.parquet (926 KB)
-├── jurisdictions_townships.parquet     (2.4 MB)
-├── nonprofits_financials.parquet       (77 MB)
-├── nonprofits_locations.parquet        (86 MB)
-├── nonprofits_organizations.parquet    (134 MB)
-├── nonprofits_programs.parquet         (65 MB)
-└── zip_county_mapping.parquet          (323 KB)
+├── jurisdictions_townships.parquet (2.4 MB)
+├── nonprofits_financials.parquet (77 MB)
+├── nonprofits_locations.parquet (86 MB)
+├── nonprofits_organizations.parquet (134 MB)
+├── nonprofits_programs.parquet (65 MB)
+└── zip_county_mapping.parquet (323 KB)
 ```
 
 ## Key Changes
@@ -83,9 +83,9 @@ data/gold/
 **Old pattern:**
 ```python
 for st in states:
-    parquet_path = Path(f"data/gold/states/{st}/bills_bills.parquet")
-    df = pd.read_parquet(parquet_path)
-    # process...
+ parquet_path = Path(f"data/gold/states/{st}/bills_bills.parquet")
+ df = pd.read_parquet(parquet_path)
+ # process...
 ```
 
 **New pattern:**
@@ -93,7 +93,7 @@ for st in states:
 parquet_path = Path("data/gold/bills_bills.parquet")
 df = pd.read_parquet(parquet_path)
 if state:
-    df = df[df['state'] == state]
+ df = df[df['state'] == state]
 ```
 
 **Files updated:**
@@ -183,16 +183,16 @@ mv data/gold_old data/gold
 
 ## Migration Notes
 
-- ✅ All files include `state` column where applicable
-- ✅ National and reference tables copied as-is
-- ✅ API code updated to use consolidated files
-- ⚠️ Example scripts in `examples/` and `scripts/enrichment/` still reference old paths (low priority - for local dev only)
-- ⚠️ Documentation files still show old paths (needs update)
+- Yes All files include `state` column where applicable
+- Yes National and reference tables copied as-is
+- Yes API code updated to use consolidated files
+- Warning Example scripts in `examples/` and `scripts/enrichment/` still reference old paths (low priority - for local dev only)
+- Warning Documentation files still show old paths (needs update)
 
 ## Next Steps
 
-1. ✅ Test API endpoints with consolidated data
-2. ⏳ Upload consolidated files to HuggingFace
-3. ⏳ Update documentation to reflect new structure
-4. ⏳ Update example scripts to use consolidated files
-5. ⏳ Deploy to production and verify
+1. Yes Test API endpoints with consolidated data
+2. Upload consolidated files to HuggingFace
+3. Update documentation to reflect new structure
+4. Update example scripts to use consolidated files
+5. Deploy to production and verify

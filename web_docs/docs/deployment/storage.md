@@ -2,13 +2,13 @@
 sidebar_position: 16
 ---
 
-# 💰 COST-EFFECTIVE STORAGE STRATEGY (Personal Budget)
+# COST-EFFECTIVE STORAGE STRATEGY (Personal Budget)
 
 **TL;DR: Use Hugging Face Datasets - it's FREE and unlimited for public data!**
 
 ---
 
-## 🎯 THE PROBLEM
+## THE PROBLEM
 
 **Challenge:**
 - Need to process 22,000+ jurisdictions
@@ -20,18 +20,18 @@ sidebar_position: 16
 
 ---
 
-## ✅ RECOMMENDED STRATEGY: HUGGING FACE DATASETS
+## Yes RECOMMENDED STRATEGY: HUGGING FACE DATASETS
 
 ### Why Hugging Face?
 
 1. **🆓 FREE** - Unlimited storage for public datasets
-2. **🌐 Cloud-based** - No local storage needed
-3. **📊 Versioned** - Git-based dataset management
-4. **🔍 Searchable** - Built-in search and filtering
-5. **🤝 Shareable** - Public datasets help research community
-6. **⚡ Fast** - Optimized for large datasets
+2. ** Cloud-based** - No local storage needed
+3. ** Versioned** - Git-based dataset management
+4. ** Searchable** - Built-in search and filtering
+5. ** Shareable** - Public datasets help research community
+6. ** Fast** - Optimized for large datasets
 
-### ⚠️ CRITICAL: File Limits
+### Warning CRITICAL: File Limits
 
 **Hugging Face has repository limits:**
 - Files per folder: \<10,000
@@ -41,21 +41,21 @@ sidebar_position: 16
 **Your scale (22M files) exceeds limits!**
 
 **Solution: Use Parquet format**
-- 22 million PDFs → 50 Parquet files ✅
+- 22 million PDFs → 50 Parquet files Yes
 - See detailed guide: [HUGGINGFACE_FILE_LIMITS.md](HUGGINGFACE_FILE_LIMITS.md)
 
 ### What to Store
 
 **Store ONLY processed/filtered data, not raw content:**
 
-✅ **Store:**
+Yes **Store:**
 - Extracted text from PDFs
 - Meeting metadata (date, title, URL)
 - Oral health-related snippets
 - Social media links
 - Discovery results (JSON)
 
-❌ **Don't Store:**
+No **Don't Store:**
 - Full video files (link to YouTube instead)
 - Full PDF files (store text + source URL)
 - Website HTML dumps
@@ -63,30 +63,30 @@ sidebar_position: 16
 
 ---
 
-## 📊 STORAGE ESTIMATES
+## STORAGE ESTIMATES
 
 ### Raw Content (DON'T download all):
 ```
-Videos:        5,000 channels × 100 videos × 500 MB = 250 TB  ❌
-PDFs:          15,000 jurisdictions × 1,000 docs × 2 MB = 30 TB  ❌
-Social media:  18,000 accounts × archives = 5 TB  ❌
-TOTAL RAW:     ~285 TB  🚫 TOO EXPENSIVE!
+Videos: 5,000 channels × 100 videos × 500 MB = 250 TB No
+PDFs: 15,000 jurisdictions × 1,000 docs × 2 MB = 30 TB No
+Social media: 18,000 accounts × archives = 5 TB No
+TOTAL RAW: ~285 TB TOO EXPENSIVE!
 ```
 
 ### Processed Content (Hugging Face approach):
 ```
-Discovery data:     22,000 jurisdictions × 50 KB = 1.1 GB  ✅
-Meeting metadata:   500,000 meetings × 5 KB = 2.5 GB  ✅
-Extracted text:     500,000 docs × 50 KB = 25 GB  ✅
-Oral health subset: 50,000 relevant docs × 100 KB = 5 GB  ✅
-TOTAL PROCESSED:    ~34 GB  ✅ TOTALLY FREE on Hugging Face!
+Discovery data: 22,000 jurisdictions × 50 KB = 1.1 GB Yes
+Meeting metadata: 500,000 meetings × 5 KB = 2.5 GB Yes
+Extracted text: 500,000 docs × 50 KB = 25 GB Yes
+Oral health subset: 50,000 relevant docs × 100 KB = 5 GB Yes
+TOTAL PROCESSED: ~34 GB Yes TOTALLY FREE on Hugging Face!
 ```
 
 **Savings: 285 TB → 34 GB = 99.99% reduction!**
 
 ---
 
-## 🚀 STEP-BY-STEP: HUGGING FACE WORKFLOW
+## STEP-BY-STEP: HUGGING FACE WORKFLOW
 
 ### Step 1: Create Free Hugging Face Account
 
@@ -111,14 +111,14 @@ import pandas as pd
 
 # Login
 from huggingface_hub import login
-login(token="hf_YOUR_TOKEN")  # Get from https://huggingface.co/settings/tokens
+login(token="hf_YOUR_TOKEN") # Get from https://huggingface.co/settings/tokens
 
 # Create dataset repository
 repo_name = "oral-health-policy-data"
 create_repo(
-    repo_id=f"your-username/{repo_name}",
-    repo_type="dataset",
-    private=False  # Public = FREE unlimited storage!
+ repo_id=f"your-username/{repo_name}",
+ repo_type="dataset",
+ private=False # Public = FREE unlimited storage!
 )
 
 # Upload discovery results
@@ -126,7 +126,7 @@ df = pd.read_csv('data/bronze/discovered_sources/discovery_summary_final.csv')
 dataset = Dataset.from_pandas(df)
 dataset.push_to_hub(f"your-username/{repo_name}", split="discovery")
 
-print("✅ Dataset uploaded to Hugging Face!")
+print("Yes Dataset uploaded to Hugging Face!")
 print(f"View at: https://huggingface.co/datasets/your-username/{repo_name}")
 ```
 
@@ -142,56 +142,56 @@ import tempfile
 from pathlib import Path
 
 async def process_jurisdiction_streaming(jurisdiction):
-    """
-    Process jurisdiction WITHOUT storing locally:
-    1. Download agenda PDF
-    2. Extract text
-    3. Filter for oral health keywords
-    4. Upload to Hugging Face
-    5. Delete local file
-    """
-    
-    results = []
-    
-    # Get agenda portal URLs
-    agendas = jurisdiction['agenda_portals']
-    
-    for agenda_url in agendas:
-        # Download to temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(agenda_url)
-                tmp.write(response.content)
-                tmp_path = tmp.name
-        
-        # Extract text (using PyPDF2 or similar)
-        text = extract_text_from_pdf(tmp_path)
-        
-        # Filter for oral health content
-        keywords = ['fluoride', 'dental', 'oral health', 'water treatment']
-        if any(kw in text.lower() for kw in keywords):
-            results.append({
-                'jurisdiction': jurisdiction['name'],
-                'state': jurisdiction['state'],
-                'url': agenda_url,
-                'text': text,
-                'date': extract_date(text),
-                'relevant': True
-            })
-        
-        # Delete local file immediately
-        Path(tmp_path).unlink()
-    
-    # Upload batch to Hugging Face
-    if results:
-        upload_to_huggingface(results)
-    
-    return len(results)
+ """
+ Process jurisdiction WITHOUT storing locally:
+ 1. Download agenda PDF
+ 2. Extract text
+ 3. Filter for oral health keywords
+ 4. Upload to Hugging Face
+ 5. Delete local file
+ """
+
+ results = []
+
+ # Get agenda portal URLs
+ agendas = jurisdiction['agenda_portals']
+
+ for agenda_url in agendas:
+ # Download to temporary file
+ with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+ async with httpx.AsyncClient() as client:
+ response = await client.get(agenda_url)
+ tmp.write(response.content)
+ tmp_path = tmp.name
+
+ # Extract text (using PyPDF2 or similar)
+ text = extract_text_from_pdf(tmp_path)
+
+ # Filter for oral health content
+ keywords = ['fluoride', 'dental', 'oral health', 'water treatment']
+ if any(kw in text.lower() for kw in keywords):
+ results.append({
+ 'jurisdiction': jurisdiction['name'],
+ 'state': jurisdiction['state'],
+ 'url': agenda_url,
+ 'text': text,
+ 'date': extract_date(text),
+ 'relevant': True
+ })
+
+ # Delete local file immediately
+ Path(tmp_path).unlink()
+
+ # Upload batch to Hugging Face
+ if results:
+ upload_to_huggingface(results)
+
+ return len(results)
 ```
 
 ---
 
-## 💡 COST BREAKDOWN: FREE OPTIONS
+## COST BREAKDOWN: FREE OPTIONS
 
 ### Option 1: Hugging Face (RECOMMENDED)
 
@@ -202,7 +202,7 @@ async def process_jurisdiction_streaming(jurisdiction):
 | Bandwidth | FREE | Unlimited downloads |
 | Processing | FREE | Use local computer |
 
-**Total: $0/month** ✅
+**Total: $0/month** Yes
 
 ### Option 2: GitHub + Hugging Face
 
@@ -212,7 +212,7 @@ async def process_jurisdiction_streaming(jurisdiction):
 | Hugging Face (processed text) | FREE | Unlimited |
 | GitHub LFS (large files) | $5/month | 50 GB |
 
-**Total: $0-5/month** ✅
+**Total: $0-5/month** Yes
 
 ### Option 3: Cloud Storage (if needed)
 
@@ -224,11 +224,11 @@ async def process_jurisdiction_streaming(jurisdiction):
 | **Google Cloud** | 5 GB always free | $0.020/GB/month |
 | **Azure Blob** | 5 GB for 12 months | $0.018/GB/month |
 
-**Cost for 34 GB:** ~$0.60/month ✅
+**Cost for 34 GB:** ~$0.60/month Yes
 
 ---
 
-## 🎯 RECOMMENDED WORKFLOW
+## RECOMMENDED WORKFLOW
 
 ### Phase 1: Discovery (Run Locally)
 
@@ -245,21 +245,21 @@ python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all
 ```python
 # For each jurisdiction:
 for jurisdiction in all_jurisdictions:
-    # 1. Download one PDF
-    pdf = download_pdf(jurisdiction.agenda_url)
-    
-    # 2. Extract text
-    text = extract_text(pdf)
-    
-    # 3. Check if oral health-related
-    if is_relevant(text):
-        # 4. Upload to Hugging Face
-        upload_to_hf(text, metadata)
-    
-    # 5. Delete local file
-    delete(pdf)
-    
-    # Local storage stays at ~100 MB (just temp files)!
+ # 1. Download one PDF
+ pdf = download_pdf(jurisdiction.agenda_url)
+
+ # 2. Extract text
+ text = extract_text(pdf)
+
+ # 3. Check if oral health-related
+ if is_relevant(text):
+ # 4. Upload to Hugging Face
+ upload_to_hf(text, metadata)
+
+ # 5. Delete local file
+ delete(pdf)
+
+ # Local storage stays at ~100 MB (just temp files)!
 ```
 
 **Your laptop never stores more than a few hundred MB!**
@@ -306,7 +306,7 @@ print(f"Total documents: {len(dataset)}")
 
 ---
 
-## 📦 SAMPLE: UPLOAD TO HUGGING FACE
+## SAMPLE: UPLOAD TO HUGGING FACE
 
 ### Create Upload Script
 
@@ -322,53 +322,53 @@ import pandas as pd
 from pathlib import Path
 
 # Configuration
-HF_TOKEN = "hf_YOUR_TOKEN"  # From https://huggingface.co/settings/tokens
+HF_TOKEN = "hf_YOUR_TOKEN" # From https://huggingface.co/settings/tokens
 HF_REPO = "your-username/oral-health-policy-data"
 
 def upload_discovery_results():
-    """Upload discovery results (JSON/CSV)"""
-    
-    login(token=HF_TOKEN)
-    
-    # Load discovery data
-    discovery_dir = Path("data/bronze/discovered_sources")
-    
-    # Load all discovery CSVs
-    all_data = []
-    for csv_file in discovery_dir.glob("*.csv"):
-        df = pd.read_csv(csv_file)
-        all_data.append(df)
-    
-    # Combine and upload
-    combined = pd.concat(all_data, ignore_index=True)
-    dataset = Dataset.from_pandas(combined)
-    
-    dataset.push_to_hub(HF_REPO, split="discovery")
-    
-    print(f"✅ Uploaded {len(combined)} jurisdictions to Hugging Face")
-    print(f"View at: https://huggingface.co/datasets/{HF_REPO}")
+ """Upload discovery results (JSON/CSV)"""
+
+ login(token=HF_TOKEN)
+
+ # Load discovery data
+ discovery_dir = Path("data/bronze/discovered_sources")
+
+ # Load all discovery CSVs
+ all_data = []
+ for csv_file in discovery_dir.glob("*.csv"):
+ df = pd.read_csv(csv_file)
+ all_data.append(df)
+
+ # Combine and upload
+ combined = pd.concat(all_data, ignore_index=True)
+ dataset = Dataset.from_pandas(combined)
+
+ dataset.push_to_hub(HF_REPO, split="discovery")
+
+ print(f"Yes Uploaded {len(combined)} jurisdictions to Hugging Face")
+ print(f"View at: https://huggingface.co/datasets/{HF_REPO}")
 
 def upload_meeting_data(meetings_df):
-    """Upload processed meeting data"""
-    
-    # Convert to dataset
-    dataset = Dataset.from_pandas(meetings_df)
-    
-    # Upload
-    dataset.push_to_hub(HF_REPO, split="meetings")
-    
-    print(f"✅ Uploaded {len(meetings_df)} meetings")
+ """Upload processed meeting data"""
+
+ # Convert to dataset
+ dataset = Dataset.from_pandas(meetings_df)
+
+ # Upload
+ dataset.push_to_hub(HF_REPO, split="meetings")
+
+ print(f"Yes Uploaded {len(meetings_df)} meetings")
 
 def upload_oral_health_subset(filtered_df):
-    """Upload filtered oral health content"""
-    
-    dataset = Dataset.from_pandas(filtered_df)
-    dataset.push_to_hub(HF_REPO, split="oral_health")
-    
-    print(f"✅ Uploaded {len(filtered_df)} oral health documents")
+ """Upload filtered oral health content"""
+
+ dataset = Dataset.from_pandas(filtered_df)
+ dataset.push_to_hub(HF_REPO, split="oral_health")
+
+ print(f"Yes Uploaded {len(filtered_df)} oral health documents")
 
 if __name__ == "__main__":
-    upload_discovery_results()
+ upload_discovery_results()
 ```
 
 ### Run Upload
@@ -386,7 +386,7 @@ python scripts/upload_to_huggingface.py
 
 ---
 
-## 💰 TOTAL COST ESTIMATE
+## TOTAL COST ESTIMATE
 
 ### Personal Budget Approach (RECOMMENDED)
 
@@ -397,7 +397,7 @@ python scripts/upload_to_huggingface.py
 | **Internet** | $0/month | Use existing connection |
 | **Google Colab** | $0/month | FREE tier (or $10/month Pro) |
 | **GitHub** | $0/month | Public repos FREE |
-| **TOTAL** | **$0/month** | ✅ **100% FREE!** |
+| **TOTAL** | **$0/month** | Yes **100% FREE!** |
 
 ### Professional Approach (if scaling up)
 
@@ -410,7 +410,7 @@ python scripts/upload_to_huggingface.py
 
 ---
 
-## 🎓 REAL EXAMPLE: MeetingBank Dataset
+## REAL EXAMPLE: MeetingBank Dataset
 
 **Existing dataset on Hugging Face:**
 - Name: `huuuyeah/meetingbank`
@@ -434,14 +434,14 @@ your_dataset.push_to_hub("your-username/oral-health-meetings")
 
 ---
 
-## ✅ ACTION PLAN FOR YOU
+## Yes ACTION PLAN FOR YOU
 
 ### Week 1: Setup (Cost: $0)
 
-1. ✅ Create Hugging Face account (FREE)
-2. ✅ Get API token
-3. ✅ Install libraries: `pip install huggingface_hub datasets`
-4. ✅ Create dataset repo: `oral-health-policy-data`
+1. Yes Create Hugging Face account (FREE)
+2. Yes Get API token
+3. Yes Install libraries: `pip install huggingface_hub datasets`
+4. Yes Create dataset repo: `oral-health-policy-data`
 
 ### Week 2: Discovery (Cost: $0)
 
@@ -467,7 +467,7 @@ your_dataset.push_to_hub("your-username/oral-health-meetings")
 
 ---
 
-## 🔑 KEY PRINCIPLES
+## KEY PRINCIPLES
 
 **1. Process, Don't Store**
 - Download → Process → Upload → Delete
@@ -493,7 +493,7 @@ your_dataset.push_to_hub("your-username/oral-health-meetings")
 
 ---
 
-## 📚 ADDITIONAL FREE RESOURCES
+## ADDITIONAL FREE RESOURCES
 
 ### Processing Tools (FREE)
 
@@ -514,33 +514,33 @@ pip install huggingface_hub datasets
 ### Computing (FREE)
 
 1. **Google Colab** - FREE GPU/TPU
-   - https://colab.research.google.com/
-   - 15 GB RAM, 100 GB disk (temporary)
+ - https://colab.research.google.com/
+ - 15 GB RAM, 100 GB disk (temporary)
 
 2. **Kaggle Notebooks** - FREE GPU
-   - https://www.kaggle.com/code
-   - 20 GB RAM, 73 GB disk (temporary)
+ - https://www.kaggle.com/code
+ - 20 GB RAM, 73 GB disk (temporary)
 
 3. **Hugging Face Spaces** - FREE hosting
-   - https://huggingface.co/spaces
-   - Run demos and apps
+ - https://huggingface.co/spaces
+ - Run demos and apps
 
 ---
 
-## 🎯 BOTTOM LINE
+## BOTTOM LINE
 
 **YOU CAN DO THIS FOR $0/MONTH!**
 
-✅ **Storage:** Hugging Face (FREE, unlimited)  
-✅ **Processing:** Local computer or Google Colab (FREE)  
-✅ **Code:** GitHub (FREE)  
-✅ **Analysis:** Google Colab (FREE GPU)
+Yes **Storage:** Hugging Face (FREE, unlimited)
+Yes **Processing:** Local computer or Google Colab (FREE)
+Yes **Code:** GitHub (FREE)
+Yes **Analysis:** Google Colab (FREE GPU)
 
 **The entire 22,000-jurisdiction discovery and analysis can be done on a personal budget with ZERO cloud storage costs!**
 
 ---
 
-## 📞 NEXT STEPS
+## NEXT STEPS
 
 1. **Create Hugging Face account:** https://huggingface.co/join
 2. **Create your dataset repo:** `oral-health-policy-data`

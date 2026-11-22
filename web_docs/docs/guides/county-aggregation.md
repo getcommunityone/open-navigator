@@ -18,30 +18,30 @@ County-level aggregation allows you to:
 
 ### Data Available
 
-✅ **ZIP Code to County Mapping** - We have a complete mapping of ZIP codes (ZCTAs) to counties:
+Yes **ZIP Code to County Mapping** - We have a complete mapping of ZIP codes (ZCTAs) to counties:
 - File: `data/gold/reference/zip_county_mapping.parquet`
 - Coverage: 33,791 ZIP codes mapped to counties
 - Source: Census Bureau 2020 ZCTA-to-County relationship file
 
-✅ **Township to County Mapping** - Townships encode their county in the GEOID:
-- Coverage: 36,421 townships  
+Yes **Township to County Mapping** - Townships encode their county in the GEOID:
+- Coverage: 36,421 townships
 - Method: First 5 digits of township GEOID = state FIPS + county FIPS
 
-✅ **All Counties** - Complete list of U.S. counties:
+Yes **All Counties** - Complete list of U.S. counties:
 - File: `data/gold/reference/jurisdictions_counties.parquet`
 - Coverage: 3,222 counties
 - Includes: Population, area, coordinates
 
 ### Data Not Yet Available
 
-⚠️ **City to County Mapping** - Cities don't include county in Census gazetteer files:
+Warning **City to County Mapping** - Cities don't include county in Census gazetteer files:
 - Cities: 32,333 records
 - Current county data: None
 - Needed: Census place-to-county relationship files or geocoding
 
-⚠️ **School District to County** - School districts often span multiple counties:
+Warning **School District to County** - School districts often span multiple counties:
 - School districts: 13,326 records
-- Current county data: None  
+- Current county data: None
 - Needed: Census school district-to-county relationship files
 
 ## Using County Data
@@ -53,14 +53,14 @@ County-level aggregation allows you to:
 SELECT name, type, state, county, population
 FROM jurisdiction
 WHERE county = 'Los Angeles County'
-  AND state = 'CA';
+ AND state = 'CA';
 
 -- Find all townships in a county
 SELECT name, type, county, area_sq_miles
 FROM jurisdiction
 WHERE type = 'township'
-  AND county = 'Cook County'
-  AND state = 'IL';
+ AND county = 'Cook County'
+ AND state = 'IL';
 ```
 
 ### API Filtering
@@ -70,13 +70,13 @@ The `/api/search/` endpoint supports county filtering:
 ```typescript
 // Search for jurisdictions in a county
 const response = await api.get('/search/', {
-  params: {
-    q: 'city council',
-    types: 'jurisdictions',
-    state: 'CA',
-    county: 'Los Angeles County',
-    limit: 20
-  }
+ params: {
+ q: 'city council',
+ types: 'jurisdictions',
+ state: 'CA',
+ county: 'Los Angeles County',
+ limit: 20
+ }
 });
 ```
 
@@ -108,11 +108,11 @@ LIMIT 20;
 
 -- Aggregate nonprofits by county (when county data is available)
 -- This requires joining with nonprofit location data
-SELECT 
-  z.county_name,
-  z.state_fips,
-  COUNT(DISTINCT n.ein) as nonprofit_count,
-  SUM(n.revenue) as total_revenue
+SELECT
+ z.county_name,
+ z.state_fips,
+ COUNT(DISTINCT n.ein) as nonprofit_count,
+ SUM(n.revenue) as total_revenue
 FROM organization_nonprofit n
 JOIN zip_county_mapping z ON n.zip_code = z.zcta
 GROUP BY z.county_name, z.state_fips
@@ -136,13 +136,13 @@ cities_df = pd.read_parquet('data/gold/reference/jurisdictions_cities.parquet')
 geolocator = Nominatim(user_agent="open-navigator")
 
 for _, row in cities_df.iterrows():
-    lat = row['INTPTLAT']
-    lon = row['INTPTLONG']
-    
-    location = geolocator.reverse(f"{lat}, {lon}")
-    county = location.raw['address'].get('county', '')
-    
-    # Update database with county
+ lat = row['INTPTLAT']
+ lon = row['INTPTLONG']
+
+ location = geolocator.reverse(f"{lat}, {lon}")
+ county = location.raw['address'].get('county', '')
+
+ # Update database with county
 ```
 
 ### Option 2: Census Relationship Files
@@ -177,12 +177,12 @@ engine = create_engine('postgresql://postgres:password@localhost:5433/open_navig
 
 # Aggregate bills by county (requires joining with sponsor locations)
 query = """
-SELECT 
-    s.county,
-    s.state,
-    COUNT(DISTINCT b.id) as bill_count,
-    COUNT(DISTINCT CASE WHEN b.classification = 'bill' THEN b.id END) as regular_bills,
-    COUNT(DISTINCT CASE WHEN b.classification = 'resolution' THEN b.id END) as resolutions
+SELECT
+ s.county,
+ s.state,
+ COUNT(DISTINCT b.id) as bill_count,
+ COUNT(DISTINCT CASE WHEN b.classification = 'bill' THEN b.id END) as regular_bills,
+ COUNT(DISTINCT CASE WHEN b.classification = 'resolution' THEN b.id END) as resolutions
 FROM bills b
 JOIN sponsors sp ON b.id = sp.bill_id
 JOIN legislators l ON sp.person_id = l.id
@@ -202,17 +202,17 @@ print(df)
 ```python
 # Requires ZIP code to county mapping
 query = """
-SELECT 
-    z.county_name,
-    COUNT(DISTINCT n.ein) as nonprofit_count,
-    ROUND(COUNT(DISTINCT n.ein)::numeric / c.population * 100000, 2) as nonprofits_per_100k
+SELECT
+ z.county_name,
+ COUNT(DISTINCT n.ein) as nonprofit_count,
+ ROUND(COUNT(DISTINCT n.ein)::numeric / c.population * 100000, 2) as nonprofits_per_100k
 FROM organization_nonprofit n
 JOIN zip_county_mapping z ON n.zip_code = z.zcta
 JOIN (
-    SELECT county, state, SUM(population) as population
-    FROM jurisdiction
-    WHERE type = 'county'
-    GROUP BY county, state
+ SELECT county, state, SUM(population) as population
+ FROM jurisdiction
+ WHERE type = 'county'
+ GROUP BY county, state
 ) c ON z.county_name = c.county
 GROUP BY z.county_name, c.population
 HAVING c.population > 100000
@@ -225,10 +225,10 @@ LIMIT 20;
 
 1. **Automated Geocoding**: Add a pipeline to geocode all cities and assign counties
 2. **County Profiles**: Create dedicated county profile pages showing:
-   - All jurisdictions within the county
-   - Legislative activity
-   - Nonprofit statistics
-   - Meeting calendar
+ - All jurisdictions within the county
+ - Legislative activity
+ - Nonprofit statistics
+ - Meeting calendar
 3. **County Comparison Tool**: Side-by-side comparison of county metrics
 4. **County-Level Maps**: Interactive maps showing county-level heatmaps
 
@@ -276,17 +276,17 @@ This script:
 
 If the `county` field is NULL for jurisdictions:
 
-1. **Check if data exists**: 
-   ```sql
-   SELECT type, COUNT(*), COUNT(county) 
-   FROM jurisdiction 
-   GROUP BY type;
-   ```
+1. **Check if data exists**:
+ ```sql
+ SELECT type, COUNT(*), COUNT(county)
+ FROM jurisdiction
+ GROUP BY type;
+ ```
 
 2. **Run the update script**:
-   ```bash
-   python scripts/data/update_jurisdiction_counties.py
-   ```
+ ```bash
+ python scripts/data/update_jurisdiction_counties.py
+ ```
 
 3. **For cities**: County data requires additional Census files or geocoding
 
@@ -309,5 +309,5 @@ If county filtering isn't working in the search API:
 ## Related Documentation
 
 - [Data Sources](../data-sources/census.md) - Census Bureau data sources
-- [Search API](../api/search.md) - Search API documentation  
+- [Search API](../api/search.md) - Search API documentation
 - [Database Schema](../development/database-schema.md) - Database structure

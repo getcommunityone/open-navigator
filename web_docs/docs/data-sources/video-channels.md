@@ -8,54 +8,54 @@ displayed_sidebar: developersSidebar
 
 **Question:** Does this repo look at local government websites and attempt to discover their YouTube, Facebook, or other video channels?
 
-**Answer:** 
-- ❌ **Currently NO** - The repo does NOT scrape government websites for social media links
-- ✅ **Partially YES** - It extracts video URLs from pre-existing datasets (MeetingBank, Open States)
-- ✅ **NEW** - We've created `social_media_discovery.py` to implement your suggestion
+**Answer:**
+- No **Currently NO** - The repo does NOT scrape government websites for social media links
+- Yes **Partially YES** - It extracts video URLs from pre-existing datasets (MeetingBank, Open States)
+- Yes **NEW** - We've created `social_media_discovery.py` to implement your suggestion
 
 ---
 
 ## Current State: What Exists
 
-### ✅ Video Discovery from Datasets (Offline Sources)
+### Yes Video Discovery from Datasets (Offline Sources)
 
 **1. MeetingBank (HuggingFace)**
 - **File:** [`discovery/meetingbank_ingestion.py`](../discovery/meetingbank_ingestion.py)
-- **Status:** ✅ **Working** - Video URLs ARE being extracted
+- **Status:** Yes **Working** - Video URLs ARE being extracted
 - **Coverage:** 1,366 meetings from 6 cities
 - **Video Sources:**
-  - YouTube URLs (extracted from `urls['youtube_id']`)
-  - Vimeo URLs (extracted from `urls['vimeo_id']`)
-  - Archive.org collections (alameda, boston, denver, king-county, long-beach, seattle)
+ - YouTube URLs (extracted from `urls['youtube_id']`)
+ - Vimeo URLs (extracted from `urls['vimeo_id']`)
+ - Archive.org collections (alameda, boston, denver, king-county, long-beach, seattle)
 
 **2. Open States (API)**
 - **File:** [`discovery/openstates_sources.py`](../discovery/openstates_sources.py)
-- **Status:** ✅ Working
+- **Status:** Yes Working
 - **Coverage:** 50+ state legislatures
 - **Extracts:** YouTube channels, Vimeo accounts, Granicus portals from jurisdiction metadata
 
 **3. City Scrapers (GitHub)**
 - **File:** [`discovery/city_scrapers_urls.py`](../discovery/city_scrapers_urls.py)
-- **Status:** ⚠️ Partial - extracts start_urls but not video links yet
+- **Status:** Warning Partial - extracts start_urls but not video links yet
 - **Coverage:** 100-500 agencies from Chicago, Pittsburgh, Detroit, Cleveland, LA
 - **Note:** Granicus video pages with embedded YouTube, but extraction not fully implemented
 
-### ❌ What's Missing: Website Scraping for Social Media
+### No What's Missing: Website Scraping for Social Media
 
 **Current Gap:**
 The repo discovers government homepage URLs but does NOT:
-1. ❌ Scrape those websites for social media links
-2. ❌ Extract YouTube/Facebook channels from footers
-3. ❌ Check "Contact Us" or "About" pages
-4. ❌ Use USA.gov or federal aggregators
+1. No Scrape those websites for social media links
+2. No Extract YouTube/Facebook channels from footers
+3. No Check "Contact Us" or "About" pages
+4. No Use USA.gov or federal aggregators
 
 **Existing Homepage Discovery:**
 - **File:** [`discovery/url_discovery_agent.py`](../discovery/url_discovery_agent.py)
 - **What it does:**
-  - ✅ Finds government homepage URLs using GSA .gov registry
-  - ✅ Tests URL patterns (cityname.gov, etc.)
-  - ✅ Crawls to find minutes/agenda pages
-  - ❌ **But does NOT look for social media links**
+ - Yes Finds government homepage URLs using GSA .gov registry
+ - Yes Tests URL patterns (cityname.gov, etc.)
+ - Yes Crawls to find minutes/agenda pages
+ - No **But does NOT look for social media links**
 
 ---
 
@@ -65,18 +65,18 @@ The repo discovers government homepage URLs but does NOT:
 
 #### 1. USA.gov Local Directory
 ```
-✅ Most accurate way to verify channels are legitimate
-✅ Provides official website for every city/county
-✅ Most governments link social media in footer/contact sections
+Yes Most accurate way to verify channels are legitimate
+Yes Provides official website for every city/county
+Yes Most governments link social media in footer/contact sections
 ```
 
 **Implementation:** See section below on how to integrate.
 
 #### 2. USA.gov/archive (Federal Videos)
 ```
-⚠️ Good for federal agencies
-⚠️ Limited local government coverage
-✅ Could supplement state-level sources
+Warning Good for federal agencies
+Warning Limited local government coverage
+Yes Could supplement state-level sources
 ```
 
 **Use Case:** State agencies and federal programs that touch local policy.
@@ -90,41 +90,41 @@ We've created a new module to implement your suggestion!
 ### File: `discovery/social_media_discovery.py`
 
 **What it does:**
-1. ✅ Takes government homepage URLs (from existing discovery)
-2. ✅ Scrapes footer sections for social media links
-3. ✅ Checks common contact/about pages
-4. ✅ Extracts YouTube, Facebook, Vimeo, Archive.org, Granicus
-5. ✅ Validates and cleans URLs
-6. ✅ Batch processing for hundreds of jurisdictions
+1. Yes Takes government homepage URLs (from existing discovery)
+2. Yes Scrapes footer sections for social media links
+3. Yes Checks common contact/about pages
+4. Yes Extracts YouTube, Facebook, Vimeo, Archive.org, Granicus
+5. Yes Validates and cleans URLs
+6. Yes Batch processing for hundreds of jurisdictions
 
 **Example Usage:**
 ```python
 from discovery.social_media_discovery import SocialMediaDiscovery
 
 jurisdictions = [
-    {
-        'jurisdiction_id': 'seattle-wa',
-        'homepage_url': 'https://www.seattle.gov',
-        'jurisdiction_name': 'Seattle',
-        'state': 'WA'
-    }
+ {
+ 'jurisdiction_id': 'seattle-wa',
+ 'homepage_url': 'https://www.seattle.gov',
+ 'jurisdiction_name': 'Seattle',
+ 'state': 'WA'
+ }
 ]
 
 async with SocialMediaDiscovery() as discovery:
-    results = await discovery.discover_batch(jurisdictions)
+ results = await discovery.discover_batch(jurisdictions)
 
 # Results:
 # [
-#   {
-#     'jurisdiction_name': 'Seattle',
-#     'social_media': {
-#       'youtube': ['https://www.youtube.com/@cityofseattle'],
-#       'facebook': ['https://www.facebook.com/CityofSeattle'],
-#       'twitter': ['https://twitter.com/CityofSeattle']
-#     },
-#     'platform_count': 3,
-#     'total_urls': 3
-#   }
+# {
+# 'jurisdiction_name': 'Seattle',
+# 'social_media': {
+# 'youtube': ['https://www.youtube.com/@cityofseattle'],
+# 'facebook': ['https://www.facebook.com/CityofSeattle'],
+# 'twitter': ['https://twitter.com/CityofSeattle']
+# },
+# 'platform_count': 3,
+# 'total_urls': 3
+# }
 # ]
 ```
 
@@ -142,19 +142,19 @@ async with SocialMediaDiscovery() as discovery:
 
 ```
 1. URL Discovery Agent (EXISTING)
-   └─> Finds government homepage URLs
-        └─> Uses GSA .gov registry
-        └─> Pattern matching (cityname.gov)
-        └─> Validates URLs
+ └─> Finds government homepage URLs
+ └─> Uses GSA .gov registry
+ └─> Pattern matching (cityname.gov)
+ └─> Validates URLs
 
-2. Social Media Discovery (NEW) ⬅️ Add this step
-   └─> Scrapes homepages for social links
-        └─> Checks footer sections
-        └─> Checks contact/about pages
-        └─> Extracts YouTube, Facebook, etc.
+2. Social Media Discovery (NEW) Add this step
+ └─> Scrapes homepages for social links
+ └─> Checks footer sections
+ └─> Checks contact/about pages
+ └─> Extracts YouTube, Facebook, etc.
 
 3. Meeting Scraper (EXISTING)
-   └─> Uses discovered URLs to scrape meetings
+ └─> Uses discovered URLs to scrape meetings
 ```
 
 ### Integration Code Example
@@ -168,7 +168,7 @@ from discovery.gsa_domains import load_gsa_domains
 gsa_domains = load_gsa_domains()
 url_agent = URLDiscoveryAgent(gsa_domains)
 
-jurisdictions = [...]  # From Census data
+jurisdictions = [...] # From Census data
 discovered_urls = await url_agent.discover_batch(jurisdictions)
 
 # Step 2: NEW - Discover social media from those websites
@@ -198,36 +198,36 @@ import httpx
 from bs4 import BeautifulSoup
 
 async def get_usa_gov_local_directory():
-    """
-    Scrape USA.gov local directory for official city/county websites.
-    
-    USA.gov maintains a directory at:
-    https://www.usa.gov/local-governments
-    
-    Each state page lists cities/counties with official websites.
-    """
-    base_url = "https://www.usa.gov/local-governments"
-    
-    # 1. Get list of states
-    # 2. For each state, get list of cities/counties
-    # 3. Extract official website URLs
-    # 4. Return structured data
-    
-    pass  # Implementation details
+ """
+ Scrape USA.gov local directory for official city/county websites.
+
+ USA.gov maintains a directory at:
+ https://www.usa.gov/local-governments
+
+ Each state page lists cities/counties with official websites.
+ """
+ base_url = "https://www.usa.gov/local-governments"
+
+ # 1. Get list of states
+ # 2. For each state, get list of cities/counties
+ # 3. Extract official website URLs
+ # 4. Return structured data
+
+ pass # Implementation details
 
 
 # Then use in url_discovery_agent.py:
 def _match_usa_gov_directory(jurisdiction_name, state):
-    """
-    Match jurisdiction to USA.gov directory entry.
-    
-    Higher confidence than pattern matching because it's
-    verified by federal government.
-    """
-    usa_gov_url = lookup_usa_gov_directory(jurisdiction_name, state)
-    if usa_gov_url:
-        return (usa_gov_url, 0.98)  # Very high confidence
-    return None
+ """
+ Match jurisdiction to USA.gov directory entry.
+
+ Higher confidence than pattern matching because it's
+ verified by federal government.
+ """
+ usa_gov_url = lookup_usa_gov_directory(jurisdiction_name, state)
+ if usa_gov_url:
+ return (usa_gov_url, 0.98) # Very high confidence
+ return None
 ```
 
 ### Approach 2: USA.gov/archive for Federal Video Content
@@ -238,32 +238,32 @@ def _match_usa_gov_directory(jurisdiction_name, state):
 # discovery/federal_video_sources.py (NEW FILE TO CREATE)
 
 FEDERAL_VIDEO_CHANNELS = {
-    "cdc": {
-        "youtube": "https://www.youtube.com/@CDCgov",
-        "topics": ["public_health", "oral_health"]
-    },
-    "hrsa": {
-        "youtube": "https://www.youtube.com/@HRSAgov",
-        "topics": ["health_centers", "dental_programs"]
-    },
-    "state_health_depts": {
-        # Each state's health department
-        "CA": "https://www.youtube.com/@CAPublicHealth",
-        "TX": "https://www.youtube.com/@TXHealthHumanServices",
-        # ... all 50 states
-    }
+ "cdc": {
+ "youtube": "https://www.youtube.com/@CDCgov",
+ "topics": ["public_health", "oral_health"]
+ },
+ "hrsa": {
+ "youtube": "https://www.youtube.com/@HRSAgov",
+ "topics": ["health_centers", "dental_programs"]
+ },
+ "state_health_depts": {
+ # Each state's health department
+ "CA": "https://www.youtube.com/@CAPublicHealth",
+ "TX": "https://www.youtube.com/@TXHealthHumanServices",
+ # ... all 50 states
+ }
 }
 
 def get_federal_video_sources():
-    """
-    Get federal agency video channels relevant to oral health policy.
-    
-    Sources:
-    - usa.gov/archive featured channels
-    - State health departments
-    - CDC, HRSA, CMS channels
-    """
-    pass
+ """
+ Get federal agency video channels relevant to oral health policy.
+
+ Sources:
+ - usa.gov/archive featured channels
+ - State health departments
+ - CDC, HRSA, CMS channels
+ """
+ pass
 ```
 
 ### Approach 3: ELGL Top YouTube Channels (NEW - HIGHLY RECOMMENDED!)
@@ -272,11 +272,11 @@ def get_federal_video_sources():
 
 **Why This is Excellent:**
 ```
-✅ Curated by experts (not automated scraping)
-✅ Highlights MOST ACTIVE channels
-✅ Quality > Quantity approach
-✅ Updated annually
-✅ Covers innovative local governments nationwide
+Yes Curated by experts (not automated scraping)
+Yes Highlights MOST ACTIVE channels
+Yes Quality > Quantity approach
+Yes Updated annually
+Yes Covers innovative local governments nationwide
 ```
 
 **Sources:**
@@ -294,11 +294,11 @@ def get_federal_video_sources():
 
 **Why This is Excellent:**
 ```
-✅ Complete county coverage (all 3,143 counties)
-✅ Official website URLs verified by NACo
-✅ Digital innovation showcase
-✅ Authoritative source for county data
-✅ Partnership opportunities
+Yes Complete county coverage (all 3,143 counties)
+Yes Official website URLs verified by NACo
+Yes Digital innovation showcase
+Yes Authoritative source for county data
+Yes Partnership opportunities
 ```
 
 **Sources:**
@@ -314,13 +314,13 @@ def get_federal_video_sources():
 
 ## Complete Implementation Plan
 
-### Phase 1: Enhance Existing Dataset Extraction (✅ DONE)
+### Phase 1: Enhance Existing Dataset Extraction (Yes DONE)
 
 - [x] MeetingBank video URLs (already working)
 - [x] Open States channels (already working)
 - [ ] City Scrapers Granicus video extraction (TODO)
 
-### Phase 2: Website Social Media Discovery (✅ NEW MODULE CREATED)
+### Phase 2: Website Social Media Discovery (Yes NEW MODULE CREATED)
 
 **Implementation:**
 1. [x] Create `social_media_discovery.py` module
@@ -347,7 +347,7 @@ python social_media_discovery.py
 3. [ ] Use as primary source (confidence 0.98)
 4. [ ] Fallback to pattern matching for missing entries
 
-**Estimated URLs:** 
+**Estimated URLs:**
 - ~3,000 cities/counties with verified .gov URLs
 - ~10,000+ municipalities (including .org, .us domains)
 
@@ -356,7 +356,7 @@ python social_media_discovery.py
 **Priority: HIGH** - Quality over quantity
 
 **Tasks:**
-1. [x] Create `discovery/curated_sources.py` ✅
+1. [x] Create `discovery/curated_sources.py` Yes
 2. [ ] Scrape ELGL "Top YouTube Channels" articles
 3. [ ] Parse channel URLs and metadata
 4. [ ] Flag as "top-ranked" in database
@@ -374,7 +374,7 @@ These are the channels with the MOST meeting videos and BEST production quality!
 **Priority: HIGH** - Comprehensive county coverage
 
 **Tasks:**
-1. [x] Create `discovery/curated_sources.py` ✅
+1. [x] Create `discovery/curated_sources.py` Yes
 2. [ ] Contact NACo for data partnership/export
 3. [ ] Integrate NACo County Explorer data
 4. [ ] Scrape digital innovation showcase
@@ -415,13 +415,13 @@ cd /home/developer/projects/open-navigator
 python scripts/discovery/social_media_discovery.py
 
 # Expected output:
-# ✓ Found 3 social media links for Seattle
-#   youtube: 1 URLs
-#   facebook: 1 URLs
-#   twitter: 1 URLs
-# ✓ Found 2 social media links for Chicago
-#   youtube: 1 URLs
-#   facebook: 1 URLs
+# Yes Found 3 social media links for Seattle
+# youtube: 1 URLs
+# facebook: 1 URLs
+# twitter: 1 URLs
+# Yes Found 2 social media links for Chicago
+# youtube: 1 URLs
+# facebook: 1 URLs
 ```
 
 ### Integration Test
@@ -438,8 +438,8 @@ pipeline = DiscoveryPipeline()
 # 4. Write all to Bronze layer
 
 results = await pipeline.run_full_pipeline(
-    limit=100,
-    include_social_media=True  # NEW FLAG
+ limit=100,
+ include_social_media=True # NEW FLAG
 )
 ```
 
@@ -448,32 +448,32 @@ results = await pipeline.run_full_pipeline(
 ## Performance & Scalability
 
 ### Current Approach (Dataset-Only)
-- ✅ Fast (no web requests)
-- ✅ Reliable (static datasets)
-- ❌ Limited coverage (only cities in datasets)
-- ❌ Stale data (datasets not updated frequently)
+- Yes Fast (no web requests)
+- Yes Reliable (static datasets)
+- No Limited coverage (only cities in datasets)
+- No Stale data (datasets not updated frequently)
 
 ### New Approach (Website Scraping)
-- ⚠️ Slower (requires web requests)
-- ⚠️ Less reliable (websites change)
-- ✅ Comprehensive coverage (all cities with websites)
-- ✅ Fresh data (real-time discovery)
+- Warning Slower (requires web requests)
+- Warning Less reliable (websites change)
+- Yes Comprehensive coverage (all cities with websites)
+- Yes Fresh data (real-time discovery)
 
 ### Hybrid Strategy (RECOMMENDED)
 1. **Start with datasets** (MeetingBank, Open States)
-   - Get 1,366 meetings with videos immediately
-   - High confidence, validated data
-   
+ - Get 1,366 meetings with videos immediately
+ - High confidence, validated data
+
 2. **Supplement with website scraping**
-   - Fill gaps for cities not in datasets
-   - Discover newly created channels
-   - Verify dataset URLs are still valid
+ - Fill gaps for cities not in datasets
+ - Discover newly created channels
+ - Verify dataset URLs are still valid
 
 3. **Use USA.gov for verification**
-   - Highest confidence for homepage URLs
-  Curated Lists (NEW - YOUR SUGGESTIONS!):**
-- ELGL Top Channels: 50-100 most active channels 🔥
-- NACo Counties: 3,143 counties with official websites 🔥
+ - Highest confidence for homepage URLs
+ Curated Lists (NEW - YOUR SUGGESTIONS!):**
+- ELGL Top Channels: 50-100 most active channels
+- NACo Counties: 3,143 counties with official websites
 - NACo Digital Innovation: ~100 innovative counties
 
 **Website Scraping Discovery (NEW):**
@@ -483,8 +483,8 @@ results = await pipeline.run_full_pipeline(
 
 **Total Potential:**
 - **3,000-5,000 YouTube channels** for meeting videos
-- **50-100 TOP-TIER channels** (ELGL curated) 🌟
-- **3,143 county websites** (NACo database) 🌟
+- **50-100 TOP-TIER channels** (ELGL curated)
+- **3,143 county websites** (NACo database)
 - **1,000+ Granicus portals** with embedded videos
 - **500+ Vimeo accounts**
 - **10,000+ Facebook pages** (may have video links)
@@ -496,18 +496,18 @@ results = await pipeline.run_full_pipeline(
 4. **Tier 4 (Discovery):** Website scraping - newly discoveredideo URLs
 
 # Priority 2: USA.gov verified (high confidence)
-usa_gov_cities = [...]  # ~3,000 verified .gov sites
+usa_gov_cities = [...] # ~3,000 verified .gov sites
 
 # Priority 3: Website scraping (for gaps)
-remaining_cities = [...]  # ~87,000 jurisdictions
+remaining_cities = [...] # ~87,000 jurisdictions
 
 # Parallel processing
 async def process_batch(cities, batch_size=50):
-    for i in range(0, len(cities), batch_size):
-        batch = cities[i:i+batch_size]
-        results = await social_discovery.discover_batch(batch)
-        save_to_bronze(results)
-        await asyncio.sleep(5)  # Rate limiting
+ for i in range(0, len(cities), batch_size):
+ batch = cities[i:i+batch_size]
+ results = await social_discovery.discover_batch(batch)
+ save_to_bronze(results)
+ await asyncio.sleep(5) # Rate limiting
 ```
 
 ---
@@ -517,9 +517,9 @@ async def process_batch(cities, batch_size=50):
 ### Coverage Estimates
 
 **Dataset-Based Discovery:**
-- MeetingBank: 6 cities ✅
-- Open States: 50+ state legislatures ✅
-- City Scrapers: 100-500 agencies ⚠️ (need to extract video links)
+- MeetingBank: 6 cities Yes
+- Open States: 50+ state legislatures Yes
+- City Scrapers: 100-500 agencies Warning (need to extract video links)
 
 **Website Scraping Discovery (NEW):**
 - Major cities (100+ population): ~300 cities with YouTube
@@ -538,53 +538,53 @@ async def process_batch(cities, batch_size=50):
 
 ### Immediate Actions (This Week)
 
-1. **Test Social Media Discovery** ✅ READY TO RUN
-   ```bash
-   python scripts/discovery/social_media_discovery.py
-   ```
+1. **Test Social Media Discovery** Yes READY TO RUN
+ ```bash
+ python scripts/discovery/social_media_discovery.py
+ ```
 
 2. **Integrate with Pipeline**
-   - Add to `discovery_pipeline.py`
-   - Write results to Bronze layer
-   - Create `bronze/social_media_channels` table
+ - Add to `discovery_pipeline.py`
+ - Write results to Bronze layer
+ - Create `bronze/social_media_channels` table
 
 3. **Document Integration**
-   - Update README with social media discovery
-   - Add examples to documentation
+ - Update README with social media discovery
+ - Add examples to documentation
 
 ### Short-term (Next 2 Weeks)
 
 1. **USA.gov Integration**
-   - Create `usa_gov_directory.py`
-   - Scrape local directory
-   - Use as primary URL source
+ - Create `usa_gov_directory.py`
+ - Scrape local directory
+ - Use as primary URL source
 
 2. **Enhanced MeetingBank Extraction**
-   - Extract all video URLs from `urls` dictionary
-   - Test on all 1,366 meetings
-   - Validate YouTube links are still active
+ - Extract all video URLs from `urls` dictionary
+ - Test on all 1,366 meetings
+ - Validate YouTube links are still active
 
 3. **City Scrapers Video Links**
-   - Update `city_scrapers_urls.py`
-   - Extract Granicus video URLs
-   - Crawl Granicus pages for embedded YouTube
+ - Update `city_scrapers_urls.py`
+ - Extract Granicus video URLs
+ - Crawl Granicus pages for embedded YouTube
 
 ### Long-term (Next Month)
 
 1. **Federal Aggregators**
-   - USA.gov/archive integration
-   - State health department channels
-   - CDC/HRSA video collections
+ - USA.gov/archive integration
+ - State health department channels
+ - CDC/HRSA video collections
 
 2. **Automated Validation**
-   - Check if discovered channels still exist
-   - Verify channels have meeting content
-   - Score channels by video count and relevance
+ - Check if discovered channels still exist
+ - Verify channels have meeting content
+ - Score channels by video count and relevance
 
 3. **Scale to 1,000+ Cities**
-   - Batch processing framework
-   - Parallel scraping with rate limiting
-   - Delta Lake storage for discovered channels
+ - Batch processing framework
+ - Parallel scraping with rate limiting
+ - Delta Lake storage for discovered channels
 
 ---
 
@@ -593,20 +593,20 @@ async def process_batch(cities, batch_size=50):
 ### Summary
 
 **Current State:**
-- ✅ Video URLs extracted from datasets (1,366 meetings)
-- ❌ No website scraping for social media links
-- ❌ No USA.gov integration
+- Yes Video URLs extracted from datasets (1,366 meetings)
+- No No website scraping for social media links
+- No No USA.gov integration
 
 **Your Suggestion:**
-- ✅ **Excellent idea!** Website scraping is the missing piece
-- ✅ USA.gov provides most authoritative homepage URLs
-- ✅ Footer/contact page scraping will find channels
+- Yes **Excellent idea!** Website scraping is the missing piece
+- Yes USA.gov provides most authoritative homepage URLs
+- Yes Footer/contact page scraping will find channels
 
 **Implementation:**
-- ✅ Created `social_media_discovery.py` module
-- ✅ Ready to test and integrate
-- ✅ USA.gov integration guide provided
-- ✅ Full roadmap for 1,000+ city coverage
+- Yes Created `social_media_discovery.py` module
+- Yes Ready to test and integrate
+- Yes USA.gov integration guide provided
+- Yes Full roadmap for 1,000+ city coverage
 
 **Impact:**
 Going from 6 cities with video URLs to **3,000-5,000 cities with YouTube channels** will dramatically increase the reach of the CommunityOne Open Navigator system!

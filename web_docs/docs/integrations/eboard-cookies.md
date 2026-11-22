@@ -11,78 +11,78 @@ This guide shows you how to bypass Incapsula bot protection using **manual sessi
 ### Option A: Using EditThisCookie Extension (Recommended)
 
 1. **Install Extension:**
-   - Chrome: https://chrome.google.com/webstore/detail/editthiscookie/fngmhnnpilhplaeedifhccceomclgfbg
-   - Edge: https://microsoftedge.microsoft.com/addons/detail/editthiscookie/ajfboaconbpkglpfanbmlfgojgndmhmc
+ - Chrome: https://chrome.google.com/webstore/detail/editthiscookie/fngmhnnpilhplaeedifhccceomclgfbg
+ - Edge: https://microsoftedge.microsoft.com/addons/detail/editthiscookie/ajfboaconbpkglpfanbmlfgojgndmhmc
 
 2. **Visit eBoard Site:**
-   ```
-   https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2088
-   ```
+ ```
+ https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2088
+ ```
 
 3. **Solve Any CAPTCHA:**
-   - Wait for "Verifying you are human" screen to complete
-   - Click around the page (view a few meetings) to ensure cookies are fully populated
+ - Wait for "Verifying you are human" screen to complete
+ - Click around the page (view a few meetings) to ensure cookies are fully populated
 
 4. **Export Cookies:**
-   - Click the EditThisCookie icon in your browser
-   - Click the "Export" button (looks like a download icon)
-   - Cookies are copied to clipboard
+ - Click the EditThisCookie icon in your browser
+ - Click the "Export" button (looks like a download icon)
+ - Cookies are copied to clipboard
 
 5. **Save to File:**
-   ```bash
-   cd /home/developer/projects/open-navigator
-   nano eboard_cookies.json
-   ```
-   - Paste the copied cookies
-   - Save and exit (Ctrl+X, then Y, then Enter)
+ ```bash
+ cd /home/developer/projects/open-navigator
+ nano eboard_cookies.json
+ ```
+ - Paste the copied cookies
+ - Save and exit (Ctrl+X, then Y, then Enter)
 
 ### Option B: Using Browser DevTools (Manual)
 
 1. **Visit eBoard Site:**
-   ```
-   https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2088
-   ```
+ ```
+ https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2088
+ ```
 
 2. **Open DevTools:**
-   - Press F12
-   - Go to **Application** tab (Chrome) or **Storage** tab (Firefox)
-   - Click **Cookies** → `https://simbli.eboardsolutions.com`
+ - Press F12
+ - Go to **Application** tab (Chrome) or **Storage** tab (Firefox)
+ - Click **Cookies** → `https://simbli.eboardsolutions.com`
 
 3. **Find Key Cookies:**
-   Look for these cookie names (the numbers will vary):
-   - `incap_ses_XXXXX_2088`
-   - `visid_incap_XXXXX_2088`
-   - `nlbi_XXXXX`
+ Look for these cookie names (the numbers will vary):
+ - `incap_ses_XXXXX_2088`
+ - `visid_incap_XXXXX_2088`
+ - `nlbi_XXXXX`
 
 4. **Create JSON File:**
-   ```bash
-   cd /home/developer/projects/open-navigator
-   nano eboard_cookies.json
-   ```
+ ```bash
+ cd /home/developer/projects/open-navigator
+ nano eboard_cookies.json
+ ```
 
 5. **Format as JSON:**
-   ```json
-   [
-     {
-       "name": "incap_ses_7050_2088",
-       "value": "YOUR_ACTUAL_VALUE_FROM_BROWSER",
-       "domain": ".eboardsolutions.com",
-       "path": "/"
-     },
-     {
-       "name": "visid_incap_2227783",
-       "value": "YOUR_ACTUAL_VALUE_FROM_BROWSER",
-       "domain": ".eboardsolutions.com",
-       "path": "/"
-     },
-     {
-       "name": "nlbi_2227783",
-       "value": "YOUR_ACTUAL_VALUE_FROM_BROWSER",
-       "domain": ".eboardsolutions.com",
-       "path": "/"
-     }
-   ]
-   ```
+ ```json
+ [
+ {
+ "name": "incap_ses_7050_2088",
+ "value": "YOUR_ACTUAL_VALUE_FROM_BROWSER",
+ "domain": ".eboardsolutions.com",
+ "path": "/"
+ },
+ {
+ "name": "visid_incap_2227783",
+ "value": "YOUR_ACTUAL_VALUE_FROM_BROWSER",
+ "domain": ".eboardsolutions.com",
+ "path": "/"
+ },
+ {
+ "name": "nlbi_2227783",
+ "value": "YOUR_ACTUAL_VALUE_FROM_BROWSER",
+ "domain": ".eboardsolutions.com",
+ "path": "/"
+ }
+ ]
+ ```
 
 ---
 
@@ -111,25 +111,25 @@ The scraper will automatically detect and use `eboard_cookies.json`:
 source .venv/bin/activate
 
 python main.py scrape \
-  --state AL \
-  --municipality "Tuscaloosa City Schools" \
-  --url http://simbli.eboardsolutions.com/index.aspx?s=2088 \
-  --platform eboard \
-  --max-events 0 \
-  --start-year 0 \
-  --no-include-social
+ --state AL \
+ --municipality "Tuscaloosa City Schools" \
+ --url http://simbli.eboardsolutions.com/index.aspx?s=2088 \
+ --platform eboard \
+ --max-events 0 \
+ --start-year 0 \
+ --no-include-social
 ```
 
 ### Tuscaloosa County Schools
 ```bash
 python main.py scrape \
-  --state AL \
-  --municipality "Tuscaloosa County Schools" \
-  --url http://simbli.eboardsolutions.com/index.aspx?s=2092 \
-  --platform eboard \
-  --max-events 0 \
-  --start-year 0 \
-  --no-include-social
+ --state AL \
+ --municipality "Tuscaloosa County Schools" \
+ --url http://simbli.eboardsolutions.com/index.aspx?s=2092 \
+ --platform eboard \
+ --max-events 0 \
+ --start-year 0 \
+ --no-include-social
 ```
 
 ---
@@ -138,17 +138,17 @@ python main.py scrape \
 
 ### Without Cookies (Blocked):
 ```
-INFO     | agents.scraper:_scrape_eboard - No cookie file found
-INFO     | agents.scraper:_scrape_eboard - Loading Meeting Listing page...
-ERROR    | agents.scraper:_scrape_eboard - Still blocked by Incapsula (964 bytes)
+INFO | agents.scraper:_scrape_eboard - No cookie file found
+INFO | agents.scraper:_scrape_eboard - Loading Meeting Listing page...
+ERROR | agents.scraper:_scrape_eboard - Still blocked by Incapsula (964 bytes)
 ```
 
 ### With Cookies (Success):
 ```
-SUCCESS  | agents.scraper:_scrape_eboard - ✓ Loaded 3 cookies from eboard_cookies.json
-SUCCESS  | agents.scraper:_scrape_eboard - ✓ Cookies injected into browser session
-SUCCESS  | agents.scraper:_scrape_eboard - ✓ Bypassed Incapsula! Got 246327 bytes
-INFO     | agents.scraper:_scrape_eboard - Found 47 meeting/document links
+SUCCESS | agents.scraper:_scrape_eboard - Yes Loaded 3 cookies from eboard_cookies.json
+SUCCESS | agents.scraper:_scrape_eboard - Yes Cookies injected into browser session
+SUCCESS | agents.scraper:_scrape_eboard - Yes Bypassed Incapsula! Got 246327 bytes
+INFO | agents.scraper:_scrape_eboard - Found 47 meeting/document links
 ```
 
 ---
@@ -162,8 +162,8 @@ INFO     | agents.scraper:_scrape_eboard - Found 47 meeting/document links
 **Solution:**
 1. Re-export cookies (they expire every few hours)
 2. Ensure you're using the same browser as cookie export:
-   - If you exported from **Chrome 123**, the script uses Chrome 123 UA ✓
-   - If you exported from **Firefox**, you need to update the User-Agent in the code
+ - If you exported from **Chrome 123**, the script uses Chrome 123 UA Yes
+ - If you exported from **Firefox**, you need to update the User-Agent in the code
 
 ### Problem: "Found 0 meeting links"
 
@@ -180,14 +180,14 @@ INFO     | agents.scraper:_scrape_eboard - Found 47 meeting/document links
 
 **Solution:**
 - Scraper already implements:
-  - ✅ Randomized delays (3-7 seconds between requests)
-  - ✅ Mouse movements to simulate human behavior
-  - ✅ Varied User-Agent fingerprinting
-  
+ - Yes Randomized delays (3-7 seconds between requests)
+ - Yes Mouse movements to simulate human behavior
+ - Yes Varied User-Agent fingerprinting
+
 - If still detected, try:
-  1. Reduce number of meetings (`--max-events 25`)
-  2. Run multiple smaller batches instead of one large batch
-  3. Wait 10-15 minutes between batches
+ 1. Reduce number of meetings (`--max-events 25`)
+ 2. Run multiple smaller batches instead of one large batch
+ 3. Wait 10-15 minutes between batches
 
 ---
 
@@ -216,20 +216,20 @@ To scrape both Tuscaloosa City and County schools:
 
 ```bash
 # 1. Export cookies while visiting EITHER school's site
-#    (cookies work for all eboardsolutions.com sites)
+# (cookies work for all eboardsolutions.com sites)
 
 # 2. Scrape City Schools
 python main.py scrape --platform eboard \
-  --url http://simbli.eboardsolutions.com/index.aspx?s=2088 \
-  --municipality "Tuscaloosa City Schools" --state AL
+ --url http://simbli.eboardsolutions.com/index.aspx?s=2088 \
+ --municipality "Tuscaloosa City Schools" --state AL
 
 # Wait 30 seconds (let cookies settle)
 sleep 30
 
 # 3. Scrape County Schools (same cookies)
 python main.py scrape --platform eboard \
-  --url http://simbli.eboardsolutions.com/index.aspx?s=2092 \
-  --municipality "Tuscaloosa County Schools" --state AL
+ --url http://simbli.eboardsolutions.com/index.aspx?s=2092 \
+ --municipality "Tuscaloosa County Schools" --state AL
 ```
 
 ---
@@ -237,9 +237,9 @@ python main.py scrape --platform eboard \
 ## Success Metrics
 
 You'll know it's working when you see:
-- ✅ `Bypassed Incapsula! Got 200000+ bytes`
-- ✅ `Found XX meeting/document links` (where XX > 0)
-- ✅ `✓ Scraped PDF: ...` (individual documents being downloaded)
+- Yes `Bypassed Incapsula! Got 200000+ bytes`
+- Yes `Found XX meeting/document links` (where XX > 0)
+- Yes `Yes Scraped PDF: ...` (individual documents being downloaded)
 
 Typical results for Tuscaloosa:
 - **City Schools (S=2088):** 30-50 meetings

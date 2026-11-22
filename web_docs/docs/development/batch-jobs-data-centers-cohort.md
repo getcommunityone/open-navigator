@@ -18,7 +18,7 @@ The batch-jobs dashboard scopes launches by US state only (`Priority states` /
 `All states` / one state). Operators who need the YouTube pipeline stages for
 data-center governments must leave the UI and use separate CLIs
 (`survey_meeting_sources --data-center-sites`, platforms `--data-center`, etc.).
-There is no way to hit **▶ Run all** or a per-stage **Run** for the DC set from
+There is no way to hit ** Run all** or a per-stage **Run** for the DC set from
 the dashboard.
 
 ## Goal
@@ -35,29 +35,29 @@ a UI-resolved `jurisdiction_ids[]` payload).
 - Frontend sends `cohort` + `states[]` on `POST /api/batch-jobs/launch`.
 - API sets `COHORT` and resolved `STATES` on the wrapper script environment.
 - Jurisdiction listing filters to cohort membership ∩ states for every step that
-  walks places (catalog, captions, analyze, each, all) and for discover / backfill.
+ walks places (catalog, captions, analyze, each, all) and for discover / backfill.
 
 ## UI (left → right)
 
 1. **Filter** (labeled control, always visible when launch is enabled) — the
-   launch cohort:
-   - `priority` — Priority states (`AL, GA, IN, MA, MT, WA, WI`)
-   - `data_centers` — site belt ∪ meeting-mention jurisdictions
-   - `all` — All states (50 + DC)
+ launch cohort:
+ - `priority` — Priority states (`AL, GA, IN, MA, MT, WA, WI`)
+ - `data_centers` — site belt ∪ meeting-mention jurisdictions
+ - `all` — All states (50 + DC)
 
 2. **Scope** (to the right of Filter): options are only states valid for the
-   selected filter.
-   - Priority → fixed priority list
-   - Data centers → distinct `state_code`s that have ≥1 DC jurisdiction (from API)
-   - All → full `STATE_CODES`
-   - First option: **All in filter** (empty `states` / every state in the left set)
+ selected filter.
+ - Priority → fixed priority list
+ - Data centers → distinct `state_code`s that have ≥1 DC jurisdiction (from API)
+ - All → full `STATE_CODES`
+ - First option: **All in filter** (empty `states` / every state in the left set)
 
 3. If the current state is not in the new filter’s list when Filter changes,
-   reset Scope to **All in filter**.
+ reset Scope to **All in filter**.
 
 4. Run button labels / confirmations name the cohort, e.g.
-   `▶ Run all · data centers` or `▶ Run all · data centers · AL`.
-   Scope chip next to the title mirrors the same filter.
+ ` Run all · data centers` or ` Run all · data centers · AL`.
+ Scope chip next to the title mirrors the same filter.
 
 ## Data: Data centers membership
 
@@ -82,9 +82,9 @@ Returns the state lists the UI needs so DC states are not hard-coded:
 
 ```json
 {
-  "priority": ["AL", "GA", "IN", "MA", "MT", "WA", "WI"],
-  "data_centers": ["AL", "GA", "..."],
-  "all": ["AL", "AK", "...", "DC"]
+ "priority": ["AL", "GA", "IN", "MA", "MT", "WA", "WI"],
+ "data_centers": ["AL", "GA", "..."],
+ "all": ["AL", "AK", "...", "DC"]
 }
 ```
 
@@ -103,14 +103,14 @@ Existing body plus:
 Behavior:
 
 - Resolve launch states = `states` if non-empty else full cohort state list;
-  every code must be in the cohort’s allowed set.
+ every code must be in the cohort’s allowed set.
 - Empty cohort ∩ state → **400** with a clear message (UI shows it in the
-  launch message bar).
+ launch message bar).
 - Set env `COHORT=<cohort>` and `STATES=<resolved>` on the wrapper (and pass
-  equivalent args for discover / backfill so they never silently go national
-  when `data_centers` is selected).
+ equivalent args for discover / backfill so they never silently go national
+ when `data_centers` is selected).
 - Missing warehouse objects needed for the DC union → **500**; never fall back
-  to all jurisdictions.
+ to all jurisdictions.
 
 ### Progress / stream
 
@@ -134,12 +134,12 @@ The status / SSE (or refetch) path the page already uses gains an optional
 ## Tests
 
 - **API:** cohort validation; DC membership = site ∪ mention; launch env includes
-  `COHORT` + resolved `STATES`; empty intersect → 400; `GET /cohorts` shape.
+ `COHORT` + resolved `STATES`; empty intersect → 400; `GET /cohorts` shape.
 - **Frontend:** cohort change resets invalid state; state `<option>`s limited by
-  cohort; launch payload sends `cohort` + correct `states`; Run label reflects
-  cohort.
+ cohort; launch payload sends `cohort` + correct `states`; Run label reflects
+ cohort.
 - **Script / helper:** `COHORT=data_centers` restricts jurisdiction listing to the
-  DC set (intersected with `STATES`).
+ DC set (intersected with `STATES`).
 
 ## Files to change (expected)
 
@@ -147,14 +147,14 @@ The status / SSE (or refetch) path the page already uses gains an optional
 - `web_app/src/api/batchJobs.ts` — `cohort` on launch; `fetchCohorts`
 - `api/routes/batch_jobs.py` — `LaunchRequest.cohort`, `/cohorts`, env wiring
 - `packages/scrapers/scripts/youtube_run_priority_states_last_n.sh` (and
-  jurisdiction list helper it calls) — honor `COHORT`
+ jurisdiction list helper it calls) — honor `COHORT`
 - Discover / backfill entry points invoked by launch — same cohort ∩ states
 - Tests under `tests/` / package tests as appropriate
 
 ## Read first
 
 - `CLAUDE.md` — Frontend UX scope label must match the active filter; no
-  fabricated data
+ fabricated data
 - `web_docs/docs/development/data-center-agenda-first-design.md` — site belt +
-  mention widen definition
+ mention widen definition
 - `api/routes/batch_jobs.py`, `web_app/src/pages/BatchJobStatusPage.tsx`

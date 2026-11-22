@@ -20,24 +20,24 @@ This document ensures **Open Navigator** complies with all data source terms of 
 This page provides **technical compliance details** for developers and data users.
 :::
 
-## 📋 Overview
+## Overview
 
 Open Navigator is built on **publicly available government data** and **open APIs**. We respect all terms of service, implement proper rate limiting, provide attribution, and comply with all data use policies.
 
 **Our Commitments:**
-- ✅ **Transparency** - All data sources are documented and cited
-- ✅ **Attribution** - Proper citations in all published datasets
-- ✅ **Compliance** - Adherence to all terms of service and API policies
-- ✅ **Privacy** - No collection of personal data beyond what's publicly available
-- ✅ **Rate Limiting** - Respectful API usage with proper delays
-- ✅ **Accessibility** - Making public data more accessible to communities
+- Yes **Transparency** - All data sources are documented and cited
+- Yes **Attribution** - Proper citations in all published datasets
+- Yes **Compliance** - Adherence to all terms of service and API policies
+- Yes **Privacy** - No collection of personal data beyond what's publicly available
+- Yes **Rate Limiting** - Respectful API usage with proper delays
+- Yes **Accessibility** - Making public data more accessible to communities
 
 **Legal Agreements:**
 - See [Terms of Service](./legal/terms-of-service.md) for user agreements
 - See [Data Provider Terms](./legal/data-provider-terms.md) for complete provider requirements
 - See [Privacy Policy](./legal/privacy-policy.md) for privacy practices
 
-## 🏛️ U.S. Government Data Sources
+## U.S. Government Data Sources
 
 **In this section:**
 - [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf)
@@ -48,12 +48,12 @@ Open Navigator is built on **publicly available government data** and **open API
 
 ### IRS Exempt Organizations Business Master File (EO-BMF)
 
-**Data Type:** Tax-exempt organization records (1.9M+ nonprofits)  
-**Source:** [IRS Statistics of Income](https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf)  
-**License:** Public Domain (U.S. Government Work)  
+**Data Type:** Tax-exempt organization records (1.9M+ nonprofits)
+**Source:** [IRS Statistics of Income](https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf)
+**License:** Public Domain (U.S. Government Work)
 **Terms of Use:** [IRS.gov Copyright and Reuse Policy](https://www.irs.gov/about-irs/irsgov-privacy-policy)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Public domain data
 - No API key required
 - No restrictions on commercial or non-commercial use
@@ -70,13 +70,13 @@ Open Navigator is built on **publicly available government data** and **open API
 
 ### IRS Form 990 Data (Google BigQuery Public Datasets)
 
-**Data Type:** Nonprofit tax filings (5M+ Form 990s, 2013-present)  
-**Source:** [Google BigQuery Public Datasets](https://console.cloud.google.com/marketplace/product/internal-revenue-service/irs-990)  
-**Original Source:** [IRS Tax Exempt Organization Search](https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads)  
-**License:** Public Domain (U.S. Government Work)  
+**Data Type:** Nonprofit tax filings (5M+ Form 990s, 2013-present)
+**Source:** [Google BigQuery Public Datasets](https://console.cloud.google.com/marketplace/product/internal-revenue-service/irs-990)
+**Original Source:** [IRS Tax Exempt Organization Search](https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads)
+**License:** Public Domain (U.S. Government Work)
 **Terms of Use:** [Google Cloud Terms of Service](https://cloud.google.com/terms)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Public domain IRS data hosted by Google
 - Requires Google Cloud account and BigQuery API access
 - Standard BigQuery pricing applies (first 1TB queries/month free)
@@ -94,16 +94,16 @@ Open Navigator is built on **publicly available government data** and **open API
 
 ### U.S. Census Bureau Data
 
-**Data Type:** Geographic boundaries, demographics, government entities  
-**Source:** [U.S. Census Bureau](https://www.census.gov/)  
+**Data Type:** Geographic boundaries, demographics, government entities
+**Source:** [U.S. Census Bureau](https://www.census.gov/)
 **APIs Used:**
 - [Census Gazetteer Files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html)
 - [Census Bureau API](https://www.census.gov/data/developers.html)
 
-**License:** Public Domain (U.S. Government Work)  
+**License:** Public Domain (U.S. Government Work)
 **Terms of Use:** [Census Bureau Data Policy](https://www.census.gov/about/policies.html)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Public domain data
 - Free API access (API key recommended but not required)
 - No restrictions on use or redistribution
@@ -120,13 +120,13 @@ Open Navigator is built on **publicly available government data** and **open API
 
 ### Grants.gov API
 
-**Data Type:** Federal grant opportunities  
-**Source:** [Grants.gov](https://www.grants.gov/)  
-**API Documentation:** [Grants.gov API](https://www.grants.gov/web/grants/support/technical-support/grantor-technical-support/grants-gov-api.html)  
-**License:** Public Domain (U.S. Government Work)  
+**Data Type:** Federal grant opportunities
+**Source:** [Grants.gov](https://www.grants.gov/)
+**API Documentation:** [Grants.gov API](https://www.grants.gov/web/grants/support/technical-support/grantor-technical-support/grants-gov-api.html)
+**License:** Public Domain (U.S. Government Work)
 **Terms of Use:** [Grants.gov Terms of Use](https://www.grants.gov/web/grants/support/terms-of-use.html)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Public government data
 - No API key required for search and fetch endpoints
 - Free unlimited access
@@ -143,12 +143,12 @@ Open Navigator is built on **publicly available government data** and **open API
 
 ### National Center for Education Statistics (NCES)
 
-**Data Type:** School district boundaries, demographics, enrollment  
-**Source:** [NCES Common Core of Data](https://nces.ed.gov/ccd/)  
-**License:** Public Domain (U.S. Government Work)  
+**Data Type:** School district boundaries, demographics, enrollment
+**Source:** [NCES Common Core of Data](https://nces.ed.gov/ccd/)
+**License:** Public Domain (U.S. Government Work)
 **Terms of Use:** [NCES Privacy Policy](https://nces.ed.gov/privacysecurity/)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Public domain educational data
 - No API key required
 - Free download and redistribution
@@ -168,14 +168,14 @@ Open Navigator is built on **publicly available government data** and **open API
 
 ### Open States API
 
-**Data Type:** State legislation, legislators, votes, bills  
-**Source:** [Open States](https://openstates.org/)  
-**Operator:** Open States Foundation (part of Plural)  
-**API Documentation:** [Open States API v3](https://docs.openstates.org/api-v3/)  
-**License:** Varies by state (generally permissive)  
+**Data Type:** State legislation, legislators, votes, bills
+**Source:** [Open States](https://openstates.org/)
+**Operator:** Open States Foundation (part of Plural)
+**API Documentation:** [Open States API v3](https://docs.openstates.org/api-v3/)
+**License:** Varies by state (generally permissive)
 **Terms of Use:** [Open States Terms of Service](https://openstates.org/tos/)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - **Free tier:** 50,000 requests/month
 - **API key required:** Free registration at [openstates.org](https://openstates.org/accounts/signup/)
 - Must provide attribution to Open States
@@ -198,12 +198,12 @@ OPENSTATES_API_KEY=your-api-key-here
 
 ### Google Civic Information API
 
-**Data Type:** Elected officials, polling locations, election info  
-**Source:** [Google Civic Information API](https://developers.google.com/civic-information)  
-**License:** [Google APIs Terms of Service](https://developers.google.com/terms)  
+**Data Type:** Elected officials, polling locations, election info
+**Source:** [Google Civic Information API](https://developers.google.com/civic-information)
+**License:** [Google APIs Terms of Service](https://developers.google.com/terms)
 **Terms of Use:** [Google Civic API Policies](https://developers.google.com/civic-information/docs/usage_limits)
 
-**Compliance Status:** ✅ **COMPLIANT** (when API key configured)
+**Compliance Status:** Yes **COMPLIANT** (when API key configured)
 - **Free tier:** 25,000 requests/day
 - **API key required:** Free from [Google Cloud Console](https://console.cloud.google.com/)
 - Must comply with Google APIs Terms of Service
@@ -226,13 +226,13 @@ GOOGLE_CIVIC_API_KEY=your-api-key-here
 
 ### FEC / OpenFEC API
 
-**Data Type:** Campaign finance, political contributions, candidate data, committee filings  
-**Source:** [OpenFEC API](https://api.open.fec.gov/developers/)  
-**Bulk Downloads:** [FEC Bulk Data Portal](https://www.fec.gov/data/browse-data/?tab=bulk-data)  
-**License:** Public Domain (U.S. Government Work)  
+**Data Type:** Campaign finance, political contributions, candidate data, committee filings
+**Source:** [OpenFEC API](https://api.open.fec.gov/developers/)
+**Bulk Downloads:** [FEC Bulk Data Portal](https://www.fec.gov/data/browse-data/?tab=bulk-data)
+**License:** Public Domain (U.S. Government Work)
 **Terms of Use:** [FEC.gov Terms of Use](https://www.fec.gov/updates/sale-or-use-contributor-information/)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 
 **API Access:**
 - **Free tier:** 1,000 requests/hour (API key required)
@@ -244,11 +244,11 @@ GOOGLE_CIVIC_API_KEY=your-api-key-here
 - **Free unlimited downloads** of complete datasets (CSV, FEC format)
 - No API key required for bulk downloads
 - Available datasets:
-  - Individual contributions (Schedule A)
-  - Operating expenditures (Schedule B)
-  - Committee master files
-  - Candidate master files
-  - Campaign finance totals by election cycle
+ - Individual contributions (Schedule A)
+ - Operating expenditures (Schedule B)
+ - Committee master files
+ - Candidate master files
+ - Campaign finance totals by election cycle
 - Updated nightly (most datasets)
 - Complete historical data from 1980s to present
 
@@ -263,20 +263,20 @@ GOOGLE_CIVIC_API_KEY=your-api-key-here
 
 **Environment Variable:**
 ```bash
-FEC_API_KEY=your-api-key-here  # Only needed for API, not bulk downloads
+FEC_API_KEY=your-api-key-here # Only needed for API, not bulk downloads
 ```
 
 ---
 
 ### Google Data Commons
 
-**Data Type:** Demographics, economics, health statistics  
-**Source:** [Google Data Commons](https://datacommons.org/)  
-**API Documentation:** [Data Commons API](https://docs.datacommons.org/api/)  
-**License:** [Data Commons Terms](https://datacommons.org/about)  
+**Data Type:** Demographics, economics, health statistics
+**Source:** [Google Data Commons](https://datacommons.org/)
+**API Documentation:** [Data Commons API](https://docs.datacommons.org/api/)
+**License:** [Data Commons Terms](https://datacommons.org/about)
 **Terms of Use:** [Google Terms of Service](https://policies.google.com/terms)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Free access to aggregated statistical data
 - No API key required for most endpoints
 - Must provide attribution to Google and original data sources
@@ -291,7 +291,7 @@ FEC_API_KEY=your-api-key-here  # Only needed for API, not bulk downloads
 
 ---
 
-## 🌐 Linked Open Data (No API Key Required)
+## Linked Open Data (No API Key Required)
 
 **In this section:**
 - [Wikidata](#wikidata)
@@ -299,13 +299,13 @@ FEC_API_KEY=your-api-key-here  # Only needed for API, not bulk downloads
 
 ### Wikidata
 
-**Data Type:** Structured knowledge from Wikipedia  
-**Source:** [Wikidata](https://www.wikidata.org/)  
-**SPARQL Endpoint:** [Wikidata Query Service](https://query.wikidata.org/)  
-**License:** [CC0 1.0 Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/)  
+**Data Type:** Structured knowledge from Wikipedia
+**Source:** [Wikidata](https://www.wikidata.org/)
+**SPARQL Endpoint:** [Wikidata Query Service](https://query.wikidata.org/)
+**License:** [CC0 1.0 Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/)
 **Terms of Use:** [Wikimedia Terms of Use](https://foundation.wikimedia.org/wiki/Terms_of_Use)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - CC0 Public Domain - no restrictions
 - No API key required
 - Free unlimited access
@@ -328,13 +328,13 @@ User-Agent: CommunityOne/1.0 (https://communityone.com/; johnbowyer@communityone
 
 ### DBpedia
 
-**Data Type:** Structured data from Wikipedia infoboxes  
-**Source:** [DBpedia](https://www.dbpedia.org/)  
-**Lookup API:** [DBpedia Lookup Service](https://lookup.dbpedia.org/)  
-**License:** [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) and [GFDL](https://www.gnu.org/licenses/fdl-1.3.html)  
+**Data Type:** Structured data from Wikipedia infoboxes
+**Source:** [DBpedia](https://www.dbpedia.org/)
+**Lookup API:** [DBpedia Lookup Service](https://lookup.dbpedia.org/)
+**License:** [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) and [GFDL](https://www.gnu.org/licenses/fdl-1.3.html)
 **Terms of Use:** [DBpedia Usage Policies](https://www.dbpedia.org/about/)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Free to use with attribution
 - No API key required
 - Must provide attribution to DBpedia and Wikipedia
@@ -350,29 +350,29 @@ User-Agent: CommunityOne/1.0 (https://communityone.com/; johnbowyer@communityone
 
 ---
 
-## 💰 Paid/Commercial Services (Reference Only)
+## Paid/Commercial Services (Reference Only)
 
 **In this section:**
 - [Ballotpedia API v3.0](#ballotpedia-api-v30)
 
 ### Ballotpedia API v3.0
 
-**Data Type:** Elected officials, ballot measures, election results  
-**Source:** [Ballotpedia](https://ballotpedia.org/)  
-**API Documentation:** [Ballotpedia API](https://ballotpedia.org/API_documentation)  
-**License:** **Paid service - requires commercial license**  
+**Data Type:** Elected officials, ballot measures, election results
+**Source:** [Ballotpedia](https://ballotpedia.org/)
+**API Documentation:** [Ballotpedia API](https://ballotpedia.org/API_documentation)
+**License:** **Paid service - requires commercial license**
 **Terms of Use:** [Ballotpedia Terms of Use](https://ballotpedia.org/Ballotpedia:General_disclaimer)
 
-**Compliance Status:** ⚠️ **NOT USED** (Reference implementation only)
+**Compliance Status:** Warning **NOT USED** (Reference implementation only)
 - **PAID SERVICE** - requires payment for API access
 - Code provided in `discovery/ballotpedia_integration.py` is reference only
 - Web scraping may violate terms of service
 - **Use free alternatives instead:** Google Civic API, Open States
 
 **Free Alternatives:**
-- ✅ Google Civic Information API (25k requests/day free)
-- ✅ Open States API (50k requests/month free)
-- ✅ NCES (free public data for school boards)
+- Yes Google Civic Information API (25k requests/day free)
+- Yes Open States API (50k requests/month free)
+- Yes NCES (free public data for school boards)
 
 **Use Policy Key Points:**
 - **DO NOT USE** without paid API license
@@ -381,7 +381,7 @@ User-Agent: CommunityOne/1.0 (https://communityone.com/; johnbowyer@communityone
 
 ---
 
-## 📊 Third-Party Datasets
+## Third-Party Datasets
 
 **In this section:**
 - [GivingTuesday 990 Data Lake](#givingtuesday-990-data-lake)
@@ -389,13 +389,13 @@ User-Agent: CommunityOne/1.0 (https://communityone.com/; johnbowyer@communityone
 
 ### GivingTuesday 990 Data Lake
 
-**Data Type:** IRS Form 990 XML filings  
-**Source:** [GivingTuesday 990 Data Infrastructure](https://990data.givingtuesday.org/)  
-**Storage:** AWS S3 Public Bucket (no credentials required)  
-**License:** Public Domain (IRS data)  
+**Data Type:** IRS Form 990 XML filings
+**Source:** [GivingTuesday 990 Data Infrastructure](https://990data.givingtuesday.org/)
+**Storage:** AWS S3 Public Bucket (no credentials required)
+**License:** Public Domain (IRS data)
 **Terms of Use:** [AWS S3 Public Dataset Program](https://registry.opendata.aws/gt990datalake/)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Public dataset program
 - No AWS credentials required (`--no-sign-request`)
 - IRS data is public domain
@@ -413,32 +413,32 @@ User-Agent: CommunityOne/1.0 (https://communityone.com/; johnbowyer@communityone
 
 ### ProPublica Nonprofit Explorer
 
-**Data Type:** Nonprofit data and 990 filings  
-**Source:** [ProPublica Nonprofit Explorer](https://projects.propublica.org/nonprofits/api)  
-**API Documentation:** [Nonprofit Explorer API](https://projects.propublica.org/nonprofits/api)  
-**License:** Mixed (IRS data is public domain, ProPublica analysis varies)  
+**Data Type:** Nonprofit data and 990 filings
+**Source:** [ProPublica Nonprofit Explorer](https://projects.propublica.org/nonprofits/api)
+**API Documentation:** [Nonprofit Explorer API](https://projects.propublica.org/nonprofits/api)
+**License:** Mixed (IRS data is public domain, ProPublica analysis varies)
 **Terms of Use:** [ProPublica Data Store Terms](https://www.propublica.org/datastore/terms)
 
-**Compliance Status:** ✅ **COMPLIANT**
+**Compliance Status:** Yes **COMPLIANT**
 - Free API access (no authentication or API key required)
 - IRS data is public domain
 - Must attribute to ProPublica
 - Editorial/analytical use allowed, but cannot redistribute or commercialize raw data
 
 **Use Policy Key Points:**
-- ✅ Free unlimited API access
-- ✅ Must provide attribution to ProPublica
-- ✅ Can use data for publication, analysis, and editorial purposes
-- ❌ Cannot republish raw data in its entirety
-- ❌ Cannot sell access to the data or charge for it
-- ❌ Cannot sell advertising specifically against the data
-- ❌ Cannot sub-license or resell the data
+- Yes Free unlimited API access
+- Yes Must provide attribution to ProPublica
+- Yes Can use data for publication, analysis, and editorial purposes
+- No Cannot republish raw data in its entirety
+- No Cannot sell access to the data or charge for it
+- No Cannot sell advertising specifically against the data
+- No Cannot sub-license or resell the data
 - ProPublica's analysis may have separate copyright
 - Rate limiting recommended (be respectful, ~1 req/sec suggested)
 
 ---
 
-## 🔒 Privacy & Data Protection
+## Privacy & Data Protection
 
 **In this section:**
 - [Personal Information](#personal-information)
@@ -448,21 +448,21 @@ User-Agent: CommunityOne/1.0 (https://communityone.com/; johnbowyer@communityone
 ### Personal Information
 
 **What We Collect:**
-- ✅ Publicly available information from government sources
-- ✅ Elected officials' names, positions, contact information (public records)
-- ✅ Public meeting attendees and speakers (from published minutes)
-- ✅ Nonprofit organization data (from IRS filings)
+- Yes Publicly available information from government sources
+- Yes Elected officials' names, positions, contact information (public records)
+- Yes Public meeting attendees and speakers (from published minutes)
+- Yes Nonprofit organization data (from IRS filings)
 
 **What We DON'T Collect:**
-- ❌ Private citizen information not in public records
-- ❌ Personal financial information
-- ❌ Health information
-- ❌ Social Security numbers
-- ❌ Any data that requires authentication to access
+- No Private citizen information not in public records
+- No Personal financial information
+- No Health information
+- No Social Security numbers
+- No Any data that requires authentication to access
 
 ### GDPR & Privacy Compliance
 
-**Status:** ✅ **COMPLIANT**
+**Status:** Yes **COMPLIANT**
 
 - All data is from **public sources** (government records, public meetings, tax filings)
 - No personal data collection beyond publicly available information
@@ -483,7 +483,7 @@ User-Agent: CommunityOne/1.0 (https://communityone.com/; johnbowyer@communityone
 
 ---
 
-## 🚨 Rate Limiting & Fair Use
+## Rate Limiting & Fair Use
 
 **In this section:**
 - [Our Rate Limiting Policies](#our-rate-limiting-policies)
@@ -518,7 +518,7 @@ This allows data providers to:
 
 ---
 
-## ✅ Attribution & Citations
+## Yes Attribution & Citations
 
 **In this section:**
 - [How We Provide Attribution](#how-we-provide-attribution)
@@ -560,21 +560,21 @@ https://github.com/getcommunityone/open-navigator-for-engagement
 
 ---
 
-## 📜 Software License
+## Software License
 
 **Open Navigator** is licensed under the **MIT License**.
 
 See [LICENSE](https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/LICENSE) for full text.
 
 **Summary:**
-- ✅ Free for commercial and non-commercial use
-- ✅ Modification and redistribution allowed
-- ✅ Attribution required (MIT License notice)
-- ✅ No warranty or liability
+- Yes Free for commercial and non-commercial use
+- Yes Modification and redistribution allowed
+- Yes Attribution required (MIT License notice)
+- Yes No warranty or liability
 
 ---
 
-## ⚖️ Legal Disclaimers
+## Legal Disclaimers
 
 ### No Government Endorsement
 
@@ -606,7 +606,7 @@ See [LICENSE](https://github.com/getcommunityone/open-navigator-for-engagement/b
 
 ---
 
-## 📞 Contact & Compliance Questions
+## Contact & Compliance Questions
 
 **For compliance questions or concerns:**
 - **Email:** [Add contact email]
@@ -647,7 +647,7 @@ We take legal compliance seriously. If you notice any issues with data usage, li
 
 ---
 
-## 🔗 Related Documentation
+## Related Documentation
 
 - [Citations & Data Sources](./data-sources/citations.md) - Complete academic citations and BibTeX
 - [Data Model & ERD](./data-sources/data-model-erd.md) - Database schema and relationships

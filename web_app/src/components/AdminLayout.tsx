@@ -6,6 +6,7 @@ import {
   ADMIN_LIGHTHOUSE_REPORT,
   ADMIN_MEETING_KINDS,
 } from '../utils/adminPaths'
+import { adminGuideHref } from '../utils/docsLinks'
 
 function tabCls({ isActive }: { isActive: boolean }) {
   return [
@@ -40,12 +41,27 @@ export default function AdminLayout() {
   const onApplicationLinks = pathname === ADMIN_APPLICATION_LINKS
   const onMeetingKinds =
     pathname === ADMIN_MEETING_KINDS || pathname.startsWith(`${ADMIN_MEETING_KINDS}/`)
+  const guideHref = adminGuideHref(pathname)
 
   return (
     <div className="flex min-h-[calc(100dvh-4.25rem)] flex-1 flex-col bg-slate-200">
       <div className="mx-auto flex w-full max-w-[1600px] flex-1 min-h-0 flex-col px-3 py-2 sm:px-4 md:px-5 md:py-3">
         <header className="shrink-0 rounded-lg border border-slate-300/80 bg-white px-3 py-2 shadow-sm sm:px-4 sm:py-2">
-          <h1 className="text-lg font-semibold leading-tight text-slate-900 sm:text-xl">Admin</h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-lg font-semibold leading-tight text-slate-900 sm:text-xl">
+              Admin
+            </h1>
+            {guideHref ? (
+              <a
+                href={guideHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-sm font-medium text-teal-800 hover:underline"
+              >
+                Guide ↗
+              </a>
+            ) : null}
+          </div>
           <p className="mt-0.5 max-w-[52rem] text-[11px] leading-snug text-slate-600 sm:text-xs">
             Operational tooling — data-quality Lighthouse scores, meeting-kind review, and live
             batch-job progress for the caption / analyze pipelines.

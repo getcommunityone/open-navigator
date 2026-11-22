@@ -11,13 +11,13 @@ This project runs three separate services. Launch all three at once with `./star
 
 | Service | Port (Local) | Live URL | Description |
 |---------|--------------|----------|-------------|
-| **⚛️ Open Navigator** (`web_app`) | 5173 | [www.communityone.com](https://www.communityone.com) | **Main application** — search, filters, heatmap, data exploration |
-| **📚 Documentation** (`web_docs`) | 3000 | [www.communityone.com/docs](https://www.communityone.com/docs) | Docusaurus site with complete guides and tutorials |
-| **🔥 API Backend** (`api`) | 8001 | [www.communityone.com/api/docs](https://www.communityone.com/api/docs) | FastAPI server with AI agents |
+| ** Open Navigator** (`web_app`) | 5173 | [www.communityone.com](https://www.communityone.com) | **Main application** — search, filters, heatmap, data exploration |
+| ** Documentation** (`web_docs`) | 3000 | [www.communityone.com/docs](https://www.communityone.com/docs) | Docusaurus site with complete guides and tutorials |
+| ** API Backend** (`api`) | 8001 | [www.communityone.com/api/docs](https://www.communityone.com/api/docs) | FastAPI server with AI agents |
 
-> **💡 LIVE DEMO:** Visit **[www.communityone.com](https://www.communityone.com)** to use the hosted application.
+> ** LIVE DEMO:** Visit **[www.communityone.com](https://www.communityone.com)** to use the hosted application.
 >
-> **💻 LOCAL DEV:** After running `./start-all.sh`, visit **http://localhost:5173**.
+> ** LOCAL DEV:** After running `./start-all.sh`, visit **http://localhost:5173**.
 
 ## Prerequisites
 
@@ -25,9 +25,9 @@ This project runs three separate services. Launch all three at once with `./star
 - Node.js 18+
 - A local Postgres warehouse on `localhost:5433` (databases `open_navigator` and `openstates`) — see [Configuration](#configuration) below
 - **PostgreSQL client tools 17** (`psql`, `pg_dump`, `pg_restore`) — **recommended version**.
-  The local warehouse server runs PG 16, but a **17** client dumps it *and* the (PG 16/17)
-  Neon serving DB, and reads both dump formats. Keep `pg_dump` and `pg_restore` on the
-  **same major version** (≥ any server you back up) to avoid `unsupported version` errors.
+ The local warehouse server runs PG 16, but a **17** client dumps it *and* the (PG 16/17)
+ Neon serving DB, and reads both dump formats. Keep `pg_dump` and `pg_restore` on the
+ **same major version** (≥ any server you back up) to avoid `unsupported version` errors.
 - Docker (optional — only for the containerized deployment)
 
 ## Installation
@@ -40,8 +40,8 @@ git clone https://github.com/getcommunityone/open-navigator.git
 cd open-navigator
 
 # Install dependencies
-./install.sh                        # Python backend (creates .venv + .env from template)
-cd web_app && npm install && cd ..  # React app
+./install.sh # Python backend (creates .venv + .env from template)
+cd web_app && npm install && cd .. # React app
 cd web_docs && npm install && cd .. # Documentation
 
 # Start all three services in tmux
@@ -55,17 +55,17 @@ so the two `npm install` steps above are optional on first run.
 
 ```bash
 # Install
-make install            # Python backend
-make install-web_app    # React app
-make install-docs       # Documentation
+make install # Python backend
+make install-web_app # React app
+make install-docs # Documentation
 
 # Start all services
 make start-all
 
 # …or individually:
-make dev           # API only
-make dev-web_app   # React app only
-make dev-docs      # Docs only
+make dev # API only
+make dev-web_app # React app only
+make dev-docs # Docs only
 ```
 
 ### Option 3: Manual Setup
@@ -73,7 +73,7 @@ make dev-docs      # Docs only
 ```bash
 # Python backend
 python3 -m venv .venv
-source .venv/bin/activate           # On Windows: .venv\Scripts\activate
+source .venv/bin/activate # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # Optional: Spark + Delta Lake (only if you'll run Databricks/Spark scripts).
@@ -88,9 +88,9 @@ cd web_docs && npm install && cd ..
 cp .env.example .env
 
 # Start services in separate terminals:
-source .venv/bin/activate && python main.py serve  # Terminal 1 — API (8001)
-cd web_app && npm run dev                           # Terminal 2 — App   (5173)
-cd web_docs && npm start                            # Terminal 3 — Docs  (3000)
+source .venv/bin/activate && python main.py serve # Terminal 1 — API (8001)
+cd web_app && npm run dev # Terminal 2 — App (5173)
+cd web_docs && npm start # Terminal 3 — Docs (3000)
 ```
 
 ### Option 4: Windows (PowerShell)
@@ -102,10 +102,10 @@ services, each in its own window:
 
 ```powershell
 # From the repo root, in PowerShell:
-.\install.ps1        # Python backend: creates .venv, installs deps, seeds .env
-cd web_app;  npm install; cd ..
+.\install.ps1 # Python backend: creates .venv, installs deps, seeds .env
+cd web_app; npm install; cd ..
 cd web_docs; npm install; cd ..
-.\start-all.ps1      # API (8001) + App (5173) + Docs (3000), one window each
+.\start-all.ps1 # API (8001) + App (5173) + Docs (3000), one window each
 ```
 
 If you see *"running scripts is disabled on this system"*, PowerShell's execution
@@ -122,7 +122,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 powershell -ExecutionPolicy Bypass -File .\start-all.ps1
 ```
 
-> **⚠️ Don't use `uv sync` to set up the backend on any OS.** The root
+> **Warning Don't use `uv sync` to set up the backend on any OS.** The root
 > `pyproject.toml` is a **uv workspace** whose members are only `packages/*`, so
 > `uv sync` installs those workspace libraries but **not** the top-level
 > `requirements.txt` — leaving out the dev tooling (`pytest`, `black`, `ruff`) and
@@ -199,7 +199,7 @@ is far faster than rebuilding every dbt model from scratch.
 **If you have the [Google Drive backup folder](#google-drive-folder-one-time-setup) synced**, it's one command:
 
 ```bash
-make restore VERSION=snapshot-20260609   # dev only
+make restore VERSION=snapshot-20260609 # dev only
 ```
 
 **No local symlink?** Browse shared snapshots at
@@ -210,7 +210,7 @@ download the `.dump` files, then restore manually (below).
 # Create the DB if needed, then restore (rebuilds the `public` serving schema the API reads):
 PGPASSWORD=password createdb -h localhost -p 5433 -U postgres open_navigator 2>/dev/null || true
 PGPASSWORD=password pg_restore -h localhost -p 5433 -U postgres -d open_navigator \
-  --clean --if-exists open_navigator.dump
+ --clean --if-exists open_navigator.dump
 ```
 
 The API serves the **`public`** schema in `open_navigator` by default (`API_DB_SCHEMA=public`).
@@ -220,15 +220,15 @@ After the restore, refresh http://localhost:5173 — search, maps, and the heatm
 
 ## Access Points
 
-**💻 Local development:**
-- **🚀 Main App:** http://localhost:5173
-- **📚 Documentation:** http://localhost:3000
-- **🔥 API Docs:** http://localhost:8001/docs
+** Local development:**
+- ** Main App:** http://localhost:5173
+- ** Documentation:** http://localhost:3000
+- ** API Docs:** http://localhost:8001/docs
 
-**🌐 Live application:**
-- **🚀 Open Navigator:** https://www.communityone.com
-- **📚 Documentation:** https://www.communityone.com/docs
-- **🔥 API Docs:** https://www.communityone.com/api/docs
+** Live application:**
+- ** Open Navigator:** https://www.communityone.com
+- ** Documentation:** https://www.communityone.com/docs
+- ** API Docs:** https://www.communityone.com/api/docs
 
 ## Stop Services
 
@@ -336,11 +336,11 @@ always be paired with the warehouse state it was built and tested against.
 
 Given a version `MAJOR.MINOR.PATCH` (e.g. `1.4.2`):
 
-| Bump      | When                                                                            | Example         |
+| Bump | When | Example |
 | --------- | ------------------------------------------------------------------------------- | --------------- |
-| **MAJOR** | Breaking API/schema change, dropped table or endpoint, incompatible dbt model   | `1.4.2 → 2.0.0` |
-| **MINOR** | New data source, new endpoint, new dbt mart, backward-compatible feature        | `1.4.2 → 1.5.0` |
-| **PATCH** | Bug fix, data backfill, doc change, no schema or contract change                | `1.4.2 → 1.4.3` |
+| **MAJOR** | Breaking API/schema change, dropped table or endpoint, incompatible dbt model | `1.4.2 → 2.0.0` |
+| **MINOR** | New data source, new endpoint, new dbt mart, backward-compatible feature | `1.4.2 → 1.5.0` |
+| **PATCH** | Bug fix, data backfill, doc change, no schema or contract change | `1.4.2 → 1.4.3` |
 
 A release bundles three things at the same version number:
 
@@ -357,9 +357,9 @@ user data**:
 
 | Command | Scope | Personal user data? |
 | --- | --- | --- |
-| `make backup VERSION=v1.5.0` | **Full** — entire `open_navigator` warehouse (bronze/gold/staging/intermediate/public) **+** `openstates`. Self-contained; ~170 GB. | ⚠️ **Yes** — includes the `user`/auth/social tables. Keep private. |
-| `make backup-neon VERSION=v1.5.0` | **Neon serving** (recommended) — dumps the production Neon serving DB; civic data as standalone materialized tables. Small (~0.5 GB). | ✅ **No** |
-| `make backup-public VERSION=v1.5.0` | **Local public** — dumps only the local `public` serving schema; civic views + `event_documents`. | ✅ **No** (personal tables excluded) |
+| `make backup VERSION=v1.5.0` | **Full** — entire `open_navigator` warehouse (bronze/gold/staging/intermediate/public) **+** `openstates`. Self-contained; ~170 GB. | Warning **Yes** — includes the `user`/auth/social tables. Keep private. |
+| `make backup-neon VERSION=v1.5.0` | **Neon serving** (recommended) — dumps the production Neon serving DB; civic data as standalone materialized tables. Small (~0.5 GB). | Yes **No** |
+| `make backup-public VERSION=v1.5.0` | **Local public** — dumps only the local `public` serving schema; civic views + `event_documents`. | Yes **No** (personal tables excluded) |
 | `make restore VERSION=v1.5.0` | Restore the full backup into the local warehouse. **Dev only.** | — |
 | `make restore-neon VERSION=v1.5.0` | Restore a Neon snapshot into a separate local db (`open_navigator_serving`). **Dev only.** | — |
 | `make restore-public VERSION=v1.5.0` | Restore the local `public` schema (needs `gold` present). **Dev only.** | — |
@@ -387,7 +387,7 @@ mirrors (`user`, `contact_oauth_state`, `social_follows`, `user_lens_prefs`,
 are real **materialized tables**, so the dump is standalone (no dependency on `gold`):
 
 ```bash
-make backup-neon VERSION=snapshot-20260609   # writes one small neon_serving_*.dump, no PII
+make backup-neon VERSION=snapshot-20260609 # writes one small neon_serving_*.dump, no PII
 ```
 
 `pg_dump` is read-only, so this is safe to run against prod. Restore into a **separate
@@ -395,7 +395,7 @@ local** database (never prod) and optionally point the API at it for a PII-free 
 serving instance:
 
 ```bash
-make restore-neon VERSION=snapshot-20260609  # → local db open_navigator_serving (dev only)
+make restore-neon VERSION=snapshot-20260609 # → local db open_navigator_serving (dev only)
 ```
 
 The Neon dump is taken with `--no-owner --no-privileges`, and `restore-neon` restores with
@@ -409,7 +409,7 @@ them and `gold`'s indexes stay safe. Because the views reference `gold`, restore
 warehouse that already has `gold`:
 
 ```bash
-make backup-public VERSION=snapshot-20260609   # local public, personal tables excluded
+make backup-public VERSION=snapshot-20260609 # local public, personal tables excluded
 ```
 
 > **Restore only into a local/dev warehouse — never into a production database.** The full
@@ -446,7 +446,7 @@ echo 'I: /mnt/i drvfs defaults 0 0' | sudo tee -a /etc/fstab
 mkdir -p "/mnt/i/My Drive/open-navigator-backups"
 ln -sfn "/mnt/i/My Drive/open-navigator-backups" open-navigator-backups
 # 4. Verify:
-test -d open-navigator-backups/ && echo "✅ Drive backup folder ready"
+test -d open-navigator-backups/ && echo "Yes Drive backup folder ready"
 ```
 
 > Different Drive letter? `make setup-backup-drive DRIVE_LETTER=H` (or swap `I:` / `/mnt/i`
@@ -478,13 +478,13 @@ ls open-navigator-backups/snapshots/snapshot-20260609/
 
 1. Run `make backup VERSION=<label>`.
 2. After Google Drive syncs, confirm the dumps appear under
-   [`snapshots/<label>/`](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)
-   in the shared [open-navigator-backups](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)
-   folder (or `releases/<label>/` for semver tags).
+ [`snapshots/<label>/`](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)
+ in the shared [open-navigator-backups](https://drive.google.com/drive/folders/1m1kCoY5oM9xlnKKi9u2wfgaXVaKZSWwp?usp=sharing)
+ folder (or `releases/<label>/` for semver tags).
 3. Collaborators with folder access run `make restore VERSION=<label>` when their
-   [local symlink](#google-drive-folder-one-time-setup) points at the same Drive tree;
-   otherwise they download the `.dump` files from the shared folder and restore manually
-   (see [Restore the Database](#restore-the-database)).
+ [local symlink](#google-drive-folder-one-time-setup) points at the same Drive tree;
+ otherwise they download the `.dump` files from the shared folder and restore manually
+ (see [Restore the Database](#restore-the-database)).
 
 For a tagged release, also push the matching git tag and record the snapshot path + SHA in
 the [Release History](development/release-history.md) (shared folder:

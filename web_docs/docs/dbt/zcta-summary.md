@@ -4,7 +4,7 @@ sidebar_position: 8
 
 # ZCTA Enrichment Summary
 
-## ✅ What Was Created
+## Yes What Was Created
 
 Created dbt models to add 5-digit ZCTA (ZIP Code Tabulation Area) to nonprofit organizations:
 
@@ -45,7 +45,7 @@ Includes:
 - Troubleshooting guide
 - Data quality checks
 
-## 🎯 How It Works
+## How It Works
 
 ### ZCTA Join Logic
 
@@ -54,21 +54,21 @@ Includes:
 LEFT(TRIM(zip_code), 5) AS zip_code_5
 
 -- 2. Join to Census ZCTA lookup table
-LEFT JOIN bronze_jurisdictions_postal_codes 
-    ON zip_code_5 = zcta
+LEFT JOIN bronze_jurisdictions_postal_codes
+ ON zip_code_5 = zcta
 
 -- 3. Join to primary place (largest by land area)
 LEFT JOIN (
-    SELECT DISTINCT ON (zcta) zcta, place_geoid, place_name
-    FROM bronze_jurisdictions_zip_place
-    ORDER BY zcta, arealand_part DESC
+ SELECT DISTINCT ON (zcta) zcta, place_geoid, place_name
+ FROM bronze_jurisdictions_zip_place
+ ORDER BY zcta, arealand_part DESC
 ) AS zcta_place_primary ON zip_code_5 = zcta
 
 -- 4. Join to primary county (largest by land area)
 LEFT JOIN (
-    SELECT DISTINCT ON (zcta) zcta, county_geoid, county_name
-    FROM bronze_jurisdictions_zip_county
-    ORDER BY zcta, arealand_part DESC
+ SELECT DISTINCT ON (zcta) zcta, county_geoid, county_name
+ FROM bronze_jurisdictions_zip_county
+ ORDER BY zcta, arealand_part DESC
 ) AS zcta_county_primary ON zip_code_5 = zcta
 
 -- 5. Add ZCTA columns + place + county
@@ -84,7 +84,7 @@ Best available coordinates for each nonprofit:
 2. **IRS ZCTA centroid** - from IRS zip_code
 3. **NCCS ZCTA centroid** - from NCCS f990_org_addr_zip
 
-## 📊 Data Sources
+## Data Sources
 
 | Table | Records | Purpose |
 |-------|---------|---------|
@@ -99,15 +99,15 @@ Best available coordinates for each nonprofit:
 **Many-to-Many:** 41% of ZCTAs span multiple places, 30% span multiple counties
 - **Solution:** We select the place/county with the largest land area overlap
 
-## ⚠️ Known Issues
+## Warning Known Issues
 
 ### Missing Longitude Data
 
 The `bronze_jurisdictions_postal_codes` table currently has **NULL longitude values** for all ZCTAs.
 
 **Impact:**
-- ZCTA latitude works correctly ✅
-- ZCTA longitude is NULL ❌
+- ZCTA latitude works correctly Yes
+- ZCTA longitude is NULL No
 - Geographic queries using ZCTA coordinates won't work until fixed
 
 **Fix:**
@@ -115,48 +115,48 @@ The `bronze_jurisdictions_postal_codes` table currently has **NULL longitude val
 - Verify Census Gazetteer column mapping includes `INTPTLONG`
 - Re-run the loading script
 
-## 🔍 Quick Verification
+## Quick Verification
 
 ```sql
 -- Test ZCTA + Place + County enrichment
-SELECT 
-    ein,
-    LEFT(name, 40) as org_name,
-    city,
-    state_code,
-    zip_code,
-    zcta_5,
-    place_geoid,
-    zcta_place_name,
-    county_fips,
-    zcta_county_name,
-    has_zcta_match
+SELECT
+ ein,
+ LEFT(name, 40) as org_name,
+ city,
+ state_code,
+ zip_code,
+ zcta_5,
+ place_geoid,
+ zcta_place_name,
+ county_fips,
+ zcta_county_name,
+ has_zcta_match
 FROM bronze_organizations_nonprofits
 WHERE state_code = 'CA'
 LIMIT 10;
 ```
 
-## 📁 Files Modified/Created
+## Files Modified/Created
 
 ### dbt Models
-- ✅ `dbt_project/models/marts/bronze_organizations_nonprofits.sql` - Updated with ZCTA joins
-- ✅ `dbt_project/models/intermediate/int_nonprofits_irs_with_zcta.sql` - Created (disabled)
-- ✅ `dbt_project/models/intermediate/int_nonprofits_nccs_with_zcta.sql` - Created (disabled)
-- ✅ `dbt_project/models/intermediate/_intermediate.yml` - Updated with ZCTA model definitions
-- ✅ `dbt_project/models/staging/_staging.yml` - Added bronze_jurisdictions_postal_codes source
+- Yes `dbt_project/models/marts/bronze_organizations_nonprofits.sql` - Updated with ZCTA joins
+- Yes `dbt_project/models/intermediate/int_nonprofits_irs_with_zcta.sql` - Created (disabled)
+- Yes `dbt_project/models/intermediate/int_nonprofits_nccs_with_zcta.sql` - Created (disabled)
+- Yes `dbt_project/models/intermediate/_intermediate.yml` - Updated with ZCTA model definitions
+- Yes `dbt_project/models/staging/_staging.yml` - Added bronze_jurisdictions_postal_codes source
 
 ### Documentation
-- ✅ `website/docs/dbt/zcta-enrichment.md` - Complete ZCTA guide
-- ✅ `website/docs/dbt/zcta-summary.md` - This summary (quick reference)
+- Yes `website/docs/dbt/zcta-enrichment.md` - Complete ZCTA guide
+- Yes `website/docs/dbt/zcta-summary.md` - This summary (quick reference)
 
-## 🚀 Next Steps
+## Next Steps
 
 1. **Fix longitude data** in bronze_jurisdictions_postal_codes table
 2. **Run the dbt model** to create the enriched nonprofits table
 3. **Test ZCTA queries** with sample data
 4. **Update downstream models** (silver, gold) to use ZCTA data if needed
 
-## 💡 Use Cases
+## Use Cases
 
 **Geographic Analysis:**
 - Count nonprofits by ZCTA/place/county

@@ -8,12 +8,12 @@ This document lists all nonprofit data sources and reference websites used by Op
 
 ---
 
-## 🏛️ Primary Data Source (Currently Implemented)
+## Primary Data Source (Currently Implemented)
 
-### ProPublica Nonprofit Explorer ⭐
+### ProPublica Nonprofit Explorer
 
-**Source:** IRS Business Master File (BMF)  
-**URL:** https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads  
+**Source:** IRS Business Master File (BMF)
+**URL:** https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads
 
 **What It Contains:**
 - **43,726 nonprofit organizations** (from 5 states with full IRS BMF data)
@@ -27,22 +27,22 @@ This document lists all nonprofit data sources and reference websites used by Op
 > "The IRS Business Master File provides the most authoritative, complete data on tax-exempt organizations directly from the IRS."
 
 **Coverage:**
-- ✅ **Volume:** 43,726 organizations from 5 states
-- ✅ **Free Access:** Public domain data
-- ✅ **Data Quality:** Direct from IRS filings
-- ✅ **Monthly Updates:** Refreshed regularly
+- Yes **Volume:** 43,726 organizations from 5 states
+- Yes **Free Access:** Public domain data
+- Yes **Data Quality:** Direct from IRS filings
+- Yes **Monthly Updates:** Refreshed regularly
 
 ---
 
-## 📊 Reference Sites (Future Integration)
+## Reference Sites (Future Integration)
 
 These sites provide additional nonprofit evaluation and ratings. They are not currently integrated but are listed as important reference resources.
 
 ### 1. Charity Navigator - The "Star Rating" Site
 
-**Source:** Charity Navigator  
-**URL:** https://www.charitynavigator.org/  
-**API:** Available for partners  
+**Source:** Charity Navigator
+**URL:** https://www.charitynavigator.org/
+**API:** Available for partners
 
 **Focus:** Financial Health & Transparency
 
@@ -67,9 +67,9 @@ These sites provide additional nonprofit evaluation and ratings. They are not cu
 
 ### 2. Candid (GuideStar) - The "Volume" Leader
 
-**Source:** Candid (formerly GuideStar)  
-**URL:** https://www.guidestar.org/ (now https://candid.org/)  
-**API:** Available for partners  
+**Source:** Candid (formerly GuideStar)
+**URL:** https://www.guidestar.org/ (now https://candid.org/)
+**API:** Available for partners
 
 **Focus:** Comprehensive Transparency Data
 
@@ -94,9 +94,9 @@ These sites provide additional nonprofit evaluation and ratings. They are not cu
 
 ### 3. GiveWell - The "Impact" Authority
 
-**Source:** GiveWell  
-**URL:** https://www.givewell.org/  
-**API:** No public API (data available on website)  
+**Source:** GiveWell
+**URL:** https://www.givewell.org/
+**API:** No public API (data available on website)
 
 **Focus:** Cost-Effectiveness & Evidence-Based Impact
 
@@ -119,12 +119,12 @@ These sites provide additional nonprofit evaluation and ratings. They are not cu
 
 ---
 
-## 🔗 Additional Reference Resources
+## Additional Reference Resources
 
 ### IRS Exempt Organizations Business Master File (BMF)
 
-**Source:** IRS  
-**URL:** https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf  
+**Source:** IRS
+**URL:** https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf
 
 **What It Contains:**
 - Complete list of all tax-exempt organizations
@@ -141,8 +141,8 @@ These sites provide additional nonprofit evaluation and ratings. They are not cu
 
 ### National Center for Charitable Statistics (NCCS)
 
-**Source:** Urban Institute  
-**URL:** https://nccs.urban.org/  
+**Source:** Urban Institute
+**URL:** https://nccs.urban.org/
 
 **What It Contains:**
 - Research on nonprofit sector trends
@@ -159,11 +159,11 @@ These sites provide additional nonprofit evaluation and ratings. They are not cu
 
 These platforms help nonprofits find grant opportunities and manage fundraising. They're built on open-source principles or community-funded models to keep data accessible.
 
-### Grantmakers.io ⭐ - "The Gold Standard for Free Grant Research"
+### Grantmakers.io - "The Gold Standard for Free Grant Research"
 
-**Source:** Community-supported open-source project  
-**URL:** https://www.grantmakers.io/  
-**Cost:** 100% FREE, no login required  
+**Source:** Community-supported open-source project
+**URL:** https://www.grantmakers.io/
+**Cost:** 100% FREE, no login required
 
 **What It Provides:**
 - **Lightning-fast search** through IRS 990-PF data (private foundation tax returns)
@@ -174,10 +174,10 @@ These platforms help nonprofits find grant opportunities and manage fundraising.
 - **No barriers** - Zero account creation, API keys, or paywalls
 
 **Coverage:**
-- ✅ **75,000+ grantmaking foundations** filing Form 990-PF
-- ✅ **Millions of grant records** searchable instantly
-- ✅ **Full foundation financials** - Assets, officers, giving patterns
-- ✅ **Historical data** - Multi-year foundation trends
+- Yes **75,000+ grantmaking foundations** filing Form 990-PF
+- Yes **Millions of grant records** searchable instantly
+- Yes **Full foundation financials** - Assets, officers, giving patterns
+- Yes **Historical data** - Multi-year foundation trends
 
 **Why It's Special:**
 > "Grantmakers.io is the gold standard for 'free as in freedom.' It's community-supported to remain accessible forever, with no login walls or premium tiers."
@@ -196,11 +196,11 @@ These platforms help nonprofits find grant opportunities and manage fundraising.
 
 ---
 
-### Zeffy ⭐ - "100% Free Fundraising with AI Grant Matching"
+### Zeffy - "100% Free Fundraising with AI Grant Matching"
 
-**Source:** Zeffy, Inc.  
-**URL:** https://www.zeffy.com/  
-**Cost:** 100% FREE for nonprofits (donor-covered fees model)  
+**Source:** Zeffy, Inc.
+**URL:** https://www.zeffy.com/
+**Cost:** 100% FREE for nonprofits (donor-covered fees model)
 
 **What It Provides:**
 - **100% free fundraising platform** (no platform fees, ever)
@@ -229,20 +229,20 @@ Traditional fundraising platforms charge 3-5% fees on donations. Zeffy's donor-c
 
 ### Community Foundations - "Local Grants Often Overlooked"
 
-**Source:** Council on Foundations  
-**Locator:** https://www.cof.org/community-foundation-locator  
-**Coverage:** 700+ community foundations across the U.S.  
+**Source:** Council on Foundations
+**Locator:** https://www.cof.org/community-foundation-locator
+**Coverage:** 700+ community foundations across the U.S.
 
 **What They Are:**
 Community foundations are public charities that pool donations from individuals, families, and businesses to support local nonprofits through competitive grants, scholarships, and donor-advised funds.
 
 **Why They Matter:**
-- 🏘️ **Local focus:** Prioritize organizations in their specific region
-- 💵 **Accessible grants:** $500-$50,000 range, ideal for grassroots groups
-- 🤝 **Relationship-based:** Know local issues and local leaders
-- 📋 **Simpler applications:** Less bureaucratic than federal grants
-- ⚡ **Faster decisions:** Quarterly or rolling deadlines
-- 🎯 **Mission alignment:** Support community health, civic engagement, education
+- **Local focus:** Prioritize organizations in their specific region
+- **Accessible grants:** $500-$50,000 range, ideal for grassroots groups
+- **Relationship-based:** Know local issues and local leaders
+- **Simpler applications:** Less bureaucratic than federal grants
+- **Faster decisions:** Quarterly or rolling deadlines
+- **Mission alignment:** Support community health, civic engagement, education
 
 **Examples:**
 
@@ -270,31 +270,31 @@ Many community foundations have health equity or preventive health focus areas t
 
 ---
 
-## �📈 Integration Roadmap
+## � Integration Roadmap
 
-### Phase 1: ✅ **Implemented**
+### Phase 1: Yes **Implemented**
 - ProPublica Nonprofit Explorer (3M+ orgs via API)
 - Basic search by location and name
 - Form 990 financial data display
 
-### Phase 2: 🔄 **In Progress**
+### Phase 2: **In Progress**
 - Create nonprofit profile pages with financial summaries
 - Add "words vs money" accountability analysis
 - Show executive compensation comparisons
 
-### Phase 3: 📋 **Planned**
+### Phase 3: **Planned**
 - Integrate Charity Navigator API for star ratings
 - Add transparency seal badges from Candid/GuideStar
 - Display GiveWell recommendations for top charities
 
-### Phase 4: 🔮 **Future**
+### Phase 4: **Future**
 - Real-time API integrations with all reference sites
 - Unified nonprofit scoring system
 - Automated alerts for rating changes
 
 ---
 
-## 🎯 How to Use These Resources
+## How to Use These Resources
 
 ### For Individual Users:
 1. **Start with ProPublica** - See the raw financial data (Form 990)
@@ -315,24 +315,24 @@ Many community foundations have health equity or preventive health focus areas t
 
 ---
 
-## 📞 Contact & Support
+## Contact & Support
 
-**ProPublica API Support:**  
-- Email: data@propublica.org  
+**ProPublica API Support:**
+- Email: data@propublica.org
 - Documentation: https://projects.propublica.org/nonprofits/api
 
-**Charity Navigator:**  
+**Charity Navigator:**
 - Partnership inquiries: https://www.charitynavigator.org/about-us/contact/
 
-**Candid (GuideStar):**  
+**Candid (GuideStar):**
 - API access: https://www.guidestar.org/api
 
-**GiveWell:**  
+**GiveWell:**
 - General inquiries: info@givewell.org
 
 ---
 
-## ✅ Data Quality & Updates
+## Yes Data Quality & Updates
 
 - **ProPublica:** Updated annually when new Form 990s are filed with IRS
 - **Charity Navigator:** Ratings updated quarterly

@@ -1,16 +1,16 @@
-# 🔍 Civic Tech Projects: URL Source Analysis
+# Civic Tech Projects: URL Source Analysis
 
 ## Quick Summary
 
 | Project | URL Sources? | Quantity | Status | Priority |
 |---------|-------------|----------|--------|----------|
-| **Civic Scraper** | ❌ No | 0 | Library only | N/A |
-| **City Scrapers** | ✅ **YES** | 100-500 | ✅ **Integrated** | DONE ✅ |
-| **Council Data Project** | ✅ **YES** | 20 cities | ⏳ Pending | 🔥 HIGH |
-| **Engagic** | ❌ No | 0 | Research project | N/A |
-| **Councilmatic** | ⚠️ Maybe | ~6 | Not checked | 🟡 LOW |
-| **MeetingBank** | ✅ **YES** | 1,366 | ✅ **Integrated** | DONE ✅ |
-| **Open States** | ✅ **YES** | 50+ | ✅ **Integrated** | DONE ✅ |
+| **Civic Scraper** | No No | 0 | Library only | N/A |
+| **City Scrapers** | Yes **YES** | 100-500 | Yes **Integrated** | DONE Yes |
+| **Council Data Project** | Yes **YES** | 20 cities | Pending | HIGH |
+| **Engagic** | No No | 0 | Research project | N/A |
+| **Councilmatic** | Warning Maybe | ~6 | Not checked | LOW |
+| **MeetingBank** | Yes **YES** | 1,366 | Yes **Integrated** | DONE Yes |
+| **Open States** | Yes **YES** | 50+ | Yes **Integrated** | DONE Yes |
 
 ---
 
@@ -20,15 +20,15 @@
 **Library** for scraping government documents, not a deployment or URL database.
 
 ### What We Use:
-- ✅ Platform detection patterns (Legistar, Granicus, etc.)
-- ✅ Document downloading logic
-- ✅ Error handling patterns
+- Yes Platform detection patterns (Legistar, Granicus, etc.)
+- Yes Document downloading logic
+- Yes Error handling patterns
 
 ### URL Sources:
-❌ **NO URL LIST** - It's a Python library/toolkit, not a data collection project.
+No **NO URL LIST** - It's a Python library/toolkit, not a data collection project.
 
 ### Action:
-✅ **COMPLETE** - We integrated their patterns into [`discovery/platform_detector.py`](../discovery/platform_detector.py)
+Yes **COMPLETE** - We integrated their patterns into [`discovery/platform_detector.py`](../discovery/platform_detector.py)
 
 ---
 
@@ -45,7 +45,7 @@
 5. **Los Angeles** (~50 agencies)
 
 ### URL Sources:
-✅ **YES - 100-500 VALIDATED URLs**
+Yes **YES - 100-500 VALIDATED URLs**
 
 Each spider file contains `start_urls` with:
 - Agency meeting pages
@@ -54,7 +54,7 @@ Each spider file contains `start_urls` with:
 - PDF agendas/minutes
 
 ### Status:
-✅ **INTEGRATED** - [`discovery/city_scrapers_urls.py`](../discovery/city_scrapers_urls.py)
+Yes **INTEGRATED** - [`discovery/city_scrapers_urls.py`](../discovery/city_scrapers_urls.py)
 
 ### To Run:
 ```bash
@@ -95,7 +95,7 @@ python scripts/datasources/cityscrapers/city_scrapers_urls.py
 20. Spokane, WA
 
 ### URL Sources:
-✅ **YES - 20 PREMIUM CITIES**
+Yes **YES - 20 PREMIUM CITIES**
 
 Each CDP deployment has:
 - **GitHub repo** with configuration
@@ -119,14 +119,14 @@ Contains patterns like:
 ```text
 # Python code
 SCRAPER_CONFIG = {
-    "source_url": "https://seattle.gov/city-council/calendar",
-    "video_source": "https://www.seattlechannel.org/CouncilVideos",
-    "granicus_site": "https://seattle.granicus.com/ViewPublisher.php?view_id=24"
+ "source_url": "https://seattle.gov/city-council/calendar",
+ "video_source": "https://www.seattlechannel.org/CouncilVideos",
+ "granicus_site": "https://seattle.granicus.com/ViewPublisher.php?view_id=24"
 }
 ```
 
 ### Status:
-⏳ **PENDING** - We have the list of 20 cities but haven't extracted URLs yet
+ **PENDING** - We have the list of 20 cities but haven't extracted URLs yet
 
 ### Action Needed:
 Create `discovery/cdp_url_extraction.py` to:
@@ -134,7 +134,7 @@ Create `discovery/cdp_url_extraction.py` to:
 2. Extract source URLs from config files
 3. Write to `bronze/cdp_source_urls`
 
-**Priority**: 🔥 **HIGH** - These are premium quality URLs with full pipelines
+**Priority**: **HIGH** - These are premium quality URLs with full pipelines
 
 ---
 
@@ -144,17 +144,17 @@ Create `discovery/cdp_url_extraction.py` to:
 **Research project** for LLM-based legislative text parsing.
 
 ### What We Use:
-- ✅ Matter tracking model (legislative items)
-- ✅ LLM parsing patterns for PDFs
+- Yes Matter tracking model (legislative items)
+- Yes LLM parsing patterns for PDFs
 
 ### URL Sources:
-❌ **NO URL LIST** - It's a research/prototype project, not a production scraper.
+No **NO URL LIST** - It's a research/prototype project, not a production scraper.
 
 ### Status:
-✅ **COMPLETE** - We created the Matter model in [`models/meeting_event.py`](../models/meeting_event.py)
+Yes **COMPLETE** - We created the Matter model in [`models/meeting_event.py`](../models/meeting_event.py)
 
 ### Action:
-✅ **DONE** - Model sufficient, no URLs to extract
+Yes **DONE** - Model sufficient, no URLs to extract
 
 ---
 
@@ -172,7 +172,7 @@ Create `discovery/cdp_url_extraction.py` to:
 6. **Metro Councilmatic** (LA County) - https://metro.councilmatic.org
 
 ### URL Sources:
-⚠️ **MAYBE - ~6 DEPLOYMENTS**
+Warning **MAYBE - ~6 DEPLOYMENTS**
 
 Each deployment uses **Legistar API** as their data source, so we'd get:
 - Legistar API endpoints (already accessible)
@@ -185,24 +185,24 @@ Each deployment uses **Legistar API** as their data source, so we'd get:
 We can enumerate Legistar directly without going through Councilmatic:
 ```text
 # Already in our codebase
-enumerate_legistar_subdomains()  # Tests chicago.legistar.com, la.legistar.com, etc.
+enumerate_legistar_subdomains() # Tests chicago.legistar.com, la.legistar.com, etc.
 ```
 
 ### Status:
-📋 **PLANNED** - Low priority, Legistar enumeration more efficient
+ **PLANNED** - Low priority, Legistar enumeration more efficient
 
 ### Action:
-🟡 **LOW PRIORITY** - Skip for now, Legistar enumeration covers these cities
+ **LOW PRIORITY** - Skip for now, Legistar enumeration covers these cities
 
 ---
 
-## 🎯 Recommended Next Steps
+## Recommended Next Steps
 
 ### Immediate (This Week):
-1. ✅ **DONE**: City Scrapers URL extraction
-2. 🔥 **DO NEXT**: CDP URL extraction (20 premium cities)
-3. ⏳ **PENDING**: MeetingBank ingestion (if not run yet)
-4. ⏳ **PENDING**: Open States integration (if not run yet)
+1. Yes **DONE**: City Scrapers URL extraction
+2. **DO NEXT**: CDP URL extraction (20 premium cities)
+3. **PENDING**: MeetingBank ingestion (if not run yet)
+4. **PENDING**: Open States integration (if not run yet)
 
 ### Near-Term (Next 2 Weeks):
 5. **Legistar enumeration** - Test {{city}}.legistar.com pattern against Census
@@ -216,22 +216,22 @@ enumerate_legistar_subdomains()  # Tests chicago.legistar.com, la.legistar.com, 
 
 ---
 
-## 📊 Expected Coverage After All Integrations
+## Expected Coverage After All Integrations
 
 | Source | URLs | Quality | Status |
 |--------|------|---------|--------|
-| Census Discovery | 76 | Variable | ✅ Working |
-| City Scrapers | 100-500 | Good | ✅ Integrated |
-| CDP | 20 | Excellent | ⏳ Pending |
-| MeetingBank | 1,366 | Excellent | ✅ Integrated |
-| Open States | 50-100 | Excellent | ✅ Integrated |
-| LocalView | 1,000-10,000 | Good | ⏳ Manual download |
-| Legistar Enum | 1,000-3,000 | Good | 📋 Planned |
+| Census Discovery | 76 | Variable | Yes Working |
+| City Scrapers | 100-500 | Good | Yes Integrated |
+| CDP | 20 | Excellent | Pending |
+| MeetingBank | 1,366 | Excellent | Yes Integrated |
+| Open States | 50-100 | Excellent | Yes Integrated |
+| LocalView | 1,000-10,000 | Good | Manual download |
+| Legistar Enum | 1,000-3,000 | Good | Planned |
 | **TOTAL** | **7,000-20,000** | **High** | **In Progress** |
 
 ---
 
-## 💡 Why Some Projects Don't Have URLs
+## Why Some Projects Don't Have URLs
 
 ### Civic Scraper:
 It's a **library/toolkit**, like BeautifulSoup or Scrapy. You don't "extract URLs" from BeautifulSoup - you use it to build your own scrapers.
@@ -244,12 +244,12 @@ It **consumes** Legistar data, doesn't produce new URLs. Going through Councilma
 
 ---
 
-## ✅ Bottom Line
+## Yes Bottom Line
 
-**YES, City Scrapers has URLs** - ✅ **Already integrated!**
+**YES, City Scrapers has URLs** - Yes **Already integrated!**
 
-**YES, CDP has URLs** - ⏳ **Next priority to extract**
+**YES, CDP has URLs** - **Next priority to extract**
 
 **Others are libraries/research** - No URLs to extract, but we use their patterns
 
-See [`discovery/city_scrapers_urls.py`](../discovery/city_scrapers_urls.py) for the City Scrapers integration that just got implemented! 🎉
+See [`discovery/city_scrapers_urls.py`](../discovery/city_scrapers_urls.py) for the City Scrapers integration that just got implemented!

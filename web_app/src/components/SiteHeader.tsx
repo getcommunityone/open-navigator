@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
 import { DATA_EXPLORER_MAP_BASE } from '../utils/dataExplorerPaths'
+import { DOCS_INTRO } from '../utils/docsLinks'
 
 const DATA_EXPLORER_ENTRY = `${DATA_EXPLORER_MAP_BASE}/us/2024/median_household_income`
 
@@ -213,6 +214,15 @@ export default function SiteHeader() {
                 <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
                   <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={menuBtn}>My Profile</button>
                   <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/settings?section=account&tab=profile') }} style={menuBtn}>Settings</button>
+                  <a
+                    href={DOCS_INTRO}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowLoginMenu(false)}
+                    style={{ ...menuBtn, textDecoration: 'none' }}
+                  >
+                    Documentation ↗
+                  </a>
                   <button
                     type="button"
                     onClick={() => { setShowLoginMenu(false); navigate(DATA_EXPLORER_ENTRY) }}

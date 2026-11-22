@@ -14,7 +14,7 @@ displayed_sidebar: policyMakersSidebar
 
 ## The Discomfort Ranking
 
-### 1. 🔴 The Influence Radar (10/10 discomfort)
+### 1. The Influence Radar (10/10 discomfort)
 
 **What it exposes:** WHO has the real power
 
@@ -25,7 +25,7 @@ displayed_sidebar: policyMakersSidebar
 
 **The uncomfortable moment:**
 ```
-"Mr. Chairman, this analysis shows that ONE memo from the Risk Manager 
+"Mr. Chairman, this analysis shows that ONE memo from the Risk Manager
 has 92% influence on policy, while 240 citizen comments have 4% influence.
 
 Can you explain why [NAME] has functional veto power over public health policy?"
@@ -39,7 +39,7 @@ Can you explain why [NAME] has functional veto power over public health policy?"
 
 ---
 
-### 2. 🔴 The Logic Chain / Deferral Pattern (10/10 discomfort)
+### 2. The Logic Chain / Deferral Pattern (10/10 discomfort)
 
 **What it exposes:** Strategic delay as avoidance
 
@@ -51,7 +51,7 @@ Can you explain why [NAME] has functional veto power over public health policy?"
 **The uncomfortable moment:**
 ```
 "This proposal has been 'under review' for 6 months with 4 deferrals.
-Each time, you give a different reason. The real reason is you're 
+Each time, you give a different reason. The real reason is you're
 waiting for us to give up before the next election. Am I wrong?"
 ```
 
@@ -63,7 +63,7 @@ waiting for us to give up before the next election. Am I wrong?"
 
 ---
 
-### 3. 🟠 The Rhetoric Gap Monitor (9/10 discomfort)
+### 3. The Rhetoric Gap Monitor (9/10 discomfort)
 
 **What it exposes:** Hypocrisy between words and actions
 
@@ -88,7 +88,7 @@ Which statement is true: your words or your wallet?"
 
 ---
 
-### 4. 🟠 The Displacement Matrix (9/10 discomfort)
+### 4. The Displacement Matrix (9/10 discomfort)
 
 **What it exposes:** Misplaced priorities through trade-offs
 
@@ -99,7 +99,7 @@ Which statement is true: your words or your wallet?"
 
 **The uncomfortable moment:**
 ```
-"This matrix shows you funded $850,000 for new athletic turf but $0 
+"This matrix shows you funded $850,000 for new athletic turf but $0
 for dental screening that would serve 5,000 students.
 
 Can you explain why turf is worth more than children's dental health?"
@@ -128,16 +128,16 @@ Here's why this one is the nuclear option:
 
 Use them in sequence for maximum impact:
 
-**Step 1: Rhetoric Gap**  
+**Step 1: Rhetoric Gap**
 Establish they ALREADY agree it's important (stop the "need" debate)
 
-**Step 2: Displacement Matrix**  
+**Step 2: Displacement Matrix**
 Show they HAD the money (stop the "budget constraint" excuse)
 
-**Step 3: Influence Radar**  
+**Step 3: Influence Radar**
 Name who's blocking it (force personal accountability)
 
-**Step 4: Deferral Pattern**  
+**Step 4: Deferral Pattern**
 Show they're stalling, not studying (expose the tactic)
 
 ---
@@ -148,15 +148,15 @@ Show they're stalling, not studying (expose the tactic)
 
 **City Council Meeting, Tuscaloosa (hypothetical based on real pattern):**
 
-**Advocate:** 
-> "Council members, I have data from your own meeting minutes and budgets. 
-> 
+**Advocate:**
+> "Council members, I have data from your own meeting minutes and budgets.
+>
 > Dashboard 4 shows that 240 citizens testified in favor of school dental screening.
 > That public input had 4% influence on your decision.
-> 
+>
 > One memo from Risk Manager Patricia Johnson expressing 'liability concerns'
 > had 92% influence.
-> 
+>
 > Ms. Johnson, can you please stand and explain to these 240 citizens why your
 > one memo outweighs their collective voice?"
 
@@ -202,16 +202,16 @@ Show they're stalling, not studying (expose the tactic)
 
 ```
 1. Open with Rhetoric Gap
-   "You all agree this matters - you've said so 50 times"
+ "You all agree this matters - you've said so 50 times"
 
 2. Show Displacement Matrix
-   "You had the money - you chose turf over health"
+ "You had the money - you chose turf over health"
 
 3. Reveal Influence Radar
-   "This person blocked it, not you - why are you letting them?"
+ "This person blocked it, not you - why are you letting them?"
 
 4. Close with Deferral Pattern
-   "You've been stalling for 6 months - it's time to decide"
+ "You've been stalling for 6 months - it's time to decide"
 ```
 
 ### Presentation to Media
@@ -242,7 +242,7 @@ Show all four to demonstrate sophistication
 **The Influence Radar makes board members most uncomfortable** because:
 
 1. It names the specific person blocking policy
-2. It quantifies their veto power against public will  
+2. It quantifies their veto power against public will
 3. It exposes that elected officials aren't actually deciding
 4. It creates a news story ("Risk Manager Overrules 240 Citizens")
 5. It forces personal accountability, not institutional deflection
