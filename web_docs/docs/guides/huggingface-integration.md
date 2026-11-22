@@ -2,9 +2,9 @@
 sidebar_position: 9
 ---
 
-# 🚀 HuggingFace Dataset Integration - Quick Start Guide
+# HuggingFace Dataset Integration - Quick Start Guide
 
-## 📋 Overview
+## Overview
 
 You now have **3 new files** to push your 1.9M+ nonprofit datasets to HuggingFace and query them from React:
 
@@ -15,7 +15,7 @@ You now have **3 new files** to push your 1.9M+ nonprofit datasets to HuggingFac
 
 ---
 
-## ⚡ Quick Start (5 Steps)
+## Quick Start (5 Steps)
 
 ### Step 1: Get HuggingFace Token
 
@@ -54,15 +54,15 @@ cd /home/developer/projects/open-navigator
 python -m hosting.huggingface nonprofits
 
 # Output:
-# ✅ Logged in to Hugging Face
-# ✅ Repository ready: https://huggingface.co/datasets/CommunityOne/one-nonprofits
-# 📤 Uploading organizations from data/gold/nonprofits_organizations.parquet
-#   Rows: 1,952,238
-#   Columns: 28
-#   Size: 156.43 MB
-# ✅ Uploaded organizations: 1,952,238 records
+# Yes Logged in to Hugging Face
+# Yes Repository ready: https://huggingface.co/datasets/CommunityOne/one-nonprofits
+# Uploading organizations from data/gold/nonprofits_organizations.parquet
+# Rows: 1,952,238
+# Columns: 28
+# Size: 156.43 MB
+# Yes Uploaded organizations: 1,952,238 records
 # ... (uploads financials, programs, locations)
-# 🎉 All uploads complete!
+# All uploads complete!
 ```
 
 **What gets uploaded:**
@@ -84,28 +84,28 @@ curl "https://datasets-server.huggingface.co/search?dataset=CommunityOne/one-non
 Expected response:
 ```json
 {
-  "features": [...],
-  "rows": [
-    {
-      "row_idx": 0,
-      "row": {
-        "ein": "630123456",
-        "name": "ALABAMA DENTAL ASSOCIATION",
-        "city": "MONTGOMERY",
-        "state": "AL",
-        "ntee_code": "E12",
-        ...
-      }
-    }
-  ],
-  "num_rows_total": 1952238,
-  "num_rows_per_page": 100
+ "features": [...],
+ "rows": [
+ {
+ "row_idx": 0,
+ "row": {
+ "ein": "630123456",
+ "name": "ALABAMA DENTAL ASSOCIATION",
+ "city": "MONTGOMERY",
+ "state": "AL",
+ "ntee_code": "E12",
+ ...
+ }
+ }
+ ],
+ "num_rows_total": 1952238,
+ "num_rows_per_page": 100
 }
 ```
 
 ---
 
-## 🌐 Using in React
+## Using in React
 
 ### Option A: Replace Current Nonprofits Page
 
@@ -140,7 +140,7 @@ npm run dev
 
 ---
 
-## 🔍 Query Examples
+## Query Examples
 
 ### Python
 
@@ -179,11 +179,11 @@ import { searchNonprofits } from '../utils/huggingface'
 
 // Search for dental orgs in California
 const results = await searchNonprofits({
-  dataset: "CommunityOne/one-nonprofits",
-  query: "dental",
-  state: "CA",
-  nteeCode: "E",
-  limit: 100
+ dataset: "CommunityOne/one-nonprofits",
+ query: "dental",
+ state: "CA",
+ nteeCode: "E",
+ limit: 100
 })
 
 console.log(`Found ${results.length} dental orgs in California`)
@@ -204,7 +204,7 @@ curl "https://datasets-server.huggingface.co/size?dataset=CommunityOne/one-nonpr
 
 ---
 
-## 📊 What's in the Dataset?
+## What's in the Dataset?
 
 ### organizations (main table)
 - **Records:** 1,952,238
@@ -224,31 +224,31 @@ curl "https://datasets-server.huggingface.co/size?dataset=CommunityOne/one-nonpr
 
 ---
 
-## 🎯 Key Features
+## Key Features
 
-### ✅ FREE
+### Yes FREE
 - **Unlimited storage** (public datasets)
 - **No authentication** required for reading
 - **Free bandwidth** and API calls
 
-### ✅ FAST
+### Yes FAST
 - **CDN-backed** by HuggingFace
 - **Automatic caching**
 - **Pagination** built-in (100 rows max per request)
 
-### ✅ SEARCHABLE
+### Yes SEARCHABLE
 - **Full-text search** included
 - **Filter by columns** (state, NTEE code, etc.)
 - **REST API** - works from any language
 
-### ✅ SCALABLE
+### Yes SCALABLE
 - **1.9M+ records** available instantly
 - **No database** setup required
 - **Global availability**
 
 ---
 
-## 🛠️ Customization
+## Customization
 
 ### Change Dataset Name
 
@@ -275,7 +275,7 @@ const DATASET_NAME = "your-username/nonprofits"
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 ### Full Guide
 - **Location:** `website/docs/guides/huggingface-datasets.md`
@@ -292,7 +292,7 @@ const DATASET_NAME = "your-username/nonprofits"
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Error: "Hugging Face token required"
 
@@ -323,24 +323,24 @@ python scripts/create_all_gold_tables.py --nonprofits-only --use-irs --download-
 
 ---
 
-## 🎉 Next Steps
+## Next Steps
 
 1. **Upload datasets:** `python -m hosting.huggingface nonprofits`
 2. **Test API:** Visit https://huggingface.co/datasets/CommunityOne/one-nonprofits
 3. **Update React app:** Use `NonprofitsHF.tsx` example
 4. **Add features:**
-   - Map visualization with locations table
-   - Financial charts with financials table
-   - Advanced filters (subsection_code, foundation_code)
-   - Autocomplete search
-   - Export to CSV
+ - Map visualization with locations table
+ - Financial charts with financials table
+ - Advanced filters (subsection_code, foundation_code)
+ - Autocomplete search
+ - Export to CSV
 
 ---
 
-## 📧 Support
+## Support
 
 - **Documentation:** `website/docs/guides/huggingface-datasets.md`
 - **HuggingFace Support:** https://discuss.huggingface.co
 - **IRS EO-BMF Guide:** `website/docs/data-sources/irs-bulk-data.md`
 
-**Happy querying! 🚀**
+**Happy querying! **

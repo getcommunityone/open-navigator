@@ -11,36 +11,36 @@ This guide shows how to replace `scripts/datasources/gemini/load_meeting_transcr
 ## Why Migrate to dbt?
 
 **Current approach (Python):**
-- ❌ Separate tool/language from main transformation pipeline
-- ❌ Manual UPSERT logic with psycopg2
-- ❌ Harder to track lineage
-- ❌ No built-in testing framework
+- No Separate tool/language from main transformation pipeline
+- No Manual UPSERT logic with psycopg2
+- No Harder to track lineage
+- No No built-in testing framework
 
 **dbt approach:**
-- ✅ Single tool for all transformations
-- ✅ SQL-based JSONB extraction (simpler to maintain)
-- ✅ Incremental processing built-in
-- ✅ Automatic lineage tracking
-- ✅ Built-in testing and documentation
-- ✅ Version control friendly
+- Yes Single tool for all transformations
+- Yes SQL-based JSONB extraction (simpler to maintain)
+- Yes Incremental processing built-in
+- Yes Automatic lineage tracking
+- Yes Built-in testing and documentation
+- Yes Version control friendly
 
 ## What CAN Be Migrated
 
-✅ **`load_meeting_transcripts_bronze.py`** - JSONB extraction to bronze tables
-   - bronze_contacts
-   - bronze_decisions
-   - bronze_topics
-   - bronze_organizations_meetings
-   - bronze_bills
-   - bronze_causes
-   - bronze_financial_items
+Yes **`load_meeting_transcripts_bronze.py`** - JSONB extraction to bronze tables
+ - bronze_contacts
+ - bronze_decisions
+ - bronze_topics
+ - bronze_organizations_meetings
+ - bronze_bills
+ - bronze_causes
+ - bronze_financial_items
 
 ## What CANNOT Be Migrated
 
-❌ **`load_meeting_transcripts.py`** - Calls Gemini API (data loading, not transformation)
-❌ **`check_models_used.py`** - Reporting script
-❌ **`analyze_with_multi_models.py`** - Calls Gemini API
-❌ **`migrations/cleanup_null_records.py`** - One-time migration
+No **`load_meeting_transcripts.py`** - Calls Gemini API (data loading, not transformation)
+No **`check_models_used.py`** - Reporting script
+No **`analyze_with_multi_models.py`** - Calls Gemini API
+No **`migrations/cleanup_null_records.py`** - One-time migration
 
 ## Migration Steps
 
@@ -53,40 +53,40 @@ Created example models (see `models/bronze/`):
 Pattern for other tables:
 ```sql
 {{
-  config(
-    materialized='incremental',
-    unique_key='source_event_id_<entity>_id',
-    schema='bronze',
-    tags=['bronze', 'incremental', 'ai-extraction']
-  )
+ config(
+ materialized='incremental',
+ unique_key='source_event_id_<entity>_id',
+ schema='bronze',
+ tags=['bronze', 'incremental', 'ai-extraction']
+ )
 }}
 
 WITH source_events AS (
-    SELECT 
-        id as event_id,
-        structured_analysis,
-        ai_model,
-        created_at
-    FROM {{ source('bronze', 'bronze_events_analysis_ai') }}
-    WHERE structured_analysis IS NOT NULL
-    
-    {% if is_incremental() %}
-        AND created_at > (SELECT MAX(extracted_at) FROM {{ this }})
-    {% endif %}
+ SELECT
+ id as event_id,
+ structured_analysis,
+ ai_model,
+ created_at
+ FROM {{ source('bronze', 'bronze_events_analysis_ai') }}
+ WHERE structured_analysis IS NOT NULL
+
+ {% if is_incremental() %}
+ AND created_at > (SELECT MAX(extracted_at) FROM {{ this }})
+ {% endif %}
 ),
 
 entities_unnested AS (
-    SELECT 
-        event_id,
-        ai_model,
-        jsonb_array_elements(structured_analysis->'<entity_key>') as entity_data,
-        created_at as extracted_at
-    FROM source_events
-    WHERE structured_analysis ? '<entity_key>'
+ SELECT
+ event_id,
+ ai_model,
+ jsonb_array_elements(structured_analysis->'<entity_key>') as entity_data,
+ created_at as extracted_at
+ FROM source_events
+ WHERE structured_analysis ? '<entity_key>'
 )
 
 SELECT
-    -- Extract fields from JSONB...
+ -- Extract fields from JSONB...
 FROM entities_unnested
 ```
 
@@ -158,18 +158,18 @@ dbt run --select tag:ai-extraction
 jsonb_array_elements(structured_analysis->'people') as person_data
 
 -- Get fields
-person_data->>'full_name' as full_name  -- Text
-person_data->>'is_lobbyist' as is_lobbyist  -- Still text, cast later
-(person_data->>'is_lobbyist')::boolean  -- Cast to boolean
+person_data->>'full_name' as full_name -- Text
+person_data->>'is_lobbyist' as is_lobbyist -- Still text, cast later
+(person_data->>'is_lobbyist')::boolean -- Cast to boolean
 ```
 
 ### Nested JSONB (Keep as JSONB)
 
 ```sql
 -- Keep complex structures as JSONB
-person_data->'lobbyist_clients' as lobbyist_clients,  -- JSONB
-decision_data->'vote_tally' as vote_tally,  -- JSONB
-decision_data->'frame_analysis' as frame_analysis  -- JSONB
+person_data->'lobbyist_clients' as lobbyist_clients, -- JSONB
+decision_data->'vote_tally' as vote_tally, -- JSONB
+decision_data->'frame_analysis' as frame_analysis -- JSONB
 ```
 
 ### Date/Numeric Casting
@@ -200,7 +200,7 @@ dbt will:
 
 ```sql
 {% if is_incremental() %}
-    AND created_at > (SELECT MAX(extracted_at) FROM {{ this }})
+ AND created_at > (SELECT MAX(extracted_at) FROM {{ this }})
 {% endif %}
 ```
 
@@ -210,20 +210,20 @@ Add tests in `_bronze.yml`:
 
 ```yaml
 models:
-  - name: bronze_contacts_from_ai
-    description: "Contacts extracted from Gemini AI analysis JSONB"
-    tests:
-      - dbt_utils.recency:
-          datepart: day
-          field: extracted_at
-          interval: 7
-    columns:
-      - name: person_id
-        tests:
-          - not_null
-      - name: full_name
-        tests:
-          - not_null
+ - name: bronze_contacts_from_ai
+ description: "Contacts extracted from Gemini AI analysis JSONB"
+ tests:
+ - dbt_utils.recency:
+ datepart: day
+ field: extracted_at
+ interval: 7
+ columns:
+ - name: person_id
+ tests:
+ - not_null
+ - name: full_name
+ tests:
+ - not_null
 ```
 
 ## Performance
@@ -245,7 +245,7 @@ If needed, can run both in parallel:
 ```bash
 # Old way (Python)
 python scripts/datasources/gemini/load_meeting_transcripts_bronze.py \
-  --table bronze_contacts_python
+ --table bronze_contacts_python
 
 # New way (dbt)
 dbt run --select bronze_contacts_from_ai
@@ -257,13 +257,13 @@ psql -c "SELECT COUNT(*) FROM bronze.bronze_contacts_from_ai"
 
 ## Next Steps
 
-1. ✅ Review example models (`bronze_contacts_from_ai.sql`, `bronze_decisions_from_ai.sql`)
+1. Yes Review example models (`bronze_contacts_from_ai.sql`, `bronze_decisions_from_ai.sql`)
 2. Create remaining bronze models:
-   - `bronze_topics_from_ai.sql`
-   - `bronze_organizations_meetings_from_ai.sql`
-   - `bronze_bills_from_ai.sql`
-   - `bronze_causes_from_ai.sql`
-   - `bronze_financial_items_from_ai.sql`
+ - `bronze_topics_from_ai.sql`
+ - `bronze_organizations_meetings_from_ai.sql`
+ - `bronze_bills_from_ai.sql`
+ - `bronze_causes_from_ai.sql`
+ - `bronze_financial_items_from_ai.sql`
 3. Update staging models to reference new dbt models
 4. Test incremental runs
 5. Deprecate Python extraction script

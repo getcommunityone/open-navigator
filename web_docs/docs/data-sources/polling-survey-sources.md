@@ -7,7 +7,7 @@ displayed_sidebar: developersSidebar
 
 Scientifically validated survey questions and public opinion data for defining advocacy topics, measuring sentiment, and tracking policy preferences. Essential for understanding how to frame issues, craft effective messaging, and measure public support.
 
-## 📊 Data Scale & Coverage
+## Data Scale & Coverage
 
 | Data Type | Source | Coverage | Cost |
 |-----------|--------|----------|------|
@@ -17,12 +17,12 @@ Scientifically validated survey questions and public opinion data for defining a
 
 ---
 
-## 🗳️ Primary Data Source
+## Primary Data Source
 
-### Roper Center for Public Opinion Research (Cornell) ⭐ **Most Authoritative**
+### Roper Center for Public Opinion Research (Cornell) **Most Authoritative**
 
-**Organization:** Cornell University  
-**URL:** https://ropercenter.cornell.edu/  
+**Organization:** Cornell University
+**URL:** https://ropercenter.cornell.edu/
 **Search Tool:** https://ropercenter.cornell.edu/ipoll/ (iPoll Database)
 
 **What It Contains:**
@@ -35,23 +35,23 @@ Scientifically validated survey questions and public opinion data for defining a
 - **Polling organizations** - Gallup, Pew, Harris, NBC/WSJ, AP, and 100+ others
 
 **Coverage:**
-- ✅ **Health policy topics** - Healthcare access, vaccination, fluoridation, public health
-- ✅ **Education** - School funding, curriculum, standardized testing
-- ✅ **Local government** - Municipal services, tax policy, bond measures
-- ✅ **Social issues** - Immigration, environment, criminal justice
-- ✅ **Demographics** - Results broken down by key characteristics
-- ✅ **Geographic scope** - National, state, and some local surveys
+- Yes **Health policy topics** - Healthcare access, vaccination, fluoridation, public health
+- Yes **Education** - School funding, curriculum, standardized testing
+- Yes **Local government** - Municipal services, tax policy, bond measures
+- Yes **Social issues** - Immigration, environment, criminal justice
+- Yes **Demographics** - Results broken down by key characteristics
+- Yes **Geographic scope** - National, state, and some local surveys
 
 **Access Levels:**
 
 | Feature | Free (iPoll Search) | Institutional Access |
 |---------|--------------------|--------------------|
-| **Search metadata** | ✅ Yes | ✅ Yes |
-| **View question wording** | ✅ Yes | ✅ Yes |
-| **See top-line results** | ✅ Yes (many surveys) | ✅ Yes |
-| **Download datasets** | ❌ No | ✅ Yes |
-| **Cross-tabs** | ⚠️ Limited | ✅ Yes |
-| **API access** | ❌ No | ❌ No |
+| **Search metadata** | Yes Yes | Yes Yes |
+| **View question wording** | Yes Yes | Yes Yes |
+| **See top-line results** | Yes Yes (many surveys) | Yes Yes |
+| **Download datasets** | No No | Yes Yes |
+| **Cross-tabs** | Warning Limited | Yes Yes |
+| **API access** | No No | No No |
 
 **Why We Use It:**
 > "The Roper Center iPoll database provides scientifically validated question wording for hundreds of policy topics. When defining advocacy topics like 'water fluoridation' or 'school dental screenings,' you can use proven question phrasing that has been tested on thousands of respondents."
@@ -76,13 +76,13 @@ Date: March 2015
 Sample Size: 1,024 adults
 Margin of Error: +/- 4%
 Results:
-  - Favor: 67%
-  - Oppose: 28%
-  - No opinion: 5%
+ - Favor: 67%
+ - Oppose: 28%
+ - No opinion: 5%
 
 Question Variants:
-  - "Some communities add fluoride to drinking water to prevent tooth decay. Do you think this is a good idea or a bad idea?"
-  - "How important is water fluoridation to you: very important, somewhat important, not too important, or not at all important?"
+ - "Some communities add fluoride to drinking water to prevent tooth decay. Do you think this is a good idea or a bad idea?"
+ - "How important is water fluoridation to you: very important, somewhat important, not too important, or not at all important?"
 ```
 
 **How We Use It:**
@@ -90,50 +90,50 @@ Question Variants:
 ```python
 # Example: Populate topic definitions with validated questions
 def extract_roper_questions(topic_keyword):
-    """
-    Manual process (no API):
-    1. Search iPoll: https://ropercenter.cornell.edu/ipoll/
-    2. Filter by topic keyword (e.g., "fluoridation")
-    3. Review top 10-20 question variants
-    4. Extract best question wording for topic definition
-    """
-    
-    # Output format for topic_definitions
-    topic_definition = {
-        'topic_id': 'fluoridation_support',
-        'topic_name': 'Water Fluoridation Support',
-        'category': 'health_policy',
-        'description': 'Public opinion on community water fluoridation',
-        
-        # Scientifically validated question wording from Roper
-        'survey_questions': [
-            {
-                'question_text': 'Do you favor or oppose adding fluoride to your community\'s water supply?',
-                'question_type': 'favor_oppose',
-                'response_options': ['Favor', 'Oppose', 'No opinion'],
-                'source': 'Gallup Poll, March 2015',
-                'sample_size': 1024,
-                'national_support': 67.0,  # percentage
-                'roper_id': 'USGALLUP.031915.R12A'
-            },
-            {
-                'question_text': 'How important is water fluoridation to you: very important, somewhat important, not too important, or not at all important?',
-                'question_type': 'importance_scale',
-                'response_options': ['Very important', 'Somewhat important', 'Not too important', 'Not at all important'],
-                'source': 'Pew Research Center, 2019',
-                'sample_size': 2002,
-                'roper_id': 'USPEW.092319.R08'
-            }
-        ],
-        
-        # Keywords for meeting/legislation matching
-        'keywords': 'fluoride, fluoridation, water treatment, dental health, public health',
-        'priority_level': 8,
-        'icon': '🦷',
-        'jurisdiction_count': 0  # To be calculated
-    }
-    
-    return topic_definition
+ """
+ Manual process (no API):
+ 1. Search iPoll: https://ropercenter.cornell.edu/ipoll/
+ 2. Filter by topic keyword (e.g., "fluoridation")
+ 3. Review top 10-20 question variants
+ 4. Extract best question wording for topic definition
+ """
+
+ # Output format for topic_definitions
+ topic_definition = {
+ 'topic_id': 'fluoridation_support',
+ 'topic_name': 'Water Fluoridation Support',
+ 'category': 'health_policy',
+ 'description': 'Public opinion on community water fluoridation',
+
+ # Scientifically validated question wording from Roper
+ 'survey_questions': [
+ {
+ 'question_text': 'Do you favor or oppose adding fluoride to your community\'s water supply?',
+ 'question_type': 'favor_oppose',
+ 'response_options': ['Favor', 'Oppose', 'No opinion'],
+ 'source': 'Gallup Poll, March 2015',
+ 'sample_size': 1024,
+ 'national_support': 67.0, # percentage
+ 'roper_id': 'USGALLUP.031915.R12A'
+ },
+ {
+ 'question_text': 'How important is water fluoridation to you: very important, somewhat important, not too important, or not at all important?',
+ 'question_type': 'importance_scale',
+ 'response_options': ['Very important', 'Somewhat important', 'Not too important', 'Not at all important'],
+ 'source': 'Pew Research Center, 2019',
+ 'sample_size': 2002,
+ 'roper_id': 'USPEW.092319.R08'
+ }
+ ],
+
+ # Keywords for meeting/legislation matching
+ 'keywords': 'fluoride, fluoridation, water treatment, dental health, public health',
+ 'priority_level': 8,
+ 'icon': '',
+ 'jurisdiction_count': 0 # To be calculated
+ }
+
+ return topic_definition
 ```
 
 **Data Model Integration:**
@@ -141,30 +141,30 @@ def extract_roper_questions(topic_keyword):
 ```sql
 -- Add survey question reference fields to POLICY_TOPIC
 ALTER TABLE policy_topics ADD COLUMN validated_question_text TEXT;
-ALTER TABLE policy_topics ADD COLUMN question_source TEXT;  -- e.g., "Gallup 2015"
-ALTER TABLE policy_topics ADD COLUMN national_support_pct FLOAT;  -- Baseline opinion
-ALTER TABLE policy_topics ADD COLUMN roper_ipoll_id TEXT;  -- Reference ID
+ALTER TABLE policy_topics ADD COLUMN question_source TEXT; -- e.g., "Gallup 2015"
+ALTER TABLE policy_topics ADD COLUMN national_support_pct FLOAT; -- Baseline opinion
+ALTER TABLE policy_topics ADD COLUMN roper_ipoll_id TEXT; -- Reference ID
 
 -- Example record
 INSERT INTO policy_topics VALUES (
-    'fluoridation_support',
-    'Water Fluoridation Support',
-    'health_policy',
-    'Public opinion on community water fluoridation',
-    'fluoride, fluoridation, water treatment',
-    8,  -- priority
-    '🦷',
-    0,
-    'Do you favor or oppose adding fluoride to your community''s water supply?',
-    'Gallup Poll, March 2015',
-    67.0,  -- 67% national support
-    'USGALLUP.031915.R12A'
+ 'fluoridation_support',
+ 'Water Fluoridation Support',
+ 'health_policy',
+ 'Public opinion on community water fluoridation',
+ 'fluoride, fluoridation, water treatment',
+ 8, -- priority
+ '',
+ 0,
+ 'Do you favor or oppose adding fluoride to your community''s water supply?',
+ 'Gallup Poll, March 2015',
+ 67.0, -- 67% national support
+ 'USGALLUP.031915.R12A'
 );
 ```
 
 ---
 
-## 🎯 Use Cases for Open Navigator
+## Use Cases for Open Navigator
 
 ### 1. **Define Advocacy Topics with Scientific Precision**
 
@@ -188,18 +188,18 @@ INSERT INTO policy_topics VALUES (
 **Example:**
 ```python
 # National baseline from Roper iPoll
-national_support = 67.0  # % who favor fluoridation (Gallup 2015)
+national_support = 67.0 # % who favor fluoridation (Gallup 2015)
 
 # Local meeting sentiment from Open Navigator AI
 local_meeting_sentiment = analyze_meeting_minutes(
-    jurisdiction='ocd-division/country:us/state:nc/place:cary',
-    topic='fluoridation'
+ jurisdiction='ocd-division/country:us/state:nc/place:cary',
+ topic='fluoridation'
 )
 
 # Compare
 if local_meeting_sentiment['support_pct'] < national_support - 10:
-    alert_advocates(f"Cary support ({local_meeting_sentiment['support_pct']}%) is 
-    significantly below national average ({national_support}%)")
+ alert_advocates(f"Cary support ({local_meeting_sentiment['support_pct']}%) is
+ significantly below national average ({national_support}%)")
 ```
 
 **Benefit:** Identify jurisdictions where advocacy is most needed
@@ -250,7 +250,7 @@ Trend: Declining support (-8% over 58 years)
 
 ---
 
-## 🔄 Manual Data Collection Workflow
+## Manual Data Collection Workflow
 
 Since Roper iPoll has no API, data collection is manual:
 
@@ -259,18 +259,18 @@ Since Roper iPoll has no API, data collection is manual:
 1. Visit https://ropercenter.cornell.edu/ipoll/
 2. Enter search term: `fluoridation` or `dental health`
 3. Apply filters:
-   - **Date range:** Last 10 years
-   - **Geography:** United States
-   - **Topic:** Health policy
+ - **Date range:** Last 10 years
+ - **Geography:** United States
+ - **Topic:** Health policy
 
 ### Step 2: Review Results
 
 For each relevant survey:
-- ✅ Note exact question wording
-- ✅ Record response options
-- ✅ Copy top-line percentages
-- ✅ Note organization, date, sample size
-- ✅ Save Roper ID (e.g., `USGALLUP.031915.R12A`)
+- Yes Note exact question wording
+- Yes Record response options
+- Yes Copy top-line percentages
+- Yes Note organization, date, sample size
+- Yes Save Roper ID (e.g., `USGALLUP.031915.R12A`)
 
 ### Step 3: Create Topic Definition
 
@@ -279,26 +279,26 @@ import pandas as pd
 
 # Manually create records from iPoll search
 topic_definitions = [
-    {
-        'topic_id': 'fluoridation_support',
-        'topic_name': 'Water Fluoridation Support',
-        'validated_question': 'Do you favor or oppose adding fluoride to your community\'s water supply?',
-        'question_source': 'Gallup Poll, March 2015',
-        'national_support': 67.0,
-        'roper_id': 'USGALLUP.031915.R12A',
-        'keywords': 'fluoride, fluoridation, water treatment',
-        'category': 'health_policy'
-    },
-    {
-        'topic_id': 'school_funding_support',
-        'topic_name': 'Increased School Funding',
-        'validated_question': 'Do you favor or oppose increasing funding for public schools in your area?',
-        'question_source': 'Pew Research, 2022',
-        'national_support': 78.0,
-        'roper_id': 'USPEW.092222.R15',
-        'keywords': 'education, funding, budget, schools',
-        'category': 'education_policy'
-    }
+ {
+ 'topic_id': 'fluoridation_support',
+ 'topic_name': 'Water Fluoridation Support',
+ 'validated_question': 'Do you favor or oppose adding fluoride to your community\'s water supply?',
+ 'question_source': 'Gallup Poll, March 2015',
+ 'national_support': 67.0,
+ 'roper_id': 'USGALLUP.031915.R12A',
+ 'keywords': 'fluoride, fluoridation, water treatment',
+ 'category': 'health_policy'
+ },
+ {
+ 'topic_id': 'school_funding_support',
+ 'topic_name': 'Increased School Funding',
+ 'validated_question': 'Do you favor or oppose increasing funding for public schools in your area?',
+ 'question_source': 'Pew Research, 2022',
+ 'national_support': 78.0,
+ 'roper_id': 'USPEW.092222.R15',
+ 'keywords': 'education, funding, budget, schools',
+ 'category': 'education_policy'
+ }
 ]
 
 # Save to gold layer
@@ -316,17 +316,17 @@ Reference validated questions when:
 
 ---
 
-## 📊 Data Availability Summary
+## Data Availability Summary
 
 | Feature | Free Access | Institutional Access |
 |---------|-------------|---------------------|
-| **Search 500K+ questions** | ✅ Yes | ✅ Yes |
-| **View question wording** | ✅ Yes | ✅ Yes |
-| **See methodology** | ✅ Yes | ✅ Yes |
-| **Top-line results** | ✅ Many surveys | ✅ All surveys |
-| **Download raw data** | ❌ No | ✅ Yes |
-| **API access** | ❌ No API | ❌ No API |
-| **Cross-tabulations** | ⚠️ Limited | ✅ Full |
+| **Search 500K+ questions** | Yes Yes | Yes Yes |
+| **View question wording** | Yes Yes | Yes Yes |
+| **See methodology** | Yes Yes | Yes Yes |
+| **Top-line results** | Yes Many surveys | Yes All surveys |
+| **Download raw data** | No No | Yes Yes |
+| **API access** | No No API | No No API |
+| **Cross-tabulations** | Warning Limited | Yes Full |
 
 **Recommendation:**
 - Use **free iPoll search** for topic definitions and question wording
@@ -336,27 +336,27 @@ Reference validated questions when:
 
 ---
 
-## 🔗 Integration with Data Model
+## Integration with Data Model
 
 ### Updated POLICY_TOPIC Entity
 
 ```mermaid
 erDiagram
-    POLICY_TOPIC {
-        string topic_id PK
-        string topic_name "Water Fluoridation Support"
-        string category "health_policy"
-        string description "Public opinion on fluoridation"
-        string keywords "fluoride, water treatment"
-        int priority_level "1-10 importance ranking"
-        string icon "🦷"
-        int jurisdiction_count "How many jurisdictions discuss this"
-        string validated_question_text "Scientifically tested question"
-        string question_source "Gallup Poll, March 2015"
-        float national_support_pct "67.0 (percentage)"
-        string roper_ipoll_id "USGALLUP.031915.R12A"
-        datetime created_at
-    }
+ POLICY_TOPIC {
+ string topic_id PK
+ string topic_name "Water Fluoridation Support"
+ string category "health_policy"
+ string description "Public opinion on fluoridation"
+ string keywords "fluoride, water treatment"
+ int priority_level "1-10 importance ranking"
+ string icon ""
+ int jurisdiction_count "How many jurisdictions discuss this"
+ string validated_question_text "Scientifically tested question"
+ string question_source "Gallup Poll, March 2015"
+ float national_support_pct "67.0 (percentage)"
+ string roper_ipoll_id "USGALLUP.031915.R12A"
+ datetime created_at
+ }
 ```
 
 **New Fields:**
@@ -367,7 +367,7 @@ erDiagram
 
 ---
 
-## 🚀 Implementation Roadmap
+## Implementation Roadmap
 
 ### Phase 1: Manual Topic Definition (Current Priority)
 - [ ] Search Roper iPoll for top 10 advocacy causes
@@ -395,7 +395,7 @@ erDiagram
 
 ---
 
-## 📚 References & Credits
+## References & Credits
 
 ### Official Source
 - **Roper Center for Public Opinion Research** - Cornell University
@@ -419,7 +419,7 @@ Accessed: [Date]
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Have experience with other public opinion data sources? Please contribute!
 
@@ -431,46 +431,46 @@ Have experience with other public opinion data sources? Please contribute!
 
 ---
 
-## 💡 Pro Tips
+## Pro Tips
 
 ### Best Practices for Using iPoll
 
 1. **Start broad, then narrow**
-   - Search general terms first ("health", "education")
-   - Use filters to refine by date, geography, topic
+ - Search general terms first ("health", "education")
+ - Use filters to refine by date, geography, topic
 
 2. **Compare question variants**
-   - Same topic can be phrased many ways
-   - Look for wording with highest support
-   - Note subtle differences in framing
+ - Same topic can be phrased many ways
+ - Look for wording with highest support
+ - Note subtle differences in framing
 
 3. **Check methodology**
-   - Sample size: 800+ for national surveys
-   - Margin of error: under 5% preferred
-   - Random sampling preferred
+ - Sample size: 800+ for national surveys
+ - Margin of error: under 5% preferred
+ - Random sampling preferred
 
 4. **Track polling organization**
-   - Gallup, Pew, Harris = gold standard
-   - Partisan pollsters may have bias
-   - Academic surveys most neutral
+ - Gallup, Pew, Harris = gold standard
+ - Partisan pollsters may have bias
+ - Academic surveys most neutral
 
 5. **Note question order effects**
-   - Earlier questions influence later responses
-   - Check if sensitive topic was primed
-   - Prefer standalone questions
+ - Earlier questions influence later responses
+ - Check if sensitive topic was primed
+ - Prefer standalone questions
 
 ### Question Wording Principles
 
 From analysis of 500K+ iPoll questions:
 
-✅ **Good Question Wording:**
+Yes **Good Question Wording:**
 - Neutral, balanced language
 - Clear, simple terms (8th-grade reading level)
 - Avoids loaded words ("dangerous", "unfair")
 - Provides context when needed
 - Binary or 4-5 point scales
 
-❌ **Avoid:**
+No **Avoid:**
 - Leading questions ("Don't you think...")
 - Double-barreled questions (asking two things)
 - Jargon or technical terms
@@ -479,7 +479,7 @@ From analysis of 500K+ iPoll questions:
 
 ---
 
-## 🔍 Example: Complete Workflow
+## Example: Complete Workflow
 
 ### Goal: Define "School Dental Screenings" Topic
 
@@ -501,15 +501,15 @@ Very important: 58%, Somewhat important: 31%, Not important: 11%
 **Step 3:** Create topic definition:
 ```python
 {
-    'topic_id': 'school_dental_screenings',
-    'topic_name': 'School Dental Screenings',
-    'validated_question': 'Should public schools be required to provide dental screenings for all students?',
-    'question_source': 'Kaiser Family Foundation, 2018',
-    'national_support': 72.0,
-    'roper_id': 'USKFF.051818.R22',
-    'keywords': 'dental, screenings, oral health, schools, children',
-    'category': 'health_policy',
-    'priority_level': 9
+ 'topic_id': 'school_dental_screenings',
+ 'topic_name': 'School Dental Screenings',
+ 'validated_question': 'Should public schools be required to provide dental screenings for all students?',
+ 'question_source': 'Kaiser Family Foundation, 2018',
+ 'national_support': 72.0,
+ 'roper_id': 'USKFF.051818.R22',
+ 'keywords': 'dental, screenings, oral health, schools, children',
+ 'category': 'health_policy',
+ 'priority_level': 9
 }
 ```
 

@@ -8,16 +8,16 @@ sidebar_position: 8
 
 This guide shows how to run **Llama 4** at "NVIDIA-like speeds" on Intel Arc integrated graphics using DuckDB + VSS for fast legislative analysis.
 
-## 🎯 Why This Matters
+## Why This Matters
 
 If you're running on **Intel Core Ultra 7 165H** (or similar):
-- ✅ You have **Intel Arc Graphics** (integrated GPU)
-- ✅ You have an **NPU** (Neural Processing Unit) for AI workloads
-- ✅ With **64GB RAM**, you can handle massive context windows
+- Yes You have **Intel Arc Graphics** (integrated GPU)
+- Yes You have an **NPU** (Neural Processing Unit) for AI workloads
+- Yes With **64GB RAM**, you can handle massive context windows
 
 **Standard Ollama** defaults to CPU and runs slow. This guide fixes that.
 
-## 🚀 Hardware Setup
+## Hardware Setup
 
 ### Your System (Example)
 - **CPU**: Intel Core Ultra 7 165H
@@ -34,7 +34,7 @@ If you're running on **Intel Core Ultra 7 165H** (or similar):
 | **64GB RAM** | Context Window | Analyze 100+ page bills without "forgetting" |
 | **Intel NPU** | Background Tasks | Summarize daily updates while GPU handles heavy lifting |
 
-## 📦 Installation
+## Installation
 
 ### Step 1: Install Intel-Optimized Environment
 
@@ -63,7 +63,7 @@ import duckdb
 conn = duckdb.connect()
 conn.execute("INSTALL vss")
 conn.execute("LOAD vss")
-print("✅ VSS extension loaded!")
+print("Yes VSS extension loaded!")
 EOF
 ```
 
@@ -83,20 +83,20 @@ export IPEX_LLM_NUM_GPU=1
 export ONEAPI_DEVICE_SELECTOR=level_zero:0
 ```
 
-## 🔍 DuckDB + VSS Architecture
+## DuckDB + VSS Architecture
 
 ### Why DuckDB for Local AI?
 
 **Traditional Approach (Postgres):**
 ```
 LLM → Network → Postgres → Network → LLM
-  ↑_____________500-1000ms_____________↑
+ ↑_____________500-1000ms_____________↑
 ```
 
 **DuckDB Approach:**
 ```
 LLM → DuckDB (embedded) → LLM
-  ↑________20-50ms________↑
+ ↑________20-50ms________↑
 ```
 
 **10-50x faster context injection!**
@@ -114,31 +114,31 @@ conn.execute("LOAD vss")
 
 # Create table with embeddings
 conn.execute("""
-    CREATE TABLE bills (
-        bill_id VARCHAR,
-        title TEXT,
-        embedding FLOAT[384]  -- Sentence transformer
-    )
+ CREATE TABLE bills (
+ bill_id VARCHAR,
+ title TEXT,
+ embedding FLOAT[384] -- Sentence transformer
+ )
 """)
 
 # Create HNSW index
 conn.execute("""
-    CREATE INDEX bills_vss_idx 
-    ON bills USING HNSW (embedding)
+ CREATE INDEX bills_vss_idx
+ ON bills USING HNSW (embedding)
 """)
 
 # Fast vector search (< 20ms for 10K bills)
-query_embedding = [0.1, 0.2, ...]  # 384 dimensions
+query_embedding = [0.1, 0.2, ...] # 384 dimensions
 results = conn.execute("""
-    SELECT bill_id, title, 
-           array_distance(embedding, ?::FLOAT[384]) as distance
-    FROM bills
-    ORDER BY distance ASC
-    LIMIT 10
+ SELECT bill_id, title,
+ array_distance(embedding, ?::FLOAT[384]) as distance
+ FROM bills
+ ORDER BY distance ASC
+ LIMIT 10
 """, [query_embedding]).fetchall()
 ```
 
-## 🧠 LLM Inference with Intel Arc
+## LLM Inference with Intel Arc
 
 ### Option 1: OpenVINO (Recommended)
 
@@ -150,9 +150,9 @@ from transformers import AutoTokenizer
 
 # Load model optimized for Arc GPU
 model = OVModelForCausalLM.from_pretrained(
-    "meta-llama/Llama-3.2-3B-Instruct",
-    export=True,
-    device="GPU"  # Use Arc Graphics
+ "meta-llama/Llama-3.2-3B-Instruct",
+ export=True,
+ device="GPU" # Use Arc Graphics
 )
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-3B-Instruct")
@@ -176,7 +176,7 @@ model = llm.optimize(model, dtype=torch.bfloat16)
 
 # Inference uses Arc GPU automatically
 with torch.inference_mode():
-    outputs = model.generate(**inputs)
+ outputs = model.generate(**inputs)
 ```
 
 ### Option 3: Ollama (Intel Build)
@@ -199,63 +199,63 @@ ollama pull llama3.2
 ollama run llama3.2 "Analyze this bill..."
 ```
 
-**⚡ Performance Note:**
+** Performance Note:**
 - **Current Status**: Ollama llama3.2 is working but slow via subprocess (~2 min/bill)
 - **Recommended**: HuggingFace Transformers with Intel optimization (~30 sec/bill)
 - **Reason**: Direct library calls are 4x faster than subprocess communication
 - **Use Ollama for**: Quick testing and prototyping
 - **Use HuggingFace for**: Production batch processing
 
-## 🎯 Legislative Analysis Workflow
+## Legislative Analysis Workflow
 
 ### Full Pipeline Example
 
 ```python
 from scripts.legislative_analysis_intel import (
-    DuckDBLegislativeAnalyzer,
-    IntelOptimizedLLM,
-    InterestGroup
+ DuckDBLegislativeAnalyzer,
+ IntelOptimizedLLM,
+ InterestGroup
 )
 
 # 1. Initialize DuckDB analyzer
 with DuckDBLegislativeAnalyzer() as analyzer:
-    # 2. Get bill context (< 50ms)
-    bill = analyzer.get_bill_context("HB1234")
-    testimony = analyzer.get_all_testimony_for_bill("HB1234")
-    
-    # 3. Initialize Intel-optimized LLM
-    llm = IntelOptimizedLLM(model_name="meta-llama/Llama-3.2-3B-Instruct")
-    llm.load_model(use_openvino=True)  # Arc GPU
-    
-    # 4. Extract structured data
-    groups = llm.extract_interest_groups(bill, testimony)
-    
-    # 5. Results
-    for group in groups:
-        print(f"{group.group_name}: {group.stance} ({group.stance_score})")
-        print(f"  Tradeoffs: {group.tradeoff_notes}")
+ # 2. Get bill context (< 50ms)
+ bill = analyzer.get_bill_context("HB1234")
+ testimony = analyzer.get_all_testimony_for_bill("HB1234")
+
+ # 3. Initialize Intel-optimized LLM
+ llm = IntelOptimizedLLM(model_name="meta-llama/Llama-3.2-3B-Instruct")
+ llm.load_model(use_openvino=True) # Arc GPU
+
+ # 4. Extract structured data
+ groups = llm.extract_interest_groups(bill, testimony)
+
+ # 5. Results
+ for group in groups:
+ print(f"{group.group_name}: {group.stance} ({group.stance_score})")
+ print(f" Tradeoffs: {group.tradeoff_notes}")
 ```
 
 ### Output Schema
 
 ```json
 {
-  "groups": [
-    {
-      "group_name": "Alabama Dental Association",
-      "lobbyist": "John Smith",
-      "stance": "conditional",
-      "stance_score": 0.6,
-      "tradeoff_notes": "Support if Section 4 amended to include rural exemption",
-      "testimony_excerpt": "While we have concerns about Section 4...",
-      "bill_id": "HB1234",
-      "confidence": 0.85
-    }
-  ]
+ "groups": [
+ {
+ "group_name": "Alabama Dental Association",
+ "lobbyist": "John Smith",
+ "stance": "conditional",
+ "stance_score": 0.6,
+ "tradeoff_notes": "Support if Section 4 amended to include rural exemption",
+ "testimony_excerpt": "While we have concerns about Section 4...",
+ "bill_id": "HB1234",
+ "confidence": 0.85
+ }
+ ]
 }
 ```
 
-## 📊 Performance Benchmarks
+## Performance Benchmarks
 
 ### Context Injection Speed
 
@@ -273,7 +273,7 @@ with DuckDBLegislativeAnalyzer() as analyzer:
 | Llama 3.2 8B | 120 tok/s | 450 tok/s | N/A | **3.8x** |
 | Sentence Transformer | 45 sent/s | 380 sent/s | 120 sent/s | **8.4x** |
 
-## 🤗 Hugging Face Integration
+## Hugging Face Integration
 
 DuckDB works natively with Hugging Face datasets:
 
@@ -284,22 +284,22 @@ conn = duckdb.connect()
 
 # Query HF dataset directly (no download!)
 result = conn.execute("""
-    SELECT * FROM read_parquet(
-        'hf://datasets/CommunityOne/states-al-nonprofits-locations/data/train-*.parquet'
-    )
-    WHERE city = 'Birmingham'
-    LIMIT 100
+ SELECT * FROM read_parquet(
+ 'hf://datasets/CommunityOne/states-al-nonprofits-locations/data/train-*.parquet'
+ )
+ WHERE city = 'Birmingham'
+ LIMIT 100
 """).fetchdf()
 
 # Works with Dataset Viewer
 # Your Parquet files on HF are automatically searchable in the UI!
 ```
 
-## 🎓 Use Cases
+## Use Cases
 
 ### 1. Lobbyist Identification
 
-**Input**: Meeting testimony transcript  
+**Input**: Meeting testimony transcript
 **Output**: Named entities with roles
 
 ```python
@@ -315,37 +315,37 @@ lobbyists = [g for g in groups if g.lobbyist is not None]
 
 ### 2. Position Analysis
 
-**Input**: Bill text + testimony  
+**Input**: Bill text + testimony
 **Output**: Support/oppose scores with confidence
 
 ```python
 for group in groups:
-    if group.stance_score > 0.5:
-        print(f"✅ {group.group_name} SUPPORTS")
-    elif group.stance_score < -0.5:
-        print(f"❌ {group.group_name} OPPOSES")
-    else:
-        print(f"⚖️  {group.group_name} NEUTRAL/CONDITIONAL")
+ if group.stance_score > 0.5:
+ print(f"Yes {group.group_name} SUPPORTS")
+ elif group.stance_score < -0.5:
+ print(f"No {group.group_name} OPPOSES")
+ else:
+ print(f" {group.group_name} NEUTRAL/CONDITIONAL")
 ```
 
 ### 3. Tradeoff Detection
 
-**Input**: Testimony with conditional language  
+**Input**: Testimony with conditional language
 **Output**: Extracted compromises
 
 ```python
 conditional_groups = [
-    g for g in groups 
-    if g.stance == "conditional" and g.tradeoff_notes
+ g for g in groups
+ if g.stance == "conditional" and g.tradeoff_notes
 ]
 
 for group in conditional_groups:
-    print(f"{group.group_name}:")
-    print(f"  Position: {group.stance_score}")
-    print(f"  Concessions: {group.tradeoff_notes}")
+ print(f"{group.group_name}:")
+ print(f" Position: {group.stance_score}")
+ print(f" Concessions: {group.tradeoff_notes}")
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Issue: Slow inference on Arc GPU
 
@@ -353,7 +353,7 @@ for group in conditional_groups:
 
 ```bash
 # Check if OpenVINO is installed
-python3 -c "from optimum.intel import OVModelForCausalLM; print('✅ OpenVINO available')"
+python3 -c "from optimum.intel import OVModelForCausalLM; print('Yes OpenVINO available')"
 
 # If not, install:
 pip install optimum[openvino]
@@ -381,17 +381,17 @@ EOF
 model_name = "meta-llama/Llama-3.2-3B-Instruct"
 
 # Reduce context window
-testimony = testimony[:10]  # Only use top 10 most relevant
+testimony = testimony[:10] # Only use top 10 most relevant
 ```
 
-## 📚 Resources
+## Resources
 
 - **Intel Extension for PyTorch**: https://github.com/intel/intel-extension-for-pytorch
 - **OpenVINO**: https://docs.openvino.ai/
 - **DuckDB VSS**: https://duckdb.org/docs/extensions/vss
 - **Hugging Face + DuckDB**: https://huggingface.co/docs/datasets/use_with_duckdb
 
-## 🎯 Summary
+## Summary
 
 **For Data Engineering Managers:**
 

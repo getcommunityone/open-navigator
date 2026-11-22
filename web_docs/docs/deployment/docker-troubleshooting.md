@@ -2,7 +2,7 @@
 sidebar_position: 10
 ---
 
-# 🐛 Docker Build Troubleshooting Guide
+# Docker Build Troubleshooting Guide
 
 ## Testing Docker Build Locally
 
@@ -14,12 +14,12 @@ Before deploying to Hugging Face, always test the build locally:
 ```
 
 This script will:
-1. ✅ Build the Docker image
-2. ✅ Check image size (HF has 50GB limit)
-3. ✅ Start the container
-4. ✅ Wait for services to be ready
-5. ✅ Test all endpoints (/, /docs, /api/docs, /api/health)
-6. ✅ Show container logs
+1. Yes Build the Docker image
+2. Yes Check image size (HF has 50GB limit)
+3. Yes Start the container
+4. Yes Wait for services to be ready
+5. Yes Test all endpoints (/, /docs, /api/docs, /api/health)
+6. Yes Show container logs
 
 ## Common Build Failures
 
@@ -37,8 +37,8 @@ This script will:
 ```dockerfile
 # Increase timeouts in Dockerfile.huggingface
 RUN npm config set fetch-retry-mintimeout 20000 && \
-    npm config set fetch-retry-maxtimeout 120000 && \
-    npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit
+ npm config set fetch-retry-maxtimeout 120000 && \
+ npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit
 ```
 
 **Test locally:**
@@ -90,10 +90,10 @@ pip install -r requirements.txt
 Check system dependencies in Dockerfile:
 ```dockerfile
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    tesseract-ocr \
-    # Add missing dependencies here
-    && rm -rf /var/lib/apt/lists/*
+ build-essential \
+ tesseract-ocr \
+ # Add missing dependencies here
+ && rm -rf /var/lib/apt/lists/*
 ```
 
 ### 4. **Image Size Too Large**
@@ -200,9 +200,9 @@ The `--progress=plain` flag shows detailed output.
 
 ```bash
 docker run -it --rm \
-  -p 7860:7860 \
-  --entrypoint /bin/bash \
-  test-build
+ -p 7860:7860 \
+ --entrypoint /bin/bash \
+ test-build
 ```
 
 Then manually run commands:
@@ -314,27 +314,27 @@ pip install -U package-name
 ## Getting Help
 
 1. **Check HF Build Logs:**
-   - Go to your Space
-   - Click "Logs" tab
-   - Look for error messages
+ - Go to your Space
+ - Click "Logs" tab
+ - Look for error messages
 
 2. **Test Locally First:**
-   ```bash
-   ./test-huggingface-build.sh
-   ```
+ ```bash
+ ./test-huggingface-build.sh
+ ```
 
 3. **Compare with Working Build:**
-   - Check git history: `git log --oneline`
-   - Compare Dockerfiles: `git diff HEAD~1 Dockerfile.huggingface`
+ - Check git history: `git log --oneline`
+ - Compare Dockerfiles: `git diff HEAD~1 Dockerfile.huggingface`
 
 4. **Report Issues:**
-   - Include build logs
-   - Include local test results
-   - Include Docker version: `docker --version`
+ - Include build logs
+ - Include local test results
+ - Include Docker version: `docker --version`
 
 ## Deployment Workflow
 
-✅ **Recommended Process:**
+Yes **Recommended Process:**
 
 ```bash
 # 1. Make changes
@@ -351,7 +351,7 @@ git commit -m "Your changes"
 # Visit: https://huggingface.co/spaces/YOUR_USERNAME/open-navigator-for-engagement
 ```
 
-⚠️ **Skip tests only if urgent:**
+Warning **Skip tests only if urgent:**
 
 ```bash
 ./deploy-huggingface.sh YOUR_USERNAME --skip-test

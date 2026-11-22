@@ -12,16 +12,16 @@ Open Navigator implements this as an optional layer on top of the existing meeti
 
 ```text
 [ Target URL ]
-       │  httpx (Playwright fallback on 403/TLS)
-       ▼
+ │ httpx (Playwright fallback on 403/TLS)
+
 [ Raw HTML ]
-       │  BeautifulSoup: drop script/style/nav noise
-       ▼
+ │ BeautifulSoup: drop script/style/nav noise
+
 [ Markdown-like text ]
-       │  Pydantic schema + prompt
-       ▼
+ │ Pydantic schema + prompt
+
 [ Ollama — Gemma 4 (or compatible) ]
-       ▼
+
 [ JSON — meetings, contacts, dates ]
 ```
 
@@ -56,17 +56,17 @@ ollama pull gemma4
 cd /path/to/open-navigator
 
 .venv/bin/python scripts/scraping/extract_page_structured.py \
-  --url "https://www.example-county.gov/meetings/" \
-  --markdown-out /tmp/page.md \
-  --out /tmp/extraction.json
+ --url "https://www.example-county.gov/meetings/" \
+ --markdown-out /tmp/page.md \
+ --out /tmp/extraction.json
 ```
 
 Or from an existing crawl sidecar:
 
 ```bash
 .venv/bin/python scripts/scraping/extract_page_structured.py \
-  --readable-txt data/cache/scraped_meetings/AL/county/.../_crawl_html/page_agenda.readable.txt \
-  --out /tmp/extraction.json
+ --readable-txt data/cache/scraped_meetings/AL/county/.../_crawl_html/page_agenda.readable.txt \
+ --out /tmp/extraction.json
 ```
 
 Output shape (Pydantic `JurisdictionPageExtraction`):
@@ -82,12 +82,12 @@ During `comprehensive_discovery_pipeline_jurisdiction`, after each `page_*.reada
 
 ```bash
 export SCRAPED_MEETINGS_OLLAMA_EXTRACT=1
-export SCRAPED_MEETINGS_OLLAMA_EXTRACT_MAX_PAGES=5   # cap per run (slow on CPU)
+export SCRAPED_MEETINGS_OLLAMA_EXTRACT_MAX_PAGES=5 # cap per run (slow on CPU)
 export SCRAPED_MEETINGS_OLLAMA_MODEL=gemma4
 export OLLAMA_HOST=http://127.0.0.1:11434
 
 .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \
-  --state AL --geoid 01001 --type county --url "https://..."
+ --state AL --geoid 01001 --type county --url "https://..."
 ```
 
 Writes `page_*.ollama.json` next to the readable file under `_crawl_html/`.

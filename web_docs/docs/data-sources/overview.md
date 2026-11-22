@@ -6,13 +6,13 @@ displayed_sidebar: policyMakersSidebar
 
 This document covers the **official, free, public datasets** used by Open Navigator.
 
-:::tip[📚 Full Citations & Academic References]
+:::tip[ Full Citations & Academic References]
 For complete citations, licenses, and attribution for all data sources, see:
 
-👉 **[Citations & Data Sources](./citations.md)** — Includes BibTeX citations, license information, coverage details, and links to original sources.
+ **[Citations & Data Sources](./citations.md)** — Includes BibTeX citations, license information, coverage details, and links to original sources.
 :::
 
-## 📊 Data Scale & Coverage
+## Data Scale & Coverage
 
 Open Navigator provides comprehensive coverage across the United States:
 
@@ -32,7 +32,7 @@ Open Navigator provides comprehensive coverage across the United States:
 
 ---
 
-## 📂 Data Source Categories
+## Data Source Categories
 
 Open Navigator integrates data from six main categories:
 
@@ -45,12 +45,12 @@ Open Navigator integrates data from six main categories:
 
 ---
 
-## 🏛️ Government Jurisdiction Data
+## Government Jurisdiction Data
 
-### 1. CISA .gov Domain Master List ⭐ **Most Authoritative**
+### 1. CISA .gov Domain Master List **Most Authoritative**
 
-**Source:** Cybersecurity and Infrastructure Security Agency (CISA)  
-**URL:** https://github.com/cisagov/dotgov-data  
+**Source:** Cybersecurity and Infrastructure Security Agency (CISA)
+**URL:** https://github.com/cisagov/dotgov-data
 **File:** `current-full.csv` (updated daily!)
 
 **What It Contains:**
@@ -81,17 +81,17 @@ domains_df = await gsa.download_domain_list()
 
 ### 2. U.S. Census Bureau - Government Integrated Directory (GID)
 
-**Source:** U.S. Census Bureau, Government Statistics  
-**URL:** https://www.census.gov/programs-surveys/gus.html  
+**Source:** U.S. Census Bureau, Government Statistics
+**URL:** https://www.census.gov/programs-surveys/gus.html
 **Dataset:** 2022 Census of Governments ([summary slides](https://www.fdlp.gov/sites/default/files/training/20231212-wn-census-govts-slides.pdf)); 2025 update ([Government Organization Summary](https://www.census.gov/library/publications/2026/econ/govtorg2225.html))
 
 **What It Contains:**
 - **90,837 local governments in 2022** (91,438 in the 2025 update)
-  - 3,031 counties
-  - 19,491 municipalities (cities/towns)
-  - 16,214 townships
-  - 12,546 independent school districts
-  - 39,555 special districts (not included in Open Navigator)
+ - 3,031 counties
+ - 19,491 municipalities (cities/towns)
+ - 16,214 townships
+ - 12,546 independent school districts
+ - 39,555 special districts (not included in Open Navigator)
 - FIPS codes (standardized IDs)
 - Population data
 - Geographic hierarchy (state, county, place)
@@ -117,8 +117,8 @@ dfs = await census.ingest_all_jurisdictions()
 
 ### 3. NCES Common Core of Data (CCD)
 
-**Source:** National Center for Education Statistics (NCES)  
-**URL:** https://nces.ed.gov/ccd/  
+**Source:** National Center for Education Statistics (NCES)
+**URL:** https://nces.ed.gov/ccd/
 **Dataset:** Local Education Agency (LEA) Universe Survey
 
 **What It Contains:**
@@ -148,7 +148,7 @@ districts_df = await nces.ingest_school_districts()
 
 ---
 
-## 📋 Summary Table: Where to Pull the Lists
+## Summary Table: Where to Pull the Lists
 
 | Jurisdiction Type | Primary Free Source | Format | Coverage |
 |-------------------|---------------------|--------|----------|
@@ -161,18 +161,18 @@ districts_df = await nces.ingest_school_districts()
 
 ---
 
-## 🔍 Scraping Strategy (Based on Your Guidance)
+## Scraping Strategy (Based on Your Guidance)
 
 ### Step 1: Ingest
 ```bash
-python main.py init  # Initialize Delta Lake
-python main.py discover-jurisdictions --limit 100  # Test run
+python main.py init # Initialize Delta Lake
+python main.py discover-jurisdictions --limit 100 # Test run
 ```
 
 **Pulls:**
-- ✅ `current-full.csv` from CISA → Bronze layer
-- ✅ Census GID CSVs → Bronze layer  
-- ✅ NCES CCD data → Bronze layer
+- Yes `current-full.csv` from CISA → Bronze layer
+- Yes Census GID CSVs → Bronze layer
+- Yes NCES CCD data → Bronze layer
 
 ### Step 2: Filter
 ```python
@@ -181,7 +181,7 @@ df = spark.read.format("delta").load("bronze/gov_domains")
 
 # Filter for local governments
 local_govs = df.filter(
-    col("Domain Type").isin(["City", "County", "School District"])
+ col("Domain Type").isin(["City", "County", "School District"])
 )
 ```
 
@@ -200,7 +200,7 @@ python main.py scrape-batch --source discovered --limit 50
 ### Step 4: Keyword Hunt
 **Agent searches for:**
 - "Minutes" pages
-- "Agendas" pages  
+- "Agendas" pages
 - "Meetings" pages
 - "Water" + "Fluoride" content
 
@@ -212,7 +212,7 @@ python main.py scrape-batch --source discovered --limit 50
 
 ---
 
-## 🚀 Non-.gov Coverage
+## Non-.gov Coverage
 
 **Many smaller municipalities use non-.gov domains:**
 - `.org` (e.g., `cityofsomewhere.org`)
@@ -223,10 +223,10 @@ python main.py scrape-batch --source discovered --limit 50
 ```python
 # Pattern generation includes:
 patterns = [
-    "https://cityname.gov",       # Primary
-    "https://cityname.us",        # Alternative
-    "https://cityname.org",       # Non-profit
-    "https://cityname.net",       # Legacy
+ "https://cityname.gov", # Primary
+ "https://cityname.us", # Alternative
+ "https://cityname.org", # Non-profit
+ "https://cityname.net", # Legacy
 ]
 ```
 
@@ -237,7 +237,7 @@ patterns = [
 
 ---
 
-## 💰 Cost: $0
+## Cost: $0
 
 All data sources are **free and publicly available**:
 
@@ -248,17 +248,17 @@ All data sources are **free and publicly available**:
 | NCES CCD | **$0** | Annual |
 | Pattern Matching | **$0** | On-demand |
 
-**Total API costs:** **$0** 🎉
+**Total API costs:** **$0**
 
 Compare to deprecated approach:
 - ~~Google Custom Search API: $5/1000 queries = ~$150~~
 - ~~Bing Search API: $7/1000 queries = ~$90~~
 
-**Savings: $240+ per discovery run** ✅
+**Savings: $240+ per discovery run** Yes
 
 ---
 
-## 📚 References
+## References
 
 **Government Jurisdiction Data:**
 - **CISA .gov Domains:** https://github.com/cisagov/dotgov-data
@@ -276,13 +276,13 @@ Compare to deprecated approach:
 
 ---
 
-## ✅ Credits
+## Yes Credits
 
-**System Architecture:** Medallion Architecture (Bronze → Silver → Gold)  
-**Data Engineering Pattern:** Delta Lake + PySpark  
-**Sustainable Approach:** No deprecated search APIs  
+**System Architecture:** Medallion Architecture (Bronze → Silver → Gold)
+**Data Engineering Pattern:** Delta Lake + PySpark
+**Sustainable Approach:** No deprecated search APIs
 **Guidance Source:** Professional data engineering best practices
 
-**Thank you for the excellent guidance on official data sources!** 🙏
+**Thank you for the excellent guidance on official data sources!**
 
-This system now uses **the exact sources recommended by data engineers** to map the U.S. government landscape. 🦷✨
+This system now uses **the exact sources recommended by data engineers** to map the U.S. government landscape.

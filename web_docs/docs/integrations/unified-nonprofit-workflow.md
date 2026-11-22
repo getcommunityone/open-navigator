@@ -6,9 +6,9 @@ title: Unified Nonprofit Data Management
 
 **Single Source of Truth**: `data/gold/nonprofits_organizations.parquet`
 
-## 🎯 **New Workflow**
+## **New Workflow**
 
-### ✅ **DO THIS** (Single Unified File)
+### Yes **DO THIS** (Single Unified File)
 
 ```bash
 # Check stats
@@ -29,16 +29,16 @@ python scripts/manage_nonprofits.py enrich-bigquery --states AL
 python scripts/manage_nonprofits.py merge-bigquery
 ```
 
-### ❌ **DON'T DO THIS** (Creates Separate Files)
+### No **DON'T DO THIS** (Creates Separate Files)
 
 ```bash
 # OLD WAY - Creates proliferation of files
 python scripts/enrich_nonprofits_gt990.py \
-    --input data/gold/nonprofits_tuscaloosa.parquet \
-    --output data/gold/nonprofits_tuscaloosa_form990.parquet  # ❌ Extra file!
+ --input data/gold/nonprofits_tuscaloosa.parquet \
+ --output data/gold/nonprofits_tuscaloosa_form990.parquet # No Extra file!
 ```
 
-## 📊 **Key Commands**
+## **Key Commands**
 
 ### Show Statistics
 
@@ -48,12 +48,12 @@ python scripts/manage_nonprofits.py stats
 
 Output:
 ```
-📊 TOTAL: 1,952,238 organizations
-💰 ENRICHMENT STATUS:
-   Form 990 data: 307 (0.0%)
-   BigQuery data: 0 (0.0%)
-📝 MISSION STATEMENTS:
-   At least one source: 299 (0.0%)
+ TOTAL: 1,952,238 organizations
+ ENRICHMENT STATUS:
+ Form 990 data: 307 (0.0%)
+ BigQuery data: 0 (0.0%)
+ MISSION STATEMENTS:
+ At least one source: 299 (0.0%)
 ```
 
 ### Enrich Incrementally
@@ -91,20 +91,20 @@ echo "631041304" >> eins.txt
 python scripts/manage_nonprofits.py enrich-990 --ein-list eins.txt
 ```
 
-## 🔄 **How In-Place Updates Work**
+## **How In-Place Updates Work**
 
 1. **Load** full dataset (1.9M orgs)
 2. **Filter** to subset (e.g., Alabama = 62K orgs)
 3. **Enrich** only the filtered subset
 4. **Merge** back:
-   - Remove old data for those EINs
-   - Add newly enriched data
-   - Sort by EIN
+ - Remove old data for those EINs
+ - Add newly enriched data
+ - Sort by EIN
 5. **Save** back to same file
 
 **Result:** Only one file, incrementally enriched!
 
-## 🗑️ **Cleanup Old Files**
+## **Cleanup Old Files**
 
 ### Preview Cleanup (Dry Run)
 
@@ -114,16 +114,16 @@ python scripts/cleanup_nonprofit_files.py
 
 Output:
 ```
-🔄 Found enriched data: nonprofits_tuscaloosa_form990.parquet
-   ✅ Merged 921 enriched organizations
+ Found enriched data: nonprofits_tuscaloosa_form990.parquet
+ Yes Merged 921 enriched organizations
 
-🗑️  Found 9 file(s) to clean up:
-   - nonprofits_tuscaloosa.parquet (0.0 MB)
-   - nonprofits_tuscaloosa_form990.parquet (0.1 MB)
-   - /tmp/test_*.parquet (0.1 MB)
-   
-⚠️  DRY RUN - No files will be deleted
-   Run with --execute to actually delete files
+ Found 9 file(s) to clean up:
+ - nonprofits_tuscaloosa.parquet (0.0 MB)
+ - nonprofits_tuscaloosa_form990.parquet (0.1 MB)
+ - /tmp/test_*.parquet (0.1 MB)
+
+Warning DRY RUN - No files will be deleted
+ Run with --execute to actually delete files
 ```
 
 ### Execute Cleanup
@@ -133,28 +133,28 @@ python scripts/cleanup_nonprofit_files.py --execute
 ```
 
 **What it does:**
-- ✅ Merges any enrichment from old files into main file
-- ✅ Deletes old/redundant files
-- ✅ Leaves only `data/gold/nonprofits_organizations.parquet`
+- Yes Merges any enrichment from old files into main file
+- Yes Deletes old/redundant files
+- Yes Leaves only `data/gold/nonprofits_organizations.parquet`
 
-## 📁 **File Organization**
+## **File Organization**
 
-### ✅ **Keep (Single Source of Truth)**
-
-```
-data/gold/nonprofits_organizations.parquet  # 1.9M orgs, incrementally enriched
-```
-
-### 🗑️ **Remove (Old Workflow)**
+### Yes **Keep (Single Source of Truth)**
 
 ```
-data/gold/nonprofits_tuscaloosa.parquet              # ❌ Subset
-data/gold/nonprofits_tuscaloosa_form990.parquet      # ❌ Enriched subset  
-data/gold/nonprofits_990_enriched.parquet            # ❌ Another version
-/tmp/test_*.parquet                                   # ❌ Test files
+data/gold/nonprofits_organizations.parquet # 1.9M orgs, incrementally enriched
 ```
 
-## 🎨 **Progressive Enrichment Strategy**
+### **Remove (Old Workflow)**
+
+```
+data/gold/nonprofits_tuscaloosa.parquet # No Subset
+data/gold/nonprofits_tuscaloosa_form990.parquet # No Enriched subset
+data/gold/nonprofits_990_enriched.parquet # No Another version
+/tmp/test_*.parquet # No Test files
+```
+
+## **Progressive Enrichment Strategy**
 
 Enrich the dataset progressively to avoid overwhelming API limits:
 
@@ -180,9 +180,9 @@ python scripts/manage_nonprofits.py enrich-990 --ntee E P
 ```bash
 # Enrich 5-10 states per day
 for state in CA TX NY FL PA; do
-    python scripts/manage_nonprofits.py enrich-990 --states $state
-    echo "Completed $state"
-    sleep 3600  # Wait 1 hour between states
+ python scripts/manage_nonprofits.py enrich-990 --states $state
+ echo "Completed $state"
+ sleep 3600 # Wait 1 hour between states
 done
 ```
 
@@ -194,7 +194,7 @@ python scripts/manage_nonprofits.py enrich-bigquery
 python scripts/manage_nonprofits.py merge-bigquery
 ```
 
-## 🔍 **Advanced Usage**
+## **Advanced Usage**
 
 ### Check Enrichment Status by State
 
@@ -217,25 +217,25 @@ import pandas as pd
 df = pd.read_parquet('data/gold/nonprofits_organizations.parquet')
 # Alabama health orgs without 990 data
 needs_enrichment = df[
-    (df['state'] == 'AL') & 
-    (df['ntee_code'].str.startswith('E', na=False)) &
-    (df['form_990_status'].isna())
+ (df['state'] == 'AL') &
+ (df['ntee_code'].str.startswith('E', na=False)) &
+ (df['form_990_status'].isna())
 ]['ein']
 needs_enrichment.to_csv('alabama_health_needs_enrichment.txt', index=False, header=False)
 print(f'Exported {len(needs_enrichment)} EINs')
 "
 ```
 
-## 💡 **Benefits of Unified File**
+## **Benefits of Unified File**
 
-1. ✅ **Single source of truth** - No confusion about which file is current
-2. ✅ **Incremental updates** - Add enrichment data without duplicating base data
-3. ✅ **Smaller disk usage** - No duplicate base data across files
-4. ✅ **Easier tracking** - One file to track, version, backup
-5. ✅ **Simpler workflows** - No need to manage file versions
-6. ✅ **Better for git** - One file to track changes in (with git-lfs)
+1. Yes **Single source of truth** - No confusion about which file is current
+2. Yes **Incremental updates** - Add enrichment data without duplicating base data
+3. Yes **Smaller disk usage** - No duplicate base data across files
+4. Yes **Easier tracking** - One file to track, version, backup
+5. Yes **Simpler workflows** - No need to manage file versions
+6. Yes **Better for git** - One file to track changes in (with git-lfs)
 
-## 📝 **Migration Checklist**
+## **Migration Checklist**
 
 - [x] **Merge** existing enrichment data into main file
 - [x] **Verify** enrichment was merged (run `stats`)
@@ -262,10 +262,10 @@ Don't worry! Run cleanup script first (without `--execute`) - it will merge any 
 ```bash
 # Backup before cleanup
 cp data/gold/nonprofits_organizations.parquet \
-   data/gold/nonprofits_organizations.$(date +%Y%m%d).parquet.bak
+ data/gold/nonprofits_organizations.$(date +%Y%m%d).parquet.bak
 ```
 
-## 📚 **Related Documentation**
+## **Related Documentation**
 
 - [Form 990 Enrichment](../data-sources/form-990-xml.md)
 - [BigQuery Integration](./bigquery-enrichment.md)

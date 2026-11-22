@@ -48,25 +48,25 @@ dbt run --target bronze --select bronze_organizations_nonprofits
 ## Pipeline Architecture
 
 ```
-Bronze schema (dev)  →  Public schema (queries)  →  Neon Cloud (website)
-open_navigator.bronze  →  open_navigator.public  →  Neon PostgreSQL
+Bronze schema (dev) → Public schema (queries) → Neon Cloud (website)
+open_navigator.bronze → open_navigator.public → Neon PostgreSQL
 ```
 
 ### Database Roles
 
 - **`open_navigator.bronze`**: Development schema for raw data and dbt transformations
-  - Contains `bronze_*` tables from data loading scripts
-  - dbt models run here (staging, intermediate, marts)
-  - NOT deployed to production servers
+ - Contains `bronze_*` tables from data loading scripts
+ - dbt models run here (staging, intermediate, marts)
+ - NOT deployed to production servers
 
 - **`open_navigator`**: Production-ready local PostgreSQL database
-  - Fast queries for API endpoints
-  - Synced from bronze via export scripts
-  - Source for Neon cloud deployment
+ - Fast queries for API endpoints
+ - Synced from bronze via export scripts
+ - Source for Neon cloud deployment
 
 - **Neon Cloud**: Production database for deployed website
-  - Synced via `packages/hosting/src/hosting/neon/migrate.py`
-  - Optimized for HuggingFace Spaces deployment
+ - Synced via `packages/hosting/src/hosting/neon/migrate.py`
+ - Optimized for HuggingFace Spaces deployment
 
 ## Workflow: Building Stats
 
@@ -141,11 +141,11 @@ python packages/hosting/src/hosting/neon/migrate.py
 
 | Level | Records | Nonprofits | Events | Revenue | Assets | Trending Causes |
 |-------|---------|------------|--------|---------|--------|-----------------|
-| **national** | 1 | 1.95M | 31.8k | $3.8T | $9.7T | ❌ |
-| **state** | 62 | 1.95M total | 31.8k total | $3.8T total | $9.7T total | ✅ (aggregated) |
-| **county** | 8,561 | 793k (with NCCS) | ❌ | $1.8T | $4.5T | ❌ |
-| **city** | 147 | 5.2M (rollup) | 31.8k | ❌ | ❌ | ✅ |
-| **jurisdiction** | 8 | ❌ | 5.1k | ❌ | ❌ | ✅ |
+| **national** | 1 | 1.95M | 31.8k | $3.8T | $9.7T | No |
+| **state** | 62 | 1.95M total | 31.8k total | $3.8T total | $9.7T total | Yes (aggregated) |
+| **county** | 8,561 | 793k (with NCCS) | No | $1.8T | $4.5T | No |
+| **city** | 147 | 5.2M (rollup) | 31.8k | No | No | Yes |
+| **jurisdiction** | 8 | No | 5.1k | No | No | Yes |
 
 **Notes:**
 - County stats only include nonprofits with NCCS enrichment (geographic data available)
@@ -198,35 +198,35 @@ python packages/hosting/src/hosting/neon/migrate.py
 
 ```json
 [
-  {
-    "causes": [
-      {
-        "code": "COFOG-01",
-        "rank": 1,
-        "cause": "Governance and Administrative Policy",
-        "topics": 9,
-        "most_recent": "2026-04-20",
-        "decision_count": 9,
-        "sample_headlines": [
-          "Council approves appointment of new City Clerk",
-          "Previous meeting minutes approved",
-          "Meeting called to order"
-        ]
-      },
-      {
-        "code": "COFOG-04",
-        "rank": 2,
-        "cause": "Infrastructure and Capital Projects",
-        "topics": 4,
-        "most_recent": "2026-04-21",
-        "decision_count": 4,
-        "sample_headlines": [
-          "Council discusses City Hall renovation project.",
-          "Council Reviews City Hall Renovation Options"
-        ]
-      }
-    ]
-  }
+ {
+ "causes": [
+ {
+ "code": "COFOG-01",
+ "rank": 1,
+ "cause": "Governance and Administrative Policy",
+ "topics": 9,
+ "most_recent": "2026-04-20",
+ "decision_count": 9,
+ "sample_headlines": [
+ "Council approves appointment of new City Clerk",
+ "Previous meeting minutes approved",
+ "Meeting called to order"
+ ]
+ },
+ {
+ "code": "COFOG-04",
+ "rank": 2,
+ "cause": "Infrastructure and Capital Projects",
+ "topics": 4,
+ "most_recent": "2026-04-21",
+ "decision_count": 4,
+ "sample_headlines": [
+ "Council discusses City Hall renovation project.",
+ "Council Reviews City Hall Renovation Options"
+ ]
+ }
+ ]
+ }
 ]
 ```
 
@@ -243,38 +243,38 @@ cursor = conn.cursor()
 
 # Get trending causes for a state
 cursor.execute("""
-    SELECT trending_causes 
-    FROM jurisdiction_state_aggregate 
-    WHERE level = 'state' AND state_code = %s
+ SELECT trending_causes
+ FROM jurisdiction_state_aggregate
+ WHERE level = 'state' AND state_code = %s
 """, ('AL',))
 
-causes = cursor.fetchone()[0]  # Returns JSONB as Python dict
+causes = cursor.fetchone()[0] # Returns JSONB as Python dict
 
 # Get county-level nonprofit stats (NEW!)
 cursor.execute("""
-    SELECT 
-        county,
-        nonprofits_count,
-        total_revenue,
-        total_assets
-    FROM jurisdiction_state_aggregate 
-    WHERE level = 'county' 
-      AND state_code = %s
-    ORDER BY nonprofits_count DESC
-    LIMIT 10
+ SELECT
+ county,
+ nonprofits_count,
+ total_revenue,
+ total_assets
+ FROM jurisdiction_state_aggregate
+ WHERE level = 'county'
+ AND state_code = %s
+ ORDER BY nonprofits_count DESC
+ LIMIT 10
 """, ('CA',))
 
 top_counties = cursor.fetchall()
 
 # Get national summary
 cursor.execute("""
-    SELECT 
-        nonprofits_count,
-        events_count,
-        total_revenue,
-        total_assets
-    FROM jurisdiction_state_aggregate 
-    WHERE level = 'national'
+ SELECT
+ nonprofits_count,
+ events_count,
+ total_revenue,
+ total_assets
+ FROM jurisdiction_state_aggregate
+ WHERE level = 'national'
 """)
 
 national_stats = cursor.fetchone()
@@ -290,8 +290,8 @@ The `~/.dbt/profiles.yml` file defines three targets:
 
 To switch targets:
 ```bash
-dbt run --target bronze  # For stats pipeline
-dbt run --target dev     # For other models
+dbt run --target bronze # For stats pipeline
+dbt run --target dev # For other models
 ```
 
 ## Common Tasks
@@ -307,7 +307,7 @@ cd .. && python dbt_project/scripts/export_stats_to_open_navigator.py
 
 # 3. Verify
 psql -h localhost -p 5433 -U postgres -d open_navigator -c \
-  "SELECT level, jsonb_array_length(trending_causes) FROM jurisdiction_state_aggregate WHERE trending_causes IS NOT NULL;"
+ "SELECT level, jsonb_array_length(trending_causes) FROM jurisdiction_state_aggregate WHERE trending_causes IS NOT NULL;"
 ```
 
 ### Add new dbt models
@@ -324,7 +324,7 @@ psql -h localhost -p 5433 -U postgres -d open_navigator -c \
 This error occurs when dbt tries to query across databases. Make sure you're using the correct target:
 
 ```bash
-dbt run --target bronze  # NOT --target dev
+dbt run --target bronze # NOT --target dev
 ```
 
 ### "relation does not exist"
@@ -332,7 +332,7 @@ dbt run --target bronze  # NOT --target dev
 The staging model needs to be built before intermediate/mart models:
 
 ```bash
-dbt run --target bronze --select stg_bronze_decisions+  # The + builds downstream
+dbt run --target bronze --select stg_bronze_decisions+ # The + builds downstream
 ```
 
 ### "can't adapt type 'dict'"

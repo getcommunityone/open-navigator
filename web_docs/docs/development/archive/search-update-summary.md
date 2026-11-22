@@ -4,19 +4,19 @@ sidebar_position: 10
 
 # Search Update Summary - Topics, Bills & Decisions
 
-## ✅ What Was Updated
+## Yes What Was Updated
 
 The search functionality at http://localhost:5173/ now supports **7 entity types**:
 
 1. **Contacts** - People (elected officials, staff, advocates)
-2. **Meetings** - Government meetings and events  
+2. **Meetings** - Government meetings and events
 3. **Organizations** - Nonprofits, advocacy groups
 4. **Bills** - State legislation
-5. **Topics** ⭐ NEW - AI-extracted meeting topics (312 records)
-6. **Decisions** ⭐ NEW - Governance decisions from meetings (157 records)
+5. **Topics** NEW - AI-extracted meeting topics (312 records)
+6. **Decisions** NEW - Governance decisions from meetings (157 records)
 7. **Causes** - NTEE-classified cause areas
 
-## 🎯 Updated Components
+## Updated Components
 
 ### Backend (API)
 
@@ -40,12 +40,12 @@ The search functionality at http://localhost:5173/ now supports **7 entity types
 - Updated placeholder text to: **"Search contacts, meetings, organizations, bills, topics, decisions, causes..."**
 - Updated preview search to query all 7 entity types
 - **Added UI preview sections for:**
-  - 📜 **Bills** section with DocumentTextIcon
-  - 📋 **Topics** section with ChatBubbleBottomCenterTextIcon
-  - ⚖️ **Decisions** section with ScaleIcon
+ - **Bills** section with DocumentTextIcon
+ - **Topics** section with ChatBubbleBottomCenterTextIcon
+ - **Decisions** section with ScaleIcon
 - Added icons import: DocumentTextIcon, ChatBubbleBottomCenterTextIcon, ScaleIcon
 
-## 🔍 Search Features
+## Search Features
 
 ### Topics Search
 - **Source**: `bronze_topics` table (AI-extracted from meeting transcripts)
@@ -58,7 +58,7 @@ The search functionality at http://localhost:5173/ now supports **7 entity types
 - "health" - Find health-related discussions
 - "education" - Find education topics
 
-### Decisions Search  
+### Decisions Search
 - **Source**: `bronze_decisions` table (AI-extracted governance decisions)
 - **Searches**: topic, headline, decision_statement
 - **Filters**: outcome (APPROVED, DENIED, DEFERRED, etc.)
@@ -69,7 +69,7 @@ The search functionality at http://localhost:5173/ now supports **7 entity types
 - "approved budget" - Find approved budget decisions
 - "denied" - Find all denied proposals
 
-## 🚀 How to Use
+## How to Use
 
 ### 1. Start the Services
 
@@ -81,7 +81,7 @@ The search functionality at http://localhost:5173/ now supports **7 entity types
 # Terminal 1: API
 source .venv/bin/activate && python main.py serve
 
-# Terminal 2: Frontend  
+# Terminal 2: Frontend
 cd frontend && npm run dev
 
 # Terminal 3: Docs
@@ -97,7 +97,7 @@ Visit: **http://localhost:5173/**
 **Topics:**
 - "budget"
 - "health"
-- "education"  
+- "education"
 - "infrastructure"
 
 **Decisions:**
@@ -114,15 +114,15 @@ Visit: **http://localhost:5173/**
 ### 4. Filter by Type
 
 Use the filter checkboxes to show only specific types:
-- ☑️ Contacts
-- ☑️ Meetings
-- ☑️ Organizations
-- ☑️ Bills
-- ☑️ Topics ⭐
-- ☑️ Decisions ⭐
-- ☑️ Causes
+- Yes Contacts
+- Yes Meetings
+- Yes Organizations
+- Yes Bills
+- Yes Topics
+- Yes Decisions
+- Yes Causes
 
-## 📊 Data Sources
+## Data Sources
 
 | Entity Type | Database | Table | Records | Data Source |
 |-------------|----------|-------|---------|-------------|
@@ -134,14 +134,14 @@ Use the filter checkboxes to show only specific types:
 | Meetings | `open_navigator` | `event` | 2,000+ | Multiple sources |
 | Causes | In-memory | NTEE taxonomy | 26 | IRS NTEE codes |
 
-## 🔗 API Endpoints
+## API Endpoints
 
 ### Search Topics
 ```bash
 GET /search/?q=budget&types=topics&limit=10
 ```
 
-### Search Decisions  
+### Search Decisions
 ```bash
 GET /search/?q=approved&types=decisions&limit=10
 ```
@@ -151,7 +151,7 @@ GET /search/?q=approved&types=decisions&limit=10
 GET /search/?q=health&types=contacts,meetings,organizations,bills,topics,decisions,causes&limit=20
 ```
 
-## 🐛 Testing
+## Testing
 
 ### Test Topics Search
 ```bash
@@ -170,7 +170,7 @@ python -c "import asyncio; from api.routes.search_postgres import search_decisio
 curl "http://localhost:8001/search/?q=budget&types=topics,decisions&limit=5" | jq .
 ```
 
-## 📝 Database Schema
+## Database Schema
 
 ### bronze_topics
 - `id` - Primary key
@@ -191,24 +191,24 @@ curl "http://localhost:8001/search/?q=budget&types=topics,decisions&limit=5" | j
 - `vote_tally` - JSON with vote breakdown
 - `source_event_id` - Link to meeting event
 
-## ⚡ Performance
+## Performance
 
 - **Topics search**: ~50ms (indexed on `ntee_code`, `source_event_id`)
 - **Decisions search**: ~45ms (indexed on primary key)
 - **Bills search**: ~100ms (indexed on `state_code`, `session`, `bill_number`)
 - **Combined search**: ~200-300ms (all types in parallel)
 
-## 🎨 Frontend Display
+## Frontend Display
 
 The search interface now includes complete preview sections for all entity types:
 
 **Search Preview Dropdown:**
-- 🎯 **Causes** - HeartIcon
-- 👤 **People (Contacts)** - UserIcon  
-- 🏢 **Organizations** - BuildingOfficeIcon (with logo support)
-- 📜 **Bills** - DocumentTextIcon ⭐ NEW
-- 📋 **Topics** - ChatBubbleBottomCenterTextIcon ⭐ NEW
-- ⚖️ **Decisions** - ScaleIcon ⭐ NEW
+- **Causes** - HeartIcon
+- **People (Contacts)** - UserIcon
+- **Organizations** - BuildingOfficeIcon (with logo support)
+- **Bills** - DocumentTextIcon NEW
+- **Topics** - ChatBubbleBottomCenterTextIcon NEW
+- **Decisions** - ScaleIcon NEW
 
 Each section shows:
 - **Icon**: Entity-specific icon
@@ -221,28 +221,28 @@ Each section shows:
 **Search Placeholder:**
 > "Search contacts, meetings, organizations, bills, topics, decisions, causes..."
 
-## 🔮 Next Steps
+## Next Steps
 
 To complete the integration:
 
 1. **Create detail pages** for topics and decisions:
-   - `frontend/src/pages/TopicDetail.tsx`
-   - `frontend/src/pages/DecisionDetail.tsx`
+ - `frontend/src/pages/TopicDetail.tsx`
+ - `frontend/src/pages/DecisionDetail.tsx`
 
 2. **Add icons and sections** in search preview dropdown:
-   - Add Topics section with icon
-   - Add Decisions section with icon
+ - Add Topics section with icon
+ - Add Decisions section with icon
 
 3. **Add filter controls** for:
-   - Topics: NTEE category filter
-   - Decisions: Outcome filter (APPROVED/DENIED/etc.)
+ - Topics: NTEE category filter
+ - Decisions: Outcome filter (APPROVED/DENIED/etc.)
 
 4. **Create visualizations**:
-   - Topics heatmap by theme
-   - Decisions timeline by outcome
-   - Vote tally charts
+ - Topics heatmap by theme
+ - Decisions timeline by outcome
+ - Vote tally charts
 
-## 🎓 Example Queries
+## Example Queries
 
 **Find health topics in meetings:**
 ```
@@ -255,7 +255,7 @@ Results: Topics about oral health programs, school dental clinics
 ```
 Query: "budget"
 Types: decisions
-Filter: outcome=APPROVED  
+Filter: outcome=APPROVED
 Results: Approved budget ordinances with vote tallies
 ```
 
@@ -268,7 +268,7 @@ Results: Mixed results from all education-related entities
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 For more details, see:
 - [Bronze to Production Merge](bronze-to-production-merge.md)
@@ -277,4 +277,4 @@ For more details, see:
 
 ---
 
-**🎉 Your search now covers the full civic engagement data pipeline!**
+** Your search now covers the full civic engagement data pipeline!**

@@ -21,11 +21,11 @@ If you have an Open Navigator account, you can delete it yourself:
 4. Confirm deletion
 
 **What gets deleted:**
-- ✅ Your email address and profile information
-- ✅ OAuth authentication tokens
-- ✅ Saved searches and preferences
-- ✅ Comments and contributions
-- ✅ All personal account data
+- Yes Your email address and profile information
+- Yes OAuth authentication tokens
+- Yes Saved searches and preferences
+- Yes Comments and contributions
+- Yes All personal account data
 
 **Processing time:** Immediate (within seconds)
 
@@ -33,8 +33,8 @@ If you have an Open Navigator account, you can delete it yourself:
 
 If you cannot access your account or prefer email:
 
-**Email:** johnbowyer@communityone.com  
-**Subject:** Data Deletion Request  
+**Email:** johnbowyer@communityone.com
+**Subject:** Data Deletion Request
 **Include:**
 - Your name
 - Email address associated with your account
@@ -47,8 +47,8 @@ If you cannot access your account or prefer email:
 
 Send written request to:
 
-**CommunityOne**  
-5617 Lakeridge Court  
+**CommunityOne**
+5617 Lakeridge Court
 Tuscaloosa, AL 35406
 
 **Include:**
@@ -188,8 +188,8 @@ After account deletion:
 
 If you have trouble requesting deletion or have questions:
 
-**Email:** johnbowyer@communityone.com  
-**Subject:** Data Deletion Assistance  
+**Email:** johnbowyer@communityone.com
+**Subject:** Data Deletion Assistance
 **GitHub Issues:** [Report a problem](https://github.com/getcommunityone/open-navigator-for-engagement/issues)
 
 **Response time:** We aim to respond to all inquiries within 2-3 business days.

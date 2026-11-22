@@ -75,43 +75,43 @@ python scripts/migrate_to_events_naming.py --directory data/gold/states/AL
 ## Safe Migration Process
 
 1. **Verify current files:**
-   ```bash
-   find data/gold -name "*.parquet" -type f | sort
-   ```
+ ```bash
+ find data/gold -name "*.parquet" -type f | sort
+ ```
 
 2. **Run dry-run to preview changes:**
-   ```bash
-   python scripts/migrate_to_events_naming.py --dry-run
-   ```
+ ```bash
+ python scripts/migrate_to_events_naming.py --dry-run
+ ```
 
 3. **Perform migration with backups:**
-   ```bash
-   python scripts/migrate_to_events_naming.py
-   ```
-   This creates backups in `.migration_backup/` directories (automatically gitignored).
+ ```bash
+ python scripts/migrate_to_events_naming.py
+ ```
+ This creates backups in `.migration_backup/` directories (automatically gitignored).
 
 4. **Verify the migration worked:**
-   ```bash
-   # Check new files exist
-   find data/gold -name "events_*.parquet" -type f | sort
-   
-   # Check the API still works
-   cd api && uvicorn main:app --reload
-   ```
+ ```bash
+ # Check new files exist
+ find data/gold -name "events_*.parquet" -type f | sort
+
+ # Check the API still works
+ cd api && uvicorn main:app --reload
+ ```
 
 5. **Clean up backups (after verification):**
-   ```bash
-   python scripts/migrate_to_events_naming.py --cleanup-backups
-   ```
+ ```bash
+ python scripts/migrate_to_events_naming.py --cleanup-backups
+ ```
 
 ## Backup Location
 
 Backups are stored in `.migration_backup/` directories next to the original files:
 ```
 data/gold/states/AL/
-├── events_events.parquet          # New file
+├── events_events.parquet # New file
 └── .migration_backup/
-    └── meetings_20260429_153022.parquet  # Backup with timestamp
+ └── meetings_20260429_153022.parquet # Backup with timestamp
 ```
 
 These directories are automatically ignored by git (see `.gitignore`).
@@ -130,7 +130,7 @@ python -c "import pandas as pd; print(pd.read_parquet('old.parquet').equals(pd.r
 
 ### "No files found"
 If the script finds no files to rename, either:
-- Files are already using new naming ✅
+- Files are already using new naming Yes
 - You're scanning the wrong directory (use `--directory`)
 - Files don't match the expected names
 
@@ -141,7 +141,7 @@ If you need to revert (and backups still exist):
 # Restore from backups manually
 cd data/gold/states/AL/.migration_backup
 for f in *.parquet; do
-    original=$(echo $f | sed 's/_[0-9]\{8\}_[0-9]\{6\}//')
-    cp "$f" "../$original"
+ original=$(echo $f | sed 's/_[0-9]\{8\}_[0-9]\{6\}//')
+ cp "$f" "../$original"
 done
 ```

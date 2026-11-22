@@ -29,22 +29,22 @@ The pipeline now includes **automatic retry logic** with exponential backoff:
 **What to do:**
 
 1. **Wait and retry** - API issues are usually temporary:
-   ```bash
-   # Try again in 5-10 minutes
-   python scripts/create_all_gold_tables.py --nonprofits-only --states AL MI
-   ```
+ ```bash
+ # Try again in 5-10 minutes
+ python scripts/create_all_gold_tables.py --nonprofits-only --states AL MI
+ ```
 
 2. **Try different states** - Some states may work while others fail:
-   ```bash
-   # Try California and Texas instead
-   python scripts/create_all_gold_tables.py --nonprofits-only --states CA TX
-   ```
+ ```bash
+ # Try California and Texas instead
+ python scripts/create_all_gold_tables.py --nonprofits-only --states CA TX
+ ```
 
 3. **Use cached data** - If you've successfully discovered data before:
-   ```bash
-   # Use existing bronze data
-   python scripts/create_all_gold_tables.py --nonprofits-only --skip-discovery
-   ```
+ ```bash
+ # Use existing bronze data
+ python scripts/create_all_gold_tables.py --nonprofits-only --skip-discovery
+ ```
 
 4. **Check API status** - Visit the ProPublica website to check for known issues
 
@@ -125,9 +125,9 @@ ls -lh data/bronze/nonprofits/
 ### Monitor Progress
 
 The pipeline provides detailed logging:
-- ✅ Successful requests
-- ⚠️  No results found
-- ❌ Failed requests
+- Yes Successful requests
+- Warning No results found
+- No Failed requests
 - Progress counter (8/12)
 
 ### Use Skip Discovery
@@ -153,26 +153,26 @@ python scripts/create_all_gold_tables.py --nonprofits-only --skip-discovery
 If issues persist:
 
 1. **Check cache directory** - Data may have been partially downloaded:
-   ```bash
-   ls -lh data/cache/nonprofits/
-   ```
+ ```bash
+ ls -lh data/cache/nonprofits/
+ ```
 
 2. **Review logs** - Detailed error messages help diagnose issues
 
 3. **Try different parameters**:
-   ```bash
-   # Different states
-   --states NY CA FL
-   
-   # Skip discovery (use cached)
-   --skip-discovery
-   ```
+ ```bash
+ # Different states
+ --states NY CA FL
+
+ # Skip discovery (use cached)
+ --skip-discovery
+ ```
 
 4. **File an issue** - Include:
-   - Error messages
-   - States/NTEE codes attempted
-   - Timestamp
-   - Discovery summary output
+ - Error messages
+ - States/NTEE codes attempted
+ - Timestamp
+ - Discovery summary output
 
 ## Success Stories
 
@@ -191,7 +191,7 @@ No results: 4
 Failed: 2
 Total nonprofits discovered: 3,421
 
-✅ Created gold tables with 3,421 nonprofit records!
+Yes Created gold tables with 3,421 nonprofit records!
 ```
 
 Even with 2 failed requests, you got 3,400+ nonprofits!

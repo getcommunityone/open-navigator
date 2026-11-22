@@ -8,7 +8,7 @@ Open Navigator treats **open source community projects as first-class citizens**
 
 ---
 
-## 🌐 Why Open Source Matters for Civic Engagement
+## Why Open Source Matters for Civic Engagement
 
 Open source projects are critical infrastructure for:
 - **Transparency Tools** - Code that powers government data platforms
@@ -24,12 +24,12 @@ Open source projects are critical infrastructure for:
 
 ---
 
-## 📦 Primary Data Source: GitHub
+## Primary Data Source: GitHub
 
-### GitHub REST API ⭐
+### GitHub REST API
 
-**Source:** GitHub  
-**URL:** https://docs.github.com/en/rest  
+**Source:** GitHub
+**URL:** https://docs.github.com/en/rest
 **Authentication:** Personal Access Token (free tier: 5,000 requests/hour)
 
 **What It Provides:**
@@ -41,19 +41,19 @@ Open source projects are critical infrastructure for:
 - Release and version history
 
 **Coverage:**
-- ✅ **Volume:** Millions of public repositories
-- ✅ **Free API:** 5,000 requests/hour with authentication
-- ✅ **Rich Metadata:** Topics, tags, descriptions
-- ✅ **Community Metrics:** Stars, forks, contributors
+- Yes **Volume:** Millions of public repositories
+- Yes **Free API:** 5,000 requests/hour with authentication
+- Yes **Rich Metadata:** Topics, tags, descriptions
+- Yes **Community Metrics:** Stars, forks, contributors
 
 ---
 
-## 🏛️ Curated Civic Tech Repository Lists
+## Curated Civic Tech Repository Lists
 
 ### 1. Code for America Brigade Projects
 
-**Source:** Code for America  
-**URL:** https://brigade.codeforamerica.org/  
+**Source:** Code for America
+**URL:** https://brigade.codeforamerica.org/
 **GitHub:** https://github.com/codeforamerica
 
 **Focus:** Civic technology projects from local brigades
@@ -84,8 +84,8 @@ Open source projects are critical infrastructure for:
 
 ### 2. U.S. Digital Response
 
-**Source:** U.S. Digital Response  
-**URL:** https://www.usdigitalresponse.org/  
+**Source:** U.S. Digital Response
+**URL:** https://www.usdigitalresponse.org/
 **GitHub:** https://github.com/usdigitalresponse
 
 **Focus:** Rapid-response civic tech for government needs
@@ -99,8 +99,8 @@ Open source projects are critical infrastructure for:
 
 ### 3. Civic Tech Field Guide
 
-**Source:** Civic Tech Field Guide  
-**URL:** https://civictech.guide/  
+**Source:** Civic Tech Field Guide
+**URL:** https://civictech.guide/
 **GitHub:** https://github.com/compilerla/civic-tech-taxonomy
 
 **What It Provides:**
@@ -113,8 +113,8 @@ Open source projects are critical infrastructure for:
 
 ### 4. Digital Public Goods Alliance
 
-**Source:** Digital Public Goods Alliance  
-**URL:** https://digitalpublicgoods.net/  
+**Source:** Digital Public Goods Alliance
+**URL:** https://digitalpublicgoods.net/
 **Registry:** https://github.com/DPGAlliance/DPG-Standard
 
 **Focus:** Open source projects meeting DPG standard
@@ -126,7 +126,7 @@ Open source projects are critical infrastructure for:
 
 ---
 
-## 🔍 GitHub Topic-Based Discovery
+## GitHub Topic-Based Discovery
 
 Use GitHub's topic search to find civic projects:
 
@@ -175,7 +175,7 @@ topic:government-accountability
 
 ---
 
-## 📊 Data Collection Strategy
+## Data Collection Strategy
 
 ### Step 1: Curated Lists (High Quality)
 **Sources:**
@@ -191,9 +191,9 @@ from discovery.github_civic_projects import CivicTechIngestion
 
 civic = CivicTechIngestion()
 repos = await civic.ingest_curated_lists([
-    'codeforamerica',
-    'usdigitalresponse',
-    'civic-tech-field-guide'
+ 'codeforamerica',
+ 'usdigitalresponse',
+ 'civic-tech-field-guide'
 ])
 ```
 
@@ -207,32 +207,32 @@ repos = await civic.ingest_curated_lists([
 ```python
 # Search by civic tech topics
 topics = [
-    'civic-tech',
-    'open-government',
-    'public-data',
-    'community-organizing'
+ 'civic-tech',
+ 'open-government',
+ 'public-data',
+ 'community-organizing'
 ]
 
 for topic in topics:
-    repos = await github_api.search_repositories(
-        query=f"topic:{topic}",
-        sort='stars',
-        order='desc'
-    )
+ repos = await github_api.search_repositories(
+ query=f"topic:{topic}",
+ sort='stars',
+ order='desc'
+ )
 ```
 
 ### Step 3: Metadata Enrichment
 **Collect:**
-- ✅ Repository description and README
-- ✅ Primary language and tech stack
-- ✅ Active contributors and maintainers
-- ✅ Open issues (potential "causes")
-- ✅ Sponsorship/funding information
-- ✅ License type (must be open source)
+- Yes Repository description and README
+- Yes Primary language and tech stack
+- Yes Active contributors and maintainers
+- Yes Open issues (potential "causes")
+- Yes Sponsorship/funding information
+- Yes License type (must be open source)
 
 ---
 
-## 🎯 Integration with Open Navigator
+## Integration with Open Navigator
 
 ### People Finder
 **Add maintainers and core contributors:**
@@ -273,11 +273,11 @@ How to Help: PR accepted, translation guide provided
 
 ---
 
-## 🔗 Reference APIs
+## Reference APIs
 
 ### GitHub REST API
-**Documentation:** https://docs.github.com/en/rest  
-**Rate Limits:** 5,000/hour (authenticated)  
+**Documentation:** https://docs.github.com/en/rest
+**Rate Limits:** 5,000/hour (authenticated)
 **Key Endpoints:**
 - `GET /repos/{{owner}}/{{repo}}` - Repository metadata
 - `GET /repos/{{owner}}/{{repo}}/issues` - Issues and PRs
@@ -285,7 +285,7 @@ How to Help: PR accepted, translation guide provided
 - `GET /orgs/{{org}}/repos` - Organization repositories
 
 ### GitHub GraphQL API
-**Documentation:** https://docs.github.com/en/graphql  
+**Documentation:** https://docs.github.com/en/graphql
 **Use Cases:**
 - Sponsorship data
 - Complex queries (fewer API calls)
@@ -298,25 +298,25 @@ How to Help: PR accepted, translation guide provided
 
 ---
 
-## 📈 Integration Roadmap
+## Integration Roadmap
 
-### Phase 1: ✅ **Documentation**
+### Phase 1: Yes **Documentation**
 - Document open source as a data source
 - Define mapping to existing concepts
 - List curated civic tech projects
 
-### Phase 2: 🔄 **Proof of Concept**
+### Phase 2: **Proof of Concept**
 - Ingest 50-100 curated civic tech repos
 - Display in "People Finder" (maintainers)
 - Show in "Causes" (good first issues)
 
-### Phase 3: 📋 **Full Integration**
+### Phase 3: **Full Integration**
 - GitHub API integration module
 - Automated topic-based discovery
 - Funding/sponsorship tracking
 - Contribution opportunity matching
 
-### Phase 4: 🔮 **Advanced Features**
+### Phase 4: **Advanced Features**
 - Recommend repos based on user interests
 - Track project health metrics
 - Connect contributors with causes
@@ -324,7 +324,7 @@ How to Help: PR accepted, translation guide provided
 
 ---
 
-## 🎯 Example Use Cases
+## Example Use Cases
 
 ### For Civic Hackers:
 > "I want to contribute to budget transparency. Show me open source projects I can help with."
@@ -348,7 +348,7 @@ How to Help: PR accepted, translation guide provided
 
 ---
 
-## ✅ Data Quality & Updates
+## Yes Data Quality & Updates
 
 - **Repository metadata:** Updated via GitHub API (real-time)
 - **Curated lists:** Refreshed monthly (Code for America, USDR)
@@ -359,16 +359,16 @@ All data sources listed are **free and publicly accessible**. GitHub API require
 
 ---
 
-## 📞 Contact & Support
+## Contact & Support
 
-**GitHub API Support:**  
+**GitHub API Support:**
 - Documentation: https://docs.github.com/en/rest/support
 
-**Civic Tech Communities:**  
+**Civic Tech Communities:**
 - Code for America: https://brigade.codeforamerica.org/
 - Civic Tech Chat: https://civictech.chat/
 - U.S. Digital Response: https://www.usdigitalresponse.org/
 
-**Registry Maintainers:**  
+**Registry Maintainers:**
 - Civic Tech Field Guide: https://civictech.guide/
 - Digital Public Goods: https://digitalpublicgoods.net/

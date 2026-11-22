@@ -1,19 +1,19 @@
-# ✅ DATABASE-DRIVEN HOMEPAGE - READY TO USE!
+# Yes DATABASE-DRIVEN HOMEPAGE - READY TO USE!
 
-## 🎉 What's Done
+## What's Done
 
 Your homepage is now **100% database-driven** with all **235 causes** ready to generate images for!
 
-### ✅ Completed
+### Yes Completed
 
 1. **API Endpoint** - `/api/trending` serves causes from parquet files
 2. **Frontend Integration** - Homepage fetches from database (not hardcoded!)
 3. **Image Generator** - Script to create images for ALL 235 causes
-4. **Build Verified** - TypeScript compiles ✅, Build succeeds ✅
+4. **Build Verified** - TypeScript compiles Yes, Build succeeds Yes
 
 ---
 
-## 🚀 Quick Start (3 Steps)
+## Quick Start (3 Steps)
 
 ### 1. Generate Images for Your Causes
 
@@ -52,7 +52,7 @@ You should see:
 
 ---
 
-## 📊 Your Causes Data
+## Your Causes Data
 
 **Total: 235 causes in database**
 
@@ -80,27 +80,27 @@ Official IRS nonprofit categories:
 
 ---
 
-## 🎨 Generated Images
+## Generated Images
 
 For each cause, you get:
 
 1. **Banner** (1200x600px)
-   - `everyorg_climate_banner.png`
-   - `ntee_E_banner.png`
-   - Use: Hero images, featured stories
+ - `everyorg_climate_banner.png`
+ - `ntee_E_banner.png`
+ - Use: Hero images, featured stories
 
 2. **Square** (400x400px)
-   - `everyorg_climate_square.png`
-   - `ntee_E_square.png`
-   - Use: Topic cards, trending bar
+ - `everyorg_climate_square.png`
+ - `ntee_E_square.png`
+ - Use: Topic cards, trending bar
 
 3. **AI Color Scheme**
-   - Gemini generates thematic colors
-   - Saved in `metadata.json`
+ - Gemini generates thematic colors
+ - Saved in `metadata.json`
 
 ---
 
-## 🔌 API Endpoints
+## API Endpoints
 
 ### `GET /api/trending`
 
@@ -122,62 +122,62 @@ curl http://localhost:8001/api/trending/stats
 **Response:**
 ```json
 {
-  "causes": [
-    {
-      "name": "Climate",
-      "icon": "🌍",
-      "category": "primary",
-      "description": "Climate change mitigation...",
-      "image_url": "/images/causes/everyorg_climate_square.png",
-      "popularity_rank": 4
-    }
-  ],
-  "total": 12
+ "causes": [
+ {
+ "name": "Climate",
+ "icon": "",
+ "category": "primary",
+ "description": "Climate change mitigation...",
+ "image_url": "/images/causes/everyorg_climate_square.png",
+ "popularity_rank": 4
+ }
+ ],
+ "total": 12
 }
 ```
 
 ---
 
-## 📝 Files Created
+## Files Created
 
 ### API
-- ✅ `api/routes/trending.py` - Trending causes endpoint
-- ✅ `api/main.py` - Router registered
+- Yes `api/routes/trending.py` - Trending causes endpoint
+- Yes `api/main.py` - Router registered
 
 ### Frontend
-- ✅ `frontend/src/pages/Home.tsx` - Database-driven causes
+- Yes `frontend/src/pages/Home.tsx` - Database-driven causes
 
 ### Scripts
-- ✅ `scripts/media/generate_all_cause_images.py` - Batch generator for all causes
-- ✅ `scripts/media/generate_topic_images.py` - Base image generator
+- Yes `scripts/media/generate_all_cause_images.py` - Batch generator for all causes
+- Yes `scripts/media/generate_topic_images.py` - Base image generator
 
 ### Documentation
-- ✅ `DATABASE_DRIVEN_HOMEPAGE.md` - Full documentation
-- ✅ `QUICKSTART_HOMEPAGE.md` - Quick reference
+- Yes `DATABASE_DRIVEN_HOMEPAGE.md` - Full documentation
+- Yes `QUICKSTART_HOMEPAGE.md` - Quick reference
 
 ---
 
-## 🎯 How It Works
+## How It Works
 
 ```
 Parquet Files (data/gold/)
-  ├─ causes_everyorg_causes.parquet (39 rows)
-  └─ causes_ntee_codes (196 rows)
-              ↓
+ ├─ causes_everyorg_causes.parquet (39 rows)
+ └─ causes_ntee_codes (196 rows)
+ ↓
 API (/api/trending)
-  ├─ Reads parquet files
-  ├─ Returns causes with metadata
-  └─ Includes image URLs
-              ↓
+ ├─ Reads parquet files
+ ├─ Returns causes with metadata
+ └─ Includes image URLs
+ ↓
 Frontend (Home.tsx)
-  ├─ useQuery('trending-causes')
-  ├─ Fetches from API on load
-  └─ Renders dynamically
+ ├─ useQuery('trending-causes')
+ ├─ Fetches from API on load
+ └─ Renders dynamically
 ```
 
 ---
 
-## 🛠️ Advanced Options
+## Advanced Options
 
 ### Generate Only Specific Causes
 
@@ -198,15 +198,15 @@ Edit `frontend/src/pages/Home.tsx`:
 ```typescript
 // Line ~109 - Change source
 const { data: trendingData } = useQuery({
-  queryFn: async () => {
-    const response = await api.get('/trending', {
-      params: {
-        source: 'everyorg',  // 'everyorg', 'ntee', or 'mixed'
-        limit: 12
-      }
-    })
-    return response.data
-  }
+ queryFn: async () => {
+ const response = await api.get('/trending', {
+ params: {
+ source: 'everyorg', // 'everyorg', 'ntee', or 'mixed'
+ limit: 12
+ }
+ })
+ return response.data
+ }
 })
 ```
 
@@ -220,12 +220,12 @@ df = pl.read_parquet('data/gold/causes_everyorg_causes.parquet')
 
 # Add new cause
 new = pl.DataFrame({
-    'cause_id': ['oral-health'],
-    'cause_name': ['Oral Health'],
-    'description': ['Dental care access'],
-    'category': ['primary'],
-    'icon': ['🦷'],
-    'popularity_rank': [40]
+ 'cause_id': ['oral-health'],
+ 'cause_name': ['Oral Health'],
+ 'description': ['Dental care access'],
+ 'category': ['primary'],
+ 'icon': [''],
+ 'popularity_rank': [40]
 })
 
 # Combine and save
@@ -237,18 +237,18 @@ python scripts/media/generate_all_cause_images.py --type everyorg
 
 ---
 
-## ✅ Build Status
+## Yes Build Status
 
 **Verified:**
-- ✅ TypeScript compiles with no errors
-- ✅ Frontend builds successfully (5.21s)
-- ✅ Bundle size: 1.39 MB (gzipped: 380 KB)
-- ✅ All imports resolved
-- ✅ API endpoints registered
+- Yes TypeScript compiles with no errors
+- Yes Frontend builds successfully (5.21s)
+- Yes Bundle size: 1.39 MB (gzipped: 380 KB)
+- Yes All imports resolved
+- Yes API endpoints registered
 
 ---
 
-## 🚀 Deploy
+## Deploy
 
 ```bash
 # Deploy to HuggingFace Spaces
@@ -260,7 +260,7 @@ python scripts/media/generate_all_cause_images.py --type everyorg
 
 ---
 
-## 📖 Full Documentation
+## Full Documentation
 
 - **Complete Guide**: `DATABASE_DRIVEN_HOMEPAGE.md`
 - **API Docs**: Visit `/docs` when API is running
@@ -268,16 +268,16 @@ python scripts/media/generate_all_cause_images.py --type everyorg
 
 ---
 
-## 🎉 Summary
+## Summary
 
 **You now have:**
 
-✅ 235 causes in database (39 EveryOrg + 196 NTEE)
-✅ API endpoint serving causes dynamically  
-✅ Frontend fetching from database
-✅ Image generator for all causes
-✅ No more hardcoded data!
+Yes 235 causes in database (39 EveryOrg + 196 NTEE)
+Yes API endpoint serving causes dynamically
+Yes Frontend fetching from database
+Yes Image generator for all causes
+Yes No more hardcoded data!
 
-**Your homepage is database-driven!** 🚀
+**Your homepage is database-driven!**
 
 Just add your Gemini API key and run the image generator!

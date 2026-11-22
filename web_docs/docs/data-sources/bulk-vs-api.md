@@ -7,17 +7,17 @@ title: Bulk Downloads vs API
 ## TL;DR
 
 **Use Bulk Downloads** for:
-- ✅ Historical analysis (analyzing past sessions)
-- ✅ Map generation (need all states at once)
-- ✅ Research projects (large datasets)
-- ✅ Offline processing
-- ✅ Multi-issue tracking across all states
+- Yes Historical analysis (analyzing past sessions)
+- Yes Map generation (need all states at once)
+- Yes Research projects (large datasets)
+- Yes Offline processing
+- Yes Multi-issue tracking across all states
 
 **Use API** for:
-- ✅ Real-time bill status (same-day updates)
-- ✅ Search by specific keywords
-- ✅ Individual bill lookups
-- ✅ Automated alerts for bill changes
+- Yes Real-time bill status (same-day updates)
+- Yes Search by specific keywords
+- Yes Individual bill lookups
+- Yes Automated alerts for bill changes
 
 ---
 
@@ -25,15 +25,15 @@ title: Bulk Downloads vs API
 
 | Feature | Bulk Download | API |
 |---------|--------------|-----|
-| **Speed (50 states)** | ⚡ 5-10 minutes | 🐌 2-4 hours |
-| **API Key Required** | ❌ No | ✅ Yes |
-| **Rate Limits** | ❌ None | ⚠️ 50K/month |
+| **Speed (50 states)** | 5-10 minutes | 2-4 hours |
+| **API Key Required** | No No | Yes Yes |
+| **Rate Limits** | No None | Warning 50K/month |
 | **Internet Required** | Download once | Always |
 | **Data Freshness** | Monthly updates | Real-time |
-| **Bill Text** | ✅ Full text (JSON) | ✅ Via API |
-| **Complete Sessions** | ✅ All bills | Paginated |
-| **Cost** | 💰 Free | 💰 Free (50K limit) |
-| **Redistribution** | ✅ Allowed | ⚠️ Varies by state |
+| **Bill Text** | Yes Full text (JSON) | Yes Via API |
+| **Complete Sessions** | Yes All bills | Paginated |
+| **Cost** | Free | Free (50K limit) |
+| **Redistribution** | Yes Allowed | Warning Varies by state |
 
 ---
 
@@ -78,8 +78,8 @@ python scripts/legislative_tracker.py --issue fluoridation --year 2024
 ```python
 # API can check latest status
 async def check_bill_status(bill_id):
-    response = await client.get(f"{base_url}/bills/{bill_id}")
-    return response.json()['latest_action']
+ response = await client.get(f"{base_url}/bills/{bill_id}")
+ return response.json()['latest_action']
 
 # Bulk: Would need to wait for next monthly dump
 ```
@@ -192,11 +192,11 @@ recent_cutoff = datetime.now() - timedelta(days=7)
 
 # API search for bills updated in last week
 async def get_recent_updates():
-    params = {
-        "updated_since": recent_cutoff.isoformat(),
-        "jurisdiction": "all"
-    }
-    return await api_client.get("/bills", params=params)
+ params = {
+ "updated_since": recent_cutoff.isoformat(),
+ "jurisdiction": "all"
+ }
+ return await api_client.get("/bills", params=params)
 
 recent = await get_recent_updates()
 
@@ -301,11 +301,11 @@ pg_restore -d openstates 2026-04-public.pgdump
 
 # Now use SQL for analysis!
 psql openstates -c "
-  SELECT state, COUNT(*) as bill_count
-  FROM bills
-  WHERE session_year = 2024
-  GROUP BY state
-  ORDER BY bill_count DESC;
+ SELECT state, COUNT(*) as bill_count
+ FROM bills
+ WHERE session_year = 2024
+ GROUP BY state
+ ORDER BY bill_count DESC;
 "
 ```
 

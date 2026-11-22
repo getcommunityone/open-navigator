@@ -18,7 +18,7 @@ Show what government said no to or deferred.
 - **Gap**: "100% of parents want screenings; Board said no"
 - **Visual**: Red warning box showing the gap
 
-### 2. Highlight the Logic  
+### 2. Highlight the Logic
 Show the official rationale used to defer/deny.
 
 **Example:**
@@ -32,10 +32,10 @@ Show nonprofits already doing this work.
 **Example:**
 - **Nonprofit**: "West Alabama Dental Initiative"
 - **Impact**: 2,400 students served annually
-- **Actions**: 
-  - ✓ Volunteer opportunities available
-  - ⭐ Board seats open
-  - 🔗 Direct contact info
+- **Actions**:
+ - Yes Volunteer opportunities available
+ - Board seats open
+ - Direct contact info
 - **Visual**: Green success box with nonprofit cards
 
 ---
@@ -44,17 +44,17 @@ Show nonprofits already doing this work.
 
 ```
 ┌─────────────────────────────────┬─────────────────────────────────┐
-│  🏛️ PUBLIC SECTOR                │  🤝 COMMUNITY SECTOR             │
-│                                  │                                  │
-│  The Decision:                   │  Nonprofits Filling the Gap:     │
-│  • What was decided              │  • Organization name & mission   │
-│  • Official rationale            │  • Services provided             │
-│  • Outcome & vote                │  • Impact metrics                │
-│                                  │  • Contact & volunteer info      │
-│  The Gap:                        │  • Board opportunities           │
-│  • What was requested            │                                  │
-│  • Why it was denied             │  NTEE Code Match:                │
-│  • Community impact              │  E32: School-Based Health Care   │
+│ PUBLIC SECTOR │ COMMUNITY SECTOR │
+│ │ │
+│ The Decision: │ Nonprofits Filling the Gap: │
+│ • What was decided │ • Organization name & mission │
+│ • Official rationale │ • Services provided │
+│ • Outcome & vote │ • Impact metrics │
+│ │ • Contact & volunteer info │
+│ The Gap: │ • Board opportunities │
+│ • What was requested │ │
+│ • Why it was denied │ NTEE Code Match: │
+│ • Community impact │ E32: School-Based Health Care │
 └─────────────────────────────────┴─────────────────────────────────┘
 ```
 
@@ -89,18 +89,18 @@ Show nonprofits already doing this work.
 
 ```javascript
 const nteeMapping = {
-  // Health decisions
-  'dental-health': ['E32', 'E40'],
-  'mental-health': ['E80', 'F30'],
-  'water-quality': ['W40', 'K31'],
-  
-  // Education decisions
-  'school-nutrition': ['K30', 'K34'],
-  'after-school': ['O50', 'P30'],
-  
-  // Safety decisions
-  'youth-violence': ['I20', 'O50'],
-  'traffic-safety': ['S20']
+ // Health decisions
+ 'dental-health': ['E32', 'E40'],
+ 'mental-health': ['E80', 'F30'],
+ 'water-quality': ['W40', 'K31'],
+
+ // Education decisions
+ 'school-nutrition': ['K30', 'K34'],
+ 'after-school': ['O50', 'P30'],
+
+ // Safety decisions
+ 'youth-violence': ['I20', 'O50'],
+ 'traffic-safety': ['S20']
 };
 ```
 
@@ -111,40 +111,40 @@ const nteeMapping = {
 ### Government Decision
 ```javascript
 {
-  decision_summary: "Tabled decision on dental screening partnership",
-  outcome: "Tabled for further study",
-  primary_rationale: "Legal risk concerns...",
-  policy_domain: "health",
-  ntee_code: "E32", // School-Based Health Care
-  community_gap: {
-    description: "100% of parents want dental screenings",
-    nonprofit_filling_gap: true
-  }
+ decision_summary: "Tabled decision on dental screening partnership",
+ outcome: "Tabled for further study",
+ primary_rationale: "Legal risk concerns...",
+ policy_domain: "health",
+ ntee_code: "E32", // School-Based Health Care
+ community_gap: {
+ description: "100% of parents want dental screenings",
+ nonprofit_filling_gap: true
+ }
 }
 ```
 
 ### Nonprofit Organization
 ```javascript
 {
-  name: "West Alabama Dental Initiative",
-  ein: "63-1234567", // Tax ID for IRS lookup
-  ntee_code: "E32",
-  ntee_description: "School-Based Health Care",
-  mission: "Free dental screenings for underserved students",
-  services: [
-    "Mobile dental unit visits",
-    "Free toothbrush kits",
-    "Parent education workshops"
-  ],
-  annual_budget: 125000,
-  students_served: 2400,
-  contact: {
-    website: "https://wadaldentalinitiative.org",
-    email: "info@wadaldentalinitiative.org",
-    phone: "(205) 555-0123"
-  },
-  volunteer_opportunities: true,
-  accepting_board_members: true
+ name: "West Alabama Dental Initiative",
+ ein: "63-1234567", // Tax ID for IRS lookup
+ ntee_code: "E32",
+ ntee_description: "School-Based Health Care",
+ mission: "Free dental screenings for underserved students",
+ services: [
+ "Mobile dental unit visits",
+ "Free toothbrush kits",
+ "Parent education workshops"
+ ],
+ annual_budget: 125000,
+ students_served: 2400,
+ contact: {
+ website: "https://wadaldentalinitiative.org",
+ email: "info@wadaldentalinitiative.org",
+ phone: "(205) 555-0123"
+ },
+ volunteer_opportunities: true,
+ accepting_board_members: true
 }
 ```
 
@@ -155,7 +155,7 @@ const nteeMapping = {
 ### 1. Browse Decisions (Left Rail)
 User filters by topic: "Public Health"
 - Sees decision: "Dental screening partnership tabled"
-- Sees badge: "🤝 Community filling gap"
+- Sees badge: " Community filling gap"
 - Clicks to view details
 
 ### 2. View Split-Screen
@@ -171,10 +171,10 @@ User filters by topic: "Public Health"
 
 ### 3. Take Action
 User sees action buttons:
-- 📧 Email nonprofit
-- 🌐 Visit website
-- ✓ Volunteer
-- ⭐ Join board
+- Email nonprofit
+- Visit website
+- Yes Volunteer
+- Join board
 
 User can now:
 - Support existing solutions
@@ -195,23 +195,23 @@ User can now:
 import requests
 
 def get_nonprofits_by_ntee(ntee_code, city="Tuscaloosa", state="AL"):
-    """Fetch nonprofits from IRS tax-exempt organization database"""
-    url = f"https://apps.irs.gov/pub/epostcard/data-download-pub78.zip"
-    # Parse CSV, filter by NTEE code and location
-    return nonprofits
+ """Fetch nonprofits from IRS tax-exempt organization database"""
+ url = f"https://apps.irs.gov/pub/epostcard/data-download-pub78.zip"
+ # Parse CSV, filter by NTEE code and location
+ return nonprofits
 ```
 
 ### Phase 3: Charity Navigator API
 ```python
 def enrich_nonprofit_data(ein):
-    """Get ratings, financials, and impact metrics"""
-    url = f"https://api.charitynavigator.org/v1/organizations/{ein}"
-    return {
-        'overall_rating': 4.2,
-        'financial_rating': 4.5,
-        'accountability_rating': 4.0,
-        'program_expense_ratio': 0.87
-    }
+ """Get ratings, financials, and impact metrics"""
+ url = f"https://api.charitynavigator.org/v1/organizations/{ein}"
+ return {
+ 'overall_rating': 4.2,
+ 'financial_rating': 4.5,
+ 'accountability_rating': 4.0,
+ 'program_expense_ratio': 0.87
+ }
 ```
 
 ### Phase 4: GiveWell/GuideStar Integration
@@ -247,32 +247,32 @@ def enrich_nonprofit_data(ein):
 **Decision Card (Left):**
 ```
 ┌─────────────────────────────────┐
-│ Decision Summary                │
+│ Decision Summary │
 │ ───────────────────────────────│
-│ 📝 Official Rationale           │
-│ "Legal risk concerns..."        │
+│ Official Rationale │
+│ "Legal risk concerns..." │
 │ ───────────────────────────────│
-│ ⚠️ The Accountability Gap       │
-│ "100% of parents want this"     │
+│ Warning The Accountability Gap │
+│ "100% of parents want this" │
 └─────────────────────────────────┘
 ```
 
 **Nonprofit Card (Right):**
 ```
 ┌─────────────────────────────────┐
-│ Organization Name               │
-│ NTEE E32: School Health Care    │
+│ Organization Name │
+│ NTEE E32: School Health Care │
 │ ───────────────────────────────│
-│ Mission statement...            │
+│ Mission statement... │
 │ ───────────────────────────────│
-│ Services:                       │
-│ • Mobile dental unit            │
-│ • Free kits                     │
+│ Services: │
+│ • Mobile dental unit │
+│ • Free kits │
 │ ───────────────────────────────│
-│ 👥 2,400 students | 💰 $125K    │
+│ 2,400 students | $125K │
 │ ───────────────────────────────│
-│ [Website] [Email] [Volunteer]   │
-│ ✓ Board seats available         │
+│ [Website] [Email] [Volunteer] │
+│ Yes Board seats available │
 └─────────────────────────────────┘
 ```
 
