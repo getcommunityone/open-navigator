@@ -1,5 +1,16 @@
-import React, {useCallback, useEffect, useId, useState} from 'react';
-import {TransformWrapper, TransformComponent} from 'react-zoom-pan-pinch';
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
+import {createPortal} from 'react-dom';
+import {
+  TransformWrapper,
+  TransformComponent,
+  type ReactZoomPanPinchRef,
+} from 'react-zoom-pan-pinch';
 import styles from './styles.module.css';
 
 export interface ZoomableImageProps {
@@ -21,10 +32,17 @@ export default function ZoomableImage({
   previewMaxHeight = '280px',
 }: ZoomableImageProps): JSX.Element {
   const [open, setOpen] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
   const titleId = useId();
   const label = title || alt;
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const apiRef = useRef<ReactZoomPanPinchRef | null>(null);
 
   const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -39,6 +57,104 @@ export default function ZoomableImage({
       window.removeEventListener('keydown', onKey);
     };
   }, [open, close]);
+
+  const fitToView = useCallback(() => {
+    const api = apiRef.current;
+    const img = imgRef.current;
+    if (!api || !img) return;
+    // zoomToElement scales the element into the TransformComponent viewport.
+    try {
+      api.zoomToElement(img, undefined, 200, 'easeOut');
+    } catch {
+      /* image or stage not ready */
+    }
+  }, []);
+
+  const lightbox =
+    open && portalReady
+      ? createPortal(
+          <div
+            className={styles.overlay}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+          >
+            <TransformWrapper
+              initialScale={1}
+              minScale={0.05}
+              maxScale={8}
+              centerOnInit={false}
+              wheel={{step: 0.12}}
+              doubleClick={{mode: 'toggle', step: 0.8}}
+              panning={{velocityDisabled: true}}
+              limitToBounds={false}
+              onInit={(ref) => {
+                apiRef.current = ref;
+                requestAnimationFrame(() => fitToView());
+              }}
+            >
+              {({zoomIn, zoomOut}) => (
+                <>
+                  <div className={styles.toolbar}>
+                    <p className={styles.toolbarTitle} id={titleId}>
+                      {label}
+                    </p>
+                    <div className={styles.toolbarActions}>
+                      <button
+                        type="button"
+                        className={styles.toolBtn}
+                        onClick={() => zoomIn(0.3)}
+                      >
+                        Zoom in
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.toolBtn}
+                        onClick={() => zoomOut(0.3)}
+                      >
+                        Zoom out
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.toolBtn}
+                        onClick={() => fitToView()}
+                      >
+                        Fit
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.toolBtnPrimary}
+                        onClick={close}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                  <div className={styles.stage}>
+                    <TransformComponent
+                      wrapperClass={styles.stageTransform}
+                      contentClass={styles.stageContent}
+                    >
+                      <img
+                        ref={imgRef}
+                        className={styles.fullImg}
+                        src={src}
+                        alt={alt}
+                        draggable={false}
+                        onLoad={() => fitToView()}
+                      />
+                    </TransformComponent>
+                  </div>
+                  <p className={styles.lightboxHint}>
+                    Scroll to zoom · drag to pan · Esc to close
+                  </p>
+                </>
+              )}
+            </TransformWrapper>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div className={styles.wrap}>
@@ -55,8 +171,8 @@ export default function ZoomableImage({
       </div>
       <button
         type="button"
+        className={styles.previewBtn}
         onClick={() => setOpen(true)}
-        style={{display: 'block', width: '100%', padding: 0, border: 0, background: 'none'}}
         aria-label={`Open zoomable view: ${label}`}
       >
         <img
@@ -67,80 +183,9 @@ export default function ZoomableImage({
           loading="lazy"
           decoding="async"
         />
+        <span className={styles.previewBadge}>Click to zoom</span>
       </button>
-      <p className={styles.hint}>Preview — click image or Open &amp; zoom to pan and zoom.</p>
-
-      {open ? (
-        <div
-          className={styles.overlay}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-        >
-          <TransformWrapper
-            initialScale={1}
-            minScale={0.25}
-            maxScale={8}
-            centerOnInit
-            wheel={{step: 0.15}}
-            doubleClick={{mode: 'zoomIn', step: 0.4}}
-            panning={{velocityDisabled: true}}
-            limitToBounds={false}
-          >
-            {({zoomIn, zoomOut, resetTransform}) => (
-              <div className={styles.lightboxInner}>
-                <div className={styles.toolbar}>
-                  <p className={styles.toolbarTitle} id={titleId}>
-                    {label}
-                  </p>
-                  <div className={styles.toolbarActions}>
-                    <button
-                      type="button"
-                      className={styles.toolBtn}
-                      onClick={() => zoomIn()}
-                      title="Zoom in"
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.toolBtn}
-                      onClick={() => zoomOut()}
-                      title="Zoom out"
-                    >
-                      −
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.toolBtn}
-                      onClick={() => resetTransform()}
-                      title="Reset"
-                    >
-                      Reset
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.toolBtn}
-                      onClick={close}
-                      title="Close (Esc)"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
-                <div className={styles.stage}>
-                  <TransformComponent
-                    wrapperClass={styles.stageTransform}
-                    contentClass={styles.stageTransform}
-                  >
-                    <img className={styles.fullImg} src={src} alt={alt} draggable={false} />
-                  </TransformComponent>
-                </div>
-              </div>
-            )}
-          </TransformWrapper>
-        </div>
-      ) : null}
+      {lightbox}
     </div>
   );
 }

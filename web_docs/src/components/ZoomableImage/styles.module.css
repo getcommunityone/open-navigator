@@ -1,9 +1,11 @@
+/* Card chrome — calm teal, Infima-proof buttons */
 .wrap {
-  margin: 1.25rem 0 1.75rem;
-  border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 8px;
+  margin: 1.5rem 0 2rem;
+  border: 1px solid #d6d3d1;
+  border-radius: 12px;
   overflow: hidden;
-  background: var(--ifm-background-surface-color, var(--ifm-background-color));
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
 }
 
 .header {
@@ -12,33 +14,68 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--ifm-color-emphasis-300);
-  background: var(--ifm-color-emphasis-100);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e7e5e4;
+  background: #fafaf9;
 }
 
 .title {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--ifm-color-emphasis-800);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #292524;
 }
 
 .openBtn {
-  appearance: none;
-  border: 1px solid var(--ifm-color-primary);
-  background: var(--ifm-color-primary);
-  color: #fff;
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.4rem 0.85rem;
-  border-radius: 6px;
-  cursor: pointer;
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  margin: 0 !important;
+  border: 1px solid #0f766e !important;
+  border-radius: 999px !important;
+  background: #0f766e !important;
+  color: #fff !important;
+  font: inherit !important;
+  font-size: 0.8125rem !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+  padding: 0.55rem 1.05rem !important;
+  cursor: pointer !important;
+  box-shadow: 0 1px 2px rgba(15, 118, 110, 0.28);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .openBtn:hover {
-  filter: brightness(0.95);
+  background: #0d9488 !important;
+  border-color: #0d9488 !important;
+  color: #fff !important;
+}
+
+.openBtn:focus-visible {
+  outline: 2px solid #5eead4 !important;
+  outline-offset: 2px;
+}
+
+.previewBtn {
+  appearance: none !important;
+  position: relative;
+  display: block !important;
+  width: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #f5f5f4 !important;
+  cursor: zoom-in !important;
+  text-align: left;
+  box-shadow: none !important;
+}
+
+.previewBtn:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: -2px;
 }
 
 .preview {
@@ -48,84 +85,110 @@
   object-fit: contain;
   object-position: top center;
   background:
-    linear-gradient(var(--ifm-color-emphasis-200) 1px, transparent 1px),
-    linear-gradient(90deg, var(--ifm-color-emphasis-200) 1px, transparent 1px);
-  background-size: 16px 16px;
-  cursor: zoom-in;
+    linear-gradient(#e7e5e4 1px, transparent 1px),
+    linear-gradient(90deg, #e7e5e4 1px, transparent 1px);
+  background-size: 18px 18px;
+  background-color: #fafaf9;
 }
 
-.hint {
-  margin: 0;
-  padding: 0.5rem 1rem 0.75rem;
-  font-size: 0.8rem;
-  color: var(--ifm-color-emphasis-600);
+.previewBadge {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(28, 25, 23, 0.78);
+  color: #fafaf9;
+  font-size: 0.75rem;
+  font-weight: 600;
+  pointer-events: none;
 }
 
-/* ---- Fullscreen lightbox ---- */
-
+/* Fullscreen lightbox — absolute regions so TransformWrapper height can't collapse */
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
-  background: rgba(15, 23, 42, 0.92);
-}
-
-.lightboxInner {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
+  z-index: 2147483000;
+  background: rgba(28, 25, 23, 0.9);
+  backdrop-filter: blur(8px);
 }
 
 .toolbar {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: rgba(15, 23, 42, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f8fafc;
+  gap: 0.75rem 1rem;
+  padding: 0.85rem 1.1rem;
+  background: rgba(28, 25, 23, 0.94);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fafaf9;
 }
 
 .toolbarTitle {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .toolbarActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.5rem;
+}
+
+.toolBtn,
+.toolBtnPrimary {
+  appearance: none !important;
+  margin: 0 !important;
+  border-radius: 999px !important;
+  font: inherit !important;
+  font-size: 0.8125rem !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+  padding: 0.55rem 0.95rem !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
 }
 
 .toolBtn {
-  appearance: none;
-  min-width: 2.5rem;
-  padding: 0.4rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #fafaf9 !important;
 }
 
 .toolBtn:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #fff !important;
+}
+
+.toolBtnPrimary {
+  border: 1px solid #0d9488 !important;
+  background: #0f766e !important;
+  color: #fff !important;
+}
+
+.toolBtnPrimary:hover {
+  background: #0d9488 !important;
+  color: #fff !important;
 }
 
 .stage {
-  flex: 1 1 auto;
-  min-height: 0;
-  position: relative;
+  position: absolute;
+  top: 3.4rem;
+  bottom: 2.4rem;
+  left: 0;
+  right: 0;
   cursor: grab;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.07), transparent 55%),
+    #1c1917;
 }
 
 .stage:active {
@@ -137,6 +200,14 @@
   height: 100% !important;
 }
 
+.stageContent {
+  width: 100%;
+  height: 100%;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
 .fullImg {
   display: block;
   max-width: none;
@@ -144,6 +215,23 @@
   height: auto;
   user-select: none;
   pointer-events: none;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  background: #fff;
+}
+
+.lightboxHint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.75rem;
+  color: rgba(250, 250, 249, 0.75);
+  text-align: center;
+  background: rgba(28, 25, 23, 0.94);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 @media (max-width: 640px) {
@@ -153,5 +241,9 @@
 
   .toolbarTitle {
     width: 100%;
+  }
+
+  .stage {
+    top: 5.5rem;
   }
 }
