@@ -939,12 +939,14 @@ export default function BatchJobStatusPage() {
   const [streamLive, setStreamLive] = useState(false)
   const [videosLoading, setVideosLoading] = useState(false)
 
-  const [allScope, setAllScopeState] = useState<BatchCohort>(() =>
-    parseBatchCohort(searchParams.get('cohort') ?? localStorage.getItem('batch-launch-scope')),
+  // URL is the single source of truth for Filter (cohort). Avoid useState↔URL
+  // sync races that briefly (or permanently) keep Priority counts while the
+  // select already shows Data centers.
+  const allScope = parseBatchCohort(
+    searchParams.get('cohort') ?? localStorage.getItem('batch-launch-scope'),
   )
   const setAllScope = useCallback(
     (v: BatchCohort, cohortStates?: string[]) => {
-      setAllScopeState(v)
       localStorage.setItem('batch-launch-scope', v)
       const next = new URLSearchParams(searchParams)
       next.set('cohort', v)
@@ -954,8 +956,11 @@ export default function BatchJobStatusPage() {
         next.delete('state')
       }
       setSearchParams(next, { replace: true })
+      // Drop cached dashboards so numerator/denominator always refetch for the
+      // newly selected Filter (priority / data_centers / all).
+      void queryClient.invalidateQueries({ queryKey: ['batch-jobs-dashboard'] })
     },
-    [searchParams, setSearchParams],
+    [searchParams, setSearchParams, queryClient],
   )
 
   useEffect(() => {
@@ -966,12 +971,8 @@ export default function BatchJobStatusPage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- seed ?cohort= once
 
   useEffect(() => {
-    const urlCohort = parseBatchCohort(searchParams.get('cohort'))
-    if (urlCohort !== allScope) {
-      setAllScopeState(urlCohort)
-      localStorage.setItem('batch-launch-scope', urlCohort)
-    }
-  }, [searchParams, allScope])
+    localStorage.setItem('batch-launch-scope', allScope)
+  }, [allScope])
 
   const { data: cohortsData } = useQuery({
     queryKey: ['batch-cohorts'],
@@ -982,8 +983,11 @@ export default function BatchJobStatusPage() {
 
   const { data, isPending, isFetching, isError, error, refetch } = useQuery({
     queryKey: batchJobsDashboardQueryKey(allScope),
-    queryFn: () => fetchBatchJobsDashboard(false, 'summary', allScope),
-    staleTime: 30_000,
+    queryFn: ({ queryKey }) => {
+      const cohort = (queryKey[1] as BatchCohort) || 'priority'
+      return fetchBatchJobsDashboard(false, 'summary', cohort)
+    },
+    staleTime: 0,
     refetchOnWindowFocus: true,
     retry: 1,
   })
@@ -999,17 +1003,22 @@ export default function BatchJobStatusPage() {
   }, [cohortsData, allScope, stateFilter, searchParams, setSearchParams])
 
   useEffect(() => {
-    const url = batchJobsStreamUrl(allScope)
+    const cohort = allScope
+    const url = batchJobsStreamUrl(cohort)
     const es = new EventSource(url)
+    let active = true
 
     const applyPayload = (payload: BatchJobsDashboardPayload) => {
+      if (!active) return
       queryClient.setQueryData<BatchJobsDashboardPayload>(
-        batchJobsDashboardQueryKey(allScope),
+        batchJobsDashboardQueryKey(cohort),
         (prev) => mergeDashboardFromStream(prev, payload),
       )
     }
 
-    es.onopen = () => setStreamLive(true)
+    es.onopen = () => {
+      if (active) setStreamLive(true)
+    }
     es.addEventListener('summary', (ev) => {
       try {
         applyPayload(JSON.parse(ev.data) as BatchJobsDashboardPayload)
@@ -1018,12 +1027,14 @@ export default function BatchJobStatusPage() {
       }
     })
     es.onerror = () => {
+      if (!active) return
       setStreamLive(false)
       es.close()
       void refetch()
     }
 
     return () => {
+      active = false
       setStreamLive(false)
       es.close()
     }
@@ -1513,12 +1524,16 @@ export default function BatchJobStatusPage() {
         <>
           {(() => {
             const report = data.stage_report ?? { states: [], rows: [] }
+            // Prefer API cohort state lists; fall back so Data centers still has a
+            // Scope list (and ALL rollup) before /cohorts returns.
             const cohortStates =
               cohortsData?.[allScope] ??
               (allScope === 'all'
                 ? STATE_CODES
                 : allScope === 'data_centers'
-                  ? []
+                  ? report.states?.length
+                    ? report.states
+                    : []
                   : PRIORITY_STATE_CODES)
             // Cohort list is source of truth; intersect with report.states to hide empty rows.
             const stateOpts = report.states?.length
@@ -1613,7 +1628,12 @@ export default function BatchJobStatusPage() {
                 n: 2,
                 stage: 'transcripts',
                 unit: 'videos',
-                sub: `${formatCompactNumber(data.totals.files_transcripts_disk ?? 0)} segment rows · deduped to videos`,
+                sub:
+                  allScope === 'data_centers'
+                    ? 'data-center jurisdictions only'
+                    : allScope === 'priority'
+                      ? 'priority states only'
+                      : `${formatCompactNumber(data.totals.files_transcripts_disk ?? 0)} segment rows · deduped to videos`,
                 pill: true,
                 drill: openFailed,
                 failTitle: 'Videos with no usable transcript — tap to list',
@@ -1935,6 +1955,11 @@ export default function BatchJobStatusPage() {
                             {formatCompactNumber(done)}
                           </span>{' '}
                           / {formatCompactNumber(total)} {st.unit} · {fmtPct(done, total)}
+                          {isFetching ? (
+                            <span className="ml-1 text-[10px] font-normal text-slate-400">
+                              updating…
+                            </span>
+                          ) : null}
                         </div>
                         <div className="mt-1.5">
                           <ProgressBar pct={pct} />
