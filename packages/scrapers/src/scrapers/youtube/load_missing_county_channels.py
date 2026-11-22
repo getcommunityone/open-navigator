@@ -31,6 +31,11 @@ _REPO_ROOT = repo_root(__file__)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scrapers.youtube.vpn_guard import (
+    VpnRequiredError,
+    async_call_with_vpn_retry,
+    call_with_vpn_retry,
+)
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 
 # Accepted after channel gates + Jev meta keep-score (#697).
@@ -246,6 +251,8 @@ def evaluate_discover_for_bronze(
         uploads = fetch_newest_channel_uploads(
             key, channel_id, limit=max_jev_videos,
         )
+    except VpnRequiredError:
+        raise
     except Exception as exc:
         return False, f"uploads_fetch_failed:{exc}", None
     if not uploads:
@@ -262,6 +269,8 @@ def evaluate_discover_for_bronze(
                 channel_title=channel_title,
                 client=jev_client,
             )
+        except VpnRequiredError:
+            raise
         except Exception as exc:
             attempts.append(f"{video_id or '?'}:jev_failed:{exc}")
             logger.info(
@@ -445,8 +454,8 @@ async def discover_channels(
                 merged["confidence"] = resolved.get("confidence")
             return merged
 
-        total = len(rows)
-        for idx, row in enumerate(rows, 1):
+        async def discover_one_row(row: dict[str, Any]) -> dict[str, Any]:
+            """Discover (or reuse scraped) channel for one county; may raise VpnRequiredError."""
             county_name = str(row["county_name"]).strip()
             website = str(row.get("website_url") or "").strip() or None
             if skip_homepage_scrape:
@@ -456,32 +465,31 @@ async def discover_channels(
             if scraped_top:
                 scraped_top = await resolve_channel_identity(
                     scraped_top,
-                    fallback_method=str(scraped_top.get("discovery_method") or "").strip() or "website_scrape",
+                    fallback_method=str(scraped_top.get("discovery_method") or "").strip()
+                    or "website_scrape",
                 )
-                _emit(
-                    {
-                        "jurisdiction_id": row["jurisdiction_id"],
-                        "geoid": row.get("geoid", "") or "",
-                        "county_name": county_name,
-                        "website_url": website or "",
-                        "channel_id": scraped_top.get("channel_id", "") or "",
-                        "channel_url": scraped_top.get("channel_url", "") or "",
-                        "channel_title": title_fallback(scraped_top),
-                        "video_count": scraped_top.get("video_count", "") or "",
-                        "subscriber_count": scraped_top.get("subscriber_count", "") or "",
-                        "view_count": scraped_top.get("view_count", "") or "",
-                        "latest_upload": scraped_top.get("latest_upload", "") or "",
-                        "policy_score": scraped_top.get("policy_score", "") or "",
-                        "discovery_method": scraped_top.get("discovery_method", "website_scrape") or "website_scrape",
-                        "candidate_count": len(row.get("scraped_youtube_channels") or []),
-                        "top_candidates": summarize_candidates(row.get("scraped_youtube_channels") or [scraped_top]),
-                        "source_priority": "scraped_official_website",
-                        "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
-                    }
-                )
-                if idx % 10 == 0 or idx == total:
-                    logger.info("Progress: {}/{}", idx, total)
-                continue
+                return {
+                    "jurisdiction_id": row["jurisdiction_id"],
+                    "geoid": row.get("geoid", "") or "",
+                    "county_name": county_name,
+                    "website_url": website or "",
+                    "channel_id": scraped_top.get("channel_id", "") or "",
+                    "channel_url": scraped_top.get("channel_url", "") or "",
+                    "channel_title": title_fallback(scraped_top),
+                    "video_count": scraped_top.get("video_count", "") or "",
+                    "subscriber_count": scraped_top.get("subscriber_count", "") or "",
+                    "view_count": scraped_top.get("view_count", "") or "",
+                    "latest_upload": scraped_top.get("latest_upload", "") or "",
+                    "policy_score": scraped_top.get("policy_score", "") or "",
+                    "discovery_method": scraped_top.get("discovery_method", "website_scrape")
+                    or "website_scrape",
+                    "candidate_count": len(row.get("scraped_youtube_channels") or []),
+                    "top_candidates": summarize_candidates(
+                        row.get("scraped_youtube_channels") or [scraped_top]
+                    ),
+                    "source_priority": "scraped_official_website",
+                    "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
+                }
 
             try:
                 channels = await discovery.discover_channels(
@@ -490,6 +498,8 @@ async def discover_channels(
                     state_code=state_code,
                     homepage_url=website,
                 )
+            except VpnRequiredError:
+                raise
             except Exception as exc:
                 logger.warning("Discovery failed for {}: {}", county_name, exc)
                 channels = []
@@ -498,29 +508,37 @@ async def discover_channels(
             if top:
                 top = await resolve_channel_identity(
                     top,
-                    fallback_method=str(top.get("discovery_method") or "").strip() or "fallback_discovery",
+                    fallback_method=str(top.get("discovery_method") or "").strip()
+                    or "fallback_discovery",
                 )
-            _emit(
-                {
-                    "jurisdiction_id": row["jurisdiction_id"],
-                    "geoid": row.get("geoid", "") or "",
-                    "county_name": county_name,
-                    "website_url": website or "",
-                    "channel_id": top.get("channel_id", "") or "",
-                    "channel_url": top.get("channel_url", "") or "",
-                    "channel_title": title_fallback(top),
-                    "video_count": top.get("video_count", "") or "",
-                    "subscriber_count": top.get("subscriber_count", "") or "",
-                    "view_count": top.get("view_count", "") or "",
-                    "latest_upload": top.get("latest_upload", "") or "",
-                    "policy_score": top.get("policy_score", "") or "",
-                    "discovery_method": top.get("discovery_method", "") or "",
-                    "candidate_count": len(channels),
-                    "top_candidates": summarize_candidates(channels),
-                    "source_priority": "fallback_discovery",
-                    "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
-                }
+            return {
+                "jurisdiction_id": row["jurisdiction_id"],
+                "geoid": row.get("geoid", "") or "",
+                "county_name": county_name,
+                "website_url": website or "",
+                "channel_id": top.get("channel_id", "") or "",
+                "channel_url": top.get("channel_url", "") or "",
+                "channel_title": title_fallback(top),
+                "video_count": top.get("video_count", "") or "",
+                "subscriber_count": top.get("subscriber_count", "") or "",
+                "view_count": top.get("view_count", "") or "",
+                "latest_upload": top.get("latest_upload", "") or "",
+                "policy_score": top.get("policy_score", "") or "",
+                "discovery_method": top.get("discovery_method", "") or "",
+                "candidate_count": len(channels),
+                "top_candidates": summarize_candidates(channels),
+                "source_priority": "fallback_discovery",
+                "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
+            }
+
+        total = len(rows)
+        for idx, row in enumerate(rows, 1):
+            county_name = str(row["county_name"]).strip()
+            result = await async_call_with_vpn_retry(
+                lambda r=row: discover_one_row(r),
+                what=f"discover {county_name}, {state_code}",
             )
+            _emit(result)
             if idx % 10 == 0 or idx == total:
                 logger.info("Progress: {}/{}", idx, total)
     return out
@@ -597,49 +615,58 @@ def discover_one_state(
             jev_client = JevClient()
             jev_client.__enter__()
 
-        def _persist(result: dict[str, Any]) -> None:
+        def _persist_once(result: dict[str, Any]) -> None:
             nonlocal bronze_writes, bronze_rejects
             if not str(result.get("channel_id") or "").strip():
                 return
-            try:
-                ok, reason, keep_p = evaluate_discover_for_bronze(
-                    result,
-                    state_code=state_code,
-                    min_meeting_p=jev_min_meeting_p,
-                    jev_client=jev_client,
-                    skip_jev=skip_jev_gate,
+            ok, reason, keep_p = evaluate_discover_for_bronze(
+                result,
+                state_code=state_code,
+                min_meeting_p=jev_min_meeting_p,
+                jev_client=jev_client,
+                skip_jev=skip_jev_gate,
+            )
+            if not ok:
+                bronze_rejects += 1
+                logger.info(
+                    "Discover reject {}: {} (keep_p={})",
+                    result.get("jurisdiction_id"),
+                    reason,
+                    keep_p,
                 )
-                if not ok:
-                    bronze_rejects += 1
-                    logger.info(
-                        "Discover reject {}: {} (keep_p={})",
-                        result.get("jurisdiction_id"),
-                        reason,
-                        keep_p,
-                    )
-                    return
-                conf = keep_p if keep_p is not None else _confidence_from_row(result)
-                row = dict(result)
-                if conf is not None:
-                    row["policy_score"] = conf
-                if persist_discovered_channel_to_bronze(
-                    bronze_conn,
-                    row,
-                    state_code=state_code,
-                    method=DISCOVER_JEV_METHOD,
-                ):
-                    bronze_writes += 1
-                    logger.success(
-                        "Discover accept {}: {}",
-                        result.get("jurisdiction_id"),
-                        reason,
-                    )
+                return
+            conf = keep_p if keep_p is not None else _confidence_from_row(result)
+            row = dict(result)
+            if conf is not None:
+                row["policy_score"] = conf
+            if persist_discovered_channel_to_bronze(
+                bronze_conn,
+                row,
+                state_code=state_code,
+                method=DISCOVER_JEV_METHOD,
+            ):
+                bronze_writes += 1
+                logger.success(
+                    "Discover accept {}: {}",
+                    result.get("jurisdiction_id"),
+                    reason,
+                )
+
+        def _persist(result: dict[str, Any]) -> None:
+            jid = result.get("jurisdiction_id") or "?"
+            try:
+                call_with_vpn_retry(
+                    lambda: _persist_once(result),
+                    what=f"discover bronze gate {jid}",
+                )
+            except VpnRequiredError:
+                raise
             except Exception as exc:
                 if bronze_conn is not None:
                     bronze_conn.rollback()
                 logger.warning(
                     "Bronze write-through failed for {}: {}",
-                    result.get("jurisdiction_id"),
+                    jid,
                     exc,
                 )
 
@@ -737,16 +764,19 @@ def main() -> int:
 
     multi = len(states) > 1
     for state_code in states:
-        discover_one_state(
-            state_code,
-            db_url,
-            output=args.output,
-            multi=multi,
-            skip_homepage_scrape=args.skip_homepage_scrape,
-            data_center_jids=data_center_jids,
-            write_bronze=not args.no_bronze_write,
-            jev_min_meeting_p=args.jev_min_meeting_p,
-            skip_jev_gate=args.skip_jev_gate,
+        call_with_vpn_retry(
+            lambda sc=state_code: discover_one_state(
+                sc,
+                db_url,
+                output=args.output,
+                multi=multi,
+                skip_homepage_scrape=args.skip_homepage_scrape,
+                data_center_jids=data_center_jids,
+                write_bronze=not args.no_bronze_write,
+                jev_min_meeting_p=args.jev_min_meeting_p,
+                skip_jev_gate=args.skip_jev_gate,
+            ),
+            what=f"discover state {state_code}",
         )
     return 0
 

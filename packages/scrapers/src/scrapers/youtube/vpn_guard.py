@@ -21,7 +21,9 @@ every call (it's a local file); the two IP lookups run at most every
 Entry points that stop for the VPN exit with :data:`VPN_EXIT_CODE` (5); wrap a CLI
 ``main`` with :func:`exit_if_vpn_off` to get that. Long batch shells
 (``youtube_run_priority_states_last_n.sh``) wait and retry on exit 5 (#644)
-instead of ending the crawl.
+instead of ending the crawl. In-process jobs (Discover launched from the API)
+should catch :class:`VpnRequiredError` and call :func:`wait_until_vpn_up` (or
+:func:`async_call_with_vpn_retry`) so they resume when Surfshark returns (#700).
 
 Environment:
   YOUTUBE_REQUIRE_VPN — ``1`` (default). ``0`` turns the check off and logs a
@@ -30,6 +32,8 @@ Environment:
     treating the lookup as failed (default ``3``). Softens one-shot ifconfig
     blips that used to abort overnight crawls (#644).
   VPN_IP_LOOKUP_DELAY_SECONDS — sleep between lookup attempts (default ``2``).
+  VPN_WAIT_POLL_SECONDS — how often :func:`wait_until_vpn_up` re-checks
+    (default ``30``); same name as the shell wrapper.
 """
 
 from __future__ import annotations
@@ -53,6 +57,7 @@ VPN_EXIT_CODE = 5
 DEFAULT_RECHECK_SECONDS = 120.0
 DEFAULT_IP_LOOKUP_ATTEMPTS = 3
 DEFAULT_IP_LOOKUP_DELAY_SECONDS = 2.0
+DEFAULT_WAIT_POLL_SECONDS = 30.0
 ROUTE_TABLE = Path("/proc/net/route")
 OFF_MESSAGE = "Surfshark is off: connect it, then re-run"
 
@@ -350,6 +355,86 @@ def require_vpn_for_url(
     """:func:`require_vpn` when ``url`` is a YouTube URL; no-op for any other host."""
     if is_youtube_url(url):
         require_vpn(recheck_seconds=recheck_seconds)
+
+
+def vpn_wait_poll_seconds() -> float:
+    """Poll interval for :func:`wait_until_vpn_up` (``VPN_WAIT_POLL_SECONDS``, default 30)."""
+    raw = (os.getenv("VPN_WAIT_POLL_SECONDS") or "").strip()
+    if not raw:
+        return DEFAULT_WAIT_POLL_SECONDS
+    try:
+        return max(1.0, float(raw))
+    except ValueError:
+        return DEFAULT_WAIT_POLL_SECONDS
+
+
+def wait_until_vpn_up(
+    what: str = "YouTube",
+    *,
+    poll_seconds: float | None = None,
+) -> None:
+    """Block until :func:`require_vpn` passes, then return (shell wait parity, #644/#700).
+
+    Logs once that we are waiting, sleeps ``poll_seconds`` between checks, and
+    logs success when the tunnel is back. Never returns while the VPN is still
+    required and down — callers resume the same work after this returns.
+    """
+    poll = (
+        float(poll_seconds)
+        if poll_seconds is not None
+        else vpn_wait_poll_seconds()
+    )
+    logger.warning(
+        "VPN down during {}; waiting until vpn_guard passes (poll {}s)...",
+        what,
+        poll,
+    )
+    while True:
+        try:
+            # Force a fresh IP comparison; do not reuse a stale pass cache.
+            require_vpn(recheck_seconds=0)
+            logger.success("VPN up again; resuming {}", what)
+            return
+        except VpnRequiredError:
+            time.sleep(poll)
+
+
+async def async_call_with_vpn_retry(
+    factory: Callable[[], Any],
+    *,
+    what: str,
+    poll_seconds: float | None = None,
+) -> Any:
+    """Await ``factory()``; on :class:`VpnRequiredError` wait for VPN and retry forever.
+
+    ``factory`` must be a zero-arg callable that returns an awaitable (so each
+    retry starts fresh work for the same unit — e.g. one jurisdiction).
+    """
+    while True:
+        try:
+            return await factory()
+        except VpnRequiredError as exc:
+            logger.warning("VPN down during {}: {}", what, exc)
+            await asyncio.to_thread(
+                wait_until_vpn_up,
+                what,
+                poll_seconds=poll_seconds,
+            )
+
+
+def call_with_vpn_retry(
+    factory: Callable[[], Any],
+    *,
+    what: str,
+    poll_seconds: float | None = None,
+) -> Any:
+    """Call ``factory()``; on :class:`VpnRequiredError` wait for VPN and retry forever."""
+    while True:
+        try:
+            return factory()
+        except VpnRequiredError as exc:
+            logger.warning("VPN down during {}: {}", what, exc)
+            wait_until_vpn_up(what, poll_seconds=poll_seconds)
 
 
 def exit_if_vpn_off(func: F) -> F:
