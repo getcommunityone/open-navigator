@@ -6,20 +6,20 @@ sidebar_position: 11
 
 Comprehensive guide to the **multi-layered build protection system** that prevents broken deployments.
 
-## 🛡️ Protection Layers
+## Protection Layers
 
 We have **4 layers of protection** to catch build errors before they reach production:
 
 ```mermaid
 graph LR
-    A[Local Pre-Push Hook] --> B[GitHub CI Tests]
-    B --> C[Docker Build Test]
-    C --> D[HuggingFace Deployment]
-    
-    style A fill:#52796F
-    style B fill:#84A98C
-    style C fill:#CAD2C5
-    style D fill:#354F52
+ A[Local Pre-Push Hook] --> B[GitHub CI Tests]
+ B --> C[Docker Build Test]
+ C --> D[HuggingFace Deployment]
+
+ style A fill:#52796F
+ style B fill:#84A98C
+ style C fill:#CAD2C5
+ style D fill:#354F52
 ```
 
 ### Layer 1: Pre-Push Hook (Local)
@@ -27,9 +27,9 @@ graph LR
 **Runs before every `git push`** on your local machine.
 
 **Checks:**
-- ✅ Frontend TypeScript compilation
-- ✅ Python syntax validation
-- ✅ Frontend build succeeds
+- Yes Frontend TypeScript compilation
+- Yes Python syntax validation
+- Yes Frontend build succeeds
 
 **Setup:**
 ```bash
@@ -50,28 +50,28 @@ git push --no-verify
 
 **Tests:**
 1. **Frontend Build**
-   - TypeScript type checking
-   - Vite production build
-   - Artifact verification
+ - TypeScript type checking
+ - Vite production build
+ - Artifact verification
 
 2. **Documentation Build**
-   - Docusaurus build
-   - Mermaid diagram rendering
-   - Static site generation
+ - Docusaurus build
+ - Mermaid diagram rendering
+ - Static site generation
 
 3. **Backend Tests**
-   - Python syntax checking
-   - Module import validation
-   - API app initialization
+ - Python syntax checking
+ - Module import validation
+ - API app initialization
 
 4. **Docker Build**
-   - Full multi-stage Docker build
-   - All three services (Docs + App + API)
-   - Uses build cache for speed
+ - Full multi-stage Docker build
+ - All three services (Docs + App + API)
+ - Uses build cache for speed
 
 **View Results:**
 - Go to the [Actions tab](https://github.com/getcommunityone/open-navigator-for-engagement/actions)
-- Each push shows ✅ or ❌ for all tests
+- Each push shows Yes or No for all tests
 
 ### Layer 3: Local Docker Test (Manual)
 
@@ -86,10 +86,10 @@ git push --no-verify
 ```
 
 **What it tests:**
-- 📦 Full Docker image build (8GB+)
-- 🌐 All three services start correctly
-- 🔗 HTTP endpoints return 200 OK
-- ⏱️ Services respond within timeout
+- Full Docker image build (8GB+)
+- All three services start correctly
+- HTTP endpoints return 200 OK
+- Services respond within timeout
 
 **Automatic in deployment:**
 The `deploy-huggingface.sh` script **automatically runs this test** before deploying (unless you use `--skip-test`).
@@ -100,16 +100,16 @@ The `deploy-huggingface.sh` script **automatically runs this test** before deplo
 
 **Deployment methods:**
 1. **Manual (local):**
-   ```bash
-   export HF_USERNAME=CommunityOne
-   ./deploy-huggingface.sh
-   ```
+ ```bash
+ export HF_USERNAME=CommunityOne
+ ./deploy-huggingface.sh
+ ```
 
 2. **GitHub Actions (automatic):**
-   - Push to `deploy` branch, or
-   - Manually trigger via [Actions tab](https://github.com/getcommunityone/open-navigator-for-engagement/actions/workflows/deploy-huggingface.yml)
+ - Push to `deploy` branch, or
+ - Manually trigger via [Actions tab](https://github.com/getcommunityone/open-navigator-for-engagement/actions/workflows/deploy-huggingface.yml)
 
-## 🚨 Common Build Errors
+## Common Build Errors
 
 ### TypeScript Error
 
@@ -157,20 +157,20 @@ Deployment uses old code even though main branch is updated
 The deploy script now **automatically syncs** with main:
 ```bash
 git checkout main
-git branch -D huggingface-deploy  # Delete old
-git checkout -b huggingface-deploy  # Fresh from main
+git branch -D huggingface-deploy # Delete old
+git checkout -b huggingface-deploy # Fresh from main
 ```
 
 No manual intervention needed!
 
-## 📊 Monitoring Deployments
+## Monitoring Deployments
 
 ### GitHub Actions Dashboard
 
 1. Go to [Actions tab](https://github.com/getcommunityone/open-navigator-for-engagement/actions)
 2. View all CI/CD runs
 3. Click any run to see detailed logs
-4. Red ❌ = failed, Green ✅ = passed
+4. Red No = failed, Green Yes = passed
 
 ### HuggingFace Space Logs
 
@@ -189,7 +189,7 @@ No manual intervention needed!
 grep -i error build-test.log
 ```
 
-## 🔄 CI/CD Workflow Example
+## CI/CD Workflow Example
 
 **Typical development flow with protection:**
 
@@ -206,17 +206,17 @@ git commit -m "feat: Add new explore feature"
 
 # 4. Push to GitHub
 git push origin main
-# → Pre-push hook runs TypeScript check ✅
-# → GitHub Actions CI runs full test suite ✅
+# → Pre-push hook runs TypeScript check Yes
+# → GitHub Actions CI runs full test suite Yes
 
 # 5. Deploy to HuggingFace
 export HF_USERNAME=CommunityOne
 ./deploy-huggingface.sh
-# → Docker build test runs automatically ✅
-# → Deployment proceeds only if test passes ✅
+# → Docker build test runs automatically Yes
+# → Deployment proceeds only if test passes Yes
 ```
 
-## ⚙️ Configuration Files
+## Configuration Files
 
 | File | Purpose |
 |------|---------|
@@ -273,25 +273,25 @@ git status
 2. Verify secrets in HuggingFace Space settings
 3. Check Space hardware configuration (CPU vs GPU)
 
-## 📚 Best Practices
+## Best Practices
 
-### ✅ DO
+### Yes DO
 
-- ✅ Run `./setup-git-hooks.sh` once after cloning
-- ✅ Let CI tests complete before merging PRs
-- ✅ Test deployments with `./test-huggingface-build.sh` first
-- ✅ Check GitHub Actions status before deploying
-- ✅ Monitor HuggingFace logs during deployment
+- Yes Run `./setup-git-hooks.sh` once after cloning
+- Yes Let CI tests complete before merging PRs
+- Yes Test deployments with `./test-huggingface-build.sh` first
+- Yes Check GitHub Actions status before deploying
+- Yes Monitor HuggingFace logs during deployment
 
-### ❌ DON'T
+### No DON'T
 
-- ❌ Use `git push --no-verify` habitually
-- ❌ Use `--skip-test` flag on deployments
-- ❌ Ignore GitHub Actions failures
-- ❌ Deploy without testing locally first
-- ❌ Push to `deploy` branch directly (use main → deploy workflow)
+- No Use `git push --no-verify` habitually
+- No Use `--skip-test` flag on deployments
+- No Ignore GitHub Actions failures
+- No Deploy without testing locally first
+- No Push to `deploy` branch directly (use main → deploy workflow)
 
-## 🎯 Quick Reference
+## Quick Reference
 
 **Test build locally:**
 ```bash
@@ -308,7 +308,7 @@ export HF_USERNAME=CommunityOne
 **Emergency deploy (skip tests):**
 ```bash
 ./deploy-huggingface.sh --skip-test
-# ⚠️ NOT RECOMMENDED - can break production
+# Warning NOT RECOMMENDED - can break production
 ```
 
 **View CI status:**
@@ -326,7 +326,7 @@ gh run list --workflow=ci-build-test.yml
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 - Read the [Docker Build Troubleshooting Guide](docker-troubleshooting.md)
 - Learn about [HuggingFace Deployment](huggingface-spaces.md)

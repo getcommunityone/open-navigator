@@ -10,13 +10,13 @@ Enrich nonprofit data with mission statements and website URLs from Google BigQu
 
 ## Workflow
 
-### Option 1: Web UI (No Authentication Required) ✅ RECOMMENDED
+### Option 1: Web UI (No Authentication Required) Yes RECOMMENDED
 
 **Step 1: Export SQL Query**
 ```bash
 python scripts/enrich_nonprofits_bigquery.py \
-    --input data/gold/nonprofits_tuscaloosa_form990.parquet \
-    --export-sql scripts/bigquery_tuscaloosa_missions.sql
+ --input data/gold/nonprofits_tuscaloosa_form990.parquet \
+ --export-sql scripts/bigquery_tuscaloosa_missions.sql
 ```
 
 **Step 2: Run Query in BigQuery**
@@ -33,9 +33,9 @@ python scripts/enrich_nonprofits_bigquery.py \
 **Step 4: Merge into Gold Data**
 ```bash
 python scripts/enrich_nonprofits_bigquery.py \
-    --input data/gold/nonprofits_tuscaloosa_form990.parquet \
-    --from-csv data/cache/bigquery_results.csv \
-    --update-in-place
+ --input data/gold/nonprofits_tuscaloosa_form990.parquet \
+ --from-csv data/cache/bigquery_results.csv \
+ --update-in-place
 ```
 
 ### Option 2: Direct Query (Requires gcloud Auth)
@@ -53,9 +53,9 @@ gcloud auth application-default login
 **Run:**
 ```bash
 python scripts/enrich_nonprofits_bigquery.py \
-    --input data/gold/nonprofits_tuscaloosa_form990.parquet \
-    --output data/gold/nonprofits_tuscaloosa_bigquery.parquet \
-    --project YOUR_PROJECT_ID
+ --input data/gold/nonprofits_tuscaloosa_form990.parquet \
+ --output data/gold/nonprofits_tuscaloosa_bigquery.parquet \
+ --project YOUR_PROJECT_ID
 ```
 
 ## Data Schema
@@ -92,13 +92,13 @@ After enrichment with both GivingTuesday and BigQuery:
 - EO-BMF: 0 (0%)
 - GivingTuesday: ~299 (32.5%)
 - BigQuery: ~200-400 (30-40%)
-- **Combined: ~400-500 (40-50%)** ✅
+- **Combined: ~400-500 (40-50%)** Yes
 
 **Websites:**
 - EO-BMF: 0 (0%)
 - GivingTuesday: 0 (0%)
 - BigQuery: ~200-400 (30-40%)
-- **Combined: ~200-400 (30-40%)** ✅
+- **Combined: ~200-400 (30-40%)** Yes
 
 **Financials:**
 - GivingTuesday: 307 orgs with revenue/expenses/assets (33.3%)
@@ -167,25 +167,25 @@ The script automatically drops and replaces existing BigQuery columns when using
 ```bash
 # 1. Export SQL
 python scripts/enrich_nonprofits_bigquery.py \
-    --input data/gold/nonprofits_organizations.parquet \
-    --export-sql scripts/bigquery_alabama_health.sql \
-    --states AL --ntee E
+ --input data/gold/nonprofits_organizations.parquet \
+ --export-sql scripts/bigquery_alabama_health.sql \
+ --states AL --ntee E
 
 # 2. Run in BigQuery web UI, export CSV
 
 # 3. Merge
 python scripts/enrich_nonprofits_bigquery.py \
-    --input data/gold/nonprofits_organizations.parquet \
-    --from-csv data/cache/bigquery_alabama_health.csv \
-    --update-in-place
+ --input data/gold/nonprofits_organizations.parquet \
+ --from-csv data/cache/bigquery_alabama_health.csv \
+ --update-in-place
 ```
 
 **Sample 100 orgs for testing:**
 ```bash
 python scripts/enrich_nonprofits_bigquery.py \
-    --input data/gold/nonprofits_tuscaloosa_form990.parquet \
-    --export-sql scripts/bigquery_sample.sql \
-    --sample 100
+ --input data/gold/nonprofits_tuscaloosa_form990.parquet \
+ --export-sql scripts/bigquery_sample.sql \
+ --sample 100
 ```
 
 ## Related Documentation

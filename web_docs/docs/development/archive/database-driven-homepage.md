@@ -1,20 +1,20 @@
 # Database-Driven Homepage - Complete Setup Guide
 
-## 🎉 What You Now Have
+## What You Now Have
 
-**✅ Fully database-driven homepage with automated cause/topic management:**
+**Yes Fully database-driven homepage with automated cause/topic management:**
 
 1. **API Endpoint** - `/api/trending` serves causes from database
 2. **Frontend Integration** - Homepage fetches causes dynamically
 3. **Image Generator** - Creates images for ALL 235 causes automatically
 4. **Three Data Sources:**
-   - **EveryOrg** (39 popular causes like "Climate", "Education", "Health")
-   - **NTEE Codes** (196 IRS nonprofit categories like "E32: School-Based Health Care")
-   - **Mixed** (automatically combines both)
+ - **EveryOrg** (39 popular causes like "Climate", "Education", "Health")
+ - **NTEE Codes** (196 IRS nonprofit categories like "E32: School-Based Health Care")
+ - **Mixed** (automatically combines both)
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Step 1: Generate Images for ALL Causes
 
@@ -96,45 +96,45 @@ http://localhost:5173
 
 ---
 
-## 📚 How It Works
+## How It Works
 
 ### Data Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 1. CAUSES DATA (Parquet Files)                             │
+│ 1. CAUSES DATA (Parquet Files) │
 ├─────────────────────────────────────────────────────────────┤
-│ data/gold/causes_everyorg_causes.parquet (39 rows)         │
-│ data/gold/causes_ntee_codes (196 rows)             │
+│ data/gold/causes_everyorg_causes.parquet (39 rows) │
+│ data/gold/causes_ntee_codes (196 rows) │
 └─────────────────────────────────────────────────────────────┘
-                              ↓
+ ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 2. IMAGE GENERATOR (Python Script)                         │
+│ 2. IMAGE GENERATOR (Python Script) │
 ├─────────────────────────────────────────────────────────────┤
-│ scripts/media/generate_all_cause_images.py                 │
-│ - Reads parquet files                                       │
-│ - Uses Gemini AI for color schemes                         │
-│ - Generates banner (1200x600) + square (400x400)           │
-│ - Saves to data/media/causes/                              │
+│ scripts/media/generate_all_cause_images.py │
+│ - Reads parquet files │
+│ - Uses Gemini AI for color schemes │
+│ - Generates banner (1200x600) + square (400x400) │
+│ - Saves to data/media/causes/ │
 └─────────────────────────────────────────────────────────────┘
-                              ↓
+ ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 3. API ENDPOINT (FastAPI)                                  │
+│ 3. API ENDPOINT (FastAPI) │
 ├─────────────────────────────────────────────────────────────┤
-│ GET /api/trending?source=mixed&limit=12                    │
-│ - Reads parquet files                                       │
-│ - Returns causes with metadata                              │
-│ - Includes image URLs                                       │
+│ GET /api/trending?source=mixed&limit=12 │
+│ - Reads parquet files │
+│ - Returns causes with metadata │
+│ - Includes image URLs │
 └─────────────────────────────────────────────────────────────┘
-                              ↓
+ ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. FRONTEND (React)                                        │
+│ 4. FRONTEND (React) │
 ├─────────────────────────────────────────────────────────────┤
-│ Home.tsx - useQuery('trending-causes')                     │
-│ - Fetches from API on page load                            │
-│ - Renders trending topics bar                              │
-│ - Shows cause icons, names, + buttons                      │
-│ - Clickable → search that cause                            │
+│ Home.tsx - useQuery('trending-causes') │
+│ - Fetches from API on page load │
+│ - Renders trending topics bar │
+│ - Shows cause icons, names, + buttons │
+│ - Clickable → search that cause │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -150,25 +150,25 @@ http://localhost:5173
 **Response:**
 ```json
 {
-  "causes": [
-    {
-      "name": "Climate",
-      "icon": "🌍",
-      "category": "primary",
-      "description": "Climate change mitigation...",
-      "image_url": "/images/causes/everyorg_climate_square.png",
-      "popularity_rank": 4
-    },
-    {
-      "name": "Health",
-      "icon": "⚕️",
-      "category": "major_group",
-      "description": "NTEE Code E",
-      "image_url": "/images/causes/ntee_E_square.png",
-      "popularity_rank": null
-    }
-  ],
-  "total": 12
+ "causes": [
+ {
+ "name": "Climate",
+ "icon": "",
+ "category": "primary",
+ "description": "Climate change mitigation...",
+ "image_url": "/images/causes/everyorg_climate_square.png",
+ "popularity_rank": 4
+ },
+ {
+ "name": "Health",
+ "icon": "",
+ "category": "major_group",
+ "description": "NTEE Code E",
+ "image_url": "/images/causes/ntee_E_square.png",
+ "popularity_rank": null
+ }
+ ],
+ "total": 12
 }
 ```
 
@@ -177,63 +177,63 @@ http://localhost:5173
 **Response:**
 ```json
 {
-  "everyorg_causes": 39,
-  "ntee_causes": 196,
-  "total_causes": 235,
-  "generated_images": 470
+ "everyorg_causes": 39,
+ "ntee_causes": 196,
+ "total_causes": 235,
+ "generated_images": 470
 }
 ```
 
 ---
 
-## 🎨 Image Generation Details
+## Image Generation Details
 
 ### What Gets Generated
 
 **For each cause** (e.g., "Climate"):
 1. **Banner image** (1200x600px)
-   - Filename: `everyorg_climate_banner.png`
-   - Use: Hero banners, featured stories
-   - Has: Gradient background, large text overlay
+ - Filename: `everyorg_climate_banner.png`
+ - Use: Hero banners, featured stories
+ - Has: Gradient background, large text overlay
 
 2. **Square thumbnail** (400x400px)
-   - Filename: `everyorg_climate_square.png`
-   - Use: Topic cards, trending bar
-   - Has: Circular gradient, compact text
+ - Filename: `everyorg_climate_square.png`
+ - Use: Topic cards, trending bar
+ - Has: Circular gradient, compact text
 
 3. **Color scheme** (in metadata.json)
-   - AI-generated thematic colors
-   - Example: Climate → greens and blues
-   - Example: Health → calming medical blues
+ - AI-generated thematic colors
+ - Example: Climate → greens and blues
+ - Example: Health → calming medical blues
 
 ### Filename Patterns
 
 - **EveryOrg**: `everyorg_{cause_id}_{type}.png`
-  - `everyorg_climate_banner.png`
-  - `everyorg_education_square.png`
+ - `everyorg_climate_banner.png`
+ - `everyorg_education_square.png`
 
 - **NTEE**: `ntee_{code}_{type}.png`
-  - `ntee_E_banner.png` (Health - major group)
-  - `ntee_E32_square.png` (School-Based Health Care - specific)
+ - `ntee_E_banner.png` (Health - major group)
+ - `ntee_E32_square.png` (School-Based Health Care - specific)
 
 ### Generation Progress
 
 The script shows:
 ```
 [1/235] Processing: Climate
-   Category: everyorg | ID: climate
+ Category: everyorg | ID: climate
 ────────────────────────────────────────────────────────────
-🎨 Generated color scheme: Calming greens and blues for environmental focus
-🖼️  Creating banner image (1200x600)...
-✅ Saved: data/media/causes/everyorg_climate_banner.png
-🔲 Creating square image (400x400)...
-✅ Saved: data/media/causes/everyorg_climate_square.png
-   ✅ Success! (1/235 = 0.4% complete)
+ Generated color scheme: Calming greens and blues for environmental focus
+ Creating banner image (1200x600)...
+Yes Saved: data/media/causes/everyorg_climate_banner.png
+ Creating square image (400x400)...
+Yes Saved: data/media/causes/everyorg_climate_square.png
+ Yes Success! (1/235 = 0.4% complete)
 ```
 
 ---
 
-## 🔧 Customization
+## Customization
 
 ### Change Source Mix
 
@@ -250,7 +250,7 @@ limit: 12
 // Only IRS categories:
 source: 'ntee',
 limit: 12,
-level: 1  // Only major groups (Arts, Health, Education, etc.)
+level: 1 // Only major groups (Arts, Health, Education, etc.)
 ```
 
 ### Add Custom Causes
@@ -264,16 +264,16 @@ df = pl.read_parquet('data/gold/causes_everyorg_causes.parquet')
 
 # Add new cause
 new_cause = pl.DataFrame({
-    'cause_id': ['oral-health'],
-    'cause_name': ['Oral Health'],
-    'description': ['Dental care access and fluoride policy'],
-    'category': ['primary'],
-    'parent_id': [None],
-    'icon': ['🦷'],
-    'popularity_rank': [40],
-    'data_source': ['Manual'],
-    'download_date': [pl.datetime('now')],
-    'version': ['2026.1']
+ 'cause_id': ['oral-health'],
+ 'cause_name': ['Oral Health'],
+ 'description': ['Dental care access and fluoride policy'],
+ 'category': ['primary'],
+ 'parent_id': [None],
+ 'icon': [''],
+ 'popularity_rank': [40],
+ 'data_source': ['Manual'],
+ 'download_date': [pl.datetime('now')],
+ 'version': ['2026.1']
 })
 
 # Combine
@@ -297,44 +297,44 @@ This will only generate images for causes that don't have them yet.
 
 ---
 
-## 📊 What Changed
+## What Changed
 
 ### Files Modified
 
 1. **API:**
-   - ✅ `api/routes/trending.py` - New trending causes endpoint
-   - ✅ `api/main.py` - Registered trending router
+ - Yes `api/routes/trending.py` - New trending causes endpoint
+ - Yes `api/main.py` - Registered trending router
 
 2. **Frontend:**
-   - ✅ `frontend/src/pages/Home.tsx` - Database-driven causes
-   - Added `useQuery` to fetch from `/api/trending`
-   - Shows count "(X from database)"
+ - Yes `frontend/src/pages/Home.tsx` - Database-driven causes
+ - Added `useQuery` to fetch from `/api/trending`
+ - Shows count "(X from database)"
 
 3. **Scripts:**
-   - ✅ `scripts/media/generate_all_cause_images.py` - Batch generator
-   - ✅ `scripts/media/generate_topic_images.py` - Base generator (already existed)
+ - Yes `scripts/media/generate_all_cause_images.py` - Batch generator
+ - Yes `scripts/media/generate_topic_images.py` - Base generator (already existed)
 
 ### Before vs After
 
 **Before (Hardcoded):**
 ```typescript
 const TRENDING_TOPICS = [
-  { name: 'World Press Freedom Day', icon: '📰', category: 'Global' },
-  { name: 'Business & Markets', icon: '💼', category: 'Economics' },
-  // ... hardcoded list
+ { name: 'World Press Freedom Day', icon: '', category: 'Global' },
+ { name: 'Business & Markets', icon: '', category: 'Economics' },
+ // ... hardcoded list
 ]
 ```
 
 **After (Database-Driven):**
 ```typescript
 const { data: trendingData } = useQuery({
-  queryKey: ['trending-causes'],
-  queryFn: async () => {
-    const response = await api.get('/trending', {
-      params: { source: 'mixed', limit: 12 }
-    })
-    return response.data
-  }
+ queryKey: ['trending-causes'],
+ queryFn: async () => {
+ const response = await api.get('/trending', {
+ params: { source: 'mixed', limit: 12 }
+ })
+ return response.data
+ }
 })
 
 const trendingTopics = trendingData?.causes || []
@@ -342,7 +342,7 @@ const trendingTopics = trendingData?.causes || []
 
 ---
 
-## 🎯 Next Steps
+## Next Steps
 
 ### Phase 1: Generate All Images (Do This First!)
 
@@ -387,10 +387,10 @@ cp data/media/causes/*.png frontend/public/images/causes/
 Add analytics to track which causes users click:
 ```sql
 CREATE TABLE cause_interactions (
-  cause_id VARCHAR,
-  interaction_type VARCHAR,  -- click, follow, search
-  user_id VARCHAR,
-  timestamp TIMESTAMP
+ cause_id VARCHAR,
+ interaction_type VARCHAR, -- click, follow, search
+ user_id VARCHAR,
+ timestamp TIMESTAMP
 );
 ```
 
@@ -398,7 +398,7 @@ Then use this data to dynamically rank causes by popularity!
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "GEMINI_API_KEY not found"
 
@@ -416,19 +416,19 @@ grep GEMINI_API_KEY .env
 ### Images Don't Show on Homepage
 
 1. **Check API response:**
-   ```bash
-   curl http://localhost:8001/api/trending?source=mixed&limit=1
-   # Look for "image_url" field
-   ```
+ ```bash
+ curl http://localhost:8001/api/trending?source=mixed&limit=1
+ # Look for "image_url" field
+ ```
 
 2. **Check images exist:**
-   ```bash
-   ls frontend/public/images/causes/ | head -10
-   ```
+ ```bash
+ ls frontend/public/images/causes/ | head -10
+ ```
 
 3. **Check browser console:**
-   - Should see no 404 errors for images
-   - Network tab shows images loading
+ - Should see no 404 errors for images
+ - Network tab shows images loading
 
 ### "No causes found" Error
 
@@ -443,9 +443,9 @@ ls -lh data/gold/causes*.parquet
 ### Frontend Shows "(0 from database)"
 
 1. Check API is running:
-   ```bash
-   curl http://localhost:8001/api/trending
-   ```
+ ```bash
+ curl http://localhost:8001/api/trending
+ ```
 
 2. Check for CORS errors in browser console
 
@@ -453,29 +453,29 @@ ls -lh data/gold/causes*.parquet
 
 ---
 
-## 📝 Summary
+## Summary
 
 **You now have:**
 
-✅ **235 causes** ready to generate images for
+Yes **235 causes** ready to generate images for
 - 39 EveryOrg popular causes (Climate, Education, etc.)
 - 196 NTEE codes (official IRS categories)
 
-✅ **Automated image generation** script
+Yes **Automated image generation** script
 - Reads causes from parquet files
 - Uses Gemini AI for color schemes
 - Generates banner + square for each
 
-✅ **Database-driven API** endpoint
+Yes **Database-driven API** endpoint
 - `/api/trending` serves causes dynamically
 - Supports filtering by source, limit, level
 - Includes image URLs and metadata
 
-✅ **Frontend integration**
+Yes **Frontend integration**
 - Homepage fetches causes from API
 - Shows "(X from database)" count
 - Automatically updates when data changes
 
-**Your homepage is now 100% database-driven! 🎉**
+**Your homepage is now 100% database-driven! **
 
 No more hardcoded causes - everything comes from your parquet files!

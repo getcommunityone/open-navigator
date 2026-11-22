@@ -10,66 +10,66 @@ displayed_sidebar: citationsSidebar
 **All data used in Open Navigator is properly cited and attributed.** This page provides complete citations, licenses, BibTeX references, and links to original sources for academic research, government data, data sharing standards, and more.
 
 **Use this page to:**
-- ✅ Cite data sources in your research or publications
-- ✅ Understand licensing and usage terms
-- ✅ Find original dataset documentation
-- ✅ Access API documentation and technical specs
+- Yes Cite data sources in your research or publications
+- Yes Understand licensing and usage terms
+- Yes Find original dataset documentation
+- Yes Access API documentation and technical specs
 :::
 
 This page documents all data sources, standards, and research contributions used in **Open Navigator**. All datasets and specifications are properly attributed with citations, licenses, and usage notes.
 
-## 📑 Quick Navigation
+## Quick Navigation
 
 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', margin: '20px 0'}}>
-  <a href="#-academic-research" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #2196F3'}}>
-    <strong>🎓 Academic Research</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>MeetingBank, LocalView, Opportunity Insights, CivicSearch, Datamuse API, Roper Center, CDP, City Scrapers</span>
-  </a>
-  <a href="#-comparative--deliberative-analysis" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #3F51B5'}}>
-    <strong>🆚 Comparative & Deliberative Analysis</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>AllSides, ProCon.org, iSideWith, OnTheIssues, Kialo, Ground News</span>
-  </a>
-  <a href="#government-data" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #4CAF50'}}>
-    <strong>🏛️ Government Data</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>U.S. Census, IRS, Open States, LegiScan</span>
-  </a>
-  <a href="#data-sharing-standards" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #FF9800'}}>
-    <strong>🌐 Data Sharing Standards</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>OCD-ID, Popolo, Schema.org, CEDS, OMOP CDM</span>
-  </a>
-  <a href="#election--advocacy" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #9C27B0'}}>
-    <strong>🗳️ Election & Advocacy</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>Ballotpedia, MIT Election Lab, OpenElections, Alabama FCPA campaign finance disclosures</span>
-  </a>
-  <a href="#nonprofit--philanthropy" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #F44336'}}>
-    <strong>🏢 Nonprofit & Philanthropy</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>IRS EO-BMF (1.9M+ orgs), Google BigQuery (5M+ Form 990s), GivingTuesday Data Lake (5.4M+ raw XMLs), ProPublica (Nonprofits, Congress, Campaign Finance, Vital Signs), Every.org, Findhelp, 211, Microsoft CDM, ARDA, HIFLD, NCS</span>
-  </a>
-  <a href="#-fact-checking" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #8BC34A'}}>
-    <strong>✅ Fact-Checking</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>Google, PolitiFact, FactCheck.org</span>
-  </a>
-  <a href="#-civic-tech--open-source" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #673AB7'}}>
-    <strong>💻 Civic Tech & Open Source</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>GitHub, Code for America, Splink, Aleph, Datashare, Neo4j, NetworkX, hackathons, cloud platforms</span>
-  </a>
-  <a href="#-community-solutions--use-cases" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #FFEB3B'}}>
-    <strong>🌟 Community Solutions & Use Cases</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>Spectrum of Engagement, Harvard, Brookings, Reason Foundation, Open Data Impact, Tableau Data Equity Hub, PolicyMap, IATI</span>
-  </a>
-  <a href="#-civic-engagement-frameworks" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #00BCD4'}}>
-    <strong>🤝 Civic Engagement Frameworks</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>Maine Township digital community programs (CivicPlus case study)</span>
-  </a>
-  <a href="#acknowledgments" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #607D8B'}}>
-    <strong>🙏 Acknowledgments</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>Organizations & individuals</span>
-  </a>
+ <a href="#-academic-research" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #2196F3'}}>
+ <strong> Academic Research</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>MeetingBank, LocalView, Opportunity Insights, CivicSearch, Datamuse API, Roper Center, CDP, City Scrapers</span>
+ </a>
+ <a href="#-comparative--deliberative-analysis" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #3F51B5'}}>
+ <strong>🆚 Comparative & Deliberative Analysis</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>AllSides, ProCon.org, iSideWith, OnTheIssues, Kialo, Ground News</span>
+ </a>
+ <a href="#government-data" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #4CAF50'}}>
+ <strong> Government Data</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>U.S. Census, IRS, Open States, LegiScan</span>
+ </a>
+ <a href="#data-sharing-standards" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #FF9800'}}>
+ <strong> Data Sharing Standards</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>OCD-ID, Popolo, Schema.org, CEDS, OMOP CDM</span>
+ </a>
+ <a href="#election--advocacy" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #9C27B0'}}>
+ <strong> Election & Advocacy</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>Ballotpedia, MIT Election Lab, OpenElections, Alabama FCPA campaign finance disclosures</span>
+ </a>
+ <a href="#nonprofit--philanthropy" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #F44336'}}>
+ <strong> Nonprofit & Philanthropy</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>IRS EO-BMF (1.9M+ orgs), Google BigQuery (5M+ Form 990s), GivingTuesday Data Lake (5.4M+ raw XMLs), ProPublica (Nonprofits, Congress, Campaign Finance, Vital Signs), Every.org, Findhelp, 211, Microsoft CDM, ARDA, HIFLD, NCS</span>
+ </a>
+ <a href="#-fact-checking" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #8BC34A'}}>
+ <strong>Yes Fact-Checking</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>Google, PolitiFact, FactCheck.org</span>
+ </a>
+ <a href="#-civic-tech--open-source" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #673AB7'}}>
+ <strong> Civic Tech & Open Source</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>GitHub, Code for America, Splink, Aleph, Datashare, Neo4j, NetworkX, hackathons, cloud platforms</span>
+ </a>
+ <a href="#-community-solutions--use-cases" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #FFEB3B'}}>
+ <strong> Community Solutions & Use Cases</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>Spectrum of Engagement, Harvard, Brookings, Reason Foundation, Open Data Impact, Tableau Data Equity Hub, PolicyMap, IATI</span>
+ </a>
+ <a href="#-civic-engagement-frameworks" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #00BCD4'}}>
+ <strong> Civic Engagement Frameworks</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>Maine Township digital community programs (CivicPlus case study)</span>
+ </a>
+ <a href="#acknowledgments" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #607D8B'}}>
+ <strong> Acknowledgments</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>Organizations & individuals</span>
+ </a>
 </div>
 
 ---
 
-## 🎓 Academic Research
+## Academic Research
 
 **In this section:**
 - [MeetingBank Dataset](#meetingbank-dataset)
@@ -94,26 +94,26 @@ This page documents all data sources, standards, and research contributions used
 **BibTeX:**
 ```bibtex
 @inproceedings{hu-etal-2023-meetingbank,
-    title = "MeetingBank: A Benchmark Dataset for Meeting Summarization",
-    author = "Yebowen Hu and Tim Ganter and Hanieh Deilamsalehy and Franck Dernoncourt and Hassan Foroosh and Fei Liu",
-    booktitle = "Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (ACL)",
-    month = July,
-    year = "2023",
-    address = "Toronto, Canada",
-    publisher = "Association for Computational Linguistics",
+ title = "MeetingBank: A Benchmark Dataset for Meeting Summarization",
+ author = "Yebowen Hu and Tim Ganter and Hanieh Deilamsalehy and Franck Dernoncourt and Hassan Foroosh and Fei Liu",
+ booktitle = "Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (ACL)",
+ month = July,
+ year = "2023",
+ address = "Toronto, Canada",
+ publisher = "Association for Computational Linguistics",
 }
 ```
 
 **Resources:**
-- [📄 Paper](https://arxiv.org/abs/2305.17529)
-- [💾 Dataset](https://huggingface.co/datasets/huuuyeah/meetingbank)
-- [📦 Zenodo](https://zenodo.org/record/7989108)
+- [ Paper](https://arxiv.org/abs/2305.17529)
+- [ Dataset](https://huggingface.co/datasets/huuuyeah/meetingbank)
+- [ Zenodo](https://zenodo.org/record/7989108)
 
 ---
 
 ### LocalView Dataset (Harvard Dataverse)
 
-**Organization:** Harvard University Mellon Urbanism Lab  
+**Organization:** Harvard University Mellon Urbanism Lab
 **What we use:** 1,000+ municipalities with meeting videos and automated transcripts for large-scale civic data analysis.
 
 - **Website:** https://www.localview.net/
@@ -121,22 +121,22 @@ This page documents all data sources, standards, and research contributions used
 - **GitHub:** https://mellonurbanism.harvard.edu/localview
 - **Coverage:** Thousands of U.S. jurisdictions with continuous data collection
 - **Data Included:**
-  - Meeting videos (YouTube URLs)
-  - Automated transcripts via speech-to-text
-  - Metadata (meeting dates, agencies, agendas)
-  - Quality tracking per jurisdiction
+ - Meeting videos (YouTube URLs)
+ - Automated transcripts via speech-to-text
+ - Metadata (meeting dates, agencies, agendas)
+ - Quality tracking per jurisdiction
 - **License:** Research use (Harvard Dataverse)
 - **Research-grade:** Designed for large-scale quantitative analysis
 
 **BibTeX:**
 ```bibtex
 @dataset{localview_2024,
-  author = {{Harvard Mellon Urbanism Lab}},
-  title = {LocalView: Municipal Meeting Videos and Transcripts},
-  year = {2024},
-  publisher = {Harvard Dataverse},
-  doi = {10.7910/DVN/NJTBEM},
-  url = {https://www.localview.net/}
+ author = {{Harvard Mellon Urbanism Lab}},
+ title = {LocalView: Municipal Meeting Videos and Transcripts},
+ year = {2024},
+ publisher = {Harvard Dataverse},
+ doi = {10.7910/DVN/NJTBEM},
+ url = {https://www.localview.net/}
 }
 ```
 
@@ -157,11 +157,11 @@ This page documents all data sources, standards, and research contributions used
 **BibTeX (organization + portal — adapt if you cite a specific paper or dataset):**
 ```bibtex
 @misc{opportunity_insights_portal,
-  author = {{Opportunity Insights}},
-  title = {Opportunity Insights: Research and Data on Economic Mobility},
-  year = {2026},
-  url = {https://opportunityinsights.org/},
-  note = {Non-partisan research institute based at Harvard University; includes Opportunity Atlas and related tools}
+ author = {{Opportunity Insights}},
+ title = {Opportunity Insights: Research and Data on Economic Mobility},
+ year = {2026},
+ url = {https://opportunityinsights.org/},
+ note = {Non-partisan research institute based at Harvard University; includes Opportunity Atlas and related tools}
 }
 ```
 
@@ -169,7 +169,7 @@ This page documents all data sources, standards, and research contributions used
 
 ### Measuring Conflict in Local Politics
 
-**Authors:** Tyler Simko, Mirya Holman, and Rebecca Johnson  
+**Authors:** Tyler Simko, Mirya Holman, and Rebecca Johnson
 **What we use:** Methodologies and frameworks for analyzing political conflict, deliberation quality, and civic engagement in local government meetings.
 
 **Citation (Original Version):**
@@ -179,29 +179,29 @@ This page documents all data sources, standards, and research contributions used
 > Simko, T., Holman, M., & Johnson, R. (2025). Measuring Conflict in Local Politics (Version 2). EdWorkingPapers.com. https://edworkingpapers.com/sites/default/files/ai25-1102_v2.pdf
 
 **Resources:**
-- [📄 Paper (2024)](https://edworkingpapers.com/sites/default/files/ai24-1102.pdf)
-- [📄 Paper (Version 2, 2025)](https://edworkingpapers.com/sites/default/files/ai25-1102_v2.pdf)
-- [🔗 EdWorkingPapers.com](https://edworkingpapers.com/)
+- [ Paper (2024)](https://edworkingpapers.com/sites/default/files/ai24-1102.pdf)
+- [ Paper (Version 2, 2025)](https://edworkingpapers.com/sites/default/files/ai25-1102_v2.pdf)
+- [ EdWorkingPapers.com](https://edworkingpapers.com/)
 
 **BibTeX:**
 ```bibtex
 @techreport{simko2024measuring,
-  author = {Simko, Tyler and Holman, Mirya and Johnson, Rebecca},
-  title = {Measuring Conflict in Local Politics},
-  year = {2024},
-  institution = {EdWorkingPapers.com},
-  number = {ai24-1102},
-  url = {https://edworkingpapers.com/sites/default/files/ai24-1102.pdf}
+ author = {Simko, Tyler and Holman, Mirya and Johnson, Rebecca},
+ title = {Measuring Conflict in Local Politics},
+ year = {2024},
+ institution = {EdWorkingPapers.com},
+ number = {ai24-1102},
+ url = {https://edworkingpapers.com/sites/default/files/ai24-1102.pdf}
 }
 
 @techreport{simko2025measuring,
-  author = {Simko, Tyler and Holman, Mirya and Johnson, Rebecca},
-  title = {Measuring Conflict in Local Politics},
-  year = {2025},
-  institution = {EdWorkingPapers.com},
-  number = {ai25-1102},
-  version = {2},
-  url = {https://edworkingpapers.com/sites/default/files/ai25-1102_v2.pdf}
+ author = {Simko, Tyler and Holman, Mirya and Johnson, Rebecca},
+ title = {Measuring Conflict in Local Politics},
+ year = {2025},
+ institution = {EdWorkingPapers.com},
+ number = {ai25-1102},
+ version = {2},
+ url = {https://edworkingpapers.com/sites/default/files/ai25-1102_v2.pdf}
 }
 ```
 
@@ -217,7 +217,7 @@ This page documents all data sources, standards, and research contributions used
 
 ### Council Data Project (CDP)
 
-**Organization:** Open-source civic tech collaboration  
+**Organization:** Open-source civic tech collaboration
 **What we use:** 20+ cities with complete data pipelines - meeting transcripts, videos, voting records, and legislation tracking. **Open Navigator's data model is compatible with CDP backend schema for interoperability.**
 
 - **Website:** https://councildataproject.org/
@@ -226,11 +226,11 @@ This page documents all data sources, standards, and research contributions used
 - **Backend Models:** https://councildataproject.org/cdp-backend/database_models.html
 - **Coverage:** 20+ major U.S. cities with full infrastructure
 - **Data Included:**
-  - Meeting transcripts (searchable, indexed)
-  - Video recordings with timestamps
-  - Voting records and roll calls
-  - Legislation text and tracking
-  - Councilmember information
+ - Meeting transcripts (searchable, indexed)
+ - Video recordings with timestamps
+ - Voting records and roll calls
+ - Legislation text and tracking
+ - Councilmember information
 - **Infrastructure:** Complete ETL pipelines for each city
 - **License:** Open source (MIT)
 - **API:** Per-city deployments (e.g., https://councildataproject.org/seattle)
@@ -240,12 +240,12 @@ This page documents all data sources, standards, and research contributions used
 **BibTeX:**
 ```bibtex
 @software{council_data_project,
-  title = {Council Data Project: Indexing City Council Meetings},
-  author = {{Council Data Project Team}},
-  year = {2020},
-  url = {https://councildataproject.org/},
-  note = {Open-source infrastructure for making local government more accessible},
-  license = {MIT}
+ title = {Council Data Project: Indexing City Council Meetings},
+ author = {{Council Data Project Team}},
+ year = {2020},
+ url = {https://councildataproject.org/},
+ note = {Open-source infrastructure for making local government more accessible},
+ license = {MIT}
 }
 ```
 
@@ -260,7 +260,7 @@ CDP provides a standardized data model for civic meeting data that Open Navigato
 
 ### City Scrapers / Documenters.org
 
-**Organization:** Documenters Network (civic journalism collaboration)  
+**Organization:** Documenters Network (civic journalism collaboration)
 **What we use:** 100-500 validated government agency URLs across 5 major cities for automated meeting discovery.
 
 - **Website:** https://cityscrapers.org/
@@ -268,27 +268,27 @@ CDP provides a standardized data model for civic meeting data that Open Navigato
 - **GitHub:** https://github.com/City-Bureau
 - **Coverage:** Chicago, Pittsburgh, Detroit, Cleveland, Los Angeles
 - **Data Included:**
-  - Government agency URLs (start_urls from spider files)
-  - Granicus video page URLs with YouTube embeds
-  - Meeting event schemas
-  - Scraper patterns for common platforms
+ - Government agency URLs (start_urls from spider files)
+ - Granicus video page URLs with YouTube embeds
+ - Meeting event schemas
+ - Scraper patterns for common platforms
 - **Cities Covered:**
-  - Chicago City Scrapers
-  - Pittsburgh City Scrapers
-  - Detroit Documenters
-  - Cleveland City Scrapers
-  - LA Metro Documenters
+ - Chicago City Scrapers
+ - Pittsburgh City Scrapers
+ - Detroit Documenters
+ - Cleveland City Scrapers
+ - LA Metro Documenters
 - **License:** Open source (MIT)
 - **Use Case:** Pre-validated URLs for quality meeting discovery
 
 **BibTeX:**
 ```bibtex
 @software{city_scrapers,
-  title = {City Scrapers},
-  author = {{City Bureau and Documenters Network}},
-  year = {2024},
-  url = {https://cityscrapers.org/},
-  license = {MIT}
+ title = {City Scrapers},
+ author = {{City Bureau and Documenters Network}},
+ year = {2024},
+ url = {https://cityscrapers.org/},
+ license = {MIT}
 }
 ```
 
@@ -296,7 +296,7 @@ CDP provides a standardized data model for civic meeting data that Open Navigato
 
 ### Roper Center for Public Opinion Research
 
-**Organization:** Cornell University  
+**Organization:** Cornell University
 **What we use:** Scientifically validated survey questions and public opinion baselines for topic definitions and messaging optimization.
 
 - **Source:** https://ropercenter.cornell.edu/
@@ -319,18 +319,18 @@ CDP provides a standardized data model for civic meeting data that Open Navigato
 
 ### CivicSearch (School Board Meeting Platform)
 
-**Organization:** Datamuse, Inc.  
+**Organization:** Datamuse, Inc.
 **What we use:** Aggregated school board meeting transcripts, agendas, and videos for tracking education policy and local governance.
 
 - **Website:** https://schools.civicsearch.org/
 - **Platform:** Datamuse-powered civic search interface
 - **Coverage:** School districts nationwide with meeting transcripts and videos
 - **Data Included:**
-  - School board meeting transcripts (AI-indexed)
-  - Meeting agendas and minutes
-  - Video recordings (when available)
-  - Searchable text across multiple districts
-  - Meeting dates and attendance
+ - School board meeting transcripts (AI-indexed)
+ - Meeting agendas and minutes
+ - Video recordings (when available)
+ - Searchable text across multiple districts
+ - Meeting dates and attendance
 - **Example:** [Tuscaloosa City Schools](https://schools.civicsearch.org/tuscaloosa-city-alabama)
 - **License:** Free public access for search; bulk/API access requires case-by-case approval
 - **Use Case:** Education policy tracking, school board decision analysis, parent/community engagement
@@ -353,19 +353,19 @@ School board meeting transcripts and agendas
 ```
 
 **Terms of Service:**
-- ❌ **No automated scraping** - Use official API when available
-- ✅ **Attribution required** - Link back to CivicSearch for data used
-- ✅ **Public record data** - Meeting transcripts are generally public domain
-- ⚠️ **Bulk access** - Requires partnership agreement for large-scale data extraction
+- No **No automated scraping** - Use official API when available
+- Yes **Attribution required** - Link back to CivicSearch for data used
+- Yes **Public record data** - Meeting transcripts are generally public domain
+- Warning **Bulk access** - Requires partnership agreement for large-scale data extraction
 
 **BibTeX:**
 ```bibtex
 @misc{civicsearch_datamuse,
-  author = {{Datamuse, Inc.}},
-  title = {CivicSearch: School Board Meeting Platform},
-  year = {2026},
-  url = {https://schools.civicsearch.org/},
-  note = {AI-indexed school board meeting transcripts and agendas}
+ author = {{Datamuse, Inc.}},
+ title = {CivicSearch: School Board Meeting Platform},
+ year = {2026},
+ url = {https://schools.civicsearch.org/},
+ note = {AI-indexed school board meeting transcripts and agendas}
 }
 ```
 
@@ -376,7 +376,7 @@ For bulk data access, API integration, or civic tech collaborations, reach out t
 
 ### Datamuse API (Word-Finding Engine)
 
-**Organization:** Datamuse, Inc.  
+**Organization:** Datamuse, Inc.
 **What we use:** Natural language processing tools for text analysis, word associations, rhyme detection, and semantic search in meeting transcripts and policy documents.
 
 - **API Documentation:** https://www.datamuse.com/api/
@@ -398,10 +398,10 @@ For bulk data access, API integration, or civic tech collaborations, reach out t
 | **Professional** | Contact for pricing | Unlimited + support | High-volume commercial applications |
 
 **Free Tier Details:**
-- ✅ **100,000 requests per day** - Generous limit for most applications
-- ✅ **Commercial use allowed** - Can use in commercial apps under daily limit
-- ✅ **No API key required** - Simple HTTP GET requests
-- ✅ **Fast response times** - Optimized for real-time applications
+- Yes **100,000 requests per day** - Generous limit for most applications
+- Yes **Commercial use allowed** - Can use in commercial apps under daily limit
+- Yes **No API key required** - Simple HTTP GET requests
+- Yes **Fast response times** - Optimized for real-time applications
 
 **Paid Tier (High-Volume):**
 - Exceeding 100,000 requests/day requires paid tier
@@ -409,14 +409,14 @@ For bulk data access, API integration, or civic tech collaborations, reach out t
 - Dedicated support and guaranteed uptime
 
 **Attribution Requirements:**
-- ✅ **Link to Datamuse:** Required (or strongly requested) for free tier users
-- ✅ **Credit in documentation:** Mention "Powered by Datamuse API"
+- Yes **Link to Datamuse:** Required (or strongly requested) for free tier users
+- Yes **Credit in documentation:** Mention "Powered by Datamuse API"
 - Example: `<a href="https://www.datamuse.com/">Powered by Datamuse API</a>`
 
 **Restrictions:**
-- ❌ **No scraping of web interfaces** - Use official API, not web scraping
-- ❌ **Rate limiting enforced** - Exceeding 100K/day will be throttled
-- ✅ **Caching allowed** - Can cache results to reduce API calls
+- No **No scraping of web interfaces** - Use official API, not web scraping
+- No **Rate limiting enforced** - Exceeding 100K/day will be throttled
+- Yes **Caching allowed** - Can cache results to reduce API calls
 
 **Terms of Service:**
 - Free tier subject to daily quota
@@ -439,11 +439,11 @@ curl "https://api.datamuse.com/words?ml=civic+engagement&max=10"
 **BibTeX:**
 ```bibtex
 @misc{datamuse_api,
-  author = {{Datamuse, Inc.}},
-  title = {Datamuse API: Word-Finding Query Engine},
-  year = {2026},
-  url = {https://www.datamuse.com/api/},
-  note = {Free tier: 100,000 requests/day. Commercial use allowed.}
+ author = {{Datamuse, Inc.}},
+ title = {Datamuse API: Word-Finding Query Engine},
+ year = {2026},
+ url = {https://www.datamuse.com/api/},
+ note = {Free tier: 100,000 requests/day. Commercial use allowed.}
 }
 ```
 
@@ -465,31 +465,31 @@ This is separate from the word-finding API and has different pricing.
 
 ### Comparative Agendas Project
 
-**Organization:** Comparative Agendas Project (originated as the U.S. Policy Agendas Project by Frank R. Baumgartner and Bryan D. Jones)  
+**Organization:** Comparative Agendas Project (originated as the U.S. Policy Agendas Project by Frank R. Baumgartner and Bryan D. Jones)
 **What we use:** The policy-topic coding taxonomy (major topic and subtopic codes) as a reference framework for classifying meeting, bill, and decision themes.
 
 - **Website:** https://www.comparativeagendas.net/
 - **Master Codebook:** https://www.comparativeagendas.net/pages/master-codebook
 - **Coverage:** Coded policy agendas across many countries and U.S. institutions, 1947–present
 - **Data Included:**
-  - Major topic codes (e.g., macroeconomics, civil rights, health, environment)
-  - Subtopic codes within each major topic
-  - Cross-national and longitudinal policy-attention datasets
+ - Major topic codes (e.g., macroeconomics, civil rights, health, environment)
+ - Subtopic codes within each major topic
+ - Cross-national and longitudinal policy-attention datasets
 - **License:** Free for non-commercial research use; see the site for dataset-specific terms
 
 **BibTeX:**
 ```bibtex
 @misc{comparative_agendas_project,
-  author = {{Comparative Agendas Project}},
-  title  = {Comparative Agendas Project},
-  url    = {https://www.comparativeagendas.net/},
-  note   = {Policy-topic coding taxonomy and cross-national policy agendas data (1947--present)}
+ author = {{Comparative Agendas Project}},
+ title = {Comparative Agendas Project},
+ url = {https://www.comparativeagendas.net/},
+ note = {Policy-topic coding taxonomy and cross-national policy agendas data (1947--present)}
 }
 ```
 
 **Resources:**
-- [🌐 Project site](https://www.comparativeagendas.net/)
-- [📕 Master Codebook](https://www.comparativeagendas.net/pages/master-codebook)
+- [ Project site](https://www.comparativeagendas.net/)
+- [ Master Codebook](https://www.comparativeagendas.net/pages/master-codebook)
 
 ---
 
@@ -507,7 +507,7 @@ These platforms present **multiple positions on the same issue side by side** �
 
 ### AllSides
 
-**Organization:** AllSides, Inc.  
+**Organization:** AllSides, Inc.
 **What it does:** Rates the political lean of news outlets (**Left / Center / Right**) and presents the same story as covered by sources across the spectrum, plus a widely cited Media Bias Chart.
 
 - **Website:** https://www.allsides.com/
@@ -518,16 +518,16 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX:**
 ```bibtex
 @misc{allsides,
-  author = {{AllSides, Inc.}},
-  title  = {AllSides: Balanced News and Media Bias Ratings},
-  url    = {https://www.allsides.com/},
-  note   = {Left/Center/Right media bias ratings; reference-only, not redistributed.}
+ author = {{AllSides, Inc.}},
+ title = {AllSides: Balanced News and Media Bias Ratings},
+ url = {https://www.allsides.com/},
+ note = {Left/Center/Right media bias ratings; reference-only, not redistributed.}
 }
 ```
 
 ### ProCon.org (Britannica)
 
-**Organization:** Encyclopaedia Britannica (ProCon.org)  
+**Organization:** Encyclopaedia Britannica (ProCon.org)
 **What it does:** Nonpartisan, **structured pro/con arguments** on controversial public-policy issues, with sourcing for each side.
 
 - **Website:** https://www.procon.org/
@@ -537,16 +537,16 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX:**
 ```bibtex
 @misc{procon_britannica,
-  author = {{ProCon.org / Encyclopaedia Britannica}},
-  title  = {ProCon.org: Pros and Cons of Controversial Issues},
-  url    = {https://www.procon.org/},
-  note   = {Nonpartisan structured pro/con arguments; reference-only.}
+ author = {{ProCon.org / Encyclopaedia Britannica}},
+ title = {ProCon.org: Pros and Cons of Controversial Issues},
+ url = {https://www.procon.org/},
+ note = {Nonpartisan structured pro/con arguments; reference-only.}
 }
 ```
 
 ### iSideWith
 
-**Organization:** iSideWith  
+**Organization:** iSideWith
 **What it does:** Matches users with candidates and parties by comparing the user's answers against **politicians' stated positions** across policy topics.
 
 - **Website:** https://www.isidewith.com/
@@ -556,16 +556,16 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX:**
 ```bibtex
 @misc{isidewith,
-  author = {{iSideWith}},
-  title  = {iSideWith: Political Quiz and Candidate Position Matching},
-  url    = {https://www.isidewith.com/},
-  note   = {Candidate/voter position matching by issue; reference-only.}
+ author = {{iSideWith}},
+ title = {iSideWith: Political Quiz and Candidate Position Matching},
+ url = {https://www.isidewith.com/},
+ note = {Candidate/voter position matching by issue; reference-only.}
 }
 ```
 
 ### OnTheIssues
 
-**Organization:** OnTheIssues (Jesse Gordon / VoteMatch)  
+**Organization:** OnTheIssues (Jesse Gordon / VoteMatch)
 **What it does:** Nonpartisan archive of **politicians' positions and quotes organized by issue**, enabling side-by-side comparison of where officials stand.
 
 - **Website:** https://www.ontheissues.org/
@@ -575,16 +575,16 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX:**
 ```bibtex
 @misc{ontheissues,
-  author = {{OnTheIssues}},
-  title  = {OnTheIssues: Every Political Leader on Every Issue},
-  url    = {https://www.ontheissues.org/},
-  note   = {Politicians' positions and quotes by issue; reference-only.}
+ author = {{OnTheIssues}},
+ title = {OnTheIssues: Every Political Leader on Every Issue},
+ url = {https://www.ontheissues.org/},
+ note = {Politicians' positions and quotes by issue; reference-only.}
 }
 ```
 
 ### Kialo
 
-**Organization:** Kialo  
+**Organization:** Kialo
 **What it does:** Collaborative **debate platform** that maps an issue into a tree of pro and con arguments, each scored and sourced — a visual model of structured deliberation.
 
 - **Website:** https://www.kialo.com/
@@ -595,16 +595,16 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX:**
 ```bibtex
 @misc{kialo,
-  author = {{Kialo}},
-  title  = {Kialo: Structured Debate and Argument Mapping},
-  url    = {https://www.kialo.com/},
-  note   = {Pro/con argument trees; reference-only.}
+ author = {{Kialo}},
+ title = {Kialo: Structured Debate and Argument Mapping},
+ url = {https://www.kialo.com/},
+ note = {Pro/con argument trees; reference-only.}
 }
 ```
 
 ### Ground News
 
-**Organization:** Ground News (Snapwise Inc.)  
+**Organization:** Ground News (Snapwise Inc.)
 **What it does:** News aggregator that **compares coverage of the same story across outlets**, showing bias distribution and "Blindspot" gaps between Left and Right reporting.
 
 - **Website:** https://ground.news/
@@ -614,16 +614,16 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX:**
 ```bibtex
 @misc{ground_news,
-  author = {{Ground News (Snapwise Inc.)}},
-  title  = {Ground News: Compare News Coverage and Media Bias},
-  url    = {https://ground.news/},
-  note   = {Cross-outlet coverage and bias comparison; reference-only.}
+ author = {{Ground News (Snapwise Inc.)}},
+ title = {Ground News: Compare News Coverage and Media Bias},
+ url = {https://ground.news/},
+ note = {Cross-outlet coverage and bias comparison; reference-only.}
 }
 ```
 
 ---
 
-## 🏛️ Government Data
+## Government Data
 
 **In this section:**
 - [U.S. Census Bureau](#us-census-bureau)
@@ -656,7 +656,7 @@ These platforms present **multiple positions on the same issue side by side** �
 
 ### State Symbols USA (reference)
 
-**Organization:** State Symbols USA (educational resource; Dotsquares)  
+**Organization:** State Symbols USA (educational resource; Dotsquares)
 **What we use:** Curated **state colors** and related civic identity reference material (third-party compilation, not a government primary source).
 
 - **Website:** https://statesymbolsusa.org/
@@ -665,7 +665,7 @@ These platforms present **multiple positions on the same issue side by side** �
 
 ### Wikimedia Commons (reference assets)
 
-**Organization:** Wikimedia Foundation — [Wikimedia Commons](https://commons.wikimedia.org/)  
+**Organization:** Wikimedia Foundation — [Wikimedia Commons](https://commons.wikimedia.org/)
 **What we use:** **Local mirrors** of freely licensed **SVG state flags** and **U.S. license plate** images for documentation and design reference.
 
 - **Local cache:** Run `scripts/wikicommons/download_wikicommons_assets.sh` → `data/cache/wikicommons/` (see `scripts/wikicommons/README.md` and `_manifest.json`). Outputs `{USPS}_colors_hero.svg` (canonical `Flag of …` per state category) and per-state/year license plates plus `{USPS}_latest.*`.
@@ -674,28 +674,28 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX (Commons, generic):**
 ```bibtex
 @misc{wikimedia_commons,
-  author = {{Wikimedia Commons contributors}},
-  title = {Wikimedia Commons},
-  year = {2026},
-  url = {https://commons.wikimedia.org/},
-  note = {Per-file license on each description page; typically CC BY-SA.}
+ author = {{Wikimedia Commons contributors}},
+ title = {Wikimedia Commons},
+ year = {2026},
+ url = {https://commons.wikimedia.org/},
+ note = {Per-file license on each description page; typically CC BY-SA.}
 }
 ```
 
 **BibTeX (State Symbols USA site, no local mirror):**
 ```bibtex
 @misc{state_symbols_usa,
-  author = {{State Symbols USA}},
-  title = {State Symbols, Icons, and Treasures Across the {USA}},
-  year = {2025},
-  url = {https://statesymbolsusa.org/categories/colors},
-  note = {Educational reference; state colors category URL. Check site terms before redistributing media.}
+ author = {{State Symbols USA}},
+ title = {State Symbols, Icons, and Treasures Across the {USA}},
+ year = {2025},
+ url = {https://statesymbolsusa.org/categories/colors},
+ note = {Educational reference; state colors category URL. Check site terms before redistributing media.}
 }
 ```
 
 ---
 
-### OpenAddresses Project ⭐
+### OpenAddresses Project
 
 **Organization:** OpenAddresses contributors (open-source community)
 **What we use:** A developer-focused, raw index of where local governments host their public address, parcel, and appraisal data — structured as JSON/YAML source files (URLs, API endpoints, FTP paths, format/license metadata) rather than a clickable UI. Complements CISA `.gov` and the Census Government Integrated Directory by providing the actual *data endpoint* per jurisdiction (assessor / GIS server) instead of just the website root.
@@ -712,12 +712,12 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX:**
 ```bibtex
 @misc{openaddresses_project,
-  author = {{OpenAddresses contributors}},
-  title = {OpenAddresses: A free, open, global collection of address data},
-  year = {2026},
-  url = {https://openaddresses.io/},
-  howpublished = {\url{https://github.com/openaddresses/openaddresses}},
-  note = {Code: BSD-3-Clause; per-source dataset licenses declared in each YAML file.}
+ author = {{OpenAddresses contributors}},
+ title = {OpenAddresses: A free, open, global collection of address data},
+ year = {2026},
+ url = {https://openaddresses.io/},
+ howpublished = {\url{https://github.com/openaddresses/openaddresses}},
+ note = {Code: BSD-3-Clause; per-source dataset licenses declared in each YAML file.}
 }
 ```
 
@@ -725,7 +725,7 @@ These platforms present **multiple positions on the same issue side by side** �
 
 ### IRS Exempt Organizations Business Master File (EO-BMF)
 
-**Organization:** Internal Revenue Service (IRS), U.S. Department of Treasury  
+**Organization:** Internal Revenue Service (IRS), U.S. Department of Treasury
 **What we use:** **PRIMARY BULK DATA SOURCE** for comprehensive nonprofit data - ALL 1.9M+ U.S. tax-exempt organizations with EIN, NTEE codes, financial data, subsection classification, and geographic location.
 
 - **Source:** https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf
@@ -733,10 +733,10 @@ These platforms present **multiple positions on the same issue side by side** �
 - **Bulk Downloads:** https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads
 - **API Documentation:** See [IRS Bulk Data Integration](./irs-bulk-data.md)
 - **Coverage:** 1,952,238 organizations (as of April 2026)
-  - **Churches & Religious Organizations:** 300,000+ (NTEE codes X, X20, X21, X22, X30, X40)
-  - **Health Organizations:** 80,000+ (NTEE codes E, E20-E99)
-  - **Human Services:** 200,000+ (NTEE codes P, P20-P99)
-  - **All Other Categories:** 1.3M+ (Education, Arts, Environment, etc.)
+ - **Churches & Religious Organizations:** 300,000+ (NTEE codes X, X20, X21, X22, X30, X40)
+ - **Health Organizations:** 80,000+ (NTEE codes E, E20-E99)
+ - **Human Services:** 200,000+ (NTEE codes P, P20-P99)
+ - **All Other Categories:** 1.3M+ (Education, Arts, Environment, etc.)
 - **Update Frequency:** Monthly
 - **License:** Public domain (U.S. government data)
 - **Format:** CSV (regional files), convertible to Parquet
@@ -768,12 +768,12 @@ These platforms present **multiple positions on the same issue side by side** �
 **BibTeX Citation:**
 ```bibtex
 @misc{irs_eobmf_2026,
-  title = {Exempt Organizations Business Master File Extract (EO-BMF)},
-  author = {{Internal Revenue Service}},
-  year = {2026},
-  month = {April},
-  url = {https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf},
-  note = {Record count: 1,952,238 organizations. Updated monthly.}
+ title = {Exempt Organizations Business Master File Extract (EO-BMF)},
+ author = {{Internal Revenue Service}},
+ year = {2026},
+ month = {April},
+ url = {https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf},
+ note = {Record count: 1,952,238 organizations. Updated monthly.}
 }
 ```
 
@@ -790,14 +790,14 @@ These platforms present **multiple positions on the same issue side by side** �
 
 ---
 
-### Open States / Plural Policy ⭐
+### Open States / Plural Policy
 
-**Organization:** Plural Policy (formerly Open States Foundation)  
+**Organization:** Plural Policy (formerly Open States Foundation)
 **What we use:** State and local legislative information - bulk downloads of bills, votes, legislators, and legislative sessions for all 50 states.
 
 - **Website:** https://openstates.org/
 - **API Documentation:** https://openstates.org/api/
-- **Bulk Downloads:** https://open.pluralpolicy.com/data/ ⭐ **Recommended approach**
+- **Bulk Downloads:** https://open.pluralpolicy.com/data/ **Recommended approach**
 - **Scrapers Repository:** https://github.com/openstates/openstates-scrapers
 - **Local Database Setup:** https://docs.openstates.org/contributing/local-database/
 - **Code of Conduct:** https://docs.openstates.org/code-of-conduct/
@@ -810,23 +810,23 @@ These platforms present **multiple positions on the same issue side by side** �
 - **Monthly PostgreSQL dumps** (9.8GB+) for complete local analysis
 - **Video sources** (YouTube channels, Granicus portals)
 
-**License:** 
+**License:**
 - **Bulk data:** Public Domain (preferred method)
 - **API content:** Varies by state
 - **API Key:** Free tier (50,000 requests/month)
 
 **Bulk Data Formats:**
 1. **CSV:** Complete legislative sessions per state
-   - URL: https://data.openstates.org/session/csv/
-   - Best for: Spreadsheet analysis, quick exploration
+ - URL: https://data.openstates.org/session/csv/
+ - Best for: Spreadsheet analysis, quick exploration
 2. **JSON:** Bills with full text and metadata
-   - URL: https://data.openstates.org/session/json/
-   - Best for: Application integration, detailed parsing
+ - URL: https://data.openstates.org/session/json/
+ - Best for: Application integration, detailed parsing
 3. **PostgreSQL:** Monthly database dumps
-   - URL: https://data.openstates.org/postgres/monthly/
-   - Best for: SQL analysis, local development, complete schema
-   - Size: 9.8GB+ (complete legislative database)
-   - No rate limits on bulk downloads
+ - URL: https://data.openstates.org/postgres/monthly/
+ - Best for: SQL analysis, local development, complete schema
+ - Size: 9.8GB+ (complete legislative database)
+ - No rate limits on bulk downloads
 
 **What We Use:**
 - PostgreSQL monthly dumps for local database (see `scripts/bulk_legislative_download.py`)
@@ -854,17 +854,17 @@ python scripts/bulk_legislative_download.py --postgres --month 2026-04
 **BibTeX:**
 ```bibtex
 @software{openstates,
-    title = {Open States},
-    author = {{Plural Policy}},
-    year = {2024},
-    url = {https://openstates.org/},
-    note = {Comprehensive state legislative data for all 50 U.S. states}
+ title = {Open States},
+ author = {{Plural Policy}},
+ year = {2024},
+ url = {https://openstates.org/},
+ note = {Comprehensive state legislative data for all 50 U.S. states}
 }
 ```
 
-### LegiScan ⭐
+### LegiScan
 
-**Organization:** LegiScan  
+**Organization:** LegiScan
 **What we use:** Comprehensive state legislative tracking with bill text, votes, people, and datasets for all 50 states.
 
 - **Website:** https://legiscan.com/
@@ -884,20 +884,20 @@ python scripts/bulk_legislative_download.py --postgres --month 2026-04
 
 **Available Datasets:**
 1. **National Dataset:** Complete legislative data for all states
-   - All bills, resolutions, and legislative documents
-   - Updated daily during legislative sessions
-   - Includes bill text, sponsors, status tracking
+ - All bills, resolutions, and legislative documents
+ - Updated daily during legislative sessions
+ - Includes bill text, sponsors, status tracking
 2. **State-Specific Datasets:** Per-state downloads
-   - Session-specific or multi-year data
-   - Optimized for state-level analysis
+ - Session-specific or multi-year data
+ - Optimized for state-level analysis
 3. **People Dataset:** Legislator information
-   - Contact details, committee assignments
-   - District information and party affiliation
-   - Historical legislator records
+ - Contact details, committee assignments
+ - District information and party affiliation
+ - Historical legislator records
 4. **Roll Call Dataset:** Voting records
-   - Individual votes on bills and amendments
-   - Voting patterns and trends
-   - Committee and floor votes
+ - Individual votes on bills and amendments
+ - Voting patterns and trends
+ - Committee and floor votes
 
 **API Access:**
 - **Free Tier:** 30,000 requests per month
@@ -923,7 +923,7 @@ python scripts/bulk_legislative_download.py --postgres --month 2026-04
 
 Both are complementary - we use Open States for bulk data and LegiScan for detailed bill tracking and datasets.
 
-**License:** 
+**License:**
 - API data: Terms of Service apply (https://legiscan.com/legiscan)
 - Datasets: Subscription required for bulk downloads
 - API Key: Free tier available
@@ -938,21 +938,21 @@ Both are complementary - we use Open States for bulk data and LegiScan for detai
 **BibTeX:**
 ```bibtex
 @misc{legiscan,
-    title = {LegiScan: State and Federal Legislative Tracking},
-    author = {{LegiScan}},
-    year = {2024},
-    url = {https://legiscan.com/},
-    note = {Comprehensive legislative data for all 50 U.S. states and Congress}
+ title = {LegiScan: State and Federal Legislative Tracking},
+ author = {{LegiScan}},
+ year = {2024},
+ url = {https://legiscan.com/},
+ note = {Comprehensive legislative data for all 50 U.S. states and Congress}
 }
 ```
 
-**Documentation:** https://legiscan.com/legiscan  
-**Support:** support@legiscan.com  
+**Documentation:** https://legiscan.com/legiscan
+**Support:** support@legiscan.com
 **Terms:** https://legiscan.com/legiscan
 
 ---
 
-## 🌐 Data Sharing Standards
+## Data Sharing Standards
 
 **In this section:**
 - [Open Civic Data (OCD) Standards](#open-civic-data-ocd-standards)
@@ -974,10 +974,10 @@ Both are complementary - we use Open States for bulk data and LegiScan for detai
 
 **Example Implementation:**
 ```
-ocd-division/country:us/state:al                      # State
-ocd-division/country:us/state:al/county:jefferson     # County
-ocd-division/country:us/state:al/place:birmingham     # City
-ocd-division/country:us/state:al/school_district:birmingham_city  # School District
+ocd-division/country:us/state:al # State
+ocd-division/country:us/state:al/county:jefferson # County
+ocd-division/country:us/state:al/place:birmingham # City
+ocd-division/country:us/state:al/school_district:birmingham_city # School District
 ```
 
 ### Popolo Project
@@ -1027,7 +1027,7 @@ ocd-division/country:us/state:al/school_district:birmingham_city  # School Distr
 
 ### Schema.org
 
-**Organization:** W3C Community Group (sponsors: Google, Microsoft, Yahoo, Yandex)  
+**Organization:** W3C Community Group (sponsors: Google, Microsoft, Yahoo, Yandex)
 **What we use:** SEO-optimized structured data, JSON-LD exports, semantic web compatibility.
 
 - **Source:** https://schema.org/
@@ -1055,14 +1055,14 @@ ocd-division/country:us/state:al/school_district:birmingham_city  # School Distr
 | PROGRAM_DELIVERY | [Service](https://schema.org/Service) | Program catalog |
 
 **Benefits:**
-- ✅ Google Search rich results
-- ✅ Voice assistant compatibility (Alexa, Google Assistant)
-- ✅ Knowledge Graph integration
-- ✅ Cross-platform (Apple, Bing, Yandex)
+- Yes Google Search rich results
+- Yes Voice assistant compatibility (Alexa, Google Assistant)
+- Yes Knowledge Graph integration
+- Yes Cross-platform (Apple, Bing, Yandex)
 
 ### Common Education Data Standards (CEDS)
 
-**Organization:** U.S. Department of Education, National Center for Education Statistics (NCES)  
+**Organization:** U.S. Department of Education, National Center for Education Statistics (NCES)
 **What we use:** School district data modeling, NCES interoperability, education finance tracking.
 
 - **Source:** https://ceds.ed.gov/
@@ -1081,15 +1081,15 @@ ocd-division/country:us/state:al/school_district:birmingham_city  # School Distr
 | `per_pupil_spending` | 000613 | Expenditure per Student |
 
 **Benefits:**
-- ✅ NCES Common Core of Data (CCD) compatibility
-- ✅ F-33 Finance Survey alignment
-- ✅ Federal grant reporting (ESSA, Title I, IDEA)
+- Yes NCES Common Core of Data (CCD) compatibility
+- Yes F-33 Finance Survey alignment
+- Yes Federal grant reporting (ESSA, Title I, IDEA)
 
 ---
 
 ### OMOP Common Data Model (OHDSI)
 
-**Organization:** Observational Health Data Sciences and Informatics (OHDSI)  
+**Organization:** Observational Health Data Sciences and Informatics (OHDSI)
 **What we use:** Vocabulary and terminology standardization system - CONCEPT, VOCABULARY, CONCEPT_CLASS, CONCEPT_RELATIONSHIP tables for consistent data classification.
 
 - **Source:** https://ohdsi.github.io/CommonDataModel/
@@ -1123,41 +1123,41 @@ ocd-division/country:us/state:al/school_district:birmingham_city  # School Distr
 **Example Implementation:**
 ```sql
 -- CONCEPT table: standardized demographics
-concept_id | concept_name              | vocabulary_id | concept_class_id
+concept_id | concept_name | vocabulary_id | concept_class_id
 -----------|---------------------------|---------------|------------------
-100001     | Race: White               | CENSUS        | Demographic
-100002     | Race: Black/African Amer. | CENSUS        | Demographic
-100003     | Hispanic/Latino Ethnicity | CENSUS        | Demographic
-100004     | Gender: Male              | CENSUS        | Demographic
+100001 | Race: White | CENSUS | Demographic
+100002 | Race: Black/African Amer. | CENSUS | Demographic
+100003 | Hispanic/Latino Ethnicity | CENSUS | Demographic
+100004 | Gender: Male | CENSUS | Demographic
 
 -- CONCEPT_RELATIONSHIP: hierarchies
 concept_id_1 | concept_id_2 | relationship_id
 -------------|--------------|----------------
-100002       | 100000       | Is a           # Race category
-100003       | 100010       | Is a           # Ethnicity category
+100002 | 100000 | Is a # Race category
+100003 | 100010 | Is a # Ethnicity category
 ```
 
 **Benefits:**
-- ✅ Consistent terminology across all datasets
-- ✅ Hierarchical concept relationships
-- ✅ Traceable concept provenance (source vocabularies)
-- ✅ Industry-standard approach used by healthcare and research institutions
-- ✅ Supports multiple classification systems simultaneously
+- Yes Consistent terminology across all datasets
+- Yes Hierarchical concept relationships
+- Yes Traceable concept provenance (source vocabularies)
+- Yes Industry-standard approach used by healthcare and research institutions
+- Yes Supports multiple classification systems simultaneously
 
 **BibTeX:**
 ```bibtex
 @misc{ohdsi_omop_cdm,
-  author = {{Observational Health Data Sciences and Informatics (OHDSI)}},
-  title = {OMOP Common Data Model},
-  year = {2024},
-  url = {https://ohdsi.github.io/CommonDataModel/},
-  license = {Apache-2.0}
+ author = {{Observational Health Data Sciences and Informatics (OHDSI)}},
+ title = {OMOP Common Data Model},
+ year = {2024},
+ url = {https://ohdsi.github.io/CommonDataModel/},
+ license = {Apache-2.0}
 }
 ```
 
 ---
 
-## 🗳️ Election & Advocacy
+## Election & Advocacy
 
 **In this section:**
 - [Ballotpedia](#ballotpedia)
@@ -1167,7 +1167,7 @@ concept_id_1 | concept_id_2 | relationship_id
 
 ### Ballotpedia
 
-**Organization:** Lucy Burns Institute  
+**Organization:** Lucy Burns Institute
 **What we use:** Ballot measures, referendums, propositions for fluoridation tracking and health policy analysis.
 
 - **Source:** https://ballotpedia.org/
@@ -1177,7 +1177,7 @@ concept_id_1 | concept_id_2 | relationship_id
 
 ### MIT Election Data + Science Lab
 
-**Organization:** Massachusetts Institute of Technology  
+**Organization:** Massachusetts Institute of Technology
 **What we use:** County-level election results for political composition analysis.
 
 - **Source:** https://electionlab.mit.edu/data
@@ -1196,7 +1196,7 @@ concept_id_1 | concept_id_2 | relationship_id
 
 ### Alabama FCPA public general reports
 
-**Organization:** Alabama Secretary of State (Fair Campaign Practices Act disclosures via Alabama Votes)  
+**Organization:** Alabama Secretary of State (Fair Campaign Practices Act disclosures via Alabama Votes)
 **What we use:** Alabama **state and local campaign finance** public filings — browse and export style reports through the FCPA disclosure portal (`fcpa.alabamavotes.gov`).
 
 - **Public general reports:** [https://fcpa.alabamavotes.gov/page.request.do?page=page.acfPublicGeneralReports](https://fcpa.alabamavotes.gov/page.request.do?page=page.acfPublicGeneralReports)
@@ -1207,16 +1207,16 @@ concept_id_1 | concept_id_2 | relationship_id
 **BibTeX:**
 ```bibtex
 @misc{alabama_fcpa_public_reports,
-  author = {{Alabama Secretary of State}},
-  title = {Fair Campaign Practices Act (FCPA) --- Public general reports},
-  url = {https://fcpa.alabamavotes.gov/page.request.do?page=page.acfPublicGeneralReports},
-  note = {Alabama campaign finance disclosure portal accessed via Alabama Votes.}
+ author = {{Alabama Secretary of State}},
+ title = {Fair Campaign Practices Act (FCPA) --- Public general reports},
+ url = {https://fcpa.alabamavotes.gov/page.request.do?page=page.acfPublicGeneralReports},
+ note = {Alabama campaign finance disclosure portal accessed via Alabama Votes.}
 }
 ```
 
 ---
 
-## 🏢 Nonprofit & Philanthropy
+## Nonprofit & Philanthropy
 
 **In this section:**
 - [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf) - **PRIMARY BULK DATA SOURCE (1.9M+ orgs)**
@@ -1236,7 +1236,7 @@ concept_id_1 | concept_id_2 | relationship_id
 
 ### IRS Exempt Organizations Business Master File (EO-BMF)
 
-**Organization:** Internal Revenue Service (IRS), U.S. Department of Treasury  
+**Organization:** Internal Revenue Service (IRS), U.S. Department of Treasury
 **What we use:** **PRIMARY BULK DATA SOURCE** for comprehensive nonprofit data - ALL 1.9M+ U.S. tax-exempt organizations with EIN, NTEE codes, financial data, subsection classification, and geographic location.
 
 - **Source:** https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf
@@ -1244,10 +1244,10 @@ concept_id_1 | concept_id_2 | relationship_id
 - **Bulk Downloads:** https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads
 - **API Documentation:** See [IRS Bulk Data Integration](./irs-bulk-data.md)
 - **Coverage:** 1,952,238 organizations (as of April 2026)
-  - **Churches & Religious Organizations:** 300,000+ (NTEE codes X, X20, X21, X22, X30, X40)
-  - **Health Organizations:** 80,000+ (NTEE codes E, E20-E99)
-  - **Human Services:** 200,000+ (NTEE codes P, P20-P99)
-  - **All Other Categories:** 1.3M+ (Education, Arts, Environment, etc.)
+ - **Churches & Religious Organizations:** 300,000+ (NTEE codes X, X20, X21, X22, X30, X40)
+ - **Health Organizations:** 80,000+ (NTEE codes E, E20-E99)
+ - **Human Services:** 200,000+ (NTEE codes P, P20-P99)
+ - **All Other Categories:** 1.3M+ (Education, Arts, Environment, etc.)
 - **Update Frequency:** Monthly
 - **License:** Public domain (U.S. government data)
 - **Format:** CSV (regional files), convertible to Parquet
@@ -1279,12 +1279,12 @@ concept_id_1 | concept_id_2 | relationship_id
 **BibTeX Citation:**
 ```bibtex
 @misc{irs_eobmf_2026,
-  title = {Exempt Organizations Business Master File Extract (EO-BMF)},
-  author = {{Internal Revenue Service}},
-  year = {2026},
-  month = {April},
-  url = {https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf},
-  note = {Record count: 1,952,238 organizations. Updated monthly.}
+ title = {Exempt Organizations Business Master File Extract (EO-BMF)},
+ author = {{Internal Revenue Service}},
+ year = {2026},
+ month = {April},
+ url = {https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf},
+ note = {Record count: 1,952,238 organizations. Updated monthly.}
 }
 ```
 
@@ -1303,7 +1303,7 @@ concept_id_1 | concept_id_2 | relationship_id
 
 ### Google BigQuery IRS 990 Data
 
-**Organization:** Google Cloud Platform (IRS data mirrored by Google)  
+**Organization:** Google Cloud Platform (IRS data mirrored by Google)
 **What we use:** **RECOMMENDED FOR BULK FORM 990 ENRICHMENT** - SQL-queryable IRS Form 990 electronic filings with detailed financial data, mission statements, and program descriptions.
 
 - **Source:** https://console.cloud.google.com/marketplace/product/internal-revenue-service/irs-990
@@ -1323,26 +1323,26 @@ concept_id_1 | concept_id_2 | relationship_id
 **Data Fields (100+ columns):**
 - **Identification:** EIN, organization name, tax year
 - **Financials:**
-  - Total revenue, contributions, program service revenue, investment income
-  - Total expenses, program expenses, management expenses, fundraising expenses
-  - Total assets, total liabilities, net assets
-  - Grants paid, grants received
+ - Total revenue, contributions, program service revenue, investment income
+ - Total expenses, program expenses, management expenses, fundraising expenses
+ - Total assets, total liabilities, net assets
+ - Grants paid, grants received
 - **Mission & Programs:**
-  - Mission description (text field)
-  - Program service accomplishments (up to 10 programs with descriptions)
-  - Program service expenses per program
+ - Mission description (text field)
+ - Program service accomplishments (up to 10 programs with descriptions)
+ - Program service expenses per program
 - **Governance:**
-  - Number of voting members, independent members
-  - Officer and director compensation
-  - Key employee information
+ - Number of voting members, independent members
+ - Officer and director compensation
+ - Key employee information
 - **Activities:**
-  - Legislative activities, political expenditures, lobbying
-  - Foreign operations, foreign grants
-  - Website URL
+ - Legislative activities, political expenditures, lobbying
+ - Foreign operations, foreign grants
+ - Website URL
 - **Compliance:**
-  - Public inspection policies
-  - Conflict of interest policies
-  - Whistleblower policies
+ - Public inspection policies
+ - Conflict of interest policies
+ - Whistleblower policies
 
 **Key Advantages:**
 - **Serverless SQL:** Query 5M+ records without downloading files
@@ -1363,29 +1363,29 @@ concept_id_1 | concept_id_2 | relationship_id
 1. Create a Google Cloud project
 2. Enable BigQuery API
 3. Authenticate:
-   ```bash
-   # Option A: Application default credentials
-   gcloud auth application-default login
-   
-   # Option B: Service account key
-   export GOOGLE_APPLICATION_CREDENTIALS="path/to/credentials.json"
-   ```
+ ```bash
+ # Option A: Application default credentials
+ gcloud auth application-default login
+
+ # Option B: Service account key
+ export GOOGLE_APPLICATION_CREDENTIALS="path/to/credentials.json"
+ ```
 
 **Example Query (Extract Alabama Health Nonprofits with Missions):**
 ```sql
-SELECT 
-  ein,
-  organization_name,
-  tax_year,
-  mission_description,
-  website,
-  total_revenue,
-  total_expenses,
-  program_service_expenses
+SELECT
+ ein,
+ organization_name,
+ tax_year,
+ mission_description,
+ website,
+ total_revenue,
+ total_expenses,
+ program_service_expenses
 FROM `bigquery-public-data.irs_990.irs_990_2023`
 WHERE state = 'AL'
-  AND mission_description LIKE '%health%'
-  AND total_revenue > 100000
+ AND mission_description LIKE '%health%'
+ AND total_revenue > 100000
 ORDER BY total_revenue DESC
 LIMIT 1000
 ```
@@ -1393,11 +1393,11 @@ LIMIT 1000
 **BibTeX Citation:**
 ```bibtex
 @misc{google_bigquery_irs990,
-  title = {IRS 990 Dataset},
-  author = {{Google Cloud Platform} and {Internal Revenue Service}},
-  year = {2024},
-  url = {https://console.cloud.google.com/marketplace/product/internal-revenue-service/irs-990},
-  note = {BigQuery public dataset: bigquery-public-data.irs\_990. Coverage: 5M+ Form 990 electronic filings (2011-present)}
+ title = {IRS 990 Dataset},
+ author = {{Google Cloud Platform} and {Internal Revenue Service}},
+ year = {2024},
+ url = {https://console.cloud.google.com/marketplace/product/internal-revenue-service/irs-990},
+ note = {BigQuery public dataset: bigquery-public-data.irs\_990. Coverage: 5M+ Form 990 electronic filings (2011-present)}
 }
 ```
 
@@ -1420,7 +1420,7 @@ LIMIT 1000
 
 ### GivingTuesday 990 Data Infrastructure
 
-**Organization:** GivingTuesday  
+**Organization:** GivingTuesday
 **What we use:** Raw Form 990 XML filings from AWS S3 for detailed financial data extraction, custom field parsing, and comprehensive nonprofit analysis.
 
 - **Website:** https://990data.givingtuesday.org/
@@ -1437,13 +1437,13 @@ LIMIT 1000
 ```
 s3://gt990datalake-rawdata/
 ├── EfileData/
-│   ├── XmlFiles/              # Individual 990 XMLs (~5.4M files, ~10 TB)
-│   │   └── [OBJECT_ID]_public.xml  (e.g., 202233259349300703_public.xml)
-│   └── XmlZips/               # ZIP archives (97 files, ~38 GB → ~95 GB uncompressed)
-│       └── YYYY_TEOS_XML_*.zip     (e.g., 2023_TEOS_XML_01A.zip ~400 MB)
+│ ├── XmlFiles/ # Individual 990 XMLs (~5.4M files, ~10 TB)
+│ │ └── [OBJECT_ID]_public.xml (e.g., 202233259349300703_public.xml)
+│ └── XmlZips/ # ZIP archives (97 files, ~38 GB → ~95 GB uncompressed)
+│ └── YYYY_TEOS_XML_*.zip (e.g., 2023_TEOS_XML_01A.zip ~400 MB)
 └── Indices/
-    └── 990xmls/               # CSV indices with metadata
-        └── index_all_years_efiledata_xmls_created_on_2023-10-29.csv (~925 MB)
+ └── 990xmls/ # CSV indices with metadata
+ └── index_all_years_efiledata_xmls_created_on_2023-10-29.csv (~925 MB)
 ```
 
 **Download Strategies:**
@@ -1518,15 +1518,15 @@ s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
 
 # Download individual XML
 xml_obj = s3.get_object(
-    Bucket='gt990datalake-rawdata',
-    Key='EfileData/XmlFiles/202233259349300703_public.xml'
+ Bucket='gt990datalake-rawdata',
+ Key='EfileData/XmlFiles/202233259349300703_public.xml'
 )
 xml_content = xml_obj['Body'].read()
 
 # Download ZIP
 zip_obj = s3.get_object(
-    Bucket='gt990datalake-rawdata',
-    Key='EfileData/XmlZips/2023_TEOS_XML_01A.zip'
+ Bucket='gt990datalake-rawdata',
+ Key='EfileData/XmlZips/2023_TEOS_XML_01A.zip'
 )
 zip_content = zip_obj['Body'].read()
 ```
@@ -1552,11 +1552,11 @@ The CSV index contains: `EIN`, `TaxPeriod`, `ObjectId`, `URL`, `FormType`, `Orga
 **BibTeX Citation:**
 ```bibtex
 @misc{givingtuesday990data,
-  title = {GivingTuesday 990 Data Infrastructure},
-  author = {{GivingTuesday}},
-  year = {2023},
-  url = {https://990data.givingtuesday.org/},
-  note = {AWS S3 data lake of IRS Form 990 XML filings. Bucket: s3://gt990datalake-rawdata. Coverage: 5.4M+ filings (2011-present)}
+ title = {GivingTuesday 990 Data Infrastructure},
+ author = {{GivingTuesday}},
+ year = {2023},
+ url = {https://990data.givingtuesday.org/},
+ note = {AWS S3 data lake of IRS Form 990 XML filings. Bucket: s3://gt990datalake-rawdata. Coverage: 5.4M+ filings (2011-present)}
 }
 ```
 
@@ -1580,18 +1580,18 @@ When publishing analyses using this data, please cite:
 
 ### ProPublica Nonprofit Explorer
 
-**Organization:** ProPublica, Inc.  
+**Organization:** ProPublica, Inc.
 **What we use:** Enhanced financial data and detailed Form 990 filings to complement IRS EO-BMF bulk data.
 
 - **Source:** https://projects.propublica.org/nonprofits/
 - **API Documentation:** https://projects.propublica.org/nonprofits/api
 - **Coverage:** 3,000,000+ organizations, 10+ years of historical data
 - **Data Included:**
-  - Total revenue, expenses, assets, liabilities
-  - Executive compensation (top 5 highest paid)
-  - Program service expenses vs. administrative overhead
-  - NTEE classification codes (National Taxonomy of Exempt Entities)
-  - EIN (Employer Identification Number) for verification
+ - Total revenue, expenses, assets, liabilities
+ - Executive compensation (top 5 highest paid)
+ - Program service expenses vs. administrative overhead
+ - NTEE classification codes (National Taxonomy of Exempt Entities)
+ - EIN (Employer Identification Number) for verification
 - **Rate Limits:** Free, unlimited access (respectful use recommended: ~1 req/sec)
 - **API Limitation:** Returns max 25 results per request, no pagination (use IRS EO-BMF for bulk downloads)
 - **License:** Free for research and commercial use
@@ -1599,11 +1599,11 @@ When publishing analyses using this data, please cite:
 **BibTeX:**
 ```bibtex
 @misc{propublica_nonprofits,
-  author = {{ProPublica}},
-  title = {Nonprofit Explorer},
-  year = {2024},
-  url = {https://projects.propublica.org/nonprofits/},
-  note = {Accessed: 2024}
+ author = {{ProPublica}},
+ title = {Nonprofit Explorer},
+ year = {2024},
+ url = {https://projects.propublica.org/nonprofits/},
+ note = {Accessed: 2024}
 }
 ```
 
@@ -1611,18 +1611,18 @@ When publishing analyses using this data, please cite:
 
 ### ProPublica Congress API
 
-**Organization:** ProPublica, Inc.  
+**Organization:** ProPublica, Inc.
 **What we use:** Legislative data including roll-call votes, member information, bills, and congressional activity to link policy decisions to government meetings.
 
 - **Source:** https://projects.propublica.org/api-docs/congress-api/
 - **API Documentation:** https://projects.propublica.org/api-docs/congress-api/
 - **Coverage:** U.S. Congress data from 102nd Congress (1991) to present
 - **Data Included:**
-  - Roll-call votes by member and bill
-  - Bill information, status, and amendments
-  - Member biographical data and voting records
-  - Committee assignments and leadership
-  - Congressional statements and floor appearances
+ - Roll-call votes by member and bill
+ - Bill information, status, and amendments
+ - Member biographical data and voting records
+ - Committee assignments and leadership
+ - Congressional statements and floor appearances
 - **Access:** **API Key Required** (Free - sign up at https://www.propublica.org/datastore/api/propublica-congress-api)
 - **Authentication:** Include as HTTP header: `X-API-Key: YOUR_API_KEY`
 - **Rate Limits:** 5,000 requests per day
@@ -1636,11 +1636,11 @@ When publishing analyses using this data, please cite:
 **BibTeX:**
 ```bibtex
 @misc{propublica_congress,
-  author = {{ProPublica}},
-  title = {Congress API},
-  year = {2024},
-  url = {https://projects.propublica.org/api-docs/congress-api/},
-  note = {Accessed: 2024}
+ author = {{ProPublica}},
+ title = {Congress API},
+ year = {2024},
+ url = {https://projects.propublica.org/api-docs/congress-api/},
+ note = {Accessed: 2024}
 }
 ```
 
@@ -1648,7 +1648,7 @@ When publishing analyses using this data, please cite:
 
 ### Federal Election Commission (FEC) - Bulk Data & OpenFEC API
 
-**Organization:** Federal Election Commission (FEC), U.S. Government  
+**Organization:** Federal Election Commission (FEC), U.S. Government
 **What we use:** **PRIMARY SOURCE** for campaign finance data - individual contributions, candidate filings, committee data, and political expenditures for comprehensive campaign finance analysis.
 
 - **OpenFEC API:** https://api.open.fec.gov/developers/
@@ -1656,16 +1656,16 @@ When publishing analyses using this data, please cite:
 - **Documentation:** https://www.fec.gov/campaign-finance-data/
 - **Coverage:** Complete FEC data from 1980s to present (updated nightly)
 - **Data Included:**
-  - **Individual contributions** $200+ (Schedule A)
-  - **Operating expenditures** (Schedule B)
-  - **Candidate master files** (House, Senate, Presidential)
-  - **Committee master files** (PACs, Super PACs, party committees)
-  - **Campaign finance totals** by election cycle
-  - **Independent expenditures** and electioneering communications
+ - **Individual contributions** $200+ (Schedule A)
+ - **Operating expenditures** (Schedule B)
+ - **Candidate master files** (House, Senate, Presidential)
+ - **Committee master files** (PACs, Super PACs, party committees)
+ - **Campaign finance totals** by election cycle
+ - **Independent expenditures** and electioneering communications
 - **Access Methods:**
-  - **Bulk Downloads:** Free, unlimited, no API key (CSV and FEC format)
-  - **OpenFEC API:** Free with API key (1,000 requests/hour)
-  - **Demo Key:** 30 requests/hour (no registration)
+ - **Bulk Downloads:** Free, unlimited, no API key (CSV and FEC format)
+ - **OpenFEC API:** Free with API key (1,000 requests/hour)
+ - **Demo Key:** 30 requests/hour (no registration)
 - **API Key:** Free at https://api.data.gov/signup/
 - **License:** Public Domain (U.S. Government)
 - **Update Frequency:** Nightly (most datasets)
@@ -1679,25 +1679,25 @@ When publishing analyses using this data, please cite:
 - "Follow the money" from donor to policy outcome
 
 **Critical Policy Restriction:**
-- ⚠️ **Cannot use contributor data for commercial solicitation or fundraising**
+- Warning **Cannot use contributor data for commercial solicitation or fundraising**
 - FEC data is for transparency and research, not marketing
 
 **BibTeX:**
 ```bibtex
 @misc{fec_data_2024,
-  author = {{Federal Election Commission}},
-  title = {Campaign Finance Data and Bulk Downloads},
-  year = {2024},
-  url = {https://www.fec.gov/data/},
-  note = {Updated nightly. Accessed: 2024}
+ author = {{Federal Election Commission}},
+ title = {Campaign Finance Data and Bulk Downloads},
+ year = {2024},
+ url = {https://www.fec.gov/data/},
+ note = {Updated nightly. Accessed: 2024}
 }
 
 @misc{openfec_api_2024,
-  author = {{Federal Election Commission}},
-  title = {OpenFEC API},
-  year = {2024},
-  url = {https://api.open.fec.gov/developers/},
-  note = {RESTful API for campaign finance data. Accessed: 2024}
+ author = {{Federal Election Commission}},
+ title = {OpenFEC API},
+ year = {2024},
+ url = {https://api.open.fec.gov/developers/},
+ note = {RESTful API for campaign finance data. Accessed: 2024}
 }
 ```
 
@@ -1707,18 +1707,18 @@ When publishing analyses using this data, please cite:
 
 ### ProPublica Campaign Finance API
 
-**Organization:** ProPublica, Inc.  
+**Organization:** ProPublica, Inc.
 **What we use:** Simplified access to FEC data with pre-aggregated summaries and top donor analysis (complements direct FEC data access).
 
 - **Source:** https://projects.propublica.org/api-docs/campaign-finance/
 - **API Documentation:** https://projects.propublica.org/api-docs/campaign-finance/
 - **Coverage:** FEC data from 2000 election cycle to present
 - **Data Included:**
-  - Candidate financial summaries and filings
-  - Committee information and contributions
-  - Individual and organizational donor data
-  - Independent expenditures and disbursements
-  - Top donors by industry and geography
+ - Candidate financial summaries and filings
+ - Committee information and contributions
+ - Individual and organizational donor data
+ - Independent expenditures and disbursements
+ - Top donors by industry and geography
 - **Access:** **API Key Required** (Free - sign up at https://www.propublica.org/datastore/api/campaign-finance-api)
 - **Authentication:** Include as HTTP header: `X-API-Key: YOUR_API_KEY`
 - **Rate Limits:** 5,000 requests per day
@@ -1735,11 +1735,11 @@ When publishing analyses using this data, please cite:
 **BibTeX:**
 ```bibtex
 @misc{propublica_campaign_finance,
-  author = {{ProPublica}},
-  title = {Campaign Finance API},
-  year = {2024},
-  url = {https://projects.propublica.org/api-docs/campaign-finance/},
-  note = {Accessed: 2024}
+ author = {{ProPublica}},
+ title = {Campaign Finance API},
+ year = {2024},
+ url = {https://projects.propublica.org/api-docs/campaign-finance/},
+ note = {Accessed: 2024}
 }
 ```
 
@@ -1747,19 +1747,19 @@ When publishing analyses using this data, please cite:
 
 ### ProPublica Vital Signs API
 
-**Organization:** ProPublica, Inc.  
+**Organization:** ProPublica, Inc.
 **What we use:** Healthcare provider data including doctors, facilities, disciplinary actions, and Medicare participation to support oral health policy analysis.
 
 - **Source:** https://projects.propublica.org/vital-signs/
 - **API Documentation:** https://projects.propublica.org/api-docs/vital-signs/
 - **Coverage:** 1,000,000+ healthcare providers across the United States
 - **Data Included:**
-  - Doctor biographical information and specialties
-  - Medical school and residency training
-  - Hospital affiliations and group practices
-  - State medical board disciplinary actions
-  - Medicare participation and payments
-  - Malpractice claims and settlements
+ - Doctor biographical information and specialties
+ - Medical school and residency training
+ - Hospital affiliations and group practices
+ - State medical board disciplinary actions
+ - Medicare participation and payments
+ - Malpractice claims and settlements
 - **Access:** **API Key Required** (Free - sign up at https://www.propublica.org/datastore/api/vital-signs-api)
 - **Authentication:** Include as HTTP header: `X-API-Key: YOUR_API_KEY`
 - **Rate Limits:** 5,000 requests per day
@@ -1775,11 +1775,11 @@ When publishing analyses using this data, please cite:
 **BibTeX:**
 ```bibtex
 @misc{propublica_vital_signs,
-  author = {{ProPublica}},
-  title = {Vital Signs: Health Care Provider Data},
-  year = {2024},
-  url = {https://projects.propublica.org/vital-signs/},
-  note = {Accessed: 2024}
+ author = {{ProPublica}},
+ title = {Vital Signs: Health Care Provider Data},
+ year = {2024},
+ url = {https://projects.propublica.org/vital-signs/},
+ note = {Accessed: 2024}
 }
 ```
 
@@ -1787,16 +1787,16 @@ When publishing analyses using this data, please cite:
 
 ### Every.org Charity API
 
-**Organization:** Every.org (Public Benefit Corporation)  
+**Organization:** Every.org (Public Benefit Corporation)
 **What we use:** Human-readable mission statements, organization logos, cause categories, cleaner metadata than raw IRS filings.
 
 - **API Documentation:** https://www.every.org/nonprofit-api
 - **Coverage:** 1,000,000+ verified nonprofits
 - **Data Included:**
-  - Mission statements and descriptions
-  - Organization logos and images
-  - Cause tags (health, education, environment, etc.)
-  - Social media links
+ - Mission statements and descriptions
+ - Organization logos and images
+ - Cause tags (health, education, environment, etc.)
+ - Social media links
 - **Access:** API key required (free tier available)
 - **License:** API Terms of Service
 
@@ -1804,18 +1804,18 @@ When publishing analyses using this data, please cite:
 
 ### Findhelp.org (Aunt Bertha)
 
-**Organization:** Findhelp (formerly Aunt Bertha)  
+**Organization:** Findhelp (formerly Aunt Bertha)
 **What we use:** Comprehensive directory of local social services - specific programs, hours, eligibility requirements, contact information.
 
 - **Source:** https://www.findhelp.org/
 - **Coverage:** 400,000+ community programs across the United States
 - **Data Included:**
-  - Program descriptions and services offered
-  - Days/hours of operation
-  - Eligibility requirements
-  - Languages spoken
-  - Insurance accepted
-  - Contact information (phone, email, address)
+ - Program descriptions and services offered
+ - Days/hours of operation
+ - Eligibility requirements
+ - Languages spoken
+ - Insurance accepted
+ - Contact information (phone, email, address)
 - **Access:** Public search available, API access by request
 - **Use Case:** Manual enrichment of ProPublica financial data with service delivery details
 
@@ -1831,10 +1831,10 @@ When publishing analyses using this data, please cite:
 - **Example:** https://www.211connects.org (Alabama)
 - **Coverage:** Local services in most U.S. cities and counties
 - **Data Included:**
-  - Specific services and programs
-  - Hours of operation
-  - Eligibility criteria
-  - Languages and accessibility
+ - Specific services and programs
+ - Hours of operation
+ - Eligibility criteria
+ - Languages and accessibility
 - **Access:** Public search, some regions offer data partnerships
 - **License:** Varies by region
 
@@ -1842,7 +1842,7 @@ When publishing analyses using this data, please cite:
 
 ### Association of Religion Data Archives (ARDA)
 
-**Organization:** Pennsylvania State University  
+**Organization:** Pennsylvania State University
 **What we use:** U.S. Congregational Life Survey and denominational data for understanding church characteristics, programs, and community services including health ministries.
 
 - **Source:** https://www.thearda.com/
@@ -1867,18 +1867,18 @@ When publishing analyses using this data, please cite:
 - Community outreach budget
 - Social service partnerships
 
-**Example Use Case:**  
+**Example Use Case:**
 Identify churches with active health ministries in Tuscaloosa, AL that provide free dental kits, health screenings, or partner with mobile dental units.
 
 **Citation:**
 ```bibtex
 @misc{arda_congregations,
-  author = {{Association of Religion Data Archives}},
-  title = {U.S. Congregational Life Survey},
-  year = {2024},
-  publisher = {Pennsylvania State University},
-  url = {https://www.thearda.com/},
-  note = {Free for research use}
+ author = {{Association of Religion Data Archives}},
+ title = {U.S. Congregational Life Survey},
+ year = {2024},
+ publisher = {Pennsylvania State University},
+ url = {https://www.thearda.com/},
+ note = {Free for research use}
 }
 ```
 
@@ -1886,15 +1886,15 @@ Identify churches with active health ministries in Tuscaloosa, AL that provide f
 
 ### Homeland Infrastructure Foundation-Level Data (HIFLD)
 
-> **⚠️ 2026 Update:** The HIFLD Open portal (hifld-geoplatform.opendata.arcgis.com) has been officially sunsetted. Data has migrated to the Data Rescue Project (portal.datarescueproject.org), ArcGIS Online mirrors, and USGS re-indexing.
+> **Warning 2026 Update:** The HIFLD Open portal (hifld-geoplatform.opendata.arcgis.com) has been officially sunsetted. Data has migrated to the Data Rescue Project (portal.datarescueproject.org), ArcGIS Online mirrors, and USGS re-indexing.
 
-**Organization:** U.S. Department of Homeland Security (DHS)  
+**Organization:** U.S. Department of Homeland Security (DHS)
 **What we use:** Geospatial databases of critical infrastructure and community resources for mapping service locations and identifying gaps.
 
 - **Legacy Source:** ~~https://hifld-geoplatform.opendata.arcgis.com/~~ (Sunset)
-- **New Sources:** 
-  - https://portal.datarescueproject.org/ (Rescued datasets)
-  - https://www.arcgis.com (Re-indexed datasets)
+- **New Sources:**
+ - https://portal.datarescueproject.org/ (Rescued datasets)
+ - https://www.arcgis.com (Re-indexed datasets)
 - **Format:** Shapefile, GeoJSON, CSV, Parquet
 - **License:** Public Domain (U.S. Government)
 
@@ -1902,18 +1902,18 @@ Identify churches with active health ministries in Tuscaloosa, AL that provide f
 
 | Infrastructure Type | Item ID | Record Count | Portal | Status |
 |---------------------|---------|--------------|--------|--------|
-| **Places of Worship** | `495cc33ef490462ab2d8933247a66a87` | 254,742 | ArcGIS Online | ✅ Loaded |
-| **Hospitals** | `f36521f6e07f4a859e838f0ad7536898` | 7,496 | ArcGIS Online | ✅ Loaded |
-| **Law Enforcement** | `333a74c8e9c64cb6870689d31e8836af` | 46,972 | ArcGIS Online | ✅ Loaded |
+| **Places of Worship** | `495cc33ef490462ab2d8933247a66a87` | 254,742 | ArcGIS Online | Yes Loaded |
+| **Hospitals** | `f36521f6e07f4a859e838f0ad7536898` | 7,496 | ArcGIS Online | Yes Loaded |
+| **Law Enforcement** | `333a74c8e9c64cb6870689d31e8836af` | 46,972 | ArcGIS Online | Yes Loaded |
 
 **Available but Not Yet Loaded:**
 
 | Infrastructure Type | Identifier | Portal | Status |
 |---------------------|------------|--------|--------|
-| **Public Schools** | `hifld-open-public-schools` | Data Rescue | ⚠️ Requires different API |
-| **Private Schools** | `hifld-open-private-schools` | Data Rescue | ⚠️ Requires different API |
-| **Fire Stations** | `d33b8b5d03a84170847b48d7d4c1bdf6` | ArcGIS Online | ⚠️ Dataset format incompatible |
-| **Courthouses** | `f4007823f38c4b12b508f7b76400c0a9` | ArcGIS Online | 🔍 Proxy for gov buildings |
+| **Public Schools** | `hifld-open-public-schools` | Data Rescue | Warning Requires different API |
+| **Private Schools** | `hifld-open-private-schools` | Data Rescue | Warning Requires different API |
+| **Fire Stations** | `d33b8b5d03a84170847b48d7d4c1bdf6` | ArcGIS Online | Warning Dataset format incompatible |
+| **Courthouses** | `f4007823f38c4b12b508f7b76400c0a9` | ArcGIS Online | Proxy for gov buildings |
 
 **How to Find Item IDs (2026):**
 1. **ArcGIS Online**: Search https://www.arcgis.com/home/search.html for "HIFLD [dataset name]"
@@ -1941,18 +1941,18 @@ Identify churches with active health ministries in Tuscaloosa, AL that provide f
 ```bash
 # Download Places of Worship (254,742 records)
 python scripts/datasources/hifld/download_arcgis_dataset.py \
-  --item-id 495cc33ef490462ab2d8933247a66a87 \
-  --to-parquet
+ --item-id 495cc33ef490462ab2d8933247a66a87 \
+ --to-parquet
 
 # Download Hospitals (7,496 records)
 python scripts/datasources/hifld/download_arcgis_dataset.py \
-  --item-id f36521f6e07f4a859e838f0ad7536898 \
-  --to-parquet
+ --item-id f36521f6e07f4a859e838f0ad7536898 \
+ --to-parquet
 
 # Download Law Enforcement (46,972 records)
 python scripts/datasources/hifld/download_arcgis_dataset.py \
-  --item-id 333a74c8e9c64cb6870689d31e8836af \
-  --to-parquet
+ --item-id 333a74c8e9c64cb6870689d31e8836af \
+ --to-parquet
 
 # Load all downloaded datasets to PostgreSQL
 python scripts/datasources/hifld/load_hifld_to_postgres.py
@@ -1976,20 +1976,20 @@ pip install arcgis geopandas loguru
 **Dataset-Specific Citations:**
 ```
 # Places of Worship (254,742 locations)
-"HIFLD: All Places of Worship. U.S. Department of Homeland Security. 
+"HIFLD: All Places of Worship. U.S. Department of Homeland Security.
 https://www.arcgis.com/home/item.html?id=495cc33ef490462ab2d8933247a66a87"
 
 # Hospitals (7,496 locations)
-"HIFLD: Hospitals. U.S. Department of Homeland Security. 
+"HIFLD: Hospitals. U.S. Department of Homeland Security.
 https://www.arcgis.com/home/item.html?id=f36521f6e07f4a859e838f0ad7536898"
 
 # Law Enforcement (46,972 locations)
-"HIFLD: Local Law Enforcement Locations. U.S. Department of Homeland Security. 
+"HIFLD: Local Law Enforcement Locations. U.S. Department of Homeland Security.
 https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 
 ### National Congregations Study (NCS)
 
-**Organization:** Duke University  
+**Organization:** Duke University
 **What we use:** Representative survey of U.S. congregations to understand social service provision, health programs, and civic engagement patterns.
 
 - **Source:** https://sites.duke.edu/ncsweb/
@@ -2017,12 +2017,12 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 **Citation:**
 ```bibtex
 @misc{ncs_2018,
-  author = {Chaves, Mark and Anderson, Shawna},
-  title = {National Congregations Study: Cumulative Dataset (1998, 2006-07, 2012, 2018-19)},
-  year = {2020},
-  publisher = {Duke University},
-  url = {https://sites.duke.edu/ncsweb/},
-  doi = {10.1093/soc/swaa029}
+ author = {Chaves, Mark and Anderson, Shawna},
+ title = {National Congregations Study: Cumulative Dataset (1998, 2006-07, 2012, 2018-19)},
+ year = {2020},
+ publisher = {Duke University},
+ url = {https://sites.duke.edu/ncsweb/},
+ doi = {10.1093/soc/swaa029}
 }
 ```
 
@@ -2030,7 +2030,7 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 
 ### Microsoft Common Data Model for Nonprofits
 
-**Organization:** Microsoft Corporation  
+**Organization:** Microsoft Corporation
 **What we use:** Nonprofit data standardization, constituent relationship management, donor tracking, program outcome measurement.
 
 - **Repository:** https://github.com/microsoft/Nonprofits/tree/master/CommonDataModelforNonprofits
@@ -2052,14 +2052,14 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 | Objective | PROGRAM_OUTCOME | Measurable impact and KPIs |
 
 **Integration Benefits:**
-- ✅ Dynamics 365 Nonprofit compatibility
-- ✅ Power Platform (Power BI, Power Apps, Power Automate)
-- ✅ Azure Synapse analytics
-- ✅ Constituent 360 view
+- Yes Dynamics 365 Nonprofit compatibility
+- Yes Power Platform (Power BI, Power Apps, Power Automate)
+- Yes Azure Synapse analytics
+- Yes Constituent 360 view
 
 ---
 
-## ✅ Fact-Checking
+## Yes Fact-Checking
 
 **In this section:**
 - [Google Fact Check Tools API](#google-fact-check-tools-api)
@@ -2068,7 +2068,7 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 
 ### Google Fact Check Tools API
 
-**Organization:** Google LLC  
+**Organization:** Google LLC
 **What we use:** Aggregated fact-checking data for verifying claims from meetings and legislation.
 
 - **Source:** https://toolbox.google.com/factcheck/explorer
@@ -2079,7 +2079,7 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 
 ### FactCheck.org
 
-**Organization:** Annenberg Public Policy Center, University of Pennsylvania  
+**Organization:** Annenberg Public Policy Center, University of Pennsylvania
 **What we use:** Nonpartisan fact-checking of political claims and health policy verification.
 
 - **Source:** https://www.factcheck.org/
@@ -2088,7 +2088,7 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 
 ### PolitiFact
 
-**Organization:** Poynter Institute (Pulitzer Prize-winning)  
+**Organization:** Poynter Institute (Pulitzer Prize-winning)
 **What we use:** State-level fact-checking, Truth-O-Meter ratings for ballot measures.
 
 - **Source:** https://www.politifact.com/
@@ -2098,7 +2098,7 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 
 ---
 
-## 💻 Civic Tech & Open Source
+## Civic Tech & Open Source
 
 **In this section:**
 - [Investigative OSINT & anti-corruption toolkit](#investigative-osint--anti-corruption-toolkit)
@@ -2117,10 +2117,10 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Recommended pipeline (do not rebuild from scratch):**
 
 ```
-[Meeting notes / bills]  →  ICIJ Datashare  →  NER / searchable text     ┐
-[Donations & charities]  →  Splink          →  probabilistic name match  ├──  Neo4j / NetworkX
-[Property & assessor]    →  Benford / outliers → valuation spikes         ┘
-                              (followthemoney schema)
+[Meeting notes / bills] → ICIJ Datashare → NER / searchable text ┐
+[Donations & charities] → Splink → probabilistic name match ├── Neo4j / NetworkX
+[Property & assessor] → Benford / outliers → valuation spikes ┘
+ (followthemoney schema)
 ```
 
 | Tool | Repository | What it does | When to cite |
@@ -2147,7 +2147,7 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 
 ### Cloud & Data Platforms
 
-**Organization:** Microsoft Corporation / GitHub, Inc.  
+**Organization:** Microsoft Corporation / GitHub, Inc.
 **What we use:** GitHub REST and GraphQL APIs for tracking civic tech projects, hackathons, contributors, and open source development.
 
 - **Source:** https://docs.github.com/en/rest
@@ -2180,21 +2180,21 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Implementation:**
 ```python
 # Our platform uses:
-- /civic_tech/github_repositories  # Project metadata
-- /civic_tech/contributors         # Maintainer info
-- /civic_tech/project_issues       # Contribution opportunities
-- /civic_tech/project_funding      # Financial support
-- /civic_tech/hackathon_projects   # Hackathon outputs
+- /civic_tech/github_repositories # Project metadata
+- /civic_tech/contributors # Maintainer info
+- /civic_tech/project_issues # Contribution opportunities
+- /civic_tech/project_funding # Financial support
+- /civic_tech/hackathon_projects # Hackathon outputs
 ```
 
 **Citation:**
 ```bibtex
 @misc{github_api,
-  author = {{GitHub, Inc.}},
-  title = {GitHub REST API and GraphQL API},
-  year = {2024},
-  url = {https://docs.github.com/en/rest},
-  note = {API for accessing repository data, issues, contributors, and project metadata}
+ author = {{GitHub, Inc.}},
+ title = {GitHub REST API and GraphQL API},
+ year = {2024},
+ url = {https://docs.github.com/en/rest},
+ note = {API for accessing repository data, issues, contributors, and project metadata}
 }
 ```
 
@@ -2202,7 +2202,7 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 
 ### Civic Tech Field Guide
 
-**Organization:** Compiler LA  
+**Organization:** Compiler LA
 **What we use:** Curated directory of 1,000+ civic technology projects categorized by issue area and impact.
 
 - **Source:** https://civictech.guide/
@@ -2236,11 +2236,11 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Citation:**
 ```bibtex
 @misc{civic_tech_field_guide,
-  author = {{Compiler LA}},
-  title = {Civic Tech Field Guide},
-  year = {2024},
-  url = {https://civictech.guide/},
-  note = {Curated directory of 1,000+ civic technology projects}
+ author = {{Compiler LA}},
+ title = {Civic Tech Field Guide},
+ year = {2024},
+ url = {https://civictech.guide/},
+ note = {Curated directory of 1,000+ civic technology projects}
 }
 ```
 
@@ -2248,7 +2248,7 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 
 ### Code for America: Brigade Network
 
-**Organization:** Code for America  
+**Organization:** Code for America
 **What we use:** Brigade chapter locations, hackathon events, and civic tech projects built by local volunteer groups.
 
 - **Source:** https://brigade.codeforamerica.org/
@@ -2283,20 +2283,20 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Brigade Data in Our Platform:**
 ```python
 # We track:
-- /civic_tech/brigade_chapters      # 80+ locations with contact info
-- /civic_tech/hackathons            # Events: CodeAcross, NDoCH
-- /civic_tech/hackathon_projects    # Projects built at events
+- /civic_tech/brigade_chapters # 80+ locations with contact info
+- /civic_tech/hackathons # Events: CodeAcross, NDoCH
+- /civic_tech/hackathon_projects # Projects built at events
 - /civic_tech/hackathon_participants # Contributors and attendees
 ```
 
 **Citation:**
 ```bibtex
 @misc{code_for_america_brigade,
-  author = {{Code for America}},
-  title = {Brigade Network: Volunteer Civic Technology},
-  year = {2024},
-  url = {https://brigade.codeforamerica.org/},
-  note = {80+ local volunteer groups building civic technology}
+ author = {{Code for America}},
+ title = {Brigade Network: Volunteer Civic Technology},
+ year = {2024},
+ url = {https://brigade.codeforamerica.org/},
+ note = {80+ local volunteer groups building civic technology}
 }
 ```
 
@@ -2304,7 +2304,7 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 
 ### U.S. Digital Response (USDR)
 
-**Organization:** U.S. Digital Response  
+**Organization:** U.S. Digital Response
 **What we use:** Emergency civic tech projects and rapid-response open source tools for government needs.
 
 - **Source:** https://www.usdigitalresponse.org/
@@ -2334,11 +2334,11 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Citation:**
 ```bibtex
 @misc{us_digital_response,
-  author = {{U.S. Digital Response}},
-  title = {Open Source Civic Technology for Emergency Response},
-  year = {2024},
-  url = {https://www.usdigitalresponse.org/},
-  note = {Rapid-response civic tech projects for government needs}
+ author = {{U.S. Digital Response}},
+ title = {Open Source Civic Technology for Emergency Response},
+ year = {2024},
+ url = {https://www.usdigitalresponse.org/},
+ note = {Rapid-response civic tech projects for government needs}
 }
 ```
 
@@ -2346,7 +2346,7 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 
 ### Digital Public Goods Alliance (DPGA)
 
-**Organization:** United Nations Development Programme (UNDP), Norway, Sierra Leone, Germany  
+**Organization:** United Nations Development Programme (UNDP), Norway, Sierra Leone, Germany
 **What we use:** Registry of 500+ Digital Public Goods (DPGs) certified as open source projects meeting UN Sustainable Development Goals.
 
 - **Source:** https://digitalpublicgoods.net/
@@ -2355,12 +2355,12 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 - **License:** CC0 1.0 Universal (registry data)
 
 **DPG Standard Requirements:**
-1. ✅ **Open License:** OSI-approved, Creative Commons
-2. ✅ **Open Source:** Public code repositories
-3. ✅ **Documentation:** Clear usage instructions
-4. ✅ **Privacy & Security:** Data protection mechanisms
-5. ✅ **Standards:** Adheres to relevant standards
-6. ✅ **SDG Alignment:** Supports UN Sustainable Development Goals
+1. Yes **Open License:** OSI-approved, Creative Commons
+2. Yes **Open Source:** Public code repositories
+3. Yes **Documentation:** Clear usage instructions
+4. Yes **Privacy & Security:** Data protection mechanisms
+5. Yes **Standards:** Adheres to relevant standards
+6. Yes **SDG Alignment:** Supports UN Sustainable Development Goals
 
 **Notable Digital Public Goods:**
 
@@ -2388,17 +2388,17 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Citation:**
 ```bibtex
 @misc{digital_public_goods_alliance,
-  author = {{Digital Public Goods Alliance}},
-  title = {Digital Public Goods Registry},
-  year = {2024},
-  url = {https://digitalpublicgoods.net/},
-  note = {500+ open source projects certified as Digital Public Goods}
+ author = {{Digital Public Goods Alliance}},
+ title = {Digital Public Goods Registry},
+ year = {2024},
+ url = {https://digitalpublicgoods.net/},
+ note = {500+ open source projects certified as Digital Public Goods}
 }
 ```
 
 ---
 
-## 🌟 Community Solutions & Use Cases
+## Community Solutions & Use Cases
 
 **In this section:**
 - [Spectrum of Community Engagement to Ownership](#spectrum-of-community-engagement-to-ownership)
@@ -2411,7 +2411,7 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 
 ### Spectrum of Community Engagement to Ownership
 
-**Organization:** Facilitating Power, Rosa González  
+**Organization:** Facilitating Power, Rosa González
 **What we use:** Framework for community-driven governance that maps to our data structure (nonprofits, jurisdictions, grants, officials).
 
 - **Source:** https://movementstrategy.org/
@@ -2459,11 +2459,11 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Citation:**
 ```bibtex
 @article{gonzalez_spectrum,
-  author = {González, Rosa},
-  title = {Spectrum of Community Engagement to Ownership},
-  organization = {Facilitating Power},
-  year = {2021},
-  url = {https://movementstrategy.org/}
+ author = {González, Rosa},
+ title = {Spectrum of Community Engagement to Ownership},
+ organization = {Facilitating Power},
+ year = {2021},
+ url = {https://movementstrategy.org/}
 }
 ```
 
@@ -2471,7 +2471,7 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 
 ### Harvard Ash Center: Data-Smart City Solutions (Archived)
 
-**Organization:** Harvard Kennedy School Ash Center for Democratic Governance and Innovation  
+**Organization:** Harvard Kennedy School Ash Center for Democratic Governance and Innovation
 **What we use:** Research on how data engineering impacts community outcomes - informs our `/analytics/metric_views` templates.
 
 - **Source:** https://ash.harvard.edu/
@@ -2487,10 +2487,10 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Data Integration:**
 ```python
 # Our platform combines:
-- /jurisdictions/demographics          # BMI, income, age
-- /nonprofits (NTEE K30)              # Food access programs
-- /civic_tech/food_oasis              # Food desert mapping
-- /meetings/school_board              # Nutrition policy discussions
+- /jurisdictions/demographics # BMI, income, age
+- /nonprofits (NTEE K30) # Food access programs
+- /civic_tech/food_oasis # Food desert mapping
+- /meetings/school_board # Nutrition policy discussions
 ```
 
 **Outcome:**
@@ -2512,10 +2512,10 @@ Investigative journalism networks (for example **ICIJ** on the Panama Papers and
 **Data Integration:**
 ```python
 # Our platform combines:
-- /school_districts/nces_data         # Enrollment, demographics
-- /school_districts/budgets           # Per-pupil spending, program funding
-- /analytics/date_dimension           # Time-series tracking
-- /surveys/student_surveys            # Student engagement, aspirations
+- /school_districts/nces_data # Enrollment, demographics
+- /school_districts/budgets # Per-pupil spending, program funding
+- /analytics/date_dimension # Time-series tracking
+- /surveys/student_surveys # Student engagement, aspirations
 ```
 
 **Outcome:**
@@ -2542,11 +2542,11 @@ For each community challenge, we provide:
 **Citation:**
 ```bibtex
 @misc{harvard_datasmart_use_cases,
-  author = {{Harvard Kennedy School Ash Center}},
-  title = {Data-Smart City Solutions: Civic Data Use Cases},
-  year = {2016},
-  note = {Archived civic data research initiative},
-  url = {https://ash.harvard.edu/}
+ author = {{Harvard Kennedy School Ash Center}},
+ title = {Data-Smart City Solutions: Civic Data Use Cases},
+ year = {2016},
+ note = {Archived civic data research initiative},
+ url = {https://ash.harvard.edu/}
 }
 ```
 
@@ -2554,7 +2554,7 @@ For each community challenge, we provide:
 
 ### Brookings Institution: Data-Driven Policymaking
 
-**Organization:** Brookings Institution, Center on Regulation and Markets  
+**Organization:** Brookings Institution, Center on Regulation and Markets
 **What we use:** Data Academy model for turning "Open Data" into "Accessible Data" - validates our `/domains` and `/standards` architecture.
 
 - **Source:** https://www.brookings.edu/
@@ -2568,7 +2568,7 @@ For each community challenge, we provide:
 **Workflow:**
 ```
 City Creates Dashboard → Residents Attend Data Academy → Data Informs Policy
-     (/standards)             (/meetings/trainings)        (/legislation)
+ (/standards) (/meetings/trainings) (/legislation)
 ```
 
 **Our Platform Support:**
@@ -2604,11 +2604,11 @@ City Creates Dashboard → Residents Attend Data Academy → Data Informs Policy
 **Data Integration:**
 ```python
 # Our platform combines:
-- /jurisdictions/demographics          # Vulnerable populations
-- /budgets/city_budgets               # Infrastructure spending
-- /nonprofits (NTEE W)                # Environmental advocacy
-- /meetings/public_hearings           # Community testimony
-- /standards/schema_org_jsonld        # GeoJSON flood maps
+- /jurisdictions/demographics # Vulnerable populations
+- /budgets/city_budgets # Infrastructure spending
+- /nonprofits (NTEE W) # Environmental advocacy
+- /meetings/public_hearings # Community testimony
+- /standards/schema_org_jsonld # GeoJSON flood maps
 ```
 
 **Data Academy Curriculum:**
@@ -2643,11 +2643,11 @@ City Creates Dashboard → Residents Attend Data Academy → Data Informs Policy
 **Citation:**
 ```bibtex
 @article{brookings_data_driven,
-  author = {{Brookings Institution}},
-  title = {How Citizens and Local Governments Advance Data-Driven Policymaking},
-  journal = {Brookings Center on Regulation and Markets},
-  year = {2023},
-  url = {https://www.brookings.edu/}
+ author = {{Brookings Institution}},
+ title = {How Citizens and Local Governments Advance Data-Driven Policymaking},
+ journal = {Brookings Center on Regulation and Markets},
+ year = {2023},
+ url = {https://www.brookings.edu/}
 }
 ```
 
@@ -2665,11 +2665,11 @@ City Creates Dashboard → Residents Attend Data Academy → Data Informs Policy
 **Citation:**
 ```bibtex
 @misc{reason_foundation,
-  author = {{Reason Foundation}},
-  title = {Reason Foundation},
-  year = {2026},
-  url = {https://reason.org/},
-  note = {Nonprofit policy research organization; transportation and governance among topic areas}
+ author = {{Reason Foundation}},
+ title = {Reason Foundation},
+ year = {2026},
+ url = {https://reason.org/},
+ note = {Nonprofit policy research organization; transportation and governance among topic areas}
 }
 ```
 
@@ -2677,7 +2677,7 @@ City Creates Dashboard → Residents Attend Data Academy → Data Informs Policy
 
 ### Open Data Impact: Evidence-Based Research
 
-**Organization:** The GovLab at New York University (NYU Tandon School of Engineering)  
+**Organization:** The GovLab at New York University (NYU Tandon School of Engineering)
 **What we use:** Evidence-based research on open data impact - validates our platform's approach and demonstrates measurable outcomes from open data initiatives.
 
 - **Source:** https://odimpact.org/
@@ -2758,10 +2758,10 @@ City Creates Dashboard → Residents Attend Data Academy → Data Informs Policy
 **Real-World Validation:**
 
 ODI case studies demonstrate that open data works when:
-1. ✅ **Data is standardized** → We use OCD-ID, Popolo, Schema.org
-2. ✅ **Users have capacity** → We provide training + dashboards
-3. ✅ **Intermediaries bridge gaps** → We integrate civic tech projects
-4. ✅ **Impact is measured** → We track metrics + outcomes
+1. Yes **Data is standardized** → We use OCD-ID, Popolo, Schema.org
+2. Yes **Users have capacity** → We provide training + dashboards
+3. Yes **Intermediaries bridge gaps** → We integrate civic tech projects
+4. Yes **Impact is measured** → We track metrics + outcomes
 
 **Example ODI Case Study Applied to Our Platform:**
 
@@ -2773,32 +2773,32 @@ ODI case studies demonstrate that open data works when:
 **Our Implementation:**
 ```python
 # Replicating Chile's success:
-- /jurisdictions/budget_data       # Open budget data (supply)
-- /analytics/dashboard_metrics     # Budget visualizations (demand)
-- /meetings/trainings             # Data literacy programs (capacity)
-- /meetings/public_hearings       # Public participation (engagement)
-- /community_solutions/metrics    # Budget impact tracking (measurement)
+- /jurisdictions/budget_data # Open budget data (supply)
+- /analytics/dashboard_metrics # Budget visualizations (demand)
+- /meetings/trainings # Data literacy programs (capacity)
+- /meetings/public_hearings # Public participation (engagement)
+- /community_solutions/metrics # Budget impact tracking (measurement)
 ```
 
 **Citation:**
 ```bibtex
 @techreport{verhulst_open_data_impact,
-  author = {Verhulst, Stefaan and Young, Andrew},
-  title = {Open Data Impact: When Demand and Supply Meet - Key Findings of the Open Data Impact Case Studies},
-  institution = {The GovLab, NYU Tandon School of Engineering},
-  year = {2016},
-  url = {https://odimpact.org/key-findings.html},
-  note = {Supported by Omidyar Network. 19 global case studies.}
+ author = {Verhulst, Stefaan and Young, Andrew},
+ title = {Open Data Impact: When Demand and Supply Meet - Key Findings of the Open Data Impact Case Studies},
+ institution = {The GovLab, NYU Tandon School of Engineering},
+ year = {2016},
+ url = {https://odimpact.org/key-findings.html},
+ note = {Supported by Omidyar Network. 19 global case studies.}
 }
 ```
 
 **Why This Matters for Our Platform:**
 
 Open Data Impact provides **evidence-based validation** that our approach works:
-- ✅ Combining **supply** (data) + **demand** (analytics) + **capacity** (training) = impact
-- ✅ Multi-stakeholder collaboration drives success
-- ✅ Standardization and quality are essential
-- ✅ Impact must be measured and documented
+- Yes Combining **supply** (data) + **demand** (analytics) + **capacity** (training) = impact
+- Yes Multi-stakeholder collaboration drives success
+- Yes Standardization and quality are essential
+- Yes Impact must be measured and documented
 
 Their research proves: **Open data alone isn't enough. You need the ecosystem we're building.**
 
@@ -2806,7 +2806,7 @@ Their research proves: **Open data alone isn't enough. You need the ecosystem we
 
 ### Tableau Data Equity Hub (Salesforce Data for Good)
 
-**Organization:** Tableau / Salesforce  
+**Organization:** Tableau / Salesforce
 **What we use:** Data equity frameworks, community-centered data storytelling resources, and visualization best practices for presenting civic and social impact data equitably.
 
 - **Source:** https://www.salesforce.com/company/equality/
@@ -2834,11 +2834,11 @@ Tableau's Data Equity Hub provides principles for **presenting civic data withou
 **Citation:**
 ```bibtex
 @misc{tableau_data_equity_hub,
-  author = {{Tableau} and {Salesforce}},
-  title = {Data Equity Hub — Salesforce Equality},
-  year = {2024},
-  url = {https://www.salesforce.com/company/equality/},
-  note = {Tableau Data for Good initiative. Frameworks for equitable data visualization and community-centered data storytelling.}
+ author = {{Tableau} and {Salesforce}},
+ title = {Data Equity Hub — Salesforce Equality},
+ year = {2024},
+ url = {https://www.salesforce.com/company/equality/},
+ note = {Tableau Data for Good initiative. Frameworks for equitable data visualization and community-centered data storytelling.}
 }
 ```
 
@@ -2846,7 +2846,7 @@ Tableau's Data Equity Hub provides principles for **presenting civic data withou
 
 ### PolicyMap
 
-**Organization:** PolicyMap, Inc.  
+**Organization:** PolicyMap, Inc.
 **What we cite:** [PolicyMap](https://www.policymap.com/) offers **mapping, analytics, and curated U.S. socio-economic data** for understanding communities and markets—widely used in housing, health, government, and nonprofit contexts. We reference it as an example of **neighborhood-level decision support** that complements open government and Census-based workflows in Open Navigator. **We do not redistribute PolicyMap data in this repository**; their data catalog, licensing, and attribution rules apply when you use their products directly (see their site, including **Citing Us** and **Terms** in the footer).
 
 **Primary site:** [https://www.policymap.com/](https://www.policymap.com/)
@@ -2854,11 +2854,11 @@ Tableau's Data Equity Hub provides principles for **presenting civic data withou
 **BibTeX (portal — follow [PolicyMap](https://www.policymap.com/) citing guidance for specific datasets or maps):**
 ```bibtex
 @misc{policymap_portal,
-  author = {{PolicyMap}},
-  title = {PolicyMap: Mapping, Analytics, and Data Visualization},
-  year = {2026},
-  url = {https://www.policymap.com/},
-  note = {Commercial mapping and data platform; cite per publisher requirements when using licensed data}
+ author = {{PolicyMap}},
+ title = {PolicyMap: Mapping, Analytics, and Data Visualization},
+ year = {2026},
+ url = {https://www.policymap.com/},
+ note = {Commercial mapping and data platform; cite per publisher requirements when using licensed data}
 }
 ```
 
@@ -2866,7 +2866,7 @@ Tableau's Data Equity Hub provides principles for **presenting civic data withou
 
 ### IATI Standard (International Aid Transparency Initiative)
 
-**Organization:** IATI Secretariat  
+**Organization:** IATI Secretariat
 **What we use:** International development funding transparency framework - informs grant tracking, nonprofit program outcomes, and cross-sector collaboration metrics.
 
 - **Source:** https://iatistandard.org/
@@ -2883,11 +2883,11 @@ IATI provides a proven framework for **tracking community impact across sectors*
 **Citation:**
 ```bibtex
 @misc{iati_standard,
-  author = {{IATI Secretariat}},
-  title = {IATI Standard Version 2.03},
-  year = {2018},
-  url = {https://iatistandard.org/},
-  note = {Open Data Commons Attribution License (ODC-By)}
+ author = {{IATI Secretariat}},
+ title = {IATI Standard Version 2.03},
+ year = {2018},
+ url = {https://iatistandard.org/},
+ note = {Open Data Commons Attribution License (ODC-By)}
 }
 ```
 
@@ -2898,14 +2898,14 @@ IATI provides a proven framework for **tracking community impact across sectors*
 
 ---
 
-## 🤝 Civic Engagement Frameworks
+## Civic Engagement Frameworks
 
 **In this section:**
 - [Maine Township: digital community marketplace (case study)](#maine-township-digital-community-marketplace-case-study)
 
 ### Maine Township: digital community marketplace (case study)
 
-**Organization:** CivicPlus (published case study); Maine Township, Illinois (local government)  
+**Organization:** CivicPlus (published case study); Maine Township, Illinois (local government)
 **What we use:** A reference narrative for **resident-facing civic engagement** in parks, recreation, and special events—shifting high-demand programs from **in-person-only** registration and **paper-based** space tracking to **online access**, **interactive maps** with **real-time availability**, **digital payments**, **unified records** for walk-in and web signups, and **timely notifications** (for example weather updates to participants).
 
 - **Case study:** [CivicPlus — *Modernizing Tradition: Maine Township’s Garage Sale Goes Digital*](https://www.civicplus.com/case-studies/pr/maine-township-goes-digital-successfully/)
@@ -2918,16 +2918,16 @@ IATI provides a proven framework for **tracking community impact across sectors*
 **Citation:**
 ```bibtex
 @misc{civicplus_maine_township_garage_sale_2026,
-  author = {{CivicPlus}},
-  title = {Modernizing Tradition: Maine Township's Garage Sale Goes Digital},
-  year = {2026},
-  url = {https://www.civicplus.com/case-studies/pr/maine-township-goes-digital-successfully/},
-  note = {Case study; recreation and community event digital engagement}
+ author = {{CivicPlus}},
+ title = {Modernizing Tradition: Maine Township's Garage Sale Goes Digital},
+ year = {2026},
+ url = {https://www.civicplus.com/case-studies/pr/maine-township-goes-digital-successfully/},
+ note = {Case study; recreation and community event digital engagement}
 }
 ```
 
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 We are grateful to the following organizations and individuals:
 
@@ -2992,7 +2992,7 @@ We are grateful to the following organizations and individuals:
 
 ---
 
-## 📖 How to Cite This Project
+## How to Cite This Project
 
 If you use **Open Navigator** in your research, please cite:
 
@@ -3005,17 +3005,17 @@ License: MIT
 **BibTeX:**
 ```bibtex
 @software{open-navigator-2026,
-    title = {Open Navigator},
-    author = {Community One},
-    year = {2026},
-    url = {https://github.com/getcommunityone/open-navigator-for-engagement},
-    license = {MIT}
+ title = {Open Navigator},
+ author = {Community One},
+ year = {2026},
+ url = {https://github.com/getcommunityone/open-navigator-for-engagement},
+ license = {MIT}
 }
 ```
 
 ---
 
-## 📝 License Compliance
+## License Compliance
 
 This project respects all dataset licenses and terms of use. See [LICENSE](https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/LICENSE) for this project's MIT license.
 

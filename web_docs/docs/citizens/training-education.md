@@ -6,7 +6,7 @@ sidebar_position: 2
 
 Find free and low-cost training, educational workshops, and skill-building programs for your whole family.
 
-## 🎓 Adult Education & Literacy
+## Adult Education & Literacy
 
 ### GED & High School Equivalency
 
@@ -49,7 +49,7 @@ Find free and low-cost training, educational workshops, and skill-building progr
 Nearly 50 million American adults struggle with literacy. It's never too late to improve your reading and writing skills.
 :::
 
-## 🌍 English Language Learning (ESL/ESOL)
+## English Language Learning (ESL/ESOL)
 
 ### English Classes for Adults
 
@@ -81,7 +81,7 @@ Find ESL programs on Open Navigator:
 3. Enter your location
 4. Compare class schedules and formats
 
-## 💻 Computer & Digital Literacy
+## Computer & Digital Literacy
 
 ### Basic Computer Skills
 
@@ -117,7 +117,7 @@ Find ESL programs on Open Navigator:
 - Apple Store free workshops
 - Volunteer technology tutors
 
-## 👨‍💼 Workforce Development & Job Training
+## Workforce Development & Job Training
 
 ### Career Training Programs
 
@@ -157,7 +157,7 @@ Find ESL programs on Open Navigator:
 The Workforce Innovation and Opportunity Act (WIOA) provides free training for eligible adults. Contact your local American Job Center to see if you qualify.
 :::
 
-## 💰 Financial Literacy & Education
+## Financial Literacy & Education
 
 ### Money Management Classes
 
@@ -216,7 +216,7 @@ The Workforce Innovation and Opportunity Act (WIOA) provides free training for e
 - Prior year tax return
 - Bank account information for direct deposit
 
-## 👶 Parenting & Family Education
+## Parenting & Family Education
 
 ### Parenting Classes
 
@@ -250,7 +250,7 @@ The Workforce Innovation and Opportunity Act (WIOA) provides free training for e
 - Connection to community resources
 - Support from trained professionals
 
-## 🏥 Health & Wellness Education
+## Health & Wellness Education
 
 ### Health Literacy Programs
 
@@ -290,7 +290,7 @@ The Workforce Innovation and Opportunity Act (WIOA) provides free training for e
 If you receive SNAP benefits, you may qualify for free nutrition education classes through your state's SNAP-Ed program.
 :::
 
-## 🎨 Arts, Music & Hobbies
+## Arts, Music & Hobbies
 
 ### Community Arts Education
 
@@ -324,7 +324,7 @@ If you receive SNAP benefits, you may qualify for free nutrition education class
 - Local writing clubs
 - Online writing communities
 
-## 🏛️ Civic Education & Engagement
+## Civic Education & Engagement
 
 ### Understanding Government
 
@@ -358,7 +358,7 @@ If you receive SNAP benefits, you may qualify for free nutrition education class
 - Toastmasters (public speaking)
 - Nonprofit leadership development
 
-## 👨‍👩‍👧‍👦 Programs for Specific Populations
+## Programs for Specific Populations
 
 ### Senior Education
 
@@ -401,7 +401,7 @@ If you receive SNAP benefits, you may qualify for free nutrition education class
 - Veterans service organizations
 - Warrior Scholar Project
 
-## 🔍 Finding Training Programs
+## Finding Training Programs
 
 ### Use Open Navigator
 
@@ -425,7 +425,7 @@ If you receive SNAP benefits, you may qualify for free nutrition education class
 - United Way 211 database
 - Local newspaper education sections
 
-## 💪 Taking Action
+## Taking Action
 
 ### Getting Started
 
@@ -461,7 +461,7 @@ If you receive SNAP benefits, you may qualify for free nutrition education class
 Many adult education programs offer free childcare while you attend classes. Always ask about this service when registering.
 :::
 
-## 📞 Get Help Finding Programs
+## Get Help Finding Programs
 
 **Resources:**
 - **Call 2-1-1**: Free referral to education programs
@@ -476,10 +476,10 @@ Many adult education programs offer free childcare while you attend classes. Alw
 
 Continue exploring resources for families:
 
-- [🎈 Community Events](community-events) - Find activities for kids and families
-- [🗳️ Voter Registration](voter-registration) - Register to vote and learn about elections
-- [💬 Service Requests](service-requests) - Request services or submit feedback
-- [❤️ Community Resources](community-resources) - Access support services
+- [ Community Events](community-events) - Find activities for kids and families
+- [ Voter Registration](voter-registration) - Register to vote and learn about elections
+- [ Service Requests](service-requests) - Request services or submit feedback
+- [ Community Resources](community-resources) - Access support services
 
 **Or take action now:**
 - [Find Programs](pathname:///) - Browse nonprofits offering training

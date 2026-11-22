@@ -7,7 +7,7 @@ sidebar_label: Legislative Tracking Maps
 
 Learn how to download state legislation data and create choropleth maps showing legislative activity across multiple social issues.
 
-## 🎯 What You'll Create
+## What You'll Create
 
 Interactive maps similar to legislative tracking visualizations that show:
 
@@ -25,11 +25,11 @@ Example use cases:
 
 ---
 
-## 🛠️ Prerequisites
+## Prerequisites
 
 ### Choose Your Data Source
 
-**⚡ RECOMMENDED: Bulk Downloads (Faster & Easier)**
+** RECOMMENDED: Bulk Downloads (Faster & Easier)**
 
 Plural Policy offers bulk downloads of ALL state legislation - no API key needed!
 
@@ -42,11 +42,11 @@ python scripts/bulk_legislative_download.py --year 2024 --format csv --merge
 ```
 
 **Advantages:**
-- ✅ **No API key required** - Public bulk data
-- ✅ **No rate limits** - Download encouraged
-- ✅ **Faster** - One download vs thousands of API calls
-- ✅ **Complete** - Entire legislative sessions
-- ✅ **Offline** - Process locally without internet
+- Yes **No API key required** - Public bulk data
+- Yes **No rate limits** - Download encouraged
+- Yes **Faster** - One download vs thousands of API calls
+- Yes **Complete** - Entire legislative sessions
+- Yes **Offline** - Process locally without internet
 
 **Alternative: Open States API (Real-time)**
 
@@ -82,9 +82,9 @@ Open States provides state legislation data for all 50 states.
 1. **Sign up:** https://openstates.org/accounts/signup/
 2. **Get API key:** https://openstates.org/accounts/profile/
 3. **Add to `.env`:**
-   ```bash
-   OPENSTATES_API_KEY=your-key-here
-   ```
+ ```bash
+ OPENSTATES_API_KEY=your-key-here
+ ```
 
 **Free Tier:**
 - 50,000 requests per month
@@ -93,7 +93,7 @@ Open States provides state legislation data for all 50 states.
 
 ---
 
-## 📊 Quick Start
+## Quick Start
 
 ### Method 1: Bulk Download (Recommended)
 
@@ -116,8 +116,8 @@ df = pd.read_csv('data/cache/legislation_bulk/all_states_2024.csv')
 # Categorize bills for fluoridation tracking
 categorized = []
 for _, bill in df.iterrows():
-    cat = tracker.categorize_bill(bill.to_dict(), 'fluoridation')
-    categorized.append(cat)
+ cat = tracker.categorize_bill(bill.to_dict(), 'fluoridation')
+ categorized.append(cat)
 
 df_categorized = pd.DataFrame(categorized)
 
@@ -146,9 +146,9 @@ OPENSTATES_API_KEY=your-key-here
 ```bash
 # Track fluoridation legislation in 2024
 python scripts/legislative_tracker.py \
-  --issue fluoridation \
-  --year 2024 \
-  --visualize
+ --issue fluoridation \
+ --year 2024 \
+ --visualize
 ```
 
 **Output:**
@@ -163,22 +163,22 @@ from scripts.legislative_tracker import LegislativeTracker
 import asyncio
 
 async def track_all_issues():
-    tracker = LegislativeTracker()
-    
-    issues = ["fluoridation", "abortion", "marijuana", "voting", "lgbtq", "education"]
-    
-    for issue in issues:
-        print(f"\n📊 Tracking {issue} legislation...")
-        df = await tracker.track_issue(issue, year=2024)
-        tracker.create_choropleth_map(df, issue)
-        print(f"✅ {issue}: {len(df)} bills tracked")
+ tracker = LegislativeTracker()
+
+ issues = ["fluoridation", "abortion", "marijuana", "voting", "lgbtq", "education"]
+
+ for issue in issues:
+ print(f"\n Tracking {issue} legislation...")
+ df = await tracker.track_issue(issue, year=2024)
+ tracker.create_choropleth_map(df, issue)
+ print(f"Yes {issue}: {len(df)} bills tracked")
 
 asyncio.run(track_all_issues())
 ```
 
 ---
 
-## 🔍 How It Works
+## How It Works
 
 ### 1. Data Collection (Open States API)
 
@@ -224,19 +224,19 @@ Determined by latest legislative action:
 
 ```python
 def categorize_bill(bill, issue):
-    text = f"{bill['title']} {bill['summary']}".lower()
-    
-    # Check for ban keywords
-    if any(kw in text for kw in ["prohibit fluoride", "ban fluoridation"]):
-        bill_type = "ban"
-    # Check for restriction keywords
-    elif any(kw in text for kw in ["restrict fluoride", "limit fluoridation"]):
-        bill_type = "restriction"
-    # Check for protection keywords
-    elif any(kw in text for kw in ["require fluoride", "mandate fluoridation"]):
-        bill_type = "protection"
-    
-    return bill_type
+ text = f"{bill['title']} {bill['summary']}".lower()
+
+ # Check for ban keywords
+ if any(kw in text for kw in ["prohibit fluoride", "ban fluoridation"]):
+ bill_type = "ban"
+ # Check for restriction keywords
+ elif any(kw in text for kw in ["restrict fluoride", "limit fluoridation"]):
+ bill_type = "restriction"
+ # Check for protection keywords
+ elif any(kw in text for kw in ["require fluoride", "mandate fluoridation"]):
+ bill_type = "protection"
+
+ return bill_type
 ```
 
 ### 3. State-Level Aggregation
@@ -249,13 +249,13 @@ Bills are grouped by state to determine:
 ```python
 # Example state summary
 {
-  "state_code": "AL",
-  "dominant_type": "ban",
-  "dominant_status": "introduced",
-  "total_bills": 3,
-  "ban_count": 2,
-  "restriction_count": 1,
-  "protection_count": 0
+ "state_code": "AL",
+ "dominant_type": "ban",
+ "dominant_status": "introduced",
+ "total_bills": 3,
+ "ban_count": 2,
+ "restriction_count": 1,
+ "protection_count": 0
 }
 ```
 
@@ -265,15 +265,15 @@ Bills are grouped by state to determine:
 
 | Color | Bill Type | Status | Example |
 |-------|-----------|--------|---------|
-| 🟤 Dark Brown | Ban | Enacted | Fluoridation ban passed into law |
-| 🟠 Orange | Ban | Introduced | Fluoridation ban pending |
-| 🟡 Light Yellow | Ban | Failed | Fluoridation ban defeated |
-| 🟨 Goldenrod | Restriction | Enacted | Disclosure law passed |
-| 💛 Gold | Restriction | Introduced | Restriction pending |
-| 🟡 Pale Yellow | Restriction | Failed | Restriction defeated |
-| 🔵 Dark Blue | Protection | Enacted | Fluoridation mandate passed |
-| 🔷 Royal Blue | Protection | Introduced | Protection bill pending |
-| ☁️ Sky Blue | Protection | Failed | Protection defeated |
+| Dark Brown | Ban | Enacted | Fluoridation ban passed into law |
+| Orange | Ban | Introduced | Fluoridation ban pending |
+| Light Yellow | Ban | Failed | Fluoridation ban defeated |
+| Goldenrod | Restriction | Enacted | Disclosure law passed |
+| Gold | Restriction | Introduced | Restriction pending |
+| Pale Yellow | Restriction | Failed | Restriction defeated |
+| Dark Blue | Protection | Enacted | Fluoridation mandate passed |
+| Royal Blue | Protection | Introduced | Protection bill pending |
+| Sky Blue | Protection | Failed | Protection defeated |
 
 **Visual Patterns:**
 - Solid colors = bills passed into law
@@ -282,7 +282,7 @@ Bills are grouped by state to determine:
 
 ---
 
-## 📈 Example: Fluoridation Legislation Map
+## Example: Fluoridation Legislation Map
 
 ### Step 1: Search for Bills
 
@@ -291,23 +291,23 @@ import asyncio
 from scripts.legislative_tracker import LegislativeTracker
 
 async def main():
-    tracker = LegislativeTracker()
-    
-    # Track fluoridation bills in 2024
-    df = await tracker.track_issue("fluoridation", year=2024)
-    
-    # View results
-    print(df[['state_code', 'title', 'type', 'status']])
+ tracker = LegislativeTracker()
+
+ # Track fluoridation bills in 2024
+ df = await tracker.track_issue("fluoridation", year=2024)
+
+ # View results
+ print(df[['state_code', 'title', 'type', 'status']])
 
 asyncio.run(main())
 ```
 
 **Output:**
 ```
-state_code  title                              type        status
-AL          Prohibit Water Fluoridation        ban         introduced
-CA          Community Fluoridation Mandate     protection  enacted
-TX          Fluoride Disclosure Requirements   restriction introduced
+state_code title type status
+AL Prohibit Water Fluoridation ban introduced
+CA Community Fluoridation Mandate protection enacted
+TX Fluoride Disclosure Requirements restriction introduced
 ```
 
 ### Step 2: Generate Map
@@ -329,7 +329,7 @@ Open `fluoridation_map.html` in a browser to see:
 
 ---
 
-## 🎨 Customizing Issue Keywords
+## Customizing Issue Keywords
 
 Add your own issue keywords to track new topics:
 
@@ -338,9 +338,9 @@ tracker = LegislativeTracker()
 
 # Add custom issue keywords
 tracker.issue_keywords["gun_control"] = {
-    "ban": ["ban assault weapons", "prohibit firearms", "gun ban"],
-    "restriction": ["background check", "waiting period", "permit requirement"],
-    "protection": ["constitutional carry", "second amendment protection", "gun rights"]
+ "ban": ["ban assault weapons", "prohibit firearms", "gun ban"],
+ "restriction": ["background check", "waiting period", "permit requirement"],
+ "protection": ["constitutional carry", "second amendment protection", "gun rights"]
 }
 
 # Track the new issue
@@ -349,9 +349,9 @@ df = await tracker.track_issue("gun_control", year=2024)
 
 ---
 
-## 📊 Data Sources
+## Data Sources
 
-### Plural Policy Bulk Downloads ⭐ **Recommended**
+### Plural Policy Bulk Downloads **Recommended**
 
 **What it provides:**
 - **Complete legislative sessions** - All bills, votes, sponsors
@@ -362,10 +362,10 @@ df = await tracker.track_issue("gun_control", year=2024)
 - **No API key** - Public domain data
 
 **Coverage:**
-- ✅ All 50 states + DC, PR
-- ✅ Historical sessions (2010+)
-- ✅ Current sessions (monthly updates)
-- ✅ Complete bill lifecycle
+- Yes All 50 states + DC, PR
+- Yes Historical sessions (2010+)
+- Yes Current sessions (monthly updates)
+- Yes Complete bill lifecycle
 
 **Bulk Download URLs:**
 - **CSV per session:** https://data.openstates.org/session/csv/{state}/{session_id}.csv
@@ -390,12 +390,12 @@ python scripts/bulk_legislative_download.py --postgres --month 2026-04
 
 | Feature | Bulk Download | API |
 |---------|--------------|-----|
-| **Speed** | ✅ Minutes for all states | ❌ Hours (50K API calls) |
-| **Rate Limits** | ✅ None | ⚠️ 50K/month |
-| **API Key** | ✅ Not required | ❌ Required |
-| **Offline** | ✅ Process locally | ❌ Needs internet |
-| **Complete Sessions** | ✅ All bills at once | ⚠️ Must paginate |
-| **Real-time** | ⚠️ Monthly updates | ✅ Same-day updates |
+| **Speed** | Yes Minutes for all states | No Hours (50K API calls) |
+| **Rate Limits** | Yes None | Warning 50K/month |
+| **API Key** | Yes Not required | No Required |
+| **Offline** | Yes Process locally | No Needs internet |
+| **Complete Sessions** | Yes All bills at once | Warning Must paginate |
+| **Real-time** | Warning Monthly updates | Yes Same-day updates |
 
 **Recommendation:** Use bulk downloads for historical analysis and map generation. Use API for real-time bill tracking.
 
@@ -411,10 +411,10 @@ python scripts/bulk_legislative_download.py --postgres --month 2026-04
 - Real-time updates
 
 **Coverage:**
-- ✅ All 50 states + DC, PR, territories
-- ✅ Current and historical sessions
-- ✅ Multiple bill types (HB, SB, HR, SR, etc.)
-- ✅ Standardized OCD-ID format
+- Yes All 50 states + DC, PR, territories
+- Yes Current and historical sessions
+- Yes Multiple bill types (HB, SB, HR, SR, etc.)
+- Yes Standardized OCD-ID format
 
 **API Documentation:** https://docs.openstates.org/api-v3/
 
@@ -438,7 +438,7 @@ measures = await discovery.get_ballot_measures("Alabama", year=2024)
 
 ---
 
-## 🗂️ Output Files
+## Output Files
 
 ### CSV Data Files
 
@@ -485,7 +485,7 @@ SB 456,California,CA,Community Fluoridation Mandate,protection,enacted,https://o
 
 ---
 
-## 🔧 Advanced Usage
+## Advanced Usage
 
 ### Track Specific States Only
 
@@ -503,9 +503,9 @@ import pandas as pd
 
 dfs = []
 for year in range(2020, 2025):
-    df = await tracker.track_issue("fluoridation", year=year)
-    df['year'] = year
-    dfs.append(df)
+ df = await tracker.track_issue("fluoridation", year=year)
+ df['year'] = year
+ dfs.append(df)
 
 # Combine all years
 all_years = pd.concat(dfs, ignore_index=True)
@@ -517,12 +517,12 @@ print(trend)
 
 **Output:**
 ```
-year  type         count
-2020  ban          12
-2020  restriction   8
-2020  protection    5
-2021  ban          15
-2021  restriction  10
+year type count
+2020 ban 12
+2020 restriction 8
+2020 protection 5
+2021 ban 15
+2021 restriction 10
 ...
 ```
 
@@ -531,20 +531,20 @@ year  type         count
 ```python
 # Export to Excel with multiple sheets
 with pd.ExcelWriter('fluoridation_analysis.xlsx') as writer:
-    df.to_excel(writer, sheet_name='All Bills', index=False)
-    
-    # Summary by state
-    state_summary = tracker.generate_state_summary(df)
-    state_summary.to_excel(writer, sheet_name='State Summary', index=False)
-    
-    # Enacted bills only
-    enacted = df[df['status'] == 'enacted']
-    enacted.to_excel(writer, sheet_name='Enacted Bills', index=False)
+ df.to_excel(writer, sheet_name='All Bills', index=False)
+
+ # Summary by state
+ state_summary = tracker.generate_state_summary(df)
+ state_summary.to_excel(writer, sheet_name='State Summary', index=False)
+
+ # Enacted bills only
+ enacted = df[df['status'] == 'enacted']
+ enacted.to_excel(writer, sheet_name='Enacted Bills', index=False)
 ```
 
 ---
 
-## 🎯 Use Cases
+## Use Cases
 
 ### 1. Advocacy Campaign Planning
 
@@ -571,12 +571,12 @@ print(f"States with pending fluoridation bans: {pending_bans['state_code'].uniqu
 ```python
 # Compare ban vs protection bills over 5 years
 for year in range(2020, 2025):
-    df = await tracker.track_issue("fluoridation", year=year)
-    
-    bans = len(df[df['type'] == 'ban'])
-    protections = len(df[df['type'] == 'protection'])
-    
-    print(f"{year}: {bans} bans, {protections} protections")
+ df = await tracker.track_issue("fluoridation", year=year)
+
+ bans = len(df[df['type'] == 'ban'])
+ protections = len(df[df['type'] == 'protection'])
+
+ print(f"{year}: {bans} bans, {protections} protections")
 ```
 
 ### 3. Media and Journalism
@@ -612,7 +612,7 @@ correlation = merged[['ban_count', 'median_income', 'college_educated_pct']].cor
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 ### Integrate with Knowledge Graph
 
@@ -624,18 +624,18 @@ from neo4j import GraphDatabase
 driver = GraphDatabase.driver("bolt://localhost:7687")
 
 with driver.session() as session:
-    for _, bill in df.iterrows():
-        session.run("""
-            MATCH (j:Jurisdiction {state_code: $state_code})
-            CREATE (b:Bill {
-                bill_id: $bill_id,
-                title: $title,
-                type: $type,
-                status: $status,
-                url: $url
-            })
-            CREATE (j)-[:HAS_LEGISLATION]->(b)
-        """, bill.to_dict())
+ for _, bill in df.iterrows():
+ session.run("""
+ MATCH (j:Jurisdiction {state_code: $state_code})
+ CREATE (b:Bill {
+ bill_id: $bill_id,
+ title: $title,
+ type: $type,
+ status: $status,
+ url: $url
+ })
+ CREATE (j)-[:HAS_LEGISLATION]->(b)
+ """, bill.to_dict())
 ```
 
 ### Add to Dashboard
@@ -647,14 +647,14 @@ Embed map in React frontend:
 import React from 'react';
 
 export function LegislationMap({ issue }: { issue: string }) {
-  return (
-    <iframe
-      src={`/data/visualizations/${issue}_map.html`}
-      width="100%"
-      height="600px"
-      frameBorder="0"
-    />
-  );
+ return (
+ <iframe
+ src={`/data/visualizations/${issue}_map.html`}
+ width="100%"
+ height="600px"
+ frameBorder="0"
+ />
+ );
 }
 ```
 
@@ -670,7 +670,7 @@ Create cron job to update data:
 
 ---
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [Open States API Documentation](https://docs.openstates.org/)
 - [Ballotpedia Integration](../data-sources/ballot-election-sources.md)
@@ -679,7 +679,7 @@ Create cron job to update data:
 
 ---
 
-## ❓ Troubleshooting
+## Troubleshooting
 
 ### Error: "OPENSTATES_API_KEY not found"
 
@@ -716,7 +716,7 @@ tracker.issue_keywords["fluoridation"]["ban"].append("anti-fluoride")
 
 ---
 
-## 💡 Tips & Best Practices
+## Tips & Best Practices
 
 1. **Start broad, then refine** - Use general keywords first, then add specific terms
 2. **Cache aggressively** - API calls are rate-limited, save results locally
@@ -727,21 +727,21 @@ tracker.issue_keywords["fluoridation"]["ban"].append("anti-fluoride")
 
 ---
 
-## 🎨 Color Scheme Reference
+## Color Scheme Reference
 
 ### Default Colors (Customizable)
 
 ```python
 color_map = {
-    ('ban', 'enacted'): '#D2691E',       # Brown
-    ('ban', 'introduced'): '#FFA500',    # Orange
-    ('ban', 'failed'): '#FFE4B5',        # Moccasin
-    ('restriction', 'enacted'): '#DAA520',  # Goldenrod
-    ('restriction', 'introduced'): '#FFD700', # Gold
-    ('restriction', 'failed'): '#FFFFE0',    # Light Yellow
-    ('protection', 'enacted'): '#00008B',    # Dark Blue
-    ('protection', 'introduced'): '#4169E1', # Royal Blue
-    ('protection', 'failed'): '#87CEEB',     # Sky Blue
+ ('ban', 'enacted'): '#D2691E', # Brown
+ ('ban', 'introduced'): '#FFA500', # Orange
+ ('ban', 'failed'): '#FFE4B5', # Moccasin
+ ('restriction', 'enacted'): '#DAA520', # Goldenrod
+ ('restriction', 'introduced'): '#FFD700', # Gold
+ ('restriction', 'failed'): '#FFFFE0', # Light Yellow
+ ('protection', 'enacted'): '#00008B', # Dark Blue
+ ('protection', 'introduced'): '#4169E1', # Royal Blue
+ ('protection', 'failed'): '#87CEEB', # Sky Blue
 }
 ```
 
@@ -750,7 +750,7 @@ color_map = {
 ```python
 # Update colors for your brand
 tracker.color_map = {
-    ('ban', 'enacted'): '#FF0000',  # Red for enacted bans
-    ('protection', 'enacted'): '#00FF00',  # Green for enacted protections
+ ('ban', 'enacted'): '#FF0000', # Red for enacted bans
+ ('protection', 'enacted'): '#00FF00', # Green for enacted protections
 }
 ```

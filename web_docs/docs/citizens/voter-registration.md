@@ -6,7 +6,7 @@ sidebar_position: 3
 
 Register to vote, find your polling place, learn about candidates, and participate in elections at all levels.
 
-## 🗳️ Register to Vote
+## Register to Vote
 
 ### Am I Eligible?
 
@@ -70,7 +70,7 @@ Some states allow 17-year-olds to vote in primaries if they'll be 18 by the gene
 - Phone number
 - Email address
 
-## ✅ Check Your Registration Status
+## Yes Check Your Registration Status
 
 ### Verify You're Registered
 
@@ -92,7 +92,7 @@ Some states allow 17-year-olds to vote in primaries if they'll be 18 by the gene
 - Before each election
 - If you haven't voted in several years
 
-## 🏛️ Find Your Polling Place
+## Find Your Polling Place
 
 ### Where to Vote
 
@@ -145,7 +145,7 @@ Some states allow 17-year-olds to vote in primaries if they'll be 18 by the gene
 Request your mail-in ballot as soon as available and return it early to ensure it's counted. Don't wait until the last day!
 :::
 
-## 🎓 Learn About Candidates & Issues
+## Learn About Candidates & Issues
 
 ### Research Candidates
 
@@ -189,7 +189,7 @@ Request your mail-in ballot as soon as available and return it early to ensure i
 - Are there unintended consequences?
 - What happens if it passes/fails?
 
-## 📅 Election Calendar
+## Election Calendar
 
 ### Types of Elections
 
@@ -233,7 +233,7 @@ Request your mail-in ballot as soon as available and return it early to ensure i
 - Read local newspaper
 - Follow election office on social media
 
-## 🎯 What's On Your Ballot
+## What's On Your Ballot
 
 ### Sample Ballots
 
@@ -259,7 +259,7 @@ Request your mail-in ballot as soon as available and return it early to ensure i
 4. Bring it with you to vote (allowed in most states)
 5. Know exactly how you'll vote before arriving
 
-## 🏢 Local Government Elections
+## Local Government Elections
 
 ### City Council & County Board
 
@@ -352,7 +352,7 @@ Request your mail-in ballot as soon as available and return it early to ensure i
 If there's a question about your eligibility, you can vote by provisional ballot. Your vote will be counted once your eligibility is verified.
 :::
 
-## 👥 Voter Rights & Protections
+## Voter Rights & Protections
 
 ### Your Rights as a Voter
 
@@ -404,7 +404,7 @@ If there's a question about your eligibility, you can vote by provisional ballot
 - Long lines
 - Intimidation or harassment
 
-## 🎓 Civic Engagement Beyond Voting
+## Civic Engagement Beyond Voting
 
 ### Stay Informed Between Elections
 
@@ -448,7 +448,7 @@ If there's a question about your eligibility, you can vote by provisional ballot
 - Join League of Women Voters
 - Participate in issue advocacy
 
-## 📚 Additional Resources
+## Additional Resources
 
 ### Voter Registration & Information
 
@@ -478,10 +478,10 @@ If there's a question about your eligibility, you can vote by provisional ballot
 
 Continue exploring civic engagement resources:
 
-- [🎈 Community Events](community-events) - Attend local meetings and forums
-- [🎓 Training & Education](training-education) - Learn about government and civics
-- [💬 Service Requests](service-requests) - Contact officials and submit feedback
-- [❤️ Community Resources](community-resources) - Get help and support
+- [ Community Events](community-events) - Attend local meetings and forums
+- [ Training & Education](training-education) - Learn about government and civics
+- [ Service Requests](service-requests) - Contact officials and submit feedback
+- [ Community Resources](community-resources) - Get help and support
 
 **Take action now:**
 - [Register to Vote](https://vote.gov) - Register or check your status

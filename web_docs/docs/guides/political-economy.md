@@ -10,200 +10,200 @@ displayed_sidebar: policyMakersSidebar
 
 ---
 
-## ✅ What's Implemented
+## Yes What's Implemented
 
 ### 1. **Frame Analysis** - The "Language of Necessity"
-**Status:** ✅ FULLY IMPLEMENTED
+**Status:** Yes FULLY IMPLEMENTED
 
 **Files:**
 - `extraction/decision_analyzer.py` - Extracts framing
 - `examples/tuscaloosa_political_economy.py` - Analyzes frame distribution
 
 **Capabilities:**
-- ✅ Identifies primary frame ("Economic Development", "Public Safety", "Equity")
-- ✅ Tracks competing frames
-- ✅ Captures specific framing language
-- ✅ Analyzes frame distribution across decisions
+- Yes Identifies primary frame ("Economic Development", "Public Safety", "Equity")
+- Yes Tracks competing frames
+- Yes Captures specific framing language
+- Yes Analyzes frame distribution across decisions
 
 **Example Output:**
 ```
 How Tuscaloosa frames decisions:
-  12x public health
-   8x fiscal responsibility
-   5x equity/access
-   3x economic development
+ 12x public health
+ 8x fiscal responsibility
+ 5x equity/access
+ 3x economic development
 ```
 
 ---
 
 ### 2. **Budget-to-Minutes "Delta"** - Rhetoric vs. Reality
-**Status:** ✅ FULLY IMPLEMENTED
+**Status:** Yes FULLY IMPLEMENTED
 
 **Files:**
 - `extraction/budget_analyzer.py` - Budget extraction & delta calculation
 - `examples/tuscaloosa_political_economy.py` - Complete analysis
 
 **Capabilities:**
-- ✅ Extracts budget line items from documents (using LLM)
-- ✅ Counts meeting mentions for each budget category
-- ✅ Calculates "Praise Level" (High/Medium/Low)
-- ✅ Determines funding change (Expansion/Stagnant/Decreased)
-- ✅ Classifies delta type:
-  - **Expansion** = High praise + Increased funding (Genuine priority)
-  - **Lip Service** = High praise + No funding (Performative)
-  - **Hidden Priority** = No discussion + Increased funding (Bureaucratic)
-- ✅ Infers underlying governance logic
+- Yes Extracts budget line items from documents (using LLM)
+- Yes Counts meeting mentions for each budget category
+- Yes Calculates "Praise Level" (High/Medium/Low)
+- Yes Determines funding change (Expansion/Stagnant/Decreased)
+- Yes Classifies delta type:
+ - **Expansion** = High praise + Increased funding (Genuine priority)
+ - **Lip Service** = High praise + No funding (Performative)
+ - **Hidden Priority** = No discussion + Increased funding (Bureaucratic)
+- Yes Infers underlying governance logic
 
 **Example Output:**
 ```
-📈 Genuine Expansions (5):
-   • School Nutrition: $500,000 increase
-     Mentioned 15x in meetings
-     Logic: Genuine political priority
+ Genuine Expansions (5):
+ • School Nutrition: $500,000 increase
+ Mentioned 15x in meetings
+ Logic: Genuine political priority
 
-🎭 Lip Service (3):
-   • Teacher Training: -$50,000 decrease
-     Mentioned 12x despite funding cut
-     Logic: Performative politics - low actual priority
+ Lip Service (3):
+ • Teacher Training: -$50,000 decrease
+ Mentioned 12x despite funding cut
+ Logic: Performative politics - low actual priority
 
-🔒 Hidden Priorities (2):
-   • IT Infrastructure: $200,000 increase
-     Only mentioned 1x
-     Logic: Bureaucratic inertia or avoiding scrutiny
+ Hidden Priorities (2):
+ • IT Infrastructure: $200,000 increase
+ Only mentioned 1x
+ Logic: Bureaucratic inertia or avoiding scrutiny
 ```
 
 ---
 
 ### 3. **Trade-off Mapping** - The Zero-Sum Game
-**Status:** ✅ FULLY IMPLEMENTED
+**Status:** Yes FULLY IMPLEMENTED
 
 **Files:**
 - `extraction/decision_analyzer.py` - Extracts tradeoffs from decisions
 - `extraction/budget_analyzer.py` - Opportunity cost calculation
 
 **Capabilities:**
-- ✅ Extracts explicitly discussed tradeoffs
-- ✅ Maps what was NOT funded (opportunity costs)
-- ✅ Identifies rejected options and reasons
-- ✅ Tracks "urgency" language (emergency bypassing normal process)
+- Yes Extracts explicitly discussed tradeoffs
+- Yes Maps what was NOT funded (opportunity costs)
+- Yes Identifies rejected options and reasons
+- Yes Tracks "urgency" language (emergency bypassing normal process)
 
 **Example Output:**
 ```
-⚖️ Trade-offs Discussed:
-   3x Cost vs. long-term benefit
-   2x Individual autonomy vs. community benefit
-   1x Short-term pain vs. long-term gain
+ Trade-offs Discussed:
+ 3x Cost vs. long-term benefit
+ 2x Individual autonomy vs. community benefit
+ 1x Short-term pain vs. long-term gain
 
 What was NOT funded:
-   • Lost $250,000 in after-school programs
-   • Rejected: Mobile dental clinic
-     Reason: "Upfront cost too high in tight budget year"
+ • Lost $250,000 in after-school programs
+ • Rejected: Mobile dental clinic
+ Reason: "Upfront cost too high in tight budget year"
 ```
 
 ---
 
 ### 4. **Stakeholder Influence & "The Audience"**
-**Status:** ✅ FULLY IMPLEMENTED
+**Status:** Yes FULLY IMPLEMENTED
 
 **Files:**
 - `extraction/decision_analyzer.py` - Stakeholder extraction
 
 **Capabilities:**
-- ✅ Identifies who spoke (name, role, affiliation)
-- ✅ Captures their arguments
-- ✅ Tracks supporters vs. opponents
-- ✅ Analyzes alignment (board decision vs. public comment majority)
-- ✅ Detects "pre-meeting rationale" (staff recommendations)
+- Yes Identifies who spoke (name, role, affiliation)
+- Yes Captures their arguments
+- Yes Tracks supporters vs. opponents
+- Yes Analyzes alignment (board decision vs. public comment majority)
+- Yes Detects "pre-meeting rationale" (staff recommendations)
 
 **Example Output:**
 ```
-👥 Stakeholder Analysis:
-   Supporters: 5
-     • Health Department (Public Health Director)
-       Argument: Strong evidence for prevention
-     • Parent-Teacher Association
-       Argument: Benefits children's health
+ Stakeholder Analysis:
+ Supporters: 5
+ • Health Department (Public Health Director)
+ Argument: Strong evidence for prevention
+ • Parent-Teacher Association
+ Argument: Benefits children's health
 
-   Opponents: 2
-     • Taxpayer Association
-       Concern: Cost in tight budget
+ Opponents: 2
+ • Taxpayer Association
+ Concern: Cost in tight budget
 
-   Alignment: Board voted with majority public sentiment
+ Alignment: Board voted with majority public sentiment
 ```
 
 ---
 
 ### 5. **Temporal Analysis** - Election Cycle
-**Status:** ✅ FULLY IMPLEMENTED
+**Status:** Yes FULLY IMPLEMENTED
 
 **Files:**
 - `extraction/temporal_analyzer.py` - Election cycle analysis
 
 **Capabilities:**
-- ✅ Tracks decisions 12mo/6mo/3mo before elections
-- ✅ Identifies high-visibility projects (stadiums, parks, renovations)
-- ✅ Detects pre-election spikes
-- ✅ Calculates average project costs pre vs. post election
-- ✅ Infers incumbency protection vs. normal variance
+- Yes Tracks decisions 12mo/6mo/3mo before elections
+- Yes Identifies high-visibility projects (stadiums, parks, renovations)
+- Yes Detects pre-election spikes
+- Yes Calculates average project costs pre vs. post election
+- Yes Infers incumbency protection vs. normal variance
 
 **Example Output:**
 ```
-📅 Election: November 2024
-   Decisions 6 months before: 15
-   Decisions 6 months after: 8
-   ⚠️ PRE-ELECTION SPIKE DETECTED
+ Election: November 2024
+ Decisions 6 months before: 15
+ Decisions 6 months after: 8
+ Warning PRE-ELECTION SPIKE DETECTED
 
-   🏟️ High-visibility projects before election:
-      • New high school football stadium
-      • Downtown park renovation
-      • Elementary school roof replacement
+ High-visibility projects before election:
+ • New high school football stadium
+ • Downtown park renovation
+ • Elementary school roof replacement
 
-   📊 Inference: Possible incumbency protection or legacy building
+ Inference: Possible incumbency protection or legacy building
 ```
 
 ---
 
 ### 6. **Quantitative "Why" Indicators**
-**Status:** ✅ FULLY IMPLEMENTED
+**Status:** Yes FULLY IMPLEMENTED
 
 **Files:**
 - `extraction/temporal_analyzer.py` - All quantitative metrics
 
 **Capabilities:**
-- ✅ **Contention Score**: Ratio of Aye to Nay votes
-  - High contention = conflicting trade-offs
-- ✅ **Keyword Density**: "Grant" vs "Taxpayer"
-  - Reveals if decisions driven by outside funding or local demand
-- ✅ **Deferral Rate**: How often decisions are "tabled"
-  - Indicates political sensitivity
+- Yes **Contention Score**: Ratio of Aye to Nay votes
+ - High contention = conflicting trade-offs
+- Yes **Keyword Density**: "Grant" vs "Taxpayer"
+ - Reveals if decisions driven by outside funding or local demand
+- Yes **Deferral Rate**: How often decisions are "tabled"
+ - Indicates political sensitivity
 
 **Example Output:**
 ```
-🔑 Keyword Density (per 1000 words):
-    8.5x  grant           (funding_source)
-    3.2x  taxpayer        (funding_source)
-    4.1x  emergency       (urgency)
-    2.7x  equity          (values)
+ Keyword Density (per 1000 words):
+ 8.5x grant (funding_source)
+ 3.2x taxpayer (funding_source)
+ 4.1x emergency (urgency)
+ 2.7x equity (values)
 
-📊 Interpretation:
-   Decision driver: Outside funding (grants) > Local taxpayer concerns
-   Urgency pattern: Frequent 'emergency' framing - reactive governance
+ Interpretation:
+ Decision driver: Outside funding (grants) > Local taxpayer concerns
+ Urgency pattern: Frequent 'emergency' framing - reactive governance
 ```
 
 ---
 
-## 🎯 Complete Workflow
+## Complete Workflow
 
 ### Run the Full Analysis
 
 ```bash
 # 1. Scrape Tuscaloosa data
 python main.py scrape \
-  --state AL \
-  --municipality "Tuscaloosa" \
-  --url https://tuscaloosaal.suiteonemedia.com \
-  --platform suiteonemedia \
-  --max-events 0
+ --state AL \
+ --municipality "Tuscaloosa" \
+ --url https://tuscaloosaal.suiteonemedia.com \
+ --platform suiteonemedia \
+ --max-events 0
 
 # 2. Run complete political economy analysis
 python examples/tuscaloosa_political_economy.py
@@ -226,7 +226,7 @@ python examples/tuscaloosa_political_economy.py
 
 ---
 
-## 📊 Budget Data Parsing
+## Budget Data Parsing
 
 ### Current Implementation
 
@@ -250,18 +250,18 @@ budget_items = analyzer.extract_budget_from_document(document)
 ```
 
 #### Using AI (GPT-4o)
-- ✅ Extracts structured budget data from unstructured text
-- ✅ Handles various formats (PDFs, meeting minutes, budget docs)
-- ✅ Identifies current year vs. prior year
-- ✅ Calculates changes automatically
+- Yes Extracts structured budget data from unstructured text
+- Yes Handles various formats (PDFs, meeting minutes, budget docs)
+- Yes Identifies current year vs. prior year
+- Yes Calculates changes automatically
 
 #### Fallback: Regex
-- ✅ Pattern matching for "$XXX,XXX" amounts
-- ✅ Works without AI for simple cases
+- Yes Pattern matching for "$XXX,XXX" amounts
+- Yes Works without AI for simple cases
 
 ---
 
-## 🎓 Pedagogical vs. Operational Rationales
+## Pedagogical vs. Operational Rationales
 
 **You asked:** Are you more interested in pedagogical (how kids learn) or operational (buildings/buses)?
 
@@ -270,14 +270,14 @@ budget_items = analyzer.extract_budget_from_document(document)
 ```python
 # Focus on pedagogical decisions
 decisions = analyzer.analyze_document(
-    doc,
-    focus_topics=["curriculum", "teaching", "learning", "instruction", "pedagogy"]
+ doc,
+ focus_topics=["curriculum", "teaching", "learning", "instruction", "pedagogy"]
 )
 
 # Focus on operational decisions
 decisions = analyzer.analyze_document(
-    doc,
-    focus_topics=["facilities", "transportation", "maintenance", "infrastructure"]
+ doc,
+ focus_topics=["facilities", "transportation", "maintenance", "infrastructure"]
 )
 ```
 
@@ -287,11 +287,11 @@ The system classifies based on the content, so you get:
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 ### 1. **Expand Budget Scraping**
 
-Currently: Extracts budgets from meeting documents  
+Currently: Extracts budgets from meeting documents
 **Enhancement:** Scrape dedicated budget portals
 
 ```python
@@ -300,7 +300,7 @@ from agents.scraper import ScraperAgent
 
 scraper = ScraperAgent()
 budget_docs = scraper.scrape_budget_portal(
-    "https://tuscaloosaal.gov/budget"
+ "https://tuscaloosaal.gov/budget"
 )
 ```
 
@@ -327,7 +327,7 @@ Compare Tuscaloosa to similar jurisdictions:
 
 ---
 
-## 📚 Methodology References
+## Methodology References
 
 The frameworks implemented are based on:
 
@@ -341,18 +341,18 @@ This is **serious political economy analysis**, not just data collection!
 
 ---
 
-## ✅ Final Answer
+## Yes Final Answer
 
 **YES**, you are now doing all the things you described:
 
 | Framework | Status |
 |-----------|--------|
-| 1. Frame Analysis | ✅ Fully Implemented |
-| 2. Budget-to-Minutes Delta | ✅ Fully Implemented |
-| 3. Trade-off Mapping | ✅ Fully Implemented |
-| 4. Stakeholder Influence | ✅ Fully Implemented |
-| 5. Temporal/Election Analysis | ✅ Fully Implemented |
-| 6. Quantitative Indicators | ✅ Fully Implemented |
-| 7. Budget Data Parsing | ✅ Fully Implemented |
+| 1. Frame Analysis | Yes Fully Implemented |
+| 2. Budget-to-Minutes Delta | Yes Fully Implemented |
+| 3. Trade-off Mapping | Yes Fully Implemented |
+| 4. Stakeholder Influence | Yes Fully Implemented |
+| 5. Temporal/Election Analysis | Yes Fully Implemented |
+| 6. Quantitative Indicators | Yes Fully Implemented |
+| 7. Budget Data Parsing | Yes Fully Implemented |
 
-You can now understand the **"WHY"** behind Tuscaloosa's decisions, not just the "what." This is political and economic forensics in action! 🔍
+You can now understand the **"WHY"** behind Tuscaloosa's decisions, not just the "what." This is political and economic forensics in action!

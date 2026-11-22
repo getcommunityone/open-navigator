@@ -6,50 +6,50 @@ sidebar_position: 5
 
 This document outlines our integration with OpenStates/Plural Policy and potential opportunities to contribute code back to the open-source community.
 
-## 📚 References Added to Citations
+## References Added to Citations
 
 We have properly cited and referenced the following OpenStates resources:
 
 ### In Root Citations (CITATIONS.md)
-- ✅ **OpenStates/Plural Policy** main site
-- ✅ **Bulk data downloads** (CSV, JSON, PostgreSQL)
-- ✅ **Scrapers repository**: https://github.com/openstates/openstates-scrapers
-- ✅ **Local database documentation**: https://docs.openstates.org/contributing/local-database/
-- ✅ **Code of Conduct**: https://docs.openstates.org/code-of-conduct/
-- ✅ **Schema documentation**: https://github.com/openstates/people/blob/master/schema.md
+- Yes **OpenStates/Plural Policy** main site
+- Yes **Bulk data downloads** (CSV, JSON, PostgreSQL)
+- Yes **Scrapers repository**: https://github.com/openstates/openstates-scrapers
+- Yes **Local database documentation**: https://docs.openstates.org/contributing/local-database/
+- Yes **Code of Conduct**: https://docs.openstates.org/code-of-conduct/
+- Yes **Schema documentation**: https://github.com/openstates/people/blob/master/schema.md
 
 ### In Website Documentation (website/docs/data-sources/citations.md)
-- ✅ Comprehensive OpenStates/Plural Policy section
-- ✅ PostgreSQL dump setup instructions
-- ✅ Contribution guidelines
-- ✅ BibTeX citation
+- Yes Comprehensive OpenStates/Plural Policy section
+- Yes PostgreSQL dump setup instructions
+- Yes Contribution guidelines
+- Yes BibTeX citation
 
 ### In Contributing Guide (CONTRIBUTING.md)
-- ✅ Code of Conduct alignment with OpenStates
-- ✅ Upstream contribution guidelines
-- ✅ Testing requirements for scraper contributions
+- Yes Code of Conduct alignment with OpenStates
+- Yes Upstream contribution guidelines
+- Yes Testing requirements for scraper contributions
 
 ---
 
-## 🔄 Our Current OpenStates Integration
+## Our Current OpenStates Integration
 
 ### Data We Use
 
 1. **PostgreSQL Monthly Dumps** (9.8GB+)
-   - Complete legislative database for all 50 states
-   - Script: `scripts/bulk_legislative_download.py --postgres --month 2026-04`
-   - Setup: `scripts/setup_openstates_db.sh`
-   - Use: Local SQL queries, no API rate limits
+ - Complete legislative database for all 50 states
+ - Script: `scripts/bulk_legislative_download.py --postgres --month 2026-04`
+ - Setup: `scripts/setup_openstates_db.sh`
+ - Use: Local SQL queries, no API rate limits
 
 2. **CSV/JSON Session Data**
-   - Per-state legislative sessions
-   - Bill text, votes, sponsors
-   - Committee assignments
+ - Per-state legislative sessions
+ - Bill text, votes, sponsors
+ - Committee assignments
 
 3. **Video Sources**
-   - YouTube channel URLs from `sources` field
-   - Granicus video portal links
-   - Meeting archive locations
+ - YouTube channel URLs from `sources` field
+ - Granicus video portal links
+ - Meeting archive locations
 
 ### Our Implementation
 
@@ -65,7 +65,7 @@ We have properly cited and referenced the following OpenStates resources:
 
 ---
 
-## 🤝 Code We Could Contribute to OpenStates Scrapers
+## Code We Could Contribute to OpenStates Scrapers
 
 The [openstates-scrapers](https://github.com/openstates/openstates-scrapers) repository uses **Scrapy** to collect legislative data. We have complementary code that could enhance their project:
 
@@ -88,9 +88,9 @@ The [openstates-scrapers](https://github.com/openstates/openstates-scrapers) rep
 ```python
 # Our code finds these patterns
 patterns = {
-    "youtube_channel": r"youtube\.com/(?:c/|channel/|user/|@)([\w-]+)",
-    "vimeo_channel": r"vimeo\.com/([\w-]+)",
-    "granicus": r"granicus\.com/([^/]+)",
+ "youtube_channel": r"youtube\.com/(?:c/|channel/|user/|@)([\w-]+)",
+ "vimeo_channel": r"vimeo\.com/([\w-]+)",
+ "granicus": r"granicus\.com/([^/]+)",
 }
 ```
 
@@ -111,9 +111,9 @@ patterns = {
 **Platform Patterns We Use:**
 ```python
 platforms = {
-    "granicus": ["granicus.com", "legistar.com"],
-    "youtube": ["youtube.com", "youtu.be"],
-    "vimeo": ["vimeo.com"],
+ "granicus": ["granicus.com", "legistar.com"],
+ "youtube": ["youtube.com", "youtu.be"],
+ "vimeo": ["vimeo.com"],
 }
 ```
 
@@ -134,7 +134,7 @@ platforms = {
 
 ---
 
-## 📝 How to Contribute to OpenStates Scrapers
+## How to Contribute to OpenStates Scrapers
 
 Following their [local database documentation](https://docs.openstates.org/contributing/local-database/):
 
@@ -194,7 +194,7 @@ git push origin feature/video-sources
 
 ---
 
-## 🎯 Specific Contribution Ideas
+## Specific Contribution Ideas
 
 ### Priority 1: Add Video Sources to Scrapers
 
@@ -210,12 +210,12 @@ git push origin feature/video-sources
 ```python
 # In scrapers/al/__init__.py
 class AlabamaScraper(BaseScraper):
-    def scrape_sources(self):
-        """Add video sources for Alabama legislature."""
-        return {
-            "youtube": "https://www.youtube.com/@AlabamaLegislature",
-            "granicus": "https://alabama.granicus.com/ViewPublisher.php?view_id=6",
-        }
+ def scrape_sources(self):
+ """Add video sources for Alabama legislature."""
+ return {
+ "youtube": "https://www.youtube.com/@AlabamaLegislature",
+ "granicus": "https://alabama.granicus.com/ViewPublisher.php?view_id=6",
+ }
 ```
 
 ### Priority 2: Meeting Minutes Integration
@@ -232,8 +232,8 @@ class AlabamaScraper(BaseScraper):
 ```python
 # Add meeting metadata to bill objects
 bill.add_source(
-    url="https://www.youtube.com/watch?v=xyz&t=1234s",
-    note="Committee discussion at 20:34"
+ url="https://www.youtube.com/watch?v=xyz&t=1234s",
+ note="Committee discussion at 20:34"
 )
 ```
 
@@ -248,7 +248,7 @@ bill.add_source(
 
 ---
 
-## 🔒 License Compatibility
+## License Compatibility
 
 ### Our License
 - **Code:** Open source (check root LICENSE file)
@@ -259,44 +259,44 @@ bill.add_source(
 - **Data:** Public domain (bulk downloads)
 - **Content:** Varies by state (some restrictions)
 
-✅ **Compatible:** Our code contributions would be compatible with their license.
+Yes **Compatible:** Our code contributions would be compatible with their license.
 
 ---
 
-## 📚 Required Reading Before Contributing
+## Required Reading Before Contributing
 
 Before submitting any code to OpenStates, review:
 
 1. **Local Database Setup**: https://docs.openstates.org/contributing/local-database/
-   - How to set up PostgreSQL locally
-   - How to run scrapers in development
-   - How to test data quality
+ - How to set up PostgreSQL locally
+ - How to run scrapers in development
+ - How to test data quality
 
 2. **Scraper Development Guide**: https://docs.openstates.org/contributing/scrapers/
-   - Scrapy patterns used
-   - Data validation requirements
-   - Testing procedures
+ - Scrapy patterns used
+ - Data validation requirements
+ - Testing procedures
 
 3. **Code of Conduct**: https://docs.openstates.org/code-of-conduct/
-   - Community standards
-   - Communication guidelines
-   - Enforcement policies
+ - Community standards
+ - Communication guidelines
+ - Enforcement policies
 
 4. **Schema Documentation**: https://github.com/openstates/people/blob/master/schema.md
-   - Data model structure
-   - Required vs optional fields
-   - Relationship patterns
+ - Data model structure
+ - Required vs optional fields
+ - Relationship patterns
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 ### For This Project
 
-1. ✅ **Citations Added** - OpenStates properly credited
-2. ✅ **Code of Conduct** - Aligned with their standards
-3. ✅ **Local Database** - PostgreSQL dumps integrated
-4. ⏳ **Test Contributions** - Validate our code works with their schema
+1. Yes **Citations Added** - OpenStates properly credited
+2. Yes **Code of Conduct** - Aligned with their standards
+3. Yes **Local Database** - PostgreSQL dumps integrated
+4. **Test Contributions** - Validate our code works with their schema
 
 ### For Community Contribution
 
@@ -308,7 +308,7 @@ Before submitting any code to OpenStates, review:
 
 ---
 
-## 💡 Benefits of Contributing
+## Benefits of Contributing
 
 **For OpenStates:**
 - Enhanced video source coverage
@@ -327,7 +327,7 @@ Before submitting any code to OpenStates, review:
 
 ---
 
-## 📞 Questions?
+## Questions?
 
 - **OpenStates Discord**: https://discord.gg/openstates
 - **GitHub Discussions**: https://github.com/openstates/openstates-scrapers/discussions
@@ -335,5 +335,5 @@ Before submitting any code to OpenStates, review:
 
 ---
 
-**Last Updated:** April 29, 2026  
+**Last Updated:** April 29, 2026
 **Maintained By:** Open Navigator team

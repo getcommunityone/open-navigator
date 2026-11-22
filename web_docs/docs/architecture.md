@@ -3,7 +3,7 @@ sidebar_position: 2
 displayed_sidebar: developersSidebar
 ---
 
-# 🏗️ Architecture Overview
+# Architecture Overview
 
 ## Three Separate Services
 
@@ -11,50 +11,50 @@ Open Navigator consists of **three distinct services** that work together:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                 Open Navigator Platform                  │
+│ Open Navigator Platform │
 ├─────────────────────────────────────────────────────────┤
-│                                                           │
-│  📚 Documentation Site (Docusaurus)                      │
-│  └─> http://localhost:3000                              │
-│      • Project overview and marketing                    │
-│      • API documentation and guides                      │
-│      • Installation instructions                         │
-│      • Links to dashboard                                │
-│                                                           │
-│  ⚛️  Interactive Dashboard (React + Vite)               │
-│  └─> http://localhost:5173                              │
-│      • Real-time data visualization                      │
-│      • Search and filter capabilities                    │
-│      • Interactive heatmap                               │
-│      • Document explorer                                 │
-│      • Nonprofit search                                  │
-│      • Opportunity tracker                               │
-│                                                           │
-│  🔥 API Backend (FastAPI + Python)                       │
-│  └─> http://localhost:8001                              │
-│      • Data ingestion and processing                     │
-│      • Multi-agent AI system                             │
-│      • Database connections                              │
-│      • API endpoints for dashboard                       │
-│                                                           │
+│ │
+│ Documentation Site (Docusaurus) │
+│ └─> http://localhost:3000 │
+│ • Project overview and marketing │
+│ • API documentation and guides │
+│ • Installation instructions │
+│ • Links to dashboard │
+│ │
+│ Interactive Dashboard (React + Vite) │
+│ └─> http://localhost:5173 │
+│ • Real-time data visualization │
+│ • Search and filter capabilities │
+│ • Interactive heatmap │
+│ • Document explorer │
+│ • Nonprofit search │
+│ • Opportunity tracker │
+│ │
+│ API Backend (FastAPI + Python) │
+│ └─> http://localhost:8001 │
+│ • Data ingestion and processing │
+│ • Multi-agent AI system │
+│ • Database connections │
+│ • API endpoints for dashboard │
+│ │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ## Why Three Services?
 
-### 📚 Documentation Site (`website/`)
+### Documentation Site (`website/`)
 - **Purpose**: Documentation, guides, and project information
 - **Technology**: Docusaurus (static site generator)
 - **Port**: 3000
 - **Use Case**: First-time visitors, documentation, API reference
 
-### ⚛️ Dashboard (`frontend/`)
+### Dashboard (`frontend/`)
 - **Purpose**: Interactive data exploration and analysis
 - **Technology**: React 18 + TypeScript + Vite
 - **Port**: 5173
 - **Use Case**: Daily users exploring data, creating reports, searching
 
-### 🔥 API Backend (`api/`)
+### API Backend (`api/`)
 - **Purpose**: Data processing and AI agents
 - **Technology**: FastAPI + Python
 - **Port**: 8001
@@ -63,7 +63,7 @@ Open Navigator consists of **three distinct services** that work together:
 ## Integration Points
 
 ### Documentation → Dashboard
-- Navbar has "🚀 Dashboard" link pointing to `http://localhost:5173`
+- Navbar has " Dashboard" link pointing to `http://localhost:5173`
 - Homepage has "Launch Dashboard" button
 - `/dashboard` page auto-redirects to React app
 
@@ -85,7 +85,7 @@ Open Navigator consists of **three distinct services** that work together:
 
 This launches all three services in tmux:
 - Window 0: API Backend
-- Window 1: React Dashboard  
+- Window 1: React Dashboard
 - Window 2: Documentation Site
 - Window 3: Shell
 
@@ -106,12 +106,12 @@ npm start
 
 ## Access Points
 
-| Service       | Development URL          | Purpose                          |
+| Service | Development URL | Purpose |
 |---------------|-------------------------|----------------------------------|
-| Documentation | http://localhost:3000   | Read guides and API docs         |
-| Dashboard     | http://localhost:5173   | **Main application interface**   |
-| API           | http://localhost:8001   | Backend services                 |
-| API Docs      | http://localhost:8001/docs | Interactive API reference     |
+| Documentation | http://localhost:3000 | Read guides and API docs |
+| Dashboard | http://localhost:5173 | **Main application interface** |
+| API | http://localhost:8001 | Backend services |
+| API Docs | http://localhost:8001/docs | Interactive API reference |
 
 ## User Journey
 
@@ -126,17 +126,17 @@ In production, the architecture changes:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              Production Deployment                        │
+│ Production Deployment │
 ├─────────────────────────────────────────────────────────┤
-│                                                           │
-│  🌐 Reverse Proxy (nginx/Databricks Apps)               │
-│  └─> https://opennavigator.org                          │
-│                                                           │
-│      ├─ /              → Docusaurus static build         │
-│      ├─ /docs          → Docusaurus static build         │
-│      ├─ /dashboard     → React static build              │
-│      └─ /api/*         → FastAPI backend                 │
-│                                                           │
+│ │
+│ Reverse Proxy (nginx/Databricks Apps) │
+│ └─> https://opennavigator.org │
+│ │
+│ ├─ / → Docusaurus static build │
+│ ├─ /docs → Docusaurus static build │
+│ ├─ /dashboard → React static build │
+│ └─ /api/* → FastAPI backend │
+│ │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -177,19 +177,19 @@ cd frontend && npm run build
 
 ## Common Confusion
 
-❌ **Wrong**: "The documentation site IS the application"
-✅ **Correct**: "The documentation site LINKS TO the application"
+No **Wrong**: "The documentation site IS the application"
+Yes **Correct**: "The documentation site LINKS TO the application"
 
-❌ **Wrong**: "Port 3000 has search and filters"
-✅ **Correct**: "Port 5173 (React dashboard) has search and filters"
+No **Wrong**: "Port 3000 has search and filters"
+Yes **Correct**: "Port 5173 (React dashboard) has search and filters"
 
-❌ **Wrong**: "Docusaurus replaced the dashboard"
-✅ **Correct**: "Docusaurus was added FOR documentation, dashboard is unchanged"
+No **Wrong**: "Docusaurus replaced the dashboard"
+Yes **Correct**: "Docusaurus was added FOR documentation, dashboard is unchanged"
 
 ## Troubleshooting
 
 ### "I can't find the search feature"
-→ You're on the documentation site. Click "🚀 Dashboard" in the navbar to access the React app.
+→ You're on the documentation site. Click " Dashboard" in the navbar to access the React app.
 
 ### "Dashboard link goes to wrong place"
 → Make sure React dev server is running (`cd frontend && npm run dev`)

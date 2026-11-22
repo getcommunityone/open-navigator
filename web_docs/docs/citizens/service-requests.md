@@ -6,7 +6,7 @@ sidebar_position: 4
 
 Report problems, request services, submit complaints, and provide feedback to your local government.
 
-## 🛠️ Request City/County Services
+## Request City/County Services
 
 ### Common Service Requests
 
@@ -78,7 +78,7 @@ Report problems, request services, submit complaints, and provide feedback to yo
 Take photos of the problem, note the date/time, get a reference number, and save confirmation emails. This helps if you need to follow up.
 :::
 
-## 📞 File Complaints
+## File Complaints
 
 ### Types of Complaints
 
@@ -142,7 +142,7 @@ Take photos of the problem, note the date/time, get a reference number, and save
 - You may be contacted for more info
 - Your name is usually kept confidential from the violator
 
-## 💬 Public Comments & Testimony
+## Public Comments & Testimony
 
 ### Comment at Public Meetings
 
@@ -213,7 +213,7 @@ Your testimony becomes part of the official meeting record. Avoid sharing sensit
 - MindMixer
 - City-specific websites
 
-## 📋 Participate in Surveys & Feedback
+## Participate in Surveys & Feedback
 
 ### Community Surveys
 
@@ -261,7 +261,7 @@ Your testimony becomes part of the official meeting record. Avoid sharing sensit
 - Public art
 - Safety improvements
 
-## 🏛️ Petitions & Citizen Initiatives
+## Petitions & Citizen Initiatives
 
 ### Start or Sign a Petition
 
@@ -301,7 +301,7 @@ Your testimony becomes part of the official meeting record. Avoid sharing sensit
 - Community organizing groups
 - Civic engagement nonprofits
 
-## 🔍 Freedom of Information Requests
+## Freedom of Information Requests
 
 ### Access Public Records
 
@@ -339,7 +339,7 @@ Your testimony becomes part of the official meeting record. Avoid sharing sensit
 - Request fee waiver if applicable
 - Know your rights if denied
 
-## 📞 Contact Your Representatives
+## Contact Your Representatives
 
 ### Find Contact Information
 
@@ -379,7 +379,7 @@ One message is good. Multiple messages over time (not spam) shows sustained inte
 - Prepare talking points
 - Be respectful of time
 
-## 🚨 Report Emergencies vs. Non-Emergencies
+## Report Emergencies vs. Non-Emergencies
 
 ### Know the Difference
 
@@ -405,7 +405,7 @@ One message is good. Multiple messages over time (not spam) shows sustained inte
 - General questions
 - Community policing concerns
 
-## 📊 Track Your Requests
+## Track Your Requests
 
 ### Follow Up
 
@@ -424,7 +424,7 @@ One message is good. Multiple messages over time (not spam) shows sustained inte
 5. Contact elected official if issue persists
 6. Media as last resort
 
-## 📝 Document and Escalate
+## Document and Escalate
 
 ### Keep Records
 
@@ -459,10 +459,10 @@ One message is good. Multiple messages over time (not spam) shows sustained inte
 
 Explore more ways to engage with your community:
 
-- [🎈 Community Events](community-events) - Attend meetings and events
-- [🎓 Training & Education](training-education) - Learn your rights
-- [🗳️ Voter Registration](voter-registration) - Make your voice heard
-- [❤️ Community Resources](community-resources) - Get help and support
+- [ Community Events](community-events) - Attend meetings and events
+- [ Training & Education](training-education) - Learn your rights
+- [ Voter Registration](voter-registration) - Make your voice heard
+- [ Community Resources](community-resources) - Get help and support
 
 **Take action now:**
 - [Report an Issue](pathname:///) - Submit a service request

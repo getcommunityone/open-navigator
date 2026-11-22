@@ -8,38 +8,38 @@ sidebar_position: 1
 
 The Open Navigator MCP server exposes your entire civic data platform to AI assistants like Claude through the [Model Context Protocol](https://modelcontextprotocol.io/). This enables AI assistants to:
 
-- 🏛️ Search U.S. jurisdictions (cities, counties, townships, school districts)
-- 🏢 Query 3M+ nonprofit organizations
-- 📜 Semantic search across 4.5M+ legislative documents
-- 📊 Get real-time statistics and analytics
-- 🔍 Vector search meetings and bills with natural language
+- Search U.S. jurisdictions (cities, counties, townships, school districts)
+- Query 3M+ nonprofit organizations
+- Semantic search across 4.5M+ legislative documents
+- Get real-time statistics and analytics
+- Vector search meetings and bills with natural language
 
 ## What is MCP?
 
 **Model Context Protocol (MCP)** is an open protocol that standardizes how AI applications provide context to LLMs. Instead of manually copying data or writing custom integrations, MCP lets AI assistants directly access your data sources through a unified interface.
 
 **Benefits:**
-- ✅ **Live Data**: AI queries your latest data, not stale exports
-- ✅ **Semantic Search**: Natural language queries with vector search
-- ✅ **Type-Safe**: Structured tool definitions with validated inputs
-- ✅ **Composable**: Combine multiple data sources in one query
-- ✅ **Secure**: Run locally with no data leaving your machine
+- Yes **Live Data**: AI queries your latest data, not stale exports
+- Yes **Semantic Search**: Natural language queries with vector search
+- Yes **Type-Safe**: Structured tool definitions with validated inputs
+- Yes **Composable**: Combine multiple data sources in one query
+- Yes **Secure**: Run locally with no data leaving your machine
 
 ## Architecture
 
 ```
 ┌─────────────────────┐
-│   Claude Desktop    │
-│  (or other AI)      │
+│ Claude Desktop │
+│ (or other AI) │
 └──────────┬──────────┘
-           │ MCP Protocol
-┌──────────▼──────────┐
-│  Open Navigator     │
-│   MCP Server        │
+ │ MCP Protocol
+┌────────────────────┐
+│ Open Navigator │
+│ MCP Server │
 ├─────────────────────┤
-│ ✓ HuggingFace Hub   │──► Jurisdictions
-│ ✓ Qdrant Vector DB  │──► Semantic search
-│ ✓ PostgreSQL        │──► Analytics & stats
+│ Yes HuggingFace Hub │── Jurisdictions
+│ Yes Qdrant Vector DB │── Semantic search
+│ Yes PostgreSQL │── Analytics & stats
 └─────────────────────┘
 ```
 
@@ -65,8 +65,8 @@ docker-compose up -d qdrant
 docker-compose up -d postgres
 
 # Verify services
-curl http://localhost:6333/collections  # Qdrant
-psql -h localhost -p 5433 -U postgres -d open_navigator -c "SELECT COUNT(*) FROM meetings"  # PostgreSQL
+curl http://localhost:6333/collections # Qdrant
+psql -h localhost -p 5433 -U postgres -d open_navigator -c "SELECT COUNT(*) FROM meetings" # PostgreSQL
 ```
 
 ### 3. Run the MCP Server
@@ -78,10 +78,10 @@ python scripts/mcp/open_navigator_server.py
 
 **Expected Output:**
 ```
-🚀 Starting Open Navigator MCP Server...
-   📊 HuggingFace Datasets: ✅
-   🔍 Qdrant Vector Search: ✅
-   💾 PostgreSQL Analytics: ✅
+ Starting Open Navigator MCP Server...
+ HuggingFace Datasets: Yes
+ Qdrant Vector Search: Yes
+ PostgreSQL Analytics: Yes
 
 Ready to serve requests via MCP protocol
 ```
@@ -90,24 +90,24 @@ Ready to serve requests via MCP protocol
 
 Add to your Claude Desktop configuration file:
 
-**macOS/Linux:** `~/.config/Claude/claude_desktop_config.json`  
+**macOS/Linux:** `~/.config/Claude/claude_desktop_config.json`
 **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
-  "mcpServers": {
-    "open-navigator": {
-      "command": "python",
-      "args": [
-        "/absolute/path/to/open-navigator/scripts/mcp/open_navigator_server.py"
-      ],
-      "env": {
-        "QDRANT_HOST": "localhost",
-        "QDRANT_PORT": "6333",
-        "DATABASE_URL": "postgresql://postgres:password@localhost:5433/open_navigator"
-      }
-    }
-  }
+ "mcpServers": {
+ "open-navigator": {
+ "command": "python",
+ "args": [
+ "/absolute/path/to/open-navigator/scripts/mcp/open_navigator_server.py"
+ ],
+ "env": {
+ "QDRANT_HOST": "localhost",
+ "QDRANT_PORT": "6333",
+ "DATABASE_URL": "postgresql://postgres:password@localhost:5433/open_navigator"
+ }
+ }
+ }
 }
 ```
 
@@ -121,7 +121,7 @@ Close and reopen Claude Desktop. The MCP server will start automatically when yo
 
 ## Available Tools
 
-### 🏛️ Jurisdiction Tools
+### Jurisdiction Tools
 
 #### `search_jurisdictions`
 
@@ -139,20 +139,20 @@ Search U.S. jurisdictions by name, type, or location.
 **Returns:**
 ```json
 [
-  {
-    "name": "Springfield",
-    "state_code": "IL",
-    "type": "city",
-    "population": 116250,
-    "fips_code": "1772000"
-  },
-  ...
+ {
+ "name": "Springfield",
+ "state_code": "IL",
+ "type": "city",
+ "population": 116250,
+ "fips_code": "1772000"
+ },
+ ...
 ]
 ```
 
 ---
 
-### 🏢 Nonprofit Tools
+### Nonprofit Tools
 
 #### `get_nonprofits`
 
@@ -170,21 +170,21 @@ Get nonprofit organizations with Form 990 data.
 **Returns:**
 ```json
 [
-  {
-    "ein": "941234567",
-    "name": "Example Nonprofit",
-    "city": "SAN FRANCISCO",
-    "subsection": "03",
-    "revenue": 1500000,
-    "assets": 2000000
-  },
-  ...
+ {
+ "ein": "941234567",
+ "name": "Example Nonprofit",
+ "city": "SAN FRANCISCO",
+ "subsection": "03",
+ "revenue": 1500000,
+ "assets": 2000000
+ },
+ ...
 ]
 ```
 
 ---
 
-### 📜 Legislative Tools
+### Legislative Tools
 
 #### `vector_search_bills`
 
@@ -201,15 +201,15 @@ Semantic search across legislative bills using natural language.
 **Returns:**
 ```json
 [
-  {
-    "bill_id": "CAB123",
-    "title": "An Act relating to dental health services",
-    "state": "CA",
-    "session": "2025-2026",
-    "score": 0.89,
-    "summary": "Establishes funding for community dental clinics..."
-  },
-  ...
+ {
+ "bill_id": "CAB123",
+ "title": "An Act relating to dental health services",
+ "state": "CA",
+ "session": "2025-2026",
+ "score": 0.89,
+ "summary": "Establishes funding for community dental clinics..."
+ },
+ ...
 ]
 ```
 
@@ -230,21 +230,21 @@ Semantic search across meeting transcripts using natural language.
 **Returns:**
 ```json
 [
-  {
-    "meeting_id": "MTG-2024-001",
-    "title": "Boston City Council Meeting",
-    "municipality": "Boston",
-    "date": "2024-03-15",
-    "score": 0.92,
-    "excerpt": "Discussion on affordable housing initiatives..."
-  },
-  ...
+ {
+ "meeting_id": "MTG-2024-001",
+ "title": "Boston City Council Meeting",
+ "municipality": "Boston",
+ "date": "2024-03-15",
+ "score": 0.92,
+ "excerpt": "Discussion on affordable housing initiatives..."
+ },
+ ...
 ]
 ```
 
 ---
 
-### 📊 Analytics Tools
+### Analytics Tools
 
 #### `get_bill_stats`
 
@@ -260,13 +260,13 @@ Get legislative statistics and aggregates by state/topic.
 **Returns:**
 ```json
 [
-  {
-    "state": "CA",
-    "topic": "Health",
-    "total_bills": 1523,
-    "bill_count": 1523
-  },
-  ...
+ {
+ "state": "CA",
+ "topic": "Health",
+ "total_bills": 1523,
+ "bill_count": 1523
+ },
+ ...
 ]
 ```
 
@@ -287,14 +287,14 @@ Search meeting records by keyword, location, or date.
 **Returns:**
 ```json
 [
-  {
-    "name": "City Council Meeting",
-    "organization_name": "Boston City Council",
-    "state": "MA",
-    "event_date": "2024-03-15",
-    "description": "Regular meeting agenda..."
-  },
-  ...
+ {
+ "name": "City Council Meeting",
+ "organization_name": "Boston City Council",
+ "state": "MA",
+ "event_date": "2024-03-15",
+ "description": "Regular meeting agenda..."
+ },
+ ...
 ]
 ```
 
@@ -344,7 +344,7 @@ Search meeting records by keyword, location, or date.
 **Check Python environment:**
 ```bash
 source .venv/bin/activate
-python --version  # Should be 3.11+
+python --version # Should be 3.11+
 ```
 
 **Install missing dependencies:**
@@ -384,8 +384,8 @@ type %APPDATA%\Claude\claude_desktop_config.json
 ```
 
 **Use absolute paths:**
-- ❌ `./scripts/mcp/open_navigator_server.py`
-- ✅ `/home/user/projects/open-navigator/scripts/mcp/open_navigator_server.py`
+- No `./scripts/mcp/open_navigator_server.py`
+- Yes `/home/user/projects/open-navigator/scripts/mcp/open_navigator_server.py`
 
 ---
 
@@ -413,18 +413,18 @@ All configurable via environment variables:
 
 ```json
 {
-  "mcpServers": {
-    "open-navigator": {
-      "command": "python",
-      "args": ["/path/to/scripts/mcp/open_navigator_server.py"],
-      "env": {
-        "QDRANT_HOST": "localhost",
-        "QDRANT_PORT": "6333",
-        "DATABASE_URL": "postgresql://postgres:password@localhost:5433/open_navigator",
-        "HF_TOKEN": "hf_..."
-      }
-    }
-  }
+ "mcpServers": {
+ "open-navigator": {
+ "command": "python",
+ "args": ["/path/to/scripts/mcp/open_navigator_server.py"],
+ "env": {
+ "QDRANT_HOST": "localhost",
+ "QDRANT_PORT": "6333",
+ "DATABASE_URL": "postgresql://postgres:password@localhost:5433/open_navigator",
+ "HF_TOKEN": "hf_..."
+ }
+ }
+ }
 }
 ```
 
@@ -434,23 +434,23 @@ Run different configurations for dev/prod:
 
 ```json
 {
-  "mcpServers": {
-    "open-navigator-local": {
-      "command": "python",
-      "args": ["/path/to/scripts/mcp/open_navigator_server.py"],
-      "env": {
-        "DATABASE_URL": "postgresql://localhost:5433/open_navigator"
-      }
-    },
-    "open-navigator-prod": {
-      "command": "python",
-      "args": ["/path/to/scripts/mcp/open_navigator_server.py"],
-      "env": {
-        "DATABASE_URL": "postgresql://prod-host:5432/open_navigator",
-        "QDRANT_HOST": "prod-qdrant-host"
-      }
-    }
-  }
+ "mcpServers": {
+ "open-navigator-local": {
+ "command": "python",
+ "args": ["/path/to/scripts/mcp/open_navigator_server.py"],
+ "env": {
+ "DATABASE_URL": "postgresql://localhost:5433/open_navigator"
+ }
+ },
+ "open-navigator-prod": {
+ "command": "python",
+ "args": ["/path/to/scripts/mcp/open_navigator_server.py"],
+ "env": {
+ "DATABASE_URL": "postgresql://prod-host:5432/open_navigator",
+ "QDRANT_HOST": "prod-qdrant-host"
+ }
+ }
+ }
 }
 ```
 
@@ -461,8 +461,8 @@ Run different configurations for dev/prod:
 Always specify `limit` parameters to avoid large payloads:
 
 ```
-❌ "Find all nonprofits in California"
-✅ "Find the top 50 largest nonprofits in California"
+No "Find all nonprofits in California"
+Yes "Find the top 50 largest nonprofits in California"
 ```
 
 ### 2. Use Vector Search for Semantic Queries
@@ -470,8 +470,8 @@ Always specify `limit` parameters to avoid large payloads:
 For natural language queries, prefer vector search over text search:
 
 ```
-❌ search_meetings with keyword "education"
-✅ vector_search_meetings with "What did they discuss about school funding?"
+No search_meetings with keyword "education"
+Yes vector_search_meetings with "What did they discuss about school funding?"
 ```
 
 ### 3. Filter Before Fetching
@@ -479,8 +479,8 @@ For natural language queries, prefer vector search over text search:
 Apply filters early to reduce data transfer:
 
 ```
-❌ Get all CA nonprofits, then filter by city
-✅ get_nonprofits(state="CA", city="San Francisco")
+No Get all CA nonprofits, then filter by city
+Yes get_nonprofits(state="CA", city="San Francisco")
 ```
 
 ### 4. Cache HuggingFace Datasets
@@ -501,9 +501,9 @@ The MCP server runs **locally** and only responds to local processes (Claude Des
 ### Database Credentials
 
 Store credentials securely:
-- ✅ Use environment variables
-- ✅ Use `.env` files (gitignored)
-- ❌ Don't hardcode passwords in config
+- Yes Use environment variables
+- Yes Use `.env` files (gitignored)
+- No Don't hardcode passwords in config
 
 ### Rate Limiting
 
@@ -517,15 +517,15 @@ from ratelimit import limits, sleep_and_retry
 @limits(calls=10, period=60)
 @app.call_tool()
 async def call_tool(name: str, arguments: dict):
-    # ... existing code
+ # ... existing code
 ```
 
 ## Next Steps
 
-- 📖 [Build Custom MCP Tools](./custom-mcp-tools.md)
-- 🔍 [Vector Search Optimization](../guides/vector-search.md)
-- 🚀 [Deploy MCP Server to Cloud](./mcp-cloud-deployment.md)
-- 🤖 [Integrate with Other AI Assistants](./ai-integrations.md)
+- [Build Custom MCP Tools](./custom-mcp-tools.md)
+- [Vector Search Optimization](../guides/vector-search.md)
+- [Deploy MCP Server to Cloud](./mcp-cloud-deployment.md)
+- [Integrate with Other AI Assistants](./ai-integrations.md)
 
 ## Resources
 

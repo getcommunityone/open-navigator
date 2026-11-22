@@ -4,7 +4,7 @@ title: URL Dataset Investigation
 
 # URL Dataset Investigation: What Already Exists
 
-## 🔍 Current Situation
+## Current Situation
 
 **What we're doing now**:
 - Matching Census jurisdiction names to CISA .gov domains
@@ -17,11 +17,11 @@ title: URL Dataset Investigation
 
 ---
 
-## 📊 Known URL Datasets to Investigate
+## Known URL Datasets to Investigate
 
 ### 1. LocalView (Harvard)
-**Website**: https://www.localview.net  
-**Claim**: "Largest known public dataset of local government meetings"  
+**Website**: https://www.localview.net
+**Claim**: "Largest known public dataset of local government meetings"
 
 **To Check**:
 - [ ] Do they publish their jurisdiction URL list?
@@ -34,7 +34,7 @@ title: URL Dataset Investigation
 ---
 
 ### 2. CivicBand
-**Website**: https://civic.band  
+**Website**: https://civic.band
 **Claim**: "1,000+ municipalities & counties"
 
 **To Check**:
@@ -47,7 +47,7 @@ title: URL Dataset Investigation
 ---
 
 ### 3. Council Data Project (CDP)
-**Website**: https://councildataproject.org  
+**Website**: https://councildataproject.org
 **GitHub**: https://github.com/CouncilDataProject
 
 **To Check**:
@@ -71,7 +71,7 @@ title: URL Dataset Investigation
 ---
 
 ### 4. City Scrapers
-**Website**: https://cityscrapers.org  
+**Website**: https://cityscrapers.org
 **GitHub**: https://github.com/city-scrapers
 
 **To Check**:
@@ -103,7 +103,7 @@ title: URL Dataset Investigation
 ---
 
 ### 6. Councilmatic (DataMade)
-**Website**: Various (councilmatic.org redirects)  
+**Website**: Various (councilmatic.org redirects)
 **GitHub**: https://github.com/datamade
 
 **To Check**:
@@ -155,7 +155,7 @@ title: URL Dataset Investigation
 
 ---
 
-## 🗂️ HuggingFace Datasets to Check
+## HuggingFace Datasets to Check
 
 ### Search Terms:
 - "local government"
@@ -176,7 +176,7 @@ title: URL Dataset Investigation
 
 ---
 
-## 📋 Other Data Sources
+## Other Data Sources
 
 ### 1. Legistar Client List
 **Why**: Legistar is the most popular council management system
@@ -213,7 +213,7 @@ title: URL Dataset Investigation
 
 ---
 
-## 🎯 OPTIMAL STRATEGY
+## OPTIMAL STRATEGY
 
 Instead of trying to match jurisdiction names to domains, we should:
 
@@ -242,7 +242,7 @@ Keep our current system as fallback for uncovered jurisdictions
 
 ---
 
-## 🔥 IMMEDIATE ACTIONS
+## IMMEDIATE ACTIONS
 
 ### 1. Check LocalView Dataset
 ```bash
@@ -279,34 +279,34 @@ Keep our current system as fallback for uncovered jurisdictions
 
 ---
 
-## 💡 WHY THIS MATTERS
+## WHY THIS MATTERS
 
 **Current approach**: 76 URLs from 500 jurisdictions = 15% match rate
 
 **Using existing datasets**: Could get 5,000-10,000 URLs immediately
 
-**ROI**: 
+**ROI**:
 - LocalView alone might have 1,000+ URLs ready to use
 - Legistar enumeration could yield 3,000+ URLs
 - Combined: 10x more coverage with less work
 
 ---
 
-## 📝 RECOMMENDATION
+## RECOMMENDATION
 
 **DO THIS FIRST**:
-1. ✅ Investigate LocalView dataset (highest potential)
-2. ✅ Check HuggingFace for government data
-3. ✅ Enumerate Legistar subdomains (legistar.com/*.legistar.com)
-4. ✅ Get CDP deployment URLs
-5. ✅ Extract City Scrapers jurisdiction lists
+1. Yes Investigate LocalView dataset (highest potential)
+2. Yes Check HuggingFace for government data
+3. Yes Enumerate Legistar subdomains (legistar.com/*.legistar.com)
+4. Yes Get CDP deployment URLs
+5. Yes Extract City Scrapers jurisdiction lists
 
 **THEN**:
 Keep our Census + CISA matching as a fallback for smaller jurisdictions not covered by above.
 
 ---
 
-## ⚠️ KEY INSIGHT
+## Warning KEY INSIGHT
 
 We've been trying to **discover** URLs when we should be **downloading** existing URL lists from projects that already did this work!
 

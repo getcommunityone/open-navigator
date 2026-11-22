@@ -6,13 +6,13 @@ sidebar_position: 1
 
 Transform bronze/cache data into curated gold tables ready for analysis, dashboards, and AI applications.
 
-## 🎉 Successfully Created!
+## Successfully Created!
 
 This pipeline processes **153,452 meeting records** from 18 years of civic engagement data (2006-2023) into structured gold tables.
 
 ---
 
-## 📊 Meeting Data Pipeline Results
+## Meeting Data Pipeline Results
 
 :::tip Success!
 **153,452 meeting records** processed from 18 years of data (2006-2023)
@@ -88,23 +88,23 @@ Extracted topics using keyword matching.
 
 ---
 
-## 🏛️ Nonprofit Data Pipeline
+## Nonprofit Data Pipeline
 
 Ready to discover and process nonprofit data from free APIs.
 
 ### Planned Gold Tables
 
 1. **nonprofits_organizations.parquet**
-   - Basic info: name, EIN, NTEE code, location
+ - Basic info: name, EIN, NTEE code, location
 
 2. **nonprofits_financials.parquet**
-   - Revenue, assets, expenses from IRS Form 990
+ - Revenue, assets, expenses from IRS Form 990
 
 3. **nonprofits_programs.parquet**
-   - Services and programs offered
+ - Services and programs offered
 
 4. **nonprofits_locations.parquet**
-   - Geographic service areas
+ - Geographic service areas
 
 ### Data Sources
 
@@ -115,7 +115,7 @@ Ready to discover and process nonprofit data from free APIs.
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### Run Both Pipelines
 
@@ -151,28 +151,28 @@ python scripts/create_all_gold_tables.py --nonprofits-only --skip-discovery
 
 ---
 
-## 📁 Pipeline Architecture
+## Pipeline Architecture
 
 ```
 pipeline/
-├── create_meetings_gold_tables.py      # Meeting data → Gold tables
-├── create_nonprofits_gold_tables.py    # Nonprofit discovery → Gold tables
-└── huggingface_publisher.py            # Publish to HuggingFace
+├── create_meetings_gold_tables.py # Meeting data → Gold tables
+├── create_nonprofits_gold_tables.py # Nonprofit discovery → Gold tables
+└── huggingface_publisher.py # Publish to HuggingFace
 
 scripts/
-└── create_all_gold_tables.py           # Main orchestration
+└── create_all_gold_tables.py # Main orchestration
 
 data/
-├── cache/localview/                    # 18 years of meeting data ✅
-├── bronze/nonprofits/                  # Discovered nonprofit data
-└── gold/                               # ⭐ CURATED GOLD TABLES
-    ├── meetings_*.parquet              # 5 meeting tables
-    └── nonprofits_*.parquet            # 4 nonprofit tables
+├── cache/localview/ # 18 years of meeting data Yes
+├── bronze/nonprofits/ # Discovered nonprofit data
+└── gold/ # CURATED GOLD TABLES
+ ├── meetings_*.parquet # 5 meeting tables
+ └── nonprofits_*.parquet # 4 nonprofit tables
 ```
 
 ---
 
-## 🔍 Use Cases
+## Use Cases
 
 ### For Policy Makers
 
@@ -200,7 +200,7 @@ data/
 
 ---
 
-## 📈 Performance
+## Performance
 
 ### Meeting Pipeline
 
@@ -218,7 +218,7 @@ data/
 
 ---
 
-## 🔄 Data Refresh
+## Data Refresh
 
 ### Update Meeting Tables
 
@@ -234,15 +234,15 @@ python pipeline/create_nonprofits_gold_tables.py --states AL MI
 
 ---
 
-## 🎯 Next Steps
+## Next Steps
 
 ### Immediate Actions
 
-1. ✅ Run meeting pipeline (DONE!)
-2. ⏳ Run nonprofit pipeline for key states
-3. 📊 Integrate gold tables into React app
-4. 🔍 Add search features using transcript data
-5. 📈 Create visualizations
+1. Yes Run meeting pipeline (DONE!)
+2. Run nonprofit pipeline for key states
+3. Integrate gold tables into React app
+4. Add search features using transcript data
+5. Create visualizations
 
 ### Future Enhancements
 
@@ -255,7 +255,7 @@ python pipeline/create_nonprofits_gold_tables.py --states AL MI
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 To add new gold tables:
 
@@ -266,18 +266,18 @@ To add new gold tables:
 
 ---
 
-## ✨ Success Metrics
+## Success Metrics
 
-- ✅ **153,452 meeting records** processed
-- ✅ **2.8 GB** of searchable transcripts
-- ✅ **18 years** of civic history
-- ✅ **5 gold tables** from meetings
-- 🎯 **4 nonprofit tables** ready
-- 🚀 **100% free** data sources!
+- Yes **153,452 meeting records** processed
+- Yes **2.8 GB** of searchable transcripts
+- Yes **18 years** of civic history
+- Yes **5 gold tables** from meetings
+- **4 nonprofit tables** ready
+- **100% free** data sources!
 
 ---
 
-## 📚 Learn More
+## Learn More
 
 - [Data Sources Documentation](../data-sources/meetings)
 - [Deployment Guide](../deployment/huggingface-spaces)

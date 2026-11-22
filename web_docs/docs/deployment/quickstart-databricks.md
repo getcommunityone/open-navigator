@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Quick Start Guide - React + FastAPI Databricks App
 
-## 🚀 Deploy to Databricks Apps (5 minutes)
+## Deploy to Databricks Apps (5 minutes)
 
 ### Prerequisites
 - Databricks workspace with Apps enabled
@@ -25,11 +25,11 @@ export OPENAI_API_KEY=sk-...
 # https://your-workspace.cloud.databricks.com/apps/open-navigator
 ```
 
-That's it! 🎉
+That's it!
 
 ---
 
-## 💻 Local Development (10 minutes)
+## Local Development (10 minutes)
 
 ### Option A: Hot Reload (Recommended for UI development)
 
@@ -63,32 +63,32 @@ python scripts/test-app.py
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 open-navigator/
-├── frontend/                 # React app
-│   ├── src/
-│   │   ├── pages/           # Dashboard, Heatmap, etc.
-│   │   └── components/      # Layout, etc.
-│   └── package.json
+├── frontend/ # React app
+│ ├── src/
+│ │ ├── pages/ # Dashboard, Heatmap, etc.
+│ │ └── components/ # Layout, etc.
+│ └── package.json
 │
 ├── api/
-│   ├── app.py              # NEW: FastAPI for Databricks App
-│   └── main.py             # LEGACY: Original CLI API
+│ ├── app.py # NEW: FastAPI for Databricks App
+│ └── main.py # LEGACY: Original CLI API
 │
 ├── scripts/
-│   ├── deploy-databricks-app.sh   # Deploy to cloud
-│   ├── setup-local.sh             # Setup dev environment
-│   └── test-app.py                # Test production build
+│ ├── deploy-databricks-app.sh # Deploy to cloud
+│ ├── setup-local.sh # Setup dev environment
+│ └── test-app.py # Test production build
 │
-├── app.yaml                # Databricks App config
-└── Dockerfile.app          # Container image
+├── app.yaml # Databricks App config
+└── Dockerfile.app # Container image
 ```
 
 ---
 
-## 🎯 Common Tasks
+## Common Tasks
 
 ### Deploy to Databricks
 ```bash
@@ -122,7 +122,7 @@ curl http://localhost:8001/api/agents/status
 
 ---
 
-## 📊 Frontend Pages
+## Frontend Pages
 
 | Page | Route | Description |
 |------|-------|-------------|
@@ -134,7 +134,7 @@ curl http://localhost:8001/api/agents/status
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -159,7 +159,7 @@ databricks secrets put --scope oral-health-app --key openai_key --string-value "
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "Frontend not built"
 ```bash
@@ -182,7 +182,7 @@ Check that backend is running on :8000 and frontend proxies to it.
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 - **Full Deployment Guide**: `DATABRICKS_APP_GUIDE.md`
 - **Refactoring Details**: `REACT_REFACTORING.md`
@@ -199,7 +199,7 @@ Check that backend is running on :8000 and frontend proxies to it.
 
 ---
 
-## ⚡ Pro Tips
+## Pro Tips
 
 - Use `npm run dev` for instant hot reload during UI development
 - Deploy often - deployment takes ~2 minutes
@@ -209,4 +209,4 @@ Check that backend is running on :8000 and frontend proxies to it.
 
 ---
 
-**Happy Advocating! 🦷✨**
+**Happy Advocating! **

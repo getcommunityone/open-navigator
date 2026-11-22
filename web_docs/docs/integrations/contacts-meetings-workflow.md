@@ -6,34 +6,34 @@ title: Contacts and Meetings Workflow
 
 **Purpose**: Extract contact information (elected officials, speakers) from 153K meeting transcripts and build relationships between contacts and meetings.
 
-## 🗂️ **Data Model**
+## **Data Model**
 
 ### Three Tables
 
 1. **`meetings_transcripts.parquet`** (2.8 GB)
-   - 153,452 meeting transcripts
-   - Columns: meeting_id, jurisdiction, date, transcript_text, etc.
-   - Source: Scraped from city/county government websites
+ - 153,452 meeting transcripts
+ - Columns: meeting_id, jurisdiction, date, transcript_text, etc.
+ - Source: Scraped from city/county government websites
 
 2. **`contacts_local_officials.parquet`**
-   - Unique officials aggregated from all meetings
-   - Columns: name, title, jurisdiction, meetings_count, first_seen, last_updated
-   - Deduplicated by (name, jurisdiction)
+ - Unique officials aggregated from all meetings
+ - Columns: name, title, jurisdiction, meetings_count, first_seen, last_updated
+ - Deduplicated by (name, jurisdiction)
 
 3. **`contacts_meeting_attendance.parquet`** (Junction Table)
-   - Many-to-many relationship: meetings ↔ contacts
-   - Columns: meeting_id, name, title, jurisdiction, source, recorded_at
-   - Enables queries like "Which officials attended meeting X?" and "Which meetings did official Y attend?"
+ - Many-to-many relationship: meetings ↔ contacts
+ - Columns: meeting_id, name, title, jurisdiction, source, recorded_at
+ - Enables queries like "Which officials attended meeting X?" and "Which meetings did official Y attend?"
 
 ### Relationship
 
 ```
 meetings_transcripts (1) ──< (many) contacts_meeting_attendance (many) >── (1) contacts_local_officials
-         │                                    │                                      │
-     meeting_id                         meeting_id, name                          name
+ │ │ │
+ meeting_id meeting_id, name name
 ```
 
-## 🚀 **Quick Start**
+## **Quick Start**
 
 ### Check Current State
 
@@ -43,24 +43,24 @@ python scripts/manage_contacts.py stats
 
 Output:
 ```
-📅 MEETINGS:
-   Total: 153,452
-   Jurisdictions: 1
+ MEETINGS:
+ Total: 153,452
+ Jurisdictions: 1
 
-👥 CONTACTS (Local Officials):
-   Total: 186
-   Avg meetings per official: 1.4
-   
-   By Title:
-      Council Member: 119
-      Mayor: 42
-      Commissioner: 25
+ CONTACTS (Local Officials):
+ Total: 186
+ Avg meetings per official: 1.4
 
-📋 MEETING ATTENDANCE (Relationships):
-   Total records: 262
-   Unique meetings: 183
-   Unique contacts: 186
-   Avg attendees per meeting: 1.4
+ By Title:
+ Council Member: 119
+ Mayor: 42
+ Commissioner: 25
+
+ MEETING ATTENDANCE (Relationships):
+ Total records: 262
+ Unique meetings: 183
+ Unique contacts: 186
+ Avg attendees per meeting: 1.4
 ```
 
 ### Extract Contacts (Incremental)
@@ -85,7 +85,7 @@ python scripts/manage_contacts.py extract --batch-size 10000
 python scripts/manage_contacts.py refresh-all --confirm
 ```
 
-## 📊 **Extraction Method**
+## **Extraction Method**
 
 ### NLP Patterns
 
@@ -114,13 +114,13 @@ Pattern: `^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}):\s+`
 ### Name Validation
 
 Filters out false positives:
-- ❌ "Thank You" (contains common words: thank, you, good, etc.)
-- ❌ "Vice Chair" (contains title words: chair, mayor, council, etc.)
-- ❌ "City Council" (contains government words)
-- ✅ "Stephanie Briggs" (2-4 words, capitalized, no false positive words)
-- ✅ "Jerry Wayne Wright" (valid 3-word name)
+- No "Thank You" (contains common words: thank, you, good, etc.)
+- No "Vice Chair" (contains title words: chair, mayor, council, etc.)
+- No "City Council" (contains government words)
+- Yes "Stephanie Briggs" (2-4 words, capitalized, no false positive words)
+- Yes "Jerry Wayne Wright" (valid 3-word name)
 
-## 🔄 **Processing Strategy**
+## **Processing Strategy**
 
 ### Incremental Batches
 
@@ -149,7 +149,7 @@ The extraction automatically merges with existing data:
 - **Contacts**: Updates `meetings_count` for existing contacts
 - **Attendance**: Deduplicates by (meeting_id, name)
 
-## 📈 **Expected Results**
+## **Expected Results**
 
 Based on 5,000 meeting sample:
 
@@ -167,16 +167,16 @@ Based on 5,000 meeting sample:
 
 **Note**: Coverage improves over time as NLP patterns improve.
 
-## 🗃️ **File Structure**
+## **File Structure**
 
 ```
 data/gold/
-├── meetings_transcripts.parquet          # 2.8 GB - Source data
-├── contacts_local_officials.parquet      # < 1 MB - Aggregated contacts
-└── contacts_meeting_attendance.parquet   # < 1 MB - Junction table
+├── meetings_transcripts.parquet # 2.8 GB - Source data
+├── contacts_local_officials.parquet # < 1 MB - Aggregated contacts
+└── contacts_meeting_attendance.parquet # < 1 MB - Junction table
 ```
 
-## 📚 **Use Cases**
+## **Use Cases**
 
 ### 1. Find Officials in a Specific Jurisdiction
 
@@ -206,7 +206,7 @@ officials = attendance[attendance['meeting_id'] == meeting_id]
 
 print(f"Meeting had {len(officials)} officials:")
 for _, row in officials.iterrows():
-    print(f"  - {row['name']} ({row['title']})")
+ print(f" - {row['name']} ({row['title']})")
 ```
 
 ### 4. Most Active Officials
@@ -217,10 +217,10 @@ top_10 = contacts.nlargest(10, 'meetings_count')
 
 print("Top 10 Most Active Officials:")
 for _, row in top_10.iterrows():
-    print(f"  {row['name']} ({row['title']}): {row['meetings_count']} meetings")
+ print(f" {row['name']} ({row['title']}): {row['meetings_count']} meetings")
 ```
 
-## 🔧 **Advanced Options**
+## **Advanced Options**
 
 ### Custom Batch Size
 
@@ -239,7 +239,7 @@ python scripts/manage_contacts.py extract --batch-size 5000
 python scripts/manage_contacts.py extract --limit 100000
 ```
 
-## 🐛 **Troubleshooting**
+## **Troubleshooting**
 
 ### "No meetings file found"
 
@@ -264,7 +264,7 @@ python scripts/manage_contacts.py extract --batch-size 5000
 The name validation in `_is_valid_name()` can be tuned. Edit:
 ```python
 false_positive_words = {
-    'thank', 'you', 'good', 'evening', ...  # Add more words here
+ 'thank', 'you', 'good', 'evening', ... # Add more words here
 }
 ```
 
@@ -280,15 +280,15 @@ contacts = pd.read_parquet('data/gold/contacts_local_officials.parquet')
 
 # Group by name only (ignoring jurisdiction)
 merged = contacts.groupby('name').agg({
-    'meetings_count': 'sum',
-    'title': 'first',
-    'jurisdiction': lambda x: ', '.join(x.unique())
+ 'meetings_count': 'sum',
+ 'title': 'first',
+ 'jurisdiction': lambda x: ', '.join(x.unique())
 }).reset_index()
 
 merged.to_parquet('data/gold/contacts_local_officials.parquet', index=False)
 ```
 
-## 📊 **Data Quality**
+## **Data Quality**
 
 ### Accuracy
 
@@ -309,7 +309,7 @@ Not all officials are captured because:
 - Some officials only vote (no speaking)
 - OCR errors in source transcripts
 
-## 🚀 **Next Steps**
+## **Next Steps**
 
 ### 1. Complete Extraction
 
@@ -338,14 +338,14 @@ Build search index for fast contact lookup:
 # TODO: Create elasticsearch/algolia index
 ```
 
-## 🎯 **Success Metrics**
+## **Success Metrics**
 
-- ✅ **Extraction complete**: All 153K meetings processed
-- ✅ **Contact quality**: < 5% false positives
-- ✅ **Coverage**: > 10% of meetings have officials extracted
-- ✅ **Published**: Datasets available on HuggingFace
+- Yes **Extraction complete**: All 153K meetings processed
+- Yes **Contact quality**: < 5% false positives
+- Yes **Coverage**: > 10% of meetings have officials extracted
+- Yes **Published**: Datasets available on HuggingFace
 
-## 📝 **Related Documentation**
+## **Related Documentation**
 
 - [Meetings Gold Tables](website/docs/data-sources/meetings.md)
 - [Upload to HuggingFace](docs/HUGGINGFACE_DATASETS.md)

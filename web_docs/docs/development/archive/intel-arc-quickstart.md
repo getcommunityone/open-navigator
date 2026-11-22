@@ -2,11 +2,11 @@
 sidebar_position: 5
 ---
 
-# 🚀 Intel Arc + DuckDB Quick Reference
+# Intel Arc + DuckDB Quick Reference
 
 **Get started with local AI legislative analysis in 5 minutes**
 
-## ⚡ Performance at a Glance
+## Performance at a Glance
 
 | Task | Standard (Postgres + CPU) | Optimized (DuckDB + Arc GPU) | Speedup |
 |------|--------------------------|------------------------------|---------|
@@ -15,7 +15,7 @@ sidebar_position: 5
 | LLM inference (3B model) | 350 tok/s | 1,200 tok/s | **3.4x** |
 | Full testimony analysis | 2,000ms | 80ms | **25x** |
 
-## 🎯 Three-Step Setup
+## Three-Step Setup
 
 ### 1. Install (5 minutes)
 
@@ -33,11 +33,11 @@ python scripts/enrichment_ai/duckdb_vss_demo.py
 
 Expected output:
 ```
-📊 Creating demo DuckDB database with VSS...
-✅ Demo database created!
-📈 Results (searching 1,000 bills):
-   Average: 18.45ms
-🎯 Top 3 most similar bills: ...
+ Creating demo DuckDB database with VSS...
+Yes Demo database created!
+ Results (searching 1,000 bills):
+ Average: 18.45ms
+ Top 3 most similar bills: ...
 ```
 
 ### 3. Run Analysis (1 minute)
@@ -46,7 +46,7 @@ Expected output:
 python scripts/enrichment_ai/legislative_analysis_intel.py
 ```
 
-## 🧠 Code Examples
+## Code Examples
 
 ### Example 1: Fast Bill Search
 
@@ -54,12 +54,12 @@ python scripts/enrichment_ai/legislative_analysis_intel.py
 from scripts.legislative_analysis_intel import DuckDBLegislativeAnalyzer
 
 with DuckDBLegislativeAnalyzer() as analyzer:
-    # Get bill context in < 50ms
-    bill = analyzer.get_bill_context("HB1234")
-    testimony = analyzer.get_all_testimony_for_bill("HB1234")
-    
-    print(f"Bill: {bill['title']}")
-    print(f"Testimony records: {len(testimony)}")
+ # Get bill context in < 50ms
+ bill = analyzer.get_bill_context("HB1234")
+ testimony = analyzer.get_all_testimony_for_bill("HB1234")
+
+ print(f"Bill: {bill['title']}")
+ print(f"Testimony records: {len(testimony)}")
 ```
 
 ### Example 2: Vector Similarity Search
@@ -72,12 +72,12 @@ query_embedding = model.encode("water fluoridation policy")
 
 # Fast vector search (< 20ms for 10K bills)
 similar_bills = analyzer.search_similar_testimony(
-    query_embedding.tolist(),
-    limit=10
+ query_embedding.tolist(),
+ limit=10
 )
 
 for bill in similar_bills:
-    print(f"{bill['bill_id']}: {bill['text'][:100]}... (similarity: {bill['similarity']:.2f})")
+ print(f"{bill['bill_id']}: {bill['text'][:100]}... (similarity: {bill['similarity']:.2f})")
 ```
 
 ### Example 3: Extract Interest Groups
@@ -87,20 +87,20 @@ from scripts.legislative_analysis_intel import IntelOptimizedLLM, InterestGroup
 
 # Initialize Intel-optimized LLM (uses Arc GPU)
 llm = IntelOptimizedLLM(model_name="meta-llama/Llama-3.2-3B-Instruct")
-llm.load_model(use_openvino=True)  # OpenVINO = best Arc GPU performance
+llm.load_model(use_openvino=True) # OpenVINO = best Arc GPU performance
 
 # Extract structured data
 groups = llm.extract_interest_groups(bill_context, testimony)
 
 # Results
 for group in groups:
-    print(f"""
-    Group: {group.group_name}
-    Lobbyist: {group.lobbyist}
-    Stance: {group.stance} (score: {group.stance_score})
-    Tradeoffs: {group.tradeoff_notes}
-    Confidence: {group.confidence}
-    """)
+ print(f"""
+ Group: {group.group_name}
+ Lobbyist: {group.lobbyist}
+ Stance: {group.stance} (score: {group.stance_score})
+ Tradeoffs: {group.tradeoff_notes}
+ Confidence: {group.confidence}
+ """)
 ```
 
 ### Example 4: Query Hugging Face Datasets Directly
@@ -112,49 +112,49 @@ conn = duckdb.connect()
 
 # No download needed - streams from HF!
 df = conn.execute("""
-    SELECT * 
-    FROM read_parquet(
-        'hf://datasets/CommunityOne/states-al-nonprofits-locations/data/train-*.parquet'
-    )
-    WHERE city = 'Birmingham'
-    LIMIT 100
+ SELECT *
+ FROM read_parquet(
+ 'hf://datasets/CommunityOne/states-al-nonprofits-locations/data/train-*.parquet'
+ )
+ WHERE city = 'Birmingham'
+ LIMIT 100
 """).fetchdf()
 
 print(f"Found {len(df)} organizations in Birmingham, AL")
 ```
 
-## 🎨 Output Schema
+## Output Schema
 
 **Interest Group Extraction:**
 
 ```json
 {
-  "groups": [
-    {
-      "group_name": "Alabama Dental Association",
-      "lobbyist": "John Smith, DDS",
-      "stance": "conditional",
-      "stance_score": 0.6,
-      "tradeoff_notes": "Support if Section 4 amended to include rural exemption and phased implementation timeline",
-      "testimony_excerpt": "While we have concerns about Section 4's implementation timeline, we support the overall goals if rural communities receive proper resources...",
-      "bill_id": "HB1234",
-      "confidence": 0.85
-    },
-    {
-      "group_name": "Sierra Club Alabama Chapter",
-      "lobbyist": null,
-      "stance": "oppose",
-      "stance_score": -0.9,
-      "tradeoff_notes": null,
-      "testimony_excerpt": "We strongly oppose this bill due to environmental concerns...",
-      "bill_id": "HB1234",
-      "confidence": 0.92
-    }
-  ]
+ "groups": [
+ {
+ "group_name": "Alabama Dental Association",
+ "lobbyist": "John Smith, DDS",
+ "stance": "conditional",
+ "stance_score": 0.6,
+ "tradeoff_notes": "Support if Section 4 amended to include rural exemption and phased implementation timeline",
+ "testimony_excerpt": "While we have concerns about Section 4's implementation timeline, we support the overall goals if rural communities receive proper resources...",
+ "bill_id": "HB1234",
+ "confidence": 0.85
+ },
+ {
+ "group_name": "Sierra Club Alabama Chapter",
+ "lobbyist": null,
+ "stance": "oppose",
+ "stance_score": -0.9,
+ "tradeoff_notes": null,
+ "testimony_excerpt": "We strongly oppose this bill due to environmental concerns...",
+ "bill_id": "HB1234",
+ "confidence": 0.92
+ }
+ ]
 }
 ```
 
-## 🔧 Environment Variables
+## Environment Variables
 
 ```bash
 # Enable Intel GPU
@@ -168,7 +168,7 @@ export IPEX_LLM_NUM_GPU=1
 export ONEAPI_DEVICE_SELECTOR=level_zero:0
 ```
 
-## 💡 Best Practices
+## Best Practices
 
 ### 1. Cache Embeddings
 
@@ -176,24 +176,24 @@ export ONEAPI_DEVICE_SELECTOR=level_zero:0
 ```python
 # Slow - recomputes embeddings every run
 for bill in bills:
-    embedding = model.encode(bill['text'])
-    analyze(embedding)
+ embedding = model.encode(bill['text'])
+ analyze(embedding)
 ```
 
 **DO** cache in DuckDB:
 ```python
 # Fast - compute once, reuse forever
 conn.execute("""
-    CREATE TABLE bill_embeddings AS
-    SELECT bill_id, embedding
-    FROM ... -- computed once
+ CREATE TABLE bill_embeddings AS
+ SELECT bill_id, embedding
+ FROM ... -- computed once
 """)
 
 # Then just query
 similar = conn.execute("""
-    SELECT * FROM bill_embeddings
-    ORDER BY array_distance(embedding, ?) 
-    LIMIT 10
+ SELECT * FROM bill_embeddings
+ ORDER BY array_distance(embedding, ?)
+ LIMIT 10
 """, [query]).fetchall()
 ```
 
@@ -201,8 +201,8 @@ similar = conn.execute("""
 
 **DON'T** process one at a time:
 ```python
-for bill_id in bill_ids:  # Slow!
-    result = llm.analyze(bill_id)
+for bill_id in bill_ids: # Slow!
+ result = llm.analyze(bill_id)
 ```
 
 **DO** batch process:
@@ -211,7 +211,7 @@ for bill_id in bill_ids:  # Slow!
 results = llm.batch_analyze(bill_ids, batch_size=32)
 ```
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [DuckDB Vector Similarity Search](https://duckdb.org/docs/extensions/vss.html)
 - [Intel Arc GPU Setup](https://www.intel.com/content/www/us/en/developer/articles/guide/optimization-for-pytorch-with-intel-gpus.html)
