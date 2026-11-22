@@ -73,6 +73,8 @@ malformed responses).
   dead or stalled launches are re-spawned on the next dashboard `/launch` poll (default on via
   `BATCH_JOBS_AUTO_RESUME=1`, cap `BATCH_JOBS_AUTO_RESUME_MAX=5`). Exit code `0` is not resumed; VPN exit (`5`)
   waits until the Surfshark tunnel is back. **Stop all** sets `auto_resume=false` so the job stays stopped.
+- **Run all** ([#754](https://github.com/getcommunityone/open-navigator/issues/754)) = Discover (channel
+  candidates) → catalog → captions → analyze in one `launch_all_*.log`. A VPN failure in Discover stops the chain.
 - The admin dashboard ([`batch_job_dashboard.py`](https://github.com/getcommunityone/open-navigator/blob/main/api/batch_jobs/batch_job_dashboard.py)) shows per-state
   progress; launching, stopping and reading logs require an admin since
   [#361](https://github.com/getcommunityone/open-navigator/pull/361).

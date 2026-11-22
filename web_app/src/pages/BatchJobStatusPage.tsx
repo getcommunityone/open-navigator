@@ -1089,9 +1089,10 @@ export default function BatchJobStatusPage() {
           cohort: allScope,
         })
         setLaunchMsg(res.detail || 'Launched.')
-        // Run all/each/catalog → open Videos so the live launch_all log is visible
-        // (Discover is a separate step and its old log looks "stuck").
-        if (step === 'all' || step === 'each' || step === 'catalog') {
+        // Open the stage that matches the launch so the live log is visible.
+        if (step === 'all') {
+          setExpandedStage('discover') // Run all starts with Discover (#754)
+        } else if (step === 'each' || step === 'catalog') {
           setExpandedStage('videos')
         } else if (step === 'discover') {
           setExpandedStage('discover')
@@ -1144,27 +1145,21 @@ export default function BatchJobStatusPage() {
   // backfill log while it's the live (running/stalled) step; otherwise the
   // conventional captions log.
   const transcriptsBackfillLive = liveLaunchSteps.has('backfill')
-  // Run all / each write launch_all_*.log / launch_each_*.log — not discover/
-  // catalog/captions files. While a full run is live, expanded pipeline stages
-  // must tail that log or the UI looks frozen on a stale step log (#753).
+  // Run all / each write launch_all_*.log / launch_each_*.log — not per-stage
+  // files. While a full run is live, expanded stages must tail that log (#753).
+  // Run all now includes Discover first (#754).
   const fullRunLogStep = liveLaunchSteps.has('each')
     ? 'each'
     : liveLaunchSteps.has('all')
       ? 'all'
       : null
-  // Run all never executes Discover. If Discover is open while a full run is
-  // live, jump to Videos so the panel tails launch_all_*.log instead of a
-  // stale launch_discover_*.log (#753).
-  useEffect(() => {
-    if (fullRunLogStep && expandedStage === 'discover') {
-      setExpandedStage('videos')
-    }
-  }, [fullRunLogStep, expandedStage])
   const expandedStep = expandedStage
     ? expandedStage === 'transcripts' && transcriptsBackfillLive
       ? 'backfill'
       : fullRunLogStep &&
-          ['videos', 'transcripts', 'analyses', 'reports'].includes(expandedStage)
+          ['discover', 'videos', 'transcripts', 'analyses', 'reports'].includes(
+            expandedStage,
+          )
         ? fullRunLogStep
         : STAGE_STEP[expandedStage]
     : null
@@ -1704,9 +1699,8 @@ export default function BatchJobStatusPage() {
               // Global mart-wide sweep — advances only the transcripts stage.
               backfill: ['transcripts'],
               analyze: ['analyses', 'reports'],
-              // `all` / `each` never run Discover (separate launch). Marking
-              // discover live here made the UI show a dead discover log.
-              all: ['videos', 'transcripts', 'analyses', 'reports'],
+              // `all` = discover → catalog → captions → analyze (#754).
+              all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
               each: ['videos', 'transcripts', 'analyses', 'reports'],
             }
             const runningSteps = new Set(ls?.running_steps ?? [])
@@ -1891,7 +1885,7 @@ export default function BatchJobStatusPage() {
                         title={
                           runningSteps.size > 0
                             ? 'Finish the running step(s) before a full-pipeline run'
-                            : `Run the full pipeline (catalog → captions → analyze) for ${scopeLaunchLabel} states`
+                            : `Run the full pipeline (discover → catalog → captions → analyze) for ${scopeLaunchLabel} states`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -1986,34 +1980,17 @@ export default function BatchJobStatusPage() {
                     <div className={`${cols} border-t border-slate-100 px-4 py-3`}>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (expanded) {
-                            setExpandedStage(null)
-                            return
-                          }
-                          // Don't open the stale Discover log while Run all is live.
-                          if (st.stage === 'discover' && fullRunLogStep) {
-                            setExpandedStage('videos')
-                            return
-                          }
-                          setExpandedStage(st.stage)
-                        }}
-                        className="min-w-0 text-left"
-                        title={
-                          st.stage === 'discover' && fullRunLogStep
-                            ? 'Run all does not run Discover — opening Videos (live catalog log)'
-                            : "Show this stage's live log + timing"
+                        onClick={() =>
+                          setExpandedStage(expanded ? null : st.stage)
                         }
+                        className="min-w-0 text-left"
+                        title="Show this stage's live log + timing"
                       >
                         <div className="flex items-center gap-1 text-sm font-semibold text-slate-800">
                           <span className="text-slate-400">{expanded ? '▾' : '▸'}</span>
                           {idx + 1} · {stageLabel[st.stage]}
                         </div>
-                        {st.stage === 'discover' && fullRunLogStep ? (
-                          <div className="mt-0.5 text-[11px] text-teal-700">
-                            Not part of Run {fullRunLogStep} — open Videos for the live log
-                          </div>
-                        ) : st.sub ? (
+                        {st.sub ? (
                           <div className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600">
                             <span aria-hidden>⚠️</span>
                             <span className="truncate" title={st.sub}>
@@ -2215,12 +2192,14 @@ export default function BatchJobStatusPage() {
                             </span>
                           ) : null}
                         </div>
-                        {fullRunLogStep &&
-                        expandedStep === fullRunLogStep &&
-                        st.stage !== 'discover' ? (
+                        {fullRunLogStep && expandedStep === fullRunLogStep ? (
                           <p className="mb-1 text-[11px] text-teal-800">
-                            Showing the live <code className="text-[10px]">Run {fullRunLogStep}</code>{' '}
-                            log (catalog → captions → analyze), not a previous Discover run.
+                            Showing the live{' '}
+                            <code className="text-[10px]">Run {fullRunLogStep}</code> log
+                            {fullRunLogStep === 'all'
+                              ? ' (discover → catalog → captions → analyze)'
+                              : ''}
+                            .
                           </p>
                         ) : null}
                         <pre className="mt-2 max-h-56 overflow-auto rounded bg-slate-900 p-2 text-[10px] leading-snug text-slate-100">

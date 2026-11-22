@@ -724,6 +724,21 @@ def _launch_operator_signals(
     }
 
 
+def _discover_argv(states: List[str], cohort: str) -> List[str]:
+    """Argv for the Discover CLI (channel candidates). Raises ValueError if missing."""
+    if not states:
+        raise ValueError("discover requires at least one state.")
+    target = _repo_root() / _DISCOVER_SCRIPT
+    if not target.is_file():
+        raise ValueError(f"discover script missing: {target}")
+    import sys as _sys
+
+    argv = [_sys.executable, str(target), "--states", ",".join(states)]
+    if cohort == "data_centers":
+        argv += ["--cohort", "data_centers"]
+    return argv
+
+
 def _build_launch_argv(
     step: str,
     *,
@@ -733,22 +748,14 @@ def _build_launch_argv(
     parallel: int,
 ) -> "tuple[List[str], Dict[str, str]]":
     """Return (argv, env updates) for a pipeline step. Raises ValueError on bad paths."""
+    import shlex
+
     root = _repo_root()
     env = dict(os.environ)
     env["COHORT"] = cohort
     env["STATES"] = ",".join(states)
     if step == "discover":
-        if not states:
-            raise ValueError("discover requires at least one state.")
-        target = root / _DISCOVER_SCRIPT
-        if not target.is_file():
-            raise ValueError(f"discover script missing: {target}")
-        import sys as _sys
-
-        argv = [_sys.executable, str(target), "--states", ",".join(states)]
-        if cohort == "data_centers":
-            argv += ["--cohort", "data_centers"]
-        return argv, env
+        return _discover_argv(states, cohort), env
     if step == "backfill":
         target = root / _BACKFILL_SCRIPT
         if not target.is_file():
@@ -772,6 +779,24 @@ def _build_launch_argv(
     env["PARALLEL"] = str(parallel)
     if cohort == "data_centers" and step in ("analyze", "each", "all"):
         env.setdefault("SKIP_JEV_MEETING_BELOW", "0.6")
+    # Run all = Discover first, then catalog → captions → analyze (#754).
+    # Discover is a separate Python CLI; the shell wrapper never ran it.
+    if step == "all":
+        disc = _discover_argv(states, cohort)
+        disc_cmd = " ".join(shlex.quote(a) for a in disc)
+        pipe_cmd = " ".join(shlex.quote(a) for a in ["bash", str(script), "all"])
+        chain = (
+            f'echo "=== Discover (channel candidates) ==="; {disc_cmd}; '
+            f'disc_ec=$?; '
+            f'if [ "$disc_ec" -eq {_VPN_EXIT_CODE} ]; then '
+            f'echo "Discover stopped: VPN required (exit {_VPN_EXIT_CODE})"; exit {_VPN_EXIT_CODE}; '
+            f'fi; '
+            f'if [ "$disc_ec" -ne 0 ]; then '
+            f'echo "WARN: Discover exited $disc_ec — continuing to catalog"; '
+            f'fi; '
+            f'echo "=== Catalog → captions → analyze ==="; {pipe_cmd}; exit $?'
+        )
+        return ["bash", "-c", chain], env
     return ["bash", str(script), step], env
 
 

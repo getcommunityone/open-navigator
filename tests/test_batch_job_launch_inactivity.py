@@ -8,6 +8,32 @@ from pathlib import Path
 import api.routes.batch_jobs as bj
 
 
+def test_run_all_argv_chains_discover_then_shell(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(bj, "_repo_root", lambda: tmp_path)
+    disc = tmp_path / "packages/scrapers/src/scrapers/youtube/load_missing_county_channels.py"
+    disc.parent.mkdir(parents=True)
+    disc.write_text("# stub\n", encoding="utf-8")
+    shell = tmp_path / "packages/scrapers/scripts/youtube_run_priority_states_last_n.sh"
+    shell.parent.mkdir(parents=True)
+    shell.write_text("#!/bin/bash\n", encoding="utf-8")
+    argv, env = bj._build_launch_argv(
+        "all",
+        states=["WI", "AL"],
+        cohort="data_centers",
+        n=10,
+        parallel=4,
+    )
+    assert argv[:2] == ["bash", "-c"]
+    chain = argv[2]
+    assert "load_missing_county_channels.py" in chain
+    assert "--states WI,AL" in chain
+    assert "--cohort data_centers" in chain
+    assert "youtube_run_priority_states_last_n.sh" in chain
+    assert 'echo "=== Discover' in chain
+    assert env.get("COHORT") == "data_centers"
+    assert env.get("STATES") == "WI,AL"
+
+
 def test_vpn_down_regex_matches_surfshark_lines() -> None:
     assert bj._VPN_DOWN_RE.search(
         "Discovery failed for Ellis County: Surfshark is off: connect it, then re-run."
