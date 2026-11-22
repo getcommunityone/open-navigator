@@ -38,6 +38,8 @@ DISCOVER_JEV_METHOD = "discover_jev"
 # Legacy label from #695 (human-review queue); no longer written by default.
 DISCOVER_UNREVIEWED_METHOD = "discover_unreviewed"
 DEFAULT_JEV_MIN_MEETING_P = 0.6
+# Try this many newest uploads before rejecting the channel (#697 follow-up).
+DEFAULT_JEV_MAX_VIDEOS = 7
 
 
 def resolve_database_url(explicit: str | None) -> str:
@@ -145,15 +147,19 @@ def channel_gate_reject_reason(row: dict[str, Any], *, state_code: str) -> Optio
     return reason
 
 
-def fetch_newest_channel_upload(
-    api_key: str, channel_id: str
-) -> Optional[dict[str, Any]]:
-    """Newest uploads-playlist item for *channel_id*, or None."""
+def fetch_newest_channel_uploads(
+    api_key: str,
+    channel_id: str,
+    *,
+    limit: int = DEFAULT_JEV_MAX_VIDEOS,
+) -> list[dict[str, Any]]:
+    """Up to *limit* newest uploads-playlist items for *channel_id*."""
     from scrapers.youtube.backfill_channel_from_api import list_uploads
 
     cid = (channel_id or "").strip()
     if not cid.startswith("UC") or not (api_key or "").strip():
-        return None
+        return []
+    n = max(1, int(limit or DEFAULT_JEV_MAX_VIDEOS))
     uploads = list_uploads(
         api_key.strip(),
         cid,
@@ -161,6 +167,14 @@ def fetch_newest_channel_upload(
         published_before=None,
         max_pages=1,
     )
+    return uploads[:n]
+
+
+def fetch_newest_channel_upload(
+    api_key: str, channel_id: str
+) -> Optional[dict[str, Any]]:
+    """Newest uploads-playlist item for *channel_id*, or None."""
+    uploads = fetch_newest_channel_uploads(api_key, channel_id, limit=1)
     return uploads[0] if uploads else None
 
 
@@ -205,8 +219,14 @@ def evaluate_discover_for_bronze(
     youtube_api_key: str = "",
     jev_client: Any = None,
     skip_jev: bool = False,
+    max_jev_videos: int = DEFAULT_JEV_MAX_VIDEOS,
 ) -> tuple[bool, str, Optional[float]]:
-    """Channel gates then Jev meta keep-score. Returns (accepted, reason, keep_p)."""
+    """Channel gates then Jev meta keep-score. Returns (accepted, reason, keep_p).
+
+    Tries up to ``max_jev_videos`` newest uploads; the first keep-score at or
+    above ``min_meeting_p`` accepts. Only fails after every tried video is
+    below threshold, unscreenable, or errors.
+    """
     channel_id = str(row.get("channel_id") or "").strip()
     if not channel_id:
         return False, "no_channel_id", None
@@ -223,26 +243,61 @@ def evaluate_discover_for_bronze(
         return False, "missing_youtube_api_key", None
 
     try:
-        upload = fetch_newest_channel_upload(key, channel_id)
-    except Exception as exc:
-        return False, f"uploads_fetch_failed:{exc}", None
-    if not upload:
-        return False, "no_uploads", None
-
-    try:
-        keep_p, video_id = jev_meta_keep_for_upload(
-            upload,
-            channel_title=str(row.get("channel_title") or ""),
-            client=jev_client,
+        uploads = fetch_newest_channel_uploads(
+            key, channel_id, limit=max_jev_videos,
         )
     except Exception as exc:
-        return False, f"jev_failed:{exc}", None
+        return False, f"uploads_fetch_failed:{exc}", None
+    if not uploads:
+        return False, "no_uploads", None
 
-    if keep_p is None:
-        return False, f"jev_unscreened:{video_id}", None
-    if keep_p < float(min_meeting_p):
-        return False, f"jev_below_threshold:{keep_p:.3f}<{min_meeting_p} video={video_id}", keep_p
-    return True, f"jev_ok:{keep_p:.3f} video={video_id}", keep_p
+    channel_title = str(row.get("channel_title") or "")
+    attempts: list[str] = []
+    best_keep: Optional[float] = None
+    for upload in uploads:
+        video_id = str(upload.get("video_id") or "").strip()
+        try:
+            keep_p, vid = jev_meta_keep_for_upload(
+                upload,
+                channel_title=channel_title,
+                client=jev_client,
+            )
+        except Exception as exc:
+            attempts.append(f"{video_id or '?'}:jev_failed:{exc}")
+            logger.info(
+                "Discover Jev miss {} video {}: {}",
+                row.get("jurisdiction_id"),
+                video_id or "?",
+                exc,
+            )
+            continue
+        if keep_p is None:
+            attempts.append(f"{vid or video_id}:unscreened")
+            logger.info(
+                "Discover Jev unscreened {} video {}",
+                row.get("jurisdiction_id"),
+                vid or video_id,
+            )
+            continue
+        if best_keep is None or keep_p > best_keep:
+            best_keep = keep_p
+        if keep_p >= float(min_meeting_p):
+            return True, f"jev_ok:{keep_p:.3f} video={vid}", keep_p
+        attempts.append(f"{vid}:{keep_p:.3f}")
+        logger.info(
+            "Discover Jev below threshold {} video {} keep_p={:.3f} (try next)",
+            row.get("jurisdiction_id"),
+            vid,
+            keep_p,
+        )
+
+    tried = len(attempts)
+    detail = ",".join(attempts[:7])
+    return (
+        False,
+        f"jev_exhausted:{tried}_videos best={best_keep} [{detail}]",
+        best_keep,
+    )
 
 
 def persist_discovered_channel_to_bronze(

@@ -108,12 +108,14 @@ def test_evaluate_accepts_when_jev_keep_above_threshold():
     }
     with (
         patch(
-            "scrapers.youtube.load_missing_county_channels.fetch_newest_channel_upload",
-            return_value={
-                "video_id": "abcdefghijk",
-                "title": "County Commissioners Meeting",
-                "description": "Agenda",
-            },
+            "scrapers.youtube.load_missing_county_channels.fetch_newest_channel_uploads",
+            return_value=[
+                {
+                    "video_id": "abcdefghijk",
+                    "title": "County Commissioners Meeting",
+                    "description": "Agenda",
+                },
+            ],
         ),
         patch(
             "scrapers.youtube.load_missing_county_channels.jev_meta_keep_for_upload",
@@ -128,21 +130,54 @@ def test_evaluate_accepts_when_jev_keep_above_threshold():
     assert reason.startswith("jev_ok:")
 
 
-def test_evaluate_rejects_when_jev_keep_below_threshold():
+def test_evaluate_tries_next_video_after_jev_miss():
+    row = {
+        "channel_id": "UCxxxxxxxxxxxxxxxxxxx",
+        "channel_title": "Haywood County Government",
+        "county_name": "Haywood County",
+        "discovery_method": "website_scrape",
+    }
+    uploads = [
+        {"video_id": "video000001", "title": "Vlog", "description": ""},
+        {"video_id": "video000002", "title": "Board Meeting", "description": "Agenda"},
+    ]
+    with (
+        patch(
+            "scrapers.youtube.load_missing_county_channels.fetch_newest_channel_uploads",
+            return_value=uploads,
+        ),
+        patch(
+            "scrapers.youtube.load_missing_county_channels.jev_meta_keep_for_upload",
+            side_effect=[(0.1, "video000001"), (0.9, "video000002")],
+        ),
+    ):
+        ok, reason, keep_p = evaluate_discover_for_bronze(
+            row, state_code="NC", youtube_api_key="fake", min_meeting_p=0.6,
+        )
+    assert ok is True
+    assert keep_p == 0.9
+    assert "video000002" in reason
+
+
+def test_evaluate_rejects_when_all_jev_videos_below_threshold():
     row = {
         "channel_id": "UCxxxxxxxxxxxxxxxxxxx",
         "channel_title": "Random Channel",
         "county_name": "Haywood County",
         "discovery_method": "website_scrape",
     }
+    uploads = [
+        {"video_id": f"video{i:06d}", "title": "Vlog", "description": ""}
+        for i in range(3)
+    ]
     with (
         patch(
-            "scrapers.youtube.load_missing_county_channels.fetch_newest_channel_upload",
-            return_value={"video_id": "abcdefghijk", "title": "Vlog", "description": ""},
+            "scrapers.youtube.load_missing_county_channels.fetch_newest_channel_uploads",
+            return_value=uploads,
         ),
         patch(
             "scrapers.youtube.load_missing_county_channels.jev_meta_keep_for_upload",
-            return_value=(0.1, "abcdefghijk"),
+            side_effect=[(0.1, u["video_id"]) for u in uploads],
         ),
     ):
         ok, reason, keep_p = evaluate_discover_for_bronze(
@@ -150,4 +185,4 @@ def test_evaluate_rejects_when_jev_keep_below_threshold():
         )
     assert ok is False
     assert keep_p == 0.1
-    assert "jev_below_threshold" in reason
+    assert "jev_exhausted" in reason
