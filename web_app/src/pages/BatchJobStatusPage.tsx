@@ -1814,7 +1814,7 @@ export default function BatchJobStatusPage() {
                         title={
                           runningSteps.size > 0
                             ? 'Finish the running step(s) before a full-pipeline run'
-                            : `Run the full pipeline (catalog → captions → analyze) for ${scopeLaunchLabel} states`
+                            : `Run the full pipeline (discover → catalog → captions → analyze) for ${scopeLaunchLabel} states`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >

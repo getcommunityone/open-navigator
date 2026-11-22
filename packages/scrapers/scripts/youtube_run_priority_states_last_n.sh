@@ -33,7 +33,8 @@
 #   TRANSCRIPT_SOURCE=ytdlp-only       — skip youtube-transcript-api; use yt-dlp subtitles only
 #   YOUTUBE_USE_WEBSHARE=0           — opt out of Webshare (direct egress + cookies)
 #   DRY_RUN=1          — print jurisdictions / dry-run loaders only
-#   SKIP_CATALOG=1     — skip step 1
+#   SKIP_DISCOVER=1    — skip stage 0 (channel discovery) when STEP=all
+#   SKIP_CATALOG=1     — skip catalog when STEP=all
 #   CATALOG_FORCE=1    — pass --force (last N videos, not incremental-only-after-last insert)
 #   CATALOG_YTDLP=1    — unset YOUTUBE_API_KEY for catalog (avoid googleapis.com hangs; use yt-dlp)
 #   CHANNEL_SOURCE=    — override per-jurisdiction catalog source (auto|counties-scraped|municipalities-scraped)
@@ -239,6 +240,23 @@ for j in runs:
     jtype = (j.jurisdiction_type or "").strip() or "unknown"
     print(f"{j.state_code}\t{j.jurisdiction_id}\t{j.jurisdiction_name}\t{jtype}")
 PY
+}
+
+run_discover() {
+  # Stage 0: find missing YouTube channels (candidate CSV). Same entry point as
+  # the dashboard's Discover Run button (#689).
+  local -a args=(--states "$STATES")
+  if [[ "${COHORT:-}" == "data_centers" ]]; then
+    args+=(--cohort data_centers)
+  fi
+  if [[ -n "${DRY_RUN:-}" ]]; then
+    echo "[dry-run] would run load_missing_county_channels.py ${args[*]}"
+    return 0
+  fi
+  echo "=== Discover: channel candidates for states=$STATES cohort=${COHORT:-all} ==="
+  run_with_vpn_retry "discover" \
+    "$PYTHON" packages/scrapers/src/scrapers/youtube/load_missing_county_channels.py \
+    "${args[@]}"
 }
 
 run_catalog() {
@@ -552,6 +570,7 @@ case "$STEP" in
   analyze) run_analyze ;;
   each) run_each_jurisdiction ;;
   all)
+    [[ -z "${SKIP_DISCOVER:-}" ]] && run_discover
     [[ -z "${SKIP_CATALOG:-}" ]] && run_catalog
     run_captions
     run_analyze
@@ -562,6 +581,7 @@ case "$STEP" in
     ;;
   *)
     echo "Usage: $0 [catalog|captions|analyze|each|all|list]" >&2
+    echo "  all  — discover → catalog → captions → analyze" >&2
     echo "  each — round-robin: per jurisdiction, captions then analyze, then next" >&2
     exit 1
     ;;
