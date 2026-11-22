@@ -26,7 +26,9 @@ def test_resolve_numbered_and_plain(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("YOUTUBE_KEY_TIER_1", "free")
     monkeypatch.setenv("YOUTUBE_API_KEY_2", "key-two")
     monkeypatch.setenv("YOUTUBE_KEY_TIER_2", "free")
-    monkeypatch.setenv("YOUTUBE_API_KEY", "key-one")  # dedupe
+    # Legacy alias of KEY_1 — same value, tagged free so it does not sort as untagged.
+    monkeypatch.setenv("YOUTUBE_API_KEY", "key-one")
+    monkeypatch.setenv("YOUTUBE_KEY_TIER", "free")
     assert yak.resolve_youtube_api_keys(env_path="/nonexistent/.env") == [
         "key-one",
         "key-two",
