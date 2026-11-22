@@ -395,3 +395,58 @@ def test_scrape_http_city_site_still_retries_on_home(monkeypatch):
         assert calls == ["https://www.tuscaloosa.com/x"]
     finally:
         sh._DIRECT_FIRST_HOSTS.clear()
+
+
+def test_wait_until_vpn_up_polls_until_require_vpn_passes(monkeypatch):
+    """#700: Discover waits (poll) instead of exiting when Surfshark drops."""
+    net = _Net(routes=ROUTES_VPN_DOWN).install(monkeypatch)
+    sleeps: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        # Bring the tunnel back after the first wait.
+        if len(sleeps) == 1:
+            net.routes = ROUTES_VPN_UP
+
+    monkeypatch.setattr(vg.time, "sleep", fake_sleep)
+    monkeypatch.setenv("VPN_WAIT_POLL_SECONDS", "7")
+    vg.wait_until_vpn_up("discover Henrico, VA")
+    assert sleeps == [7.0]
+    assert net.public_calls >= 1
+
+
+def test_async_call_with_vpn_retry_retries_after_wait(monkeypatch):
+    _Net(routes=ROUTES_VPN_DOWN).install(monkeypatch)
+    attempts = {"n": 0}
+    sleeps: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(vg.time, "sleep", fake_sleep)
+    monkeypatch.setattr(vg, "vpn_wait_poll_seconds", lambda: 1.0)
+
+    # First require_vpn inside wait fails once more then passes via patched require.
+    checks = {"n": 0}
+
+    def fake_require(*, recheck_seconds: float = vg.DEFAULT_RECHECK_SECONDS) -> None:
+        checks["n"] += 1
+        if checks["n"] == 1:
+            raise vg.VpnRequiredError("still down")
+        return None
+
+    async def factory() -> str:
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise vg.VpnRequiredError("Surfshark is off")
+        return "ok"
+
+    monkeypatch.setattr(vg, "require_vpn", fake_require)
+
+    async def go() -> str:
+        return await vg.async_call_with_vpn_retry(factory, what="discover test")
+
+    assert asyncio.run(go()) == "ok"
+    assert attempts["n"] == 2
+    assert sleeps == [1.0]
+    assert checks["n"] == 2
