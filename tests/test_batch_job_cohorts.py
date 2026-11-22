@@ -177,3 +177,47 @@ def test_launch_sets_cohort_env(launch_client, monkeypatch):
     assert r.status_code == 200
     assert captured["env"]["COHORT"] == "data_centers"
     assert captured["env"]["STATES"] == "AL"
+
+
+def test_stop_all_cancels_orphan_running_batches(launch_client, monkeypatch):
+    """Stop all with no live launch PIDs still clears status=running DB rows (#685)."""
+    monkeypatch.setattr("api.routes.batch_jobs._read_launches", list)
+    monkeypatch.setattr(
+        "api.batch_jobs.batch_job_db.cancel_running_batches",
+        lambda **_kw: ["captions-orphan-1"],
+    )
+    monkeypatch.setattr(
+        "api.routes.batch_jobs._kill_processes_for_batch_ids",
+        lambda *_a, **_k: [999001],
+    )
+    r = launch_client.post("/api/batch-jobs/launch/stop", json={})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["cancelled_batches"] == ["captions-orphan-1"]
+    assert body["stopped"] == 0
+    assert 999001 in body["pids"]
+    assert "cancelled" in body["detail"].lower()
+    assert "No running launch found" not in body["detail"]
+
+
+def test_stop_step_skips_orphan_cancel(launch_client, monkeypatch):
+    """Per-step stop must not wipe unrelated running batch rows."""
+    called = {"cancel": False}
+
+    def _cancel(**_kw):
+        called["cancel"] = True
+        return ["should-not-run"]
+
+    monkeypatch.setattr("api.routes.batch_jobs._read_launches", list)
+    monkeypatch.setattr(
+        "api.batch_jobs.batch_job_db.cancel_running_batches",
+        _cancel,
+    )
+    r = launch_client.post(
+        "/api/batch-jobs/launch/stop",
+        json={"step": "analyze"},
+    )
+    assert r.status_code == 200
+    assert called["cancel"] is False
+    assert r.json()["cancelled_batches"] == []
+    assert "No running launch found" in r.json()["detail"]

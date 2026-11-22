@@ -201,6 +201,8 @@ export type StopResult = {
   stopped: number
   steps: string[]
   pids: number[]
+  /** Batch ids force-cancelled in Postgres (orphan rows with no launch PID). */
+  cancelled_batches?: string[]
   detail: string
 }
 

@@ -1821,12 +1821,16 @@ export default function BatchJobStatusPage() {
                         {launching ? 'Launching…' : `▶ Run all · ${scopeLaunchLabel}`}
                       </button>
                     ) : null}
-                    {ls?.enabled && (ls?.busy || runningSteps.size > 0 || stalledSteps.size > 0) ? (
+                    {ls?.enabled &&
+                    (ls?.busy ||
+                      runningSteps.size > 0 ||
+                      stalledSteps.size > 0 ||
+                      data.totals.running > 0) ? (
                       <button
                         type="button"
                         disabled={stopping}
                         onClick={() => void stopLaunch()}
-                        title="Stop all running pipeline jobs (SIGTERM — work checkpoints and exits)"
+                        title="Stop tracked launches and cancel running batch rows (so Run all can re-enable)"
                         className="inline-flex items-center gap-1 rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {stopping ? 'Stopping…' : '■ Stop all'}

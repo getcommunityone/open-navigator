@@ -526,6 +526,44 @@ def _kill_launch(meta: Dict[str, Any], *, sig: int = signal.SIGTERM) -> None:
             pass
 
 
+def _kill_processes_for_batch_ids(batch_ids: List[str], *, sig: int = signal.SIGTERM) -> List[int]:
+    """Best-effort: signal local processes whose cmdline contains ``--batch-id <id>``.
+
+    External caption loops (outside ``launch.json``) keep writing ``status=running``
+    unless their workers are stopped when Stop all cancels the DB row (#685).
+    """
+    if not batch_ids:
+        return []
+    needles = [f"--batch-id {bid}" for bid in batch_ids if bid]
+    needles += [f"--batch-id={bid}" for bid in batch_ids if bid]
+    if not needles:
+        return []
+    killed: List[int] = []
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return []
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            cmdline = (entry / "cmdline").read_bytes().replace(b"\x00", b" ").decode(
+                "utf-8", errors="replace"
+            )
+        except (OSError, ValueError):
+            continue
+        if not any(n in cmdline for n in needles):
+            continue
+        pid = int(entry.name)
+        if pid == os.getpid():
+            continue
+        try:
+            os.kill(pid, sig)
+            killed.append(pid)
+        except OSError:
+            pass
+    return killed
+
+
 def _classify_launches(freshest: str) -> "tuple[List[Dict[str, Any]], List[Dict[str, Any]]]":
     """(running, stalled) metas among live launches; dead ones are ignored."""
     running: List[Dict[str, Any]] = []
@@ -769,6 +807,7 @@ class StopResponse(BaseModel):
     stopped: int = 0
     steps: List[str] = Field(default_factory=list)
     pids: List[int] = Field(default_factory=list)
+    cancelled_batches: List[str] = Field(default_factory=list)
     detail: str = ""
 
 
@@ -779,7 +818,11 @@ class StopResponse(BaseModel):
 )
 async def stop_pipeline(req: StopRequest) -> StopResponse:
     """Stop running pipeline launch(es). Signals the detached process group so the
-    whole subtree exits. ``step`` targets one step; omit it to stop everything."""
+    whole subtree exits. ``step`` targets one step; omit it to stop everything.
+
+    Also force-cancels orphan ``status=running`` batch rows so Stop all cannot leave
+    Run all blocked when work was started outside ``launch.json`` (#685).
+    """
     if not _launch_enabled():
         raise HTTPException(
             status_code=403, detail="Job control disabled (set BATCH_JOBS_ALLOW_LAUNCH=1)."
@@ -789,7 +832,7 @@ async def stop_pipeline(req: StopRequest) -> StopResponse:
         raise HTTPException(status_code=400, detail=f"step must be one of {list(_LAUNCH_STEPS)}")
     sig = signal.SIGKILL if req.force else signal.SIGTERM
 
-    def _do_stop() -> "tuple[List[str], List[int]]":
+    def _do_stop() -> "tuple[List[str], List[int], List[str], List[int]]":
         kept: List[Dict[str, Any]] = []
         stopped_steps: List[str] = []
         stopped_pids: List[int] = []
@@ -808,23 +851,46 @@ async def stop_pipeline(req: StopRequest) -> StopResponse:
                 kept.append(m)  # alive but not targeted → keep tracking
             # dead launches are dropped (reaped) either way
         _write_launches(kept)
-        return stopped_steps, stopped_pids
+        cancelled: List[str] = []
+        worker_pids: List[int] = []
+        # Full Stop all (no step filter): clear DB running rows so totals.running
+        # and Run all aren't stuck on orphan caption/analyze batches.
+        if not step:
+            from api.batch_jobs.batch_job_db import cancel_running_batches
 
-    stopped_steps, stopped_pids = await asyncio.to_thread(_do_stop)
-    if not stopped_pids:
-        scope = f"step '{step}'" if step else "any step"
-        return StopResponse(detail=f"No running launch found for {scope}.")
+            cancelled = cancel_running_batches(reason="stopped from dashboard Stop all")
+            # External workers (not in launch.json) keep flipping rows back to
+            # running unless we signal them too.
+            worker_pids = _kill_processes_for_batch_ids(cancelled, sig=sig)
+        return stopped_steps, stopped_pids, cancelled, worker_pids
+
+    stopped_steps, stopped_pids, cancelled, worker_pids = await asyncio.to_thread(_do_stop)
     steps = sorted(set(s for s in stopped_steps if s))
     how = "SIGKILL" if req.force else "SIGTERM"
-    logger.info(f"stopped pipeline launches via {how}: steps={steps} pids={stopped_pids}")
+    parts: List[str] = []
+    if stopped_pids:
+        parts.append(
+            f"Stopped {len(stopped_pids)} launch(es) ({', '.join(steps) or 'unknown'}) via {how}"
+        )
+        logger.info(f"stopped pipeline launches via {how}: steps={steps} pids={stopped_pids}")
+    if cancelled:
+        parts.append(
+            f"cancelled {len(cancelled)} running batch row(s) "
+            f"({', '.join(cancelled[:5])}{'…' if len(cancelled) > 5 else ''})"
+        )
+        logger.info(f"cancelled running batches on stop: {cancelled}")
+    if worker_pids:
+        parts.append(f"signalled {len(worker_pids)} orphan worker pid(s)")
+        logger.info(f"signalled orphan batch workers on stop: {worker_pids}")
+    if not parts:
+        scope = f"step '{step}'" if step else "any step"
+        return StopResponse(detail=f"No running launch found for {scope}.")
     return StopResponse(
         stopped=len(stopped_pids),
         steps=steps,
-        pids=stopped_pids,
-        detail=(
-            f"Stopped {len(stopped_pids)} launch(es) ({', '.join(steps) or 'unknown'}). "
-            "The dashboard will clear as the process exits."
-        ),
+        pids=stopped_pids + worker_pids,
+        cancelled_batches=cancelled,
+        detail="; ".join(parts) + ". The dashboard will clear on the next refresh.",
     )
 
 

@@ -208,6 +208,68 @@ def reap_stale_running_batches(*, limit: int = 30) -> int:
     return reaped
 
 
+def cancel_running_batches(
+    *,
+    reason: str = "stopped from dashboard",
+    limit: int = 50,
+) -> List[str]:
+    """Force-cancel every ``status=running`` batch row (Stop all / orphan cleanup).
+
+    Unlike ``reap_stale_running_batches``, this does not wait for the inactivity
+    window — the operator asked to stop. Returns cancelled ``batch_id``s.
+    """
+    if not _use_db():
+        return []
+    from datetime import datetime, timezone
+
+    from api.batch_jobs.batch_job_status import persist_batch_job
+
+    cancelled: List[str] = []
+    try:
+        with get_db_connection() as conn:
+            ensure_batch_job_tables(conn)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT payload
+                    FROM bronze.youtube_batch_job_runs
+                    WHERE status = 'running'
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+        for row in rows:
+            payload = row["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            job = BatchJob.from_dict(payload)
+            if (job.status or "").lower() != "running":
+                continue
+            finished = datetime.now(timezone.utc).isoformat()
+            job.status = "cancelled"
+            job.finished_at = finished
+            cfg = dict(job.config or {})
+            cfg["stop_cancel_reason"] = reason
+            job.config = cfg
+            for j in job.jurisdictions:
+                if (j.status or "").lower() == "running":
+                    j.status = "failed"
+                    j.exit_code = -1
+                    j.finished_at = finished
+                    j.updated_at = finished
+                    j.current_video_id = ""
+                    j.current_video_title = ""
+                    j.current_video_started_at = ""
+            persist_batch_job(job)
+            if job.batch_id:
+                cancelled.append(str(job.batch_id))
+    except Exception as exc:
+        logger.warning("cancel_running_batches failed: %s", exc)
+    return cancelled
+
+
 def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
     """
     Pipeline counts from the per-event bronze stamps (migration 083):
