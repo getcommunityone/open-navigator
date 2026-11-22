@@ -175,6 +175,19 @@ def _sanitize_dashboard_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
+def _parse_dashboard_cohort(cohort: Optional[str] = None) -> Optional[str]:
+    """Normalize optional dashboard ``?cohort=`` (only ``data_centers`` filters stage report)."""
+    if cohort is None or not str(cohort).strip():
+        return None
+    c = str(cohort).strip().lower()
+    if c not in ("priority", "data_centers", "all"):
+        raise HTTPException(
+            status_code=400,
+            detail="cohort must be one of priority, data_centers, all",
+        )
+    return c
+
+
 async def _latest_dashboard_revision_async() -> Optional[str]:
     try:
         from api.batch_jobs.batch_job_db import latest_dashboard_revision
@@ -191,6 +204,7 @@ async def _load_dashboard_async(
     enrich_bronze_only_running: bool = False,
     detail: str = "full",
     batch_limit: int = 25,
+    cohort: Optional[str] = None,
 ) -> Dict[str, Any]:
     return await asyncio.to_thread(
         _load_dashboard,
@@ -199,6 +213,7 @@ async def _load_dashboard_async(
         enrich_bronze_only_running=enrich_bronze_only_running,
         detail=detail,
         batch_limit=batch_limit,
+        cohort=cohort,
     )
 
 
@@ -209,6 +224,7 @@ def _load_dashboard(
     enrich_bronze_only_running: bool = False,
     detail: str = "full",
     batch_limit: int = 25,
+    cohort: Optional[str] = None,
 ) -> Dict[str, Any]:
     from api.batch_jobs.batch_job_dashboard import (
         VideoPayloadMode,
@@ -217,7 +233,7 @@ def _load_dashboard(
     )
 
     if detail == "summary":
-        payload = build_dashboard_summary(limit=batch_limit)
+        payload = build_dashboard_summary(limit=batch_limit, cohort=cohort)
     else:
         video_mode: VideoPayloadMode = "all" if detail == "full" else "running"
         payload = build_dashboard_data(
@@ -226,6 +242,7 @@ def _load_dashboard(
             enrich_bronze_only_running=enrich_bronze_only_running,
             batch_limit=batch_limit,
             video_mode=video_mode,
+            cohort=cohort,
         )
     return _sanitize_dashboard_payload(payload)
 
@@ -237,8 +254,13 @@ async def stream_batch_jobs(
         False,
         description="When true, refresh transcript counts from bronze each tick (heavier)",
     ),
+    cohort: Optional[str] = Query(
+        None,
+        description="Launch cohort; data_centers scopes stage_report to DC jurisdictions",
+    ),
 ) -> StreamingResponse:
     """SSE stream of dashboard JSON; pushes when DB revision changes."""
+    cohort_norm = _parse_dashboard_cohort(cohort)
 
     async def event_generator() -> AsyncIterator[str]:
         last_rev: Optional[str] = None
@@ -251,6 +273,7 @@ async def stream_batch_jobs(
                     refresh_files=False,
                     enrich_bronze=False,
                     detail="summary",
+                    cohort=cohort_norm,
                 )
                 yield (
                     "event: summary\n"
@@ -342,18 +365,24 @@ async def list_batch_jobs(
         description="summary = aggregates + batch list (default); standard/full load jurisdiction payloads (slow)",
     ),
     batch_limit: int = Query(25, ge=1, le=100),
+    cohort: Optional[str] = Query(
+        None,
+        description="Launch cohort; data_centers scopes stage_report to DC jurisdictions",
+    ),
 ) -> BatchJobsDashboardResponse:
     if detail not in ("summary", "standard", "full"):
         raise HTTPException(
             status_code=400,
             detail="detail must be summary, standard, or full",
         )
+    cohort_norm = _parse_dashboard_cohort(cohort)
     try:
         payload = await _load_dashboard_cached(
             refresh_files=refresh_files,
             enrich_bronze=enrich_bronze,
             detail=detail,
             batch_limit=batch_limit,
+            cohort=cohort_norm,
         )
         return BatchJobsDashboardResponse(**payload)
     except Exception as exc:

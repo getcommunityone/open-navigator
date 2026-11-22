@@ -200,7 +200,7 @@ def pipeline_activity_at_from_batches(batches: List[Dict[str, Any]]) -> str:
     return best
 
 
-def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
+def build_dashboard_summary(*, limit: int = 30, cohort: str | None = None) -> Dict[str, Any]:
     """Fast path: batch list + totals from ``summary`` JSON only (no payload parse)."""
     import datetime as _dt
     import os
@@ -296,7 +296,7 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
     if use_db:
         from api.batch_jobs.batch_job_db import dashboard_stage_report
 
-        stage_report = dashboard_stage_report()
+        stage_report = dashboard_stage_report(cohort=cohort)
     now = _dt.datetime.now(_dt.timezone.utc)
     return {
         "generated_at": now.isoformat(),
@@ -415,6 +415,7 @@ def _aggregate_jobs(
     jobs: List[BatchJob],
     *,
     enrich_transcript_from_bronze: bool = False,
+    cohort: str | None = None,
 ) -> Dict[str, Any]:
     batches: List[Dict[str, Any]] = []
     totals = {
@@ -484,6 +485,8 @@ def _aggregate_jobs(
                         rr = True
                     plan_key = _batch_plan_cache_key(states, round_robin=bool(rr))
                     if plan_key and plan_key not in plan_by_states:
+                        # Plan expansion is per running batch config, not the dashboard
+                        # cohort scope; stage_report applies cohort filtering separately.
                         plan_by_states[plan_key] = fetch_batch_plan_jurisdictions_cached(
                             states, round_robin=bool(rr)
                         )
@@ -567,7 +570,7 @@ def _aggregate_jobs(
         "last_activity_at": latest_dashboard_activity_at(jobs),
         "totals": totals,
         "batches": batches,
-        "stage_report": dashboard_stage_report(),
+        "stage_report": dashboard_stage_report(cohort=cohort),
         "source": "database",
         "detail": "full",
     }
@@ -622,6 +625,7 @@ def build_dashboard_data(
     enrich_bronze_only_running: bool = False,
     batch_limit: int = 25,
     video_mode: VideoPayloadMode = "running",
+    cohort: str | None = None,
 ) -> Dict[str, Any]:
     """
     Build dashboard payload. Prefer Postgres (``bronze.youtube_batch_job_runs``);
@@ -662,7 +666,9 @@ def build_dashboard_data(
                     for job in jobs:
                         _enrich_file_counts(job)
                 payload = _aggregate_jobs(
-                    jobs, enrich_transcript_from_bronze=enrich_bronze
+                    jobs,
+                    enrich_transcript_from_bronze=enrich_bronze,
+                    cohort=cohort,
                 )
                 _override_recent_counts_from_events(payload)
                 if video_mode != "all":
@@ -690,7 +696,9 @@ def build_dashboard_data(
             enrich_jobs_from_bronze(jobs)
         except Exception:
             pass
-    payload = _aggregate_jobs(jobs, enrich_transcript_from_bronze=enrich_bronze)
+    payload = _aggregate_jobs(
+        jobs, enrich_transcript_from_bronze=enrich_bronze, cohort=cohort
+    )
     payload["source"] = "files"
     if video_mode != "all":
         payload["batches"] = [
