@@ -426,6 +426,10 @@ from api.routes import application_links as application_links_routes
 
 app.include_router(application_links_routes.public_router, prefix="/api")
 app.include_router(application_links_routes.admin_router, prefix="/api")
+# Jev meeting-kind review / override (#668).
+from api.routes import meeting_kind_reviews as meeting_kind_reviews_routes
+
+app.include_router(meeting_kind_reviews_routes.admin_router, prefix="/api")
 
 # Custom Swagger UI with logo.
 # Served at /api/docs (not /docs) so the /docs/ path is free for the Docusaurus

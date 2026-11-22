@@ -707,6 +707,9 @@ from api.routes import application_links as application_links_routes
 
 app.include_router(application_links_routes.public_router, prefix="/api")
 app.include_router(application_links_routes.admin_router, prefix="/api")
+from api.routes import meeting_kind_reviews as meeting_kind_reviews_routes
+
+app.include_router(meeting_kind_reviews_routes.admin_router, prefix="/api")
 
 # Serve React frontend
 static_dir = Path(__file__).parent / "static"
