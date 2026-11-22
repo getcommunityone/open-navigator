@@ -14,37 +14,37 @@ Open Navigator gives you access to comprehensive accountability data across the 
 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', margin: '20px 0'}}>
 
 <div style={{padding: '15px', background: '#e3f2fd', borderLeft: '4px solid #2196F3', borderRadius: '4px'}}>
-  <div style={{fontSize: '2em', fontWeight: 'bold', color: '#1976D2'}}>925</div>
-  <div style={{color: '#555'}}>Government jurisdictions tracked</div>
-  <div style={{fontSize: '0.9em', color: '#777', marginTop: '5px'}}>Counties, cities, townships, school districts</div>
+ <div style={{fontSize: '2em', fontWeight: 'bold', color: '#1976D2'}}>925</div>
+ <div style={{color: '#555'}}>Government jurisdictions tracked</div>
+ <div style={{fontSize: '0.9em', color: '#777', marginTop: '5px'}}>Counties, cities, townships, school districts</div>
 </div>
 
 <div style={{padding: '15px', background: '#f1f8e9', borderLeft: '4px solid #8BC34A', borderRadius: '4px'}}>
-  <div style={{fontSize: '2em', fontWeight: 'bold', color: '#689F38'}}>43,726</div>
-  <div style={{color: '#555'}}>Nonprofit organizations</div>
-  <div style={{fontSize: '0.9em', color: '#777', marginTop: '5px'}}>Complete IRS Form 990 data from 5 states</div>
+ <div style={{fontSize: '2em', fontWeight: 'bold', color: '#689F38'}}>43,726</div>
+ <div style={{color: '#555'}}>Nonprofit organizations</div>
+ <div style={{fontSize: '0.9em', color: '#777', marginTop: '5px'}}>Complete IRS Form 990 data from 5 states</div>
 </div>
 
 <div style={{padding: '15px', background: '#fff3e0', borderLeft: '4px solid #FF9800', borderRadius: '4px'}}>
-  <div style={{fontSize: '2em', fontWeight: 'bold', color: '#F57C00'}}>6,913</div>
-  <div style={{color: '#555'}}>Meeting minutes analyzed</div>
-  <div style={{fontSize: '0.9em', color: '#777', marginTop: '5px'}}>AI-extracted decisions and budget items</div>
+ <div style={{fontSize: '2em', fontWeight: 'bold', color: '#F57C00'}}>6,913</div>
+ <div style={{color: '#555'}}>Meeting minutes analyzed</div>
+ <div style={{fontSize: '0.9em', color: '#777', marginTop: '5px'}}>AI-extracted decisions and budget items</div>
 </div>
 
 <div style={{padding: '15px', background: '#fce4ec', borderLeft: '4px solid #E91E63', borderRadius: '4px'}}>
-  <div style={{fontSize: '2em', fontWeight: 'bold', color: '#C2185B'}}>362</div>
-  <div style={{color: '#555'}}>Elected officials</div>
-  <div style={{fontSize: '0.9em', color: '#777', marginTop: '5px'}}>Voting records and decision patterns</div>
+ <div style={{fontSize: '2em', fontWeight: 'bold', color: '#C2185B'}}>362</div>
+ <div style={{color: '#555'}}>Elected officials</div>
+ <div style={{fontSize: '0.9em', color: '#777', marginTop: '5px'}}>Voting records and decision patterns</div>
 </div>
 
 </div>
 
 ### Coverage Breakdown
 
-- **🏛️ Jurisdictions**: 925 tracked across 5 states
-- **🏙️ School Districts**: 306 districts with financial data
-- **🏫 Churches**: 4,372 congregations mapped
-- **🗺️ States**: 5 states with complete IRS BMF data
+- ** Jurisdictions**: 925 tracked across 5 states
+- ** School Districts**: 306 districts with financial data
+- ** Churches**: 4,372 congregations mapped
+- ** States**: 5 states with complete IRS BMF data
 
 **All data is free and public** - sourced from official government registries and IRS filings.
 
@@ -185,19 +185,19 @@ The platform compares what organizations **say** in meetings with what they **fu
 
 | Meeting Rhetoric | Budget Reality | Analysis |
 |------------------|----------------|----------|
-| "Critical priority" | +5% increase | ✅ Aligned |
-| "Essential program" | Flat funding | ⚠️ Lip Service |
-| Rarely discussed | +25% increase | 🔍 Hidden Priority |
-| Heavy debate | -15% cut | ❌ Performative Talk |
+| "Critical priority" | +5% increase | Yes Aligned |
+| "Essential program" | Flat funding | Warning Lip Service |
+| Rarely discussed | +25% increase | Hidden Priority |
+| Heavy debate | -15% cut | No Performative Talk |
 
 ### Urgency Levels
 
 Opportunities are classified by action urgency:
 
-- 🔴 **Critical** - Vote imminent, immediate action required
-- 🟠 **High** - Active debate, high engagement needed
-- 🟡 **Medium** - Moderate discussion, monitoring recommended
-- 🟢 **Low** - Early stage, awareness building
+- **Critical** - Vote imminent, immediate action required
+- **High** - Active debate, high engagement needed
+- **Medium** - Moderate discussion, monitoring recommended
+- **Low** - Early stage, awareness building
 
 ### Data Quality
 

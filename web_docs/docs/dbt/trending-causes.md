@@ -8,7 +8,7 @@ sidebar_position: 2
 
 The dbt project includes models to load `jurisdiction_state_aggregate` table with **location-specific trending causes** based on decisions from the last 90 days.
 
-✨ **NEW:** The frontend now displays trending causes dynamically based on the selected geography (national, state, county, or city level).
+ **NEW:** The frontend now displays trending causes dynamically based on the selected geography (national, state, county, or city level).
 
 ## Quick Start
 
@@ -46,10 +46,10 @@ dbt run --select stg_bronze_decisions int_trending_causes_by_jurisdiction jurisd
 - Ranks causes by decision count and recency
 - Includes top 10 trending causes per jurisdiction
 - Generates JSON structure with:
-  - Cause category and code
-  - Decision count and unique topics
-  - Most recent decision date
-  - Sample headlines (up to 3)
+ - Cause category and code
+ - Decision count and unique topics
+ - Most recent decision date
+ - Sample headlines (up to 3)
 
 ### 3. Marts Layer
 
@@ -74,60 +74,60 @@ The `trending_causes` JSONB column contains different structures depending on th
 ### City Level (Jurisdiction-Specific)
 ```json
 [
-  {
-    "cause": "Education and Workforce",
-    "code": "COFOG-09",
-    "decision_count": 5,
-    "topics": 3,
-    "most_recent": "2024-05-22",
-    "rank": 1,
-    "sample_headlines": [
-      "MPS highlights literacy strategies...",
-      "Board approves new curriculum...",
-      "Teacher hiring approved..."
-    ]
-  },
-  {
-    "cause": "Health",
-    "code": "COFOG-07",
-    "decision_count": 3,
-    "topics": 2,
-    "most_recent": "2024-05-20",
-    "rank": 2,
-    "sample_headlines": [...]
-  }
+ {
+ "cause": "Education and Workforce",
+ "code": "COFOG-09",
+ "decision_count": 5,
+ "topics": 3,
+ "most_recent": "2024-05-22",
+ "rank": 1,
+ "sample_headlines": [
+ "MPS highlights literacy strategies...",
+ "Board approves new curriculum...",
+ "Teacher hiring approved..."
+ ]
+ },
+ {
+ "cause": "Health",
+ "code": "COFOG-07",
+ "decision_count": 3,
+ "topics": 2,
+ "most_recent": "2024-05-20",
+ "rank": 2,
+ "sample_headlines": [...]
+ }
 ]
 ```
 
 ### State Level (Aggregated Across State)
 ```json
 [
-  {
-    "cause": "Education and Workforce",
-    "decision_count": 127,
-    "jurisdictions": 15
-  },
-  {
-    "cause": "Health",
-    "decision_count": 89,
-    "jurisdictions": 12
-  }
+ {
+ "cause": "Education and Workforce",
+ "decision_count": 127,
+ "jurisdictions": 15
+ },
+ {
+ "cause": "Health",
+ "decision_count": 89,
+ "jurisdictions": 12
+ }
 ]
 ```
 
 ### National Level (Aggregated Across Nation)
 ```json
 [
-  {
-    "cause": "Education and Workforce",
-    "decision_count": 1543,
-    "states": 42
-  },
-  {
-    "cause": "Infrastructure",
-    "decision_count": 1201,
-    "states": 38
-  }
+ {
+ "cause": "Education and Workforce",
+ "decision_count": 1543,
+ "states": 42
+ },
+ {
+ "cause": "Infrastructure",
+ "decision_count": 1201,
+ "states": 38
+ }
 ]
 ```
 
@@ -164,37 +164,37 @@ After running the models, verify trending causes are populated:
 
 ```sql
 -- Check city-level trending causes
-SELECT 
-  city,
-  state_code,
-  jsonb_array_length(trending_causes) as cause_count,
-  trending_causes
+SELECT
+ city,
+ state_code,
+ jsonb_array_length(trending_causes) as cause_count,
+ trending_causes
 FROM jurisdiction_state_aggregate
-WHERE level = 'city' 
-  AND trending_causes IS NOT NULL
-  AND city ILIKE '%Mobile%'
+WHERE level = 'city'
+ AND trending_causes IS NOT NULL
+ AND city ILIKE '%Mobile%'
 LIMIT 1;
 
 -- See top causes for a state
-SELECT 
-  state_code,
-  jsonb_pretty(trending_causes) as causes
+SELECT
+ state_code,
+ jsonb_pretty(trending_causes) as causes
 FROM jurisdiction_state_aggregate
-WHERE level = 'state' 
-  AND state_code = 'AL';
+WHERE level = 'state'
+ AND state_code = 'AL';
 
 -- National trending causes
-SELECT jsonb_pretty(trending_causes) 
-FROM jurisdiction_state_aggregate 
+SELECT jsonb_pretty(trending_causes)
+FROM jurisdiction_state_aggregate
 WHERE level = 'national';
 ```
 
 ### Testing in the Frontend
 
 1. Start the application:
-   ```bash
-   ./start-all.sh
-   ```
+ ```bash
+ ./start-all.sh
+ ```
 
 2. Open http://localhost:5173
 
@@ -218,8 +218,8 @@ The existing Python migration scripts in `packages/hosting/src/hosting/neon/` ca
 import subprocess
 
 # Run dbt models first to calculate trending causes
-subprocess.run(['dbt', 'run', '--select', 'jurisdiction_state_aggregate'], 
-               cwd='/path/to/dbt_project')
+subprocess.run(['dbt', 'run', '--select', 'jurisdiction_state_aggregate'],
+ cwd='/path/to/dbt_project')
 
 # Then update counts using Python (jurisdictions, nonprofits, etc.)
 # The trending_causes column will be preserved
@@ -246,7 +246,7 @@ The models include data quality tests:
 - decision_date: not_null
 - bronze_decision_id: unique, not_null
 
-# int_trending_causes_by_jurisdiction  
+# int_trending_causes_by_jurisdiction
 - state_code: not_null
 - jurisdiction_name: not_null
 - cause_category: not_null
@@ -274,7 +274,7 @@ The models currently use full refresh. For incremental updates:
 
 ```sql
 {% if is_incremental() %}
-  WHERE extracted_at > (SELECT MAX(last_updated) FROM {{ this }})
+ WHERE extracted_at > (SELECT MAX(last_updated) FROM {{ this }})
 {% endif %}
 ```
 

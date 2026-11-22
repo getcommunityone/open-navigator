@@ -11,7 +11,7 @@ This week we tackled critical UX issues affecting the documentation site - fixin
 
 {/* truncate */}
 
-## 🔧 What We Fixed
+## What We Fixed
 
 ### 1. Homepage "Page Not Found" Error
 
@@ -55,7 +55,7 @@ With `routeBasePath: '/docs/'`:
 | Developer Guide | `http://localhost:3000/docs/for-developers` |
 | Dashboard | `http://localhost:3000/docs/dashboard` |
 
-## ✨ Homepage Features
+## Homepage Features
 
 The new custom homepage includes:
 
@@ -66,32 +66,32 @@ The new custom homepage includes:
 
 **Audience Pathways:**
 Two cards guiding users based on role:
-- 📊 **Policy Makers & Advocates** → `/docs/for-advocates`
-- 🛠️ **Developers & Technical Users** → `/docs/for-developers`
+- **Policy Makers & Advocates** → `/docs/for-advocates`
+- **Developers & Technical Users** → `/docs/for-developers`
 
 **Feature Highlights:**
-- 📄 Meeting Minutes & Financial Documents (90,000+ jurisdictions)
-- 🤖 Automated Analysis (AI-powered document processing)
-- 💰 Words vs Money (Budget vs meeting minute correlation)
-- 🔍 Free Public Data (Census, school district, nonprofit data)
-- 🗺️ Visual Map (Geographic opportunity discovery)
-- 📧 Draft Materials (Automated email and campaign content)
+- Meeting Minutes & Financial Documents (90,000+ jurisdictions)
+- Automated Analysis (AI-powered document processing)
+- Words vs Money (Budget vs meeting minute correlation)
+- Free Public Data (Census, school district, nonprofit data)
+- Visual Map (Geographic opportunity discovery)
+- Draft Materials (Automated email and campaign content)
 
 **Call-to-Action:**
 - Launch main application (React app on port 5173)
 - Access documentation sections
 - Explore data sources
 
-## 📊 Build Status
+## Build Status
 
 Documentation now builds successfully:
-- ✅ All routes working
-- ✅ No TypeScript errors
-- ✅ Logo displays correctly
-- ✅ Navigation links functional
-- ✅ Warnings for broken links identified (to be fixed next week)
+- Yes All routes working
+- Yes No TypeScript errors
+- Yes Logo displays correctly
+- Yes Navigation links functional
+- Yes Warnings for broken links identified (to be fixed next week)
 
-## 🚀 What's Next
+## What's Next
 
 **Week of April 27:**
 - Add civic tech section to homepage
@@ -111,7 +111,7 @@ Documentation now builds successfully:
 - Test hackathon event calendar
 - Deploy brigade chapter directory
 
-## 🎯 Roadmap: Weekly Blog Posts for 2026
+## Roadmap: Weekly Blog Posts for 2026
 
 Here's what to expect in upcoming weekly updates:
 
@@ -151,7 +151,7 @@ Here's what to expect in upcoming weekly updates:
 - Real-time meeting monitoring
 - AI-powered policy impact predictions
 
-## 📖 Try It Out
+## Try It Out
 
 Visit the new homepage at `http://localhost:3000/` to see the redesigned landing page with pathway cards, feature highlights, and clear calls-to-action.
 

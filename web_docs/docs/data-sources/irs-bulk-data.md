@@ -6,23 +6,23 @@ sidebar_position: 4
 
 Access **ALL 1.9M+ U.S. nonprofits** using the IRS Exempt Organizations Business Master File (EO-BMF).
 
-## 🎯 Why Use IRS Bulk Data?
+## Why Use IRS Bulk Data?
 
 | Feature | ProPublica API | **IRS EO-BMF** |
 |---------|----------------|----------------|
 | **Coverage** | 25 results per request | **1,952,238 total** |
 | **Alabama nonprofits** | 25 | **26,148** |
-| **Pagination** | ❌ Not available | ✅ Complete dataset |
-| **Speed** | Slow (25 at a time) | ✅ Fast (bulk download) |
+| **Pagination** | No Not available | Yes Complete dataset |
+| **Speed** | Slow (25 at a time) | Yes Fast (bulk download) |
 | **Cost** | Free | Free |
 | **Update frequency** | Real-time | Monthly |
 | **Data source** | IRS Form 990 | IRS official registry |
 
-**Result: IRS gives you 1,000x more data!** 🚀
+**Result: IRS gives you 1,000x more data!**
 
 ---
 
-## 📊 Data Source
+## Data Source
 
 **IRS Exempt Organizations Business Master File (EO-BMF)**
 
@@ -43,16 +43,16 @@ The IRS provides 4 regional CSV files for faster download:
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Download All 1.9M+ Nonprofits
 
 ```bash
 # Download ALL U.S. nonprofits (4 regional files)
 python scripts/create_all_gold_tables.py \
-  --nonprofits-only \
-  --use-irs \
-  --download-all-irs
+ --nonprofits-only \
+ --use-irs \
+ --download-all-irs
 
 # Creates 4 gold tables:
 # - nonprofits_organizations.parquet (1.9M+ records)
@@ -70,9 +70,9 @@ python scripts/create_all_gold_tables.py \
 ```bash
 # Download Alabama nonprofits only
 python scripts/create_all_gold_tables.py \
-  --nonprofits-only \
-  --states AL \
-  --use-irs
+ --nonprofits-only \
+ --states AL \
+ --use-irs
 
 # Result: 26,148 Alabama nonprofits
 ```
@@ -80,9 +80,9 @@ python scripts/create_all_gold_tables.py \
 ```bash
 # Download multiple states
 python scripts/create_all_gold_tables.py \
-  --nonprofits-only \
-  --states AL GA FL MS TN \
-  --use-irs
+ --nonprofits-only \
+ --states AL GA FL MS TN \
+ --use-irs
 
 # Result: ~100,000+ nonprofits from 5 states
 ```
@@ -94,10 +94,10 @@ python scripts/create_all_gold_tables.py \
 ```bash
 # Get only health organizations (NTEE E) from Alabama
 python scripts/create_all_gold_tables.py \
-  --nonprofits-only \
-  --states AL \
-  --ntee-codes E \
-  --use-irs
+ --nonprofits-only \
+ --states AL \
+ --ntee-codes E \
+ --use-irs
 
 # Result: 509 health nonprofits in Alabama
 ```
@@ -105,17 +105,17 @@ python scripts/create_all_gold_tables.py \
 ```bash
 # Get health + human services from all states
 python scripts/create_all_gold_tables.py \
-  --nonprofits-only \
-  --ntee-codes E P \
-  --use-irs \
-  --download-all-irs
+ --nonprofits-only \
+ --ntee-codes E P \
+ --use-irs \
+ --download-all-irs
 
 # Result: ~400,000+ health & human service orgs nationwide
 ```
 
 ---
 
-## 💻 Python API Usage
+## Python API Usage
 
 ### Example 1: Download All Regions
 
@@ -195,7 +195,7 @@ standardized.to_parquet("data/gold/alabama_health_nonprofits.parquet")
 
 ---
 
-## 📋 Data Schema
+## Data Schema
 
 ### IRS EO-BMF Columns
 
@@ -226,7 +226,7 @@ The IRS provides 28 columns per organization:
 
 ---
 
-## 🔗 Integration with Existing Pipeline
+## Integration with Existing Pipeline
 
 The IRS ingestion module integrates seamlessly with our existing ProPublica-based pipeline:
 
@@ -238,21 +238,21 @@ creator = NonprofitGoldTableCreator()
 
 # Option 1: Use IRS for specific states
 creator.create_all_gold_tables(
-    states=["AL", "GA", "FL"],
-    use_irs_data=True  # ← Use IRS instead of ProPublica
+ states=["AL", "GA", "FL"],
+ use_irs_data=True # ← Use IRS instead of ProPublica
 )
 
 # Option 2: Download ALL nonprofits
 creator.create_all_gold_tables(
-    use_irs_data=True,
-    download_all_irs=True  # ← Get all 1.9M+ orgs
+ use_irs_data=True,
+ download_all_irs=True # ← Get all 1.9M+ orgs
 )
 
 # Option 3: Filter by NTEE codes
 creator.create_all_gold_tables(
-    states=["AL"],
-    ntee_codes=["E", "P"],  # Health + Human Services
-    use_irs_data=True
+ states=["AL"],
+ ntee_codes=["E", "P"], # Health + Human Services
+ use_irs_data=True
 )
 ```
 
@@ -263,27 +263,27 @@ IRS data is automatically converted to ProPublica-compatible format:
 ```python
 # IRS columns → ProPublica schema
 {
-    'ein': df.get('ein'),
-    'name': df.get('name'),
-    'city': df.get('city'),
-    'state': df.get('state'),
-    'ntee_code': df.get('ntee_cd'),
-    'asset_amount': df.get('asset_amt'),
-    'income_amount': df.get('income_amt'),
-    'street_address': df.get('street'),
-    'zip_code': df.get('zip'),
-    'data_source': 'IRS_EO_BMF'  # Track source
+ 'ein': df.get('ein'),
+ 'name': df.get('name'),
+ 'city': df.get('city'),
+ 'state': df.get('state'),
+ 'ntee_code': df.get('ntee_cd'),
+ 'asset_amount': df.get('asset_amt'),
+ 'income_amount': df.get('income_amt'),
+ 'street_address': df.get('street'),
+ 'zip_code': df.get('zip'),
+ 'data_source': 'IRS_EO_BMF' # Track source
 }
 ```
 
 This allows you to:
-- ✅ Mix IRS + ProPublica data
-- ✅ Use same gold table schema
-- ✅ Switch between sources without changing downstream code
+- Yes Mix IRS + ProPublica data
+- Yes Use same gold table schema
+- Yes Switch between sources without changing downstream code
 
 ---
 
-## 🎓 NTEE Codes Reference
+## NTEE Codes Reference
 
 Common NTEE codes for community services:
 
@@ -305,7 +305,7 @@ Common NTEE codes for community services:
 
 ---
 
-## 📈 Performance Benchmarks
+## Performance Benchmarks
 
 Tested on standard cloud VM (4 vCPU, 16 GB RAM):
 
@@ -329,19 +329,19 @@ Tested on standard cloud VM (4 vCPU, 16 GB RAM):
 
 ### Use IRS EO-BMF When:
 
-✅ You need comprehensive coverage (all nonprofits in a state)  
-✅ You're doing bulk analysis (e.g., "all health orgs in Southeast")  
-✅ You need offline access to data  
-✅ You want faster performance (bulk downloads)  
-✅ You're building a complete nonprofit directory  
+Yes You need comprehensive coverage (all nonprofits in a state)
+Yes You're doing bulk analysis (e.g., "all health orgs in Southeast")
+Yes You need offline access to data
+Yes You want faster performance (bulk downloads)
+Yes You're building a complete nonprofit directory
 
 ### Use ProPublica API When:
 
-✅ You need real-time updates (IRS is monthly)  
-✅ You want detailed Form 990 financial breakdowns  
-✅ You need executive compensation data  
-✅ You want mission statements (IRS doesn't have these)  
-✅ You're searching for a specific organization by name  
+Yes You need real-time updates (IRS is monthly)
+Yes You want detailed Form 990 financial breakdowns
+Yes You need executive compensation data
+Yes You want mission statements (IRS doesn't have these)
+Yes You're searching for a specific organization by name
 
 ### Best Practice: Use Both!
 
@@ -351,18 +351,18 @@ Tested on standard cloud VM (4 vCPU, 16 GB RAM):
 ```python
 # 1. Download all Alabama orgs from IRS
 irs = IRSBMFIngestion()
-df_all = irs.download_state_file("AL")  # 26,148 orgs
+df_all = irs.download_state_file("AL") # 26,148 orgs
 
 # 2. Enrich top 100 with ProPublica details
 propublica = NonprofitDiscovery()
 for ein in df_all.head(100)['ein']:
-    details = propublica.get_propublica_org_details(ein)
-    # details contains mission, programs, detailed financials
+ details = propublica.get_propublica_org_details(ein)
+ # details contains mission, programs, detailed financials
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Download Fails with Timeout Error
 
@@ -377,8 +377,8 @@ irs = IRSBMFIngestion()
 ```python
 # Process states individually instead of all regions
 for state in ["AL", "GA", "FL"]:
-    df = irs.download_state_file(state)
-    # Process each state separately
+ df = irs.download_state_file(state)
+ # Process each state separately
 ```
 
 ### Need Fresh Data
@@ -390,7 +390,7 @@ df = irs.download_all_regions(force_refresh=True)
 
 ---
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [ProPublica API](./citations.md#propublica-nonprofit-explorer) — Alternative API-based source
 - [Nonprofit Discovery Module](../../discovery/README_NONPROFIT_DISCOVERY.md) — ProPublica integration
@@ -399,31 +399,31 @@ df = irs.download_all_regions(force_refresh=True)
 
 ---
 
-## 🎯 Citation
+## Citation
 
 When using IRS EO-BMF data in publications:
 
 ```bibtex
 @misc{irs_eobmf_2026,
-  title = {Exempt Organizations Business Master File Extract (EO-BMF)},
-  author = {{Internal Revenue Service}},
-  year = {2026},
-  month = {April},
-  url = {https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf},
-  note = {Accessed: 2026-04-27. Record count: 1,952,238 organizations.}
+ title = {Exempt Organizations Business Master File Extract (EO-BMF)},
+ author = {{Internal Revenue Service}},
+ year = {2026},
+ month = {April},
+ url = {https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf},
+ note = {Accessed: 2026-04-27. Record count: 1,952,238 organizations.}
 }
 ```
 
 ---
 
-## ✨ Key Takeaways
+## Key Takeaways
 
-🎯 **IRS EO-BMF provides ALL 1.9M+ U.S. nonprofits**  
-⚡ **1,000x more data than ProPublica API per request**  
-💾 **Downloads in ~30 seconds, cached for instant future access**  
-🔄 **Seamlessly integrates with existing pipeline**  
-📊 **Updated monthly by the IRS**  
-🆓 **Completely free, public domain data**  
+ **IRS EO-BMF provides ALL 1.9M+ U.S. nonprofits**
+ **1,000x more data than ProPublica API per request**
+ **Downloads in ~30 seconds, cached for instant future access**
+ **Seamlessly integrates with existing pipeline**
+ **Updated monthly by the IRS**
+🆓 **Completely free, public domain data**
 
 **Start using it today!**
 

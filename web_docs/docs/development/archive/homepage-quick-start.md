@@ -4,23 +4,23 @@ sidebar_position: 5
 
 # Ground News Homepage - Quick Start
 
-## ✅ What's Done
+## Yes What's Done
 
 Your homepage is now redesigned in the Ground News style:
 
 1. **Trending Topics Bar** - 2 rows with + to subscribe
-2. **Hero Banner** - Large featured story with image overlay  
+2. **Hero Banner** - Large featured story with image overlay
 3. **News Grid** - 6 top stories with images
 4. **Image Generator** - AI script to create topic banners
 
-## 🚀 See It Now
+## See It Now
 
 ```bash
 ./start-all.sh
 # Visit: http://localhost:5173
 ```
 
-## 🎨 Generate Topic Images (Optional)
+## Generate Topic Images (Optional)
 
 ### Setup
 ```bash
@@ -50,21 +50,21 @@ cp data/media/topics/*.png frontend/public/images/topics/
 # Update Home.tsx to use generated images instead of Unsplash
 ```
 
-## 📁 Files Created
+## Files Created
 
-- `frontend/src/pages/Home.tsx` - ✅ Redesigned homepage
-- `scripts/media/generate_topic_images.py` - ✅ Image generator
-- `scripts/media/README.md` - ✅ Documentation
-- `website/docs/development/homepage-redesign.md` - ✅ Full guide
-- `website/docs/development/homepage-redesign-summary.md` - ✅ Summary
-- `topics.txt` - ✅ Sample topics
+- `frontend/src/pages/Home.tsx` - Yes Redesigned homepage
+- `scripts/media/generate_topic_images.py` - Yes Image generator
+- `scripts/media/README.md` - Yes Documentation
+- `website/docs/development/homepage-redesign.md` - Yes Full guide
+- `website/docs/development/homepage-redesign-summary.md` - Yes Summary
+- `topics.txt` - Yes Sample topics
 
-## 🎯 Key Features
+## Key Features
 
 ### Trending Topics
 ```
-📰 World Press Freedom Day [+]  💼 Business & Markets [+]
-🤖 AI [+]  ⚕️ Health [+]  ⚽ Sports [+]  🔔 Follow Topics
+ World Press Freedom Day [+] Business & Markets [+]
+ AI [+] Health [+] Sports [+] Follow Topics
 ```
 
 ### Hero Story
@@ -77,28 +77,28 @@ Subtitle: "How 43,726 nonprofits..."
 
 ### Story Grid
 ```
-[img] AI Policy      [img] Healthcare    [img] Sports
-[img] Social Media   [img] Business      [img] Gov Transparency
+[img] AI Policy [img] Healthcare [img] Sports
+[img] Social Media [img] Business [img] Gov Transparency
 ```
 
-## 📖 Documentation
+## Documentation
 
 - **Quick Summary**: [Homepage Redesign Summary](homepage-redesign-summary.md)
 - **Full Guide**: [Homepage Redesign](homepage-redesign.md)
 - **Image Generator**: `scripts/media/README.md`
 
-## ✅ Testing
+## Yes Testing
 
 Already tested:
-- ✅ TypeScript compiles
-- ✅ Frontend builds successfully
-- ✅ No errors
-- ✅ All functionality works
+- Yes TypeScript compiles
+- Yes Frontend builds successfully
+- Yes No errors
+- Yes All functionality works
 
-## 🚀 Deploy
+## Deploy
 
 ```bash
 ./packages/hosting/scripts/huggingface/safe-deploy.sh
 ```
 
-Done! Your Ground News-style homepage is ready! 🎉
+Done! Your Ground News-style homepage is ready!

@@ -8,7 +8,7 @@ sidebar_position: 5
 
 The platform displays **real statistics from actual data tables** with **multi-level geographic filtering**. Stats are calculated from parquet files, cached for performance, and automatically update based on the user's selected location.
 
-## 🎯 Key Features
+## Key Features
 
 - **Multi-level caching** - National, state, county, and city stats cached separately
 - **Auto-updates** - Stats refresh based on user's selected location
@@ -19,25 +19,25 @@ The platform displays **real statistics from actual data tables** with **multi-l
 
 ## What Changed
 
-### ✅ Before (Hardcoded, No Geography)
+### Yes Before (Hardcoded, No Geography)
 ```typescript
 // frontend/src/pages/HomeModern.tsx
 { value: '90,000+', label: 'Jurisdictions Tracked', ... }
 { value: '3M+', label: 'Nonprofits & Churches', ... }
 ```
 
-### ✅ After (Real Data, Multi-Level Geography)
+### Yes After (Real Data, Multi-Level Geography)
 ```typescript
 // Fetches from API with location context
 const { data: statsData } = useQuery({
-  queryKey: ['platform-stats', location?.state],
-  queryFn: async () => {
-    const params: any = {};
-    if (location && location.state) {
-      params.state = location.state;
-    }
-    return await axios.get('/api/stats', { params });
-  }
+ queryKey: ['platform-stats', location?.state],
+ queryFn: async () => {
+ const params: any = {};
+ if (location && location.state) {
+ params.state = location.state;
+ }
+ return await axios.get('/api/stats', { params });
+ }
 });
 
 // National: "3M+ nonprofits"
@@ -46,30 +46,30 @@ const { data: statsData } = useQuery({
 
 ## Geographic Levels
 
-### 🌎 National (Default)
+### National (Default)
 - **Endpoint:** `/api/stats`
 - **Nonprofits:** 3M+ (extrapolated from 5 states)
 - **Meetings:** 203,990 (projected)
 - **Jurisdictions:** 85,302 (actual count)
 - **Use case:** Homepage without location selected
 
-### 🏛️ State Level
+### State Level
 - **Endpoint:** `/api/stats?state=MA`
 - **Nonprofits:** Actual count for state (e.g., 43,726 for MA)
 - **Meetings:** Actual count for state (e.g., 6,913 for MA)
 - **Jurisdictions:** State-specific count (e.g., 925 for MA)
 - **Use case:** User has selected their state
 
-### 🏘️ County Level  
+### County Level
 - **Endpoint:** `/api/stats?state=MA&county=Suffolk`
 - **Nonprofits:** Filtered by county
 - **Meetings:** County-level meetings
 - **Use case:** User has selected county
 
-### 🏙️ City Level
+### City Level
 - **Endpoint:** `/api/stats?state=MA&city=Boston`
 - **Nonprofits:** Filtered by city
-- **Meetings:** City-level meetings  
+- **Meetings:** City-level meetings
 - **Use case:** User has selected specific city
 
 ## Architecture
@@ -81,25 +81,25 @@ const { data: statsData } = useQuery({
 ```python
 @router.get("/stats")
 async def get_stats():
-    """
-    Get platform statistics from real data
-    
-    Returns cached metrics calculated from parquet files:
-    - Jurisdictions tracked (cities, counties, townships, school districts)
-    - Nonprofits monitored (extrapolated from available states)
-    - Meetings analyzed
-    - Officials and contacts tracked
-    - Causes and NTEE codes
-    
-    Cache duration: 1 hour
-    """
+ """
+ Get platform statistics from real data
+
+ Returns cached metrics calculated from parquet files:
+ - Jurisdictions tracked (cities, counties, townships, school districts)
+ - Nonprofits monitored (extrapolated from available states)
+ - Meetings analyzed
+ - Officials and contacts tracked
+ - Causes and NTEE codes
+
+ Cache duration: 1 hour
+ """
 ```
 
 **Features:**
-- ⚡ **1-hour cache** - Stats calculated once per hour, not on every request
-- 📊 **Real counts** - Reads actual parquet files in `data/gold/`
-- 🔮 **Smart extrapolation** - Projects 50-state totals from current 5 states
-- 🛡️ **Fallback values** - Returns sensible defaults if calculation fails
+- **1-hour cache** - Stats calculated once per hour, not on every request
+- **Real counts** - Reads actual parquet files in `data/gold/`
+- **Smart extrapolation** - Projects 50-state totals from current 5 states
+- **Fallback values** - Returns sensible defaults if calculation fails
 
 ### 2. Frontend: Dynamic Display
 
@@ -108,26 +108,26 @@ async def get_stats():
 ```typescript
 // Fetch stats with caching
 const { data: statsData } = useQuery({
-  queryKey: ['platform-stats'],
-  queryFn: async () => {
-    const response = await axios.get('/api/stats');
-    return response.data.data;
-  },
-  staleTime: 1000 * 60 * 60, // Cache for 1 hour
-  refetchOnWindowFocus: false
+ queryKey: ['platform-stats'],
+ queryFn: async () => {
+ const response = await axios.get('/api/stats');
+ return response.data.data;
+ },
+ staleTime: 1000 * 60 * 60, // Cache for 1 hour
+ refetchOnWindowFocus: false
 });
 
 // Use in UI
 <div className="text-5xl font-bold">
-  {statsData?.jurisdictions_display || '85,302'}
+ {statsData?.jurisdictions_display || '85,302'}
 </div>
 ```
 
 **Features:**
-- 🎯 **React Query** - Client-side caching for 1 hour
-- 🔄 **Auto-refresh** - Stats update every hour automatically
-- 📱 **Responsive** - Works on all devices
-- 🎨 **Smooth transitions** - No layout shift during loading
+- **React Query** - Client-side caching for 1 hour
+- **Auto-refresh** - Stats update every hour automatically
+- **Responsive** - Works on all devices
+- **Smooth transitions** - No layout shift during loading
 
 ## Current Stats (as of 2026-04-28)
 
@@ -147,11 +147,11 @@ Each geographic level has its own cache entry:
 
 ```python
 STATS_CACHE = {
-  "national": {..., "_cache_timestamp": datetime},
-  "state:MA": {..., "_cache_timestamp": datetime},
-  "state:CA": {..., "_cache_timestamp": datetime},
-  "county:MA:Suffolk": {..., "_cache_timestamp": datetime},
-  "city:MA:Suffolk:Boston": {..., "_cache_timestamp": datetime},
+ "national": {..., "_cache_timestamp": datetime},
+ "state:MA": {..., "_cache_timestamp": datetime},
+ "state:CA": {..., "_cache_timestamp": datetime},
+ "county:MA:Suffolk": {..., "_cache_timestamp": datetime},
+ "city:MA:Suffolk:Boston": {..., "_cache_timestamp": datetime},
 }
 ```
 
@@ -204,7 +204,7 @@ curl "http://localhost:8001/api/stats"
 # Massachusetts statistics
 curl "http://localhost:8001/api/stats?state=MA"
 
-# Suffolk County, MA statistics  
+# Suffolk County, MA statistics
 curl "http://localhost:8001/api/stats?state=MA&county=Suffolk"
 
 # Boston, MA statistics
@@ -214,41 +214,41 @@ curl "http://localhost:8001/api/stats?state=MA&county=Suffolk&city=Boston"
 **Response (National):**
 ```json
 {
-  "success": true,
-  "data": {
-    "level": "national",
-    "location": "United States",
-    "state": null,
-    "county": null,
-    "city": null,
-    "jurisdictions_display": "85,302",
-    "nonprofits_display": "3M+",
-    "meetings_display": "203,990",
-    "school_districts_display": "13,326",
-    "contacts_display": "24,880",
-    "last_updated": "2026-04-28T09:45:57.329132",
-    "budget_tracked": "$2T+",
-    "states_total": 50
-  }
+ "success": true,
+ "data": {
+ "level": "national",
+ "location": "United States",
+ "state": null,
+ "county": null,
+ "city": null,
+ "jurisdictions_display": "85,302",
+ "nonprofits_display": "3M+",
+ "meetings_display": "203,990",
+ "school_districts_display": "13,326",
+ "contacts_display": "24,880",
+ "last_updated": "2026-04-28T09:45:57.329132",
+ "budget_tracked": "$2T+",
+ "states_total": 50
+ }
 }
 ```
 
 **Response (State - MA):**
 ```json
 {
-  "success": true,
-  "data": {
-    "level": "state",
-    "location": "MA",
-    "state": "MA",
-    "jurisdictions_display": "925",
-    "nonprofits_display": "43,726",
-    "meetings_display": "6,913",
-    "school_districts_display": "306",
-    "contacts_display": "362",
-    "budget_tracked": "N/A",
-    "states_total": 1
-  }
+ "success": true,
+ "data": {
+ "level": "state",
+ "location": "MA",
+ "state": "MA",
+ "jurisdictions_display": "925",
+ "nonprofits_display": "43,726",
+ "meetings_display": "6,913",
+ "school_districts_display": "306",
+ "contacts_display": "362",
+ "budget_tracked": "N/A",
+ "states_total": 1
+ }
 }
 ```
 
@@ -259,21 +259,21 @@ Returns state-by-state breakdown.
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "...": "... (all fields from /stats)",
-    "state_breakdown": {
-      "MA": {
-        "nonprofits_organizations": 43726,
-        "meetings": 6913,
-        "contacts_nonprofit_officers": 21
-      },
-      "AL": { "..." },
-      "GA": { "..." },
-      "WA": { "..." },
-      "WI": { "..." }
-    }
-  }
+ "success": true,
+ "data": {
+ "...": "... (all fields from /stats)",
+ "state_breakdown": {
+ "MA": {
+ "nonprofits_organizations": 43726,
+ "meetings": 6913,
+ "contacts_nonprofit_officers": 21
+ },
+ "AL": { "..." },
+ "GA": { "..." },
+ "WA": { "..." },
+ "WI": { "..." }
+ }
+ }
 }
 ```
 
@@ -284,9 +284,9 @@ Force refresh of statistics cache (useful after data imports).
 **Response:**
 ```json
 {
-  "success": true,
-  "message": "Statistics cache refreshed",
-  "data": { "..." }
+ "success": true,
+ "message": "Statistics cache refreshed",
+ "data": { "..." }
 }
 ```
 
@@ -296,38 +296,38 @@ Force refresh of statistics cache (useful after data imports).
 
 ```python
 def count_parquet_records(pattern: str) -> int:
-    """Count total records across matching parquet files"""
-    files = list(Path('data/gold').glob(pattern))
-    total = 0
-    for file in files:
-        df = pd.read_parquet(file)
-        total += len(df)
-    return total
+ """Count total records across matching parquet files"""
+ files = list(Path('data/gold').glob(pattern))
+ total = 0
+ for file in files:
+ df = pd.read_parquet(file)
+ total += len(df)
+ return total
 ```
 
 ### 2. Calculate Stats
 
 ```python
 def calculate_stats() -> Dict[str, Any]:
-    # Count jurisdictions (cities, counties, townships, school districts)
-    jurisdictions = count_parquet_records('reference/jurisdictions_*.parquet')
-    
-    # Count nonprofits across all states
-    nonprofits = count_parquet_records('states/*/nonprofits_organizations.parquet')
-    
-    # Count states with data
-    states_with_data = len(list(Path('data/gold/states').glob('*/')))
-    
-    # Extrapolate to all 50 states
-    extrapolation_factor = 50 / max(states_with_data, 1)
-    projected_nonprofits = int(nonprofits * extrapolation_factor)
-    
-    return {
-        'jurisdictions': jurisdictions,
-        'nonprofits_projected': min(projected_nonprofits, 3_500_000),
-        'nonprofits_display': '3M+',
-        # ... more stats
-    }
+ # Count jurisdictions (cities, counties, townships, school districts)
+ jurisdictions = count_parquet_records('reference/jurisdictions_*.parquet')
+
+ # Count nonprofits across all states
+ nonprofits = count_parquet_records('states/*/nonprofits_organizations.parquet')
+
+ # Count states with data
+ states_with_data = len(list(Path('data/gold/states').glob('*/')))
+
+ # Extrapolate to all 50 states
+ extrapolation_factor = 50 / max(states_with_data, 1)
+ projected_nonprofits = int(nonprofits * extrapolation_factor)
+
+ return {
+ 'jurisdictions': jurisdictions,
+ 'nonprofits_projected': min(projected_nonprofits, 3_500_000),
+ 'nonprofits_display': '3M+',
+ # ... more stats
+ }
 ```
 
 ### 3. Cache Results
@@ -339,14 +339,14 @@ CACHE_TIMESTAMP: datetime = None
 CACHE_DURATION = timedelta(hours=1)
 
 def get_cached_stats() -> Dict[str, Any]:
-    if CACHE_TIMESTAMP and (now - CACHE_TIMESTAMP) < CACHE_DURATION:
-        return STATS_CACHE  # Return cached version
-    
-    # Calculate fresh stats
-    stats = calculate_stats()
-    STATS_CACHE = stats
-    CACHE_TIMESTAMP = now
-    return stats
+ if CACHE_TIMESTAMP and (now - CACHE_TIMESTAMP) < CACHE_DURATION:
+ return STATS_CACHE # Return cached version
+
+ # Calculate fresh stats
+ stats = calculate_stats()
+ STATS_CACHE = stats
+ CACHE_TIMESTAMP = now
+ return stats
 ```
 
 ## Frontend Integration
@@ -360,17 +360,17 @@ The frontend automatically fetches location-specific stats when the user selects
 
 // Query key includes location.state to trigger refetch on change
 const { data: statsData } = useQuery({
-  queryKey: ['platform-stats', location?.state],
-  queryFn: async () => {
-    const params: any = {};
-    if (location && location.state) {
-      params.state = location.state;
-    }
-    const response = await axios.get('/api/stats', { params });
-    return response.data.data;
-  },
-  staleTime: 1000 * 60 * 60, // Cache for 1 hour
-  refetchOnWindowFocus: false
+ queryKey: ['platform-stats', location?.state],
+ queryFn: async () => {
+ const params: any = {};
+ if (location && location.state) {
+ params.state = location.state;
+ }
+ const response = await axios.get('/api/stats', { params });
+ return response.data.data;
+ },
+ staleTime: 1000 * 60 * 60, // Cache for 1 hour
+ refetchOnWindowFocus: false
 });
 ```
 
@@ -380,21 +380,21 @@ The UI automatically adjusts based on the geographic level:
 
 ```typescript
 // Hero section subtitle
-{statsData?.level === 'state' ? 
-  `${statsData.nonprofits_display} nonprofits in ${statsData.location} • 100% free` :
-  `${statsData.jurisdictions_display} cities • ${statsData.nonprofits_display} nonprofits • 100% free`
+{statsData?.level === 'state' ?
+ `${statsData.nonprofits_display} nonprofits in ${statsData.location} • 100% free` :
+ `${statsData.jurisdictions_display} cities • ${statsData.nonprofits_display} nonprofits • 100% free`
 }
 
 // Stats section title
-{statsData?.level === 'state' ? 
-  `Our Impact in ${statsData.location}` : 
-  'Our Impact'
+{statsData?.level === 'state' ?
+ `Our Impact in ${statsData.location}` :
+ 'Our Impact'
 }
 
 // Stats section subtitle
-{statsData?.level === 'state' ? 
-  `Real numbers for ${statsData.location} from live data tables` :
-  `Real numbers from real data tables`
+{statsData?.level === 'state' ?
+ `Real numbers for ${statsData.location} from live data tables` :
+ `Real numbers from real data tables`
 }
 ```
 
@@ -414,7 +414,7 @@ Our Impact
 Real numbers from real data tables
 
 85,302 Jurisdictions Tracked
-3M+ Nonprofits & Churches  
+3M+ Nonprofits & Churches
 203,990 Meeting Pages Analyzed
 ```
 
@@ -431,14 +431,14 @@ Real numbers for MA from live data tables
 ## Performance
 
 ### Before (Hardcoded)
-- ⚡ **0ms** - Instant, but wrong numbers
-- 📊 **Accuracy:** 0% - Completely made up
+- **0ms** - Instant, but wrong numbers
+- **Accuracy:** 0% - Completely made up
 
 ### After (Real Data, Multi-Level)
-- ⚡ **Under 2ms** - From cache (after first calculation)
-- ⏱️ **~3s** - Initial calculation (reads all parquet files)
-- 🔄 **Refresh:** Every 1 hour
-- 📊 **Accuracy:** 100% - Real counts from actual data
+- **Under 2ms** - From cache (after first calculation)
+- **~3s** - Initial calculation (reads all parquet files)
+- **Refresh:** Every 1 hour
+- **Accuracy:** 100% - Real counts from actual data
 
 ## Maintenance
 
@@ -495,7 +495,7 @@ python scripts/download_state_data.py MA
 ```python
 # Cache duration is 1 hour per level
 # To change: edit CACHE_DURATION in api/routes/stats.py
-CACHE_DURATION = timedelta(minutes=30)  # 30 minutes instead
+CACHE_DURATION = timedelta(minutes=30) # 30 minutes instead
 ```
 
 ## Future Enhancements
@@ -522,12 +522,12 @@ As we add more states, projections become more accurate:
 ## Files Changed
 
 ### New Files
-- ✅ `api/routes/stats.py` - Stats API endpoint
+- Yes `api/routes/stats.py` - Stats API endpoint
 
 ### Modified Files
-- ✅ `api/main.py` - Added stats router
-- ✅ `frontend/src/pages/HomeModern.tsx` - Fetch and display real stats
-- ✅ `website/docs/development/real-time-statistics.md` - This documentation
+- Yes `api/main.py` - Added stats router
+- Yes `frontend/src/pages/HomeModern.tsx` - Fetch and display real stats
+- Yes `website/docs/development/real-time-statistics.md` - This documentation
 
 ## Testing
 
@@ -551,34 +551,34 @@ npm run dev
 
 ### Expected Results
 
-- ✅ Stats load within 2 seconds
-- ✅ Numbers match API response
-- ✅ No console errors
-- ✅ Stats update after 1 hour or force refresh
+- Yes Stats load within 2 seconds
+- Yes Numbers match API response
+- Yes No console errors
+- Yes Stats update after 1 hour or force refresh
 
 ## Summary
 
-🎉 **The platform now shows real statistics with multi-level geographic filtering!**
+ **The platform now shows real statistics with multi-level geographic filtering!**
 
 ### National View (Default)
-- 📊 **85,302 jurisdictions** (real count from Census GID)
-- 🏢 **3M+ nonprofits** (extrapolated from 5 states to 50)
-- 📝 **203,990 meetings** (projected nationwide)
-- 🎓 **13,326 school districts** (real count from NCES)
+- **85,302 jurisdictions** (real count from Census GID)
+- **3M+ nonprofits** (extrapolated from 5 states to 50)
+- **203,990 meetings** (projected nationwide)
+- **13,326 school districts** (real count from NCES)
 
 ### State View (e.g., Massachusetts)
-- 📊 **925 jurisdictions** (MA cities, towns, counties)
-- 🏢 **43,726 nonprofits** (actual count from IRS BMF)
-- 📝 **6,913 meetings** (actual MA meeting transcripts)
-- 🎓 **306 school districts** (MA school districts)
+- **925 jurisdictions** (MA cities, towns, counties)
+- **43,726 nonprofits** (actual count from IRS BMF)
+- **6,913 meetings** (actual MA meeting transcripts)
+- **306 school districts** (MA school districts)
 
 ### Key Features
 
-- ✅ **Automatic updates** - Stats change when user selects location
-- ✅ **Multi-level caching** - National, state, county, city cached separately
-- ✅ **Real data** - All counts from actual parquet files
-- ✅ **Smart extrapolation** - National view projects realistic totals
-- ✅ **Contextual UI** - "Our Impact in Massachusetts" for state view
-- ✅ **Performance** - 1-hour cache per geographic level (under 2ms from cache)
+- Yes **Automatic updates** - Stats change when user selects location
+- Yes **Multi-level caching** - National, state, county, city cached separately
+- Yes **Real data** - All counts from actual parquet files
+- Yes **Smart extrapolation** - National view projects realistic totals
+- Yes **Contextual UI** - "Our Impact in Massachusetts" for state view
+- Yes **Performance** - 1-hour cache per geographic level (under 2ms from cache)
 
-**No more made-up numbers, and stats automatically adapt to user's location!** 🚀
+**No more made-up numbers, and stats automatically adapt to user's location!**

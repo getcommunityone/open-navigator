@@ -6,44 +6,44 @@ sidebar_position: 6
 
 Complete guide for setting up OAuth authentication with HuggingFace, Google, Facebook, and GitHub, plus Neon serverless PostgreSQL.
 
-## 🥇 Database Setup: Neon (Serverless PostgreSQL)
+## Database Setup: Neon (Serverless PostgreSQL)
 
 **Recommended Choice** - Free tier, zero-config, perfect for production.
 
 ### Why Neon?
 
-✅ **Free tier**: 0.5 GB storage with scale-to-zero  
-✅ **Managed backups**: Point-in-time recovery included  
-✅ **Encrypted**: At rest + in transit  
-✅ **Public internet**: Perfect for HuggingFace Spaces  
-✅ **Standard PostgreSQL**: No vendor lock-in  
-✅ **Enterprise backing**: Acquired by Databricks (2025)
+Yes **Free tier**: 0.5 GB storage with scale-to-zero
+Yes **Managed backups**: Point-in-time recovery included
+Yes **Encrypted**: At rest + in transit
+Yes **Public internet**: Perfect for HuggingFace Spaces
+Yes **Standard PostgreSQL**: No vendor lock-in
+Yes **Enterprise backing**: Acquired by Databricks (2025)
 
 ### Setup Steps
 
 1. **Sign up at [neon.tech](https://neon.tech)**
-   - Click "Sign up" (free, no credit card required)
-   - Sign in with GitHub or email
+ - Click "Sign up" (free, no credit card required)
+ - Sign in with GitHub or email
 
 2. **Create a new project**
-   - Click "New Project"
-   - Name: `open-navigator-engagement`
-   - Region: Choose closest to your users (e.g., `US East`)
-   - PostgreSQL version: 16 (latest)
+ - Click "New Project"
+ - Name: `open-navigator-engagement`
+ - Region: Choose closest to your users (e.g., `US East`)
+ - PostgreSQL version: 16 (latest)
 
 3. **Copy connection string**
-   - Go to Dashboard → Connection Details
-   - Copy the **"Connection string"** 
-   - Format: `postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require`
+ - Go to Dashboard → Connection Details
+ - Copy the **"Connection string"**
+ - Format: `postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require`
 
 4. **Add to `.env` file**
-   ```bash
-   DATABASE_URL=postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
-   ```
+ ```bash
+ DATABASE_URL=postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+ ```
 
 5. **Database auto-initialization**
-   - Tables are created automatically on first API startup
-   - No migration scripts needed!
+ - Tables are created automatically on first API startup
+ - No migration scripts needed!
 
 ### Verify Connection
 
@@ -53,12 +53,12 @@ source .venv/bin/activate
 python main.py serve
 
 # You should see:
-# ✅ Database initialized at: postgresql://...
+# Yes Database initialized at: postgresql://...
 ```
 
 ---
 
-## 🔐 OAuth Provider Setup
+## OAuth Provider Setup
 
 ### 1. HuggingFace OAuth
 
@@ -69,12 +69,12 @@ python main.py serve
 1. Go to HuggingFace Settings → Applications
 2. Click **"Create an OAuth app"**
 3. Fill in:
-   - **Application name**: `Open Navigator`
-   - **Homepage URL**: `https://www.communityone.com`
-   - **Redirect URI**: 
-     - Development: `http://localhost:8001/auth/callback/huggingface`
-     - Production: `https://www.communityone.com/api/auth/callback/huggingface`
-   - **Scopes**: `openid profile email`
+ - **Application name**: `Open Navigator`
+ - **Homepage URL**: `https://www.communityone.com`
+ - **Redirect URI**:
+ - Development: `http://localhost:8001/auth/callback/huggingface`
+ - Production: `https://www.communityone.com/api/auth/callback/huggingface`
+ - **Scopes**: `openid profile email`
 4. Click **"Create"**
 5. Copy **Client ID** and **Client Secret**
 
@@ -94,32 +94,32 @@ HUGGINGFACE_CLIENT_SECRET=hf_oauth_secret_xxx
 #### Steps:
 
 1. **Create a project** (or select existing)
-   - Go to Google Cloud Console
-   - Select project or click "New Project"
-   - Name: `Open Navigator`
+ - Go to Google Cloud Console
+ - Select project or click "New Project"
+ - Name: `Open Navigator`
 
 2. **Enable Google+ API**
-   - Go to APIs & Services → Library
-   - Search "Google+ API"
-   - Click Enable
+ - Go to APIs & Services → Library
+ - Search "Google+ API"
+ - Click Enable
 
 3. **Configure OAuth consent screen**
-   - Go to APIs & Services → OAuth consent screen
-   - User Type: **External**
-   - App name: `Open Navigator`
-   - User support email: Your email
-   - Developer contact: Your email
-   - Scopes: `email`, `profile`, `openid`
+ - Go to APIs & Services → OAuth consent screen
+ - User Type: **External**
+ - App name: `Open Navigator`
+ - User support email: Your email
+ - Developer contact: Your email
+ - Scopes: `email`, `profile`, `openid`
 
 4. **Create OAuth 2.0 Client ID**
-   - Go to APIs & Services → Credentials
-   - Click **"Create Credentials"** → OAuth client ID
-   - Application type: **Web application**
-   - Name: `Open Navigator Web Client`
-   - Authorized redirect URIs:
-     - `http://localhost:8001/api/auth/callback/google` (development)
-     - `https://www.communityone.com/api/auth/callback/google` (production)
-   - Click **"Create"**
+ - Go to APIs & Services → Credentials
+ - Click **"Create Credentials"** → OAuth client ID
+ - Application type: **Web application**
+ - Name: `Open Navigator Web Client`
+ - Authorized redirect URIs:
+ - `http://localhost:8001/api/auth/callback/google` (development)
+ - `https://www.communityone.com/api/auth/callback/google` (production)
+ - Click **"Create"**
 
 5. Copy **Client ID** and **Client Secret**
 
@@ -139,25 +139,25 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxxx
 #### Steps:
 
 1. **Create a new app**
-   - Click **"Create App"**
-   - Type: **Consumer**
-   - App Name: `Open Navigator`
+ - Click **"Create App"**
+ - Type: **Consumer**
+ - App Name: `Open Navigator`
 
 2. **Add Facebook Login**
-   - Dashboard → Add Product
-   - Select **"Facebook Login"** → Set up
+ - Dashboard → Add Product
+ - Select **"Facebook Login"** → Set up
 
 3. **Configure OAuth settings**
-   - Go to Facebook Login → Settings
-   - Valid OAuth Redirect URIs:
-     - `http://localhost:8001/api/auth/callback/facebook`
-     - `https://www.communityone.com/api/auth/callback/facebook`
-   - Client OAuth Login: **Yes**
-   - Web OAuth Login: **Yes**
+ - Go to Facebook Login → Settings
+ - Valid OAuth Redirect URIs:
+ - `http://localhost:8001/api/auth/callback/facebook`
+ - `https://www.communityone.com/api/auth/callback/facebook`
+ - Client OAuth Login: **Yes**
+ - Web OAuth Login: **Yes**
 
 4. **Get App ID and Secret**
-   - Go to Settings → Basic
-   - Copy **App ID** and **App Secret**
+ - Go to Settings → Basic
+ - Copy **App ID** and **App Secret**
 
 #### Add to `.env`:
 
@@ -175,20 +175,20 @@ FACEBOOK_APP_SECRET=xxxxxxxxxxxxx
 #### Steps:
 
 1. **Register new OAuth application**
-   - Go to Settings → Developer settings → OAuth Apps
-   - Click **"New OAuth App"**
+ - Go to Settings → Developer settings → OAuth Apps
+ - Click **"New OAuth App"**
 
 2. **Fill in details**
-   - **Application name**: `Open Navigator`
-   - **Homepage URL**: `https://www.communityone.com`
-   - **Authorization callback URL**:
-     - Development: `http://localhost:8001/api/auth/callback/github`
-     - Production: `https://www.communityone.com/api/auth/callback/github`
+ - **Application name**: `Open Navigator`
+ - **Homepage URL**: `https://www.communityone.com`
+ - **Authorization callback URL**:
+ - Development: `http://localhost:8001/api/auth/callback/github`
+ - Production: `https://www.communityone.com/api/auth/callback/github`
 
 3. **Create application**
-   - Click **"Register application"**
-   - Copy **Client ID**
-   - Generate **Client Secret** and copy it
+ - Click **"Register application"**
+ - Copy **Client ID**
+ - Generate **Client Secret** and copy it
 
 #### Add to `.env`:
 
@@ -199,7 +199,7 @@ GITHUB_CLIENT_SECRET=xxxxxxxxxxxxx
 
 ---
 
-## 🔑 Generate JWT Secret
+## Generate JWT Secret
 
 Create a secure random secret for JWT tokens:
 
@@ -219,7 +219,7 @@ JWT_SECRET_KEY=your_random_32_char_secret_here
 
 ---
 
-## 🌐 Environment Configuration
+## Environment Configuration
 
 ### Development `.env`:
 
@@ -264,7 +264,7 @@ Add secrets in **Space Settings → Repository secrets**:
 
 ---
 
-## 🧪 Testing Authentication
+## Testing Authentication
 
 ### 1. Start the API server
 
@@ -298,13 +298,13 @@ SELECT * FROM "user";
 
 # Option 2: psql client
 psql "postgresql://user:password@ep-xxx.neon.tech/neondb?sslmode=require"
-\dt  # List tables
+\dt # List tables
 SELECT * FROM "user";
 ```
 
 ---
 
-## 📊 Database Schema
+## Database Schema
 
 The authentication system creates these tables automatically:
 
@@ -340,16 +340,16 @@ The authentication system creates these tables automatically:
 
 ---
 
-## 🔒 Security Best Practices
+## Security Best Practices
 
-### ✅ DO:
+### Yes DO:
 - Use HTTPS in production
 - Rotate JWT secrets regularly
 - Keep OAuth secrets in environment variables (never commit to git)
 - Use Neon's connection pooling
 - Enable Neon's IP allowlist for production
 
-### ❌ DON'T:
+### No DON'T:
 - Commit `.env` file to git (it's in `.gitignore`)
 - Share OAuth secrets publicly
 - Use weak JWT secrets
@@ -357,7 +357,7 @@ The authentication system creates these tables automatically:
 
 ---
 
-## 🚀 Production Deployment
+## Production Deployment
 
 ### HuggingFace Spaces
 
@@ -374,12 +374,12 @@ After deploying, update all OAuth apps with production callback URLs:
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Database connection fails
 
 ```
-❌ could not connect to server
+No could not connect to server
 ```
 
 **Fix:**
@@ -390,7 +390,7 @@ After deploying, update all OAuth apps with production callback URLs:
 ### OAuth redirect mismatch
 
 ```
-❌ redirect_uri_mismatch
+No redirect_uri_mismatch
 ```
 
 **Fix:**
@@ -401,7 +401,7 @@ After deploying, update all OAuth apps with production callback URLs:
 ### JWT token invalid
 
 ```
-❌ Could not validate credentials
+No Could not validate credentials
 ```
 
 **Fix:**
@@ -412,7 +412,7 @@ After deploying, update all OAuth apps with production callback URLs:
 ### Tables not created
 
 ```
-❌ relation "users" does not exist (table renamed to `"user"`)
+No relation "users" does not exist (table renamed to `"user"`)
 ```
 
 **Fix:**
@@ -422,7 +422,7 @@ After deploying, update all OAuth apps with production callback URLs:
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [Neon Documentation](https://neon.tech/docs)
 - [OAuth 2.0 RFC](https://datatracker.ietf.org/doc/html/rfc6749)
@@ -431,7 +431,7 @@ After deploying, update all OAuth apps with production callback URLs:
 
 ---
 
-## ✅ Checklist
+## Yes Checklist
 
 Before going live, ensure:
 

@@ -71,17 +71,17 @@ The Charity Navigator GraphQL API provides the following fields for all register
 1. **Text Credit**: "Powered by Charity Navigator"
 2. **Source Citation**: "Data provided by Charity Navigator"
 3. **Linkback**: All charity names link to their Charity Navigator profile:
-   ```html
-   <a href="https://www.charitynavigator.org/ein/[EIN]">
-     [Organization Name]
-   </a>
-   ```
+ ```html
+ <a href="https://www.charitynavigator.org/ein/[EIN]">
+ [Organization Name]
+ </a>
+ ```
 
 4. **Trademark Notice** (once per page or in credits):
-   ```
-   CHARITY NAVIGATOR and the CHARITY NAVIGATOR logo are registered trademarks 
-   of Charity Navigator. All rights reserved. Used with permission.
-   ```
+ ```
+ CHARITY NAVIGATOR and the CHARITY NAVIGATOR logo are registered trademarks
+ of Charity Navigator. All rights reserved. Used with permission.
+ ```
 
 ### Link Requirements
 
@@ -89,17 +89,17 @@ The Charity Navigator GraphQL API provides the following fields for all register
 - Do NOT use `rel="nofollow"` on Charity Navigator links
 - Allow search engines to crawl all links to charitynavigator.org
 
-**✅ Correct:**
+**Yes Correct:**
 ```html
 <a href="https://www.charitynavigator.org/ein/134141945">
-  Michael J. Fox Foundation for Parkinson's Research
+ Michael J. Fox Foundation for Parkinson's Research
 </a>
 ```
 
-**❌ Incorrect:**
+**No Incorrect:**
 ```html
 <a href="https://www.CharityNavigator.org/ein/134141945" rel="nofollow">
-  Click here
+ Click here
 </a>
 ```
 
@@ -130,8 +130,8 @@ Replace `.png` with `.svg` in the URLs above for scalable vector graphics.
 **Example HTML:**
 ```html
 <a href="https://www.charitynavigator.org/ein/134141945">
-  <img src="https://www.charitynavigator.org/content/dam/cn/cn/icons/four_star.png" 
-       alt="Four-star rating by Charity Navigator" />
+ <img src="https://www.charitynavigator.org/content/dam/cn/cn/icons/four_star.png"
+ alt="Four-star rating by Charity Navigator" />
 </a>
 ```
 
@@ -148,31 +148,31 @@ url = "https://api.charitynavigator.org/graphql"
 # Example query
 query = """
 query {
-  charity(ein: "134141945") {
-    ein
-    charityName
-    mission
-    websiteUrl
-    charityNavigatorUrl
-    category
-    cause
-    mailingAddress {
-      streetAddress1
-      city
-      state
-      postalCode
-    }
-    currentRating {
-      rating
-      ratingDate
-    }
-  }
+ charity(ein: "134141945") {
+ ein
+ charityName
+ mission
+ websiteUrl
+ charityNavigatorUrl
+ category
+ cause
+ mailingAddress {
+ streetAddress1
+ city
+ state
+ postalCode
+ }
+ currentRating {
+ rating
+ ratingDate
+ }
+ }
 }
 """
 
 headers = {
-    "Authorization": "Bearer YOUR_API_KEY",
-    "Content-Type": "application/json"
+ "Authorization": "Bearer YOUR_API_KEY",
+ "Content-Type": "application/json"
 }
 
 response = requests.post(url, json={"query": query}, headers=headers)
@@ -197,20 +197,20 @@ print(f"Mission: {data['data']['charity']['mission']}")
 
 | Data Field | Charity Navigator | IRS EO-BMF | Form 990 XML | BigQuery |
 |------------|-------------------|------------|--------------|----------|
-| **Star Rating** | ✅ (0-4 stars) | ❌ | ❌ | ❌ |
-| **Mission** | ✅ (Rated orgs) | ❌ | ✅ (30-40%) | ✅ (30-40%) |
-| **Website** | ✅ (~80%) | ❌ | ❌ | ✅ (30-40%) |
-| **Financials** | ✅ (Summary) | ❌ | ✅ (Detailed) | ✅ (Detailed) |
+| **Star Rating** | Yes (0-4 stars) | No | No | No |
+| **Mission** | Yes (Rated orgs) | No | Yes (30-40%) | Yes (30-40%) |
+| **Website** | Yes (~80%) | No | No | Yes (30-40%) |
+| **Financials** | Yes (Summary) | No | Yes (Detailed) | Yes (Detailed) |
 | **Coverage** | ~200K rated | 1.9M orgs | ~300K/year | 5M+ records |
 | **Update Freq** | Annual | Monthly | Annual | Annual |
-| **Independent Rating** | ✅ **UNIQUE** | ❌ | ❌ | ❌ |
+| **Independent Rating** | Yes **UNIQUE** | No | No | No |
 
 **Key Advantages:**
-- ✅ **Only source** with independent star ratings
-- ✅ High-quality mission statements (manually reviewed)
-- ✅ Better website URL coverage than Form 990
-- ✅ Active advisories (warnings, alerts)
-- ✅ Nonprofit evaluation methodology is transparent
+- Yes **Only source** with independent star ratings
+- Yes High-quality mission statements (manually reviewed)
+- Yes Better website URL coverage than Form 990
+- Yes Active advisories (warnings, alerts)
+- Yes Nonprofit evaluation methodology is transparent
 
 **Limitations:**
 - Only ~200K organizations have ratings (largest orgs prioritized)
@@ -226,27 +226,27 @@ import time
 from datetime import datetime, timedelta
 
 class CharityNavigatorClient:
-    def __init__(self, api_key, daily_limit=1000):
-        self.api_key = api_key
-        self.daily_limit = daily_limit
-        self.call_count = 0
-        self.reset_time = datetime.now() + timedelta(days=1)
-    
-    def query(self, ein):
-        # Check if we've hit the daily limit
-        if self.call_count >= self.daily_limit:
-            wait_seconds = (self.reset_time - datetime.now()).total_seconds()
-            if wait_seconds > 0:
-                print(f"Rate limit reached. Waiting {wait_seconds:.0f}s...")
-                time.sleep(wait_seconds)
-                self.call_count = 0
-                self.reset_time = datetime.now() + timedelta(days=1)
-        
-        # Make API call
-        response = self._make_request(ein)
-        self.call_count += 1
-        
-        return response
+ def __init__(self, api_key, daily_limit=1000):
+ self.api_key = api_key
+ self.daily_limit = daily_limit
+ self.call_count = 0
+ self.reset_time = datetime.now() + timedelta(days=1)
+
+ def query(self, ein):
+ # Check if we've hit the daily limit
+ if self.call_count >= self.daily_limit:
+ wait_seconds = (self.reset_time - datetime.now()).total_seconds()
+ if wait_seconds > 0:
+ print(f"Rate limit reached. Waiting {wait_seconds:.0f}s...")
+ time.sleep(wait_seconds)
+ self.call_count = 0
+ self.reset_time = datetime.now() + timedelta(days=1)
+
+ # Make API call
+ response = self._make_request(ein)
+ self.call_count += 1
+
+ return response
 ```
 
 ### Caching Strategy
@@ -261,21 +261,21 @@ cache_dir = Path("data/cache/charity_navigator/")
 cache_dir.mkdir(parents=True, exist_ok=True)
 
 def get_charity_data(ein, api_client):
-    cache_file = cache_dir / f"{ein}.json"
-    
-    # Check cache first
-    if cache_file.exists():
-        with open(cache_file) as f:
-            return json.load(f)
-    
-    # Fetch from API
-    data = api_client.query(ein)
-    
-    # Save to cache
-    with open(cache_file, 'w') as f:
-        json.dump(data, f, indent=2)
-    
-    return data
+ cache_file = cache_dir / f"{ein}.json"
+
+ # Check cache first
+ if cache_file.exists():
+ with open(cache_file) as f:
+ return json.load(f)
+
+ # Fetch from API
+ data = api_client.query(ein)
+
+ # Save to cache
+ with open(cache_file, 'w') as f:
+ json.dump(data, f, indent=2)
+
+ return data
 ```
 
 ### Incremental Updates
@@ -287,17 +287,17 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 def needs_update(last_updated, max_age_days=90):
-    """Check if rating needs refresh (default: every 90 days)"""
-    if pd.isna(last_updated):
-        return True
-    
-    age = datetime.now() - pd.to_datetime(last_updated)
-    return age > timedelta(days=max_age_days)
+ """Check if rating needs refresh (default: every 90 days)"""
+ if pd.isna(last_updated):
+ return True
+
+ age = datetime.now() - pd.to_datetime(last_updated)
+ return age > timedelta(days=max_age_days)
 
 # Filter nonprofits needing updates
 nonprofits = pd.read_parquet("data/gold/nonprofits.parquet")
 needs_refresh = nonprofits[
-    nonprofits['cn_updated_date'].apply(needs_update)
+ nonprofits['cn_updated_date'].apply(needs_update)
 ]
 
 print(f"Need to refresh: {len(needs_refresh):,} organizations")
@@ -311,16 +311,16 @@ When enriching your nonprofit dataset, add these fields:
 
 ```python
 enriched_fields = {
-    'cn_star_rating': 'int64',          # 0-4 stars
-    'cn_encompass_score': 'float64',    # Numerical score
-    'cn_rating_date': 'datetime64',     # When rated
-    'cn_mission': 'string',             # Mission statement
-    'cn_website': 'string',             # Website URL
-    'cn_category': 'string',            # Category
-    'cn_cause': 'string',               # Cause area
-    'cn_profile_url': 'string',         # Link to CN profile
-    'cn_advisory_status': 'string',     # Active advisories
-    'cn_updated_date': 'datetime64',    # When we fetched data
+ 'cn_star_rating': 'int64', # 0-4 stars
+ 'cn_encompass_score': 'float64', # Numerical score
+ 'cn_rating_date': 'datetime64', # When rated
+ 'cn_mission': 'string', # Mission statement
+ 'cn_website': 'string', # Website URL
+ 'cn_category': 'string', # Category
+ 'cn_cause': 'string', # Cause area
+ 'cn_profile_url': 'string', # Link to CN profile
+ 'cn_advisory_status': 'string', # Active advisories
+ 'cn_updated_date': 'datetime64', # When we fetched data
 }
 ```
 
@@ -376,7 +376,7 @@ Not all nonprofits have Charity Navigator ratings. The service prioritizes:
 Error: Maximum daily API calls (1,000) reached
 ```
 
-**Solution**: 
+**Solution**:
 - Implement caching (see above)
 - Process in batches over multiple days
 - Prioritize most important organizations first

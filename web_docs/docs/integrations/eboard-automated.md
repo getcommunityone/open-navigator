@@ -42,24 +42,24 @@ Or integrate into main scraper:
 
 ```bash
 python main.py scrape \
-  --state AL \
-  --municipality "Tuscaloosa City Schools" \
-  --url http://simbli.eboardsolutions.com/index.aspx?s=2088 \
-  --platform eboard \
-  --use-undetected \
-  --max-events 0
+ --state AL \
+ --municipality "Tuscaloosa City Schools" \
+ --url http://simbli.eboardsolutions.com/index.aspx?s=2088 \
+ --platform eboard \
+ --use-undetected \
+ --max-events 0
 ```
 
 ### Pros
-- ✅ Free
-- ✅ No external services required
-- ✅ Works for most Incapsula sites
-- ✅ Easy to implement
+- Yes Free
+- Yes No external services required
+- Yes Works for most Incapsula sites
+- Yes Easy to implement
 
 ### Cons
-- ❌ May still fail on very strict Incapsula settings
-- ❌ Requires GUI environment (can't run headless on some systems)
-- ❌ Slower than Playwright
+- No May still fail on very strict Incapsula settings
+- No Requires GUI environment (can't run headless on some systems)
+- No Slower than Playwright
 
 ---
 
@@ -95,14 +95,14 @@ pip install playwright
 
 # Configure proxy in scraper
 async with async_playwright() as p:
-    browser = await p.chromium.launch(
-        proxy={
-            'server': 'http://proxy.smartproxy.com:10000',
-            'username': 'your_username',
-            'password': 'your_password'
-        }
-    )
-    # ... rest of scraping code
+ browser = await p.chromium.launch(
+ proxy={
+ 'server': 'http://proxy.smartproxy.com:10000',
+ 'username': 'your_username',
+ 'password': 'your_password'
+ }
+ )
+ # ... rest of scraping code
 ```
 
 ### Add to agents/scraper.py
@@ -113,15 +113,15 @@ import os
 
 proxy_config = None
 if os.getenv('RESIDENTIAL_PROXY_URL'):
-    proxy_config = {
-        'server': os.getenv('RESIDENTIAL_PROXY_URL'),
-        'username': os.getenv('PROXY_USERNAME'),
-        'password': os.getenv('PROXY_PASSWORD')
-    }
+ proxy_config = {
+ 'server': os.getenv('RESIDENTIAL_PROXY_URL'),
+ 'username': os.getenv('PROXY_USERNAME'),
+ 'password': os.getenv('PROXY_PASSWORD')
+ }
 
 browser = await p.chromium.launch(
-    proxy=proxy_config,
-    headless=True
+ proxy=proxy_config,
+ headless=True
 )
 ```
 
@@ -135,15 +135,15 @@ PROXY_PASSWORD=your_password
 ```
 
 ### Pros
-- ✅ Highest success rate (95%+)
-- ✅ Works on any Incapsula configuration
-- ✅ Can run headless
-- ✅ Fast and reliable
+- Yes Highest success rate (95%+)
+- Yes Works on any Incapsula configuration
+- Yes Can run headless
+- Yes Fast and reliable
 
 ### Cons
-- ❌ Costs money ($10-50/month for small projects)
-- ❌ Requires account setup
-- ❌ May have usage limits
+- No Costs money ($10-50/month for small projects)
+- No Requires account setup
+- No May have usage limits
 
 ---
 
@@ -164,11 +164,11 @@ These services run real browsers in the cloud and handle all anti-bot evasion au
 from playwright.async_api import async_playwright
 
 async with async_playwright() as p:
-    browser = await p.chromium.connect(
-        'wss://chrome.browserless.io?token=YOUR_TOKEN'
-    )
-    page = await browser.new_page()
-    await page.goto('https://simbli.eboardsolutions.com/...')
+ browser = await p.chromium.connect(
+ 'wss://chrome.browserless.io?token=YOUR_TOKEN'
+ )
+ page = await browser.new_page()
+ await page.goto('https://simbli.eboardsolutions.com/...')
 ```
 
 **ScrapingBee**
@@ -181,13 +181,13 @@ async with async_playwright() as p:
 import requests
 
 response = requests.get(
-    'https://app.scrapingbee.com/api/v1/',
-    params={
-        'api_key': 'YOUR_API_KEY',
-        'url': 'https://simbli.eboardsolutions.com/...',
-        'render_js': 'true',
-        'premium_proxy': 'true'
-    }
+ 'https://app.scrapingbee.com/api/v1/',
+ params={
+ 'api_key': 'YOUR_API_KEY',
+ 'url': 'https://simbli.eboardsolutions.com/...',
+ 'render_js': 'true',
+ 'premium_proxy': 'true'
+ }
 )
 content = response.text
 ```
@@ -199,15 +199,15 @@ content = response.text
 - https://apify.com
 
 ### Pros
-- ✅ Fully managed (no maintenance)
-- ✅ Very high success rate
-- ✅ Handles updates to anti-bot automatically
-- ✅ Can scale easily
+- Yes Fully managed (no maintenance)
+- Yes Very high success rate
+- Yes Handles updates to anti-bot automatically
+- Yes Can scale easily
 
 ### Cons
-- ❌ Most expensive option
-- ❌ Requires external service dependency
-- ❌ May have rate limits
+- No Most expensive option
+- No Requires external service dependency
+- No May have rate limits
 
 ---
 
@@ -242,29 +242,29 @@ solver = TwoCaptcha(os.getenv('2CAPTCHA_API_KEY'))
 
 # When Incapsula shows CAPTCHA
 try:
-    result = solver.recaptcha(
-        sitekey='SITE_KEY_FROM_PAGE',
-        url='https://simbli.eboardsolutions.com/...'
-    )
-    
-    # Inject solution into page
-    await page.evaluate(f'document.getElementById("g-recaptcha-response").innerHTML="{result["code"]}";')
-    await page.click('button[type="submit"]')
-    
+ result = solver.recaptcha(
+ sitekey='SITE_KEY_FROM_PAGE',
+ url='https://simbli.eboardsolutions.com/...'
+ )
+
+ # Inject solution into page
+ await page.evaluate(f'document.getElementById("g-recaptcha-response").innerHTML="{result["code"]}";')
+ await page.click('button[type="submit"]')
+
 except Exception as e:
-    logger.error(f"CAPTCHA solving failed: {e}")
+ logger.error(f"CAPTCHA solving failed: {e}")
 ```
 
 ### Pros
-- ✅ Solves CAPTCHAs automatically
-- ✅ Relatively cheap
-- ✅ Works with existing scraper
+- Yes Solves CAPTCHAs automatically
+- Yes Relatively cheap
+- Yes Works with existing scraper
 
 ### Cons
-- ❌ Only useful if CAPTCHA appears
-- ❌ Slower (10-30 seconds per solve)
-- ❌ Not 100% success rate
-- ❌ Costs money per use
+- No Only useful if CAPTCHA appears
+- No Slower (10-30 seconds per solve)
+- No Not 100% success rate
+- No Costs money per use
 
 ---
 
@@ -276,26 +276,26 @@ eBoard likely has backend APIs that mobile apps or internal tools use. These API
 ### How to Find APIs
 
 1. **Use browser DevTools**:
-   ```bash
-   # Open eBoard site in Chrome
-   # Press F12 → Network tab
-   # Look for XHR/Fetch requests
-   # Check requests to:
-   #   - /api/
-   #   - .ashx files
-   #   - .asmx files (SOAP endpoints)
-   ```
+ ```bash
+ # Open eBoard site in Chrome
+ # Press F12 → Network tab
+ # Look for XHR/Fetch requests
+ # Check requests to:
+ # - /api/
+ # - .ashx files
+ # - .asmx files (SOAP endpoints)
+ ```
 
 2. **Check for mobile app**:
-   - Search App Store / Google Play for "eBoard Solutions"
-   - Decompile APK to find API endpoints
-   - Use mitmproxy to intercept app traffic
+ - Search App Store / Google Play for "eBoard Solutions"
+ - Decompile APK to find API endpoints
+ - Use mitmproxy to intercept app traffic
 
 3. **Look for GraphQL/REST endpoints**:
-   ```bash
-   curl -I https://simbli.eboardsolutions.com/api/meetings
-   curl -I https://simbli.eboardsolutions.com/graphql
-   ```
+ ```bash
+ curl -I https://simbli.eboardsolutions.com/api/meetings
+ curl -I https://simbli.eboardsolutions.com/graphql
+ ```
 
 ### Example (if API exists)
 
@@ -304,25 +304,25 @@ import httpx
 
 # Hypothetical API endpoint
 async with httpx.AsyncClient() as client:
-    response = await client.get(
-        'https://simbli.eboardsolutions.com/api/v1/meetings',
-        params={'school_id': 2088},
-        headers={'User-Agent': 'eBoard-Mobile/1.0'}
-    )
-    meetings = response.json()
+ response = await client.get(
+ 'https://simbli.eboardsolutions.com/api/v1/meetings',
+ params={'school_id': 2088},
+ headers={'User-Agent': 'eBoard-Mobile/1.0'}
+ )
+ meetings = response.json()
 ```
 
 ### Pros
-- ✅ Fastest option
-- ✅ No bot detection
-- ✅ Free
-- ✅ Most reliable
+- Yes Fastest option
+- Yes No bot detection
+- Yes Free
+- Yes Most reliable
 
 ### Cons
-- ❌ Requires reverse engineering skills
-- ❌ API may not exist
-- ❌ API may require authentication
-- ❌ May violate Terms of Service
+- No Requires reverse engineering skills
+- No API may not exist
+- No API may require authentication
+- No May violate Terms of Service
 
 ---
 
@@ -370,9 +370,9 @@ Most reliable, fully managed solution.
 ## Implementation Plan
 
 ### Phase 1: Try Free Options
-1. ✅ Install undetected-chromedriver
-2. ✅ Test on Tuscaloosa City Schools
-3. ✅ Measure success rate over 10 runs
+1. Yes Install undetected-chromedriver
+2. Yes Test on Tuscaloosa City Schools
+3. Yes Measure success rate over 10 runs
 4. If success rate > 80%, use this going forward
 
 ### Phase 2: Add Proxy Support (If Phase 1 Fails)

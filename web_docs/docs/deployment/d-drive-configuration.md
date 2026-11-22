@@ -19,30 +19,30 @@ Open Navigator downloads and caches large datasets:
 
 **Total potential storage**: Up to 1 TB of data!
 
-## 📁 Recommended Directory Structure
+## Recommended Directory Structure
 
 Create this structure on your D drive (or external storage):
 
 ```
 D:/open-navigator-data/
-├── acs/                    # American Community Survey demographic data
-│   ├── B19013_county_*_2022.parquet
-│   ├── B27010_county_*_2022.parquet
-│   └── acs_2022_ALL/      # Bulk downloads
-├── irs/                    # IRS nonprofit data
-│   ├── bmf/               # Business Master File
-│   └── 990s/              # Form 990 PDFs and XML
-├── legislative/           # Legislative data
-│   ├── bills/
-│   ├── votes/
-│   └── legislators/
-├── meetings/              # Meeting minutes and agendas
-│   ├── pdfs/
-│   └── transcripts/
-└── cache/                 # General cache
+├── acs/ # American Community Survey demographic data
+│ ├── B19013_county_*_2022.parquet
+│ ├── B27010_county_*_2022.parquet
+│ └── acs_2022_ALL/ # Bulk downloads
+├── irs/ # IRS nonprofit data
+│ ├── bmf/ # Business Master File
+│ └── 990s/ # Form 990 PDFs and XML
+├── legislative/ # Legislative data
+│ ├── bills/
+│ ├── votes/
+│ └── legislators/
+├── meetings/ # Meeting minutes and agendas
+│ ├── pdfs/
+│ └── transcripts/
+└── cache/ # General cache
 ```
 
-## 🖥️ Platform-Specific Setup
+## Platform-Specific Setup
 
 ### Windows (D Drive)
 
@@ -161,7 +161,7 @@ from pathlib import Path
 data_dir = Path("/mnt/d/open-navigator-data/acs")
 ```
 
-## 🔧 Configuration Methods
+## Configuration Methods
 
 ### Method 1: Environment Variable (Recommended)
 
@@ -212,9 +212,9 @@ MEETINGS_DATA_DIR = BASE_DATA_DIR / "meetings"
 CACHE_DIR = BASE_DATA_DIR / "cache"
 
 # Create directories if they don't exist
-for directory in [ACS_DATA_DIR, IRS_DATA_DIR, LEGISLATIVE_DATA_DIR, 
-                   MEETINGS_DATA_DIR, CACHE_DIR]:
-    directory.mkdir(parents=True, exist_ok=True)
+for directory in [ACS_DATA_DIR, IRS_DATA_DIR, LEGISLATIVE_DATA_DIR,
+ MEETINGS_DATA_DIR, CACHE_DIR]:
+ directory.mkdir(parents=True, exist_ok=True)
 ```
 
 **Use in scripts:**
@@ -236,7 +236,7 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data-dir", type=Path, default="data/cache/acs",
-                    help="Directory to store ACS data")
+ help="Directory to store ACS data")
 args = parser.parse_args()
 
 acs = ACSDataIngestion(data_dir=args.data_dir)
@@ -252,12 +252,12 @@ python download_acs.py --data-dir D:/open-navigator-data/acs
 python download_acs.py
 ```
 
-## 🗂️ Example Configurations
+## Example Configurations
 
 ### Small Project (Default)
 
-**Storage**: Local project directory  
-**Size**: < 10 GB  
+**Storage**: Local project directory
+**Size**: < 10 GB
 **Speed**: Fastest (same disk as code)
 
 ```python
@@ -267,8 +267,8 @@ acs = ACSDataIngestion()
 
 ### Medium Project (D Drive)
 
-**Storage**: D drive or external SSD  
-**Size**: 10-100 GB  
+**Storage**: D drive or external SSD
+**Size**: 10-100 GB
 **Speed**: Fast
 
 ```python
@@ -279,8 +279,8 @@ acs = ACSDataIngestion(data_dir=Path("D:/open-navigator-data/acs"))
 
 ### Large Project (Network Storage)
 
-**Storage**: NAS or cloud-mounted drive  
-**Size**: 100+ GB  
+**Storage**: NAS or cloud-mounted drive
+**Size**: 100+ GB
 **Speed**: Slower but shared
 
 ```python
@@ -295,7 +295,7 @@ data_dir = Path("//server/open-navigator/acs")
 acs = ACSDataIngestion(data_dir=data_dir)
 ```
 
-## 📊 Storage Requirements by Dataset
+## Storage Requirements by Dataset
 
 ### ACS Census Data
 
@@ -338,7 +338,7 @@ acs = ACSDataIngestion(data_dir=data_dir)
 
 **Recommended**: External storage for PDF archive.
 
-## 🔍 Verify Configuration
+## Verify Configuration
 
 **Test your setup:**
 
@@ -347,41 +347,41 @@ from pathlib import Path
 import pandas as pd
 
 def test_storage_config(data_dir: Path):
-    """Test that we can write/read data."""
-    
-    # Create test directory
-    test_dir = data_dir / "test"
-    test_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Write test file
-    test_file = test_dir / "test.parquet"
-    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-    df.to_parquet(test_file)
-    
-    # Read test file
-    df2 = pd.read_parquet(test_file)
-    
-    # Verify
-    assert df.equals(df2), "Data mismatch!"
-    
-    # Cleanup
-    test_file.unlink()
-    test_dir.rmdir()
-    
-    print(f"✅ Storage configuration verified: {data_dir.absolute()}")
-    print(f"✅ Free space: {get_free_space(data_dir):.2f} GB")
+ """Test that we can write/read data."""
+
+ # Create test directory
+ test_dir = data_dir / "test"
+ test_dir.mkdir(parents=True, exist_ok=True)
+
+ # Write test file
+ test_file = test_dir / "test.parquet"
+ df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+ df.to_parquet(test_file)
+
+ # Read test file
+ df2 = pd.read_parquet(test_file)
+
+ # Verify
+ assert df.equals(df2), "Data mismatch!"
+
+ # Cleanup
+ test_file.unlink()
+ test_dir.rmdir()
+
+ print(f"Yes Storage configuration verified: {data_dir.absolute()}")
+ print(f"Yes Free space: {get_free_space(data_dir):.2f} GB")
 
 def get_free_space(path: Path) -> float:
-    """Get free disk space in GB."""
-    import shutil
-    stat = shutil.disk_usage(path)
-    return stat.free / (1024**3)
+ """Get free disk space in GB."""
+ import shutil
+ stat = shutil.disk_usage(path)
+ return stat.free / (1024**3)
 
 # Test
 test_storage_config(Path("D:/open-navigator-data"))
 ```
 
-## ⚡ Performance Tips
+## Performance Tips
 
 ### 1. Use SSD for Cache
 
@@ -392,11 +392,11 @@ test_storage_config(Path("D:/open-navigator-data"))
 
 ```
 D:/open-navigator-data/
-├── hot/        # Frequently accessed (keep on SSD if possible)
-│   └── acs/    # Census data for current analysis
-└── cold/       # Rarely accessed (OK on HDD)
-    ├── irs/990s/  # Historical 990 PDFs
-    └── archive/   # Old datasets
+├── hot/ # Frequently accessed (keep on SSD if possible)
+│ └── acs/ # Census data for current analysis
+└── cold/ # Rarely accessed (OK on HDD)
+ ├── irs/990s/ # Historical 990 PDFs
+ └── archive/ # Old datasets
 ```
 
 ### 3. Use Compression for Archives
@@ -407,8 +407,8 @@ import gzip
 import shutil
 
 with open("data.parquet", "rb") as f_in:
-    with gzip.open("data.parquet.gz", "wb") as f_out:
-        shutil.copyfileobj(f_in, f_out)
+ with gzip.open("data.parquet.gz", "wb") as f_out:
+ shutil.copyfileobj(f_in, f_out)
 ```
 
 ### 4. Clean Up Old Cache
@@ -418,14 +418,14 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 def cleanup_old_cache(cache_dir: Path, days: int = 30):
-    """Delete cache files older than N days."""
-    
-    cutoff = datetime.now() - timedelta(days=days)
-    
-    for file in cache_dir.rglob("*.parquet"):
-        if datetime.fromtimestamp(file.stat().st_mtime) < cutoff:
-            print(f"Deleting old cache: {file}")
-            file.unlink()
+ """Delete cache files older than N days."""
+
+ cutoff = datetime.now() - timedelta(days=days)
+
+ for file in cache_dir.rglob("*.parquet"):
+ if datetime.fromtimestamp(file.stat().st_mtime) < cutoff:
+ print(f"Deleting old cache: {file}")
+ file.unlink()
 
 cleanup_old_cache(Path("D:/open-navigator-data/cache"))
 ```
@@ -488,7 +488,7 @@ sudo mkdir -p /mnt/d
 sudo mount -t drvfs D: /mnt/d
 ```
 
-## 🔮 Next Steps
+## Next Steps
 
 1. **Create data directory** on your D drive or external storage
 2. **Set environment variable** `OPEN_NAV_DATA_DIR` in `.env`

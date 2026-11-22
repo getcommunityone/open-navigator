@@ -8,7 +8,7 @@ displayed_sidebar: gettingStartedSidebar
 
 **Open Navigator** is the main application interface providing search, analysis, and visualization tools for advocacy opportunities across the United States.
 
-## 🎯 What's Inside
+## What's Inside
 
 The platform covers government jurisdictions (counties, cities, townships, school districts), nonprofits with their IRS Form 990 data, meeting transcripts, and elected officials.
 
@@ -16,16 +16,16 @@ Coverage grows as data is loaded, so this page doesn't list totals. The current 
 
 ---
 
-## 📱 Interface Overview
+## Interface Overview
 
 The interactive platform provides real-time access to:
 
-- 📊 **Analytics** - Overview of opportunities and trends
-- 🗺️ **Interactive Heatmap** - Geographic visualization of policy opportunities  
-- 📄 **Document Explorer** - Search and browse meeting minutes
-- 🔔 **Opportunities** - Identified advocacy opportunities
-- 🏛️ **Nonprofit Solutions** - Search nonprofit organizations by location and service
-- ⚙️ **Settings** - Configure alerts and preferences
+- **Analytics** - Overview of opportunities and trends
+- **Interactive Heatmap** - Geographic visualization of policy opportunities
+- **Document Explorer** - Search and browse meeting minutes
+- **Opportunities** - Identified advocacy opportunities
+- **Nonprofit Solutions** - Search nonprofit organizations by location and service
+- **Settings** - Configure alerts and preferences
 
 ## Accessing Open Navigator
 
@@ -76,10 +76,10 @@ Real-time statistics and trend analysis:
 ### Interactive Heatmap
 
 Color-coded map showing:
-- 🔴 Critical urgency (vote imminent)
-- 🟠 High urgency (active debate)
-- 🟡 Medium urgency (moderate discussion)  
-- 🟢 Low urgency (early stage)
+- Critical urgency (vote imminent)
+- High urgency (active debate)
+- Medium urgency (moderate discussion)
+- Low urgency (early stage)
 
 Click any marker for full details and generated advocacy materials.
 
@@ -122,10 +122,10 @@ See the [API Reference](/docs/api) for complete documentation.
 ---
 
 <div class="alert alert--success">
-  <strong>Quick Links</strong>
-  <ul>
-    <li><a href="http://localhost:3000" target="_blank">Open Navigator (Dev)</a></li>
-    <li><a href="http://localhost:8001/docs" target="_blank">API Docs (Dev)</a></li>
-    <li><a href="/intro">Project Documentation</a></li>
-  </ul>
+ <strong>Quick Links</strong>
+ <ul>
+ <li><a href="http://localhost:3000" target="_blank">Open Navigator (Dev)</a></li>
+ <li><a href="http://localhost:8001/docs" target="_blank">API Docs (Dev)</a></li>
+ <li><a href="/intro">Project Documentation</a></li>
+ </ul>
 </div>

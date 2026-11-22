@@ -10,7 +10,7 @@ description: Implementation plan for #676 — Data centers cohort on the YouTube
 
 **Goal:** Let operators pick **Data centers** on `/admin/batch-jobs` and run Discover → Reports for site-belt ∪ mention jurisdictions only, with left→right cohort → state cascading.
 
-**Architecture:** Add a shared cohort helper (membership + allowed states). Launch and jurisdiction listing take `COHORT` / `cohort` and filter to that set ∩ `STATES`. The dashboard status path accepts optional `cohort` so stage numbers match what Run will process. Frontend extends the existing 🗺️ dropdown and constrains the state `<select>`.
+**Architecture:** Add a shared cohort helper (membership + allowed states). Launch and jurisdiction listing take `COHORT` / `cohort` and filter to that set ∩ `STATES`. The dashboard status path accepts optional `cohort` so stage numbers match what Run will process. Frontend extends the existing dropdown and constrains the state `<select>`.
 
 **Tech Stack:** FastAPI (`api/routes/batch_jobs.py`), `api/batch_jobs/*`, bash wrapper `youtube_run_priority_states_last_n.sh`, React/Vite (`BatchJobStatusPage.tsx`, `batchJobs.ts`), pytest.
 
@@ -53,47 +53,47 @@ description: Implementation plan for #676 — Data centers cohort on the YouTube
 
 **Interfaces:**
 - Produces:
-  - `PRIORITY_STATE_CODES: list[str]` — `["AL","GA","IN","MA","MT","WA","WI"]`
-  - `CohortName = Literal["priority","data_centers","all"]`
-  - `data_center_jurisdiction_ids(conn) -> set[str]`
-  - `cohort_state_codes(cohort: CohortName, *, conn=None, all_states: list[str] | None = None) -> list[str]`
-  - `resolve_launch_states(cohort: CohortName, states: list[str], *, conn=None) -> list[str]` — raises `ValueError` with message on bad cohort / bad state / empty intersect
-  - SQL fragment constant or function for “jid in DC set” reused by plan + stage report
+ - `PRIORITY_STATE_CODES: list[str]` — `["AL","GA","IN","MA","MT","WA","WI"]`
+ - `CohortName = Literal["priority","data_centers","all"]`
+ - `data_center_jurisdiction_ids(conn) -> set[str]`
+ - `cohort_state_codes(cohort: CohortName, *, conn=None, all_states: list[str] | None = None) -> list[str]`
+ - `resolve_launch_states(cohort: CohortName, states: list[str], *, conn=None) -> list[str]` — raises `ValueError` with message on bad cohort / bad state / empty intersect
+ - SQL fragment constant or function for “jid in DC set” reused by plan + stage report
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_batch_job_cohorts.py
 from api.batch_jobs.cohorts import (
-    PRIORITY_STATE_CODES,
-    cohort_state_codes,
-    resolve_launch_states,
+ PRIORITY_STATE_CODES,
+ cohort_state_codes,
+ resolve_launch_states,
 )
 
 def test_priority_states_are_fixed():
-    assert cohort_state_codes("priority") == PRIORITY_STATE_CODES
+ assert cohort_state_codes("priority") == PRIORITY_STATE_CODES
 
 def test_resolve_launch_states_default_priority_all():
-    assert resolve_launch_states("priority", []) == PRIORITY_STATE_CODES
+ assert resolve_launch_states("priority", []) == PRIORITY_STATE_CODES
 
 def test_resolve_launch_states_rejects_state_outside_cohort():
-    try:
-        resolve_launch_states("priority", ["TX"])
-        assert False, "expected ValueError"
-    except ValueError as e:
-        assert "TX" in str(e)
+ try:
+ resolve_launch_states("priority", ["TX"])
+ assert False, "expected ValueError"
+ except ValueError as e:
+ assert "TX" in str(e)
 
 def test_resolve_launch_states_data_centers_intersects(monkeypatch):
-    monkeypatch.setattr(
-        "api.batch_jobs.cohorts.cohort_state_codes",
-        lambda cohort, **kw: ["AL", "VA", "TX"] if cohort == "data_centers" else [],
-    )
-    assert resolve_launch_states("data_centers", ["AL"]) == ["AL"]
-    try:
-        resolve_launch_states("data_centers", ["HI"])
-        assert False
-    except ValueError:
-        pass
+ monkeypatch.setattr(
+ "api.batch_jobs.cohorts.cohort_state_codes",
+ lambda cohort, **kw: ["AL", "VA", "TX"] if cohort == "data_centers" else [],
+ )
+ assert resolve_launch_states("data_centers", ["AL"]) == ["AL"]
+ try:
+ resolve_launch_states("data_centers", ["HI"])
+ assert False
+ except ValueError:
+ pass
 ```
 
 - [ ] **Step 2: Run tests — expect FAIL (module missing)**
@@ -117,62 +117,62 @@ PRIORITY_STATE_CODES = ["AL", "GA", "IN", "MA", "MT", "WA", "WI"]
 
 _DC_JID_SQL = """
 SELECT DISTINCT jurisdiction_id FROM (
-  SELECT jurisdiction_id FROM intermediate.int_data_center_site__jurisdiction
-  WHERE jurisdiction_id IS NOT NULL AND BTRIM(jurisdiction_id) <> ''
-  UNION
-  SELECT jurisdiction_id FROM public.data_center_meeting_mention
-  WHERE jurisdiction_id IS NOT NULL AND BTRIM(jurisdiction_id) <> ''
+ SELECT jurisdiction_id FROM intermediate.int_data_center_site__jurisdiction
+ WHERE jurisdiction_id IS NOT NULL AND BTRIM(jurisdiction_id) <> ''
+ UNION
+ SELECT jurisdiction_id FROM public.data_center_meeting_mention
+ WHERE jurisdiction_id IS NOT NULL AND BTRIM(jurisdiction_id) <> ''
 ) u
 """
 
 def data_center_jurisdiction_ids(conn: Any) -> set[str]:
-    with conn.cursor() as cur:
-        cur.execute(_DC_JID_SQL)
-        return {str(r[0]) for r in cur.fetchall() if r and r[0]}
+ with conn.cursor() as cur:
+ cur.execute(_DC_JID_SQL)
+ return {str(r[0]) for r in cur.fetchall() if r and r[0]}
 
 def cohort_state_codes(
-    cohort: CohortName,
-    *,
-    conn: Any = None,
-    all_states: Optional[Sequence[str]] = None,
+ cohort: CohortName,
+ *,
+ conn: Any = None,
+ all_states: Optional[Sequence[str]] = None,
 ) -> list[str]:
-    if cohort == "priority":
-        return list(PRIORITY_STATE_CODES)
-    if cohort == "all":
-        return list(all_states or ALL_STATE_CODES)  # 50+DC; comment-sync with usStates.ts
-    if cohort == "data_centers":
-        if conn is None:
-            raise ValueError("data_centers cohort requires a database connection")
-        jids = list(data_center_jurisdiction_ids(conn))
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT DISTINCT state_code FROM intermediate.int_jurisdictions
-                WHERE jurisdiction_id = ANY(%s) AND state_code IS NOT NULL
-                ORDER BY 1
-                """,
-                (jids,),
-            )
-            return [str(r[0]) for r in cur.fetchall()]
-    raise ValueError(f"unknown cohort: {cohort}")
+ if cohort == "priority":
+ return list(PRIORITY_STATE_CODES)
+ if cohort == "all":
+ return list(all_states or ALL_STATE_CODES) # 50+DC; comment-sync with usStates.ts
+ if cohort == "data_centers":
+ if conn is None:
+ raise ValueError("data_centers cohort requires a database connection")
+ jids = list(data_center_jurisdiction_ids(conn))
+ with conn.cursor() as cur:
+ cur.execute(
+ """
+ SELECT DISTINCT state_code FROM intermediate.int_jurisdictions
+ WHERE jurisdiction_id = ANY(%s) AND state_code IS NOT NULL
+ ORDER BY 1
+ """,
+ (jids,),
+ )
+ return [str(r[0]) for r in cur.fetchall()]
+ raise ValueError(f"unknown cohort: {cohort}")
 
 def resolve_launch_states(
-    cohort: CohortName,
-    states: Sequence[str],
-    *,
-    conn: Any = None,
+ cohort: CohortName,
+ states: Sequence[str],
+ *,
+ conn: Any = None,
 ) -> list[str]:
-    allowed = cohort_state_codes(cohort, conn=conn)
-    allowed_set = set(allowed)
-    wanted = [s.strip().upper() for s in states if (s or "").strip()]
-    if not wanted:
-        if not allowed:
-            raise ValueError(f"cohort {cohort!r} has no states")
-        return list(allowed)
-    bad = [s for s in wanted if s not in allowed_set]
-    if bad:
-        raise ValueError(f"state code(s) not in cohort {cohort!r}: {bad}")
-    return wanted
+ allowed = cohort_state_codes(cohort, conn=conn)
+ allowed_set = set(allowed)
+ wanted = [s.strip().upper() for s in states if (s or "").strip()]
+ if not wanted:
+ if not allowed:
+ raise ValueError(f"cohort {cohort!r} has no states")
+ return list(allowed)
+ bad = [s for s in wanted if s not in allowed_set]
+ if bad:
+ raise ValueError(f"state code(s) not in cohort {cohort!r}: {bad}")
+ return wanted
 ```
 
 Put `ALL_STATE_CODES` (50 + DC) in this module with a comment linking `web_app/src/lib/usStates.ts`.
@@ -206,20 +206,20 @@ git commit -m "feat(batch-jobs): add launch cohort helper for data centers (#676
 
 ```python
 def test_cohorts_endpoint_shape(client, monkeypatch):
-    monkeypatch.setattr(
-        "api.routes.batch_jobs.cohort_state_codes",
-        lambda cohort, **kw: {
-            "priority": ["AL", "GA"],
-            "data_centers": ["AL", "VA"],
-            "all": ["AL", "AK", "DC"],
-        }[cohort],
-    )
-    # Or patch the DB path used inside the route
-    r = client.get("/api/batch-jobs/cohorts")
-    assert r.status_code == 200
-    body = r.json()
-    assert set(body.keys()) == {"priority", "data_centers", "all"}
-    assert "AL" in body["priority"] or body["priority"] == ["AL", "GA"]
+ monkeypatch.setattr(
+ "api.routes.batch_jobs.cohort_state_codes",
+ lambda cohort, **kw: {
+ "priority": ["AL", "GA"],
+ "data_centers": ["AL", "VA"],
+ "all": ["AL", "AK", "DC"],
+ }[cohort],
+ )
+ # Or patch the DB path used inside the route
+ r = client.get("/api/batch-jobs/cohorts")
+ assert r.status_code == 200
+ body = r.json()
+ assert set(body.keys()) == {"priority", "data_centers", "all"}
+ assert "AL" in body["priority"] or body["priority"] == ["AL", "GA"]
 ```
 
 Use the repo’s existing FastAPI test client fixture pattern from `tests/test_route_gating.py` / batch job tests. If the real DB is required for `data_centers`, monkeypatch `data_center_jurisdiction_ids` + jurisdiction state lookup.
@@ -234,19 +234,19 @@ Use the repo’s existing FastAPI test client fixture pattern from `tests/test_r
 
 ```python
 class CohortsResponse(BaseModel):
-    priority: List[str]
-    data_centers: List[str]
-    all: List[str]
+ priority: List[str]
+ data_centers: List[str]
+ all: List[str]
 
 @router.get("/cohorts", response_model=CohortsResponse)
 async def list_cohorts() -> CohortsResponse:
-    # open short-lived connection via existing batch DB helper
-    ...
-    return CohortsResponse(
-        priority=cohort_state_codes("priority"),
-        data_centers=cohort_state_codes("data_centers", conn=conn),
-        all=cohort_state_codes("all"),
-    )
+ # open short-lived connection via existing batch DB helper
+ ...
+ return CohortsResponse(
+ priority=cohort_state_codes("priority"),
+ data_centers=cohort_state_codes("data_centers", conn=conn),
+ all=cohort_state_codes("all"),
+ )
 ```
 
 On DB failure for `data_centers`, return **500** (do not return empty and pretend success with no states unless the warehouse truly has zero — then `data_centers: []` is honest).
@@ -276,10 +276,10 @@ git commit -m "feat(api): GET /api/batch-jobs/cohorts (#676)"
 
 ```python
 def test_fetch_batch_plan_respects_data_centers_cohort(monkeypatch):
-    # Build fake rows including a non-DC jid; after cohort filter only DC remain.
-    ...
-    runs = fetch_batch_plan_jurisdictions(["AL"], cohort="data_centers", database_url="postgresql://fake")
-    assert all(r.jurisdiction_id in {"county_01001", "municipality_0107000"} for r in runs)
+ # Build fake rows including a non-DC jid; after cohort filter only DC remain.
+ ...
+ runs = fetch_batch_plan_jurisdictions(["AL"], cohort="data_centers", database_url="postgresql://fake")
+ assert all(r.jurisdiction_id in {"county_01001", "municipality_0107000"} for r in runs)
 ```
 
 Mirror existing monkeypatch style in `tests/test_batch_job_plan.py` (patch `psycopg2.connect` or post-filter unit).
@@ -294,9 +294,9 @@ In `fetch_batch_plan_jurisdictions`, after fetching `rows` (or in SQL `AND j.jur
 cohort_norm = (cohort or "").strip().lower() or None
 dc_ids = None
 if cohort_norm == "data_centers":
-    dc_ids = data_center_jurisdiction_ids(conn)  # same connection
-    if not dc_ids:
-        return []  # caller/launch treats empty as error at resolve time
+ dc_ids = data_center_jurisdiction_ids(conn) # same connection
+ if not dc_ids:
+ return [] # caller/launch treats empty as error at resolve time
 # add to WHERE: AND (%s::text[] IS NULL OR j.jurisdiction_id = ANY(%s))
 ```
 
@@ -340,29 +340,29 @@ git commit -m "feat(batch-jobs): filter jurisdiction plan by data_centers cohort
 
 ```python
 def test_launch_rejects_unknown_cohort(client, monkeypatch):
-    monkeypatch.setenv("BATCH_JOBS_ALLOW_LAUNCH", "1")
-    # admin auth as other launch tests do
-    r = client.post("/api/batch-jobs/launch", json={"step": "analyze", "cohort": "nope", "states": ["AL"]})
-    assert r.status_code == 400
+ monkeypatch.setenv("BATCH_JOBS_ALLOW_LAUNCH", "1")
+ # admin auth as other launch tests do
+ r = client.post("/api/batch-jobs/launch", json={"step": "analyze", "cohort": "nope", "states": ["AL"]})
+ assert r.status_code == 400
 
 def test_launch_sets_cohort_env(client, monkeypatch):
-    monkeypatch.setenv("BATCH_JOBS_ALLOW_LAUNCH", "1")
-    captured = {}
-    def fake_popen(argv, **kwargs):
-        captured["env"] = kwargs["env"]
-        captured["argv"] = argv
-        class P:
-            pid = 4242
-        return P()
-    monkeypatch.setattr("subprocess.Popen", fake_popen)
-    # also stub _pid_alive / launch file writes as needed
-    r = client.post(
-        "/api/batch-jobs/launch",
-        json={"step": "analyze", "cohort": "data_centers", "states": ["AL"], "n": 5, "parallel": 2},
-    )
-    assert r.status_code == 200
-    assert captured["env"]["COHORT"] == "data_centers"
-    assert captured["env"]["STATES"] == "AL"
+ monkeypatch.setenv("BATCH_JOBS_ALLOW_LAUNCH", "1")
+ captured = {}
+ def fake_popen(argv, **kwargs):
+ captured["env"] = kwargs["env"]
+ captured["argv"] = argv
+ class P:
+ pid = 4242
+ return P()
+ monkeypatch.setattr("subprocess.Popen", fake_popen)
+ # also stub _pid_alive / launch file writes as needed
+ r = client.post(
+ "/api/batch-jobs/launch",
+ json={"step": "analyze", "cohort": "data_centers", "states": ["AL"], "n": 5, "parallel": 2},
+ )
+ assert r.status_code == 200
+ assert captured["env"]["COHORT"] == "data_centers"
+ assert captured["env"]["STATES"] == "AL"
 ```
 
 - [ ] **Step 2: Run — FAIL**
@@ -371,28 +371,28 @@ def test_launch_sets_cohort_env(client, monkeypatch):
 
 ```python
 class LaunchRequest(BaseModel):
-    step: str = "analyze"
-    states: List[str] = Field(default_factory=list)
-    n: int = 10
-    parallel: int = 4
-    cohort: str = "priority"
+ step: str = "analyze"
+ states: List[str] = Field(default_factory=list)
+ n: int = 10
+ parallel: int = 4
+ cohort: str = "priority"
 
 # in launch_pipeline:
 cohort = (req.cohort or "priority").strip().lower()
 if cohort not in ("priority", "data_centers", "all"):
-    raise HTTPException(400, detail=f"cohort must be one of ...")
+ raise HTTPException(400, detail=f"cohort must be one of ...")
 try:
-    # open conn when cohort == data_centers (and always OK to open for resolve)
-    states = resolve_launch_states(cohort, req.states or [], conn=conn)
+ # open conn when cohort == data_centers (and always OK to open for resolve)
+ states = resolve_launch_states(cohort, req.states or [], conn=conn)
 except ValueError as e:
-    raise HTTPException(400, detail=str(e)) from e
+ raise HTTPException(400, detail=str(e)) from e
 ...
 env["COHORT"] = cohort
 env["STATES"] = ",".join(states)
 # discover:
 argv = [..., "--states", ",".join(states)]
 if cohort == "data_centers":
-    argv += ["--cohort", "data_centers"]
+ argv += ["--cohort", "data_centers"]
 # backfill: same
 ```
 
@@ -463,9 +463,9 @@ git commit -m "feat(batch-jobs): filter stage report by data_centers cohort (#67
 export type BatchCohort = 'priority' | 'data_centers' | 'all'
 
 export type CohortsResponse = {
-  priority: string[]
-  data_centers: string[]
-  all: string[]
+ priority: string[]
+ data_centers: string[]
+ all: string[]
 }
 
 export async function fetchCohorts(): Promise<CohortsResponse> { ... }
@@ -477,14 +477,14 @@ export async function fetchCohorts(): Promise<CohortsResponse> { ... }
 - [ ] **Step 2: Page behavior**
 
 1. Persist cohort in `localStorage` key `batch-launch-scope` (reuse; values `priority` | `data_centers` | `all`).
-2. Always show the 🗺️ select when launch enabled (not only when `scope === 'ALL'`).
+2. Always show the select when launch enabled (not only when `scope === 'ALL'`).
 3. Options: Priority states / Data centers / All states (50 + DC).
 4. `stateOpts` for the right dropdown = `cohorts[allScope]` (from `fetchCohorts`), not raw `report.states` alone — intersect with report states if you still want “only states that have pipeline rows”, but **never show a state outside the cohort**. Spec: “options are only states valid for the selected cohort.” Prefer cohort list as source of truth; optional intersect with report for empty-progress hiding is OK if documented in a one-line comment.
 5. On cohort change, if current `state` ∉ new list, `setScope('')`.
 6. `launchScopeStates` = single state if selected, else full cohort state list from `fetchCohorts`.
 7. Pass `cohort: allScope` into every `runLaunch` / `launchPipeline` call.
 8. Pass `cohort` into status refetch / SSE so stage numbers match.
-9. Labels: `▶ Run all · data centers` / `▶ Run all · data centers · AL`; scope chip matches.
+9. Labels: ` Run all · data centers` / ` Run all · data centers · AL`; scope chip matches.
 
 - [ ] **Step 3: Manual check**
 
@@ -518,7 +518,7 @@ cd web_app && npm run build
 
 ```bash
 COHORT=data_centers STATES=AL N=1 DRY_RUN=1 \
-  ./packages/scrapers/scripts/youtube_run_priority_states_last_n.sh catalog
+ ./packages/scrapers/scripts/youtube_run_priority_states_last_n.sh catalog
 ```
 
 Expect only DC jurisdictions in AL printed.

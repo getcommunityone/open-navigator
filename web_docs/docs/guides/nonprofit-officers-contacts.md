@@ -6,7 +6,7 @@ sidebar_position: 12
 
 Extract and track nonprofit leadership (officers, directors, trustees) from IRS Form 990 filings as searchable contacts.
 
-## 🎯 Overview
+## Overview
 
 The system now enriches nonprofit data with **officer and board member information** from IRS Form 990 Schedule J, creating versioned contact records with:
 
@@ -17,19 +17,19 @@ The system now enriches nonprofit data with **officer and board member informati
 - **Hours per week**
 - **Annual snapshots** for historical tracking
 
-## 📊 Data Sources
+## Data Sources
 
 ### IRS Form 990 Part VII (Officers, Directors, Trustees)
 
-**Primary Source: GivingTuesday Data Lake** 🎉
+**Primary Source: GivingTuesday Data Lake**
 
 We use the [GivingTuesday 990 Data Lake](https://990data.givingtuesday.org/) which hosts complete Form 990 XML files on AWS S3.
 
 **Advantages:**
-- ✅ **Recent Data**: 2013-2023 filings (vs BigQuery's 2017 cutoff)
-- ✅ **No Auth Required**: Public S3 bucket, no credentials needed
-- ✅ **Complete Coverage**: 5.4M+ Form 990 filings indexed
-- ✅ **Detailed**: Part VII includes officer names, titles, hours, compensation
+- Yes **Recent Data**: 2013-2023 filings (vs BigQuery's 2017 cutoff)
+- Yes **No Auth Required**: Public S3 bucket, no credentials needed
+- Yes **Complete Coverage**: 5.4M+ Form 990 filings indexed
+- Yes **Detailed**: Part VII includes officer names, titles, hours, compensation
 
 **Fields Extracted from Form 990 Part VII:**
 | Field | Description | Example |
@@ -42,7 +42,7 @@ We use the [GivingTuesday 990 Data Lake](https://990data.givingtuesday.org/) whi
 | `compensation_related` | From related orgs | 5000 |
 | `compensation_other` | Benefits, deferred comp | 2500 |
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Step 1: Download GivingTuesday Data Lake Index (One-Time Setup)
 
@@ -61,9 +61,9 @@ python scripts/enrich_nonprofits_gt990.py --download-index
 ```bash
 # Enrich with Form 990 data (includes officers from Part VII)
 python scripts/enrich_nonprofits_gt990.py \
-  --input data/gold/states/MA/nonprofits_organizations.parquet \
-  --output data/gold/states/MA/nonprofits_organizations.parquet \
-  --concurrent 20
+ --input data/gold/states/MA/nonprofits_organizations.parquet \
+ --output data/gold/states/MA/nonprofits_organizations.parquet \
+ --concurrent 20
 
 # This downloads XMLs from S3, parses them, and adds form_990_officers field
 ```
@@ -72,27 +72,27 @@ This adds a `form_990_officers` JSON field to each nonprofit record:
 
 ```json
 {
-  "ein": "123456789",
-  "organization_name": "Alabama Oral Health Foundation",
-  "form_990_officers": [
-    {
-      "name": "Sarah Johnson",
-      "title": "CEO",
-      "compensation": 150000,
-      "compensation_org": 145000,
-      "compensation_related": 5000,
-      "compensation_other": 2500,
-      "hours_per_week": 40
-    },
-    {
-      "name": "John Smith",
-      "title": "Board Chair",
-      "compensation": 0,
-      "hours_per_week": 5
-    }
-  ],
-  "form_990_tax_year": "2022-12-31",
-  "form_990_status": "found"
+ "ein": "123456789",
+ "organization_name": "Alabama Oral Health Foundation",
+ "form_990_officers": [
+ {
+ "name": "Sarah Johnson",
+ "title": "CEO",
+ "compensation": 150000,
+ "compensation_org": 145000,
+ "compensation_related": 5000,
+ "compensation_other": 2500,
+ "hours_per_week": 40
+ },
+ {
+ "name": "John Smith",
+ "title": "Board Chair",
+ "compensation": 0,
+ "hours_per_week": 5
+ }
+ ],
+ "form_990_tax_year": "2022-12-31",
+ "form_990_status": "found"
 }
 ```
 
@@ -105,14 +105,14 @@ from pipeline.create_contacts_gold_tables import ContactsGoldTableCreator
 
 # Massachusetts nonprofit officers
 creator = ContactsGoldTableCreator(
-    output_dir='data/gold',
-    state_code='MA'  # Output to data/gold/states/MA/
+ output_dir='data/gold',
+ state_code='MA' # Output to data/gold/states/MA/
 )
 
 # Create current year + 2 historical years
 creator.create_all_contacts_tables(
-    include_nonprofit_officers=True,
-    snapshot_years=[2023, 2022, 2021]
+ include_nonprofit_officers=True,
+ snapshot_years=[2023, 2022, 2021]
 )
 "
 ```
@@ -120,7 +120,7 @@ creator.create_all_contacts_tables(
 **Creates:**
 - `data/gold/states/MA/contacts_nonprofit_officers.parquet` - Current year
 - `data/gold/states/MA/contacts_nonprofit_officers_2023.parquet` - 2023 snapshot
-- `data/gold/states/MA/contacts_nonprofit_officers_2022.parquet` - 2022 snapshot  
+- `data/gold/states/MA/contacts_nonprofit_officers_2022.parquet` - 2022 snapshot
 - `data/gold/states/MA/contacts_nonprofit_officers_2021.parquet` - 2021 snapshot
 - `data/gold/states/MA/contacts_nonprofit_officers_history.parquet` - Combined history
 
@@ -138,63 +138,63 @@ curl "http://localhost:8001/api/search/?q=Sarah&types=contacts&state=AL"
 
 ```json
 {
-  "query": "Sarah",
-  "total_results": 5,
-  "results": {
-    "contacts": [
-      {
-        "type": "contact",
-        "title": "Sarah Johnson",
-        "subtitle": "CEO - Alabama Oral Health Foundation ($150,000)",
-        "description": "Nonprofit officer in Birmingham, AL",
-        "url": "/nonprofits?name=Alabama-Oral-Health-Foundation",
-        "score": 1.5,
-        "metadata": {
-          "title": "CEO",
-          "organization": "Alabama Oral Health Foundation",
-          "compensation": 150000,
-          "contact_type": "nonprofit_officer"
-        }
-      }
-    ]
-  }
+ "query": "Sarah",
+ "total_results": 5,
+ "results": {
+ "contacts": [
+ {
+ "type": "contact",
+ "title": "Sarah Johnson",
+ "subtitle": "CEO - Alabama Oral Health Foundation ($150,000)",
+ "description": "Nonprofit officer in Birmingham, AL",
+ "url": "/nonprofits?name=Alabama-Oral-Health-Foundation",
+ "score": 1.5,
+ "metadata": {
+ "title": "CEO",
+ "organization": "Alabama Oral Health Foundation",
+ "compensation": 150000,
+ "contact_type": "nonprofit_officer"
+ }
+ }
+ ]
+ }
 }
 ```
 
-## 📋 Data Schema
+## Data Schema
 
 ### Nonprofit Officers Contact Table
 
 ```python
 {
-    # Officer Info
-    'name': 'Sarah Johnson',
-    'title': 'CEO',
-    'compensation': 150000,
-    'hours_per_week': 40,
-    
-    # Organization
-    'organization_ein': '123456789',
-    'organization_name': 'Alabama Oral Health Foundation',
-    'organization_ntee_code': 'E',
-    'organization_type': 'nonprofit',
-    
-    # Location
-    'state': 'AL',
-    'city': 'Birmingham',
-    'zip_code': '35203',
-    
-    # Versioning (for annual snapshots)
-    'snapshot_year': 2023,
-    
-    # Metadata
-    'source': 'irs_990_schedule_j',
-    'contact_type': 'nonprofit_officer',
-    'extracted_date': '2024-01-15'
+ # Officer Info
+ 'name': 'Sarah Johnson',
+ 'title': 'CEO',
+ 'compensation': 150000,
+ 'hours_per_week': 40,
+
+ # Organization
+ 'organization_ein': '123456789',
+ 'organization_name': 'Alabama Oral Health Foundation',
+ 'organization_ntee_code': 'E',
+ 'organization_type': 'nonprofit',
+
+ # Location
+ 'state': 'AL',
+ 'city': 'Birmingham',
+ 'zip_code': '35203',
+
+ # Versioning (for annual snapshots)
+ 'snapshot_year': 2023,
+
+ # Metadata
+ 'source': 'irs_990_schedule_j',
+ 'contact_type': 'nonprofit_officer',
+ 'extracted_date': '2024-01-15'
 }
 ```
 
-## 📅 Annual Snapshots & Historical Tracking
+## Annual Snapshots & Historical Tracking
 
 ### Why Versioning?
 
@@ -236,7 +236,7 @@ comp_changes = history.groupby(['organization_ein', 'snapshot_year'])['compensat
 turnover = history.groupby('organization_ein')['name'].nunique()
 ```
 
-## 🔍 Use Cases
+## Use Cases
 
 ### 1. Nonprofit Leadership Research
 
@@ -249,8 +249,8 @@ import pandas as pd
 officers = pd.read_parquet('data/gold/states/AL/contacts_nonprofit_officers.parquet')
 
 health_ceos = officers[
-    (officers['organization_ntee_code'].str.startswith('E')) &
-    (officers['title'].str.contains('CEO|Executive Director', case=False, na=False))
+ (officers['organization_ntee_code'].str.startswith('E')) &
+ (officers['title'].str.contains('CEO|Executive Director', case=False, na=False))
 ]
 
 print(f"Found {len(health_ceos)} health nonprofit CEOs in Alabama")
@@ -263,7 +263,7 @@ print(health_ceos[['name', 'organization_name', 'compensation']].head())
 
 ```python
 top_paid = officers.nlargest(20, 'compensation')[
-    ['name', 'title', 'organization_name', 'compensation', 'state']
+ ['name', 'title', 'organization_name', 'compensation', 'state']
 ]
 ```
 
@@ -273,8 +273,8 @@ top_paid = officers.nlargest(20, 'compensation')[
 
 ```python
 board_members = officers[
-    (officers['title'].str.contains('Board|Director|Trustee', case=False, na=False)) &
-    (officers['compensation'] < 10000)
+ (officers['title'].str.contains('Board|Director|Trustee', case=False, na=False)) &
+ (officers['compensation'] < 10000)
 ]
 ```
 
@@ -290,7 +290,7 @@ cross_board = multi_board[multi_board > 1].sort_values(ascending=False)
 print(f"{len(cross_board)} people serve on multiple boards")
 ```
 
-## 🎯 Integration Points
+## Integration Points
 
 ### Search API
 
@@ -319,7 +319,7 @@ GET /api/search/?q=Board+Chair&ntee_code=E
 4. Historical tables updated automatically
 5. Search index refreshed
 
-## 📈 Statistics
+## Statistics
 
 **Example coverage (Alabama health nonprofits):**
 - **Organizations**: 2,500 health nonprofits
@@ -328,22 +328,22 @@ GET /api/search/?q=Board+Chair&ntee_code=E
 - **Board members**: ~10,000
 - **Executive staff**: ~5,000
 
-## 🔧 Technical Notes
+## Technical Notes
 
 ### Data Source: GivingTuesday vs BigQuery
 
 **Why GivingTuesday Data Lake?**
 
 During implementation, we discovered limitations with BigQuery's public IRS 990 dataset:
-- ❌ Data only available through 2017 (7+ years old)
-- ❌ Schedule J (officer compensation) tables not in public dataset
-- ❌ Requires Google Cloud authentication
+- No Data only available through 2017 (7+ years old)
+- No Schedule J (officer compensation) tables not in public dataset
+- No Requires Google Cloud authentication
 
 **GivingTuesday advantages:**
-- ✅ Current data through 2023
-- ✅ Complete Form 990 XMLs with Part VII officer data
-- ✅ Public S3 bucket, no authentication required
-- ✅ 5.4M+ filings indexed and searchable
+- Yes Current data through 2023
+- Yes Complete Form 990 XMLs with Part VII officer data
+- Yes Public S3 bucket, no authentication required
+- Yes 5.4M+ filings indexed and searchable
 
 ### Form 990 XML Parsing
 
@@ -382,7 +382,7 @@ Expanded to individual rows in contacts table for searchability.
 
 This matches the organization pattern for other contact types (`contacts_local_officials.parquet`, `contacts_meeting_attendance.parquet`).
 
-## 🚨 Limitations
+## Limitations
 
 ### Data Availability
 
@@ -398,14 +398,14 @@ This matches the organization pattern for other contact types (`contacts_local_o
 - Names and titles are part of public record
 - Consider context when displaying (advocacy vs. general search)
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [IRS Form 990 XML Data (GivingTuesday)](https://990data.givingtuesday.org/)
 - [Form 990 Enrichment Script](/scripts/enrich_nonprofits_gt990.py)
 - [Contacts Gold Tables](/docs/guides/contacts-officials)
 - [Search API Reference](/docs/api-reference)
 
-## 🎉 Next Steps
+## Next Steps
 
 1. **Download GivingTuesday index** (one-time setup, ~900MB)
 2. **Enrich your nonprofit data** with officer information from Form 990 XMLs

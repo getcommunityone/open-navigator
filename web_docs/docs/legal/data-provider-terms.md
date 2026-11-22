@@ -15,23 +15,23 @@ This document provides the complete terms of service, usage policies, and attrib
 
 Open Navigator aggregates data from multiple sources. Each source has its own terms of service, usage policies, and attribution requirements. This document consolidates all provider terms to help you stay compliant.
 
-## 🏛️ U.S. Government Data Sources (Public Domain)
+## U.S. Government Data Sources (Public Domain)
 
 ### 1. IRS (Exempt Organizations Business Master File & Form 990)
 
-**Data Type:** Tax-exempt organization records, Form 990 filings  
-**License:** Public Domain (U.S. Government Work)  
+**Data Type:** Tax-exempt organization records, Form 990 filings
+**License:** Public Domain (U.S. Government Work)
 **Terms of Use:** [IRS.gov Copyright and Reuse Policy](https://www.irs.gov/about-irs/irsgov-privacy-policy)
 
 **Usage Rights:**
-- ✅ Free to download and redistribute
-- ✅ No restrictions on commercial or non-commercial use
-- ✅ No API key required
-- ✅ Attribution recommended but not required
+- Yes Free to download and redistribute
+- Yes No restrictions on commercial or non-commercial use
+- Yes No API key required
+- Yes Attribution recommended but not required
 
 **Restrictions:**
-- ❌ Must not claim IRS endorsement
-- ❌ Must not use for unauthorized commercial solicitation
+- No Must not claim IRS endorsement
+- No Must not use for unauthorized commercial solicitation
 
 **Attribution (Recommended):**
 ```
@@ -44,19 +44,19 @@ https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-f
 
 ### 2. U.S. Census Bureau
 
-**Data Type:** Geographic boundaries, demographics, government entities  
-**License:** Public Domain (U.S. Government Work)  
-**Terms of Use:** [Census Bureau Data Policy](https://www.census.gov/about/policies.html)  
+**Data Type:** Geographic boundaries, demographics, government entities
+**License:** Public Domain (U.S. Government Work)
+**Terms of Use:** [Census Bureau Data Policy](https://www.census.gov/about/policies.html)
 **API Documentation:** [Census Bureau API](https://www.census.gov/data/developers.html)
 
 **Usage Rights:**
-- ✅ Public domain data
-- ✅ Free API access (API key recommended but not required)
-- ✅ No restrictions on use or redistribution
-- ✅ Attribution appreciated
+- Yes Public domain data
+- Yes Free API access (API key recommended but not required)
+- Yes No restrictions on use or redistribution
+- Yes Attribution appreciated
 
 **Restrictions:**
-- ❌ Must not claim U.S. Census Bureau endorsement
+- No Must not claim U.S. Census Bureau endorsement
 
 **Rate Limits:**
 - **Without API key:** 500 requests per IP address per day
@@ -73,19 +73,19 @@ https://www.census.gov/
 
 ### 3. National Center for Education Statistics (NCES)
 
-**Data Type:** School district boundaries, demographics, enrollment  
-**License:** Public Domain (U.S. Government Work)  
-**Terms of Use:** [NCES Privacy Policy](https://nces.ed.gov/privacysecurity/)  
+**Data Type:** School district boundaries, demographics, enrollment
+**License:** Public Domain (U.S. Government Work)
+**Terms of Use:** [NCES Privacy Policy](https://nces.ed.gov/privacysecurity/)
 **Data Source:** [NCES Common Core of Data](https://nces.ed.gov/ccd/)
 
 **Usage Rights:**
-- ✅ Public domain educational data
-- ✅ No API key required
-- ✅ Free download and redistribution
-- ✅ No personal student information
+- Yes Public domain educational data
+- Yes No API key required
+- Yes Free download and redistribution
+- Yes No personal student information
 
 **Restrictions:**
-- ❌ Must not claim NCES endorsement
+- No Must not claim NCES endorsement
 
 **Attribution (Recommended):**
 ```
@@ -98,23 +98,23 @@ https://nces.ed.gov/
 
 ### 4. FEC / OpenFEC API
 
-**Data Type:** Campaign finance, political contributions  
-**License:** Public Domain (U.S. Government Work)  
-**Terms of Use:** [FEC.gov Terms of Use](https://www.fec.gov/updates/sale-or-use-contributor-information/)  
+**Data Type:** Campaign finance, political contributions
+**License:** Public Domain (U.S. Government Work)
+**Terms of Use:** [FEC.gov Terms of Use](https://www.fec.gov/updates/sale-or-use-contributor-information/)
 **API Documentation:** [OpenFEC API](https://api.open.fec.gov/developers/)
 
 **Usage Rights:**
-- ✅ FEC data is public domain
-- ✅ Free API access with API key
+- Yes FEC data is public domain
+- Yes Free API access with API key
 
 **Rate Limits:**
 - With API key: 1,000 requests/hour
 - Demo key: 30 requests/hour
 
 **CRITICAL RESTRICTIONS:**
-- ❌ **CANNOT use contributor information for commercial solicitation or fundraising**
-- ❌ **CANNOT sell contributor lists**
-- ❌ Must not violate federal campaign finance laws
+- No **CANNOT use contributor information for commercial solicitation or fundraising**
+- No **CANNOT sell contributor lists**
+- No Must not violate federal campaign finance laws
 
 **Attribution (Required):**
 ```
@@ -128,19 +128,19 @@ https://www.fec.gov/
 
 ### 5. Grants.gov API
 
-**Data Type:** Federal grant opportunities  
-**License:** Public Domain (U.S. Government Work)  
-**Terms of Use:** [Grants.gov Terms of Use](https://www.grants.gov/web/grants/support/terms-of-use.html)  
+**Data Type:** Federal grant opportunities
+**License:** Public Domain (U.S. Government Work)
+**Terms of Use:** [Grants.gov Terms of Use](https://www.grants.gov/web/grants/support/terms-of-use.html)
 **API Documentation:** [Grants.gov API](https://www.grants.gov/web/grants/support/technical-support/grantor-technical-support/grants-gov-api.html)
 
 **Usage Rights:**
-- ✅ Public government data
-- ✅ No API key required
-- ✅ Free unlimited access
+- Yes Public government data
+- Yes No API key required
+- Yes Free unlimited access
 
 **Restrictions:**
-- ❌ Must not misrepresent grant opportunities
-- ❌ Must not alter grant information
+- No Must not misrepresent grant opportunities
+- No Must not alter grant information
 
 **Attribution (Recommended):**
 ```
@@ -150,29 +150,29 @@ https://www.grants.gov/
 
 ---
 
-## 💼 Google Services
+## Google Services
 
 ### 8. Google BigQuery IRS 990 Public Dataset
 
-**Data Type:** IRS Form 990 filings  
-**License:** IRS data is Public Domain; BigQuery access subject to Google Cloud Terms  
-**Terms of Use:** [Google Cloud Terms of Service](https://cloud.google.com/terms)  
-**Dataset:** `bigquery-public-data.irs_990`  
+**Data Type:** IRS Form 990 filings
+**License:** IRS data is Public Domain; BigQuery access subject to Google Cloud Terms
+**Terms of Use:** [Google Cloud Terms of Service](https://cloud.google.com/terms)
+**Dataset:** `bigquery-public-data.irs_990`
 **Documentation:** [Google Cloud Marketplace](https://console.cloud.google.com/marketplace/product/internal-revenue-service/irs-990)
 
 **Usage Rights:**
-- ✅ IRS data is public domain
-- ✅ BigQuery provides fast SQL-based access
-- ✅ First 1 TB of queries per month is FREE
+- Yes IRS data is public domain
+- Yes BigQuery provides fast SQL-based access
+- Yes First 1 TB of queries per month is FREE
 
 **Requirements:**
-- ✅ **MUST comply with Google Cloud Terms of Service**
-- ✅ Google Cloud account required
-- ✅ Must provide attribution to IRS and Google Cloud
+- Yes **MUST comply with Google Cloud Terms of Service**
+- Yes Google Cloud account required
+- Yes Must provide attribution to IRS and Google Cloud
 
 **Restrictions:**
-- ❌ Subject to BigQuery quotas and pricing (beyond free tier)
-- ❌ Must not use for unauthorized commercial solicitation
+- No Subject to BigQuery quotas and pricing (beyond free tier)
+- No Must not use for unauthorized commercial solicitation
 
 **Attribution (Required):**
 ```
@@ -185,24 +185,24 @@ https://console.cloud.google.com/marketplace/product/internal-revenue-service/ir
 
 ### 9. Google Civic Information API
 
-**Data Type:** Elected officials, polling locations, election information  
-**License:** [Google APIs Terms of Service](https://developers.google.com/terms)  
-**API Documentation:** [Google Civic Information API](https://developers.google.com/civic-information)  
+**Data Type:** Elected officials, polling locations, election information
+**License:** [Google APIs Terms of Service](https://developers.google.com/terms)
+**API Documentation:** [Google Civic Information API](https://developers.google.com/civic-information)
 **Usage Limits:** [Google Civic API Policies](https://developers.google.com/civic-information/docs/usage_limits)
 
 **Free Tier:**
-- ✅ 25,000 requests per day
-- ✅ API key required (free from Google Cloud Console)
+- Yes 25,000 requests per day
+- Yes API key required (free from Google Cloud Console)
 
 **Requirements:**
-- ✅ **MUST comply with Google APIs Terms of Service**
-- ✅ **MUST display attribution:** "Data provided by Google"
-- ✅ **MUST NOT cache data beyond 30 days**
+- Yes **MUST comply with Google APIs Terms of Service**
+- Yes **MUST display attribution:** "Data provided by Google"
+- Yes **MUST NOT cache data beyond 30 days**
 
 **Restrictions:**
-- ❌ Subject to Google API quotas
-- ❌ Cannot cache data longer than 30 days
-- ❌ Must respect rate limits
+- No Subject to Google API quotas
+- No Cannot cache data longer than 30 days
+- No Must respect rate limits
 
 **Attribution (Required):**
 ```
@@ -216,17 +216,17 @@ https://developers.google.com/civic-information
 
 ### 10. Google Data Commons
 
-**Data Type:** Demographics, economics, health statistics  
-**License:** [Data Commons Terms](https://datacommons.org/about)  
+**Data Type:** Demographics, economics, health statistics
+**License:** [Data Commons Terms](https://datacommons.org/about)
 **API Documentation:** [Data Commons API](https://docs.datacommons.org/api/)
 
 **Usage Rights:**
-- ✅ Free access to aggregated statistical data
-- ✅ No API key required for most endpoints
+- Yes Free access to aggregated statistical data
+- Yes No API key required for most endpoints
 
 **Requirements:**
-- ✅ **MUST provide attribution to Google and original data sources**
-- ✅ **MUST comply with Google Terms of Service**
+- Yes **MUST provide attribution to Google and original data sources**
+- Yes **MUST comply with Google Terms of Service**
 
 **Attribution (Required):**
 ```
@@ -237,50 +237,50 @@ https://datacommons.org/
 
 ---
 
-## 🏢 Nonprofit Data Providers
+## Nonprofit Data Providers
 
 ### 11. Charity Navigator
 
-**Organization:** Charity Navigator, Inc.  
-**Principal Office:** 299 Market Street, Suite 250, Saddle Brook, NJ 07663  
-**API Terms:** [Charity Navigator API Terms of Use](https://www.charitynavigator.org/partner/api-terms)  
+**Organization:** Charity Navigator, Inc.
+**Principal Office:** 299 Market Street, Suite 250, Saddle Brook, NJ 07663
+**API Terms:** [Charity Navigator API Terms of Use](https://www.charitynavigator.org/partner/api-terms)
 **Last Updated:** March 2025
 
 **Rate Limit:**
-- ❌ **MAXIMUM: 1,000 API calls per day** (strictly enforced)
+- No **MAXIMUM: 1,000 API calls per day** (strictly enforced)
 
 **MANDATORY Attribution Requirements:**
 
 1. **Text Credit (on ALL pages using CN data):**
-   ```
-   Powered by Charity Navigator
-   ```
+ ```
+ Powered by Charity Navigator
+ ```
 
 2. **Source Citation:**
-   ```
-   Data provided by Charity Navigator
-   ```
+ ```
+ Data provided by Charity Navigator
+ ```
 
 3. **Linkback (REQUIRED for all charity names):**
-   ```html
-   <a href="https://www.charitynavigator.org/ein/[EIN]">
-     [Organization Name]
-   </a>
-   ```
+ ```html
+ <a href="https://www.charitynavigator.org/ein/[EIN]">
+ [Organization Name]
+ </a>
+ ```
 
 4. **Trademark Notice (once per page or in footer/credits):**
-   ```
-   CHARITY NAVIGATOR and the CHARITY NAVIGATOR logo are registered trademarks 
-   of Charity Navigator. All rights reserved. Used with permission.
-   ```
+ ```
+ CHARITY NAVIGATOR and the CHARITY NAVIGATOR logo are registered trademarks
+ of Charity Navigator. All rights reserved. Used with permission.
+ ```
 
 **CRITICAL Restrictions:**
-- ❌ **CANNOT redistribute Charity Navigator data**
-- ❌ **CANNOT create competing rating systems using CN data**
-- ❌ **CANNOT exceed 1,000 API calls per day**
-- ❌ Caching permitted for performance ONLY (not for redistribution)
-- ❌ No ownership rights to cached data
-- ❌ CN can terminate access for violations
+- No **CANNOT redistribute Charity Navigator data**
+- No **CANNOT create competing rating systems using CN data**
+- No **CANNOT exceed 1,000 API calls per day**
+- No Caching permitted for performance ONLY (not for redistribution)
+- No No ownership rights to cached data
+- No CN can terminate access for violations
 
 **Intellectual Property:**
 - All Charity Navigator data and ratings are proprietary
@@ -298,21 +298,21 @@ https://datacommons.org/
 
 ### 12. ProPublica Nonprofit Explorer API
 
-**Organization:** ProPublica, Inc.  
-**API Documentation:** [Nonprofit Explorer API](https://projects.propublica.org/nonprofits/api)  
+**Organization:** ProPublica, Inc.
+**API Documentation:** [Nonprofit Explorer API](https://projects.propublica.org/nonprofits/api)
 **Data Store Terms:** [ProPublica Data Store Terms](https://www.propublica.org/datastore/terms)
 
 **Usage Rights:**
-- ✅ Free unlimited API access
-- ✅ IRS data is public domain
-- ✅ Commercial and non-commercial use allowed
+- Yes Free unlimited API access
+- Yes IRS data is public domain
+- Yes Commercial and non-commercial use allowed
 
 **Requirements:**
-- ✅ **MUST provide attribution to ProPublica**
-- ✅ Respectful rate limiting recommended (~1 request/second)
+- Yes **MUST provide attribution to ProPublica**
+- Yes Respectful rate limiting recommended (~1 request/second)
 
 **Restrictions:**
-- ❌ ProPublica's analysis may have separate copyright (distinct from IRS data)
+- No ProPublica's analysis may have separate copyright (distinct from IRS data)
 
 **Attribution (Required):**
 ```
@@ -326,17 +326,17 @@ https://projects.propublica.org/nonprofits/
 
 ### 13. ProPublica Congress API
 
-**Organization:** ProPublica, Inc.  
-**API Documentation:** [Congress API](https://projects.propublica.org/api-docs/congress-api/)  
+**Organization:** ProPublica, Inc.
+**API Documentation:** [Congress API](https://projects.propublica.org/api-docs/congress-api/)
 **Coverage:** 102nd Congress (1991) to present
 
 **Rate Limit:**
 - 5,000 requests per day
 
 **Requirements:**
-- ✅ **API key required** (free at https://www.propublica.org/datastore/api/propublica-congress-api)
-- ✅ **MUST provide attribution to ProPublica**
-- ✅ Include as HTTP header: `X-API-Key: YOUR_API_KEY`
+- Yes **API key required** (free at https://www.propublica.org/datastore/api/propublica-congress-api)
+- Yes **MUST provide attribution to ProPublica**
+- Yes Include as HTTP header: `X-API-Key: YOUR_API_KEY`
 
 **Attribution (Required):**
 ```
@@ -348,22 +348,22 @@ https://projects.propublica.org/api-docs/congress-api/
 
 ### 14. ProPublica Campaign Finance API
 
-**Organization:** ProPublica, Inc.  
-**API Documentation:** [Campaign Finance API](https://projects.propublica.org/api-docs/campaign-finance/)  
+**Organization:** ProPublica, Inc.
+**API Documentation:** [Campaign Finance API](https://projects.propublica.org/api-docs/campaign-finance/)
 **Coverage:** FEC data from 2000 to present
 
 **Rate Limit:**
 - 5,000 requests per day
 
 **Requirements:**
-- ✅ **API key required** (free at https://www.propublica.org/datastore/api/campaign-finance-api)
-- ✅ **MUST provide attribution to ProPublica**
-- ✅ Include as HTTP header: `X-API-Key: YOUR_API_KEY`
+- Yes **API key required** (free at https://www.propublica.org/datastore/api/campaign-finance-api)
+- Yes **MUST provide attribution to ProPublica**
+- Yes Include as HTTP header: `X-API-Key: YOUR_API_KEY`
 
 **CRITICAL RESTRICTIONS:**
-- ❌ **CANNOT use contributor information for commercial solicitation**
-- ❌ **CANNOT use for fundraising purposes**
-- ❌ Must comply with FEC regulations
+- No **CANNOT use contributor information for commercial solicitation**
+- No **CANNOT use for fundraising purposes**
+- No Must comply with FEC regulations
 
 **Attribution (Required):**
 ```
@@ -376,17 +376,17 @@ https://projects.propublica.org/api-docs/campaign-finance/
 
 ### 15. ProPublica Vital Signs API
 
-**Organization:** ProPublica, Inc.  
-**API Documentation:** [Vital Signs API](https://projects.propublica.org/api-docs/vital-signs/)  
+**Organization:** ProPublica, Inc.
+**API Documentation:** [Vital Signs API](https://projects.propublica.org/api-docs/vital-signs/)
 **Coverage:** 1,000,000+ healthcare providers
 
 **Rate Limit:**
 - 5,000 requests per day
 
 **Requirements:**
-- ✅ **API key required** (free at https://www.propublica.org/datastore/api/vital-signs-api)
-- ✅ **MUST provide attribution to ProPublica**
-- ✅ Include as HTTP header: `X-API-Key: YOUR_API_KEY`
+- Yes **API key required** (free at https://www.propublica.org/datastore/api/vital-signs-api)
+- Yes **MUST provide attribution to ProPublica**
+- Yes Include as HTTP header: `X-API-Key: YOUR_API_KEY`
 
 **Attribution (Required):**
 ```
@@ -398,13 +398,13 @@ https://projects.propublica.org/vital-signs/
 
 ### 16. Every.org Charity API
 
-**Organization:** Every.org (Public Benefit Corporation)  
-**API Documentation:** [Every.org Nonprofit API](https://www.every.org/nonprofit-api)  
+**Organization:** Every.org (Public Benefit Corporation)
+**API Documentation:** [Every.org Nonprofit API](https://www.every.org/nonprofit-api)
 **Coverage:** 1,000,000+ verified nonprofits
 
 **Requirements:**
-- ✅ API key required (free tier available)
-- ✅ Must comply with Every.org API Terms of Service
+- Yes API key required (free tier available)
+- Yes Must comply with Every.org API Terms of Service
 
 **Attribution (Required):**
 ```
@@ -418,16 +418,16 @@ https://www.every.org/
 
 ### 17. Logo.dev API
 
-**Organization:** Logo.dev  
-**Website:** [Logo.dev](https://www.logo.dev/)  
+**Organization:** Logo.dev
+**Website:** [Logo.dev](https://www.logo.dev/)
 **API Documentation:** [Logo.dev API Docs](https://docs.logo.dev/)
 
 **Free Tier:**
 - 1,000 requests per month
 
 **Requirements:**
-- ✅ API key required (free tier available)
-- ✅ Must comply with Logo.dev Terms of Service
+- Yes API key required (free tier available)
+- Yes Must comply with Logo.dev Terms of Service
 
 **Usage:**
 - Fetches high-quality organization logos based on domain names
@@ -446,19 +446,19 @@ https://www.logo.dev/
 
 ### 18. GivingTuesday 990 Data Lake
 
-**Organization:** GivingTuesday  
-**Source:** [GivingTuesday 990 Data Infrastructure](https://990data.givingtuesday.org/)  
-**Storage:** AWS S3 Public Bucket  
-**License:** Public Domain (IRS data)  
+**Organization:** GivingTuesday
+**Source:** [GivingTuesday 990 Data Infrastructure](https://990data.givingtuesday.org/)
+**Storage:** AWS S3 Public Bucket
+**License:** Public Domain (IRS data)
 **AWS Registry:** [OpenData on AWS](https://registry.opendata.aws/gt990datalake/)
 
 **Usage Rights:**
-- ✅ Free access via AWS S3
-- ✅ No AWS credentials required (`--no-sign-request`)
-- ✅ IRS data is public domain
+- Yes Free access via AWS S3
+- Yes No AWS credentials required (`--no-sign-request`)
+- Yes IRS data is public domain
 
 **Requirements:**
-- ✅ **MUST attribute to GivingTuesday and IRS**
+- Yes **MUST attribute to GivingTuesday and IRS**
 
 **Costs:**
 - Standard AWS data egress charges may apply
@@ -474,19 +474,19 @@ https://990data.givingtuesday.org/
 
 ### 6. GSA .gov Domains List
 
-**Organization:** U.S. General Services Administration (GSA)  
-**Data Source:** [.gov Domain Data](https://github.com/cisagov/dotgov-data)  
-**License:** Public Domain (U.S. Government Work)  
+**Organization:** U.S. General Services Administration (GSA)
+**Data Source:** [.gov Domain Data](https://github.com/cisagov/dotgov-data)
+**License:** Public Domain (U.S. Government Work)
 **Format:** CSV published weekly on GitHub
 
 **Usage Rights:**
-- ✅ Public domain government data
-- ✅ No API key required
-- ✅ Free download and redistribution
-- ✅ Updated weekly
+- Yes Public domain government data
+- Yes No API key required
+- Yes Free download and redistribution
+- Yes Updated weekly
 
 **Requirements:**
-- ✅ Attribution appreciated (not required)
+- Yes Attribution appreciated (not required)
 
 **Attribution (Recommended):**
 ```
@@ -497,12 +497,12 @@ https://github.com/cisagov/dotgov-data
 
 ---
 
-## 🎬 Media & Social Platforms
+## Media & Social Platforms
 
 ### 7. YouTube Data API v3
 
-**Organization:** Google LLC  
-**API Documentation:** [YouTube Data API](https://developers.google.com/youtube/v3)  
+**Organization:** Google LLC
+**API Documentation:** [YouTube Data API](https://developers.google.com/youtube/v3)
 **Terms of Service:** [YouTube API Terms of Service](https://developers.google.com/youtube/terms/api-services-terms-of-service)
 
 **Quota:**
@@ -510,16 +510,16 @@ https://github.com/cisagov/dotgov-data
 - Different operations cost different units (e.g., search = 100 units, list = 1 unit)
 
 **Requirements:**
-- ✅ **API key required** (free from Google Cloud Console)
-- ✅ **MUST comply with YouTube API Terms of Service**
-- ✅ **MUST display attribution:** "Powered by YouTube Data API"
-- ✅ **MUST NOT cache video metadata longer than allowed**
+- Yes **API key required** (free from Google Cloud Console)
+- Yes **MUST comply with YouTube API Terms of Service**
+- Yes **MUST display attribution:** "Powered by YouTube Data API"
+- Yes **MUST NOT cache video metadata longer than allowed**
 
 **Restrictions:**
-- ❌ Cannot create competing video platform
-- ❌ Must respect quota limits (10,000 units/day)
-- ❌ Must comply with YouTube Community Guidelines
-- ❌ Subject to Google API Terms of Service
+- No Cannot create competing video platform
+- No Must respect quota limits (10,000 units/day)
+- No Must comply with YouTube Community Guidelines
+- No Subject to Google API Terms of Service
 
 **Attribution (Required):**
 ```
@@ -531,44 +531,44 @@ https://www.youtube.com/
 
 **Cost Calculation:**
 - Search operation: 100 units
-- List videos: 1 unit  
+- List videos: 1 unit
 - 10,000 units = ~100 searches or 10,000 video metadata requests per day
 
 ---
 
-## 🗳️ Civic & Government APIs
+## Civic & Government APIs
 
 ### 19. Open States API & Bulk Data
 
-**Organization:** Open States Foundation (part of Plural)  
-**API Documentation:** [Open States API v3](https://docs.openstates.org/api-v3/)  
-**Bulk Data:** [Plural Policy Bulk Downloads](https://open.pluralpolicy.com/data/) ⭐ **Recommended**  
+**Organization:** Open States Foundation (part of Plural)
+**API Documentation:** [Open States API v3](https://docs.openstates.org/api-v3/)
+**Bulk Data:** [Plural Policy Bulk Downloads](https://open.pluralpolicy.com/data/) **Recommended**
 **Terms of Service:** [Open States ToS](https://openstates.org/tos/)
 
 **Bulk Download Options (No API Key Required):**
 
 1. **CSV Files** - Complete legislative sessions
-   - URL: https://data.openstates.org/session/csv/{state}/{session_id}.csv
-   - License: **Public Domain** (encouraged for bulk analysis)
-   - No rate limits, no API key required
-   - Attribution appreciated but not required
+ - URL: https://data.openstates.org/session/csv/{state}/{session_id}.csv
+ - License: **Public Domain** (encouraged for bulk analysis)
+ - No rate limits, no API key required
+ - Attribution appreciated but not required
 
 2. **JSON Files** - Bills with full text
-   - URL: https://data.openstates.org/session/json/{state}/{session_id}.json.zip
-   - License: **Public Domain**
-   - Includes complete bill text and metadata
+ - URL: https://data.openstates.org/session/json/{state}/{session_id}.json.zip
+ - License: **Public Domain**
+ - Includes complete bill text and metadata
 
 3. **PostgreSQL Dumps** - Complete database
-   - URL: https://data.openstates.org/postgres/monthly/YYYY-MM-public.pgdump
-   - Monthly snapshots, ~5GB compressed
-   - License: **Public Domain**
+ - URL: https://data.openstates.org/postgres/monthly/YYYY-MM-public.pgdump
+ - Monthly snapshots, ~5GB compressed
+ - License: **Public Domain**
 
 **Bulk Data Terms:**
-- ✅ **Free to download and redistribute**
-- ✅ **No API key required**
-- ✅ **No rate limits**
-- ✅ **Attribution appreciated:** "Data from Open States"
-- ✅ **Encouraged for research and analysis**
+- Yes **Free to download and redistribute**
+- Yes **No API key required**
+- Yes **No rate limits**
+- Yes **Attribution appreciated:** "Data from Open States"
+- Yes **Encouraged for research and analysis**
 
 **API Access (Real-time updates):**
 
@@ -576,13 +576,13 @@ https://www.youtube.com/
 - 50,000 requests per month
 
 **Requirements:**
-- ✅ **API key required** (free at https://openstates.org/accounts/signup/)
-- ✅ **MUST display attribution:** "Powered by Open States"
-- ✅ Must comply with API rate limits
+- Yes **API key required** (free at https://openstates.org/accounts/signup/)
+- Yes **MUST display attribution:** "Powered by Open States"
+- Yes Must comply with API rate limits
 
 **Restrictions:**
-- ❌ Data licenses vary by state jurisdiction
-- ❌ Must respect 50,000 requests/month limit on free tier
+- No Data licenses vary by state jurisdiction
+- No Must respect 50,000 requests/month limit on free tier
 
 **Attribution (API Usage):**
 ```
@@ -601,30 +601,30 @@ https://open.pluralpolicy.com/data/
 - API data: Licenses vary by state jurisdiction
 - Check specific state terms for commercial use
 
-**Recommendation:**  
-Use **bulk downloads** for analysis and map generation (faster, no limits).  
+**Recommendation:**
+Use **bulk downloads** for analysis and map generation (faster, no limits).
 Use **API** for real-time bill tracking and search.
 
 ---
 
-## 🌐 Linked Open Data Sources
+## Linked Open Data Sources
 
 ### 20. Wikidata
 
-**Organization:** Wikimedia Foundation  
-**SPARQL Endpoint:** [Wikidata Query Service](https://query.wikidata.org/)  
-**License:** [CC0 1.0 Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/)  
+**Organization:** Wikimedia Foundation
+**SPARQL Endpoint:** [Wikidata Query Service](https://query.wikidata.org/)
+**License:** [CC0 1.0 Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/)
 **Terms of Use:** [Wikimedia Terms of Use](https://foundation.wikimedia.org/wiki/Terms_of_Use)
 
 **Usage Rights:**
-- ✅ CC0 Public Domain - no restrictions
-- ✅ No API key required
-- ✅ Free unlimited access
-- ✅ Attribution appreciated but not required
+- Yes CC0 Public Domain - no restrictions
+- Yes No API key required
+- Yes Free unlimited access
+- Yes Attribution appreciated but not required
 
 **Requirements:**
-- ✅ **MUST respect rate limits** (1 request/second recommended)
-- ✅ **MUST set descriptive User-Agent header**
+- Yes **MUST respect rate limits** (1 request/second recommended)
+- Yes **MUST set descriptive User-Agent header**
 
 **User-Agent Format:**
 ```
@@ -642,20 +642,20 @@ License: CC0 Public Domain
 
 ### 21. DBpedia
 
-**Organization:** DBpedia Association  
-**Lookup API:** [DBpedia Lookup Service](https://lookup.dbpedia.org/)  
-**License:** [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) and [GFDL](https://www.gnu.org/licenses/fdl-1.3.html)  
+**Organization:** DBpedia Association
+**Lookup API:** [DBpedia Lookup Service](https://lookup.dbpedia.org/)
+**License:** [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) and [GFDL](https://www.gnu.org/licenses/fdl-1.3.html)
 **Terms of Use:** [DBpedia Usage Policies](https://www.dbpedia.org/about/)
 
 **Usage Rights:**
-- ✅ Free to use with attribution
-- ✅ No API key required
+- Yes Free to use with attribution
+- Yes No API key required
 
 **Requirements:**
-- ✅ **MUST provide attribution to DBpedia and Wikipedia**
-- ✅ **MUST respect rate limits** (1-2 requests/second recommended)
-- ✅ **MUST set descriptive User-Agent header**
-- ✅ **Share-alike license applies** (CC BY-SA 3.0)
+- Yes **MUST provide attribution to DBpedia and Wikipedia**
+- Yes **MUST respect rate limits** (1-2 requests/second recommended)
+- Yes **MUST set descriptive User-Agent header**
+- Yes **Share-alike license applies** (CC BY-SA 3.0)
 
 **Attribution (Required):**
 ```
@@ -669,26 +669,26 @@ License: CC BY-SA 3.0 and GFDL
 
 ---
 
-## 🎓 Academic & Research Datasets
+## Academic & Research Datasets
 
 ### 22. MeetingBank Dataset
 
-**Organization:** Association for Computational Linguistics (ACL)  
-**Dataset:** [MeetingBank on HuggingFace](https://huggingface.co/datasets/huuuyeah/meetingbank)  
+**Organization:** Association for Computational Linguistics (ACL)
+**Dataset:** [MeetingBank on HuggingFace](https://huggingface.co/datasets/huuuyeah/meetingbank)
 **Paper:** [ACL 2023 Proceedings](https://arxiv.org/abs/2305.17529)
 
 **Citation Required:**
 ```bibtex
 @inproceedings{hu-etal-2023-meetingbank,
-    title = "MeetingBank: A Benchmark Dataset for Meeting Summarization",
-    author = "Yebowen Hu and Tim Ganter and Hanieh Deilamsalehy and 
-              Franck Dernoncourt and Hassan Foroosh and Fei Liu",
-    booktitle = "Proceedings of the 61st Annual Meeting of the 
-                 Association for Computational Linguistics (ACL)",
-    month = July,
-    year = "2023",
-    address = "Toronto, Canada",
-    publisher = "Association for Computational Linguistics",
+ title = "MeetingBank: A Benchmark Dataset for Meeting Summarization",
+ author = "Yebowen Hu and Tim Ganter and Hanieh Deilamsalehy and
+ Franck Dernoncourt and Hassan Foroosh and Fei Liu",
+ booktitle = "Proceedings of the 61st Annual Meeting of the
+ Association for Computational Linguistics (ACL)",
+ month = July,
+ year = "2023",
+ address = "Toronto, Canada",
+ publisher = "Association for Computational Linguistics",
 }
 ```
 
@@ -703,8 +703,8 @@ https://arxiv.org/abs/2305.17529
 
 ### 23. LocalView Dataset (Harvard Dataverse)
 
-**Organization:** Harvard University Mellon Urbanism Lab  
-**Dataverse:** [Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NJTBEM)  
+**Organization:** Harvard University Mellon Urbanism Lab
+**Dataverse:** [Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NJTBEM)
 **Website:** [LocalView.net](https://www.localview.net/)
 
 **License:** Research use (Harvard Dataverse terms apply)
@@ -712,19 +712,19 @@ https://arxiv.org/abs/2305.17529
 **Citation Required:**
 ```bibtex
 @dataset{localview_2024,
-  author = {{Harvard Mellon Urbanism Lab}},
-  title = {LocalView: Municipal Meeting Videos and Transcripts},
-  year = {2024},
-  publisher = {Harvard Dataverse},
-  doi = {10.7910/DVN/NJTBEM},
-  url = {https://www.localview.net/}
+ author = {{Harvard Mellon Urbanism Lab}},
+ title = {LocalView: Municipal Meeting Videos and Transcripts},
+ year = {2024},
+ publisher = {Harvard Dataverse},
+ doi = {10.7910/DVN/NJTBEM},
+ url = {https://www.localview.net/}
 }
 ```
 
 **Requirements:**
-- ✅ Must cite original research
-- ✅ Research use license applies
-- ❌ Cannot redistribute without permission
+- Yes Must cite original research
+- Yes Research use license applies
+- No Cannot redistribute without permission
 
 **Attribution (Required):**
 ```
@@ -737,14 +737,14 @@ https://www.localview.net/
 
 ### 24. Council Data Project (CDP)
 
-**Organization:** Open-source civic tech collaboration  
-**GitHub:** [CouncilDataProject](https://github.com/CouncilDataProject)  
-**Website:** [CouncilDataProject.org](https://councildataproject.org/)  
+**Organization:** Open-source civic tech collaboration
+**GitHub:** [CouncilDataProject](https://github.com/CouncilDataProject)
+**Website:** [CouncilDataProject.org](https://councildataproject.org/)
 **License:** Open source (MIT)
 
 **Usage Rights:**
-- ✅ MIT License - permissive use
-- ✅ Commercial and non-commercial use allowed
+- Yes MIT License - permissive use
+- Yes Commercial and non-commercial use allowed
 
 **Attribution (Required):**
 ```
@@ -757,14 +757,14 @@ License: MIT
 
 ### 25. City Scrapers / Documenters.org
 
-**Organization:** Documenters Network (civic journalism collaboration)  
-**GitHub:** [City-Bureau](https://github.com/City-Bureau)  
-**Website:** [Documenters.org](https://www.documenters.org/)  
+**Organization:** Documenters Network (civic journalism collaboration)
+**GitHub:** [City-Bureau](https://github.com/City-Bureau)
+**Website:** [Documenters.org](https://www.documenters.org/)
 **License:** Open source (MIT)
 
 **Usage Rights:**
-- ✅ MIT License - permissive use
-- ✅ Commercial and non-commercial use allowed
+- Yes MIT License - permissive use
+- Yes Commercial and non-commercial use allowed
 
 **Attribution (Required):**
 ```
@@ -777,13 +777,13 @@ License: MIT
 
 ### 26. Roper Center for Public Opinion Research
 
-**Organization:** Cornell University  
-**Database:** [iPoll Database](https://ropercenter.cornell.edu/ipoll/)  
+**Organization:** Cornell University
+**Database:** [iPoll Database](https://ropercenter.cornell.edu/ipoll/)
 **License:** Free public search; full data requires institutional membership
 
 **Usage Rights:**
-- ✅ Metadata and question wording: Free
-- ❌ Full survey data: Requires membership
+- Yes Metadata and question wording: Free
+- No Full survey data: Requires membership
 
 **Citation (Required):**
 ```
@@ -795,16 +795,16 @@ iPoll Databank. https://ropercenter.cornell.edu/ipoll/
 
 ### 27. Datamuse API (Word-Finding Engine)
 
-**Organization:** Datamuse, Inc.  
-**API Documentation:** [Datamuse API](https://www.datamuse.com/api/)  
-**Website:** [Datamuse.com](https://www.datamuse.com/)  
+**Organization:** Datamuse, Inc.
+**API Documentation:** [Datamuse API](https://www.datamuse.com/api/)
+**Website:** [Datamuse.com](https://www.datamuse.com/)
 **License:** Free tier for most applications; paid tier for high-volume commercial use
 
 **Free Tier:**
-- ✅ **100,000 requests per day** - Generous limit for most applications
-- ✅ **Commercial use allowed** - Can use in commercial apps under daily limit
-- ✅ **No API key required** - Simple HTTP GET requests
-- ✅ **Fast response times** - Optimized for real-time applications
+- Yes **100,000 requests per day** - Generous limit for most applications
+- Yes **Commercial use allowed** - Can use in commercial apps under daily limit
+- Yes **No API key required** - Simple HTTP GET requests
+- Yes **Fast response times** - Optimized for real-time applications
 
 **Paid Tier (High-Volume):**
 - Exceeding 100,000 requests/day requires paid tier
@@ -812,14 +812,14 @@ iPoll Databank. https://ropercenter.cornell.edu/ipoll/
 - Dedicated support and guaranteed uptime
 
 **Attribution Requirements:**
-- ✅ **Link to Datamuse required** (or strongly requested) for free tier users
-- ✅ **Credit in documentation:** "Powered by Datamuse API"
+- Yes **Link to Datamuse required** (or strongly requested) for free tier users
+- Yes **Credit in documentation:** "Powered by Datamuse API"
 - Example: `<a href="https://www.datamuse.com/">Powered by Datamuse API</a>`
 
 **CRITICAL Restrictions:**
-- ❌ **NO automated scraping of web interfaces** - Use official API only
-- ❌ **Rate limiting enforced** - Exceeding 100K/day will be throttled
-- ✅ **Caching allowed** - Can cache results to reduce API calls
+- No **NO automated scraping of web interfaces** - Use official API only
+- No **Rate limiting enforced** - Exceeding 100K/day will be throttled
+- Yes **Caching allowed** - Can cache results to reduce API calls
 
 **Terms of Service Key Points:**
 1. **Free API Usage:** Up to 100,000 requests per day for commercial and non-commercial use
@@ -846,33 +846,33 @@ For high-volume commercial licensing or API partnerships, contact Datamuse direc
 
 ### 28. CivicSearch (School Board Meeting Platform)
 
-**Organization:** Datamuse, Inc.  
-**Website:** [schools.civicsearch.org](https://schools.civicsearch.org/)  
-**Platform:** Datamuse-powered civic search interface for school board meetings  
+**Organization:** Datamuse, Inc.
+**Website:** [schools.civicsearch.org](https://schools.civicsearch.org/)
+**Platform:** Datamuse-powered civic search interface for school board meetings
 **License:** Free public access for search; bulk/API access requires partnership agreement
 
 **Free Access:**
-- ✅ **Public search interface** - Free for all users
-- ✅ **Public record data** - Meeting transcripts are generally public domain
-- ✅ **Search functionality** - AI-indexed transcripts across school districts
-- ✅ **Video access** - When available, embedded meeting videos
+- Yes **Public search interface** - Free for all users
+- Yes **Public record data** - Meeting transcripts are generally public domain
+- Yes **Search functionality** - AI-indexed transcripts across school districts
+- Yes **Video access** - When available, embedded meeting videos
 
 **Bulk Data / API Access:**
-- ⚠️ **No standard commercial checkout** - Handled case-by-case
-- ⚠️ **Researcher access** - Contact Datamuse for academic partnerships
-- ⚠️ **Civic organization partnerships** - Available for civic tech collaborators
-- ⚠️ **Commercial licensing** - Required for commercial applications
+- Warning **No standard commercial checkout** - Handled case-by-case
+- Warning **Researcher access** - Contact Datamuse for academic partnerships
+- Warning **Civic organization partnerships** - Available for civic tech collaborators
+- Warning **Commercial licensing** - Required for commercial applications
 
 **Attribution Requirements:**
-- ✅ **Link to CivicSearch** - Required when using data from the platform
-- ✅ **Source citation:** "Data from CivicSearch (Datamuse, Inc.)"
-- ✅ **Attribution for public record data** - While transcripts are public record, Datamuse's indexing and presentation are proprietary
+- Yes **Link to CivicSearch** - Required when using data from the platform
+- Yes **Source citation:** "Data from CivicSearch (Datamuse, Inc.)"
+- Yes **Attribution for public record data** - While transcripts are public record, Datamuse's indexing and presentation are proprietary
 
 **CRITICAL Restrictions:**
-- ❌ **NO automated scraping** - Prohibited by terms of service
-- ❌ **NO bulk download without permission** - Requires partnership agreement
-- ❌ **NO redistribution** - Cannot redistribute CivicSearch data without license
-- ✅ **Use official API when available** - Preferred method for data access
+- No **NO automated scraping** - Prohibited by terms of service
+- No **NO bulk download without permission** - Requires partnership agreement
+- No **NO redistribution** - Cannot redistribute CivicSearch data without license
+- Yes **Use official API when available** - Preferred method for data access
 
 **Terms of Service Key Points:**
 1. **Public Search:** Free access via web interface for public use
@@ -884,9 +884,9 @@ For high-volume commercial licensing or API partnerships, contact Datamuse direc
 7. **Commercial Use:** Requires licensing agreement for commercial applications
 
 **Usage Rights:**
-- ✅ Public record data (transcripts) generally public domain
-- ❌ Datamuse indexing, search, and presentation technology proprietary
-- ⚠️ Must not claim data as original work
+- Yes Public record data (transcripts) generally public domain
+- No Datamuse indexing, search, and presentation technology proprietary
+- Warning Must not claim data as original work
 
 **Attribution (Required):**
 ```
@@ -910,18 +910,18 @@ For bulk data access, API integration, or civic tech collaborations:
 
 ---
 
-## 🗳️ Election Data Sources
+## Election Data Sources
 
 ### 29. MIT Election Data + Science Lab
 
-**Organization:** Massachusetts Institute of Technology  
-**Repository:** [GitHub - MEDSL](https://github.com/MEDSL/official-returns)  
-**Website:** [MIT Election Lab](https://electionlab.mit.edu/data)  
+**Organization:** Massachusetts Institute of Technology
+**Repository:** [GitHub - MEDSL](https://github.com/MEDSL/official-returns)
+**Website:** [MIT Election Lab](https://electionlab.mit.edu/data)
 **License:** Free for research and commercial use
 
 **Usage Rights:**
-- ✅ Free to use and redistribute
-- ✅ Commercial and non-commercial use allowed
+- Yes Free to use and redistribute
+- Yes Commercial and non-commercial use allowed
 
 **Attribution (Required):**
 ```
@@ -933,14 +933,14 @@ https://electionlab.mit.edu/data
 
 ### 30. OpenElections
 
-**Organization:** OpenElections Project  
-**GitHub:** [OpenElections](https://github.com/openelections)  
-**Website:** [OpenElections.net](https://openelections.net/)  
+**Organization:** OpenElections Project
+**GitHub:** [OpenElections](https://github.com/openelections)
+**Website:** [OpenElections.net](https://openelections.net/)
 **License:** Open source (varies by state)
 
 **Usage Rights:**
-- ✅ Free to use with attribution
-- ⚠️ Licensing varies by state
+- Yes Free to use with attribution
+- Warning Licensing varies by state
 
 **Attribution (Required):**
 ```
@@ -951,24 +951,24 @@ https://openelections.net/
 
 ---
 
-## 💰 Paid/Commercial Services (NOT USED)
+## Paid/Commercial Services (NOT USED)
 
 ### 31. Ballotpedia API v3.0
 
-**Organization:** Lucy Burns Institute  
-**API Documentation:** [Ballotpedia API](https://ballotpedia.org/API_documentation)  
+**Organization:** Lucy Burns Institute
+**API Documentation:** [Ballotpedia API](https://ballotpedia.org/API_documentation)
 **License:** **Paid service - requires commercial license**
 
-**Status:** ⚠️ **NOT USED in Open Navigator**
+**Status:** Warning **NOT USED in Open Navigator**
 
 - Code in `discovery/ballotpedia_integration.py` is **reference only**
 - Web scraping may violate Ballotpedia terms of service
 - **Do not use without paid API license**
 
 **Free Alternatives:**
-- ✅ Google Civic Information API (25k requests/day free)
-- ✅ Open States API (50k requests/month free)
-- ✅ NCES (free for school boards)
+- Yes Google Civic Information API (25k requests/day free)
+- Yes Open States API (50k requests/month free)
+- Yes NCES (free for school boards)
 
 **If You Have Paid Access:**
 - Must comply with Ballotpedia API Terms of Use
@@ -976,7 +976,7 @@ https://openelections.net/
 
 ---
 
-## ⚖️ Compliance Summary Table
+## Compliance Summary Table
 
 | Provider | API Key | Rate Limit | Attribution Required | Share-Alike | Commercial Use |
 |----------|---------|------------|---------------------|-------------|----------------|
@@ -1017,7 +1017,7 @@ https://openelections.net/
 
 ---
 
-## 📞 Contact Information for Providers
+## Contact Information for Providers
 
 ### U.S. Government Agencies
 - **1. IRS:** https://www.irs.gov/charities-non-profits
@@ -1058,7 +1058,7 @@ https://openelections.net/
 
 ---
 
-## ⚠️ Important Reminders
+## Warning Important Reminders
 
 ### Always Required
 1. **Respect rate limits** - implement caching and delays
@@ -1079,7 +1079,7 @@ https://openelections.net/
 
 ---
 
-## 🔄 Updates & Changes
+## Updates & Changes
 
 This document is updated regularly to reflect:
 - New data sources added

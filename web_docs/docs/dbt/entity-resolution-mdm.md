@@ -27,26 +27,26 @@ clustering**. The two halves talk through exactly two tables, so neither reaches
 into the other's internals.
 
 ```
-dbt (keys + conformance)          Python / Splink (matching)         dbt (serving)
-──────────────────────────        ──────────────────────────         ─────────────────
-Layer 0  extensions               Layer 3  Splink model              Layer 5  mdm_person/address
-Layer 1  normalization macros  ►  Layer 4  predict + cluster    ►            mdm_bridge_*
-Layer 2  conformed stagings       writes clusters → bronze              (reads cluster table)
+dbt (keys + conformance) Python / Splink (matching) dbt (serving)
+────────────────────────── ────────────────────────── ─────────────────
+Layer 0 extensions Layer 3 Splink model Layer 5 mdm_person/address
+Layer 1 normalization macros Layer 4 predict + cluster mdm_bridge_*
+Layer 2 conformed stagings writes clusters → bronze (reads cluster table)
 ```
 
 - **dbt → Splink contract:** `int_persons__unioned` / `int_addresses__unioned`
-  (the conformed input Splink reads).
+ (the conformed input Splink reads).
 - **Splink → dbt contract:** `bronze.entity_person_clusters` /
-  `bronze.entity_address_clusters`
-  (`source_system, source_pk, master_person_id, match_probability`).
+ `bronze.entity_address_clusters`
+ (`source_system, source_pk, master_person_id, match_probability`).
 
 ## Why this shape
 
 - Reuses the record-linkage pattern already proven in
-  `int_master__crosswalk` (one CTE per strategy, `match_method` +
-  `match_confidence`), rather than a bespoke MDM tool.
+ `int_master__crosswalk` (one CTE per strategy, `match_method` +
+ `match_confidence`), rather than a bespoke MDM tool.
 - Normalization keys live **upstream in dbt** where they are shared and tested —
-  Splink's `block_on(...)` clauses reference those same columns.
+ Splink's `block_on(...)` clauses reference those same columns.
 - Cross-reference **bridge tables** link sources without mutating source data.
 - Every step is independently shippable (exact-match first, fuzzy later).
 
@@ -109,16 +109,16 @@ they must live here, shared, not inside the Splink script. Keep the existing
 `normalize_name` for the generic case and add:
 
 - `normalize_person_name(col)` — `unaccent` → lowercase → flip "Last, First" →
-  strip titles (`mr|mrs|dr|hon|councilmember|commissioner`) and suffixes
-  (`jr|sr|iii`) → collapse whitespace.
+ strip titles (`mr|mrs|dr|hon|councilmember|commissioner`) and suffixes
+ (`jr|sr|iii`) → collapse whitespace.
 - `name_phonetic_key(col)` — `dmetaphone(family_name)` (Double Metaphone, via
-  `fuzzystrmatch`) for the fuzzy blocking key; Splink also uses `dmetaphone` as a
-  name comparison level.
+ `fuzzystrmatch`) for the fuzzy blocking key; Splink also uses `dmetaphone` as a
+ name comparison level.
 - `normalize_address(col)` — `unaccent` → lowercase → expand USPS abbreviations
-  (`st→street`, `ave→avenue`, `n→north`…) → strip unit/suite → collapse.
+ (`st→street`, `ave→avenue`, `n→north`…) → strip unit/suite → collapse.
 - `zip5(col)` — `left(regexp_replace(zip, '\D', '', 'g'), 5)`.
 - `address_match_key(...)` —
-  `md5(normalized_street || '|' || city_norm || '|' || state_code || '|' || zip5)`.
+ `md5(normalized_street || '|' || city_norm || '|' || state_code || '|' || zip5)`.
 
 Address **parsing** (street vs unit vs city) is the one task worth doing outside
 dbt — a small `usaddress` / `libpostal` enrichment in `packages/ingestion` that
@@ -139,7 +139,7 @@ all emitting one uniform contract, then unioned into
 source_system, source_pk, entity_type,
 -- names
 raw_name, name_norm, given_name_norm, family_name_norm,
-family_name_initial, name_phonetic_key,   -- initial = left(family_name_norm, 1), for blocking
+family_name_initial, name_phonetic_key, -- initial = left(family_name_norm, 1), for blocking
 -- addresses: PARSED INTO COLUMNS, not one string (Splink matches far better this way)
 raw_address, address_norm, address_match_key,
 street_number, street_name, city_norm, state_code, zip5,
@@ -171,16 +171,16 @@ conformance.
 **Split by data shape (decided after a first Splink run over-merged addresses):**
 
 - **Addresses → deterministic (dbt, not Splink).** Addresses are structured, so
-  they resolve on the exact normalized-address key. Probabilistic clustering
-  chained whole ZIPs together (a 13,699- then 4,469-member blob of *different*
-  houses) because fuzzy `street_number` scoring is too weak against exact
-  zip+city+state agreement. `int_addresses__clustered` sets
-  `master_address_id = coalesce(address_match_key, address_uid)` — identical
-  addresses merge, streetless singletons stay separate. Result: 442,579 →
-  **376,337 master addresses**, largest cluster a real shared PO box (551), built
-  in seconds, zero chaining. `mdm_address` + `mdm_bridge_address_xref` serve it.
+ they resolve on the exact normalized-address key. Probabilistic clustering
+ chained whole ZIPs together (a 13,699- then 4,469-member blob of *different*
+ houses) because fuzzy `street_number` scoring is too weak against exact
+ zip+city+state agreement. `int_addresses__clustered` sets
+ `master_address_id = coalesce(address_match_key, address_uid)` — identical
+ addresses merge, streetless singletons stay separate. Result: 442,579 →
+ **376,337 master addresses**, largest cluster a real shared PO box (551), built
+ in seconds, zero chaining. `mdm_address` + `mdm_bridge_address_xref` serve it.
 - **Persons → Splink (probabilistic).** Names have no clean key and genuinely
-  need fuzzy + phonetic matching; this is where Splink earns its keep.
+ need fuzzy + phonetic matching; this is where Splink earns its keep.
 
 The Splink design below now applies to the **person** pool.
 
@@ -190,57 +190,57 @@ New Python is a proper library, not a script (`packages/` rule). Record linkage
 is explicitly allowed outside dbt (ML / ingestion).
 
 - **Location:** `packages/ingestion/src/ingestion/mdm/` — `person_linker.py`,
-  `address_linker.py`, shared `settings.py`, and a CLI so it runs as
-  `python -m ingestion.mdm.person_linker` (mirrors `llm.governance`,
-  `ingestion.youtube`). Add `splink` to that package via `uv`.
+ `address_linker.py`, shared `settings.py`, and a CLI so it runs as
+ `python -m ingestion.mdm.person_linker` (mirrors `llm.governance`,
+ `ingestion.youtube`). Add `splink` to that package via `uv`.
 - **Backend:** Splink Postgres backend on `localhost:5433/open_navigator`,
-  reading the `intermediate.int_*__unioned` tables; results write back to
-  `bronze`. No data leaves the warehouse. (DuckDB backend is the fallback if
-  Postgres perf bites.) Two backend constraints, caught via `--dry-run` and
-  handled in `ingestion.mdm`: the Postgres dialect has **no Jaro-Winkler** (use
-  Levenshtein via `fuzzystrmatch`), and it resolves input tables by **bare name
-  only** (engine sets `search_path=intermediate,bronze,public`; schema-qualified
-  names fail).
+ reading the `intermediate.int_*__unioned` tables; results write back to
+ `bronze`. No data leaves the warehouse. (DuckDB backend is the fallback if
+ Postgres perf bites.) Two backend constraints, caught via `--dry-run` and
+ handled in `ingestion.mdm`: the Postgres dialect has **no Jaro-Winkler** (use
+ Levenshtein via `fuzzystrmatch`), and it resolves input tables by **bare name
+ only** (engine sets `search_path=intermediate,bronze,public`; schema-qualified
+ names fail).
 - **Blocking rules — run several in sequence** so a typo in one field doesn't
-  drop the pair (a record blocked out by a bad zip is still caught by a
-  name-based rule). Avoids the `O(N²)` all-pairs blowup. Use the dbt keys:
-  - `block_on("zip5")` — exact zip.
-  - `block_on("family_name_initial", "state_code")` — first initial of surname + state.
-  - `block_on("street_name")` — shared street name.
-  - `block_on("email")` / `block_on("external_id")` — strong-key shortcuts.
+ drop the pair (a record blocked out by a bad zip is still caught by a
+ name-based rule). Avoids the `O(N²)` all-pairs blowup. Use the dbt keys:
+ - `block_on("zip5")` — exact zip.
+ - `block_on("family_name_initial", "state_code")` — first initial of surname + state.
+ - `block_on("street_name")` — shared street name.
+ - `block_on("email")` / `block_on("external_id")` — strong-key shortcuts.
 
-  Keep `entity_type` as a partition so org rows never block against people.
+ Keep `entity_type` as a partition so org rows never block against people.
 
 - **Comparison levels — ordered, most-to-least certain per column.** Mix string
-  metrics (Jaro-Winkler / Levenshtein) with phonetics (Double Metaphone).
+ metrics (Jaro-Winkler / Levenshtein) with phonetics (Double Metaphone).
 
-  **Person name** (`given_name_norm`, `family_name_norm`):
-  1. Exact match (`john bowyer` == `john bowyer`).
-  2. **Double Metaphone** match — catches `jon`/`john`, `smith`/`smyth`.
-  3. **Jaro-Winkler ≥ 0.88** — catches typos `jhon`, `bowyre`.
-  4. Else / null.
+ **Person name** (`given_name_norm`, `family_name_norm`):
+ 1. Exact match (`john bowyer` == `john bowyer`).
+ 2. **Double Metaphone** match — catches `jon`/`john`, `smith`/`smyth`.
+ 3. **Jaro-Winkler ≥ 0.88** — catches typos `jhon`, `bowyre`.
+ 4. Else / null.
 
-  **Address** (parsed columns):
-  - `street_number` — **exact-or-null only**. A wrong number is a different
-    house; do not fuzzy-match it.
-  - `street_name`, `city_norm` — Jaro-Winkler / Levenshtein levels (`main st`
-    vs `maen st`).
-  - `zip5` — **partial credit**: exact = strong; first-3-digits match = a
-    positive (weaker) level; total mismatch = penalty. Don't treat zip as
-    all-or-nothing.
-  - lat/long distance band as a corroborating level when both present.
+ **Address** (parsed columns):
+ - `street_number` — **exact-or-null only**. A wrong number is a different
+ house; do not fuzzy-match it.
+ - `street_name`, `city_norm` — Jaro-Winkler / Levenshtein levels (`main st`
+ vs `maen st`).
+ - `zip5` — **partial credit**: exact = strong; first-3-digits match = a
+ positive (weaker) level; total mismatch = penalty. Don't treat zip as
+ all-or-nothing.
+ - lat/long distance band as a corroborating level when both present.
 
 - **Term-frequency (TF) adjustments — turn these on.** A match on a rare name or
-  rare street name is heavier evidence than a match on `Smith` or `Main`. Splink
-  down-weights common values and boosts rare ones automatically; enable TF on
-  `family_name_norm`, `given_name_norm`, `street_name`, and `city_norm`.
+ rare street name is heavier evidence than a match on `Smith` or `Main`. Splink
+ down-weights common values and boosts rare ones automatically; enable TF on
+ `family_name_norm`, `given_name_norm`, `street_name`, and `city_norm`.
 
 - **Training:** `estimate_u_using_random_sampling` + EM; persist the trained
-  model JSON in the package (versioned) for reproducible runs.
+ model JSON in the package (versioned) for reproducible runs.
 - **Clustering:** `cluster_pairwise_predictions_at_threshold(df, threshold=0.9)`
-  → `cluster_id` becomes `master_person_id` / `master_address_id`. Tune the
-  threshold from Splink's match-weight waterfall charts; log precision/recall on
-  a hand-labeled sample.
+ → `cluster_id` becomes `master_person_id` / `master_address_id`. Tune the
+ threshold from Splink's match-weight waterfall charts; log precision/recall on
+ a hand-labeled sample.
 
 **Survivorship (golden record) stays in dbt** — pick best-source / most-complete
 per cluster in reviewable SQL, not in Python.
@@ -248,30 +248,30 @@ per cluster in reviewable SQL, not in Python.
 ## Layer 5 — serving (dbt marts)
 
 - `mdm_person`, `mdm_address` — golden records, built by joining `int_*__unioned`
-  to the cluster table plus survivorship logic. **Addresses** are live
-  (deterministic clustering). **Persons** currently serve at source-occurrence
-  grain (PK `person_uid`) directly off `int_persons__unioned`; the upstream `ref`
-  swaps to `int_persons__clustered` once Splink person clustering lands, adding a
-  deduplicated `master_person_id` — same evolution `mdm_organization` followed.
+ to the cluster table plus survivorship logic. **Addresses** are live
+ (deterministic clustering). **Persons** currently serve at source-occurrence
+ grain (PK `person_uid`) directly off `int_persons__unioned`; the upstream `ref`
+ swaps to `int_persons__clustered` once Splink person clustering lands, adding a
+ deduplicated `master_person_id` — same evolution `mdm_organization` followed.
 - `mdm_bridge_person_address`, `mdm_person_source_link`, `mdm_bridge_address_xref`
-  — link the masters to `source_system + source_pk` (and to each other).
+ — link the masters to `source_system + source_pk` (and to each other).
 - API name-search and address-map-search query the `mdm_` marts; every source
-  reaches them through the bridge.
+ reaches them through the bridge.
 - `GIN (name_norm gin_trgm_ops)` and `GIN (address_norm gin_trgm_ops)` indexes
-  keep `similarity()` / `%` searches fast.
+ keep `similarity()` / `%` searches fast.
 
 ```
 bronze sources ─┐
-                ├─► stg_<src>__person/address (conform) ─► int_*__unioned
-event_* marts ──┘                                              │
-                                                               ▼
-                                          Splink: predict + cluster (packages/ingestion)
-                                                               │
-                                                               ▼
-                                          bronze.entity_*_clusters (master_id)
-                                                               │
-                                                               ▼
-                          mdm_person / mdm_address + mdm_bridge_* ◄── API search
+ ├─ stg_<src>__person/address (conform) ─ int_*__unioned
+event_* marts ──┘ │
+
+ Splink: predict + cluster (packages/ingestion)
+ │
+
+ bronze.entity_*_clusters (master_id)
+ │
+
+ mdm_person / mdm_address + mdm_bridge_* ── API search
 ```
 
 ## Build order
@@ -280,78 +280,78 @@ Each step is shippable on its own.
 
 1. Extensions + the five normalization macros.
 2. Conformed stagings → `int_persons__unioned` / `int_addresses__unioned`.
-   **Validate row counts + key null-rates before continuing.**
+ **Validate row counts + key null-rates before continuing.**
 3. Splink linker on **addresses first** (smaller comparison space, lat/long is a
-   strong signal) as the template.
+ strong signal) as the template.
 4. `mdm_address` + `mdm_bridge_address_xref` + API trigram index. Prove search
-   end-to-end on one entity. ✅ done.
+ end-to-end on one entity. Yes done.
 5. Repeat 3–4 for persons. `mdm_person` already serves at occurrence grain;
-   remaining work is the Splink person linker → `int_persons__clustered` →
-   `master_person_id`, then repoint `mdm_person`'s upstream `ref`.
+ remaining work is the Splink person linker → `int_persons__clustered` →
+ `master_person_id`, then repoint `mdm_person`'s upstream `ref`.
 
 ## Watch-outs
 
 - **Organizations vs people:** `contributor_name` and 990 `org_name_current` go
-  to an organization master, not the person pool.
+ to an organization master, not the person pool.
 - **AI-extracted sources are lowest trust:** `bronze_persons_from_ai` /
-  `bronze_places_from_ai` have no strong keys and known dirtiness (channel-name
-  collisions, promotion gaps).
-  Use a conservative match threshold and rank them last in survivorship so a
-  hallucinated name never becomes a golden record.
+ `bronze_places_from_ai` have no strong keys and known dirtiness (channel-name
+ collisions, promotion gaps).
+ Use a conservative match threshold and rank them last in survivorship so a
+ hallucinated name never becomes a golden record.
 - **Name token order differs across sources** (found via `audit_mdm_keys`):
-  campaign `contributor_name` is `LAST, FIRST` (comma-delimited, which
-  `normalize_person_name` flips), but parcel `bronze_addresses.owner_name` is
-  `LAST FIRST` with **no comma** (`DORROUGH JESSE`) — the macro can't detect
-  order, so it does not flip, and a surname-as-last-token phonetic key keys on
-  the given name instead. Owner names also carry estate/trust noise
-  (`... 1/2 INT & ... TRUST`). **Decision:** do not rely on a single "surname"
-  phonetic key. Emit phonetic keys for *both* the first and last token and let
-  Splink's name comparison + multiple blocking rules resolve order, rather than
-  hard-coding a per-source flip. Low match weight handles the trust/estate noise
-  gracefully. See [Layer 1](#layer-1--normalization-macros-dbt) /
-  [Layer 3](#layer-34--splink-python-packages).
+ campaign `contributor_name` is `LAST, FIRST` (comma-delimited, which
+ `normalize_person_name` flips), but parcel `bronze_addresses.owner_name` is
+ `LAST FIRST` with **no comma** (`DORROUGH JESSE`) — the macro can't detect
+ order, so it does not flip, and a surname-as-last-token phonetic key keys on
+ the given name instead. Owner names also carry estate/trust noise
+ (`... 1/2 INT & ... TRUST`). **Decision:** do not rely on a single "surname"
+ phonetic key. Emit phonetic keys for *both* the first and last token and let
+ Splink's name comparison + multiple blocking rules resolve order, rather than
+ hard-coding a per-source flip. Low match weight handles the trust/estate noise
+ gracefully. See [Layer 1](#layer-1--normalization-macros-dbt) /
+ [Layer 3](#layer-34--splink-python-packages).
 - **Streetless rows + PO boxes need NULL keys** (found building
-  `int_addresses__unioned`): `address_match_key` already returns NULL when the
-  street is blank — without that, ~11.7k streetless Selma AL parcels collapsed
-  onto one hash. A shared **PO box** is the same trap (`po box 412` = 551
-  distinct owners): treat PO-box-only situs as not-a-unique-address and exclude
-  it from the exact key too, leaving those rows to Splink's fuzzy comparison.
+ `int_addresses__unioned`): `address_match_key` already returns NULL when the
+ street is blank — without that, ~11.7k streetless Selma AL parcels collapsed
+ onto one hash. A shared **PO box** is the same trap (`po box 412` = 551
+ distinct owners): treat PO-box-only situs as not-a-unique-address and exclude
+ it from the exact key too, leaving those rows to Splink's fuzzy comparison.
 - **High-volume sources must dedup to distinct entities, not occurrences**
-  (found building `int_persons__unioned`): `bronze_campaigns_contributions` has
-  **~24.5M transaction rows** — a donor who gave 500 times is one entity, not 500
-  pool rows. `stg_contributions__person` collapses to one row per distinct
-  contributor identity (`name_norm` + city + state + zip) before the union, with
-  `source_pk` = a hash of that identity; the transaction-level link belongs in a
-  separate xref, not the person pool. Apply the same rule to any future
-  transaction-grained source. Result: 24.5M txns → **1,885,888 distinct
-  contributors** (13× collapse); full person pool `int_persons__unioned` =
-  2,362,852 rows.
+ (found building `int_persons__unioned`): `bronze_campaigns_contributions` has
+ **~24.5M transaction rows** — a donor who gave 500 times is one entity, not 500
+ pool rows. `stg_contributions__person` collapses to one row per distinct
+ contributor identity (`name_norm` + city + state + zip) before the union, with
+ `source_pk` = a hash of that identity; the transaction-level link belongs in a
+ separate xref, not the person pool. Apply the same rule to any future
+ transaction-grained source. Result: 24.5M txns → **1,885,888 distinct
+ contributors** (13× collapse); full person pool `int_persons__unioned` =
+ 2,362,852 rows.
 - **Materialize high-volume staging as a table, not a view** (perf, found
-  building the above): `stg_contributions__person` is a view, so the regex-heavy
-  `normalize_person_name` + `distinct on` over 24.5M rows re-runs on every read —
-  the union build took ~21 min, almost all of it here. Switch this one staging
-  model to `materialized='table'` (or an incremental int model keyed on the
-  append-only contributions) so the normalization runs once. The view default is
-  fine for the small sources.
+ building the above): `stg_contributions__person` is a view, so the regex-heavy
+ `normalize_person_name` + `distinct on` over 24.5M rows re-runs on every read —
+ the union build took ~21 min, almost all of it here. Switch this one staging
+ model to `materialized='table'` (or an incremental int model keyed on the
+ append-only contributions) so the normalization runs once. The view default is
+ fine for the small sources.
 - **Person bridges are FK-bound to `mdm_person` and filtered to real people**
-  (resolved after measuring orphan keys). `mdm_person` filters to
-  `entity_type='person' and is_probable_person`; the bridges
-  (`mdm_bridge_person_address`, `mdm_person_source_link`) now apply the **same
-  filter** so every `person_uid` resolves to an `mdm_person` row — enforced as a
-  `person_uid → mdm_person` FK. Before this, `mdm_bridge_person_address` pulled
-  every `bronze_addresses` owner occurrence unfiltered: 35,773 of 111,075 distinct
-  keys (32%) had no `mdm_person` row — **24,467 `entity_type='organization'`**
-  (business parcel owners) and 11,306 low-quality person names. The filter drops
-  those (bridge: 111,075 → 75,302 keys, 0 orphans). The excluded business parcel
-  owners are not lost: `stg_parcels__org` routes the org-shaped owner names
-  (`classify_name_entity_type = 'organization'`) into the org pool, and
-  `mdm_bridge_org_address` now carries them as `parcel_owner` links (≈8,086 distinct
-  org↔address pairs, 0 address-FK orphans) alongside the `located_at` facility links.
+ (resolved after measuring orphan keys). `mdm_person` filters to
+ `entity_type='person' and is_probable_person`; the bridges
+ (`mdm_bridge_person_address`, `mdm_person_source_link`) now apply the **same
+ filter** so every `person_uid` resolves to an `mdm_person` row — enforced as a
+ `person_uid → mdm_person` FK. Before this, `mdm_bridge_person_address` pulled
+ every `bronze_addresses` owner occurrence unfiltered: 35,773 of 111,075 distinct
+ keys (32%) had no `mdm_person` row — **24,467 `entity_type='organization'`**
+ (business parcel owners) and 11,306 low-quality person names. The filter drops
+ those (bridge: 111,075 → 75,302 keys, 0 orphans). The excluded business parcel
+ owners are not lost: `stg_parcels__org` routes the org-shaped owner names
+ (`classify_name_entity_type = 'organization'`) into the org pool, and
+ `mdm_bridge_org_address` now carries them as `parcel_owner` links (≈8,086 distinct
+ org↔address pairs, 0 address-FK orphans) alongside the `located_at` facility links.
 - **Filter non-names at the source, flag the rest** (found via `full_name`/
-  `is_probable_person`): scraped pages yield ~12k non-name strings (titles, dates,
-  "hours of operation", UI chrome). `stg_openstates__person` reuses the existing
-  `is_usable_person` gate from `stg_bronze_persons_scraped` so they never enter
-  the pool. For residual junk from other sources, `int_persons__unioned` exposes
-  `is_probable_person` (false for orgs, names with digits, 1- or 6+-token strings)
-  and `full_name` = `initcap(name_norm)` for display. Filter with
-  `where is_probable_person` before serving.
+ `is_probable_person`): scraped pages yield ~12k non-name strings (titles, dates,
+ "hours of operation", UI chrome). `stg_openstates__person` reuses the existing
+ `is_usable_person` gate from `stg_bronze_persons_scraped` so they never enter
+ the pool. For residual junk from other sources, `int_persons__unioned` exposes
+ `is_probable_person` (false for orgs, names with digits, 1- or 6+-token strings)
+ and `full_name` = `initcap(name_norm)` for display. Filter with
+ `where is_probable_person` before serving.

@@ -1,4 +1,4 @@
-# 📚 LocalView Integration Guide
+# LocalView Integration Guide
 
 ## Overview
 
@@ -19,10 +19,10 @@
 Once the page loads:
 1. Scroll down to the **"Files"** section
 2. Look for downloadable CSV/TAB files with names like:
-   - `municipalities.csv` or `municipalities.tab`
-   - `meetings.csv` or `meetings.tab`
-   - `videos.csv` or `videos.tab`
-   - Or similar naming patterns
+ - `municipalities.csv` or `municipalities.tab`
+ - `meetings.csv` or `meetings.tab`
+ - `videos.csv` or `videos.tab`
+ - Or similar naming patterns
 
 ### 3. Download the Files
 
@@ -33,10 +33,10 @@ Click the **"Download"** button for each file:
 **Expected files** (names may vary):
 ```
 data/cache/localview/
-├── municipalities.csv     # List of municipalities with URLs
-├── meetings.csv           # Meeting metadata
-├── videos.csv             # Video URLs and metadata
-└── README.txt             # Dataset documentation (if available)
+├── municipalities.csv # List of municipalities with URLs
+├── meetings.csv # Meeting metadata
+├── videos.csv # Video URLs and metadata
+└── README.txt # Dataset documentation (if available)
 ```
 
 ### 4. Expected Data Structure
@@ -99,12 +99,12 @@ python scripts/discovery/localview_ingestion.py
 [INFO] Found 1,247 municipalities
 [INFO] Found 8,453 meeting videos
 [INFO] Platforms detected:
-  - YouTube: 3,421 videos
-  - Granicus: 2,876 videos
-  - Vimeo: 1,234 videos
-  - Other: 922 videos
-[SUCCESS] ✓ Written 1,247 municipalities to bronze/localview_municipalities
-[SUCCESS] ✓ Written 8,453 videos to bronze/localview_videos
+ - YouTube: 3,421 videos
+ - Granicus: 2,876 videos
+ - Vimeo: 1,234 videos
+ - Other: 922 videos
+[SUCCESS] Yes Written 1,247 municipalities to bronze/localview_municipalities
+[SUCCESS] Yes Written 8,453 videos to bronze/localview_videos
 ```
 
 ---
@@ -140,7 +140,7 @@ If successful, we can update the script to use the API instead of manual downloa
 
 ### Problem: CAPTCHA Blocks Download
 
-**Solution**: 
+**Solution**:
 1. Use a web browser (not curl/wget)
 2. Complete the CAPTCHA verification
 3. Download files manually through the browser
@@ -162,10 +162,10 @@ Based on the LocalView research paper:
 
 ### Quality Indicators
 
-- ✅ **Academic validation** - Harvard research project
-- ✅ **Human verification** - URLs manually verified
-- ✅ **Transcript availability** - Many include automated transcripts
-- ✅ **Continuous updates** - Dataset may be updated periodically
+- Yes **Academic validation** - Harvard research project
+- Yes **Human verification** - URLs manually verified
+- Yes **Transcript availability** - Many include automated transcripts
+- Yes **Continuous updates** - Dataset may be updated periodically
 
 ---
 
@@ -175,9 +175,9 @@ Based on the LocalView research paper:
 
 ```bash
 # After running LocalView ingestion
-python scripts/discovery/meetingbank_ingestion.py      # 1,366 meetings
-python scripts/datasources/cityscrapers/city_scrapers_urls.py         # 100-500 agencies
-python scripts/discovery/openstates_sources.py         # 50+ legislatures
+python scripts/discovery/meetingbank_ingestion.py # 1,366 meetings
+python scripts/datasources/cityscrapers/city_scrapers_urls.py # 100-500 agencies
+python scripts/discovery/openstates_sources.py # 50+ legislatures
 
 # Total: 7,000-12,000 verified URLs!
 ```
@@ -197,10 +197,10 @@ city_scrapers = spark.read.format("delta").load("bronze/city_scrapers_urls")
 
 # Deduplicate by URL
 unique_urls = (
-    localview.select("url", "platform", "municipality", "state")
-    .union(meetingbank.select("url", "platform", "municipality", "state"))
-    .union(city_scrapers.select("url", "platform", "municipality", "state"))
-    .dropDuplicates(["url"])
+ localview.select("url", "platform", "municipality", "state")
+ .union(meetingbank.select("url", "platform", "municipality", "state"))
+ .union(city_scrapers.select("url", "platform", "municipality", "state"))
+ .dropDuplicates(["url"])
 )
 
 print(f"Total unique URLs: {unique_urls.count()}")
@@ -233,10 +233,10 @@ LIMIT 100
 
 | Step | Time Required | Priority |
 |------|---------------|----------|
-| Download files from Harvard Dataverse | 5-10 min | 🔥 HIGH |
-| Run ingestion script | 2-5 min | 🔥 HIGH |
-| Verify data quality | 5 min | 🟡 MEDIUM |
-| Deduplication with other sources | 10 min | 🟡 MEDIUM |
+| Download files from Harvard Dataverse | 5-10 min | HIGH |
+| Run ingestion script | 2-5 min | HIGH |
+| Verify data quality | 5 min | MEDIUM |
+| Deduplication with other sources | 10 min | MEDIUM |
 
 **Total time**: ~30 minutes for complete integration
 

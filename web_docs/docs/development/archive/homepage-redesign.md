@@ -15,19 +15,19 @@ The homepage has been redesigned to follow the Ground News pattern with trending
 Two rows of trending topics at the top of the page with **+ icons** to subscribe/follow:
 
 **First Row:**
-- World Press Freedom Day 📰
-- Business & Markets 💼
-- Artificial Intelligence 🤖
-- Health & Medicine ⚕️
-- Premier League ⚽
-- Soccer ⚽
+- World Press Freedom Day
+- Business & Markets
+- Artificial Intelligence
+- Health & Medicine
+- Premier League
+- Soccer
 
 **Second Row:**
-- Baseball ⚾
-- Donald Trump 🏛️
-- IPL 🏏
-- Social Media 📱
-- Trump Administration 🇺🇸
+- Baseball
+- Donald Trump
+- IPL
+- Social Media
+- Trump Administration
 - "Follow Topics" button
 
 Each topic:
@@ -83,9 +83,9 @@ The original search interface is now in a collapsible section lower on the page:
 
 ```typescript
 import {
-  PlusIcon,      // For "subscribe/follow" buttons
-  BellIcon,      // For "Follow Topics" button
-  FireIcon       // For "Trending" indicator
+ PlusIcon, // For "subscribe/follow" buttons
+ BellIcon, // For "Follow Topics" button
+ FireIcon // For "Trending" indicator
 } from '@heroicons/react/24/outline'
 ```
 
@@ -94,50 +94,50 @@ import {
 **TRENDING_TOPICS array:**
 ```typescript
 {
-  name: string,      // "World Press Freedom Day"
-  icon: string,      // "📰"
-  category: string   // "Global"
+ name: string, // "World Press Freedom Day"
+ icon: string, // ""
+ category: string // "Global"
 }
 ```
 
 **FEATURED_STORY object:**
 ```typescript
 {
-  title: string,
-  subtitle: string,
-  image: string,     // URL to hero image
-  category: string,
-  link: string       // Internal route
+ title: string,
+ subtitle: string,
+ image: string, // URL to hero image
+ category: string,
+ link: string // Internal route
 }
 ```
 
 **TOP_STORIES array:**
 ```typescript
 {
-  title: string,
-  topic: string,     // Displayed as badge
-  image: string,     // 400x300px thumbnail
-  link: string
+ title: string,
+ topic: string, // Displayed as badge
+ image: string, // 400x300px thumbnail
+ link: string
 }
 ```
 
 ### Styling Features
 
 1. **Trending Bar:**
-   - `bg-gray-50 border-b` for subtle separation
-   - Pill-shaped buttons with `rounded-full`
-   - Hover state with `border-primary-500`
+ - `bg-gray-50 border-b` for subtle separation
+ - Pill-shaped buttons with `rounded-full`
+ - Hover state with `border-primary-500`
 
 2. **Hero Banner:**
-   - `h-[500px]` fixed height
-   - `bg-gradient-to-t from-black` for text readability
-   - `group-hover:opacity-50` for image
-   - `group-hover:text-primary-300` for headline
+ - `h-[500px]` fixed height
+ - `bg-gradient-to-t from-black` for text readability
+ - `group-hover:opacity-50` for image
+ - `group-hover:text-primary-300` for headline
 
 3. **Story Cards:**
-   - `hover:shadow-lg` for elevation
-   - `group-hover:scale-105` on images
-   - `line-clamp-2` for title truncation
+ - `hover:shadow-lg` for elevation
+ - `group-hover:scale-105` on images
+ - `line-clamp-2` for title truncation
 
 ## Image Generation
 
@@ -172,11 +172,11 @@ python scripts/media/generate_topic_images.py
 **Output:**
 ```
 data/media/topics/
-├── world_press_freedom_day_banner.png   (1200x600)
-├── world_press_freedom_day_square.png   (400x400)
+├── world_press_freedom_day_banner.png (1200x600)
+├── world_press_freedom_day_square.png (400x400)
 ├── artificial_intelligence_banner.png
 ├── artificial_intelligence_square.png
-└── metadata.json                         (color schemes, paths)
+└── metadata.json (color schemes, paths)
 ```
 
 ### Color Scheme Generation
@@ -202,43 +202,43 @@ Replace placeholder Unsplash images with generated ones:
 
 ```typescript
 const FEATURED_STORY = {
-  title: 'World Press Freedom Day...',
-  image: '/images/topics/world_press_freedom_day_banner.png', // ← Use generated
-  // ...
+ title: 'World Press Freedom Day...',
+ image: '/images/topics/world_press_freedom_day_banner.png', // ← Use generated
+ // ...
 }
 
 const TOP_STORIES = [
-  {
-    title: 'AI Policy Tracking...',
-    image: '/images/topics/artificial_intelligence_square.png', // ← Use generated
-    // ...
-  }
+ {
+ title: 'AI Policy Tracking...',
+ image: '/images/topics/artificial_intelligence_square.png', // ← Use generated
+ // ...
+ }
 ]
 ```
 
 ### Integration Steps
 
 1. **Generate images:**
-   ```bash
-   cd /home/developer/projects/open-navigator
-   source .venv/bin/activate
-   python scripts/media/generate_topic_images.py
-   ```
+ ```bash
+ cd /home/developer/projects/open-navigator
+ source .venv/bin/activate
+ python scripts/media/generate_topic_images.py
+ ```
 
 2. **Copy to frontend:**
-   ```bash
-   mkdir -p frontend/public/images/topics
-   cp data/media/topics/*.png frontend/public/images/topics/
-   ```
+ ```bash
+ mkdir -p frontend/public/images/topics
+ cp data/media/topics/*.png frontend/public/images/topics/
+ ```
 
 3. **Update Home.tsx:**
-   - Change image URLs from `https://images.unsplash.com/...`
-   - To `/images/topics/{topic}_square.png` or `{topic}_banner.png`
+ - Change image URLs from `https://images.unsplash.com/...`
+ - To `/images/topics/{topic}_square.png` or `{topic}_banner.png`
 
 4. **Rebuild:**
-   ```bash
-   cd frontend && npm run build
-   ```
+ ```bash
+ cd frontend && npm run build
+ ```
 
 ## Benefits
 
@@ -310,30 +310,30 @@ Based on [Ground News](https://ground.news):
 ### Before (Search-First)
 ```
 +----------------------------------+
-| Open Navigator                    |
-| Search box (prominent)            |
-| Tabs: Search / Location           |
-| Quick topic pills                 |
-| Stats section                     |
+| Open Navigator |
+| Search box (prominent) |
+| Tabs: Search / Location |
+| Quick topic pills |
+| Stats section |
 +----------------------------------+
 ```
 
 ### After (Content-First)
 ```
 +----------------------------------+
-| Trending: [Topic] [Topic] [+]     |
-| [Topic] [Topic] [Topic] [+]       |
+| Trending: [Topic] [Topic] [+] |
+| [Topic] [Topic] [Topic] [+] |
 +----------------------------------+
-| [HERO IMAGE WITH HEADLINE]        |
-| Large featured story              |
+| [HERO IMAGE WITH HEADLINE] |
+| Large featured story |
 +----------------------------------+
-| Top Stories Grid                  |
-| [img] [img] [img]                |
-| Story Story Story                 |
+| Top Stories Grid |
+| [img] [img] [img] |
+| Story Story Story |
 +----------------------------------+
-| Search Section (collapsible)      |
-| Features Grid                     |
-| Stats                             |
+| Search Section (collapsible) |
+| Features Grid |
+| Stats |
 +----------------------------------+
 ```
 
@@ -342,34 +342,34 @@ Based on [Ground News](https://ground.news):
 ### Manual Tests
 
 1. **Trending Topics**
-   - Click each topic → should navigate to search
-   - Hover → should show border/background change
-   - + icon → should be visible
+ - Click each topic → should navigate to search
+ - Hover → should show border/background change
+ - + icon → should be visible
 
 2. **Hero Banner**
-   - Image loads correctly
-   - Text is readable over image
-   - Hover effects work
-   - Link goes to correct search
+ - Image loads correctly
+ - Text is readable over image
+ - Hover effects work
+ - Link goes to correct search
 
 3. **Story Grid**
-   - All 6 stories display
-   - Images load
-   - Topic badges visible
-   - Hover effects (shadow, scale)
+ - All 6 stories display
+ - Images load
+ - Topic badges visible
+ - Hover effects (shadow, scale)
 
 4. **Search Still Works**
-   - Both tabs functional
-   - Location lookup works
-   - Search results correct
+ - Both tabs functional
+ - Location lookup works
+ - Search results correct
 
 ### Automated Tests
 
 Build verification:
 ```bash
 cd frontend
-npx tsc --noEmit  # TypeScript check
-npm run build     # Vite build
+npx tsc --noEmit # TypeScript check
+npm run build # Vite build
 ```
 
 ## Deployment
@@ -390,7 +390,7 @@ The Docker build will include:
 ### Local Development
 
 ```bash
-./start-all.sh  # Starts all 3 services
+./start-all.sh # Starts all 3 services
 # Visit http://localhost:5173
 ```
 
