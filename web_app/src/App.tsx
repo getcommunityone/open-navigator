@@ -35,6 +35,7 @@ import JurisdictionMappingQualityPage from './pages/JurisdictionMappingQualityPa
 import LighthouseReportPage from './pages/LighthouseReportPage'
 import BatchJobStatusPage from './pages/BatchJobStatusPage'
 import ApplicationLinksAdminPage from './pages/ApplicationLinksAdminPage'
+import MeetingKindsAdminPage from './pages/MeetingKindsAdminPage'
 import Hackathons from './pages/Hackathons'
 import OpenSource from './pages/OpenSource'
 import AdvocacyTopics from './pages/AdvocacyTopics'
@@ -201,6 +202,7 @@ function App() {
           <Route path="lighthouse-report" element={<LighthouseReportPage />} />
           <Route path="batch-jobs" element={<BatchJobStatusPage />} />
           <Route path="application-links" element={<ApplicationLinksAdminPage />} />
+          <Route path="meeting-kinds" element={<MeetingKindsAdminPage />} />
         </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="grants/:id" element={<GrantDetail />} />

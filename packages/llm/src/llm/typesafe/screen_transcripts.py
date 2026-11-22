@@ -387,11 +387,18 @@ def meeting_keep_p_below(keep_p: float | None, min_meeting_p: float) -> bool:
 gov_meeting_p_below = meeting_keep_p_below
 
 
+OVERRIDE_TABLE = "bronze.bronze_video_meeting_kind_override"
+# Overrides that mean "keep for analysis" even when the screen keep-score is low.
+KEEP_OVERRIDE_KINDS = ("government_meeting", "town_hall")
+
+
 def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[str]:
     """Videos whose keep-score ``P(government_meeting)+P(town_hall)`` is below ``min_meeting_p``.
 
     Unscreened videos, older question wording, and screens missing both keep-kind
-    keys are never returned."""
+    keys are never returned. Human overrides in
+    ``bronze.bronze_video_meeting_kind_override`` with kind
+    ``government_meeting`` or ``town_hall`` are never skipped (#668)."""
     import psycopg2
 
     conn = psycopg2.connect(database_url)
@@ -400,21 +407,45 @@ def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[s
             cur.execute("SELECT to_regclass(%s)", [TABLE])
             if cur.fetchone()[0] is None:
                 return set()
-            cur.execute(
-                f"""
-                SELECT video_id FROM {TABLE}
-                WHERE question_version = %s
-                  AND (
-                    meeting_kind_probabilities ? 'government_meeting'
-                    OR meeting_kind_probabilities ? 'town_hall'
-                  )
-                  AND (
-                    COALESCE((meeting_kind_probabilities->>'government_meeting')::float, 0)
-                    + COALESCE((meeting_kind_probabilities->>'town_hall')::float, 0)
-                  ) < %s
-                """,
-                [QUESTION_VERSION, min_meeting_p],
-            )
+            cur.execute("SELECT to_regclass(%s)", [OVERRIDE_TABLE])
+            has_override = cur.fetchone()[0] is not None
+            if has_override:
+                cur.execute(
+                    f"""
+                    SELECT s.video_id FROM {TABLE} s
+                    WHERE s.question_version = %s
+                      AND (
+                        s.meeting_kind_probabilities ? 'government_meeting'
+                        OR s.meeting_kind_probabilities ? 'town_hall'
+                      )
+                      AND (
+                        COALESCE((s.meeting_kind_probabilities->>'government_meeting')::float, 0)
+                        + COALESCE((s.meeting_kind_probabilities->>'town_hall')::float, 0)
+                      ) < %s
+                      AND NOT EXISTS (
+                        SELECT 1 FROM {OVERRIDE_TABLE} o
+                        WHERE o.video_id = s.video_id
+                          AND o.override_kind = ANY(%s)
+                      )
+                    """,
+                    [QUESTION_VERSION, min_meeting_p, list(KEEP_OVERRIDE_KINDS)],
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT video_id FROM {TABLE}
+                    WHERE question_version = %s
+                      AND (
+                        meeting_kind_probabilities ? 'government_meeting'
+                        OR meeting_kind_probabilities ? 'town_hall'
+                      )
+                      AND (
+                        COALESCE((meeting_kind_probabilities->>'government_meeting')::float, 0)
+                        + COALESCE((meeting_kind_probabilities->>'town_hall')::float, 0)
+                      ) < %s
+                    """,
+                    [QUESTION_VERSION, min_meeting_p],
+                )
             return {row[0] for row in cur.fetchall()}
     finally:
         conn.close()

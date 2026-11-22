@@ -10,6 +10,9 @@ export const ADMIN_BATCH_JOBS = '/admin/batch-jobs'
 /** Job-application links for data center projects (DC-1.3, #248). */
 export const ADMIN_APPLICATION_LINKS = '/admin/application-links'
 
+/** Jev meeting-kind review / not_government overrides (#668). */
+export const ADMIN_MEETING_KINDS = '/admin/meeting-kinds'
+
 /**
  * Databricks (external) — the production Azure Databricks workspace
  * (`dbw-opennav-prod-eastus-001`) and the deployed Databricks App. These open

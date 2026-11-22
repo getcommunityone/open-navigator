@@ -28,6 +28,7 @@ import {
   ADMIN_BASE,
   ADMIN_BATCH_JOBS,
   ADMIN_LIGHTHOUSE_REPORT,
+  ADMIN_MEETING_KINDS,
 } from '../utils/adminPaths'
 
 type Section = 'account' | 'site' | 'admin'
@@ -490,6 +491,11 @@ export default function Settings() {
                     'Application links',
                     'Data center job-application links',
                     ADMIN_APPLICATION_LINKS,
+                  )}
+                  {linkCard(
+                    'Meeting kinds (not_government)',
+                    'Sort by probability and override false skips',
+                    ADMIN_MEETING_KINDS,
                   )}
                   <div className="pt-2">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
