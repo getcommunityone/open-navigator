@@ -152,6 +152,12 @@ export type LaunchStatus = {
   /** Live but stalled (>1h no activity) — re-launchable. */
   stalled_steps: string[]
   steps: string[]
+  /** Operator warning when a live launch is inactive or VPN appears down (#750). */
+  warning?: string
+  /** True when the newest launch log mentions Surfshark / VPN required. */
+  vpn_down?: boolean
+  /** Seconds since the most inactive live launch last progressed (log/DB). */
+  inactive_seconds?: number | null
 }
 
 export type LaunchResult = {

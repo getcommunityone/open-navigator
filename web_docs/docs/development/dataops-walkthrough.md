@@ -65,6 +65,10 @@ malformed responses).
 - If a `running` batch shows no activity for `BATCH_JOB_INACTIVITY_SECONDS` (default 3,600, minimum 60), it is marked
   `cancelled` with the reason stored in its config (`stale_cancel_reason`), and each jurisdiction still `running` is
   marked `failed` with exit code `-1` so it can be picked up again.
+- Detached pipeline launches (Discover / catalog / captions / …) also warn on the Batch Job Status page when the
+  launch log goes quiet for `BATCH_JOB_LAUNCH_WARN_SECONDS` (default 900) or when the log shows Surfshark/VPN down
+  ([#750](https://github.com/getcommunityone/open-navigator/issues/750)). Discover aborts the whole run on
+  `VpnRequiredError` instead of skipping county by county.
 - The admin dashboard ([`batch_job_dashboard.py`](https://github.com/getcommunityone/open-navigator/blob/main/api/batch_jobs/batch_job_dashboard.py)) shows per-state
   progress; launching, stopping and reading logs require an admin since
   [#361](https://github.com/getcommunityone/open-navigator/pull/361).

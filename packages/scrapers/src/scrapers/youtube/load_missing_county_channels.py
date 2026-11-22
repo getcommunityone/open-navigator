@@ -23,6 +23,7 @@ _REPO_ROOT = repo_root(__file__)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 
 
@@ -229,6 +230,15 @@ async def discover_channels(
                     state_code=state_code,
                     homepage_url=website,
                 )
+            except VpnRequiredError:
+                # Do not keep grinding counties while Surfshark is down — abort so
+                # the launch log ends with a clear error the dashboard can surface (#750).
+                logger.error(
+                    "VPN required — aborting discover for {} (Surfshark off). "
+                    "Connect the VPN and re-run.",
+                    state_code,
+                )
+                raise
             except Exception as exc:
                 logger.warning("Discovery failed for {}: {}", county_name, exc)
                 channels = []
@@ -338,6 +348,7 @@ def discover_one_state(
     return with_channel
 
 
+@exit_if_vpn_off
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--state", default="GA", help="Two-letter state code (default: GA)")
@@ -364,6 +375,8 @@ def main() -> int:
     )
     args = p.parse_args()
 
+    require_vpn()
+
     cohort = (args.cohort or "").strip().lower()
     data_center_jids: frozenset[str] | None = None
     if cohort == "data_centers":
@@ -383,6 +396,7 @@ def main() -> int:
 
     multi = len(states) > 1
     for state_code in states:
+        require_vpn()
         discover_one_state(
             state_code,
             db_url,

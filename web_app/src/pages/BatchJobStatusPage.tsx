@@ -1705,7 +1705,8 @@ export default function BatchJobStatusPage() {
               .reduce((a, b) => (a > b ? a : b), '')
             const freshestAgo = agoFromIso(freshestIso)
             // Mirrors the API stall window (_LAUNCH_STALL_SECONDS /
-            // BATCH_JOB_INACTIVITY_SECONDS, default 3600s).
+            // BATCH_JOB_INACTIVITY_SECONDS, default 3600s). Warn earlier via
+            // launchStatus.warning / vpn_down (#750, default 15m).
             const STALL_SECONDS = 3600
             const freshestAgeSecs = freshestIso
               ? Math.max(0, Math.floor((agoClockMs - Date.parse(freshestIso)) / 1000))
@@ -1722,20 +1723,48 @@ export default function BatchJobStatusPage() {
             const liveRunningRows = data.totals.running > 0 && !rowsStale
             const isActive = liveRunningRows || runningSteps.size > 0
             const anyStalled = stalledSteps.size > 0 || rowsStale
-            const statusText = isActive ? 'Running' : anyStalled ? 'Stalled' : 'Idle'
-            const statusDot = isActive
-              ? 'bg-emerald-500'
-              : anyStalled
-                ? 'bg-amber-500'
-                : 'bg-slate-400'
+            const launchWarning = (ls?.warning || '').trim()
+            const vpnDown = !!ls?.vpn_down
+            const statusText = vpnDown
+              ? 'VPN down'
+              : isActive
+                ? launchWarning
+                  ? 'Running · warning'
+                  : 'Running'
+                : anyStalled
+                  ? 'Stalled'
+                  : 'Idle'
+            const statusDot = vpnDown
+              ? 'bg-rose-500'
+              : isActive
+                ? launchWarning
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+                : anyStalled
+                  ? 'bg-amber-500'
+                  : 'bg-slate-400'
             return (
               <>
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                {launchWarning ? (
+                  <div
+                    role="status"
+                    className={`border-b px-4 py-2 text-sm ${
+                      vpnDown
+                        ? 'border-rose-200 bg-rose-50 text-rose-900'
+                        : 'border-amber-200 bg-amber-50 text-amber-950'
+                    }`}
+                  >
+                    <span className="font-semibold">{vpnDown ? 'VPN error' : 'Inactivity warning'}</span>
+                    <span className="mx-1.5 text-current/40">·</span>
+                    <span>{launchWarning}</span>
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1.5 text-sm">
                     <span
                       className={`inline-block h-2.5 w-2.5 rounded-full ${statusDot} ${
-                        isActive ? 'animate-pulse' : ''
+                        isActive && !vpnDown ? 'animate-pulse' : ''
                       }`}
                     />
                     <span className="font-semibold text-slate-800">{statusText}</span>

@@ -21,6 +21,8 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 # A "running" launch that has produced no pipeline activity for this long is
 # treated as stalled/timed-out, so the dashboard re-enables launching.
 _LAUNCH_STALL_SECONDS = 3600
+# Softer signal: warn on the dashboard well before the stall reap (#750).
+_LAUNCH_WARN_SECONDS_DEFAULT = 900
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -30,6 +32,21 @@ from pydantic import BaseModel, Field
 from api.auth import require_admin
 
 router = APIRouter(prefix="/batch-jobs", tags=["batch-jobs"])
+
+
+def _launch_warn_seconds() -> float:
+    raw = os.getenv("BATCH_JOB_LAUNCH_WARN_SECONDS", str(_LAUNCH_WARN_SECONDS_DEFAULT))
+    try:
+        return max(60.0, float(raw))
+    except (TypeError, ValueError):
+        return float(_LAUNCH_WARN_SECONDS_DEFAULT)
+
+
+# Launch-log lines that mean YouTube traffic cannot leave through the VPN (#488 / #750).
+_VPN_DOWN_RE = re.compile(
+    r"Surfshark is off|VpnRequiredError|no VPN tunnel route",
+    re.IGNORECASE,
+)
 
 
 class BatchJobsTotals(BaseModel):
@@ -494,7 +511,7 @@ def _dashboard_runtime() -> "tuple[int, str]":
 
 def _iso_age_seconds(iso: str) -> Optional[float]:
     try:
-        dt = datetime.fromisoformat(iso)
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return (datetime.now(timezone.utc) - dt).total_seconds()
@@ -502,10 +519,47 @@ def _iso_age_seconds(iso: str) -> Optional[float]:
         return None
 
 
+def _latest_launch_log(step: str) -> Optional[Path]:
+    log_dir = _repo_root() / "data" / "cache" / "batch_jobs"
+    candidates = sorted(log_dir.glob(f"launch_{step}_*.log"), reverse=True)
+    return candidates[0] if candidates else None
+
+
+def _launch_log_signals(step: str, *, lines: int = 80) -> Dict[str, Any]:
+    """Last activity timestamp + VPN-down hint from the newest launch log for ``step``."""
+    path = _latest_launch_log(step)
+    if path is None:
+        return {"last_at": "", "vpn_down": False, "path": ""}
+    tail = _tail_lines(path, lines)
+    _current, since = _parse_current(tail)
+    if not since:
+        try:
+            since = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+        except OSError:
+            since = ""
+    vpn_down = any(_VPN_DOWN_RE.search(ln or "") for ln in tail[-40:])
+    return {"last_at": since, "vpn_down": vpn_down, "path": str(path)}
+
+
+def _launch_activity_iso(live: Dict[str, Any], freshest: str) -> str:
+    """Best-effort 'last progress' for a live launch.
+
+    Discover/backfill do not stamp ``youtube_batch_job_runs`` the way catalog/
+    captions do, so unrelated analyze/transcript freshest must not hide a hung
+    discover log (#750).
+    """
+    step = str(live.get("step") or "")
+    started = str(live.get("started_at") or "")
+    log_at = str(_launch_log_signals(step).get("last_at") or "")
+    if step in ("discover", "backfill"):
+        return max(started, log_at)
+    return max(freshest or "", started, log_at)
+
+
 def _launch_stalled(live: Dict[str, Any], freshest: str) -> bool:
     """A live launch with no activity (or none since it started) for over the
     stall window — i.e. stuck. ``freshest`` and ``started_at`` are UTC ISO."""
-    last_seen = max(freshest or "", str(live.get("started_at") or ""))
+    last_seen = _launch_activity_iso(live, freshest)
     age = _iso_age_seconds(last_seen) if last_seen else None
     return age is not None and age > _LAUNCH_STALL_SECONDS
 
@@ -553,6 +607,10 @@ class LaunchStatusResponse(BaseModel):
     running_steps: List[str] = Field(default_factory=list)
     stalled_steps: List[str] = Field(default_factory=list)
     steps: List[str] = Field(default_factory=lambda: list(_LAUNCH_STEPS))
+    # Operator-facing stall / VPN signals (#750). ``warning`` is empty when idle.
+    warning: str = ""
+    vpn_down: bool = False
+    inactive_seconds: Optional[float] = None
 
 
 class LaunchResponse(BaseModel):
@@ -564,6 +622,63 @@ class LaunchResponse(BaseModel):
     detail: str = ""
 
 
+def _recent_log_vpn_down(*, max_age_seconds: float = 7200.0) -> bool:
+    """True when a recent launch log (even after the PID exited) mentions VPN down."""
+    for step in _LAUNCH_STEPS:
+        signals = _launch_log_signals(step)
+        if not signals.get("vpn_down"):
+            continue
+        age = _iso_age_seconds(str(signals.get("last_at") or ""))
+        if age is not None and age <= max_age_seconds:
+            return True
+    return False
+
+
+def _launch_operator_signals(
+    freshest: str,
+    running: List[Dict[str, Any]],
+    stalled: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Build warning / vpn_down / inactive_seconds for the dashboard header."""
+    warn_after = _launch_warn_seconds()
+    warning = ""
+    vpn_down = False
+    inactive_seconds: Optional[float] = None
+    for m in (*running, *stalled):
+        step = str(m.get("step") or "") or "pipeline"
+        signals = _launch_log_signals(step)
+        if signals.get("vpn_down"):
+            vpn_down = True
+        last_seen = _launch_activity_iso(m, freshest)
+        age = _iso_age_seconds(last_seen) if last_seen else None
+        if age is None:
+            continue
+        inactive_seconds = age if inactive_seconds is None else max(inactive_seconds, age)
+        if age >= warn_after and not warning:
+            mins = max(1, int(age // 60))
+            warning = (
+                f"{step}: no launch-log activity for {mins}m — "
+                "job may be stuck (check VPN / Surfshark)."
+            )
+    # Process already exited after VpnRequiredError — still show the error for a while.
+    if not vpn_down and _recent_log_vpn_down():
+        vpn_down = True
+    if vpn_down:
+        warning = (
+            "VPN appears down (Surfshark off in launch log). "
+            "Connect Surfshark and re-run."
+            + (f" {warning}" if warning and "Surfshark off" not in warning else "")
+        )
+    elif stalled and not warning:
+        steps = ", ".join(sorted({str(m.get("step") or "") for m in stalled} - {""})) or "pipeline"
+        warning = f"{steps}: timed out (no activity >1h) — re-launch after fixing VPN/blockers."
+    return {
+        "warning": warning,
+        "vpn_down": vpn_down,
+        "inactive_seconds": inactive_seconds,
+    }
+
+
 @router.get("/launch", response_model=LaunchStatusResponse)
 async def launch_status() -> LaunchStatusResponse:
     """Per-step running/stalled state for the dashboard's Run buttons."""
@@ -571,12 +686,16 @@ async def launch_status() -> LaunchStatusResponse:
     running, stalled = _classify_launches(freshest)
     running_steps = sorted({str(m.get("step") or "") for m in running} - {""})
     stalled_steps = sorted({str(m.get("step") or "") for m in stalled} - {""})
+    signals = _launch_operator_signals(freshest, running, stalled)
     return LaunchStatusResponse(
         enabled=_launch_enabled(),
         running=running_rows,
         running_steps=running_steps,
         stalled_steps=stalled_steps,
         busy=running_rows > 0 or bool(running_steps),
+        warning=str(signals.get("warning") or ""),
+        vpn_down=bool(signals.get("vpn_down")),
+        inactive_seconds=signals.get("inactive_seconds"),
     )
 
 
