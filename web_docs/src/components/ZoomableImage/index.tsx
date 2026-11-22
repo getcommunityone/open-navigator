@@ -84,8 +84,11 @@ export default function ZoomableImage({
               minScale={0.05}
               maxScale={8}
               centerOnInit={false}
-              wheel={{step: 0.12}}
-              doubleClick={{mode: 'toggle', step: 0.8}}
+              // Library default step is 0.015 with smooth=true → step*deltaY per
+              // tick (often ~1.5). We want finer grain for diagrams.
+              smooth
+              wheel={{step: 0.006}}
+              doubleClick={{mode: 'toggle', step: 0.5}}
               panning={{velocityDisabled: true}}
               limitToBounds={false}
               onInit={(ref) => {
@@ -103,14 +106,14 @@ export default function ZoomableImage({
                       <button
                         type="button"
                         className={styles.toolBtn}
-                        onClick={() => zoomIn(0.3)}
+                        onClick={() => zoomIn(0.12)}
                       >
                         Zoom in
                       </button>
                       <button
                         type="button"
                         className={styles.toolBtn}
-                        onClick={() => zoomOut(0.3)}
+                        onClick={() => zoomOut(0.12)}
                       >
                         Zoom out
                       </button>
