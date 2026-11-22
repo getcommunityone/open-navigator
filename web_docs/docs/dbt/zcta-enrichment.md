@@ -26,26 +26,26 @@ ZCTAs provide:
 ### Bronze Tables
 
 1. **bronze_organizations_nonprofits_irs** (1.95M nonprofits)
-   - Source: IRS Business Master File (BMF)
-   - ZIP field: `zip_code` (may include ZIP+4)
+ - Source: IRS Business Master File (BMF)
+ - ZIP field: `zip_code` (may include ZIP+4)
 
 2. **bronze_organizations_nonprofits_nccs** (1.8M nonprofits)
-   - Source: NCCS Core Files
-   - ZIP field: `f990_org_addr_zip` (may include ZIP+4)
+ - Source: NCCS Core Files
+ - ZIP field: `f990_org_addr_zip` (may include ZIP+4)
 
 3. **bronze_jurisdictions_postal_codes** (33,791 ZCTAs)
-   - Source: Census Bureau Gazetteer Files
-   - Loading script: `scripts/datasources/census/load_census_postal_codes.py`
+ - Source: Census Bureau Gazetteer Files
+ - Loading script: `scripts/datasources/census/load_census_postal_codes.py`
 
 4. **bronze_jurisdictions_zip_place** (~29,000 ZCTA-place relationships)
-   - Source: Census 2020 ZCTA-Place Relationship File
-   - Maps ZCTAs to Census Places (cities/towns)
-   - Many-to-many: 41% of ZCTAs span multiple places
+ - Source: Census 2020 ZCTA-Place Relationship File
+ - Maps ZCTAs to Census Places (cities/towns)
+ - Many-to-many: 41% of ZCTAs span multiple places
 
 5. **bronze_jurisdictions_zip_county** (~33,800 ZCTA-county relationships)
-   - Source: Census 2020 ZCTA-County Relationship File
-   - Maps ZCTAs to Counties
-   - Many-to-many: 30% of ZCTAs span multiple counties
+ - Source: Census 2020 ZCTA-County Relationship File
+ - Maps ZCTAs to Counties
+ - Many-to-many: 30% of ZCTAs span multiple counties
 
 ## dbt Models with ZCTA
 
@@ -95,7 +95,7 @@ dbt run --select bronze_organizations_nonprofits
 - `int_nonprofits_irs_with_zcta.sql` - IRS only with ZCTA
 - `int_nonprofits_nccs_with_zcta.sql` - NCCS only with ZCTA
 
-⚠️ **These are disabled by default** due to PostgreSQL cross-database limitations.
+Warning **These are disabled by default** due to PostgreSQL cross-database limitations.
 
 To enable for bronze-only usage:
 1. Set `enabled=true` in the model config
@@ -111,23 +111,23 @@ LEFT(TRIM(zip_code), 5) AS zip_code_5
 
 -- Step 2: Join to ZCTA centroid and area
 LEFT JOIN bronze_jurisdictions_postal_codes
-    ON zip_code_5 = zcta
+ ON zip_code_5 = zcta
 
 -- Step 3: Join to primary place (largest by land area)
 LEFT JOIN (
-    SELECT DISTINCT ON (zcta) zcta, place_geoid, place_name
-    FROM bronze_jurisdictions_zip_place
-    ORDER BY zcta, arealand_part DESC
+ SELECT DISTINCT ON (zcta) zcta, place_geoid, place_name
+ FROM bronze_jurisdictions_zip_place
+ ORDER BY zcta, arealand_part DESC
 ) AS zcta_place_primary
-    ON zip_code_5 = zcta_place_primary.zcta
+ ON zip_code_5 = zcta_place_primary.zcta
 
 -- Step 4: Join to primary county (largest by land area)
 LEFT JOIN (
-    SELECT DISTINCT ON (zcta) zcta, county_geoid, county_name
-    FROM bronze_jurisdictions_zip_county
-    ORDER BY zcta, arealand_part DESC
+ SELECT DISTINCT ON (zcta) zcta, county_geoid, county_name
+ FROM bronze_jurisdictions_zip_county
+ ORDER BY zcta, arealand_part DESC
 ) AS zcta_county_primary
-    ON zip_code_5 = zcta_county_primary.zcta
+ ON zip_code_5 = zcta_county_primary.zcta
 ```
 
 **Match Rate:** ~95% of nonprofits have valid ZCTA matches
@@ -144,27 +144,27 @@ LEFT JOIN (
 
 ```sql
 -- By Place GEOID
-SELECT 
-    ein,
-    org_name,
-    city,
-    state_code,
-    place_geoid,
-    zcta_place_name,
-    irs_revenue_amt
+SELECT
+ ein,
+ org_name,
+ city,
+ state_code,
+ place_geoid,
+ zcta_place_name,
+ irs_revenue_amt
 FROM bronze_organizations_nonprofits
-WHERE place_geoid = '2507000'  -- Boston, MA
+WHERE place_geoid = '2507000' -- Boston, MA
 ORDER BY irs_revenue_amt DESC NULLS LAST
 LIMIT 10;
 place or county
 
 ```sql
 -- By Place
-SELECT 
-    place_geoid,
-    zcta_place_name,
-    COUNT(*) as nonprofit_count,
-    AVG(irs_revenue_amt) as avg_revenue
+SELECT
+ place_geoid,
+ zcta_place_name,
+ COUNT(*) as nonprofit_count,
+ AVG(irs_revenue_amt) as avg_revenue
 FROM bronze_organizations_nonprofits
 WHERE place_geoid IS NOT NULL
 GROUP BY place_geoid, zcta_place_name
@@ -172,14 +172,14 @@ ORDER BY nonprofit_count DESC
 LIMIT 20;
 
 -- By County
-SELECT 
-    county_fips,
-    zcta_county_name,
-    COUNT(*) as nonprofit_count,
-    SUM(irs_revenue_amt) as total_revenue
+SELECT
+ county_fips,
+ zcta_county_name,
+ COUNT(*) as nonprofit_count,
+ SUM(irs_revenue_amt) as total_revenue
 FROM bronze_organizations_nonprofits
 WHERE county_fips IS NOT NULL
-GROUP BY county_fips, zcta_county_nameps = '25025'  -- Suffolk County, MA
+GROUP BY county_fips, zcta_county_nameps = '25025' -- Suffolk County, MA
 ORDER BY irs_revenue_amt DESC NULLS LAST
 LIMIT 10;
 ```
@@ -187,10 +187,10 @@ LIMIT 10;
 ### Count nonprofits by ZCTA
 
 ```sql
-SELECT 
-    zcta_5,
-    COUNT(*) as nonprofit_count,
-    AVG(irs_revenue_amt) as avg_revenue
+SELECT
+ zcta_5,
+ COUNT(*) as nonprofit_count,
+ AVG(irs_revenue_amt) as avg_revenue
 FROM bronze_organizations_nonprofits
 WHERE has_zcta_match = true
 GROUP BY zcta_5
@@ -202,18 +202,18 @@ LIMIT 20;
 
 ```sql
 -- Nonprofits within ~10 miles of a location (approximate)
-SELECT 
-    ein,
-    org_name,
-    zcta_5,
-    zcta_latitude,
-    zcta_longitude,
-    -- Haversine distance approximation
-    3959 * acos(
-        cos(radians(42.3736)) * cos(radians(zcta_latitude)) * 
-        cos(radians(zcta_longitude) - radians(-71.1097)) + 
-        sin(radians(42.3736)) * sin(radians(zcta_latitude))
-    ) as distance_miles
+SELECT
+ ein,
+ org_name,
+ zcta_5,
+ zcta_latitude,
+ zcta_longitude,
+ -- Haversine distance approximation
+ 3959 * acos(
+ cos(radians(42.3736)) * cos(radians(zcta_latitude)) *
+ cos(radians(zcta_longitude) - radians(-71.1097)) +
+ sin(radians(42.3736)) * sin(radians(zcta_latitude))
+ ) as distance_miles
 FROM bronze_organizations_nonprofits
 WHERE has_zcta_match = true
 HAVING distance_miles < 10
@@ -224,11 +224,11 @@ LIMIT 50;
 ### Geographic coverage analysis
 
 ```sql
-SELECT 
-    state_code,
-    COUNT(*) as total_nonprofits,
-    SUM(CASE WHEN has_zcta_match THEN 1 ELSE 0 END) as with_zcta,
-    ROUND(100.0 * SUM(CASE WHEN has_zcta_match THEN 1 ELSE 0 END) / COUNT(*), 2) as match_rate_pct
+SELECT
+ state_code,
+ COUNT(*) as total_nonprofits,
+ SUM(CASE WHEN has_zcta_match THEN 1 ELSE 0 END) as with_zcta,
+ ROUND(100.0 * SUM(CASE WHEN has_zcta_match THEN 1 ELSE 0 END) / COUNT(*), 2) as match_rate_pct
 FROM bronze_organizations_nonprofits
 GROUP BY state_code
 ORDER BY total_nonprofits DESC;
@@ -258,11 +258,11 @@ python scripts/datasources/census/load_census_postal_codes.py
 
 This downloads the latest Census Gazetteer ZCTA file (~33,791 records).
 
-### ⚠️ Known Issue: Missing Longitude Data
+### Warning Known Issue: Missing Longitude Data
 
 **Current Status (as of last check):**
-- ✅ Latitude (`intptlat`) is populated correctly
-- ❌ Longitude (`intptlong`) is **NULL** for all records
+- Yes Latitude (`intptlat`) is populated correctly
+- No Longitude (`intptlong`) is **NULL** for all records
 
 This is a data loading issue in the `load_census_postal_codes.py` script. The dbt models are correct and will work properly once the source data is fixed.
 
@@ -270,10 +270,10 @@ This is a data loading issue in the `load_census_postal_codes.py` script. The db
 
 ```sql
 -- Check for NULL longitude values
-SELECT 
-    COUNT(*) as total_zctas,
-    SUM(CASE WHEN intptlong IS NULL THEN 1 ELSE 0 END) as missing_longitude,
-    SUM(CASE WHEN intptlat IS NULL THEN 1 ELSE 0 END) as missing_latitude
+SELECT
+ COUNT(*) as total_zctas,
+ SUM(CASE WHEN intptlong IS NULL THEN 1 ELSE 0 END) as missing_longitude,
+ SUM(CASE WHEN intptlat IS NULL THEN 1 ELSE 0 END) as missing_latitude
 FROM bronze_jurisdictions_postal_codes;
 ```
 
@@ -288,34 +288,34 @@ FROM bronze_jurisdictions_postal_codes;
 If less than 90% of nonprofits match to ZCTAs:
 
 1. **Check if ZCTA table is loaded:**
-   ```sql
-   SELECT COUNT(*) FROM bronze_jurisdictions_postal_codes;
-   ```
-   Expected: ~33,791 records
+ ```sql
+ SELECT COUNT(*) FROM bronze_jurisdictions_postal_codes;
+ ```
+ Expected: ~33,791 records
 
 2. **Check for NULL coordinates:**
-   ```sql
-   SELECT 
-       COUNT(*) FILTER (WHERE intptlat IS NULL) as null_lat,
-       COUNT(*) FILTER (WHERE intptlong IS NULL) as null_lon
-   FROM bronze_jurisdictions_postal_codes;
-   ```
-   Expected: 0 NULL values for both
+ ```sql
+ SELECT
+ COUNT(*) FILTER (WHERE intptlat IS NULL) as null_lat,
+ COUNT(*) FILTER (WHERE intptlong IS NULL) as null_lon
+ FROM bronze_jurisdictions_postal_codes;
+ ```
+ Expected: 0 NULL values for both
 
 3. **Check ZIP code format in nonprofits:**
-   ```sql
-   -- Sample ZIP codes that don't match
-   SELECT DISTINCT 
-       LEFT(TRIM(zip_code), 5) as zip_5,
-       COUNT(*) as org_count
-   FROM bronze_organizations_nonprofits_irs
-   WHERE LEFT(TRIM(zip_code), 5) NOT IN (
-       SELECT zcta FROM bronze_jurisdictions_postal_codes
-   )
-   GROUP BY LEFT(TRIM(zip_code), 5)
-   ORDER BY org_count DESC
-   LIMIT 10;
-   ```
+ ```sql
+ -- Sample ZIP codes that don't match
+ SELECT DISTINCT
+ LEFT(TRIM(zip_code), 5) as zip_5,
+ COUNT(*) as org_count
+ FROM bronze_organizations_nonprofits_irs
+ WHERE LEFT(TRIM(zip_code), 5) NOT IN (
+ SELECT zcta FROM bronze_jurisdictions_postal_codes
+ )
+ GROUP BY LEFT(TRIM(zip_code), 5)
+ ORDER BY org_count DESC
+ LIMIT 10;
+ ```
 
 ### Fixing Missing Longitude Data
 

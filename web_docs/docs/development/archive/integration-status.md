@@ -1,32 +1,32 @@
-# ✅ Integration Status Summary
+# Yes Integration Status Summary
 
 ## Quick Answer to Your Question
 
 | Source | Status | Video URLs? | Files Created |
 |--------|--------|-------------|---------------|
-| **MeetingBank** | ✅ **NOW INTEGRATED** | ✅ **YES - YouTube/Vimeo/Archive.org** | Updated: `discovery/meetingbank_ingestion.py` |
-| **City Scrapers / Documenters.org** | ✅ **NOW INTEGRATED** | ✅ **YES - Granicus → YouTube** | Created: `discovery/city_scrapers_urls.py` |
-| **Open States** | ✅ **NOW INTEGRATED** | ✅ **YES - YouTube channels** | Created: `discovery/openstates_sources.py` |
+| **MeetingBank** | Yes **NOW INTEGRATED** | Yes **YES - YouTube/Vimeo/Archive.org** | Updated: `discovery/meetingbank_ingestion.py` |
+| **City Scrapers / Documenters.org** | Yes **NOW INTEGRATED** | Yes **YES - Granicus → YouTube** | Created: `discovery/city_scrapers_urls.py` |
+| **Open States** | Yes **NOW INTEGRATED** | Yes **YES - YouTube channels** | Created: `discovery/openstates_sources.py` |
 
 ---
 
-## 1. MeetingBank - UPDATED ✅
+## 1. MeetingBank - UPDATED Yes
 
 ### What Changed:
-**Before**: We had MeetingBank transcripts but weren't extracting video URLs  
+**Before**: We had MeetingBank transcripts but weren't extracting video URLs
 **Now**: Full video URL extraction from the `urls` dictionary
 
 ### New Function:
 ```python
 def extract_video_urls_from_instance(instance: dict) -> Dict[str, str]:
-    """
-    Extract YouTube/Vimeo URLs from MeetingBank's 'urls' dictionary.
-    
-    Extracts:
-    - urls['youtube_id'] -> https://www.youtube.com/watch?v=ID
-    - urls['vimeo_id'] -> https://vimeo.com/ID
-    - urls['archive_url'] -> https://archive.org/details/...
-    """
+ """
+ Extract YouTube/Vimeo URLs from MeetingBank's 'urls' dictionary.
+
+ Extracts:
+ - urls['youtube_id'] -> https://www.youtube.com/watch?v=ID
+ - urls['vimeo_id'] -> https://vimeo.com/ID
+ - urls['archive_url'] -> https://archive.org/details/...
+ """
 ```
 
 ### What You Get:
@@ -41,13 +41,13 @@ def extract_video_urls_from_instance(instance: dict) -> Dict[str, str]:
 ```bash
 cd /home/developer/projects/open-navigator
 source venv/bin/activate
-pip install datasets  # HuggingFace datasets library
+pip install datasets # HuggingFace datasets library
 python scripts/discovery/meetingbank_ingestion.py
 ```
 
 ---
 
-## 2. City Scrapers / Documenters.org - NEW ✅
+## 2. City Scrapers / Documenters.org - NEW Yes
 
 ### What We Built:
 Complete integration that clones City Scrapers repos and extracts URLs from spider files.
@@ -84,7 +84,7 @@ python scripts/datasources/cityscrapers/city_scrapers_urls.py
 
 ---
 
-## 3. Open States - NEW ✅
+## 3. Open States - NEW Yes
 
 ### What We Built:
 API integration that fetches jurisdiction video sources.
@@ -120,24 +120,24 @@ Get your key free at: https://openstates.org/accounts/signup/
 ```bash
 cd /home/developer/projects/open-navigator
 source venv/bin/activate
-export OPENSTATES_API_KEY=your-key  # or add to .env
+export OPENSTATES_API_KEY=your-key # or add to .env
 python scripts/discovery/openstates_sources.py
 ```
 
 ---
 
-## 📊 Expected Results (After Running All Three)
+## Expected Results (After Running All Three)
 
 | Source | URLs | Video Links | Quality | Bronze Table |
 |--------|------|-------------|---------|--------------|
-| **MeetingBank** | 1,366 | ✅ YouTube/Vimeo/Archive | Excellent | `bronze/meetingbank_urls` |
-| **City Scrapers** | 100-500 | ✅ Granicus → YouTube | Good | `bronze/city_scrapers_urls` |
-| **Open States** | 50-100 | ✅ YouTube channels | Excellent | `bronze/openstates_sources` |
-| **TOTAL** | **1,500-2,000** | **✅ All have videos** | **High** | 3 tables |
+| **MeetingBank** | 1,366 | Yes YouTube/Vimeo/Archive | Excellent | `bronze/meetingbank_urls` |
+| **City Scrapers** | 100-500 | Yes Granicus → YouTube | Good | `bronze/city_scrapers_urls` |
+| **Open States** | 50-100 | Yes YouTube channels | Excellent | `bronze/openstates_sources` |
+| **TOTAL** | **1,500-2,000** | **Yes All have videos** | **High** | 3 tables |
 
 ---
 
-## 🎯 Why Video URLs Matter
+## Why Video URLs Matter
 
 ### 1. Transcription Ready
 - YouTube has **auto-captions API** (free)
@@ -159,7 +159,7 @@ python scripts/discovery/openstates_sources.py
 
 ---
 
-## 📋 Run All Three Integrations
+## Run All Three Integrations
 
 ### Step 1: Install Dependencies
 ```bash
@@ -216,14 +216,14 @@ python scripts/discovery/openstates_sources.py
 
 ---
 
-## ✅ Summary
+## Yes Summary
 
 **YES**, we now have **all three integrations**:
 
-1. ✅ **MeetingBank** - Updated to extract YouTube/Vimeo/Archive.org URLs from urls dictionary
-2. ✅ **City Scrapers** - New integration clones repos and extracts spider start_urls
-3. ✅ **Open States** - New integration uses API to fetch video sources
+1. Yes **MeetingBank** - Updated to extract YouTube/Vimeo/Archive.org URLs from urls dictionary
+2. Yes **City Scrapers** - New integration clones repos and extracts spider start_urls
+3. Yes **Open States** - New integration uses API to fetch video sources
 
-**Total**: 1,500-2,000 verified video URLs ready for transcription and analysis! 🎉
+**Total**: 1,500-2,000 verified video URLs ready for transcription and analysis!
 
 See [`docs/VIDEO_URL_SOURCES.md`](VIDEO_URL_SOURCES.md) for detailed analysis.

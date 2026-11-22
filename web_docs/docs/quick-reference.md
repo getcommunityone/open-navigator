@@ -3,7 +3,7 @@ sidebar_position: 4
 displayed_sidebar: developersSidebar
 ---
 
-# 🚀 Quick Reference Card - Databricks App
+# Quick Reference Card - Databricks App
 
 ## Development Commands
 
@@ -36,38 +36,38 @@ make deploy-databricks
 
 ```
 frontend/src/
-  pages/
-    Dashboard.tsx      # /
-    Heatmap.tsx        # /heatmap
-    Documents.tsx      # /documents
-    Opportunities.tsx  # /opportunities
-    Settings.tsx       # /settings
-  components/
-    Layout.tsx         # Sidebar + nav
+ pages/
+ Dashboard.tsx # /
+ Heatmap.tsx # /heatmap
+ Documents.tsx # /documents
+ Opportunities.tsx # /opportunities
+ Settings.tsx # /settings
+ components/
+ Layout.tsx # Sidebar + nav
 
 api/
-  app.py              # FastAPI (NEW)
-  main.py             # Legacy CLI
-  static/             # Built React
+ app.py # FastAPI (NEW)
+ main.py # Legacy CLI
+ static/ # Built React
 
 scripts/
-  deploy-databricks-app.sh
-  setup-local.sh
-  test-app.py
+ deploy-databricks-app.sh
+ setup-local.sh
+ test-app.py
 ```
 
 ## API Endpoints
 
 ```
-GET  /api/health
-GET  /api/dashboard
-GET  /api/opportunities?state=CA&topic=fluoride
-GET  /api/documents?search=dental&page=1
+GET /api/health
+GET /api/dashboard
+GET /api/opportunities?state=CA&topic=fluoride
+GET /api/documents?search=dental&page=1
 POST /api/workflow/start
 POST /api/advocacy/email/{id}
-GET  /api/settings
-PUT  /api/settings
-GET  /api/agents/status
+GET /api/settings
+PUT /api/settings
+GET /api/agents/status
 ```
 
 ## Common Tasks
@@ -118,4 +118,4 @@ export OPENAI_API_KEY=sk-...
 
 ---
 
-**Keep this card handy! 📌**
+**Keep this card handy! **

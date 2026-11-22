@@ -5,7 +5,7 @@ sidebar_label: Privacy Policy
 
 # Privacy Policy
 
-**Effective Date:** April 28, 2026  
+**Effective Date:** April 28, 2026
 **Last Updated:** November 22, 2026
 
 :::info[Your Privacy Matters]
@@ -106,14 +106,14 @@ We may use information to:
 
 We are committed to privacy minimization:
 
-- ❌ **No tracking across websites** - We do not track your browsing on other sites
-- ❌ **No behavioral profiling** - We do not build advertising profiles
-- ❌ **No selling of data** - We never sell your information to third parties
-- ❌ **No private information collection** - We only aggregate publicly available data
-- ❌ **No financial information** - We do not collect credit cards or payment info
-- ❌ **No health information** - We do not collect personal health data
-- ❌ **No Social Security numbers** - We never collect SSNs or tax IDs
-- ❌ **No background checks** - We do not conduct or facilitate background checks
+- No **No tracking across websites** - We do not track your browsing on other sites
+- No **No behavioral profiling** - We do not build advertising profiles
+- No **No selling of data** - We never sell your information to third parties
+- No **No private information collection** - We only aggregate publicly available data
+- No **No financial information** - We do not collect credit cards or payment info
+- No **No health information** - We do not collect personal health data
+- No **No Social Security numbers** - We never collect SSNs or tax IDs
+- No **No background checks** - We do not conduct or facilitate background checks
 
 ## 5. Public Data Sources & Privacy
 
@@ -142,9 +142,9 @@ If your information appears in public records and you believe it should be remov
 
 **For data we process:**
 1. Email us at [contact email] with:
-   - Your name and the information you want removed
-   - Reason for the request
-   - Proof of identity
+ - Your name and the information you want removed
+ - Reason for the request
+ - Proof of identity
 2. We will evaluate requests on a case-by-case basis
 3. We may retain data required by law or for legitimate public interest
 
@@ -237,9 +237,9 @@ We implement industry-standard security measures:
 - **Authoritative sources:** Refreshed monthly from source agencies
 - **Historical archive:** Public records retained indefinitely for historical research
 - **Cached data:** Retained for performance, updated per provider requirements
-  - Google Civic API: Maximum 30 days (per Google's terms)
-  - YouTube API Services (public video/channel metadata): retained while useful for the meeting catalog; see §9
-  - Other sources: Until refreshed from source
+ - Google Civic API: Maximum 30 days (per Google's terms)
+ - YouTube API Services (public video/channel metadata): retained while useful for the meeting catalog; see §9
+ - Other sources: Until refreshed from source
 
 ### 8.3 Technical Logs
 
@@ -293,7 +293,7 @@ You have the right to request deletion of:
 - Comments or contributions you submitted
 - Saved searches and notes
 
-**How to exercise:** 
+**How to exercise:**
 1. Delete your account through account settings (self-service), or
 2. Email us at johnbowyer@communityone.com
 3. See detailed instructions at [Data Deletion Request](./data-deletion.md)
@@ -425,8 +425,8 @@ We may update this Privacy Policy from time to time. Changes will be posted on t
 
 For questions about this Privacy Policy or privacy practices:
 
-**Email:** johnbowyer@communityone.com  
-**GitHub Issues:** [Privacy-related issues](https://github.com/getcommunityone/open-navigator-for-engagement/issues)  
+**Email:** johnbowyer@communityone.com
+**GitHub Issues:** [Privacy-related issues](https://github.com/getcommunityone/open-navigator-for-engagement/issues)
 **Mail:** 5617 Lakeridge Court, Tuscaloosa, AL 35406
 
 **For specific requests:**
@@ -453,11 +453,11 @@ For questions about this Privacy Policy or privacy practices:
 | **Cookies** | Authentication, preferences | Block through browser |
 
 **Key Principles:**
-- ✅ Public data only (no private information)
-- ✅ Transparent about sources
-- ✅ No selling of data
-- ✅ Respect user rights
-- ✅ Industry-standard security
+- Yes Public data only (no private information)
+- Yes Transparent about sources
+- Yes No selling of data
+- Yes Respect user rights
+- Yes Industry-standard security
 
 **Questions?** Contact us at johnbowyer@communityone.com
 

@@ -9,89 +9,89 @@ sidebar_label: Adding New Data Sources
 **Before integrating any new data source**, work through this checklist to ensure legal compliance, proper attribution, and best practices.
 :::
 
-## ✅ Pre-Integration Checklist
+## Yes Pre-Integration Checklist
 
 ### 1. Legal Review
 
 - [ ] **Find and read the Terms of Service**
-  - API Terms of Service URL: _________________
-  - Data Usage Policy URL: _________________
-  - Last reviewed: _________________
+ - API Terms of Service URL: _________________
+ - Data Usage Policy URL: _________________
+ - Last reviewed: _________________
 
 - [ ] **Verify the data is legally accessible**
-  - [ ] Public domain (U.S. Government data)
-  - [ ] Open license (CC0, CC-BY, MIT, etc.)
-  - [ ] Free API with terms of service
-  - [ ] Paid API with commercial license
+ - [ ] Public domain (U.S. Government data)
+ - [ ] Open license (CC0, CC-BY, MIT, etc.)
+ - [ ] Free API with terms of service
+ - [ ] Paid API with commercial license
 
 - [ ] **Check for usage restrictions**
-  - [ ] No restrictions on commercial use
-  - [ ] No restrictions on redistribution
-  - [ ] No prohibition on caching/storage
-  - [ ] No requirement for user consent/opt-in
+ - [ ] No restrictions on commercial use
+ - [ ] No restrictions on redistribution
+ - [ ] No prohibition on caching/storage
+ - [ ] No requirement for user consent/opt-in
 
 - [ ] **Identify attribution requirements**
-  - Required attribution text: _________________
-  - Logo/trademark requirements: _________________
-  - Link-back requirements: _________________
+ - Required attribution text: _________________
+ - Logo/trademark requirements: _________________
+ - Link-back requirements: _________________
 
 ### 2. API Access & Rate Limits
 
 - [ ] **API Key Requirements**
-  - [ ] No API key required ✅
-  - [ ] Free API key (document registration process)
-  - [ ] Paid API key (not recommended for open-source project)
+ - [ ] No API key required Yes
+ - [ ] Free API key (document registration process)
+ - [ ] Paid API key (not recommended for open-source project)
 
 - [ ] **Rate Limits**
-  - Requests per second: _________________
-  - Requests per day: _________________
-  - Requests per month: _________________
-  - Recommended delay between requests: _________________
+ - Requests per second: _________________
+ - Requests per day: _________________
+ - Requests per month: _________________
+ - Recommended delay between requests: _________________
 
 - [ ] **User-Agent Requirements**
-  - [ ] Custom User-Agent required
-  - [ ] Contact email required
-  - [ ] Project URL required
+ - [ ] Custom User-Agent required
+ - [ ] Contact email required
+ - [ ] Project URL required
 
 ### 3. Data Privacy & Personal Information
 
 - [ ] **Data Type Classification**
-  - [ ] Public records only (government data)
-  - [ ] Aggregated statistics only (no individuals)
-  - [ ] Individual-level data from public sources
-  - [ ] Personal information requiring consent (AVOID)
+ - [ ] Public records only (government data)
+ - [ ] Aggregated statistics only (no individuals)
+ - [ ] Individual-level data from public sources
+ - [ ] Personal information requiring consent (AVOID)
 
 - [ ] **Privacy Compliance**
-  - [ ] Data is public record
-  - [ ] No personal financial information
-  - [ ] No health information (PHI)
-  - [ ] No authentication required to access original data
+ - [ ] Data is public record
+ - [ ] No personal financial information
+ - [ ] No health information (PHI)
+ - [ ] No authentication required to access original data
 
 - [ ] **GDPR Considerations**
-  - [ ] Right to be forgotten process documented
-  - [ ] Legal basis identified (public interest, legitimate interest)
-  - [ ] Data minimization applied
+ - [ ] Right to be forgotten process documented
+ - [ ] Legal basis identified (public interest, legitimate interest)
+ - [ ] Data minimization applied
 
 ### 4. Technical Requirements
 
 - [ ] **API Documentation**
-  - API documentation URL: _________________
-  - SDK/client library available: _________________
-  - Code examples available: _________________
+ - API documentation URL: _________________
+ - SDK/client library available: _________________
+ - Code examples available: _________________
 
 - [ ] **Data Format**
-  - Response format (JSON, XML, CSV): _________________
-  - Pagination supported: Yes / No
-  - Batch operations supported: Yes / No
+ - Response format (JSON, XML, CSV): _________________
+ - Pagination supported: Yes / No
+ - Batch operations supported: Yes / No
 
 - [ ] **Error Handling**
-  - [ ] Rate limit error codes documented
-  - [ ] Retry strategy defined
-  - [ ] Timeout handling planned
+ - [ ] Rate limit error codes documented
+ - [ ] Retry strategy defined
+ - [ ] Timeout handling planned
 
 ---
 
-## 📝 Implementation Checklist
+## Implementation Checklist
 
 ### 1. Create Integration Module
 
@@ -130,24 +130,24 @@ import time
 import asyncio
 
 class DataSourceClient:
-    def __init__(self):
-        self.request_delay = 1.0  # seconds between requests
-        self.last_request_time = 0
-    
-    async def _rate_limit(self):
-        """Enforce rate limiting"""
-        elapsed = time.time() - self.last_request_time
-        if elapsed < self.request_delay:
-            await asyncio.sleep(self.request_delay - elapsed)
-        self.last_request_time = time.time()
+ def __init__(self):
+ self.request_delay = 1.0 # seconds between requests
+ self.last_request_time = 0
+
+ async def _rate_limit(self):
+ """Enforce rate limiting"""
+ elapsed = time.time() - self.last_request_time
+ if elapsed < self.request_delay:
+ await asyncio.sleep(self.request_delay - elapsed)
+ self.last_request_time = time.time()
 ```
 
 ### 3. Set User-Agent Header
 
 ```python
 self.session.headers.update({
-    'User-Agent': 'CommunityOne/1.0 (Civic Engagement Platform; https://communityone.com/)',
-    'Accept': 'application/json',
+ 'User-Agent': 'CommunityOne/1.0 (Civic Engagement Platform; https://communityone.com/)',
+ 'Accept': 'application/json',
 })
 ```
 
@@ -170,32 +170,32 @@ load_dotenv()
 
 api_key = os.getenv('[SOURCE]_API_KEY')
 if not api_key:
-    logger.warning("⚠️  [SOURCE]_API_KEY not found")
+ logger.warning("Warning [SOURCE]_API_KEY not found")
 ```
 
 ### 5. Add Error Handling
 
 ```python
 try:
-    response = await self.session.get(url)
-    response.raise_for_status()
-    return response.json()
+ response = await self.session.get(url)
+ response.raise_for_status()
+ return response.json()
 except httpx.HTTPStatusError as e:
-    if e.response.status_code == 429:  # Rate limited
-        logger.warning(f"Rate limited, waiting...")
-        await asyncio.sleep(60)
-        return await self._fetch(url)  # Retry
-    else:
-        logger.error(f"HTTP error: {e}")
-        raise
+ if e.response.status_code == 429: # Rate limited
+ logger.warning(f"Rate limited, waiting...")
+ await asyncio.sleep(60)
+ return await self._fetch(url) # Retry
+ else:
+ logger.error(f"HTTP error: {e}")
+ raise
 except Exception as e:
-    logger.error(f"Failed to fetch data: {e}")
-    raise
+ logger.error(f"Failed to fetch data: {e}")
+ raise
 ```
 
 ---
 
-## 📚 Documentation Checklist
+## Documentation Checklist
 
 ### 1. Update Legal Compliance Document
 
@@ -211,7 +211,7 @@ Add to: `website/docs/legal-compliance.md`
 **License:** [License type]
 **Terms of Use:** [ToS URL]
 
-**Compliance Status:** ✅ **COMPLIANT** / ⚠️ **NOT USED**
+**Compliance Status:** Yes **COMPLIANT** / Warning **NOT USED**
 - [Key compliance point 1]
 - [Key compliance point 2]
 - API key requirement: Yes/No
@@ -250,11 +250,11 @@ Add to: `website/docs/data-sources/citations.md`
 **BibTeX:**
 ```bibtex
 @misc{[citation_key],
-  author = {{[Organization Name]}},
-  title = {[Dataset/API Name]},
-  year = {2026},
-  url = {[Official URL]},
-  note = {Accessed: 2026}
+ author = {{[Organization Name]}},
+ title = {[Dataset/API Name]},
+ year = {2026},
+ url = {[Official URL]},
+ note = {Accessed: 2026}
 }
 ```
 ```
@@ -281,23 +281,23 @@ import asyncio
 from discovery.[source_name]_integration import [ClassName]
 
 async def main():
-    """Example usage"""
-    client = [ClassName](api_key="your-key-here")
-    
-    # Example query
-    results = await client.fetch_data(param="value")
-    
-    print(f"Found {len(results)} results")
-    for item in results[:5]:
-        print(f"  - {item}")
+ """Example usage"""
+ client = [ClassName](api_key="your-key-here")
+
+ # Example query
+ results = await client.fetch_data(param="value")
+
+ print(f"Found {len(results)} results")
+ for item in results[:5]:
+ print(f" - {item}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+ asyncio.run(main())
 ```
 
 ---
 
-## 🧪 Testing Checklist
+## Testing Checklist
 
 ### 1. Unit Tests
 
@@ -323,7 +323,7 @@ if __name__ == "__main__":
 
 ---
 
-## 🚀 Pre-Deployment Checklist
+## Pre-Deployment Checklist
 
 ### 1. Code Review
 
@@ -358,9 +358,9 @@ if __name__ == "__main__":
 
 ---
 
-## 📋 Quick Reference: Data Source Types
+## Quick Reference: Data Source Types
 
-### ✅ RECOMMENDED: Public Domain Government Data
+### Yes RECOMMENDED: Public Domain Government Data
 
 **Examples:** IRS, Census Bureau, NCES, Grants.gov
 
@@ -374,7 +374,7 @@ if __name__ == "__main__":
 
 ---
 
-### ✅ RECOMMENDED: Free Public APIs (API Key Required)
+### Yes RECOMMENDED: Free Public APIs (API Key Required)
 
 **Examples:** Open States, Google Civic API, Wikidata, DBpedia
 
@@ -388,7 +388,7 @@ if __name__ == "__main__":
 
 ---
 
-### ⚠️ CAUTION: Free APIs with Restrictions
+### Warning CAUTION: Free APIs with Restrictions
 
 **Examples:** ProPublica, FEC (contributor restrictions)
 
@@ -402,7 +402,7 @@ if __name__ == "__main__":
 
 ---
 
-### ❌ AVOID: Paid Commercial APIs
+### No AVOID: Paid Commercial APIs
 
 **Examples:** Ballotpedia API, Cicero API
 
@@ -415,7 +415,7 @@ if __name__ == "__main__":
 
 ---
 
-## 🔗 Resources
+## Resources
 
 - [Legal Compliance Documentation](../legal-compliance.md)
 - [Citations & Data Sources](../data-sources/citations.md)
@@ -424,7 +424,7 @@ if __name__ == "__main__":
 
 ---
 
-## 📞 Questions?
+## Questions?
 
 If you're unsure about legal compliance for a data source:
 

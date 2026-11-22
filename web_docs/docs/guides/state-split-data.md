@@ -5,7 +5,7 @@ sidebar_position: 5
 # State-Split Data Files (Deprecated)
 
 :::warning Deprecated
-This approach of splitting files into separate state files is **deprecated**. 
+This approach of splitting files into separate state files is **deprecated**.
 
 Use **[Partitioned Datasets](./partitioned-datasets.md)** instead for:
 - Same efficiency as separate files
@@ -19,12 +19,12 @@ All gold parquet files with state information were previously split into state-s
 ## What Changed
 
 Instead of downloading one massive file with all states:
-- ❌ `nonprofits_organizations.parquet` (72 MB, 1.9M records)
+- No `nonprofits_organizations.parquet` (72 MB, 1.9M records)
 
 You can now download just the state(s) you need:
-- ✅ `nonprofits_organizations_AL.parquet` (Alabama only, ~1 MB)
-- ✅ `nonprofits_organizations_CA.parquet` (California only, ~8 MB)
-- ✅ `nonprofits_organizations_TX.parquet` (Texas only, ~6 MB)
+- Yes `nonprofits_organizations_AL.parquet` (Alabama only, ~1 MB)
+- Yes `nonprofits_organizations_CA.parquet` (California only, ~8 MB)
+- Yes `nonprofits_organizations_TX.parquet` (Texas only, ~6 MB)
 
 ## Benefits
 
@@ -84,9 +84,9 @@ states = ['AL', 'GA', 'FL', 'MS', 'TN', 'SC', 'NC']
 dfs = []
 
 for state in states:
-    path = f'data/gold/by_state/nonprofits_organizations_{state}.parquet'
-    df = pd.read_parquet(path)
-    dfs.append(df)
+ path = f'data/gold/by_state/nonprofits_organizations_{state}.parquet'
+ df = pd.read_parquet(path)
+ dfs.append(df)
 
 # Combine into one DataFrame
 southeast = pd.concat(dfs, ignore_index=True)
@@ -149,8 +149,8 @@ This creates state-specific repos on HuggingFace:
 
 ## Statistics
 
-**Total State-Split Files**: 388 files  
-**Total Size**: 172 MB  
+**Total State-Split Files**: 388 files
+**Total Size**: 172 MB
 **States/Territories**: 62 (all US states, DC, territories, military addresses)
 
 **File Breakdown**:

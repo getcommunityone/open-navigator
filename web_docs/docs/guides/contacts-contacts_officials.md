@@ -6,14 +6,14 @@ sidebar_position: 8
 
 Extract and manage contact information for elected officials, government employees, and civic leaders.
 
-## 🎯 Overview
+## Overview
 
 The **Contacts system** provides structured data about people involved in civic engagement:
 - **Local Officials**: Mayors, council members, commissioners (extracted from meeting transcripts)
 - **State Legislators**: Representatives and senators (from Open States API)
 - **School Board Members**: School district leadership
 
-## 📊 Gold Tables
+## Gold Tables
 
 ### contacts_local_officials.parquet
 
@@ -91,7 +91,7 @@ School board members and district leadership.
 - `data_source` - Source of data
 - `last_updated` - Timestamp
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Extract Contacts from Meetings
 
@@ -101,9 +101,9 @@ python scripts/create_all_gold_tables.py --meetings-only --extract-contacts
 ```
 
 This will:
-1. ✅ Load 153K+ meeting transcripts
-2. 🔍 Extract official names using NLP patterns
-3. 📊 Create `contacts_local_officials.parquet`
+1. Yes Load 153K+ meeting transcripts
+2. Extract official names using NLP patterns
+3. Create `contacts_local_officials.parquet`
 
 ### Upload to HuggingFace
 
@@ -116,7 +116,7 @@ python -m hosting.huggingface contacts
 python scripts/upload_meetings_to_hf.py --table local_officials
 ```
 
-## 🔍 Extraction Methods
+## Extraction Methods
 
 ### Roll Call Pattern (Most Accurate)
 
@@ -151,7 +151,7 @@ Jane Smith: I second the motion
 
 **Pattern**: `[Name]: [statement]`
 
-## 📈 Data Quality
+## Data Quality
 
 ### Accuracy Metrics
 
@@ -173,7 +173,7 @@ The system automatically filters:
 - Incomplete names (single word only)
 - Non-name patterns (e.g., "Item Number")
 
-## 🔌 API Access
+## API Access
 
 ### Query via HuggingFace Datasets Server
 
@@ -213,16 +213,16 @@ print(f"\nTotal mayors: {len(mayors)}")
 
 ```javascript
 async function fetchOfficials(city) {
-  const url = `https://datasets-server.huggingface.co/search?dataset=CommunityOne/one-contacts-local-officials&config=default&split=train&query=${encodeURIComponent(city)}`;
-  
-  const response = await fetch(url);
-  const data = await response.json();
-  
-  return data.rows.map(row => ({
-    name: row.row.name,
-    title: row.row.title,
-    meetingsCount: row.row.meetings_count
-  }));
+ const url = `https://datasets-server.huggingface.co/search?dataset=CommunityOne/one-contacts-local-officials&config=default&split=train&query=${encodeURIComponent(city)}`;
+
+ const response = await fetch(url);
+ const data = await response.json();
+
+ return data.rows.map(row => ({
+ name: row.row.name,
+ title: row.row.title,
+ meetingsCount: row.row.meetings_count
+ }));
 }
 
 // Example: Get League City officials
@@ -230,7 +230,7 @@ const officials = await fetchOfficials('League City');
 console.log(`Found ${officials.length} officials`);
 ```
 
-## 🔗 Data Integration
+## Data Integration
 
 ### Link Officials to Meetings
 
@@ -243,10 +243,10 @@ meetings = pd.read_parquet('data/gold/national/meetings_calendar.parquet')
 
 # Join to get meeting details for each official
 meeting_details = attendance.merge(
-    meetings[['meeting_id', 'jurisdiction', 'record_index']], 
-    on='meeting_id', 
-    how='left',
-    suffixes=('_official', '_meeting')
+ meetings[['meeting_id', 'jurisdiction', 'record_index']],
+ on='meeting_id',
+ how='left',
+ suffixes=('_official', '_meeting')
 )
 
 print(f"Linked {len(meeting_details)} attendance records to meetings")
@@ -255,7 +255,7 @@ print(f"Linked {len(meeting_details)} attendance records to meetings")
 specific_meeting = attendance[attendance['meeting_id'] == 'unknown_0']
 print(f"\nOfficials at meeting unknown_0:")
 for _, official in specific_meeting.iterrows():
-    print(f"  • {official['name']} ({official['title']})")
+ print(f" • {official['name']} ({official['title']})")
 
 # Find meetings attended by a specific official
 official_meetings = attendance[attendance['name'] == 'Jerry Schultz']
@@ -270,14 +270,14 @@ topics = pd.read_parquet('data/gold/national/meetings_topics.parquet')
 
 # Join attendance with topics
 officials_topics = attendance.merge(
-    topics[['meeting_id', 'topics']], 
-    on='meeting_id', 
-    how='left'
+ topics[['meeting_id', 'topics']],
+ on='meeting_id',
+ how='left'
 )
 
 # Which officials attended health-related meetings?
 health_meetings = officials_topics[
-    officials_topics['topics'].str.contains('health', case=False, na=False)
+ officials_topics['topics'].str.contains('health', case=False, na=False)
 ]
 
 print(f"Officials who attended health-related meetings:")
@@ -291,9 +291,9 @@ demographics = pd.read_parquet('data/gold/national/meetings_demographics.parquet
 
 # Link officials to demographic context
 officials_demo = officials.merge(
-    demographics[['jurisdiction', 'acs_18_pop', 'acs_18_median_hh_inc']], 
-    on='jurisdiction', 
-    how='left'
+ demographics[['jurisdiction', 'acs_18_pop', 'acs_18_median_hh_inc']],
+ on='jurisdiction',
+ how='left'
 )
 
 # Analyze by jurisdiction size
@@ -304,21 +304,21 @@ print(f"Small cities: {len(small_cities)} officials")
 print(f"Large cities: {len(large_cities)} officials")
 ```
 
-## 🎯 Use Cases
+## Use Cases
 
 ### Find Your Local Officials
 
 ```python
 def find_my_officials(city_name):
-    """Find all officials for a city"""
-    df = pd.read_parquet('data/gold/contacts_local_officials.parquet')
-    
-    my_officials = df[df['jurisdiction'].str.contains(city_name, case=False)]
-    
-    print(f"Officials in {city_name}:")
-    for _, official in my_officials.iterrows():
-        print(f"  • {official['name']} - {official['title']}")
-        print(f"    Meetings attended: {official['meetings_count']}")
+ """Find all officials for a city"""
+ df = pd.read_parquet('data/gold/contacts_local_officials.parquet')
+
+ my_officials = df[df['jurisdiction'].str.contains(city_name, case=False)]
+
+ print(f"Officials in {city_name}:")
+ for _, official in my_officials.iterrows():
+ print(f" • {official['name']} - {official['title']}")
+ print(f" Meetings attended: {official['meetings_count']}")
 
 find_my_officials("Tuscaloosa")
 ```
@@ -327,16 +327,16 @@ find_my_officials("Tuscaloosa")
 
 ```python
 def find_meeting_attendees(meeting_id):
-    """Find who attended a specific meeting"""
-    attendance = pd.read_parquet('data/gold/contacts_meeting_attendance.parquet')
-    
-    attendees = attendance[attendance['meeting_id'] == meeting_id]
-    
-    print(f"Attendees at meeting {meeting_id}:")
-    for _, official in attendees.iterrows():
-        print(f"  • {official['name']} ({official['title']})")
-    
-    return attendees
+ """Find who attended a specific meeting"""
+ attendance = pd.read_parquet('data/gold/contacts_meeting_attendance.parquet')
+
+ attendees = attendance[attendance['meeting_id'] == meeting_id]
+
+ print(f"Attendees at meeting {meeting_id}:")
+ for _, official in attendees.iterrows():
+ print(f" • {official['name']} ({official['title']})")
+
+ return attendees
 
 # Example
 find_meeting_attendees('unknown_0')
@@ -346,25 +346,25 @@ find_meeting_attendees('unknown_0')
 
 ```python
 def official_meeting_history(official_name):
-    """Get all meetings attended by an official"""
-    attendance = pd.read_parquet('data/gold/contacts_meeting_attendance.parquet')
-    meetings = pd.read_parquet('data/gold/national/meetings_calendar.parquet')
-    
-    # Get official's meetings
-    official_meetings = attendance[attendance['name'] == official_name]
-    
-    # Join with meeting details
-    history = official_meetings.merge(
-        meetings,
-        on='meeting_id',
-        how='left'
-    )
-    
-    print(f"{official_name}'s Meeting History:")
-    print(f"  Total meetings: {len(history)}")
-    print(f"  Jurisdictions: {history['jurisdiction_x'].unique()}")
-    
-    return history
+ """Get all meetings attended by an official"""
+ attendance = pd.read_parquet('data/gold/contacts_meeting_attendance.parquet')
+ meetings = pd.read_parquet('data/gold/national/meetings_calendar.parquet')
+
+ # Get official's meetings
+ official_meetings = attendance[attendance['name'] == official_name]
+
+ # Join with meeting details
+ history = official_meetings.merge(
+ meetings,
+ on='meeting_id',
+ how='left'
+ )
+
+ print(f"{official_name}'s Meeting History:")
+ print(f" Total meetings: {len(history)}")
+ print(f" Jurisdictions: {history['jurisdiction_x'].unique()}")
+
+ return history
 
 # Example
 history = official_meeting_history('Jerry Schultz')
@@ -374,24 +374,24 @@ history = official_meeting_history('Jerry Schultz')
 
 ```python
 def official_attendance_report(jurisdiction):
-    """Generate attendance report for a jurisdiction"""
-    df = pd.read_parquet('data/gold/contacts_local_officials.parquet')
-    
-    officials = df[df['jurisdiction'] == jurisdiction]
-    
-    avg_attendance = officials['meetings_count'].mean()
-    max_attendance = officials['meetings_count'].max()
-    
-    print(f"\n{jurisdiction} Official Attendance Report:")
-    print(f"  Total officials: {len(officials)}")
-    print(f"  Average meetings: {avg_attendance:.1f}")
-    print(f"  Max meetings: {max_attendance}")
-    
-    # Top 5 most active
-    print(f"\n  Top 5 Most Active:")
-    top_5 = officials.nlargest(5, 'meetings_count')
-    for _, official in top_5.iterrows():
-        print(f"    {official['name']} ({official['title']}): {official['meetings_count']} meetings")
+ """Generate attendance report for a jurisdiction"""
+ df = pd.read_parquet('data/gold/contacts_local_officials.parquet')
+
+ officials = df[df['jurisdiction'] == jurisdiction]
+
+ avg_attendance = officials['meetings_count'].mean()
+ max_attendance = officials['meetings_count'].max()
+
+ print(f"\n{jurisdiction} Official Attendance Report:")
+ print(f" Total officials: {len(officials)}")
+ print(f" Average meetings: {avg_attendance:.1f}")
+ print(f" Max meetings: {max_attendance}")
+
+ # Top 5 most active
+ print(f"\n Top 5 Most Active:")
+ top_5 = officials.nlargest(5, 'meetings_count')
+ for _, official in top_5.iterrows():
+ print(f" {official['name']} ({official['title']}): {official['meetings_count']} meetings")
 
 official_attendance_report("League City")
 ```
@@ -400,24 +400,24 @@ official_attendance_report("League City")
 
 ```python
 def create_contact_directory(state='TX'):
-    """Create a contact directory for a state"""
-    df = pd.read_parquet('data/gold/contacts_local_officials.parquet')
-    
-    # Would need to add state field - for now filter by jurisdiction pattern
-    # This is a placeholder - actual implementation would need state data
-    
-    directory = df.groupby('jurisdiction').agg({
-        'name': list,
-        'title': list
-    }).reset_index()
-    
-    return directory
+ """Create a contact directory for a state"""
+ df = pd.read_parquet('data/gold/contacts_local_officials.parquet')
+
+ # Would need to add state field - for now filter by jurisdiction pattern
+ # This is a placeholder - actual implementation would need state data
+
+ directory = df.groupby('jurisdiction').agg({
+ 'name': list,
+ 'title': list
+ }).reset_index()
+
+ return directory
 
 directory = create_contact_directory()
 print(f"Directory covers {len(directory)} jurisdictions")
 ```
 
-## 🛠️ Advanced: Custom Extraction
+## Advanced: Custom Extraction
 
 ### Add Custom Patterns
 
@@ -425,35 +425,35 @@ print(f"Directory covers {len(directory)} jurisdictions")
 from pipeline.create_contacts_gold_tables import ContactsGoldTableCreator
 
 class CustomContactsCreator(ContactsGoldTableCreator):
-    """Custom extraction with additional patterns"""
-    
-    def extract_officials_from_transcript(self, text, jurisdiction):
-        # Get base extraction
-        officials = super().extract_officials_from_transcript(text, jurisdiction)
-        
-        # Add custom pattern (e.g., for clerks)
-        import re
-        clerk_pattern = r'(?:City|County)\s+Clerk\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})'
-        
-        matches = re.finditer(clerk_pattern, text, re.IGNORECASE)
-        for match in matches:
-            name = match.group(1).strip()
-            if self._is_valid_name(name):
-                officials.append({
-                    'name': name,
-                    'title': 'City Clerk',
-                    'jurisdiction': jurisdiction,
-                    'source': 'custom_pattern'
-                })
-        
-        return officials
+ """Custom extraction with additional patterns"""
+
+ def extract_officials_from_transcript(self, text, jurisdiction):
+ # Get base extraction
+ officials = super().extract_officials_from_transcript(text, jurisdiction)
+
+ # Add custom pattern (e.g., for clerks)
+ import re
+ clerk_pattern = r'(?:City|County)\s+Clerk\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})'
+
+ matches = re.finditer(clerk_pattern, text, re.IGNORECASE)
+ for match in matches:
+ name = match.group(1).strip()
+ if self._is_valid_name(name):
+ officials.append({
+ 'name': name,
+ 'title': 'City Clerk',
+ 'jurisdiction': jurisdiction,
+ 'source': 'custom_pattern'
+ })
+
+ return officials
 
 # Use custom creator
 creator = CustomContactsCreator()
 creator.create_all_contacts_tables()
 ```
 
-## 📝 Data Source
+## Data Source
 
 **LocalView Meeting Transcripts:**
 - Source: Stanford LocalView Project
@@ -467,7 +467,7 @@ creator.create_all_contacts_tables()
 - Free tier: 50,000 requests/month
 - API key: Sign up at https://openstates.org/accounts/signup/
 
-## 🤝 Contributing
+## Contributing
 
 Want to improve official extraction?
 
@@ -476,7 +476,7 @@ Want to improve official extraction?
 3. **Add new extraction patterns** (pull requests welcome!)
 4. **Provide labeled data** for training ML models
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [Meeting Gold Tables](./gold-table-pipeline.md)
 - [HuggingFace Upload Guide](../deployment/huggingface-upload.md)

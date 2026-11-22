@@ -9,10 +9,10 @@ Complete guide to configuring OAuth authentication with Google, Facebook, GitHub
 ## Overview
 
 This application supports four OAuth providers for user authentication:
-- 🔵 **Google** - Google Account authentication
-- 🔵 **Facebook** - Facebook Login
-- ⚫ **GitHub** - GitHub OAuth Apps
-- 🤗 **HuggingFace** - HuggingFace OAuth
+- **Google** - Google Account authentication
+- **Facebook** - Facebook Login
+- **GitHub** - GitHub OAuth Apps
+- **HuggingFace** - HuggingFace OAuth
 
 :::info
 Each provider requires creating an OAuth application and configuring redirect URIs. **Never commit secrets to git!**
@@ -20,7 +20,7 @@ Each provider requires creating an OAuth application and configuring redirect UR
 
 ---
 
-## 🌐 Required Redirect URIs
+## Required Redirect URIs
 
 For **all providers**, you need to configure these redirect URIs:
 
@@ -39,7 +39,7 @@ Replace `{provider}` with: `google`, `facebook`, `github`, or `huggingface`
 
 ---
 
-## 🔵 Google OAuth Setup
+## Google OAuth Setup
 
 ### Step 1: Create Google Cloud Project
 
@@ -59,49 +59,49 @@ Replace `{provider}` with: `google`, `facebook`, `github`, or `huggingface`
 1. Go to **APIs & Services → OAuth consent screen**
 2. Select **"External"** user type → Click "CREATE"
 3. Fill in app information:
-   - **App name:** `Open Navigator`
-   - **User support email:** Your email
-   - **App domain:** `www.communityone.com`
-   - **Developer contact:** Your email
+ - **App name:** `Open Navigator`
+ - **User support email:** Your email
+ - **App domain:** `www.communityone.com`
+ - **Developer contact:** Your email
 4. Click "SAVE AND CONTINUE"
 
 5. **Scopes page:**
-   - Click "ADD OR REMOVE SCOPES"
-   - Select: `userinfo.email`, `userinfo.profile`, `openid`
-   - Click "UPDATE" → "SAVE AND CONTINUE"
+ - Click "ADD OR REMOVE SCOPES"
+ - Select: `userinfo.email`, `userinfo.profile`, `openid`
+ - Click "UPDATE" → "SAVE AND CONTINUE"
 
 6. **Test users** (optional for development):
-   - Add your Google account email
-   - Click "SAVE AND CONTINUE"
+ - Add your Google account email
+ - Click "SAVE AND CONTINUE"
 
 ### Step 4: Create OAuth Credentials
 
 1. Go to **APIs & Services → Credentials**
 2. Click **"+ CREATE CREDENTIALS" → "OAuth client ID"**
 3. Configure:
-   - **Application type:** Web application
-   - **Name:** `Open Navigator Web App`
+ - **Application type:** Web application
+ - **Name:** `Open Navigator Web App`
 
 4. **Authorized JavaScript origins:**
-   ```
-   http://localhost:5173
-   http://localhost:8001
-   https://www.communityone.com
-   https://your-space.hf.space
-   ```
+ ```
+ http://localhost:5173
+ http://localhost:8001
+ https://www.communityone.com
+ https://your-space.hf.space
+ ```
 
 5. **Authorized redirect URIs:**
-   ```
-   http://localhost:8001/api/auth/callback/google
-   https://www.communityone.com/api/auth/callback/google
-   https://your-space.hf.space/api/auth/callback/google
-   ```
+ ```
+ http://localhost:8001/api/auth/callback/google
+ https://www.communityone.com/api/auth/callback/google
+ https://your-space.hf.space/api/auth/callback/google
+ ```
 
 6. Click **"CREATE"**
 
 7. **Copy your credentials** (you'll need these for environment variables):
-   - Client ID: `[long string].apps.googleusercontent.com`
-   - Client Secret: `GOCSPX-[random string]`
+ - Client ID: `[long string].apps.googleusercontent.com`
+ - Client Secret: `GOCSPX-[random string]`
 
 ### Step 5: Add to Environment Variables
 
@@ -117,7 +117,7 @@ GOOGLE_CLIENT_SECRET=GOCSPX-your-secret-here
 
 ---
 
-## 🔵 Facebook OAuth Setup
+## Facebook OAuth Setup
 
 ### Step 1: Create Facebook App
 
@@ -125,8 +125,8 @@ GOOGLE_CLIENT_SECRET=GOCSPX-your-secret-here
 2. Click **"Create App"**
 3. Choose **"Other"** → **"Next"** → **"Consumer"** → **"Next"**
 4. Enter details:
-   - **App name:** `Open Navigator`
-   - **Contact email:** Your email
+ - **App name:** `Open Navigator`
+ - **Contact email:** Your email
 5. Click **"Create App"**
 
 ### Step 2: Add Facebook Login Product
@@ -141,19 +141,19 @@ GOOGLE_CLIENT_SECRET=GOCSPX-your-secret-here
 
 1. **Left sidebar:** Click **"Use cases → Authentication and account creation → Customize"**
 
-   OR: **"Facebook Login → Settings"**
+ OR: **"Facebook Login → Settings"**
 
 2. **Valid OAuth Redirect URIs** (one per line):
-   ```
-   http://localhost:8001/api/auth/callback/facebook
-   https://www.communityone.com/api/auth/callback/facebook
-   https://your-space.hf.space/api/auth/callback/facebook
-   ```
+ ```
+ http://localhost:8001/api/auth/callback/facebook
+ https://www.communityone.com/api/auth/callback/facebook
+ https://your-space.hf.space/api/auth/callback/facebook
+ ```
 
 3. **Enable these settings:**
-   - ✅ Client OAuth Login: ON
-   - ✅ Web OAuth Login: ON
-   - ❌ Native or desktop app: OFF
+ - Yes Client OAuth Login: ON
+ - Yes Web OAuth Login: ON
+ - No Native or desktop app: OFF
 
 4. Click **"Save Changes"**
 
@@ -162,16 +162,16 @@ GOOGLE_CLIENT_SECRET=GOCSPX-your-secret-here
 1. **Left sidebar:** Click **"App settings → Basic"**
 
 2. **App Domains:**
-   ```
-   localhost
-   www.communityone.com
-   your-space.hf.space
-   ```
+ ```
+ localhost
+ www.communityone.com
+ your-space.hf.space
+ ```
 
 3. **Privacy Policy URL:**
-   ```
-   https://www.communityone.com/privacyfacebook.html
-   ```
+ ```
+ https://www.communityone.com/privacyfacebook.html
+ ```
 
 4. Click **"Save Changes"**
 
@@ -179,8 +179,8 @@ GOOGLE_CLIENT_SECRET=GOCSPX-your-secret-here
 
 1. Still in **"App settings → Basic"**
 2. Copy your credentials:
-   - **App ID:** 15-digit number
-   - **App Secret:** Click "Show" → 32-character string
+ - **App ID:** 15-digit number
+ - **App Secret:** Click "Show" → 32-character string
 
 ### Step 6: Add to Environment Variables
 
@@ -205,7 +205,7 @@ FACEBOOK_APP_SECRET=your-app-secret-here
 
 ---
 
-## ⚫ GitHub OAuth Setup
+## GitHub OAuth Setup
 
 ### Step 1: Create OAuth App
 
@@ -215,9 +215,9 @@ FACEBOOK_APP_SECRET=your-app-secret-here
 ### Step 2: Configure Application
 
 1. Fill in details:
-   - **Application name:** `Open Navigator`
-   - **Homepage URL:** `https://www.communityone.com`
-   - **Authorization callback URL:** `http://localhost:8001/api/auth/callback/github`
+ - **Application name:** `Open Navigator`
+ - **Homepage URL:** `https://www.communityone.com`
+ - **Authorization callback URL:** `http://localhost:8001/api/auth/callback/github`
 
 2. Click **"Register application"**
 
@@ -236,8 +236,8 @@ GitHub only allows ONE callback URL per OAuth app. For multiple environments:
 ### Step 4: Get Credentials
 
 1. On the OAuth app page:
-   - **Client ID:** 20-character string
-   - **Client secrets:** Click "Generate a new client secret"
+ - **Client ID:** 20-character string
+ - **Client secrets:** Click "Generate a new client secret"
 
 2. Copy both values immediately (secret won't be shown again)
 
@@ -254,7 +254,7 @@ GITHUB_CLIENT_SECRET=your-client-secret-here
 
 ---
 
-## 🤗 HuggingFace OAuth Setup
+## HuggingFace OAuth Setup
 
 ### Step 1: Create OAuth Application
 
@@ -264,24 +264,24 @@ GITHUB_CLIENT_SECRET=your-client-secret-here
 ### Step 2: Configure Application
 
 1. Fill in details:
-   - **Application name:** `Open Navigator`
-   - **Homepage URL:** `https://www.communityone.com`
-   - **Scopes:** `openid profile email`
+ - **Application name:** `Open Navigator`
+ - **Homepage URL:** `https://www.communityone.com`
+ - **Scopes:** `openid profile email`
 
 2. **Redirect URIs** (add all):
-   ```
-   http://localhost:8001/api/auth/callback/huggingface
-   https://www.communityone.com/api/auth/callback/huggingface
-   https://your-space.hf.space/api/auth/callback/huggingface
-   ```
+ ```
+ http://localhost:8001/api/auth/callback/huggingface
+ https://www.communityone.com/api/auth/callback/huggingface
+ https://your-space.hf.space/api/auth/callback/huggingface
+ ```
 
 3. Click **"Create application"**
 
 ### Step 3: Get Credentials
 
 1. On the application page:
-   - **Client ID:** UUID format (8-4-4-4-12 characters)
-   - **Client Secret:** Long random string starting with `oauth_app_secret_`
+ - **Client ID:** UUID format (8-4-4-4-12 characters)
+ - **Client Secret:** Long random string starting with `oauth_app_secret_`
 
 2. Copy both values
 
@@ -298,7 +298,7 @@ HUGGINGFACE_CLIENT_SECRET=oauth_app_secret_your-secret-here
 
 ---
 
-## 🔒 Environment Variables Reference
+## Environment Variables Reference
 
 ### Local Development (`.env`)
 
@@ -368,26 +368,26 @@ Production URLs **MUST** use `https://` - OAuth providers reject `http://` for s
 
 ---
 
-## 🧪 Testing OAuth Configuration
+## Testing OAuth Configuration
 
 ### Local Testing
 
 1. **Start all services:**
-   ```bash
-   ./start-all.sh
-   ```
+ ```bash
+ ./start-all.sh
+ ```
 
 2. **Open application:** http://localhost:5173
 
 3. **Test each provider:**
-   - Click "Login" → Select provider
-   - Authorize the app
-   - Should redirect back with your profile
+ - Click "Login" → Select provider
+ - Authorize the app
+ - Should redirect back with your profile
 
 4. **Check for errors in:**
-   - Browser console (F12)
-   - API server logs
-   - Network tab (watch redirect flow)
+ - Browser console (F12)
+ - API server logs
+ - Network tab (watch redirect flow)
 
 ### Production Testing
 
@@ -398,13 +398,13 @@ Production URLs **MUST** use `https://` - OAuth providers reject `http://` for s
 3. **Test each provider** at https://www.communityone.com
 
 4. **Common issues:**
-   - ❌ 400 Bad Request → Redirect URI not registered
-   - ❌ redirect_uri_mismatch → Using `http://` instead of `https://`
-   - ❌ 401 Unauthorized → Wrong client secret or missing env vars
+ - No 400 Bad Request → Redirect URI not registered
+ - No redirect_uri_mismatch → Using `http://` instead of `https://`
+ - No 401 Unauthorized → Wrong client secret or missing env vars
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### "Redirect URI Mismatch"
 
@@ -443,13 +443,13 @@ Production URLs **MUST** use `https://` - OAuth providers reject `http://` for s
 **Fix:**
 ```bash
 # In HuggingFace Spaces secrets, use HTTPS:
-API_BASE_URL=https://www.communityone.com  # ✅ Correct
-API_BASE_URL=http://www.communityone.com   # ❌ Wrong
+API_BASE_URL=https://www.communityone.com # Yes Correct
+API_BASE_URL=http://www.communityone.com # No Wrong
 ```
 
 ---
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [Authentication Setup](./authentication-setup.md) - Database and JWT configuration
 - [HuggingFace Deployment](./huggingface-spaces.md) - Deploy to production
@@ -457,7 +457,7 @@ API_BASE_URL=http://www.communityone.com   # ❌ Wrong
 
 ---
 
-## 🔐 Security Best Practices
+## Security Best Practices
 
 1. **Never commit secrets** - Use `.env` files (gitignored)
 2. **Use HTTPS in production** - Required by OAuth providers
@@ -468,7 +468,7 @@ API_BASE_URL=http://www.communityone.com   # ❌ Wrong
 
 ---
 
-## 📝 Quick Reference
+## Quick Reference
 
 | Provider | Setup URL | Redirect URI Format |
 |----------|-----------|---------------------|

@@ -6,7 +6,7 @@ sidebar_position: 3
 
 Transforms bronze AI extractions into production-ready search tables.
 
-## 🎯 Purpose
+## Purpose
 
 This dbt project handles:
 - **Bronze → Production transformations** (AI extracted data)
@@ -15,33 +15,33 @@ This dbt project handles:
 - **Entity deduplication**
 - **Documentation generation**
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 dbt_project/
-├── dbt_project.yml           # Project configuration
-├── profiles.yml.example      # Database connection template
+├── dbt_project.yml # Project configuration
+├── profiles.yml.example # Database connection template
 ├── models/
-│   ├── staging/              # Clean bronze data
-│   │   ├── _staging.yml
-│   │   ├── stg_bronze_contacts.sql
-│   │   ├── stg_bronze_organizations_meetings.sql
-│   │   └── stg_bronze_bills.sql
-│   ├── intermediate/         # Deduplicate
-│   │   ├── _intermediate.yml
-│   │   └── int_contacts_deduped.sql
-│   └── marts/               # Production tables
-│       ├── _marts.yml
-│       └── contact_ai.sql
-├── macros/                  # Reusable SQL functions
-│   ├── calculate_confidence.sql
-│   ├── normalize_bill_number.sql
-│   └── normalize_name.sql
-├── tests/                   # Custom data quality tests
-└── README.md               # This file
+│ ├── staging/ # Clean bronze data
+│ │ ├── _staging.yml
+│ │ ├── stg_bronze_contacts.sql
+│ │ ├── stg_bronze_organizations_meetings.sql
+│ │ └── stg_bronze_bills.sql
+│ ├── intermediate/ # Deduplicate
+│ │ ├── _intermediate.yml
+│ │ └── int_contacts_deduped.sql
+│ └── marts/ # Production tables
+│ ├── _marts.yml
+│ └── contact_ai.sql
+├── macros/ # Reusable SQL functions
+│ ├── calculate_confidence.sql
+│ ├── normalize_bill_number.sql
+│ └── normalize_name.sql
+├── tests/ # Custom data quality tests
+└── README.md # This file
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Install dbt
 
@@ -78,7 +78,7 @@ export NEON_PASSWORD=your_password
 dbt debug
 
 # Should show:
-# ✓ Connection test: [OK connection ok]
+# Yes Connection test: [OK connection ok]
 ```
 
 ### 4. Run Models
@@ -98,10 +98,10 @@ dbt test
 
 # Generate documentation
 dbt docs generate
-dbt docs serve  # Opens in browser
+dbt docs serve # Opens in browser
 ```
 
-## 📊 Model Layers
+## Model Layers
 
 ### Staging (`models/staging/`)
 
@@ -129,7 +129,7 @@ dbt docs serve  # Opens in browser
 
 **Materialization:** `incremental` (only processes new records)
 
-## 🧪 Testing
+## Testing
 
 ### Run Tests
 
@@ -148,15 +148,15 @@ dbt test --select test_type:not_null
 ### Available Tests
 
 1. **Schema tests** (in `.yml` files)
-   - `unique` - No duplicates
-   - `not_null` - No NULL values
-   - `accepted_values` - Value in allowed list
-   - `relationships` - Foreign key exists
+ - `unique` - No duplicates
+ - `not_null` - No NULL values
+ - `accepted_values` - Value in allowed list
+ - `relationships` - Foreign key exists
 
 2. **Custom tests** (in `tests/` folder)
-   - Custom SQL assertions
+ - Custom SQL assertions
 
-## 🔄 Incremental Processing
+## Incremental Processing
 
 Models marked `materialized='incremental'` only process new records:
 
@@ -174,7 +174,7 @@ To rebuild everything from scratch:
 dbt run --full-refresh --select contact_ai
 ```
 
-## 🎨 Macros
+## Macros
 
 Reusable SQL functions in `macros/`:
 
@@ -196,7 +196,7 @@ SELECT {{ normalize_name('full_name') }} as name_clean
 -- Lowercase, trim, remove special chars
 ```
 
-## 📋 Workflow Integration
+## Workflow Integration
 
 ### Combined with Python ETL
 
@@ -219,7 +219,7 @@ cd ..
 python scripts/data/export_to_gold_parquet.py
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "relation does not exist"
 
@@ -240,8 +240,8 @@ dbt debug
 # Create packages.yml
 cat > packages.yml << EOF
 packages:
-  - package: dbt-labs/dbt_utils
-    version: 1.1.1
+ - package: dbt-labs/dbt_utils
+ version: 1.1.1
 EOF
 
 # Install
@@ -258,19 +258,19 @@ dbt deps
 dbt run --full-refresh --select contact_ai
 ```
 
-## 📚 Resources
+## Resources
 
 - [dbt Documentation](https://docs.getdbt.com/)
 - [dbt Best Practices](https://docs.getdbt.com/guides/best-practices)
 - [SQL Style Guide](https://github.com/dbt-labs/corp/blob/main/dbt_style_guide.md)
 
-## 🔗 Related Documentation
+## Related Documentation
 
 - [dbt ETL Strategy](../development/dbt-etl-strategy.md) - Full architecture guide
 - [Bronze to Production Merge](../development/bronze-to-production-merge.md) - Merge strategy
 - [Data Sources](https://github.com/getcommunityone/open-navigator/blob/main/docs/DATA_SOURCES.md) - All data sources
 
-## ⏭️ Next Steps
+## Next Steps
 
 1. **Install packages:** `dbt deps`
 2. **Run models:** `dbt run`

@@ -2,14 +2,14 @@
 
 ## v2.0.0 - Pattern-Based Discovery (April 2026)
 
-### 🚀 Major Changes
+### Major Changes
 
 **Removed Deprecated Search APIs**
-- ❌ Removed Google Custom Search API dependency
-- ❌ Removed Bing Search API dependency
-- ✅ Implemented sustainable, vendor-neutral pattern-based discovery
+- No Removed Google Custom Search API dependency
+- No Removed Bing Search API dependency
+- Yes Implemented sustainable, vendor-neutral pattern-based discovery
 
-### ✅ New Features
+### Yes New Features
 
 **Pattern-Based URL Discovery**
 - Generates candidate URLs from jurisdiction names using common government patterns
@@ -19,12 +19,12 @@
 
 **Benefits:**
 - 🆓 Zero external API costs ($0 vs $240+ per discovery run)
-- 🔒 No rate limits or API quotas
-- ♻️ Vendor-neutral and future-proof
-- 📊 Deterministic and reproducible
-- 🎯 85-95% discovery rate for counties, 75-90% for cities
+- No rate limits or API quotas
+- Vendor-neutral and future-proof
+- Deterministic and reproducible
+- 85-95% discovery rate for counties, 75-90% for cities
 
-### 🔄 Migration Guide
+### Migration Guide
 
 **For Users:**
 
@@ -56,7 +56,7 @@ agent = URLDiscoveryAgent(gsa_domains, gsa_domain_data)
 # Uses pattern matching + GSA registry lookup
 ```
 
-### 📝 Updated Files
+### Updated Files
 
 **Core Discovery:**
 - `discovery/url_discovery_agent.py` - Complete rewrite with pattern-based approach
@@ -73,7 +73,7 @@ agent = URLDiscoveryAgent(gsa_domains, gsa_domain_data)
 **Removed:**
 - `discovery/mlflow_discovery_agent.py` - AgentBricks version (no longer needed)
 
-### 🧪 Testing
+### Testing
 
 Run tests to verify discovery:
 
@@ -88,7 +88,7 @@ print(patterns[:5])"
 python main.py discover-jurisdictions --limit 10 --state CA
 ```
 
-### 📊 Performance
+### Performance
 
 **Discovery Rates:**
 - Counties: 85-95% (vs 70-80% with search APIs)
@@ -103,15 +103,15 @@ python main.py discover-jurisdictions --limit 10 --state CA
 - Pattern-based: **$0** (only compute)
 - Search APIs: ~~$240+ per run~~ (deprecated)
 
-### 🎯 Why This Change?
+### Why This Change?
 
 **From Product Guidance:**
 > "Do not build new systems on either Google Custom Search or legacy Bing APIs, even if they're 'free today.'"
 
 **Recommended Alternatives:**
-✅ Crawl + index your own sources (Delta + Vector Search)  
-✅ Public datasets / curated feeds  
-✅ Vendor-neutral retrieval pipelines
+Yes Crawl + index your own sources (Delta + Vector Search)
+Yes Public datasets / curated feeds
+Yes Vendor-neutral retrieval pipelines
 
 **This implementation follows all recommendations:**
 - Uses public datasets (Census + GSA)
@@ -119,7 +119,7 @@ python main.py discover-jurisdictions --limit 10 --state CA
 - Delta Lake storage for indexing
 - No dependency on external search services
 
-### 🚧 Breaking Changes
+### Breaking Changes
 
 **Removed Config Variables:**
 - `google_search_api_key`
@@ -135,7 +135,7 @@ URLDiscoveryAgent(gsa_domains: Set[str])
 URLDiscoveryAgent(gsa_domains: Set[str], gsa_domain_data: List[Dict])
 ```
 
-### 🔮 Future Enhancements
+### Future Enhancements
 
 Potential improvements:
 - [ ] Machine learning for pattern optimization
@@ -146,4 +146,4 @@ Potential improvements:
 
 ---
 
-**This version is production-ready with zero external dependencies!** 🎉
+**This version is production-ready with zero external dependencies!**

@@ -5,7 +5,7 @@ sidebar_label: Terms of Service
 
 # Terms of Service
 
-**Effective Date:** April 28, 2026  
+**Effective Date:** April 28, 2026
 **Last Updated:** November 22, 2026
 
 :::info[Important Legal Agreement]
@@ -146,7 +146,7 @@ When using or redistributing data from our Service, you MUST include the followi
 ```
 Powered by Charity Navigator
 [Link to: https://www.charitynavigator.org/ein/[EIN]]
-CHARITY NAVIGATOR and the CHARITY NAVIGATOR logo are registered 
+CHARITY NAVIGATOR and the CHARITY NAVIGATOR logo are registered
 trademarks of Charity Navigator. All rights reserved. Used with permission.
 ```
 
@@ -204,7 +204,7 @@ If your information appears in public records and you believe it should be remov
 
 This Service is not affiliated with, endorsed by, or sponsored by:
 - U.S. Internal Revenue Service
-- U.S. Census Bureau  
+- U.S. Census Bureau
 - Any state or local government
 - Any data source provider
 
@@ -358,11 +358,11 @@ We are grateful for their commitment to open data and democratic participation.
 
 | Data Source | Key Restrictions |
 |-------------|------------------|
-| **Charity Navigator** | ✅ MUST attribute "Powered by Charity Navigator"<br/>✅ MUST link to CN profiles<br/>✅ MUST include trademark notice<br/>❌ Max 1,000 calls/day<br/>❌ No redistribution |
-| **Google Services** | ✅ MUST attribute "Data provided by Google"<br/>❌ Cannot cache Civic API data >30 days<br/>❌ Subject to API quotas |
-| **ProPublica** | ✅ MUST attribute to ProPublica<br/>❌ FEC data: No commercial solicitation |
-| **Open States** | ✅ MUST display "Powered by Open States"<br/>❌ 50k requests/month free tier |
-| **DBpedia** | ✅ MUST attribute to DBpedia & Wikipedia<br/>✅ CC BY-SA 3.0 (share-alike applies) |
+| **Charity Navigator** | Yes MUST attribute "Powered by Charity Navigator"<br/>Yes MUST link to CN profiles<br/>Yes MUST include trademark notice<br/>No Max 1,000 calls/day<br/>No No redistribution |
+| **Google Services** | Yes MUST attribute "Data provided by Google"<br/>No Cannot cache Civic API data >30 days<br/>No Subject to API quotas |
+| **ProPublica** | Yes MUST attribute to ProPublica<br/>No FEC data: No commercial solicitation |
+| **Open States** | Yes MUST display "Powered by Open States"<br/>No 50k requests/month free tier |
+| **DBpedia** | Yes MUST attribute to DBpedia & Wikipedia<br/>Yes CC BY-SA 3.0 (share-alike applies) |
 
 ---
 

@@ -20,15 +20,15 @@ The Open Navigator homepage displays **trending causes** - policy areas that hav
 
 ```
 bronze_decisions (meetings)
-    ↓ (dbt staging)
+ ↓ (dbt staging)
 stg_bronze_decisions (cleaned, filtered to last 90 days)
-    ↓ (dbt intermediate)
+ ↓ (dbt intermediate)
 int_trending_causes_by_jurisdiction (aggregated by cause & jurisdiction)
-    ↓ (dbt marts)
+ ↓ (dbt marts)
 jurisdiction_state_aggregate.trending_causes (JSONB column)
-    ↓ (API)
+ ↓ (API)
 GET /api/stats?state=AL&city=Mobile
-    ↓ (Frontend)
+ ↓ (Frontend)
 Home.tsx displays location-specific trending causes
 ```
 
@@ -47,16 +47,16 @@ The `jurisdiction_state_aggregate` table contains pre-computed statistics at mul
 
 ```sql
 CREATE TABLE jurisdiction_state_aggregate (
-    level VARCHAR(20),              -- 'national', 'state', 'county', 'city'
-    state_code VARCHAR(2),
-    county VARCHAR(100),
-    city VARCHAR(100),
-    jurisdictions_count INTEGER,
-    nonprofits_count INTEGER,
-    events_count INTEGER,
-    contacts_count INTEGER,
-    trending_causes JSONB,          -- ← Dynamic trending causes
-    last_updated TIMESTAMP
+ level VARCHAR(20), -- 'national', 'state', 'county', 'city'
+ state_code VARCHAR(2),
+ county VARCHAR(100),
+ city VARCHAR(100),
+ jurisdictions_count INTEGER,
+ nonprofits_count INTEGER,
+ events_count INTEGER,
+ contacts_count INTEGER,
+ trending_causes JSONB, -- ← Dynamic trending causes
+ last_updated TIMESTAMP
 );
 ```
 
@@ -67,40 +67,40 @@ The structure varies by aggregation level:
 **City Level** (most detailed):
 ```json
 [
-  {
-    "cause": "Education and Workforce",
-    "code": "COFOG-09",
-    "decision_count": 5,
-    "topics": 3,
-    "most_recent": "2024-05-22",
-    "rank": 1,
-    "sample_headlines": [
-      "MPS highlights literacy strategies",
-      "Board approves new curriculum"
-    ]
-  }
+ {
+ "cause": "Education and Workforce",
+ "code": "COFOG-09",
+ "decision_count": 5,
+ "topics": 3,
+ "most_recent": "2024-05-22",
+ "rank": 1,
+ "sample_headlines": [
+ "MPS highlights literacy strategies",
+ "Board approves new curriculum"
+ ]
+ }
 ]
 ```
 
 **State Level** (aggregated):
 ```json
 [
-  {
-    "cause": "Education and Workforce",
-    "decision_count": 127,
-    "jurisdictions": 15
-  }
+ {
+ "cause": "Education and Workforce",
+ "decision_count": 127,
+ "jurisdictions": 15
+ }
 ]
 ```
 
 **National Level**:
 ```json
 [
-  {
-    "cause": "Education and Workforce",
-    "decision_count": 1543,
-    "states": 42
-  }
+ {
+ "cause": "Education and Workforce",
+ "decision_count": 1543,
+ "states": 42
+ }
 ]
 ```
 
@@ -111,28 +111,28 @@ The `Home.tsx` component fetches trending causes from the stats endpoint:
 ```typescript
 // Fetch location stats (includes trending_causes)
 const { data: locationStats } = useQuery({
-  queryKey: ['location-stats', location],
-  queryFn: async () => {
-    const response = await api.get('/stats', { 
-      params: { state: 'AL', city: 'Mobile' }
-    });
-    return response.data;
-  }
+ queryKey: ['location-stats', location],
+ queryFn: async () => {
+ const response = await api.get('/stats', {
+ params: { state: 'AL', city: 'Mobile' }
+ });
+ return response.data;
+ }
 });
 
 // Use location-specific causes if available
 const trendingTopics = React.useMemo(() => {
-  if (locationStats?.trending_causes) {
-    // Transform database format to UI format
-    return locationStats.trending_causes.map(cause => ({
-      name: cause.cause,
-      icon: getCauseIcon(cause.cause),
-      description: `${cause.decision_count} recent decisions`
-    }));
-  }
-  
-  // Fallback to global trending
-  return trendingData?.causes || [];
+ if (locationStats?.trending_causes) {
+ // Transform database format to UI format
+ return locationStats.trending_causes.map(cause => ({
+ name: cause.cause,
+ icon: getCauseIcon(cause.cause),
+ description: `${cause.decision_count} recent decisions`
+ }));
+ }
+
+ // Fallback to global trending
+ return trendingData?.causes || [];
 }, [locationStats, trendingData]);
 ```
 
@@ -168,21 +168,21 @@ Check that trending causes are populated:
 
 ```sql
 -- Count jurisdictions with trending causes
-SELECT 
-  level,
-  COUNT(*) as total,
-  COUNT(CASE WHEN trending_causes IS NOT NULL THEN 1 END) as with_causes
+SELECT
+ level,
+ COUNT(*) as total,
+ COUNT(CASE WHEN trending_causes IS NOT NULL THEN 1 END) as with_causes
 FROM jurisdiction_state_aggregate
 GROUP BY level;
 
 -- View sample trending causes
-SELECT 
-  city,
-  state_code,
-  jsonb_pretty(trending_causes) as causes
+SELECT
+ city,
+ state_code,
+ jsonb_pretty(trending_causes) as causes
 FROM jurisdiction_state_aggregate
-WHERE level = 'city' 
-  AND trending_causes IS NOT NULL
+WHERE level = 'city'
+ AND trending_causes IS NOT NULL
 LIMIT 5;
 ```
 
@@ -192,14 +192,14 @@ Trending causes are mapped to **COFOG** (Classification of Functions of Governme
 
 | Code | Category | Icon | Example Topics |
 |------|----------|------|----------------|
-| COFOG-01 | General Public Services | 🏛️ | Council procedures, budgets |
-| COFOG-04 | Economic Affairs | 💼 | Business incentives, development |
-| COFOG-05 | Environmental Protection | 🌍 | Parks, recycling, climate |
-| COFOG-06 | Housing and Community Amenities | 🏠 | Zoning, affordable housing |
-| COFOG-07 | Health | 🏥 | Public health, hospitals |
-| COFOG-08 | Recreation, Culture, Religion | 🎨 | Libraries, museums, sports |
-| COFOG-09 | Education and Workforce | 📚 | Schools, training programs |
-| COFOG-10 | Social Protection | 🤝 | Social services, elderly care |
+| COFOG-01 | General Public Services | | Council procedures, budgets |
+| COFOG-04 | Economic Affairs | | Business incentives, development |
+| COFOG-05 | Environmental Protection | | Parks, recycling, climate |
+| COFOG-06 | Housing and Community Amenities | | Zoning, affordable housing |
+| COFOG-07 | Health | | Public health, hospitals |
+| COFOG-08 | Recreation, Culture, Religion | | Libraries, museums, sports |
+| COFOG-09 | Education and Workforce | | Schools, training programs |
+| COFOG-10 | Social Protection | | Social services, elderly care |
 
 ## Performance Considerations
 
@@ -207,10 +207,10 @@ Trending causes are mapped to **COFOG** (Classification of Functions of Governme
 
 Instead of computing trending causes on-demand in the API, we use dbt to:
 
-- ✅ **Speed**: Query takes ~10ms vs 3-5 seconds for on-the-fly aggregation
-- ✅ **Consistency**: All users see the same data (updated daily)
-- ✅ **Scalability**: No expensive computations at request time
-- ✅ **Testing**: dbt tests ensure data quality
+- Yes **Speed**: Query takes ~10ms vs 3-5 seconds for on-the-fly aggregation
+- Yes **Consistency**: All users see the same data (updated daily)
+- Yes **Scalability**: No expensive computations at request time
+- Yes **Testing**: dbt tests ensure data quality
 
 ### Cache Strategy
 
@@ -224,7 +224,7 @@ CACHE_DURATION = timedelta(minutes=5)
 The frontend also caches for 5 minutes:
 
 ```typescript
-staleTime: 5 * 60 * 1000  // 5 minutes
+staleTime: 5 * 60 * 1000 // 5 minutes
 ```
 
 ## Troubleshooting
@@ -234,8 +234,8 @@ staleTime: 5 * 60 * 1000  // 5 minutes
 Check if data exists:
 
 ```sql
-SELECT COUNT(*) 
-FROM jurisdiction_state_aggregate 
+SELECT COUNT(*)
+FROM jurisdiction_state_aggregate
 WHERE trending_causes IS NOT NULL;
 ```
 
@@ -262,10 +262,10 @@ python main.py serve
 Verify the bronze_decisions table has recent data:
 
 ```sql
-SELECT 
-  COUNT(*) as total,
-  MIN(decision_date) as oldest,
-  MAX(decision_date) as newest
+SELECT
+ COUNT(*) as total,
+ MIN(decision_date) as oldest,
+ MAX(decision_date) as newest
 FROM bronze_decisions
 WHERE decision_date >= CURRENT_DATE - INTERVAL '90 days';
 ```

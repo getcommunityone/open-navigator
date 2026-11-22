@@ -6,7 +6,7 @@ sidebar_position: 8
 
 Push your nonprofit data to HuggingFace Hub and query it from your React application using the **free** Datasets Server API (no authentication required for public datasets!).
 
-## 🎯 Overview
+## Overview
 
 With 1.9M+ nonprofits now available from IRS EO-BMF, you can:
 1. **Upload** all 4 nonprofit gold tables to HuggingFace (free unlimited storage)
@@ -15,13 +15,13 @@ With 1.9M+ nonprofits now available from IRS EO-BMF, you can:
 4. **Paginate** through millions of records efficiently
 
 **Key Benefits:**
-- ✅ **Free unlimited storage** (public datasets)
-- ✅ **No authentication required** for reading public datasets
-- ✅ **REST API** - works from any language (Python, JavaScript, curl)
-- ✅ **Automatic caching** and CDN delivery by HuggingFace
-- ✅ **Searchable** with full-text search built-in
+- Yes **Free unlimited storage** (public datasets)
+- Yes **No authentication required** for reading public datasets
+- Yes **REST API** - works from any language (Python, JavaScript, curl)
+- Yes **Automatic caching** and CDN delivery by HuggingFace
+- Yes **Searchable** with full-text search built-in
 
-## 📤 Step 1: Upload Datasets to HuggingFace
+## Step 1: Upload Datasets to HuggingFace
 
 ### Prerequisites
 
@@ -55,18 +55,18 @@ python -m hosting.huggingface nonprofits --repo "your-username/nonprofits"
 
 **Expected Output:**
 ```
-✅ Logged in to Hugging Face
-✅ Repository ready: https://huggingface.co/datasets/CommunityOne/one-nonprofits
-📤 Uploading organizations from data/gold/nonprofits_organizations.parquet
-  Rows: 1,952,238
-  Columns: 28
-  Size: 156.43 MB
-  Pushing to CommunityOne/one-nonprofits (split: organizations)
-✅ Uploaded organizations: 1,952,238 records
-   View at: https://huggingface.co/datasets/CommunityOne/one-nonprofits/viewer/organizations
-📤 Uploading financials from data/gold/nonprofits_financials.parquet
-  ...
-🎉 All uploads complete!
+Yes Logged in to Hugging Face
+Yes Repository ready: https://huggingface.co/datasets/CommunityOne/one-nonprofits
+ Uploading organizations from data/gold/nonprofits_organizations.parquet
+ Rows: 1,952,238
+ Columns: 28
+ Size: 156.43 MB
+ Pushing to CommunityOne/one-nonprofits (split: organizations)
+Yes Uploaded organizations: 1,952,238 records
+ View at: https://huggingface.co/datasets/CommunityOne/one-nonprofits/viewer/organizations
+ Uploading financials from data/gold/nonprofits_financials.parquet
+ ...
+ All uploads complete!
 ```
 
 ### What Gets Uploaded
@@ -78,7 +78,7 @@ python -m hosting.huggingface nonprofits --repo "your-username/nonprofits"
 | **programs** | 1.9M+ | Activity codes, group affiliation |
 | **locations** | 1.9M+ | Address, city, state, ZIP code |
 
-## 🔍 Step 2: Query from Python
+## Step 2: Query from Python
 
 ### Basic Query
 
@@ -140,14 +140,14 @@ combined = orgs_df.merge(fin_df, on='ein', how='left')
 
 # Find high-revenue health organizations in NY
 ny_health = combined[
-    (combined['state'] == 'NY') & 
-    (combined['ntee_code'].str.startswith('E', na=False)) &
-    (combined['revenue_amount'] > 1_000_000)
+ (combined['state'] == 'NY') &
+ (combined['ntee_code'].str.startswith('E', na=False)) &
+ (combined['revenue_amount'] > 1_000_000)
 ]
 print(f"High-revenue NY health orgs: {len(ny_health):,}")
 ```
 
-## 🌐 Step 3: Query from React/JavaScript
+## Step 3: Query from React/JavaScript
 
 ### Install Utility
 
@@ -160,8 +160,8 @@ import { fetchHFRows, searchHFDataset } from '../utils/huggingface';
 
 // Fetch first 100 nonprofits
 const response = await fetchHFRows({
-  dataset: "CommunityOne/one-nonprofits",
-  split: "organizations"
+ dataset: "CommunityOne/one-nonprofits",
+ split: "organizations"
 }, 0, 100);
 
 const nonprofits = response.rows.map(r => r.row);
@@ -176,34 +176,34 @@ import { useQuery } from '@tanstack/react-query';
 import { searchNonprofits } from '../utils/huggingface';
 
 function NonprofitSearch() {
-  const [searchTerm, setSearchTerm] = useState('dental');
-  const [state, setState] = useState('CA');
-  
-  const { data: nonprofits, isLoading } = useQuery({
-    queryKey: ['nonprofits', searchTerm, state],
-    queryFn: async () => {
-      return await searchNonprofits({
-        dataset: "CommunityOne/one-nonprofits",
-        query: searchTerm,
-        state: state,
-        limit: 100
-      });
-    }
-  });
-  
-  if (isLoading) return <div>Loading...</div>;
-  
-  return (
-    <div>
-      <h2>Found {nonprofits?.length} nonprofits</h2>
-      {nonprofits?.map(org => (
-        <div key={org.ein}>
-          <h3>{org.name}</h3>
-          <p>NTEE: {org.ntee_code} | State: {org.state}</p>
-        </div>
-      ))}
-    </div>
-  );
+ const [searchTerm, setSearchTerm] = useState('dental');
+ const [state, setState] = useState('CA');
+
+ const { data: nonprofits, isLoading } = useQuery({
+ queryKey: ['nonprofits', searchTerm, state],
+ queryFn: async () => {
+ return await searchNonprofits({
+ dataset: "CommunityOne/one-nonprofits",
+ query: searchTerm,
+ state: state,
+ limit: 100
+ });
+ }
+ });
+
+ if (isLoading) return <div>Loading...</div>;
+
+ return (
+ <div>
+ <h2>Found {nonprofits?.length} nonprofits</h2>
+ {nonprofits?.map(org => (
+ <div key={org.ein}>
+ <h3>{org.name}</h3>
+ <p>NTEE: {org.ntee_code} | State: {org.state}</p>
+ </div>
+ ))}
+ </div>
+ );
 }
 ```
 
@@ -214,40 +214,40 @@ import { useState } from 'react';
 import { fetchHFRows } from '../utils/huggingface';
 
 function NonprofitList() {
-  const [page, setPage] = useState(0);
-  const pageSize = 100;
-  
-  const { data, isLoading } = useQuery({
-    queryKey: ['nonprofits', page],
-    queryFn: async () => {
-      return await fetchHFRows({
-        dataset: "CommunityOne/one-nonprofits",
-        split: "organizations"
-      }, page * pageSize, pageSize);
-    }
-  });
-  
-  return (
-    <div>
-      {/* Display nonprofits */}
-      {data?.rows.map(r => (
-        <div key={r.row.ein}>{r.row.name}</div>
-      ))}
-      
-      {/* Pagination controls */}
-      <button onClick={() => setPage(p => Math.max(0, p - 1))}>
-        Previous
-      </button>
-      <span>Page {page + 1}</span>
-      <button onClick={() => setPage(p => p + 1)}>
-        Next
-      </button>
-    </div>
-  );
+ const [page, setPage] = useState(0);
+ const pageSize = 100;
+
+ const { data, isLoading } = useQuery({
+ queryKey: ['nonprofits', page],
+ queryFn: async () => {
+ return await fetchHFRows({
+ dataset: "CommunityOne/one-nonprofits",
+ split: "organizations"
+ }, page * pageSize, pageSize);
+ }
+ });
+
+ return (
+ <div>
+ {/* Display nonprofits */}
+ {data?.rows.map(r => (
+ <div key={r.row.ein}>{r.row.name}</div>
+ ))}
+
+ {/* Pagination controls */}
+ <button onClick={() => setPage(p => Math.max(0, p - 1))}>
+ Previous
+ </button>
+ <span>Page {page + 1}</span>
+ <button onClick={() => setPage(p => p + 1)}>
+ Next
+ </button>
+ </div>
+ );
 }
 ```
 
-## 🔄 Step 4: Update Existing Pages
+## Step 4: Update Existing Pages
 
 ### Update Nonprofits Page
 
@@ -260,77 +260,77 @@ import { searchNonprofits } from '../utils/huggingface';
 const DATASET_NAME = "CommunityOne/one-nonprofits";
 
 export default function Nonprofits() {
-  const [state, setState] = useState<string>('');
-  const [nteeCode, setNteeCode] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  
-  const { data: nonprofits, isLoading } = useQuery({
-    queryKey: ['nonprofits', state, nteeCode, searchQuery],
-    queryFn: async () => {
-      return await searchNonprofits({
-        dataset: DATASET_NAME,
-        query: searchQuery || undefined,
-        state: state || undefined,
-        nteeCode: nteeCode || undefined,
-        limit: 100
-      });
-    }
-  });
-  
-  return (
-    <div className="p-6">
-      <h1>Nonprofits ({nonprofits?.length || 0} found)</h1>
-      
-      {/* Filters */}
-      <div className="filters">
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-        />
-        
-        <select value={state} onChange={e => setState(e.target.value)}>
-          <option value="">All States</option>
-          <option value="AL">Alabama</option>
-          <option value="CA">California</option>
-          <option value="NY">New York</option>
-          {/* Add all 50 states */}
-        </select>
-        
-        <select value={nteeCode} onChange={e => setNteeCode(e.target.value)}>
-          <option value="">All Categories</option>
-          <option value="E">Health (E)</option>
-          <option value="P">Human Services (P)</option>
-          <option value="X">Religion (X)</option>
-          {/* Add all NTEE codes */}
-        </select>
-      </div>
-      
-      {/* Results */}
-      {isLoading ? (
-        <div>Loading...</div>
-      ) : (
-        <div className="results">
-          {nonprofits?.map(org => (
-            <div key={org.ein} className="nonprofit-card">
-              <h3>{org.name}</h3>
-              <p>EIN: {org.ein}</p>
-              <p>NTEE: {org.ntee_code}</p>
-              <p>Location: {org.city}, {org.state} {org.zip_code}</p>
-              {org.revenue_amount && (
-                <p>Revenue: ${org.revenue_amount.toLocaleString()}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+ const [state, setState] = useState<string>('');
+ const [nteeCode, setNteeCode] = useState<string>('');
+ const [searchQuery, setSearchQuery] = useState<string>('');
+
+ const { data: nonprofits, isLoading } = useQuery({
+ queryKey: ['nonprofits', state, nteeCode, searchQuery],
+ queryFn: async () => {
+ return await searchNonprofits({
+ dataset: DATASET_NAME,
+ query: searchQuery || undefined,
+ state: state || undefined,
+ nteeCode: nteeCode || undefined,
+ limit: 100
+ });
+ }
+ });
+
+ return (
+ <div className="p-6">
+ <h1>Nonprofits ({nonprofits?.length || 0} found)</h1>
+
+ {/* Filters */}
+ <div className="filters">
+ <input
+ type="text"
+ placeholder="Search by name..."
+ value={searchQuery}
+ onChange={e => setSearchQuery(e.target.value)}
+ />
+
+ <select value={state} onChange={e => setState(e.target.value)}>
+ <option value="">All States</option>
+ <option value="AL">Alabama</option>
+ <option value="CA">California</option>
+ <option value="NY">New York</option>
+ {/* Add all 50 states */}
+ </select>
+
+ <select value={nteeCode} onChange={e => setNteeCode(e.target.value)}>
+ <option value="">All Categories</option>
+ <option value="E">Health (E)</option>
+ <option value="P">Human Services (P)</option>
+ <option value="X">Religion (X)</option>
+ {/* Add all NTEE codes */}
+ </select>
+ </div>
+
+ {/* Results */}
+ {isLoading ? (
+ <div>Loading...</div>
+ ) : (
+ <div className="results">
+ {nonprofits?.map(org => (
+ <div key={org.ein} className="nonprofit-card">
+ <h3>{org.name}</h3>
+ <p>EIN: {org.ein}</p>
+ <p>NTEE: {org.ntee_code}</p>
+ <p>Location: {org.city}, {org.state} {org.zip_code}</p>
+ {org.revenue_amount && (
+ <p>Revenue: ${org.revenue_amount.toLocaleString()}</p>
+ )}
+ </div>
+ ))}
+ </div>
+ )}
+ </div>
+ );
 }
 ```
 
-## 📊 Step 5: Add Advanced Features
+## Step 5: Add Advanced Features
 
 ### Autocomplete Search
 
@@ -339,46 +339,46 @@ import { useState, useEffect } from 'react';
 import { searchHFDataset } from '../utils/huggingface';
 
 function NonprofitAutocomplete() {
-  const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  
-  useEffect(() => {
-    if (query.length < 3) {
-      setSuggestions([]);
-      return;
-    }
-    
-    const fetchSuggestions = async () => {
-      const response = await searchHFDataset({
-        dataset: "CommunityOne/one-nonprofits",
-        split: "organizations"
-      }, query, 0, 10);
-      
-      setSuggestions(response.rows.map(r => r.row));
-    };
-    
-    const timeoutId = setTimeout(fetchSuggestions, 300);
-    return () => clearTimeout(timeoutId);
-  }, [query]);
-  
-  return (
-    <div>
-      <input
-        type="text"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder="Search nonprofits..."
-      />
-      
-      {suggestions.length > 0 && (
-        <ul>
-          {suggestions.map(org => (
-            <li key={org.ein}>{org.name} - {org.city}, {org.state}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+ const [query, setQuery] = useState('');
+ const [suggestions, setSuggestions] = useState<any[]>([]);
+
+ useEffect(() => {
+ if (query.length < 3) {
+ setSuggestions([]);
+ return;
+ }
+
+ const fetchSuggestions = async () => {
+ const response = await searchHFDataset({
+ dataset: "CommunityOne/one-nonprofits",
+ split: "organizations"
+ }, query, 0, 10);
+
+ setSuggestions(response.rows.map(r => r.row));
+ };
+
+ const timeoutId = setTimeout(fetchSuggestions, 300);
+ return () => clearTimeout(timeoutId);
+ }, [query]);
+
+ return (
+ <div>
+ <input
+ type="text"
+ value={query}
+ onChange={e => setQuery(e.target.value)}
+ placeholder="Search nonprofits..."
+ />
+
+ {suggestions.length > 0 && (
+ <ul>
+ {suggestions.map(org => (
+ <li key={org.ein}>{org.name} - {org.city}, {org.state}</li>
+ ))}
+ </ul>
+ )}
+ </div>
+ );
 }
 ```
 
@@ -389,38 +389,38 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchNonprofitsByState } from '../utils/huggingface';
 
 function NonprofitMap() {
-  const [selectedState, setSelectedState] = useState('CA');
-  
-  const { data: nonprofits } = useQuery({
-    queryKey: ['nonprofits-map', selectedState],
-    queryFn: async () => {
-      return await fetchNonprofitsByState(
-        "CommunityOne/one-nonprofits",
-        selectedState,
-        1000
-      );
-    }
-  });
-  
-  return (
-    <div>
-      <select value={selectedState} onChange={e => setSelectedState(e.target.value)}>
-        {/* State options */}
-      </select>
-      
-      <Map
-        markers={nonprofits?.map(org => ({
-          lat: org.latitude,
-          lng: org.longitude,
-          name: org.name
-        }))}
-      />
-    </div>
-  );
+ const [selectedState, setSelectedState] = useState('CA');
+
+ const { data: nonprofits } = useQuery({
+ queryKey: ['nonprofits-map', selectedState],
+ queryFn: async () => {
+ return await fetchNonprofitsByState(
+ "CommunityOne/one-nonprofits",
+ selectedState,
+ 1000
+ );
+ }
+ });
+
+ return (
+ <div>
+ <select value={selectedState} onChange={e => setSelectedState(e.target.value)}>
+ {/* State options */}
+ </select>
+
+ <Map
+ markers={nonprofits?.map(org => ({
+ lat: org.latitude,
+ lng: org.longitude,
+ name: org.name
+ }))}
+ />
+ </div>
+ );
 }
 ```
 
-## 🚀 API Reference
+## API Reference
 
 ### Python Functions
 
@@ -451,13 +451,13 @@ results = df[df['name'].str.contains('dental', case=False)]
 
 ```typescript
 import {
-  fetchHFRows,           // Fetch paginated rows
-  searchHFDataset,       // Full-text search
-  getHFDatasetSize,      // Get total row count
-  fetchAllNonprofits,    // Fetch multiple pages
-  fetchNonprofitsByState,// Filter by state
-  fetchNonprofitsByNTEE, // Filter by NTEE code
-  searchNonprofits       // Combined search + filters
+ fetchHFRows, // Fetch paginated rows
+ searchHFDataset, // Full-text search
+ getHFDatasetSize, // Get total row count
+ fetchAllNonprofits, // Fetch multiple pages
+ fetchNonprofitsByState,// Filter by state
+ fetchNonprofitsByNTEE, // Filter by NTEE code
+ searchNonprofits // Combined search + filters
 } from '../utils/huggingface';
 ```
 
@@ -474,29 +474,29 @@ curl "https://datasets-server.huggingface.co/search?dataset=CommunityOne/one-non
 curl "https://datasets-server.huggingface.co/size?dataset=CommunityOne/one-nonprofits&config=default&split=organizations"
 ```
 
-## 🎯 Next Steps
+## Next Steps
 
 1. **Upload your datasets:**
-   ```bash
-   python -m hosting.huggingface nonprofits
-   ```
+ ```bash
+ python -m hosting.huggingface nonprofits
+ ```
 
 2. **Test the API:**
-   ```bash
-   curl "https://datasets-server.huggingface.co/rows?dataset=YOUR_USERNAME/YOUR_DATASET&config=default&split=organizations&offset=0&length=10"
-   ```
+ ```bash
+ curl "https://datasets-server.huggingface.co/rows?dataset=YOUR_USERNAME/YOUR_DATASET&config=default&split=organizations&offset=0&length=10"
+ ```
 
 3. **Update your React pages:**
-   - Replace local API calls with HuggingFace queries
-   - Add pagination for large datasets
-   - Implement autocomplete search
-   - Create map visualizations
+ - Replace local API calls with HuggingFace queries
+ - Add pagination for large datasets
+ - Implement autocomplete search
+ - Create map visualizations
 
 4. **Monitor usage:**
-   - Visit: https://huggingface.co/datasets/YOUR_USERNAME/YOUR_DATASET
-   - Check downloads, views, and API usage
+ - Visit: https://huggingface.co/datasets/YOUR_USERNAME/YOUR_DATASET
+ - Check downloads, views, and API usage
 
-## 📚 Additional Resources
+## Additional Resources
 
 - **HuggingFace Datasets Docs:** https://huggingface.co/docs/datasets
 - **Datasets Server API:** https://huggingface.co/docs/datasets-server

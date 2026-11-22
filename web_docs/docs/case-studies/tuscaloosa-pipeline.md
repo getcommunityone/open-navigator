@@ -17,22 +17,22 @@ cd /home/developer/projects/open-navigator
 
 ## Step 1: GATHER - Collect Meeting Data
 
-### 1.1 Tuscaloosa City Government (✅ Working)
+### 1.1 Tuscaloosa City Government (Yes Working)
 
 ```bash
 python main.py scrape \
-  --state AL \
-  --municipality "Tuscaloosa" \
-  --url https://tuscaloosaal.suiteonemedia.com \
-  --platform suiteonemedia \
-  --max-events 0 \
-  --start-year 0 \
-  --include-social
+ --state AL \
+ --municipality "Tuscaloosa" \
+ --url https://tuscaloosaal.suiteonemedia.com \
+ --platform suiteonemedia \
+ --max-events 0 \
+ --start-year 0 \
+ --include-social
 ```
 
 **Output:** `output/tuscaloosa/suiteonemedia_*.json`
 
-### 1.2 Tuscaloosa City Schools (⚠️ Requires Manual Cookies)
+### 1.2 Tuscaloosa City Schools (Warning Requires Manual Cookies)
 
 The eBoard platform requires browser cookies to bypass Incapsula protection:
 
@@ -45,13 +45,13 @@ Then run:
 
 ```bash
 python main.py scrape \
-  --state AL \
-  --municipality "Tuscaloosa City Schools" \
-  --url http://simbli.eboardsolutions.com/index.aspx?s=2088 \
-  --platform eboard \
-  --max-events 0 \
-  --start-year 0 \
-  --no-include-social
+ --state AL \
+ --municipality "Tuscaloosa City Schools" \
+ --url http://simbli.eboardsolutions.com/index.aspx?s=2088 \
+ --platform eboard \
+ --max-events 0 \
+ --start-year 0 \
+ --no-include-social
 ```
 
 **Output:** `output/tuscaloosa_city_schools/eboard_*.json`
@@ -68,20 +68,20 @@ from pathlib import Path
 # Load all Tuscaloosa documents
 all_docs = []
 for json_file in Path('output/tuscaloosa').glob('*.json'):
-    with open(json_file) as f:
-        docs = json.load(f)
-        all_docs.extend(docs)
+ with open(json_file) as f:
+ docs = json.load(f)
+ all_docs.extend(docs)
 
 for json_file in Path('output/tuscaloosa_city_schools').glob('*.json'):
-    with open(json_file) as f:
-        docs = json.load(f)
-        all_docs.extend(docs)
+ with open(json_file) as f:
+ docs = json.load(f)
+ all_docs.extend(docs)
 
-print(f'✓ Gathered {len(all_docs)} documents from Tuscaloosa')
+print(f'Yes Gathered {len(all_docs)} documents from Tuscaloosa')
 
 # Save consolidated data
 with open('output/tuscaloosa_all.json', 'w') as f:
-    json.dump(all_docs, f, indent=2)
+ json.dump(all_docs, f, indent=2)
 "
 ```
 
@@ -99,12 +99,12 @@ pipeline = DeltaLakePipeline()
 
 # Load raw documents
 with open('output/tuscaloosa_all.json') as f:
-    documents = json.load(f)
+ documents = json.load(f)
 
 # Write to Bronze layer (raw data)
 pipeline.write_raw_documents(documents)
 
-print(f"✓ Loaded {len(documents)} documents to Bronze layer")
+print(f"Yes Loaded {len(documents)} documents to Bronze layer")
 ```
 
 ### 2.2 Classify Documents (Silver Layer)
@@ -118,33 +118,33 @@ from agents.classifier import ClassifierAgent
 from pipeline.delta_lake import DeltaLakePipeline
 
 async def classify_tuscaloosa():
-    pipeline = DeltaLakePipeline()
-    classifier = ClassifierAgent()
-    
-    # Get documents from Bronze
-    spark = pipeline.get_spark_session()
-    df = spark.read.format('delta').load('data/delta/bronze/documents')
-    
-    # Filter to Tuscaloosa only
-    tuscaloosa_df = df.filter(
-        (df.municipality.like('%Tuscaloosa%')) | 
-        (df.state == 'AL')
-    )
-    
-    documents = tuscaloosa_df.collect()
-    print(f'Classifying {len(documents)} Tuscaloosa documents...')
-    
-    classified = []
-    for doc in documents:
-        result = await classifier.classify(
-            content=doc.content,
-            municipality=doc.municipality
-        )
-        classified.append({**doc.asDict(), **result})
-    
-    # Write to Silver layer
-    pipeline.write_classified_documents(classified)
-    print(f'✓ Classified {len(classified)} documents')
+ pipeline = DeltaLakePipeline()
+ classifier = ClassifierAgent()
+
+ # Get documents from Bronze
+ spark = pipeline.get_spark_session()
+ df = spark.read.format('delta').load('data/delta/bronze/documents')
+
+ # Filter to Tuscaloosa only
+ tuscaloosa_df = df.filter(
+ (df.municipality.like('%Tuscaloosa%')) |
+ (df.state == 'AL')
+ )
+
+ documents = tuscaloosa_df.collect()
+ print(f'Classifying {len(documents)} Tuscaloosa documents...')
+
+ classified = []
+ for doc in documents:
+ result = await classifier.classify(
+ content=doc.content,
+ municipality=doc.municipality
+ )
+ classified.append({**doc.asDict(), **result})
+
+ # Write to Silver layer
+ pipeline.write_classified_documents(classified)
+ print(f'Yes Classified {len(classified)} documents')
 
 asyncio.run(classify_tuscaloosa())
 "
@@ -166,25 +166,25 @@ from agents.sentiment import SentimentAgent
 from pipeline.delta_lake import DeltaLakePipeline
 
 async def analyze_sentiment():
-    pipeline = DeltaLakePipeline()
-    sentiment_agent = SentimentAgent()
-    
-    # Get classified documents
-    spark = pipeline.get_spark_session()
-    df = spark.read.format('delta').load('data/delta/silver/classified_documents')
-    
-    tuscaloosa_df = df.filter(df.municipality.like('%Tuscaloosa%'))
-    documents = tuscaloosa_df.collect()
-    
-    print(f'Analyzing sentiment for {len(documents)} documents...')
-    
-    enriched = []
-    for doc in documents:
-        sentiment = await sentiment_agent.analyze(doc.content)
-        enriched.append({**doc.asDict(), 'sentiment': sentiment})
-    
-    pipeline.write_enriched_documents(enriched)
-    print(f'✓ Sentiment analysis complete')
+ pipeline = DeltaLakePipeline()
+ sentiment_agent = SentimentAgent()
+
+ # Get classified documents
+ spark = pipeline.get_spark_session()
+ df = spark.read.format('delta').load('data/delta/silver/classified_documents')
+
+ tuscaloosa_df = df.filter(df.municipality.like('%Tuscaloosa%'))
+ documents = tuscaloosa_df.collect()
+
+ print(f'Analyzing sentiment for {len(documents)} documents...')
+
+ enriched = []
+ for doc in documents:
+ sentiment = await sentiment_agent.analyze(doc.content)
+ enriched.append({**doc.asDict(), 'sentiment': sentiment})
+
+ pipeline.write_enriched_documents(enriched)
+ print(f'Yes Sentiment analysis complete')
 
 asyncio.run(analyze_sentiment())
 "
@@ -209,19 +209,19 @@ df = spark.read.format('delta').load('data/delta/gold/policy_insights')
 
 # Filter to health topics in Tuscaloosa
 health_df = df.filter(
-    (df.municipality.like('%Tuscaloosa%')) &
-    (df.topic.isin(['dental_health', 'health', 'vaccination', 'nutrition']))
+ (df.municipality.like('%Tuscaloosa%')) &
+ (df.topic.isin(['dental_health', 'health', 'vaccination', 'nutrition']))
 )
 
 # Aggregate by topic
 summary = health_df.groupBy('topic').agg(
-    {'document_id': 'count', 'sentiment_score': 'avg'}
+ {'document_id': 'count', 'sentiment_score': 'avg'}
 ).collect()
 
 print("\n=== Tuscaloosa Health Policy Summary ===")
 for row in summary:
-    print(f"{row.topic}: {row['count(document_id)']} documents, "
-          f"avg sentiment: {row['avg(sentiment_score)']:.2f}")
+ print(f"{row.topic}: {row['count(document_id)']} documents, "
+ f"avg sentiment: {row['avg(sentiment_score)']:.2f}")
 ```
 
 ### 3.2 Time Series Analysis
@@ -237,9 +237,9 @@ tuscaloosa_df = df.filter(df.municipality.like('%Tuscaloosa%'))
 
 # Group by year and topic
 trends = tuscaloosa_df.groupBy(
-    year('meeting_date').alias('year'),
-    month('meeting_date').alias('month'),
-    'topic'
+ year('meeting_date').alias('year'),
+ month('meeting_date').alias('month'),
+ 'topic'
 ).agg(count('*').alias('count')).orderBy('year', 'month')
 
 trends.show(50)
@@ -252,15 +252,15 @@ Compare Tuscaloosa to similar cities:
 ```python
 # Find cities with similar population
 similar_cities_df = df.filter(
-    (df.state == 'AL') |  # Other Alabama cities
-    (df.municipality.like('%Mobile%')) |
-    (df.municipality.like('%Montgomery%'))
+ (df.state == 'AL') | # Other Alabama cities
+ (df.municipality.like('%Mobile%')) |
+ (df.municipality.like('%Montgomery%'))
 )
 
 # Compare health policy volume
 comparison = similar_cities_df.groupBy('municipality').agg(
-    count('*').alias('total_policies'),
-    countDistinct('topic').alias('unique_topics')
+ count('*').alias('total_policies'),
+ countDistinct('topic').alias('unique_topics')
 ).orderBy('total_policies', ascending=False)
 
 comparison.show()
@@ -287,8 +287,8 @@ df = spark.read.format('delta').load('data/delta/gold/policy_insights')
 # Last 90 days
 recent_date = datetime.now() - timedelta(days=90)
 recent_df = df.filter(
-    (df.municipality.like('%Tuscaloosa%')) &
-    (df.meeting_date >= recent_date)
+ (df.municipality.like('%Tuscaloosa%')) &
+ (df.meeting_date >= recent_date)
 )
 
 print('\\n' + '='*60)
@@ -299,14 +299,14 @@ print('='*60)
 topics = recent_df.groupBy('topic').count().orderBy('count', ascending=False).take(10)
 print('\\nTop Policy Topics:')
 for i, row in enumerate(topics, 1):
-    print(f'{i}. {row.topic}: {row.count} items')
+ print(f'{i}. {row.topic}: {row.count} items')
 
 # Recent highlights
 highlights = recent_df.orderBy('meeting_date', ascending=False).take(5)
 print('\\nRecent Highlights:')
 for doc in highlights:
-    print(f'\\n- {doc.meeting_date.strftime(\"%Y-%m-%d\")}: {doc.title[:80]}')
-    print(f'  Topic: {doc.topic}, Sentiment: {doc.sentiment}')
+ print(f'\\n- {doc.meeting_date.strftime(\"%Y-%m-%d\")}: {doc.title[:80]}')
+ print(f' Topic: {doc.topic}, Sentiment: {doc.sentiment}')
 "
 ```
 
@@ -328,21 +328,21 @@ tuscaloosa_df = df.filter(df.municipality.like('%Tuscaloosa%'))
 # Convert to JSON for web dashboard
 dashboard_data = []
 for row in tuscaloosa_df.collect():
-    dashboard_data.append({
-        'id': row.document_id,
-        'date': row.meeting_date.isoformat(),
-        'title': row.title,
-        'topic': row.topic,
-        'sentiment': row.sentiment,
-        'url': row.source_url,
-        'municipality': row.municipality
-    })
+ dashboard_data.append({
+ 'id': row.document_id,
+ 'date': row.meeting_date.isoformat(),
+ 'title': row.title,
+ 'topic': row.topic,
+ 'sentiment': row.sentiment,
+ 'url': row.source_url,
+ 'municipality': row.municipality
+ })
 
 # Save for frontend
 with open('frontend/src/data/tuscaloosa_policies.json', 'w') as f:
-    json.dump(dashboard_data, f, indent=2)
+ json.dump(dashboard_data, f, indent=2)
 
-print(f'✓ Exported {len(dashboard_data)} policies for dashboard')
+print(f'Yes Exported {len(dashboard_data)} policies for dashboard')
 "
 ```
 
@@ -358,18 +358,18 @@ monitor = KeywordMonitor()
 
 # Monitor health-related keywords
 health_keywords = [
-    'dental', 'dentist', 'tooth', 'teeth', 'fluoride',
-    'oral health', 'school nurse', 'vaccination', 'immunization'
+ 'dental', 'dentist', 'tooth', 'teeth', 'fluoride',
+ 'oral health', 'school nurse', 'vaccination', 'immunization'
 ]
 
 monitor.watch_jurisdiction(
-    municipality='Tuscaloosa',
-    state='AL',
-    keywords=health_keywords,
-    alert_email='your-email@example.com'
+ municipality='Tuscaloosa',
+ state='AL',
+ keywords=health_keywords,
+ alert_email='your-email@example.com'
 )
 
-print('✓ Monitoring alerts configured for Tuscaloosa health policies')
+print('Yes Monitoring alerts configured for Tuscaloosa health policies')
 "
 ```
 
@@ -398,13 +398,13 @@ echo "=== TUSCALOOSA POLICY PULSE PIPELINE ==="
 # Step 1: Gather
 echo "Step 1: Gathering data..."
 python main.py scrape \
-  --state AL \
-  --municipality "Tuscaloosa" \
-  --url https://tuscaloosaal.suiteonemedia.com \
-  --platform suiteonemedia \
-  --max-events 0 \
-  --start-year 0 \
-  --include-social
+ --state AL \
+ --municipality "Tuscaloosa" \
+ --url https://tuscaloosaal.suiteonemedia.com \
+ --platform suiteonemedia \
+ --max-events 0 \
+ --start-year 0 \
+ --include-social
 
 # Note: eBoard scraping requires manual cookies (see Step 1.2 above)
 
@@ -419,11 +419,11 @@ pipeline = DeltaLakePipeline()
 all_docs = []
 
 for json_file in Path('output/tuscaloosa').glob('*.json'):
-    with open(json_file) as f:
-        all_docs.extend(json.load(f))
+ with open(json_file) as f:
+ all_docs.extend(json.load(f))
 
 pipeline.write_raw_documents(all_docs)
-print(f'✓ Loaded {len(all_docs)} documents')
+print(f'Yes Loaded {len(all_docs)} documents')
 "
 
 echo "Step 3: Classifying documents..."
@@ -433,20 +433,20 @@ from agents.classifier import ClassifierAgent
 from pipeline.delta_lake import DeltaLakePipeline
 
 async def run():
-    classifier = ClassifierAgent()
-    pipeline = DeltaLakePipeline()
-    spark = pipeline.get_spark_session()
-    
-    df = spark.read.format('delta').load('data/delta/bronze/documents')
-    docs = df.filter(df.municipality.like('%Tuscaloosa%')).collect()
-    
-    classified = []
-    for doc in docs:
-        result = await classifier.classify(doc.content, doc.municipality)
-        classified.append({**doc.asDict(), **result})
-    
-    pipeline.write_classified_documents(classified)
-    print(f'✓ Classified {len(classified)} documents')
+ classifier = ClassifierAgent()
+ pipeline = DeltaLakePipeline()
+ spark = pipeline.get_spark_session()
+
+ df = spark.read.format('delta').load('data/delta/bronze/documents')
+ docs = df.filter(df.municipality.like('%Tuscaloosa%')).collect()
+
+ classified = []
+ for doc in docs:
+ result = await classifier.classify(doc.content, doc.municipality)
+ classified.append({**doc.asDict(), **result})
+
+ pipeline.write_classified_documents(classified)
+ print(f'Yes Classified {len(classified)} documents')
 
 asyncio.run(run())
 "
@@ -467,7 +467,7 @@ topics = tuscaloosa.groupBy('topic').count().orderBy('count', ascending=False)
 topics.show()
 "
 
-echo "✓ Pipeline complete!"
+echo "Yes Pipeline complete!"
 ```
 
 ---
@@ -495,13 +495,13 @@ spark = pipeline.get_spark_session()
 print('\\n=== DATA PIPELINE STATUS ===')
 print('\\nBronze Layer (Raw):')
 bronze = spark.read.format('delta').load('data/delta/bronze/documents')
-print(f'  Total documents: {bronze.count()}')
-print(f'  Tuscaloosa documents: {bronze.filter(bronze.municipality.like(\"%Tuscaloosa%\")).count()}')
+print(f' Total documents: {bronze.count()}')
+print(f' Tuscaloosa documents: {bronze.filter(bronze.municipality.like(\"%Tuscaloosa%\")).count()}')
 
 print('\\nSilver Layer (Classified):')
 silver = spark.read.format('delta').load('data/delta/silver/classified_documents')
-print(f'  Total classified: {silver.count()}')
-print(f'  Tuscaloosa classified: {silver.filter(silver.municipality.like(\"%Tuscaloosa%\")).count()}')
+print(f' Total classified: {silver.count()}')
+print(f' Tuscaloosa classified: {silver.filter(silver.municipality.like(\"%Tuscaloosa%\")).count()}')
 "
 ```
 
@@ -521,12 +521,12 @@ python scripts/discover_tuscaloosa_nonprofits.py
 ```
 
 **What this does:**
-- ✅ Searches ProPublica Nonprofit Explorer API for all Tuscaloosa organizations
-- ✅ Filters by relevant NTEE codes (health, education, youth, food, religion)
-- ✅ Pulls 5+ years of IRS Form 990 financial data
-- ✅ Enriches with mission statements from Every.org
-- ✅ Exports in frontend-compatible JSON format
-- ✅ Caches results for fast repeated runs
+- Yes Searches ProPublica Nonprofit Explorer API for all Tuscaloosa organizations
+- Yes Filters by relevant NTEE codes (health, education, youth, food, religion)
+- Yes Pulls 5+ years of IRS Form 990 financial data
+- Yes Enriches with mission statements from Every.org
+- Yes Exports in frontend-compatible JSON format
+- Yes Caches results for fast repeated runs
 
 ---
 
@@ -552,20 +552,20 @@ from pipeline.delta_lake import DeltaLakePipeline
 
 # NTEE (National Taxonomy of Exempt Entities) mapping
 ntee_mapping = {
-    # Health decisions
-    'dental_health': 'E32',  # School-Based Health Care
-    'health': 'E40',          # Health - General
-    'mental_health': 'E80',   # Mental Health
-    
-    # Education decisions  
-    'school_nutrition': 'K34', # School Nutrition
-    'after_school': 'O50',     # Youth Development
-    
-    # Infrastructure
-    'water_quality': 'W40',    # Water Quality
-    
-    # Safety
-    'youth_violence': 'I20'    # Youth Violence Prevention
+ # Health decisions
+ 'dental_health': 'E32', # School-Based Health Care
+ 'health': 'E40', # Health - General
+ 'mental_health': 'E80', # Mental Health
+
+ # Education decisions
+ 'school_nutrition': 'K34', # School Nutrition
+ 'after_school': 'O50', # Youth Development
+
+ # Infrastructure
+ 'water_quality': 'W40', # Water Quality
+
+ # Safety
+ 'youth_violence': 'I20' # Youth Violence Prevention
 }
 
 pipeline = DeltaLakePipeline()
@@ -579,27 +579,27 @@ tuscaloosa_df = df.filter(df.municipality.like('%Tuscaloosa%'))
 from pyspark.sql.functions import when, col
 
 enriched_df = tuscaloosa_df.withColumn(
-    'ntee_code',
-    when(col('topic') == 'dental_health', 'E32')
-    .when(col('topic') == 'health', 'E40')
-    .when(col('topic') == 'mental_health', 'E80')
-    .when(col('topic') == 'school_nutrition', 'K34')
-    .when(col('topic') == 'after_school', 'O50')
-    .when(col('topic') == 'water_quality', 'W40')
-    .otherwise(None)
+ 'ntee_code',
+ when(col('topic') == 'dental_health', 'E32')
+ .when(col('topic') == 'health', 'E40')
+ .when(col('topic') == 'mental_health', 'E80')
+ .when(col('topic') == 'school_nutrition', 'K34')
+ .when(col('topic') == 'after_school', 'O50')
+ .when(col('topic') == 'water_quality', 'W40')
+ .otherwise(None)
 )
 
 # Write enhanced decisions
 enriched_df.write.format('delta').mode('overwrite').save('data/delta/gold/decisions_with_ntee')
 
-print("✓ Added NTEE codes to Tuscaloosa decisions")
+print("Yes Added NTEE codes to Tuscaloosa decisions")
 ```
 
 ---
 
 ### 5.2 Nonprofit Data Collection
 
-#### Option A: Automated Discovery (FREE APIs) ⭐ RECOMMENDED
+#### Option A: Automated Discovery (FREE APIs) RECOMMENDED
 
 **NEW: Automated nonprofit discovery using free open data APIs**
 
@@ -619,60 +619,60 @@ This script automatically:
 **Output:** `frontend/policy-dashboards/src/data/tuscaloosa_nonprofits.json`
 
 **What you get for FREE:**
-- ✅ All registered nonprofits in Tuscaloosa County
-- ✅ Annual revenue, expenses, assets
-- ✅ NTEE codes (standardized classification)
-- ✅ EIN (tax ID) for verification
-- ✅ Mission statements and descriptions
-- ✅ Organization logos
+- Yes All registered nonprofits in Tuscaloosa County
+- Yes Annual revenue, expenses, assets
+- Yes NTEE codes (standardized classification)
+- Yes EIN (tax ID) for verification
+- Yes Mission statements and descriptions
+- Yes Organization logos
 
 **What's still manual:**
-- ⚠️ Specific "services provided" (e.g., "Free dental screenings on Tuesdays")
-- ⚠️ Phone numbers and email addresses
-- ⚠️ Volunteer opportunities
-- ⚠️ Board member openings
+- Warning Specific "services provided" (e.g., "Free dental screenings on Tuesdays")
+- Warning Phone numbers and email addresses
+- Warning Volunteer opportunities
+- Warning Board member openings
 
 **Data sources used:**
 
 1. **ProPublica Nonprofit Explorer API**
-   - API Docs: https://projects.propublica.org/nonprofits/api
-   - Coverage: 3+ million organizations, 10+ years of 990 data
-   - Rate Limit: Free, ~1 request/second suggested
-   - Example:
-     ```python
-     from discovery.nonprofit_discovery import NonprofitDiscovery
-     
-     discovery = NonprofitDiscovery()
-     
-     # Search by state, city, and NTEE code
-     health_orgs = discovery.search_propublica(
-         state="AL",
-         city="Tuscaloosa",
-         ntee_code="E32"  # School-Based Health Care
-     )
-     
-     # Get detailed financials for specific org
-     details = discovery.get_propublica_org_details("63-0123456")
-     ```
+ - API Docs: https://projects.propublica.org/nonprofits/api
+ - Coverage: 3+ million organizations, 10+ years of 990 data
+ - Rate Limit: Free, ~1 request/second suggested
+ - Example:
+ ```python
+ from discovery.nonprofit_discovery import NonprofitDiscovery
+
+ discovery = NonprofitDiscovery()
+
+ # Search by state, city, and NTEE code
+ health_orgs = discovery.search_propublica(
+ state="AL",
+ city="Tuscaloosa",
+ ntee_code="E32" # School-Based Health Care
+ )
+
+ # Get detailed financials for specific org
+ details = discovery.get_propublica_org_details("63-0123456")
+ ```
 
 2. **IRS Tax-Exempt Organization Search (TEOS)**
-   - Source: IRS Pub 78 - official list of deductible organizations
-   - Bulk Download: https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads
-   - Updates: Monthly
-   - Included in ProPublica API
+ - Source: IRS Pub 78 - official list of deductible organizations
+ - Bulk Download: https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads
+ - Updates: Monthly
+ - Included in ProPublica API
 
 3. **Every.org Charity API**
-   - API Docs: https://www.every.org/nonprofit-api
-   - Best for: Human-readable missions, logos, images
-   - Note: May require API key for full access
-   - Example:
-     ```python
-     # Search by location and cause
-     orgs = discovery.search_everyorg(
-         location="Tuscaloosa, AL",
-         causes=["health", "education", "youth"]
-     )
-     ```
+ - API Docs: https://www.every.org/nonprofit-api
+ - Best for: Human-readable missions, logos, images
+ - Note: May require API key for full access
+ - Example:
+ ```python
+ # Search by location and cause
+ orgs = discovery.search_everyorg(
+ location="Tuscaloosa, AL",
+ causes=["health", "education", "youth"]
+ )
+ ```
 
 **Running manually for specific NTEE codes:**
 
@@ -683,16 +683,16 @@ discovery = NonprofitDiscovery()
 
 # Just dental/health organizations
 dental_orgs = discovery.search_propublica(
-    state="AL",
-    city="Tuscaloosa", 
-    ntee_code="E32"  # School-Based Health Care
+ state="AL",
+ city="Tuscaloosa",
+ ntee_code="E32" # School-Based Health Care
 )
 
-# Churches with health ministries  
+# Churches with health ministries
 churches = discovery.search_propublica(
-    state="AL",
-    city="Tuscaloosa",
-    ntee_code="X20"  # Christian
+ state="AL",
+ city="Tuscaloosa",
+ ntee_code="X20" # Christian
 )
 
 # Merge and export
@@ -724,76 +724,76 @@ Add specific service details that APIs don't provide:
 import json
 
 tuscaloosa_nonprofits = [
-    {
-        "name": "West Alabama Health Services",
-        "ein": "63-0123456",  # IRS Tax ID
-        "ntee_code": "E40",
-        "ntee_description": "Health - General",
-        "mission": "Providing accessible healthcare to underserved communities in West Alabama",
-        "services": [
-            "Free dental screenings for school children",
-            "Mobile health unit",
-            "Community health education"
-        ],
-        "annual_budget": 850000,
-        "students_served": 1200,
-        "contact": {
-            "website": "https://wahealthservices.org",
-            "email": "info@wahealthservices.org",
-            "phone": "(205) 555-0100"
-        },
-        "volunteer_opportunities": True,
-        "accepting_board_members": True
-    },
-    {
-        "name": "First Baptist Church Tuscaloosa - Health Ministry",
-        "ein": "63-0234567",
-        "ntee_code": "E32",
-        "ntee_description": "School-Based Health Care",
-        "mission": "Faith-based health outreach serving Tuscaloosa families",
-        "services": [
-            "Free dental hygiene kits distribution",
-            "Health screenings after Sunday service",
-            "Nutrition education classes"
-        ],
-        "annual_budget": 45000,
-        "families_served": 450,
-        "contact": {
-            "website": "https://fbctuscaloosa.org/health",
-            "email": "health@fbctuscaloosa.org",
-            "phone": "(205) 555-0200"
-        },
-        "volunteer_opportunities": True,
-        "accepting_board_members": False
-    },
-    {
-        "name": "Tuscaloosa County Interfaith Dental Initiative",
-        "ein": "63-0345678",
-        "ntee_code": "E32",
-        "ntee_description": "School-Based Health Care",
-        "mission": "Multi-faith collaboration providing free dental care",
-        "services": [
-            "Mobile dental unit serving Title I schools",
-            "Free toothbrush and fluoride programs",
-            "Parent education workshops"
-        ],
-        "annual_budget": 125000,
-        "students_served": 2400,
-        "contact": {
-            "website": "https://tuscaloosainterfaithdental.org",
-            "email": "contact@tuscaloosainterfaithdental.org",
-            "phone": "(205) 555-0300"
-        },
-        "volunteer_opportunities": True,
-        "accepting_board_members": True
-    }
+ {
+ "name": "West Alabama Health Services",
+ "ein": "63-0123456", # IRS Tax ID
+ "ntee_code": "E40",
+ "ntee_description": "Health - General",
+ "mission": "Providing accessible healthcare to underserved communities in West Alabama",
+ "services": [
+ "Free dental screenings for school children",
+ "Mobile health unit",
+ "Community health education"
+ ],
+ "annual_budget": 850000,
+ "students_served": 1200,
+ "contact": {
+ "website": "https://wahealthservices.org",
+ "email": "info@wahealthservices.org",
+ "phone": "(205) 555-0100"
+ },
+ "volunteer_opportunities": True,
+ "accepting_board_members": True
+ },
+ {
+ "name": "First Baptist Church Tuscaloosa - Health Ministry",
+ "ein": "63-0234567",
+ "ntee_code": "E32",
+ "ntee_description": "School-Based Health Care",
+ "mission": "Faith-based health outreach serving Tuscaloosa families",
+ "services": [
+ "Free dental hygiene kits distribution",
+ "Health screenings after Sunday service",
+ "Nutrition education classes"
+ ],
+ "annual_budget": 45000,
+ "families_served": 450,
+ "contact": {
+ "website": "https://fbctuscaloosa.org/health",
+ "email": "health@fbctuscaloosa.org",
+ "phone": "(205) 555-0200"
+ },
+ "volunteer_opportunities": True,
+ "accepting_board_members": False
+ },
+ {
+ "name": "Tuscaloosa County Interfaith Dental Initiative",
+ "ein": "63-0345678",
+ "ntee_code": "E32",
+ "ntee_description": "School-Based Health Care",
+ "mission": "Multi-faith collaboration providing free dental care",
+ "services": [
+ "Mobile dental unit serving Title I schools",
+ "Free toothbrush and fluoride programs",
+ "Parent education workshops"
+ ],
+ "annual_budget": 125000,
+ "students_served": 2400,
+ "contact": {
+ "website": "https://tuscaloosainterfaithdental.org",
+ "email": "contact@tuscaloosainterfaithdental.org",
+ "phone": "(205) 555-0300"
+ },
+ "volunteer_opportunities": True,
+ "accepting_board_members": True
+ }
 ]
 
 # Save for frontend
 with open('frontend/policy-dashboards/src/data/tuscaloosa_nonprofits.json', 'w') as f:
-    json.dump(tuscaloosa_nonprofits, f, indent=2)
+ json.dump(tuscaloosa_nonprofits, f, indent=2)
 
-print(f"✓ Curated {len(tuscaloosa_nonprofits)} Tuscaloosa nonprofits")
+print(f"Yes Curated {len(tuscaloosa_nonprofits)} Tuscaloosa nonprofits")
 ```
 
 #### Option C: Local Service Directories (For Specific Services)
@@ -819,7 +819,7 @@ print(f"✓ Curated {len(tuscaloosa_nonprofits)} Tuscaloosa nonprofits")
 
 # Search for:
 # - "Dental care" in Tuscaloosa County
-# - "Food assistance" 
+# - "Food assistance"
 # - "Youth programs"
 
 # Results more detailed than IRS data:
@@ -837,9 +837,9 @@ discovery = NonprofitDiscovery()
 
 # Get financial backbone from ProPublica
 financial_data = discovery.search_propublica(
-    state="AL",
-    city="Tuscaloosa",
-    ntee_code="E32"
+ state="AL",
+ city="Tuscaloosa",
+ ntee_code="E32"
 )
 
 # Then manually add service details from Findhelp.org/211
@@ -857,34 +857,34 @@ import os
 import requests
 
 def enrich_nonprofit_data(ein):
-    """Get ratings, financials, and impact metrics from Charity Navigator"""
-    
-    api_key = os.getenv('CHARITY_NAVIGATOR_API_KEY')
-    url = f"https://api.charitynavigator.org/v1/organizations/{ein}"
-    
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json'
-    }
-    
-    response = requests.get(url, headers=headers)
-    
-    if response.status_code == 200:
-        data = response.json()
-        return {
-            'overall_rating': data.get('currentRating', {}).get('overallRating'),
-            'financial_rating': data.get('currentRating', {}).get('financialRating'),
-            'accountability_rating': data.get('currentRating', {}).get('accountabilityRating'),
-            'program_expense_ratio': data.get('financials', {}).get('programExpenseRatio'),
-            'admin_expense_ratio': data.get('financials', {}).get('adminExpenseRatio'),
-            'revenue': data.get('financials', {}).get('totalRevenue')
-        }
-    else:
-        print(f"⚠️  Could not fetch data for EIN {ein}: {response.status_code}")
-        return None
+ """Get ratings, financials, and impact metrics from Charity Navigator"""
+
+ api_key = os.getenv('CHARITY_NAVIGATOR_API_KEY')
+ url = f"https://api.charitynavigator.org/v1/organizations/{ein}"
+
+ headers = {
+ 'Authorization': f'Bearer {api_key}',
+ 'Content-Type': 'application/json'
+ }
+
+ response = requests.get(url, headers=headers)
+
+ if response.status_code == 200:
+ data = response.json()
+ return {
+ 'overall_rating': data.get('currentRating', {}).get('overallRating'),
+ 'financial_rating': data.get('currentRating', {}).get('financialRating'),
+ 'accountability_rating': data.get('currentRating', {}).get('accountabilityRating'),
+ 'program_expense_ratio': data.get('financials', {}).get('programExpenseRatio'),
+ 'admin_expense_ratio': data.get('financials', {}).get('adminExpenseRatio'),
+ 'revenue': data.get('financials', {}).get('totalRevenue')
+ }
+ else:
+ print(f"Warning Could not fetch data for EIN {ein}: {response.status_code}")
+ return None
 
 # Example usage
-ein = "63-0123456"  # West Alabama Health Services
+ein = "63-0123456" # West Alabama Health Services
 enriched = enrich_nonprofit_data(ein)
 print(f"Overall Rating: {enriched['overall_rating']}/4")
 print(f"Program Expense Ratio: {enriched['program_expense_ratio']*100:.1f}%")
@@ -902,44 +902,44 @@ from pathlib import Path
 
 # Load government decisions with NTEE codes
 with open('frontend/policy-dashboards/src/data/tuscaloosa_policies.json') as f:
-    decisions = json.load(f)
+ decisions = json.load(f)
 
 # Load nonprofits
 with open('frontend/policy-dashboards/src/data/tuscaloosa_nonprofits.json') as f:
-    nonprofits = json.load(f)
+ nonprofits = json.load(f)
 
 # Add community gap analysis
 for decision in decisions:
-    if decision.get('outcome') in ['Tabled', 'Deferred', 'Rejected']:
-        ntee_code = decision.get('ntee_code')
-        
-        if ntee_code:
-            # Find matching nonprofits
-            matching_orgs = [
-                np for np in nonprofits 
-                if np['ntee_code'] == ntee_code or 
-                   np['ntee_code'].startswith(ntee_code[0])
-            ]
-            
-            if matching_orgs:
-                total_served = sum(
-                    np.get('students_served', 0) + 
-                    np.get('families_served', 0) + 
-                    np.get('youth_served', 0)
-                    for np in matching_orgs
-                )
-                
-                decision['community_gap'] = {
-                    'description': f"{len(matching_orgs)} nonprofits already serving {total_served} people in this area",
-                    'nonprofit_filling_gap': True,
-                    'matching_organizations': len(matching_orgs)
-                }
+ if decision.get('outcome') in ['Tabled', 'Deferred', 'Rejected']:
+ ntee_code = decision.get('ntee_code')
+
+ if ntee_code:
+ # Find matching nonprofits
+ matching_orgs = [
+ np for np in nonprofits
+ if np['ntee_code'] == ntee_code or
+ np['ntee_code'].startswith(ntee_code[0])
+ ]
+
+ if matching_orgs:
+ total_served = sum(
+ np.get('students_served', 0) +
+ np.get('families_served', 0) +
+ np.get('youth_served', 0)
+ for np in matching_orgs
+ )
+
+ decision['community_gap'] = {
+ 'description': f"{len(matching_orgs)} nonprofits already serving {total_served} people in this area",
+ 'nonprofit_filling_gap': True,
+ 'matching_organizations': len(matching_orgs)
+ }
 
 # Save enhanced decisions
 with open('frontend/policy-dashboards/src/data/tuscaloosa_policies_enhanced.json', 'w') as f:
-    json.dump(decisions, f, indent=2)
+ json.dump(decisions, f, indent=2)
 
-print(f"✓ Matched {sum(1 for d in decisions if d.get('community_gap'))} decisions to nonprofits")
+print(f"Yes Matched {sum(1 for d in decisions if d.get('community_gap'))} decisions to nonprofits")
 ```
 
 ---
@@ -955,21 +955,21 @@ npm start
 
 **What users see:**
 
-1. **Browse Decisions** → See green "🤝 Community filling gap" badges on deferred/tabled decisions
+1. **Browse Decisions** → See green " Community filling gap" badges on deferred/tabled decisions
 2. **Click Decision** → View split-screen:
-   - **Left**: Government rationale, vote, outcome
-   - **Right**: Nonprofits doing this work NOW with contact info
+ - **Left**: Government rationale, vote, outcome
+ - **Right**: Nonprofits doing this work NOW with contact info
 3. **Take Action** → Volunteer, join boards, cite in public meetings
 
 **Example Flow:**
 ```
 Decision: "Tabled dental screening partnership - Legal risk concerns"
-         ↓
-Community Response: 
-  - Interfaith Dental Initiative: 2,400 students served
-  - First Baptist Health Ministry: 450 families served  
-  - West Alabama Health Services: 1,200 students served
-         ↓
+ ↓
+Community Response:
+ - Interfaith Dental Initiative: 2,400 students served
+ - First Baptist Health Ministry: 450 families served
+ - West Alabama Health Services: 1,200 students served
+ ↓
 Actions: [Website] [Email] [Volunteer] [Join Board]
 ```
 
@@ -982,20 +982,20 @@ Show cost comparisons to expose bureaucratic inefficiency:
 ```python
 # Calculate government "study cost" vs nonprofit "solution cost"
 government_cost_per_analysis = {
-    'Legal Review': 5000,      # Attorney billable hours
-    'Risk Assessment': 3500,   # Consultant fees  
-    'Feasibility Study': 8000  # Multi-month study
+ 'Legal Review': 5000, # Attorney billable hours
+ 'Risk Assessment': 3500, # Consultant fees
+ 'Feasibility Study': 8000 # Multi-month study
 }
 
 nonprofit_cost_per_service = {
-    'Dental Screening': 25,    # Per child
-    'Fluoride Treatment': 15,  # Per child
-    'Toothbrush Kit': 5        # Per child
+ 'Dental Screening': 25, # Per child
+ 'Fluoride Treatment': 15, # Per child
+ 'Toothbrush Kit': 5 # Per child
 }
 
 # Example: Dental screening partnership tabled
-board_spent_studying = government_cost_per_analysis['Legal Review']  # $5,000
-nonprofit_could_serve = board_spent_studying / nonprofit_cost_per_service['Dental Screening']  # 200 kids
+board_spent_studying = government_cost_per_analysis['Legal Review'] # $5,000
+nonprofit_could_serve = board_spent_studying / nonprofit_cost_per_service['Dental Screening'] # 200 kids
 
 print(f"""
 BUREAUCRATIC EFFICIENCY GAP:
@@ -1013,15 +1013,15 @@ Display this comparison on the frontend to create "social pressure":
 ```javascript
 // In SplitScreenView.jsx
 <div className="efficiency-gap">
-  <div className="government-cost">
-    💰 Board spent: $5,000 on legal review
-  </div>
-  <div className="nonprofit-alternative">
-    ✓ Nonprofits could screen: 200 children for same cost
-  </div>
-  <div className="gap-metric">
-    📊 Bureaucratic Efficiency Gap: 200x
-  </div>
+ <div className="government-cost">
+ Board spent: $5,000 on legal review
+ </div>
+ <div className="nonprofit-alternative">
+ Yes Nonprofits could screen: 200 children for same cost
+ </div>
+ <div className="gap-metric">
+ Bureaucratic Efficiency Gap: 200x
+ </div>
 </div>
 ```
 
@@ -1029,31 +1029,31 @@ Display this comparison on the frontend to create "social pressure":
 
 ### 5.6 API Integration Status
 
-**✅ Phase 1: Static Curated Data** - COMPLETE
+**Yes Phase 1: Static Curated Data** - COMPLETE
 - Manually researched Tuscaloosa nonprofits
 - ~10-20 key organizations with verified contact info
 - Frontend example data in place
 
-**✅ Phase 2: IRS/ProPublica Integration** - COMPLETE
+**Yes Phase 2: IRS/ProPublica Integration** - COMPLETE
 - Automated nonprofit discovery via ProPublica API
 - Financial data (revenue, expenses, assets) for all Tuscaloosa nonprofits
 - NTEE code classification
 - Cached data for fast repeated access
 - **Run with:** `python scripts/discover_tuscaloosa_nonprofits.py`
 
-**🔨 Phase 3: Local Service Directories** - IN PROGRESS
+** Phase 3: Local Service Directories** - IN PROGRESS
 - Manual enrichment from Findhelp.org and 211 directories
 - Specific services, hours, contact details
 - Volunteer opportunities verification
 - **To Do:** Build automated scrapers for Findhelp.org/211
 
-**🔮 Phase 4: Charity Navigator/GuideStar** - PLANNED
+** Phase 4: Charity Navigator/GuideStar** - PLANNED
 - Add effectiveness ratings
 - Financial transparency scores
 - Impact metrics verification
 - **Requires:** API key ($$$) or web scraping
 
-**🔮 Phase 5: Real-Time Project Data** - FUTURE
+** Phase 5: Real-Time Project Data** - FUTURE
 - Pull active campaigns from nonprofits
 - Current funding needs
 - Live volunteer opportunities feed
@@ -1072,22 +1072,22 @@ Churches often run health ministries without formal 501(c)(3) status. Include th
 ```python
 # Churches often fall under umbrella organizations
 church_health_programs = [
-    {
-        "name": "First Baptist Church - Health Ministry",
-        "parent_org": "First Baptist Church Tuscaloosa",
-        "ein": "63-0234567",  # Church's EIN
-        "ntee_code": "X20",    # Christian
-        "services": ["Free dental kits", "Health screenings"],
-        "contact": {"website": "https://fbctuscaloosa.org/health"}
-    },
-    {
-        "name": "Catholic Social Services - Dental Outreach",
-        "parent_org": "Diocese of Birmingham",
-        "ein": "63-0456789",
-        "ntee_code": "X20",
-        "services": ["Mobile dental unit", "School partnerships"],
-        "contact": {"website": "https://cssalabama.org"}
-    }
+ {
+ "name": "First Baptist Church - Health Ministry",
+ "parent_org": "First Baptist Church Tuscaloosa",
+ "ein": "63-0234567", # Church's EIN
+ "ntee_code": "X20", # Christian
+ "services": ["Free dental kits", "Health screenings"],
+ "contact": {"website": "https://fbctuscaloosa.org/health"}
+ },
+ {
+ "name": "Catholic Social Services - Dental Outreach",
+ "parent_org": "Diocese of Birmingham",
+ "ein": "63-0456789",
+ "ntee_code": "X20",
+ "services": ["Mobile dental unit", "School partnerships"],
+ "contact": {"website": "https://cssalabama.org"}
+ }
 ]
 ```
 
@@ -1100,12 +1100,12 @@ Track citizen engagement with the community bridge:
 ```python
 # Analytics to track
 metrics = {
-    'split_screen_views': 0,           # How many users viewed split-screen
-    'nonprofit_clicks': 0,              # Clicks to nonprofit websites
-    'volunteer_inquiries': 0,           # Form submissions
-    'board_interest': 0,                # Board opportunity clicks
-    'email_contacts': 0,                # Email button clicks
-    'government_citations': 0           # Nonprofits cited in public meetings
+ 'split_screen_views': 0, # How many users viewed split-screen
+ 'nonprofit_clicks': 0, # Clicks to nonprofit websites
+ 'volunteer_inquiries': 0, # Form submissions
+ 'board_interest': 0, # Board opportunity clicks
+ 'email_contacts': 0, # Email button clicks
+ 'government_citations': 0 # Nonprofits cited in public meetings
 }
 
 # Goal: If 10% of site visitors contact a nonprofit, you've created real impact
@@ -1123,8 +1123,8 @@ metrics = {
 
 1. **Expand Sources**: Add more Tuscaloosa data sources (school board, county commission, etc.)
 2. **Deep Analysis**: Use LLM to extract specific policy details (budgets, votes, impacts)
-3. **Build Dashboard**: Create interactive visualization with the frontend ✅ **DONE**
-4. **Nonprofit Integration**: Connect decisions to community organizations ✅ **DONE**
+3. **Build Dashboard**: Create interactive visualization with the frontend Yes **DONE**
+4. **Nonprofit Integration**: Connect decisions to community organizations Yes **DONE**
 5. **Set Alerts**: Monitor for specific keywords or topics
 6. **Church Outreach**: Partner with faith-based health ministries
 7. **API Integration**: Automate nonprofit data with IRS/Charity Navigator APIs
@@ -1133,5 +1133,5 @@ metrics = {
 For questions, see:
 - [QUICKSTART.md](QUICKSTART.md) - General setup
 - [docs/EBOARD_COOKIE_GUIDE.md](docs/EBOARD_COOKIE_GUIDE.md) - eBoard scraping
-- [docs/SPLIT_SCREEN_SYSTEM.md](docs/SPLIT_SCREEN_SYSTEM.md) - Nonprofit integration ✅ **NEW**
+- [docs/SPLIT_SCREEN_SYSTEM.md](docs/SPLIT_SCREEN_SYSTEM.md) - Nonprofit integration Yes **NEW**
 - [DATABRICKS_MIGRATION.md](DATABRICKS_MIGRATION.md) - Scaling to Databricks
