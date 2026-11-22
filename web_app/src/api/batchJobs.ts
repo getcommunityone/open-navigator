@@ -158,6 +158,10 @@ export type LaunchStatus = {
   vpn_down?: boolean
   /** Seconds since the most inactive live launch last progressed (log/DB). */
   inactive_seconds?: number | null
+  /** Steps the watchdog re-spawned on this poll (#752). */
+  resumed_steps?: string[]
+  /** Human note for auto-resume / waiting-for-VPN (#752). */
+  auto_resume_note?: string
 }
 
 export type LaunchResult = {

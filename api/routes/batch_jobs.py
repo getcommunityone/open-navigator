@@ -421,7 +421,49 @@ _DISCOVER_SCRIPT = "packages/scrapers/src/scrapers/youtube/load_missing_county_c
 # videos with no jurisdiction the per-jurisdiction `captions` loop never visits).
 _BACKFILL_SCRIPT = "packages/scrapers/src/scrapers/youtube/backfill_transcripts.py"
 _LAUNCH_STEPS = ("discover", "catalog", "captions", "backfill", "analyze", "each", "all")
+# Steps that talk to YouTube and must wait for the VPN tunnel before auto-resume (#752).
+_LAUNCH_STEPS_NEED_VPN = frozenset(_LAUNCH_STEPS)
 _STATE_RE = re.compile(r"^[A-Z]{2}$")
+_VPN_EXIT_CODE = 5
+
+
+def _auto_resume_enabled() -> bool:
+    if not _launch_enabled():
+        return False
+    v = (os.getenv("BATCH_JOBS_AUTO_RESUME") or "1").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _auto_resume_max() -> int:
+    raw = os.getenv("BATCH_JOBS_AUTO_RESUME_MAX", "5")
+    try:
+        return max(0, min(20, int(raw)))
+    except (TypeError, ValueError):
+        return 5
+
+
+def _vpn_tunnel_up_for_resume() -> bool:
+    """Route-table only (no public-IP lookups) so the watchdog cannot hang (#752)."""
+    try:
+        from scrapers.youtube.vpn_guard import read_routes, vpn_required
+
+        if not vpn_required():
+            return True
+        return bool(read_routes().tunnel_interface)
+    except Exception as exc:
+        logger.debug("vpn tunnel check for resume failed: {!r}", exc)
+        return False
+
+
+def _read_exit_code(meta: Dict[str, Any]) -> Optional[int]:
+    path = Path(str(meta.get("exit_path") or ""))
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+        return int(text)
+    except (OSError, ValueError, IndexError):
+        return None
 
 
 def _repo_root() -> Path:
@@ -611,6 +653,9 @@ class LaunchStatusResponse(BaseModel):
     warning: str = ""
     vpn_down: bool = False
     inactive_seconds: Optional[float] = None
+    # Steps the watchdog re-spawned on this status poll (#752).
+    resumed_steps: List[str] = Field(default_factory=list)
+    auto_resume_note: str = ""
 
 
 class LaunchResponse(BaseModel):
@@ -679,23 +724,233 @@ def _launch_operator_signals(
     }
 
 
+def _build_launch_argv(
+    step: str,
+    *,
+    states: List[str],
+    cohort: str,
+    n: int,
+    parallel: int,
+) -> "tuple[List[str], Dict[str, str]]":
+    """Return (argv, env updates) for a pipeline step. Raises ValueError on bad paths."""
+    root = _repo_root()
+    env = dict(os.environ)
+    env["COHORT"] = cohort
+    env["STATES"] = ",".join(states)
+    if step == "discover":
+        if not states:
+            raise ValueError("discover requires at least one state.")
+        target = root / _DISCOVER_SCRIPT
+        if not target.is_file():
+            raise ValueError(f"discover script missing: {target}")
+        import sys as _sys
+
+        argv = [_sys.executable, str(target), "--states", ",".join(states)]
+        if cohort == "data_centers":
+            argv += ["--cohort", "data_centers"]
+        return argv, env
+    if step == "backfill":
+        target = root / _BACKFILL_SCRIPT
+        if not target.is_file():
+            raise ValueError(f"backfill script missing: {target}")
+        import sys as _sys
+
+        backfill_limit = int(n or 0)
+        argv = [_sys.executable, str(target)]
+        if backfill_limit > 0:
+            argv += ["--limit", str(min(backfill_limit, 100000))]
+        if states:
+            argv += ["--states", ",".join(states)]
+        if cohort == "data_centers":
+            argv += ["--cohort", "data_centers"]
+        return argv, env
+    script = root / _LAUNCH_SCRIPT
+    if not script.is_file():
+        raise ValueError(f"launch script missing: {script}")
+    env["BATCH_STATUS"] = "1"
+    env["N"] = str(n)
+    env["PARALLEL"] = str(parallel)
+    if cohort == "data_centers" and step in ("analyze", "each", "all"):
+        env.setdefault("SKIP_JEV_MEETING_BELOW", "0.6")
+    return ["bash", str(script), step], env
+
+
+def _spawn_launch(
+    step: str,
+    *,
+    states: List[str],
+    cohort: str,
+    n: int,
+    parallel: int,
+    resume_count: int = 0,
+    auto_resume: bool = True,
+) -> Dict[str, Any]:
+    """Start a detached launch and return its tracking meta (includes exit_path)."""
+    import datetime as _dt
+    import shlex
+
+    argv, env = _build_launch_argv(
+        step, states=states, cohort=cohort, n=n, parallel=parallel
+    )
+    root = _repo_root()
+    log_dir = root / "data" / "cache" / "batch_jobs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"launch_{step}_{stamp}.log"
+    exit_path = log_dir / f"launch_{step}_{stamp}.exit"
+    # Record exit code so auto-resume can tell clean finish (0) from VPN (5) / crash.
+    inner = " ".join(shlex.quote(a) for a in argv)
+    wrapper = (
+        f"{inner}; ec=$?; echo \"$ec\" > {shlex.quote(str(exit_path))}; exit \"$ec\""
+    )
+    logf = open(log_path, "ab")
+    proc = subprocess.Popen(
+        ["bash", "-c", wrapper],
+        cwd=str(root),
+        env=env,
+        stdout=logf,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return {
+        "pid": proc.pid,
+        "step": step,
+        "states": list(states),
+        "cohort": cohort,
+        "n": int(n),
+        "parallel": int(parallel),
+        "started_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "log": str(log_path.relative_to(root)),
+        "exit_path": str(exit_path),
+        "auto_resume": bool(auto_resume),
+        "resume_count": int(resume_count),
+        "stopped": False,
+        "awaiting_vpn": False,
+    }
+
+
+def _maybe_auto_resume_launches(freshest: str) -> "tuple[List[str], str]":
+    """Re-spawn dead/stalled auto-resume launches. Returns (resumed_steps, note)."""
+    if not _auto_resume_enabled():
+        return [], ""
+    max_resumes = _auto_resume_max()
+    vpn_up = _vpn_tunnel_up_for_resume()
+    resumed: List[str] = []
+    notes: List[str] = []
+    kept: List[Dict[str, Any]] = []
+    live_steps = {
+        str(m.get("step") or "")
+        for m in _read_launches()
+        if _pid_alive(m.get("pid")) and not _launch_stalled(m, freshest)
+    }
+
+    for m in _read_launches():
+        step = str(m.get("step") or "")
+        if m.get("stopped") or m.get("auto_resume") is False:
+            # Drop operator-stopped / capped tombstones once the PID is gone.
+            if _pid_alive(m.get("pid")):
+                kept.append(m)
+            continue
+
+        alive = _pid_alive(m.get("pid"))
+        stalled = alive and _launch_stalled(m, freshest)
+        exit_code = _read_exit_code(m)
+
+        if alive and not stalled:
+            kept.append(m)
+            continue
+
+        if stalled:
+            _kill_launch(m)
+            alive = False
+
+        # Clean successful finish — do not relaunch.
+        if not alive and exit_code == 0:
+            logger.info("launch finished ok step={} pid={} — not resuming", step, m.get("pid"))
+            continue
+
+        count = int(m.get("resume_count") or 0)
+        if count >= max_resumes:
+            notes.append(f"{step}: auto-resume cap ({max_resumes}) reached")
+            kept.append({**m, "pid": None, "auto_resume": False, "awaiting_vpn": False})
+            continue
+
+        needs_vpn = step in _LAUNCH_STEPS_NEED_VPN
+        vpn_exit = exit_code == _VPN_EXIT_CODE
+        log_vpn = bool(_launch_log_signals(step).get("vpn_down"))
+        if needs_vpn and (vpn_exit or log_vpn or m.get("awaiting_vpn")) and not vpn_up:
+            kept.append({**m, "pid": None, "awaiting_vpn": True})
+            notes.append(f"{step}: waiting for VPN before auto-resume")
+            continue
+
+        if step in live_steps or step in resumed:
+            kept.append({**m, "pid": None})
+            continue
+
+        try:
+            new_meta = _spawn_launch(
+                step,
+                states=[str(s) for s in (m.get("states") or []) if str(s).strip()],
+                cohort=str(m.get("cohort") or "priority"),
+                n=int(m.get("n") or 10),
+                parallel=int(m.get("parallel") or 1),
+                resume_count=count + 1,
+                auto_resume=True,
+            )
+        except Exception as exc:
+            logger.warning("auto-resume spawn failed step={}: {!r}", step, exc)
+            kept.append({**m, "pid": None, "awaiting_vpn": bool(needs_vpn and not vpn_up)})
+            notes.append(f"{step}: auto-resume failed ({exc})")
+            continue
+
+        logger.info(
+            "auto-resumed launch step={} resume_count={} pid={}",
+            step,
+            new_meta.get("resume_count"),
+            new_meta.get("pid"),
+        )
+        kept.append(new_meta)
+        resumed.append(step)
+        live_steps.add(step)
+
+    _write_launches(kept)
+    note = "; ".join(notes)
+    if resumed:
+        note = (
+            f"Auto-resumed: {', '.join(resumed)}"
+            + (f". {note}" if note else "")
+        )
+    return resumed, note
+
+
 @router.get("/launch", response_model=LaunchStatusResponse)
 async def launch_status() -> LaunchStatusResponse:
     """Per-step running/stalled state for the dashboard's Run buttons."""
     running_rows, freshest = await asyncio.to_thread(_dashboard_runtime)
+    resumed_steps, resume_note = await asyncio.to_thread(
+        _maybe_auto_resume_launches, freshest
+    )
     running, stalled = _classify_launches(freshest)
     running_steps = sorted({str(m.get("step") or "") for m in running} - {""})
     stalled_steps = sorted({str(m.get("step") or "") for m in stalled} - {""})
     signals = _launch_operator_signals(freshest, running, stalled)
+    warning = str(signals.get("warning") or "")
+    if resume_note and "waiting for VPN" in resume_note and not warning:
+        warning = resume_note
+    elif resume_note and resumed_steps:
+        warning = (warning + " · " if warning else "") + resume_note
     return LaunchStatusResponse(
         enabled=_launch_enabled(),
         running=running_rows,
         running_steps=running_steps,
         stalled_steps=stalled_steps,
         busy=running_rows > 0 or bool(running_steps),
-        warning=str(signals.get("warning") or ""),
+        warning=warning,
         vpn_down=bool(signals.get("vpn_down")),
         inactive_seconds=signals.get("inactive_seconds"),
+        resumed_steps=resumed_steps,
+        auto_resume_note=resume_note,
     )
 
 
@@ -762,121 +1017,53 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
             detail=f"A conflicting run is already active ({', '.join(sorted(running_steps))}).",
         )
 
-    root = _repo_root()
-    env = dict(os.environ)
-    env["COHORT"] = cohort
-    env["STATES"] = ",".join(states)
-    if step == "discover":
-        # Stage 0 runs the channel-discovery script. It accepts one state or a
-        # comma list (--states A,B,C); we always pass --states so the ALL-scope
-        # launcher can sweep the whole selected set (priority or 50 + DC) in one
-        # detached run.
-        if not states:
-            raise HTTPException(
-                status_code=400, detail="discover requires at least one state."
-            )
-        target = root / _DISCOVER_SCRIPT
-        if not target.is_file():
-            raise HTTPException(status_code=500, detail=f"discover script missing: {target}")
-        import sys as _sys
-
-        argv = [_sys.executable, str(target), "--states", ",".join(states)]
-        if cohort == "data_centers":
-            argv += ["--cohort", "data_centers"]
-    elif step == "backfill":
-        # Global transcript backfill over the int_events_union mart. Unlike the
-        # per-jurisdiction `captions` step (which reads bronze_event_youtube
-        # WHERE jurisdiction_id = …), this is a flat sweep that also reaches the
-        # LocalView/union videos that have no bronze_event_youtube row. Runs the
-        # standalone script directly (fixed argv, no shell), like `discover`, so
-        # it has no per-jurisdiction batch tracking. States optional.
-        #
-        # Backfill batch size is independent of the wrapper-step N clamp above:
-        # the UI size picker sends `n` = 100/500/2000/4000, or 0 for "All". 0 (or
-        # negative) means sweep every missing transcript (omit --limit); a run is
-        # resumable (re-queries what's still missing), so a bounded size still
-        # makes progress across clicks. Cap to a sane ceiling so a stray value
-        # can't launch an absurd run.
-        target = root / _BACKFILL_SCRIPT
-        if not target.is_file():
-            raise HTTPException(status_code=500, detail=f"backfill script missing: {target}")
-        import sys as _sys
-
-        backfill_limit = int(req.n or 0)
-        argv = [_sys.executable, str(target)]
-        if backfill_limit > 0:
-            argv += ["--limit", str(min(backfill_limit, 100000))]
-        if states:
-            argv += ["--states", ",".join(states)]
-        if cohort == "data_centers":
-            argv += ["--cohort", "data_centers"]
-        # Caption egress (Webshare vs cookies+direct) is left to the environment /
-        # .env (YOUTUBE_USE_WEBSHARE). Don't force Webshare here: the residential
-        # pool is bandwidth-capped and, once exhausted, every fetch TLS-times-out
-        # (SSLError) and the sweep inserts nothing — whereas cookies+direct keeps
-        # working. Set YOUTUBE_USE_WEBSHARE=1 in the env only when the pool has
-        # quota and YouTube is rate-limiting the direct IP.
-    else:
-        script = root / _LAUNCH_SCRIPT
-        if not script.is_file():
-            raise HTTPException(status_code=500, detail=f"launch script missing: {script}")
-        env["BATCH_STATUS"] = "1"
-        env["N"] = str(n)
-        env["PARALLEL"] = str(parallel)
-        # Jev-light cascade (#704): gate Gemini for data_centers analyze launches.
-        if cohort == "data_centers" and step in ("analyze", "each", "all"):
-            env.setdefault("SKIP_JEV_MEETING_BELOW", "0.6")
-        argv = ["bash", str(script), step]  # fixed argv, no shell
-
-    import datetime as _dt
-
-    log_dir = root / "data" / "cache" / "batch_jobs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = log_dir / f"launch_{step}_{stamp}.log"
+    # Backfill: UI size picker sends n = 100/500/2000/4000, or 0 for "All".
+    # Discover / wrapper steps still use the clamped n above.
+    launch_n = int(req.n or 0) if step == "backfill" else n
 
     try:
-        logf = open(log_path, "ab")
-        proc = subprocess.Popen(
-            argv,
-            cwd=str(root),
-            env=env,
-            stdout=logf,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,  # detach so it outlives the request
+        meta = _spawn_launch(
+            step,
+            states=states,
+            cohort=cohort,
+            n=launch_n,
+            parallel=parallel,
+            resume_count=0,
+            auto_resume=True,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("pipeline launch failed")
         raise HTTPException(status_code=500, detail=f"launch failed: {exc}") from exc
 
     try:
-        _write_launches(
-            kept
-            + [
-                {
-                    "pid": proc.pid,
-                    "step": step,
-                    "states": states,
-                    "started_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
-                }
-            ]
-        )
+        # Drop prior tombstones for this step so a fresh Run replaces them.
+        others = [
+            m
+            for m in kept
+            if str(m.get("step") or "") != step
+        ]
+        _write_launches(others + [meta])
     except Exception:
         pass
 
-    rel_log = str(log_path.relative_to(root))
+    rel_log = str(meta.get("log") or "")
     logger.info(
         f"launched pipeline step={step} states={states or 'default'} "
-        f"n={n} parallel={parallel} pid={proc.pid} log={rel_log}"
+        f"n={launch_n} parallel={parallel} pid={meta.get('pid')} log={rel_log} "
+        f"auto_resume=1"
     )
     return LaunchResponse(
         launched=True,
-        pid=proc.pid,
+        pid=int(meta["pid"]) if meta.get("pid") is not None else None,
         step=step,
         states=states,
         log=rel_log,
-        detail=f"Started '{step}' (pid {proc.pid}). The dashboard will update as it runs.",
+        detail=(
+            f"Started '{step}' (pid {meta.get('pid')}). "
+            "Auto-resume is on if it dies or stalls (Stop all disables it)."
+        ),
     )
 
 
@@ -918,34 +1105,45 @@ async def stop_pipeline(req: StopRequest) -> StopResponse:
         for m in _read_launches():
             alive = _pid_alive(m.get("pid"))
             m_step = str(m.get("step") or "")
-            if alive and (not step or m_step == step):
-                _kill_launch(m, sig=sig)
+            if (alive or m.get("awaiting_vpn")) and (not step or m_step == step):
+                if alive:
+                    _kill_launch(m, sig=sig)
+                    try:
+                        stopped_pids.append(int(m["pid"]))
+                    except (KeyError, TypeError, ValueError):
+                        pass
                 stopped_steps.append(m_step)
-                try:
-                    stopped_pids.append(int(m["pid"]))
-                except (KeyError, TypeError, ValueError):
-                    pass
-                continue  # drop from the tracked file — it's being stopped
-            if alive:
-                kept.append(m)  # alive but not targeted → keep tracking
-            # dead launches are dropped (reaped) either way
+                # Tombstone: auto-resume must not revive an operator Stop (#752).
+                kept.append(
+                    {
+                        **m,
+                        "pid": None,
+                        "auto_resume": False,
+                        "stopped": True,
+                        "awaiting_vpn": False,
+                    }
+                )
+                continue
+            if alive or m.get("awaiting_vpn"):
+                kept.append(m)  # not targeted → keep tracking
+            # finished (exit 0) / unreaped dead without awaiting_vpn → drop
         _write_launches(kept)
         return stopped_steps, stopped_pids
 
     stopped_steps, stopped_pids = await asyncio.to_thread(_do_stop)
-    if not stopped_pids:
+    steps = sorted(set(s for s in stopped_steps if s))
+    if not steps:
         scope = f"step '{step}'" if step else "any step"
         return StopResponse(detail=f"No running launch found for {scope}.")
-    steps = sorted(set(s for s in stopped_steps if s))
     how = "SIGKILL" if req.force else "SIGTERM"
     logger.info(f"stopped pipeline launches via {how}: steps={steps} pids={stopped_pids}")
     return StopResponse(
-        stopped=len(stopped_pids),
+        stopped=len(steps),
         steps=steps,
         pids=stopped_pids,
         detail=(
-            f"Stopped {len(stopped_pids)} launch(es) ({', '.join(steps) or 'unknown'}). "
-            "The dashboard will clear as the process exits."
+            f"Stopped {len(steps)} launch(es) ({', '.join(steps)}). "
+            "Auto-resume disabled for those steps."
         ),
     )
 

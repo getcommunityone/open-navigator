@@ -2178,6 +2178,13 @@ export interface components {
              * @description Operator warning when a live launch is inactive or VPN appears down.
              */
             warning?: string;
+            /** Resumed Steps */
+            resumed_steps?: string[];
+            /**
+             * Auto Resume Note
+             * @default
+             */
+            auto_resume_note?: string;
         };
         /** ProjectCompany */
         ProjectCompany: {

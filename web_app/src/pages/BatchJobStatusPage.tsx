@@ -1723,8 +1723,13 @@ export default function BatchJobStatusPage() {
             const liveRunningRows = data.totals.running > 0 && !rowsStale
             const isActive = liveRunningRows || runningSteps.size > 0
             const anyStalled = stalledSteps.size > 0 || rowsStale
-            const launchWarning = (ls?.warning || '').trim()
+            const launchWarning = (
+              ls?.warning ||
+              ls?.auto_resume_note ||
+              ''
+            ).trim()
             const vpnDown = !!ls?.vpn_down
+            const resumedSteps = ls?.resumed_steps ?? []
             const statusText = vpnDown
               ? 'VPN down'
               : isActive
@@ -1755,7 +1760,13 @@ export default function BatchJobStatusPage() {
                         : 'border-amber-200 bg-amber-50 text-amber-950'
                     }`}
                   >
-                    <span className="font-semibold">{vpnDown ? 'VPN error' : 'Inactivity warning'}</span>
+                    <span className="font-semibold">
+                      {vpnDown
+                        ? 'VPN error'
+                        : resumedSteps.length > 0
+                          ? 'Auto-resumed'
+                          : 'Inactivity warning'}
+                    </span>
                     <span className="mx-1.5 text-current/40">·</span>
                     <span>{launchWarning}</span>
                   </div>
