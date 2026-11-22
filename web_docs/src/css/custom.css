@@ -4,39 +4,42 @@
  * work well for content-centric websites.
  */
 
-/* You can override the default Infima variables here. */
+/* Align primary palette with the main app header (SiteHeader teal). */
 :root {
-  --ifm-color-primary: #354F52;
-  --ifm-color-primary-dark: #2e4346;
-  --ifm-color-primary-darker: #27383a;
-  --ifm-color-primary-darkest: #202d2f;
-  --ifm-color-primary-light: #496466;
-  --ifm-color-primary-lighter: #5d797a;
-  --ifm-color-primary-lightest: #8a9d9e;
-  --ifm-button-background-color: #354F52;
+  --ifm-color-primary: #0d9488;
+  --ifm-color-primary-dark: #0f766e;
+  --ifm-color-primary-darker: #0f766e;
+  --ifm-color-primary-darkest: #115e59;
+  --ifm-color-primary-light: #14b8a6;
+  --ifm-color-primary-lighter: #2dd4bf;
+  --ifm-color-primary-lightest: #5eead4;
+  --ifm-button-background-color: #0d9488;
   --ifm-button-color: #ffffff;
   --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(53, 79, 82, 0.1);
+  --docusaurus-highlighted-code-line-bg: rgba(13, 148, 136, 0.12);
   --ifm-background-color: #ffffff;
-  --ifm-navbar-link-color: #354F52;
-  --ifm-navbar-link-hover-color: #2e4346;
-  --ifm-navbar-sidebar-link-color: #354F52;
+  --ifm-navbar-link-color: #44403c;
+  --ifm-navbar-link-hover-color: #0f766e;
+  --ifm-navbar-sidebar-link-color: #44403c;
+  --ifm-navbar-height: 64px;
+  --ifm-navbar-padding-horizontal: 1.25rem;
+  --ifm-navbar-shadow: 0 1px 0 #e7e5e4;
+  --ifm-font-family-base: 'Source Sans 3', system-ui, sans-serif;
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme='dark'] {
-  --ifm-color-primary: #5d797a;
-  --ifm-color-primary-dark: #496466;
-  --ifm-color-primary-darker: #354F52;
-  --ifm-color-primary-darkest: #2e4346;
-  --ifm-color-primary-light: #8a9d9e;
-  --ifm-color-primary-lighter: #a7b7b8;
-  --ifm-color-primary-lightest: #c4d1d2;
-  --docusaurus-highlighted-code-line-bg: rgba(53, 79, 82, 0.2);
+  --ifm-color-primary: #2dd4bf;
+  --ifm-color-primary-dark: #14b8a6;
+  --ifm-color-primary-darker: #0d9488;
+  --ifm-color-primary-darkest: #0f766e;
+  --ifm-color-primary-light: #5eead4;
+  --ifm-color-primary-lighter: #99f6e4;
+  --ifm-color-primary-lightest: #ccfbf1;
+  --docusaurus-highlighted-code-line-bg: rgba(45, 212, 191, 0.2);
   --ifm-background-color: #1E293B;
-  --ifm-navbar-link-color: #5d797a;
-  --ifm-navbar-link-hover-color: #8a9d9e;
-  --ifm-navbar-sidebar-link-color: #5d797a;
+  --ifm-navbar-link-color: #e7e5e4;
+  --ifm-navbar-link-hover-color: #5eead4;
+  --ifm-navbar-sidebar-link-color: #e7e5e4;
 }
 
 /* Additional background color overrides */
@@ -58,10 +61,77 @@ body {
   background-color: #1E293B !important;
 }
 
-/* Logo styling */
+/* Brand row — match web_app SiteHeader (C1 mark + Open Navigator / by CommunityOne). */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+.navbar {
+  border-bottom: 1px solid #e7e5e4;
+  box-shadow: none !important;
+}
+
+.navbar__inner {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.navbar__brand {
+  margin-right: 1.25rem;
+}
+
+.navbar__logo {
+  margin-right: 0.55rem !important;
+}
+
 .navbar__logo img {
-  height: 40px !important;
-  max-height: 40px !important;
+  height: 38px !important;
+  width: 38px !important;
+  max-height: 38px !important;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.navbar__title {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+  color: #1c1917 !important;
+  line-height: 1.1;
+}
+
+/* Sub-brand under the title (SiteHeader “by CommunityOne”). */
+.navbar__title::after {
+  content: 'by CommunityOne';
+  display: block;
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #78716c;
+  margin-top: 0.1rem;
+  letter-spacing: 0;
+}
+
+.navbar__item {
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+}
+
+.navbar__link {
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  padding: 0.35rem 0.55rem !important;
+}
+
+.navbar__link--active::after,
+.navbar__link:hover:not(.navbar__link--active)::after {
+  left: 0.55rem !important;
+  transform: none !important;
+  width: calc(100% - 1.1rem) !important;
+  background-color: #0d9488 !important;
+}
+
+@media (max-width: 996px) {
+  .navbar__title::after {
+    display: none;
+  }
 }
 
 /* Sidebar backgrounds */
