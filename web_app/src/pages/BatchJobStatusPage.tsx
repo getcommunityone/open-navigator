@@ -881,6 +881,10 @@ function cohortLaunchLabel(cohort: BatchCohort): string {
   return 'priority'
 }
 
+function batchJobsDashboardQueryKey(cohort: BatchCohort) {
+  return ['batch-jobs-dashboard', cohort] as const
+}
+
 type JobType = 'youtube' | 'deployment'
 
 function JobTypeTabs({
@@ -977,7 +981,7 @@ export default function BatchJobStatusPage() {
   })
 
   const { data, isPending, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['batch-jobs-dashboard', allScope],
+    queryKey: batchJobsDashboardQueryKey(allScope),
     queryFn: () => fetchBatchJobsDashboard(false, 'summary', allScope),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
@@ -999,8 +1003,9 @@ export default function BatchJobStatusPage() {
     const es = new EventSource(url)
 
     const applyPayload = (payload: BatchJobsDashboardPayload) => {
-      queryClient.setQueryData<BatchJobsDashboardPayload>(['batch-jobs-dashboard'], (prev) =>
-        mergeDashboardFromStream(prev, payload),
+      queryClient.setQueryData<BatchJobsDashboardPayload>(
+        batchJobsDashboardQueryKey(allScope),
+        (prev) => mergeDashboardFromStream(prev, payload),
       )
     }
 
@@ -1299,7 +1304,7 @@ export default function BatchJobStatusPage() {
       .then((batch) => {
         if (cancelled) return
         queryClient.setQueryData<BatchJobsDashboardPayload>(
-          ['batch-jobs-dashboard'],
+          batchJobsDashboardQueryKey(allScope),
           (prev) => mergeBatchIntoDashboard(prev, batch) ?? prev,
         )
       })
@@ -1315,6 +1320,7 @@ export default function BatchJobStatusPage() {
     showFailedVideos,
     selectedJurisdictionForVideos,
     data?.totals.videos_fail,
+    allScope,
     queryClient,
   ])
 
