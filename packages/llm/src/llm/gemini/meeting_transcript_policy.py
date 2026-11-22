@@ -1432,6 +1432,16 @@ def iter_videos_to_analyze(
                 video.video_id,
             )
             continue
+        jev_skip = getattr(args, "_jev_skip_video_ids", None) or set()
+        if video.video_id in jev_skip:
+            logger.info(
+                "[{}/{}] Skip {} — Jev screen below keep threshold "
+                "(--skip-jev-meeting-below / --skip-jev-below)",
+                i,
+                len(videos),
+                video.video_id,
+            )
+            continue
         if getattr(args, "skip_analyzed", False):
             existing = resolve_analysis_path(
                 out_dir,
@@ -1531,6 +1541,33 @@ def run_pipeline(args: argparse.Namespace) -> None:
         return
 
     speaker_hints, known = load_speaker_context(args, jurisdiction_id)
+
+    # Jev gates (#704): load once per run; unscreened ids are never in these sets.
+    jev_skip: set[str] = set()
+    db_url_for_jev = _database_url(args.database_url or None)
+    if getattr(args, "skip_jev_below", None) is not None and db_url_for_jev:
+        from llm.typesafe.screen_transcripts import jev_skip_video_ids
+
+        decision_skip = jev_skip_video_ids(db_url_for_jev, float(args.skip_jev_below))
+        logger.info(
+            "Jev decisions gate --skip-jev-below {}: {:,} video(s) to skip",
+            args.skip_jev_below,
+            len(decision_skip),
+        )
+        jev_skip |= decision_skip
+    if getattr(args, "skip_jev_meeting_below", None) is not None and db_url_for_jev:
+        from llm.typesafe.screen_transcripts import jev_skip_meeting_video_ids
+
+        meeting_skip = jev_skip_meeting_video_ids(
+            db_url_for_jev, float(args.skip_jev_meeting_below)
+        )
+        logger.info(
+            "Jev meeting-kind gate --skip-jev-meeting-below {}: {:,} video(s) to skip",
+            args.skip_jev_meeting_below,
+            len(meeting_skip),
+        )
+        jev_skip |= meeting_skip
+    args._jev_skip_video_ids = jev_skip
 
     if args.from_bronze:
         videos = select_bronze_videos(args, jurisdiction_id, newest_n=newest_n)
@@ -1657,6 +1694,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-analyzed",
         action="store_true",
         help="Skip videos that already have 02_analysis/*_analysis.json",
+    )
+    parser.add_argument(
+        "--skip-jev-below",
+        type=float,
+        default=None,
+        metavar="P",
+        help="Skip videos whose Jev has_decisions_p is below P (unscreened never skipped)",
+    )
+    parser.add_argument(
+        "--skip-jev-meeting-below",
+        type=float,
+        default=None,
+        metavar="T",
+        help="Skip videos whose Jev keep-score P(government_meeting)+P(town_hall) "
+        "is below T (default for data_centers launches: 0.6; unscreened never skipped)",
     )
     parser.add_argument(
         "--limit",
