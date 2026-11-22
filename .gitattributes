@@ -47,6 +47,11 @@ web_app/public/communityone_logo.jpg -filter -diff -merge
 web_app/public/communityone_logo.svg -filter -diff -merge
 web_app/public/communityone_logo_64.png -filter -diff -merge
 web_app/public/favicon.ico -filter -diff -merge
+web_docs/static/img/communityone_logo.svg -filter -diff -merge
+web_docs/static/img/communityone_logo.jpg -filter -diff -merge
+web_docs/static/img/communityone_logo_64.png -filter -diff -merge
+web_docs/static/img/favicon.ico -filter -diff -merge
+web_docs/static/img/logo.svg -filter -diff -merge
 web_app/public/bugs/bug_connecticut_blank.png -filter -diff -merge
 web_app/public/bugs/bug_map_year_play.png -filter -diff -merge
 web_app/policy-dashboards/public/communityone_logo.jpg -filter -diff -merge

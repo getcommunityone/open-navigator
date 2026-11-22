@@ -164,31 +164,33 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Open Navigator Home',
+      // Brand text is restyled in custom.css to match SiteHeader (Open Navigator / by CommunityOne).
+      title: 'Open Navigator',
       logo: {
-        alt: 'CommunityOne Logo',
+        alt: 'CommunityOne',
         src: 'img/communityone_logo.svg',
         href: process.env.APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : 'https://www.communityone.com'),
         target: '_self',
       },
+      hideOnScroll: false,
       items: [
         {
           type: 'docSidebar',
           sidebarId: 'gettingStartedSidebar',
           position: 'left',
-          label: 'Getting Started',
+          label: 'Docs',
         },
         {
           type: 'docSidebar',
           sidebarId: 'citizensSidebar',
           position: 'left',
-          label: 'Citizens and Residents',
+          label: 'Citizens',
         },
         {
           type: 'docSidebar',
           sidebarId: 'policyMakersSidebar',
           position: 'left',
-          label: 'Policy Makers',
+          label: 'Policy',
         },
         {
           type: 'docSidebar',
@@ -199,12 +201,18 @@ const config: Config = {
         {
           type: 'doc',
           docId: 'data-sources/citations',
-          label: 'Data and Terms',
+          label: 'Data',
           position: 'left',
         },
-        {to: 'blog', label: 'Blog', position: 'left'},
         {
-          href: 'https://github.com/getcommunityone/open-navigator-for-engagement',
+          href: process.env.APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : 'https://www.communityone.com'),
+          label: 'App',
+          position: 'right',
+          target: '_self',
+        },
+        {to: 'blog', label: 'Blog', position: 'right'},
+        {
+          href: 'https://github.com/getcommunityone/open-navigator',
           label: 'GitHub',
           position: 'right',
         },
