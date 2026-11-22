@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Discover candidate YouTube channels for county jurisdictions missing channel mappings.
 
-Outputs a CSV suitable for manual review and downstream catalog loading.
+Writes each hit into ``bronze.bronze_jurisdictions_counties_scraped`` as it is
+found (same write-through pattern as catalog/captions), and still emits a CSV
+audit file. Rows are flagged ``discover_unreviewed`` so a later review pass can
+filter them (#695).
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ import csv
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional
 
 import psycopg2
 from dotenv import load_dotenv
@@ -24,6 +27,10 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
+
+# Review flag on scraped bronze — catalog still uses these channels (unlike
+# pattern_match_unverified). Filter WHERE method = this for a review queue.
+DISCOVER_UNREVIEWED_METHOD = "discover_unreviewed"
 
 
 def resolve_database_url(explicit: str | None) -> str:
@@ -100,6 +107,70 @@ def fetch_missing_counties(
     ]
 
 
+def _confidence_from_row(row: dict[str, Any]) -> Optional[float]:
+    raw = row.get("policy_score")
+    if raw in (None, ""):
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def persist_discovered_channel_to_bronze(
+    conn: Any,
+    row: dict[str, Any],
+    *,
+    state_code: str,
+    method: str = DISCOVER_UNREVIEWED_METHOD,
+) -> bool:
+    """Write one discover hit onto ``bronze_jurisdictions_counties_scraped``.
+
+    Only fills empty ``youtube_channel_id`` rows. Sets ``discovered_at = now()``
+    so the Discover stage clock moves. Returns True when a row was updated.
+    """
+    geoid = str(row.get("geoid") or "").strip()
+    channel_id = str(row.get("channel_id") or "").strip()
+    channel_url = str(row.get("channel_url") or "").strip()
+    usps = (state_code or "").strip().upper()
+    if not geoid or not usps or not channel_id:
+        return False
+    if not channel_url.startswith("http"):
+        channel_url = f"https://www.youtube.com/channel/{channel_id}"
+    confidence = _confidence_from_row(row)
+    jid = str(row.get("jurisdiction_id") or "").strip() or None
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE bronze.bronze_jurisdictions_counties_scraped
+               SET youtube_channel_id = %s,
+                   youtube_channel_url = %s,
+                   youtube_channel_selection_method = %s,
+                   youtube_channel_selection_confidence = COALESCE(%s, youtube_channel_selection_confidence),
+                   discovered_at = NOW(),
+                   jurisdiction_id = COALESCE(jurisdiction_id, %s)
+             WHERE geoid = %s
+               AND usps = %s
+               AND (
+                     youtube_channel_id IS NULL
+                     OR BTRIM(youtube_channel_id) = ''
+               )
+            """,
+            (channel_id, channel_url, method, confidence, jid, geoid, usps),
+        )
+        updated = cur.rowcount > 0
+    conn.commit()
+    if updated:
+        logger.info(
+            "Bronze write-through: {} {} → {} ({})",
+            usps,
+            geoid,
+            channel_id,
+            method,
+        )
+    return updated
+
+
 def choose_scraped_channel(channels: Any) -> dict[str, Any]:
     """Pick the best website-scraped candidate when available."""
     if not isinstance(channels, list):
@@ -124,8 +195,14 @@ async def discover_channels(
     state_code: str,
     *,
     skip_homepage_scrape: bool = False,
+    on_result: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
+
+    def _emit(result: dict[str, Any]) -> None:
+        out.append(result)
+        if on_result is not None:
+            on_result(result)
 
     def title_fallback(channel: dict[str, Any]) -> str:
         title = str(channel.get("channel_title") or "").strip()
@@ -198,9 +275,10 @@ async def discover_channels(
                     scraped_top,
                     fallback_method=str(scraped_top.get("discovery_method") or "").strip() or "website_scrape",
                 )
-                out.append(
+                _emit(
                     {
                         "jurisdiction_id": row["jurisdiction_id"],
+                        "geoid": row.get("geoid", "") or "",
                         "county_name": county_name,
                         "website_url": website or "",
                         "channel_id": scraped_top.get("channel_id", "") or "",
@@ -239,9 +317,10 @@ async def discover_channels(
                     top,
                     fallback_method=str(top.get("discovery_method") or "").strip() or "fallback_discovery",
                 )
-            out.append(
+            _emit(
                 {
                     "jurisdiction_id": row["jurisdiction_id"],
+                    "geoid": row.get("geoid", "") or "",
                     "county_name": county_name,
                     "website_url": website or "",
                     "channel_id": top.get("channel_id", "") or "",
@@ -268,6 +347,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "jurisdiction_id",
+        "geoid",
         "county_name",
         "website_url",
         "channel_id",
@@ -308,6 +388,7 @@ def discover_one_state(
     multi: bool,
     skip_homepage_scrape: bool,
     data_center_jids: frozenset[str] | None = None,
+    write_bronze: bool = True,
 ) -> int:
     """Discover candidate channels for one state; returns # rows with a channel."""
     missing = fetch_missing_counties(
@@ -318,22 +399,55 @@ def discover_one_state(
         logger.success("No missing county mappings for {}", state_code)
         return 0
 
-    results = asyncio.run(
-        discover_channels(
-            missing,
-            state_code,
-            skip_homepage_scrape=skip_homepage_scrape,
+    bronze_writes = 0
+    bronze_conn = None
+    on_result: Optional[Callable[[dict[str, Any]], None]] = None
+    if write_bronze:
+        bronze_conn = psycopg2.connect(db_url)
+
+        def _persist(result: dict[str, Any]) -> None:
+            nonlocal bronze_writes
+            if not str(result.get("channel_id") or "").strip():
+                return
+            try:
+                if persist_discovered_channel_to_bronze(
+                    bronze_conn, result, state_code=state_code,
+                ):
+                    bronze_writes += 1
+            except Exception as exc:
+                if bronze_conn is not None:
+                    bronze_conn.rollback()
+                logger.warning(
+                    "Bronze write-through failed for {}: {}",
+                    result.get("jurisdiction_id"),
+                    exc,
+                )
+
+        on_result = _persist
+
+    try:
+        results = asyncio.run(
+            discover_channels(
+                missing,
+                state_code,
+                skip_homepage_scrape=skip_homepage_scrape,
+                on_result=on_result,
+            )
         )
-    )
+    finally:
+        if bronze_conn is not None:
+            bronze_conn.close()
+
     out_path = _state_output_path(output, state_code, multi)
     write_csv(out_path, results)
 
     with_channel = sum(1 for r in results if r.get("channel_id"))
     logger.success(
-        "Wrote {} rows to {} ({} with candidate channel_id)",
+        "Wrote {} rows to {} ({} with candidate channel_id; {} bronze write-through)",
         len(results),
         out_path,
         with_channel,
+        bronze_writes,
     )
     return with_channel
 
@@ -361,6 +475,11 @@ def main() -> int:
         "--cohort",
         default="",
         help="Launch cohort (e.g. data_centers restricts to data-center jurisdictions)",
+    )
+    p.add_argument(
+        "--no-bronze-write",
+        action="store_true",
+        help="CSV only — do not UPDATE bronze_jurisdictions_counties_scraped (#695)",
     )
     args = p.parse_args()
 
@@ -390,6 +509,7 @@ def main() -> int:
             multi=multi,
             skip_homepage_scrape=args.skip_homepage_scrape,
             data_center_jids=data_center_jids,
+            write_bronze=not args.no_bronze_write,
         )
     return 0
 
