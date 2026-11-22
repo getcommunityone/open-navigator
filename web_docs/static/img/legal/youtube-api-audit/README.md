@@ -1,17 +1,15 @@
-# YouTube Data API audit screenshots
+# YouTube Data API audit screenshots (one file per form field)
 
-Evidence JPEGs captured from the live site after the YouTube API Services privacy/terms disclosures (#723 / #724).
+Captured from the live site after #723 / #724. **One JPEG per upload.**
 
-| File | Form field |
-|------|------------|
-| `privacy-youtube-api-services.jpeg` | Privacy Policy — YouTube API Services + Google Privacy Policy link |
-| `privacy-youtube-deletion.jpeg` | Privacy Policy — deletion / retention |
-| `homepage-privacy-and-youtube-footer.jpeg` | Homepage — Privacy Policy link (docs Legal nav) |
-| `docs-home-footer-privacy-youtube.jpeg` | Docs home footer (YouTube + legal) |
-| `terms-youtube-api-services.jpeg` | Terms of Service — YouTube API Services |
+| Upload this file | Form field | What’s in the image |
+|------------------|------------|---------------------|
+| `Privacy-Policy-Screenshots.jpeg` | Privacy Policy Screenshots | §9 YouTube API Services, Google Privacy Policy link, §9.1–9.3 including deletion |
+| `Homepage-Screenshot.jpeg` | Homepage Screenshot | Docs footer with **Privacy Policy** + **YouTube** highlighted |
+| `Terms-of-Service-Documentation.jpeg` | Terms of Service Documentation | YouTube API Services + agreement to YouTube Terms of Service |
 
 Live URLs:
 
 - https://www.communityone.com/docs/legal/privacy-policy/#9-youtube-api-services
-- https://www.communityone.com/docs/legal/terms-of-service
 - https://www.communityone.com/docs/
+- https://www.communityone.com/docs/legal/terms-of-service
