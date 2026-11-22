@@ -38,6 +38,7 @@
 #   CATALOG_YTDLP=1    — unset YOUTUBE_API_KEY for catalog (avoid googleapis.com hangs; use yt-dlp)
 #   CHANNEL_SOURCE=    — override per-jurisdiction catalog source (auto|counties-scraped|municipalities-scraped)
 #   ROUND_ROBIN=0      — process state-by-state (default: interleave states for diversity)
+#   COHORT=            — priority|data_centers|all (default unset = all jurisdictions in STATES)
 #   VPN_WAIT_POLL_SECONDS=30  — on child exit 5, poll vpn_guard this often until up, then retry (#644)
 #   DATABASE_URL=...   — override .env
 
@@ -223,11 +224,13 @@ from api.batch_jobs.batch_job_status import fetch_batch_plan_jurisdictions
 include_homepage = os.environ.get("HOMEPAGE_CHANNELS", "1").strip().lower() not in (
     "0", "false", "no", "off",
 )
+cohort = (os.environ.get("COHORT") or "").strip() or None
 runs = fetch_batch_plan_jurisdictions(
     states,
     round_robin=round_robin,
     database_url=url,
     include_homepage_channels=include_homepage,
+    cohort=cohort,
 )
 if not runs:
     sys.exit(f"No jurisdictions with YouTube bronze for states: {', '.join(states)}")

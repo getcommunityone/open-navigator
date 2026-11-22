@@ -175,6 +175,19 @@ def _sanitize_dashboard_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
+def _parse_dashboard_cohort(cohort: Optional[str] = None) -> Optional[str]:
+    """Normalize optional dashboard ``?cohort=`` (priority / data_centers scope stage_report)."""
+    if cohort is None or not str(cohort).strip():
+        return None
+    c = str(cohort).strip().lower()
+    if c not in ("priority", "data_centers", "all"):
+        raise HTTPException(
+            status_code=400,
+            detail="cohort must be one of priority, data_centers, all",
+        )
+    return c
+
+
 async def _latest_dashboard_revision_async() -> Optional[str]:
     try:
         from api.batch_jobs.batch_job_db import latest_dashboard_revision
@@ -191,6 +204,7 @@ async def _load_dashboard_async(
     enrich_bronze_only_running: bool = False,
     detail: str = "full",
     batch_limit: int = 25,
+    cohort: Optional[str] = None,
 ) -> Dict[str, Any]:
     return await asyncio.to_thread(
         _load_dashboard,
@@ -199,6 +213,7 @@ async def _load_dashboard_async(
         enrich_bronze_only_running=enrich_bronze_only_running,
         detail=detail,
         batch_limit=batch_limit,
+        cohort=cohort,
     )
 
 
@@ -209,6 +224,7 @@ def _load_dashboard(
     enrich_bronze_only_running: bool = False,
     detail: str = "full",
     batch_limit: int = 25,
+    cohort: Optional[str] = None,
 ) -> Dict[str, Any]:
     from api.batch_jobs.batch_job_dashboard import (
         VideoPayloadMode,
@@ -217,7 +233,7 @@ def _load_dashboard(
     )
 
     if detail == "summary":
-        payload = build_dashboard_summary(limit=batch_limit)
+        payload = build_dashboard_summary(limit=batch_limit, cohort=cohort)
     else:
         video_mode: VideoPayloadMode = "all" if detail == "full" else "running"
         payload = build_dashboard_data(
@@ -226,6 +242,7 @@ def _load_dashboard(
             enrich_bronze_only_running=enrich_bronze_only_running,
             batch_limit=batch_limit,
             video_mode=video_mode,
+            cohort=cohort,
         )
     return _sanitize_dashboard_payload(payload)
 
@@ -237,8 +254,13 @@ async def stream_batch_jobs(
         False,
         description="When true, refresh transcript counts from bronze each tick (heavier)",
     ),
+    cohort: Optional[str] = Query(
+        None,
+        description="Launch cohort; data_centers scopes stage_report to DC jurisdictions",
+    ),
 ) -> StreamingResponse:
     """SSE stream of dashboard JSON; pushes when DB revision changes."""
+    cohort_norm = _parse_dashboard_cohort(cohort)
 
     async def event_generator() -> AsyncIterator[str]:
         last_rev: Optional[str] = None
@@ -251,6 +273,7 @@ async def stream_batch_jobs(
                     refresh_files=False,
                     enrich_bronze=False,
                     detail="summary",
+                    cohort=cohort_norm,
                 )
                 yield (
                     "event: summary\n"
@@ -342,18 +365,24 @@ async def list_batch_jobs(
         description="summary = aggregates + batch list (default); standard/full load jurisdiction payloads (slow)",
     ),
     batch_limit: int = Query(25, ge=1, le=100),
+    cohort: Optional[str] = Query(
+        None,
+        description="Launch cohort; data_centers scopes stage_report to DC jurisdictions",
+    ),
 ) -> BatchJobsDashboardResponse:
     if detail not in ("summary", "standard", "full"):
         raise HTTPException(
             status_code=400,
             detail="detail must be summary, standard, or full",
         )
+    cohort_norm = _parse_dashboard_cohort(cohort)
     try:
         payload = await _load_dashboard_cached(
             refresh_files=refresh_files,
             enrich_bronze=enrich_bronze,
             detail=detail,
             batch_limit=batch_limit,
+            cohort=cohort_norm,
         )
         return BatchJobsDashboardResponse(**payload)
     except Exception as exc:
@@ -513,6 +542,7 @@ class LaunchRequest(BaseModel):
     states: List[str] = Field(default_factory=list)
     n: int = 10
     parallel: int = 4
+    cohort: str = "priority"
 
 
 class LaunchStatusResponse(BaseModel):
@@ -564,7 +594,25 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     step = (req.step or "").strip().lower()
     if step not in _LAUNCH_STEPS:
         raise HTTPException(status_code=400, detail=f"step must be one of {list(_LAUNCH_STEPS)}")
-    states = [s.strip().upper() for s in (req.states or []) if s and s.strip()]
+    cohort = (req.cohort or "priority").strip().lower()
+    if cohort not in ("priority", "data_centers", "all"):
+        raise HTTPException(
+            status_code=400,
+            detail="cohort must be one of priority, data_centers, all",
+        )
+    from api.batch_jobs.batch_job_db import get_db_connection
+    from api.batch_jobs.cohorts import resolve_launch_states
+
+    conn = None
+    try:
+        if cohort == "data_centers":
+            conn = get_db_connection()
+        states = resolve_launch_states(cohort, req.states or [], conn=conn)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        if conn is not None:
+            conn.close()
     bad = [s for s in states if not _STATE_RE.match(s)]
     if bad:
         raise HTTPException(status_code=400, detail=f"invalid state code(s): {bad}")
@@ -597,6 +645,8 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
 
     root = _repo_root()
     env = dict(os.environ)
+    env["COHORT"] = cohort
+    env["STATES"] = ",".join(states)
     if step == "discover":
         # Stage 0 runs the channel-discovery script. It accepts one state or a
         # comma list (--states A,B,C); we always pass --states so the ALL-scope
@@ -612,6 +662,8 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         import sys as _sys
 
         argv = [_sys.executable, str(target), "--states", ",".join(states)]
+        if cohort == "data_centers":
+            argv += ["--cohort", "data_centers"]
     elif step == "backfill":
         # Global transcript backfill over the int_events_union mart. Unlike the
         # per-jurisdiction `captions` step (which reads bronze_event_youtube
@@ -637,6 +689,8 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
             argv += ["--limit", str(min(backfill_limit, 100000))]
         if states:
             argv += ["--states", ",".join(states)]
+        if cohort == "data_centers":
+            argv += ["--cohort", "data_centers"]
         # Caption egress (Webshare vs cookies+direct) is left to the environment /
         # .env (YOUTUBE_USE_WEBSHARE). Don't force Webshare here: the residential
         # pool is bandwidth-capped and, once exhausted, every fetch TLS-times-out
@@ -650,8 +704,6 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         env["BATCH_STATUS"] = "1"
         env["N"] = str(n)
         env["PARALLEL"] = str(parallel)
-        if states:
-            env["STATES"] = ",".join(states)
         argv = ["bash", str(script), step]  # fixed argv, no shell
 
     import datetime as _dt
@@ -869,6 +921,39 @@ class FailedVideosListResponse(BaseModel):
     rows: List[FailedVideoRowModel] = Field(default_factory=list)
     total_fail_in_summaries: int = 0
     truncated: bool = False
+
+
+class CohortsResponse(BaseModel):
+    priority: List[str]
+    data_centers: List[str]
+    all: List[str]
+
+
+@router.get("/cohorts", response_model=CohortsResponse)
+async def list_cohorts() -> CohortsResponse:
+    """State-code lists for priority, data-center, and full-US launch cohorts."""
+    from api.batch_jobs.batch_job_db import get_db_connection
+    from api.batch_jobs.cohorts import cohort_state_codes
+
+    def _load() -> CohortsResponse:
+        conn = get_db_connection()
+        try:
+            return CohortsResponse(
+                priority=cohort_state_codes("priority"),
+                data_centers=cohort_state_codes("data_centers", conn=conn),
+                all=cohort_state_codes("all"),
+            )
+        finally:
+            conn.close()
+
+    try:
+        return await asyncio.to_thread(_load)
+    except Exception as exc:
+        logger.exception("batch-jobs cohorts failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch jobs cohorts failed: {exc}",
+        ) from exc
 
 
 @router.get("/failed-videos", response_model=FailedVideosListResponse)

@@ -7,6 +7,8 @@ import {
   fetchBatchJobDetail,
   fetchBatchJurisdictions,
   fetchBatchJobsDashboard,
+  fetchCohorts,
+  type BatchCohort,
   fetchFailedVideos,
   fetchLaunchLog,
   fetchLaunchStatus,
@@ -868,6 +870,21 @@ function BatchDetailPanel({
 // youtube_run_priority_states_last_n.sh). "All states" uses STATE_CODES (50 + DC).
 const PRIORITY_STATE_CODES = ['AL', 'GA', 'IN', 'MA', 'MT', 'WA', 'WI']
 
+function parseBatchCohort(raw: string | null | undefined): BatchCohort {
+  if (raw === 'priority' || raw === 'data_centers' || raw === 'all') return raw
+  return 'priority'
+}
+
+function cohortLaunchLabel(cohort: BatchCohort): string {
+  if (cohort === 'data_centers') return 'data centers'
+  if (cohort === 'all') return 'all 50 + DC'
+  return 'priority'
+}
+
+function batchJobsDashboardQueryKey(cohort: BatchCohort) {
+  return ['batch-jobs-dashboard', cohort] as const
+}
+
 type JobType = 'youtube' | 'deployment'
 
 function JobTypeTabs({
@@ -922,25 +939,86 @@ export default function BatchJobStatusPage() {
   const [streamLive, setStreamLive] = useState(false)
   const [videosLoading, setVideosLoading] = useState(false)
 
+  // URL is the single source of truth for Filter (cohort). Avoid useState↔URL
+  // sync races that briefly (or permanently) keep Priority counts while the
+  // select already shows Data centers.
+  const allScope = parseBatchCohort(
+    searchParams.get('cohort') ?? localStorage.getItem('batch-launch-scope'),
+  )
+  const setAllScope = useCallback(
+    (v: BatchCohort, cohortStates?: string[]) => {
+      localStorage.setItem('batch-launch-scope', v)
+      const next = new URLSearchParams(searchParams)
+      next.set('cohort', v)
+      const st = (searchParams.get('state') ?? '').toUpperCase()
+      const allowed = cohortStates ?? []
+      if (st && allowed.length > 0 && !allowed.includes(st)) {
+        next.delete('state')
+      }
+      setSearchParams(next, { replace: true })
+      // Drop cached dashboards so numerator/denominator always refetch for the
+      // newly selected Filter (priority / data_centers / all).
+      void queryClient.invalidateQueries({ queryKey: ['batch-jobs-dashboard'] })
+    },
+    [searchParams, setSearchParams, queryClient],
+  )
+
+  useEffect(() => {
+    if (searchParams.get('cohort')) return
+    const next = new URLSearchParams(searchParams)
+    next.set('cohort', allScope)
+    setSearchParams(next, { replace: true })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- seed ?cohort= once
+
+  useEffect(() => {
+    localStorage.setItem('batch-launch-scope', allScope)
+  }, [allScope])
+
+  const { data: cohortsData } = useQuery({
+    queryKey: ['batch-cohorts'],
+    queryFn: fetchCohorts,
+    staleTime: 300_000,
+    retry: 1,
+  })
+
   const { data, isPending, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['batch-jobs-dashboard'],
-    queryFn: () => fetchBatchJobsDashboard(false, 'summary'),
-    staleTime: 30_000,
+    queryKey: batchJobsDashboardQueryKey(allScope),
+    queryFn: ({ queryKey }) => {
+      const cohort = (queryKey[1] as BatchCohort) || 'priority'
+      return fetchBatchJobsDashboard(false, 'summary', cohort)
+    },
+    staleTime: 0,
     refetchOnWindowFocus: true,
     retry: 1,
   })
 
   useEffect(() => {
-    const url = batchJobsStreamUrl()
+    if (!cohortsData || !stateFilter) return
+    const allowed = cohortsData[allScope] ?? []
+    if (allowed.length > 0 && !allowed.includes(stateFilter)) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('state')
+      setSearchParams(next, { replace: true })
+    }
+  }, [cohortsData, allScope, stateFilter, searchParams, setSearchParams])
+
+  useEffect(() => {
+    const cohort = allScope
+    const url = batchJobsStreamUrl(cohort)
     const es = new EventSource(url)
+    let active = true
 
     const applyPayload = (payload: BatchJobsDashboardPayload) => {
-      queryClient.setQueryData<BatchJobsDashboardPayload>(['batch-jobs-dashboard'], (prev) =>
-        mergeDashboardFromStream(prev, payload),
+      if (!active) return
+      queryClient.setQueryData<BatchJobsDashboardPayload>(
+        batchJobsDashboardQueryKey(cohort),
+        (prev) => mergeDashboardFromStream(prev, payload),
       )
     }
 
-    es.onopen = () => setStreamLive(true)
+    es.onopen = () => {
+      if (active) setStreamLive(true)
+    }
     es.addEventListener('summary', (ev) => {
       try {
         applyPayload(JSON.parse(ev.data) as BatchJobsDashboardPayload)
@@ -949,16 +1027,18 @@ export default function BatchJobStatusPage() {
       }
     })
     es.onerror = () => {
+      if (!active) return
       setStreamLive(false)
       es.close()
       void refetch()
     }
 
     return () => {
+      active = false
       setStreamLive(false)
       es.close()
     }
-  }, [queryClient, refetch])
+  }, [queryClient, refetch, allScope])
 
   const { data: launchStatus, refetch: refetchLaunch } = useQuery({
     queryKey: ['batch-launch-status'],
@@ -978,16 +1058,6 @@ export default function BatchJobStatusPage() {
   const setParallel = useCallback((v: number) => {
     setParallelism(v)
     localStorage.setItem('batch-parallelism', String(v))
-  }, [])
-  // Which states a full / "ALL"-scope launch targets: the priority dev set
-  // (matches the script default) or every US state + DC. Picking a single state
-  // from the scope dropdown overrides this. Persisted across reloads.
-  const [allScope, setAllScopeState] = useState<'priority' | 'all'>(() => {
-    return localStorage.getItem('batch-launch-scope') === 'all' ? 'all' : 'priority'
-  })
-  const setAllScope = useCallback((v: 'priority' | 'all') => {
-    setAllScopeState(v)
-    localStorage.setItem('batch-launch-scope', v)
   }, [])
   // How many missing transcripts one ▶ Backfill click fetches. 0 = "All" (sweep
   // every missing transcript). The run is resumable — it re-queries what's still
@@ -1013,6 +1083,7 @@ export default function BatchJobStatusPage() {
           states,
           parallel: parallelism,
           n: nOverride ?? 25,
+          cohort: allScope,
         })
         setLaunchMsg(res.detail || 'Launched.')
         void refetchLaunch()
@@ -1023,7 +1094,7 @@ export default function BatchJobStatusPage() {
         setLaunching(false)
       }
     },
-    [refetchLaunch, refetch, parallelism],
+    [refetchLaunch, refetch, parallelism, allScope],
   )
 
   const stopLaunch = useCallback(
@@ -1244,7 +1315,7 @@ export default function BatchJobStatusPage() {
       .then((batch) => {
         if (cancelled) return
         queryClient.setQueryData<BatchJobsDashboardPayload>(
-          ['batch-jobs-dashboard'],
+          batchJobsDashboardQueryKey(allScope),
           (prev) => mergeBatchIntoDashboard(prev, batch) ?? prev,
         )
       })
@@ -1260,6 +1331,7 @@ export default function BatchJobStatusPage() {
     showFailedVideos,
     selectedJurisdictionForVideos,
     data?.totals.videos_fail,
+    allScope,
     queryClient,
   ])
 
@@ -1452,7 +1524,21 @@ export default function BatchJobStatusPage() {
         <>
           {(() => {
             const report = data.stage_report ?? { states: [], rows: [] }
-            const stateOpts = report.states ?? []
+            // Prefer API cohort state lists; fall back so Data centers still has a
+            // Scope list (and ALL rollup) before /cohorts returns.
+            const cohortStates =
+              cohortsData?.[allScope] ??
+              (allScope === 'all'
+                ? STATE_CODES
+                : allScope === 'data_centers'
+                  ? report.states?.length
+                    ? report.states
+                    : []
+                  : PRIORITY_STATE_CODES)
+            // Cohort list is source of truth; intersect with report.states to hide empty rows.
+            const stateOpts = report.states?.length
+              ? cohortStates.filter((s) => report.states!.includes(s))
+              : cohortStates
             const scope = stateFilter && stateOpts.includes(stateFilter) ? stateFilter : 'ALL'
             const rowFor = (
               sc: string,
@@ -1542,7 +1628,12 @@ export default function BatchJobStatusPage() {
                 n: 2,
                 stage: 'transcripts',
                 unit: 'videos',
-                sub: `${formatCompactNumber(data.totals.files_transcripts_disk ?? 0)} segment rows · deduped to videos`,
+                sub:
+                  allScope === 'data_centers'
+                    ? 'data-center jurisdictions only'
+                    : allScope === 'priority'
+                      ? 'priority states only'
+                      : `${formatCompactNumber(data.totals.files_transcripts_disk ?? 0)} segment rows · deduped to videos`,
                 pill: true,
                 drill: openFailed,
                 failTitle: 'Videos with no usable transcript — tap to list',
@@ -1570,14 +1661,10 @@ export default function BatchJobStatusPage() {
             const ls = launchStatus
             // ALL view scope → an explicit launch target (priority set or 50 + DC)
             // so the backend can't silently fall back to its priority-only default.
-            const launchScopeStates =
-              scope === 'ALL'
-                ? allScope === 'all'
-                  ? STATE_CODES
-                  : PRIORITY_STATE_CODES
-                : [scope]
+            const launchScopeStates = scope === 'ALL' ? cohortStates : [scope]
+            const cohortLabel = cohortLaunchLabel(allScope)
             const scopeLaunchLabel =
-              scope !== 'ALL' ? scope : allScope === 'all' ? 'all 50 + DC' : 'priority'
+              scope !== 'ALL' ? `${cohortLabel} · ${scope}` : cohortLabel
             // Each running step maps to the stage(s) it advances. Different steps
             // run concurrently, so we union them for the live "running" markers.
             const stepStages: Record<string, PipelineStage[]> = {
@@ -1671,23 +1758,36 @@ export default function BatchJobStatusPage() {
                     </span>
                     {scope !== 'ALL' ? (
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
-                        {scope}
+                        {scopeLaunchLabel}
                       </span>
-                    ) : null}
+                    ) : (
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+                        {cohortLabel}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {ls?.enabled && scope === 'ALL' ? (
+                    {ls?.enabled ? (
                       <label
-                        className="flex items-center gap-1 text-xs text-slate-500"
-                        title="Which states a full / ALL-scope run targets. Priority = the dev set (AL, GA, IN, MA, MT, WA, WI); All = every US state + DC. Pick a single state from the scope dropdown to run just that one. Applies to the next launch."
+                        className="flex items-center gap-1.5 text-xs text-slate-500"
+                        title="Filter: which places a run targets (priority states, data-center jurisdictions, or all US states). Use Scope to narrow to one state. Applies to the next launch and stage numbers."
                       >
-                        <span aria-hidden>🗺️</span>
+                        <span className="font-medium uppercase tracking-wide text-slate-500">
+                          Filter
+                        </span>
                         <select
+                          aria-label="Filter"
                           value={allScope}
-                          onChange={(e) => setAllScope(e.target.value as 'priority' | 'all')}
+                          onChange={(e) =>
+                            setAllScope(
+                              e.target.value as BatchCohort,
+                              cohortsData?.[e.target.value as BatchCohort],
+                            )
+                          }
                           className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs font-medium text-slate-700"
                         >
                           <option value="priority">Priority states</option>
+                          <option value="data_centers">Data centers</option>
                           <option value="all">All states (50 + DC)</option>
                         </select>
                       </label>
@@ -1738,19 +1838,27 @@ export default function BatchJobStatusPage() {
                       </button>
                     ) : null}
                     {stateOpts.length > 0 ? (
-                      <select
-                        value={scope === 'ALL' ? '' : scope}
-                        onChange={(e) => setScope(e.target.value)}
-                        title="Scope the stage numbers (and the detail tables) to one state"
-                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                      <label
+                        className="flex items-center gap-1.5 text-xs text-slate-500"
+                        title="Scope the stage numbers (and the detail tables) to one state within the Filter"
                       >
-                        <option value="">All states</option>
-                        {stateOpts.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                        <span className="font-medium uppercase tracking-wide text-slate-500">
+                          Scope
+                        </span>
+                        <select
+                          aria-label="Scope"
+                          value={scope === 'ALL' ? '' : scope}
+                          onChange={(e) => setScope(e.target.value)}
+                          className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                        >
+                          <option value="">All in filter</option>
+                          {stateOpts.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     ) : null}
                   </div>
                 </div>
@@ -1847,6 +1955,11 @@ export default function BatchJobStatusPage() {
                             {formatCompactNumber(done)}
                           </span>{' '}
                           / {formatCompactNumber(total)} {st.unit} · {fmtPct(done, total)}
+                          {isFetching ? (
+                            <span className="ml-1 text-[10px] font-normal text-slate-400">
+                              updating…
+                            </span>
+                          ) : null}
                         </div>
                         <div className="mt-1.5">
                           <ProgressBar pct={pct} />

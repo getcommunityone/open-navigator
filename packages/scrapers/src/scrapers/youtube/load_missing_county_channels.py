@@ -38,7 +38,12 @@ def resolve_database_url(explicit: str | None) -> str:
     )
 
 
-def fetch_missing_counties(database_url: str, state_code: str) -> list[dict[str, Any]]:
+def fetch_missing_counties(
+    database_url: str,
+    state_code: str,
+    *,
+    data_center_jids: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
     sql = """
         SELECT
             j.jurisdiction_id,
@@ -69,12 +74,16 @@ def fetch_missing_counties(database_url: str, state_code: str) -> list[dict[str,
               WHERE state_code = %s
                 AND jurisdiction_id LIKE 'county_%%'
           )
-        ORDER BY j.name
     """
+    params: list[Any] = [state_code, state_code]
+    if data_center_jids is not None:
+        sql += " AND j.jurisdiction_id = ANY(%s)"
+        params.append(list(data_center_jids))
+    sql += " ORDER BY j.name"
 
     with psycopg2.connect(database_url) as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, (state_code, state_code))
+            cur.execute(sql, params)
             rows = cur.fetchall()
 
     return [
@@ -298,9 +307,12 @@ def discover_one_state(
     output: str,
     multi: bool,
     skip_homepage_scrape: bool,
+    data_center_jids: frozenset[str] | None = None,
 ) -> int:
     """Discover candidate channels for one state; returns # rows with a channel."""
-    missing = fetch_missing_counties(db_url, state_code)
+    missing = fetch_missing_counties(
+        db_url, state_code, data_center_jids=data_center_jids,
+    )
     logger.info("Missing county mappings in {}: {}", state_code, len(missing))
     if not missing:
         logger.success("No missing county mappings for {}", state_code)
@@ -345,7 +357,23 @@ def main() -> int:
         help="Output CSV path (per-state suffix added when sweeping multiple states)",
     )
     p.add_argument("--database-url", default="", help="Postgres URL override")
+    p.add_argument(
+        "--cohort",
+        default="",
+        help="Launch cohort (e.g. data_centers restricts to data-center jurisdictions)",
+    )
     args = p.parse_args()
+
+    cohort = (args.cohort or "").strip().lower()
+    data_center_jids: frozenset[str] | None = None
+    if cohort == "data_centers":
+        from api.batch_jobs.cohorts import data_center_jurisdiction_ids
+
+        with psycopg2.connect(resolve_database_url(args.database_url)) as conn:
+            data_center_jids = frozenset(data_center_jurisdiction_ids(conn))
+        if not data_center_jids:
+            logger.warning("data_centers cohort: no jurisdiction ids in warehouse")
+            return 0
 
     if args.states.strip():
         states = [s.strip().upper() for s in args.states.split(",") if s.strip()]
@@ -361,6 +389,7 @@ def main() -> int:
             output=args.output,
             multi=multi,
             skip_homepage_scrape=args.skip_homepage_scrape,
+            data_center_jids=data_center_jids,
         )
     return 0
 

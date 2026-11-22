@@ -26,8 +26,13 @@ from typing import List, Dict, Optional, Any
 import argparse
 from urllib.parse import parse_qs, urlparse
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Add repo root (for api.batch_jobs) and scrapers package to path
+from core_lib.paths import repo_root as _repo_root_fn
+
+_REPO_ROOT = _repo_root_fn(__file__)
+for _p in (_REPO_ROOT, _REPO_ROOT / "packages" / "scrapers" / "src"):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -253,6 +258,7 @@ def get_events_missing_transcripts(
     *,
     retry_after_days: int = 30,
     retry_failed: bool = False,
+    data_center_jids: Optional[frozenset[str]] = None,
 ) -> List[Dict]:
     """Get YouTube events without transcripts yet, never-tried videos first.
 
@@ -305,6 +311,10 @@ def get_events_missing_transcripts(
             query += f" AND u.state_code IN ({placeholders})"
             params.extend(states)
 
+        if data_center_jids is not None:
+            query += " AND u.jurisdiction_id = ANY(%s)"
+            params.append(list(data_center_jids))
+
         # Ordering, in priority order:
         #  1. Never-attempted videos first (FALSE < TRUE) — retries from the
         #     negative cache go dead last regardless of source.
@@ -340,6 +350,8 @@ def backfill_transcripts(
     limit: Optional[int] = None,
     retry_after_days: int = 30,
     retry_failed: bool = False,
+    *,
+    cohort: Optional[str] = None,
 ):
     """Backfill missing transcripts for YouTube events."""
 
@@ -351,6 +363,16 @@ def backfill_transcripts(
         # prioritise never-tried videos and don't re-fetch known caption-less ones.
         ensure_transcript_fetch_attempts_table(conn)
 
+        data_center_jids: Optional[frozenset[str]] = None
+        if (cohort or "").strip().lower() == "data_centers":
+            from api.batch_jobs.cohorts import data_center_jurisdiction_ids
+
+            jids = data_center_jurisdiction_ids(conn)
+            data_center_jids = frozenset(jids)
+            if not data_center_jids:
+                logger.warning("data_centers cohort: no jurisdiction ids in warehouse")
+                return
+
         # Get events missing transcripts
         logger.info("Finding YouTube events without transcripts...")
         events = get_events_missing_transcripts(
@@ -359,6 +381,7 @@ def backfill_transcripts(
             limit=limit,
             retry_after_days=retry_after_days,
             retry_failed=retry_failed,
+            data_center_jids=data_center_jids,
         )
         # Release the read transaction's AccessShareLock on int_events_union
         # immediately — otherwise the whole (potentially hours-long) fetch loop
@@ -631,6 +654,12 @@ def main():
         help='Ignore the negative cache and re-attempt every missing video, '
              'including ones already found to have no transcript.'
     )
+    parser.add_argument(
+        '--cohort',
+        type=str,
+        default='',
+        help='Launch cohort (e.g. data_centers restricts to data-center jurisdictions)',
+    )
 
     args = parser.parse_args()
 
@@ -641,6 +670,7 @@ def main():
         logger.info(f"Filtering to states: {', '.join(states)}")
 
     # Run backfill
+    cohort = (args.cohort or '').strip() or None
     backfill_transcripts(
         database_url=DATABASE_URL,
         youtube_api_key=YOUTUBE_API_KEY,
@@ -648,6 +678,7 @@ def main():
         limit=args.limit,
         retry_after_days=args.retry_after_days,
         retry_failed=args.retry_failed,
+        cohort=cohort,
     )
 
 
