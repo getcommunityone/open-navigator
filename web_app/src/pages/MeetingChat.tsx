@@ -1,5 +1,5 @@
 /**
- * Meeting Q&A chat (#630 / #652) — ChatGPT-style sidebar + thread.
+ * Meeting Q&A chat (#630 / #652 / #670) — thread main + right rail.
  * Scope from URL (?state=&city=&county_fips=); label matches the filter.
  */
 import { useSearchParams } from 'react-router-dom'
@@ -10,6 +10,9 @@ import {
 } from '../components/meeting-chat/MeetingChatRuntime'
 import { MeetingChatSidebar } from '../components/meeting-chat/MeetingChatSidebar'
 import { MeetingChatThread } from '../components/meeting-chat/MeetingChatThread'
+
+/** Matches Layout’s content band under SiteHeader (`min-h-[calc(100dvh-5rem)]`). */
+const CHAT_VIEWPORT_H = 'h-[calc(100dvh-5rem)]'
 
 function scopeLabel(scope: MeetingChatScope): string {
   if (scope.city && scope.state) {
@@ -34,13 +37,13 @@ export default function MeetingChat() {
   const label = scopeLabel(scope)
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden bg-white">
-      <MeetingChatRuntimeProvider scope={scope}>
-        <MeetingChatSidebar scopeLabel={label} />
-        <div className="flex min-w-0 flex-1 flex-col">
+    <MeetingChatRuntimeProvider scope={scope}>
+      <div className={`flex min-h-0 flex-1 overflow-hidden bg-white ${CHAT_VIEWPORT_H}`}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <MeetingChatThread />
         </div>
-      </MeetingChatRuntimeProvider>
-    </div>
+        <MeetingChatSidebar scopeLabel={label} />
+      </div>
+    </MeetingChatRuntimeProvider>
   )
 }

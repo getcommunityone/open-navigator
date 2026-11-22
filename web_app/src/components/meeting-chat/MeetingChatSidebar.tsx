@@ -1,5 +1,5 @@
 /**
- * ChatGPT-style left rail for meeting chat (#652): new chat, scope, recent threads.
+ * Meeting chat thread rail (#652 / #670): New chat, scope, recent threads — right side, light.
  */
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useMeetingChatControls } from './MeetingChatRuntime'
@@ -9,19 +9,19 @@ export function MeetingChatSidebar({ scopeLabel }: { scopeLabel: string }) {
     useMeetingChatControls()
 
   return (
-    <aside className="flex h-full w-[min(100%,16.5rem)] shrink-0 flex-col border-r border-slate-200 bg-slate-900 text-slate-100">
-      <div className="border-b border-slate-700/80 px-3 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+    <aside className="flex h-full w-[min(100%,16.5rem)] shrink-0 flex-col border-l border-slate-200 bg-slate-50 text-slate-800">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           Ask meetings
         </p>
-        <p className="mt-1 truncate text-sm font-medium text-teal-300" title={scopeLabel}>
+        <p className="mt-1 truncate text-sm font-medium text-teal-800" title={scopeLabel}>
           {scopeLabel}
         </p>
         <button
           type="button"
           onClick={newChat}
           disabled={isRunning}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-100 disabled:opacity-50"
         >
           <PlusIcon className="h-4 w-4" />
           New chat
@@ -42,8 +42,8 @@ export function MeetingChatSidebar({ scopeLabel }: { scopeLabel: string }) {
                   onClick={() => selectThread(t.id)}
                   className={`w-full truncate rounded-lg px-2.5 py-2 pr-8 text-left text-sm ${
                     active
-                      ? 'bg-slate-700 text-white'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                      : 'text-slate-700 hover:bg-white hover:text-slate-900'
                   }`}
                   title={t.title}
                 >
@@ -56,7 +56,7 @@ export function MeetingChatSidebar({ scopeLabel }: { scopeLabel: string }) {
                     e.stopPropagation()
                     deleteThread(t.id)
                   }}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 opacity-0 hover:bg-slate-600 hover:text-white group-hover:opacity-100"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 opacity-0 hover:bg-slate-200 hover:text-slate-700 group-hover:opacity-100"
                 >
                   <TrashIcon className="h-3.5 w-3.5" />
                 </button>
@@ -66,7 +66,7 @@ export function MeetingChatSidebar({ scopeLabel }: { scopeLabel: string }) {
         </ul>
       </nav>
 
-      <p className="border-t border-slate-700/80 px-3 py-2 text-[11px] leading-snug text-slate-500">
+      <p className="border-t border-slate-200 px-3 py-2 text-[11px] leading-snug text-slate-500">
         Answers use meeting summaries. Quotes load transcript cues only when you ask.
       </p>
     </aside>
