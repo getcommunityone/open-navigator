@@ -77,6 +77,19 @@ Lifecycle: [Development docs hygiene](web_docs/docs/development/development-docs
   the PR and reviews it. `/pr-review` (`.claude/commands/pr-review.md`) reviews any PR against
   `.claude/review-rubric.md` and writes `pull_requests/pr-<n>-review.md`. The review is committed to the PR's branch.
   Agents without slash commands read those files and follow the same steps. Every PR gets a review before it merges.
+- **An agent merges its own PR when it's ready, without waiting to be told** (standing rule, #758; same practice as
+  health-transformation-lab-nlp #497). Ready means every required check is green on the latest commit, there is no
+  merge conflict, and `pull_requests/pr-<n>-review.md` finds nothing blocking (`verdict:` is `approve` or
+  `approve-with-nits`, not `request-changes`). Squash-merge with admin when GitHub blocks self-approval
+  (`gh pr merge <n> --squash --admin`; `enforce_admins` is off on `main`). These still wait for the owner to say
+  "merge":
+  - a PR that starts a run on limited or paid compute (GPU / Colab, WhisperX diarization, paid LLM endpoints);
+  - one that publishes outside this repo (Hugging Face, production deploy, the public docs site beyond a normal merge);
+  - one that deletes data, warehouse tables or branches, or changes these agent rules;
+  - one the owner has said to hold.
+
+  Before merging, check open PRs and recent commits on `main` for the same work. If another session already did it,
+  close yours and say so. Enforcing that the review file exists in CI is #648.
 - Everything in `CLAUDE.md`, "Branch & PR Workflow" still applies: never push to `main`, never force-push, required
   checks green before merge.
 

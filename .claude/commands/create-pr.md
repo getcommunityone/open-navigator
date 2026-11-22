@@ -52,8 +52,25 @@ with the attribution lines the session asks for. Create it with the GitHub tools
 Run the `/pr-review` flow on the new PR number, write `pull_requests/pr-<n>-review.md`, and commit it to the PR's
 branch. If the verdict is request-changes, fix the 🔴 findings on the branch, push, and review again.
 
-## 4. Merge
+## 4. Merge (standing rule — do not wait to be told)
 
-Report the PR link and the verdict. Merge only when the user asks, every required check (Frontend Build,
-Documentation Build, Backend Tests, API Types) is green on the latest commit, and the verdict isn't
-request-changes. Squash-merge (`CLAUDE.md`, "Branch & PR Workflow").
+When the PR is **ready**, merge it yourself (`AGENTS.md` #758; same as health-transformation-lab-nlp #497).
+Ready means all of:
+
+- every required check is green on the latest commit (Frontend Build, Documentation Build, Backend Tests, API Types);
+- there is no merge conflict with `main`;
+- `pull_requests/pr-<n>-review.md` is on the branch and its `verdict:` is `approve` or `approve-with-nits`
+  (not `request-changes`).
+
+Squash-merge: `gh pr merge <n> --squash --admin` (GitHub forbids self-approval under the required-review rule;
+`enforce_admins` is off). Report the PR link, the verdict, and that you merged (or why you did not).
+
+**Still wait for the owner to say "merge"** when the PR:
+
+- starts limited or paid compute (GPU / Colab, WhisperX, paid LLM endpoints);
+- publishes outside this repo (Hugging Face, production deploy);
+- deletes data, warehouse tables or branches, or changes agent rules;
+- the owner has said to hold.
+
+Before merging, check open PRs and recent `main` commits for the same work; if another session already landed it,
+close yours and say so.

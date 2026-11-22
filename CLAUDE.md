@@ -124,7 +124,7 @@ When a result tile/card is shown **because of a topic, keyword, cause, question,
   gh pr create --base main
   ```
 - **A PR must be green before merge.** Required CI checks (Frontend Build, Documentation Build, Backend Tests, API Types) must pass; resolve all conversations. The Docker Build Test is **not** required (it self-skips when no Docker files change).
-- **Do NOT merge your own work silently.** Prefer review. The solo maintainer may self-merge as admin (`gh pr merge <n> --squash --admin`) only because GitHub forbids self-approval; this is a stopgap, not the norm — once a second reviewer exists, require the approval.
+- **Agents merge when ready** (`AGENTS.md` standing rule #758). After `/create-pr` / `/pr-review`, if required CI is green, there is no conflict, and `pull_requests/pr-<n>-review.md` has no blocking findings, squash-merge without waiting for the owner to say "merge". Use `gh pr merge <n> --squash --admin` while branch protection requires a human approval GitHub forbids the author from giving. Exceptions that still wait for the owner: paid/GPU compute, publish outside the repo, destructive data or rule changes, or an explicit hold. When a second human reviewer exists, keep the written review and prefer their approval before merge.
 - **Never rewrite or force-push shared history** (`main`, or any branch with an open PR). A parallel session may be committing alongside you: stage only your own files, and verify your work landed via `git log` rather than amending.
 - **Agents/automation** must follow the same flow — branch + PR, never a direct push to `main`.
 
