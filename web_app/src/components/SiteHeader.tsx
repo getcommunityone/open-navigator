@@ -213,15 +213,6 @@ export default function SiteHeader() {
                 <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
                   <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={menuBtn}>My Profile</button>
                   <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/settings?section=account&tab=profile') }} style={menuBtn}>Settings</button>
-
-                  <div style={menuSectionLabel}>Site</div>
-                  <button
-                    type="button"
-                    onClick={() => { setShowLoginMenu(false); navigate('/settings?section=site') }}
-                    style={{ ...menuBtn, fontWeight: 600, color: TEAL_DARK }}
-                  >
-                    Site settings
-                  </button>
                   <button
                     type="button"
                     onClick={() => { setShowLoginMenu(false); navigate(DATA_EXPLORER_ENTRY) }}
@@ -232,13 +223,6 @@ export default function SiteHeader() {
 
                   {user.is_admin && (
                     <>
-                      <div style={menuSectionLabel}>Admin</div>
-                      <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/settings?section=admin') }} style={menuBtn}>
-                        Admin settings
-                      </button>
-                      <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/admin') }} style={menuBtn}>
-                        Admin home
-                      </button>
                       <div style={menuSectionLabel}>Databricks</div>
                       <a href={DATABRICKS_WORKSPACE_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ ...menuBtn, textDecoration: 'none' }}>Workspace ↗</a>
                       <a href={DATABRICKS_APP_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ ...menuBtn, textDecoration: 'none' }}>App ↗</a>
