@@ -19,14 +19,8 @@
   border-bottom: 1px solid var(--ifm-color-emphasis-300);
 }
 
-/* Ensure title text is white in both light and dark modes */
 .diagramTitle,
 .diagramTitle * {
-  color: #ffffff !important;
-}
-
-html[data-theme='dark'] .diagramTitle,
-html[data-theme='dark'] .diagramTitle * {
   color: #ffffff !important;
 }
 
@@ -55,11 +49,6 @@ html[data-theme='dark'] .diagramTitle * {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-html[data-theme='dark'] .zoomControls {
-  background: var(--ifm-background-color);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
 .zoomButton {
   min-width: 100px;
   padding: 8px 16px;
@@ -75,11 +64,6 @@ html[data-theme='dark'] .zoomControls {
   align-items: center;
   justify-content: center;
   gap: 4px;
-}
-
-html[data-theme='dark'] .zoomButton {
-  background: var(--ifm-background-color);
-  color: var(--ifm-font-color-base);
 }
 
 .zoomButton:hover {

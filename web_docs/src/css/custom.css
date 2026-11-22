@@ -27,38 +27,14 @@
   --ifm-font-family-base: 'Source Sans 3', system-ui, sans-serif;
 }
 
-[data-theme='dark'] {
-  --ifm-color-primary: #2dd4bf;
-  --ifm-color-primary-dark: #14b8a6;
-  --ifm-color-primary-darker: #0d9488;
-  --ifm-color-primary-darkest: #0f766e;
-  --ifm-color-primary-light: #5eead4;
-  --ifm-color-primary-lighter: #99f6e4;
-  --ifm-color-primary-lightest: #ccfbf1;
-  --docusaurus-highlighted-code-line-bg: rgba(45, 212, 191, 0.2);
-  --ifm-background-color: #1E293B;
-  --ifm-navbar-link-color: #e7e5e4;
-  --ifm-navbar-link-hover-color: #5eead4;
-  --ifm-navbar-sidebar-link-color: #e7e5e4;
-}
-
-/* Additional background color overrides */
-html[data-theme='light'] {
+/* Light theme only (#735) — no dark-mode palette. */
+html {
   --ifm-background-color: #ffffff;
   --ifm-background-surface-color: #ffffff;
 }
 
-html[data-theme='dark'] {
-  --ifm-background-color: #1E293B;
-  --ifm-background-surface-color: #1E293B;
-}
-
-body {
+htmlbody {
   background-color: #ffffff !important;
-}
-
-[data-theme='dark'] body {
-  background-color: #1E293B !important;
 }
 
 /* Brand row — match web_app SiteHeader (C1 mark + Open Navigator / by CommunityOne). */
@@ -288,16 +264,6 @@ article h6 {
 }
 
 /* Dark mode overrides */
-[data-theme='dark'] .theme-doc-sidebar-container,
-[data-theme='dark'] aside.theme-doc-sidebar-container {
-  background-color: #1E293B !important;
-}
-
-[data-theme='dark'] .theme-doc-toc-desktop,
-[data-theme='dark'] .table-of-contents {
-  background-color: #1E293B !important;
-}
-
 /* Mermaid diagrams - ensure they render large and readable */
 .mermaid {
   font-size: 18px !important;
