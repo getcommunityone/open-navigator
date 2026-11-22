@@ -1,9 +1,0 @@
-communityone:
-  name: CommunityOne Team
-  title: Open Navigator Development Team
-  url: https://github.com/getcommunityone
-  image_url: /img/communityone_logo_64.png
-  page: true
-  socials:
-    github: getcommunityone
-

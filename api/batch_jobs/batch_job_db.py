@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -208,6 +209,71 @@ def reap_stale_running_batches(*, limit: int = 30) -> int:
     return reaped
 
 
+def cancel_running_batches(
+    *,
+    reason: str = "operator Stop all",
+    step: str | None = None,
+    limit: int = 50,
+) -> int:
+    """Force-cancel ``running`` batch rows (used by dashboard Stop all).
+
+    Stop kills launch PIDs tracked in ``launch.json``, but orphan / already-dead
+    workers leave ``youtube_batch_job_runs.status = 'running'``, which keeps
+    ``totals.running > 0`` and disables **Run all** (#742). Returns how many
+    rows were cancelled.
+    """
+    if not _use_db():
+        return 0
+    from api.batch_jobs.batch_job_status import persist_batch_job
+
+    cancelled = 0
+    step_l = (step or "").strip().lower() or None
+    try:
+        with get_db_connection() as conn:
+            ensure_batch_job_tables(conn)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT payload
+                    FROM bronze.youtube_batch_job_runs
+                    WHERE status = 'running'
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+        finished = datetime.now(timezone.utc).isoformat()
+        for row in rows:
+            payload = row["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            job = BatchJob.from_dict(payload)
+            if (job.status or "").lower() != "running":
+                continue
+            if step_l and (job.step or "").lower() != step_l:
+                continue
+            job.status = "cancelled"
+            job.finished_at = finished
+            cfg = dict(job.config or {})
+            cfg["stop_all_reason"] = reason
+            job.config = cfg
+            for j in job.jurisdictions:
+                if (j.status or "").lower() == "running":
+                    j.status = "failed"
+                    j.exit_code = -1
+                    j.finished_at = finished
+                    j.updated_at = finished
+                    j.current_video_id = ""
+                    j.current_video_title = ""
+                    j.current_video_started_at = ""
+            persist_batch_job(job)
+            cancelled += 1
+    except Exception as exc:
+        logger.warning("cancel running batches failed: %s", exc)
+    return cancelled
+
+
 def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
     """
     Pipeline counts from the per-event bronze stamps (migration 083):
@@ -289,7 +355,17 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
 # Pipeline stages, in funnel order. Each (scope, stage) pair is one report row,
 # so adding a metric is a field and adding a dimension (state, later jurisdiction)
 # is more rows — not more columns.
-PIPELINE_STAGES = ("discover", "videos", "transcripts", "analyses", "reports")
+# Seven funnel stages (#755). Light stamps use policy_analysis_* / policy_report_*;
+# full stamps use policy_*_full_*. Legacy ``analyses``/``reports`` aliases map to light.
+PIPELINE_STAGES = (
+    "discover",
+    "videos",
+    "transcripts",
+    "analyses_light",
+    "reports_light",
+    "analyses_full",
+    "reports_full",
+)
 
 
 def _stage_report_filters(
@@ -401,11 +477,20 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
         "video_id",
         table="bronze.bronze_event_youtube_transcript",
     )
+    light_a = _one("policy_analysis_at", "policy_analysis_path")
+    light_r = _one("policy_report_at", "policy_report_path")
+    full_a = _one("policy_analysis_full_at", "policy_analysis_full_path")
+    full_r = _one("policy_report_full_at", "policy_report_full_path")
     return {
         "videos": vids,
         "transcripts": transcripts,
-        "analyses": _one("policy_analysis_at", "policy_analysis_path"),
-        "reports": _one("policy_report_at", "policy_report_path"),
+        "analyses_light": light_a,
+        "reports_light": light_r,
+        "analyses_full": full_a,
+        "reports_full": full_r,
+        # Back-compat keys for older UI clients.
+        "analyses": light_a,
+        "reports": light_r,
     }
 
 
@@ -449,13 +534,19 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                     COALESCE(NULLIF(state_code, ''), '??')                     AS st,
                     COUNT(*) FILTER (WHERE transcript_download_at IS NOT NULL)::int AS vids_ok,
                     COUNT(*) FILTER (WHERE transcript_file_error IS NOT NULL)::int  AS vids_fail,
-                    COUNT(*) FILTER (WHERE policy_analysis_at IS NOT NULL)::int     AS analyses,
-                    COUNT(*) FILTER (WHERE policy_analysis_error IS NOT NULL)::int  AS analysis_err,
-                    COUNT(*) FILTER (WHERE policy_report_at IS NOT NULL)::int       AS reports,
-                    COUNT(*) FILTER (WHERE policy_report_error IS NOT NULL)::int    AS report_err,
+                    COUNT(*) FILTER (WHERE policy_analysis_at IS NOT NULL)::int     AS analyses_light,
+                    COUNT(*) FILTER (WHERE policy_analysis_error IS NOT NULL)::int  AS analysis_light_err,
+                    COUNT(*) FILTER (WHERE policy_report_at IS NOT NULL)::int       AS reports_light,
+                    COUNT(*) FILTER (WHERE policy_report_error IS NOT NULL)::int    AS report_light_err,
+                    COUNT(*) FILTER (WHERE policy_analysis_full_at IS NOT NULL)::int AS analyses_full,
+                    COUNT(*) FILTER (WHERE policy_analysis_full_error IS NOT NULL)::int AS analysis_full_err,
+                    COUNT(*) FILTER (WHERE policy_report_full_at IS NOT NULL)::int  AS reports_full,
+                    COUNT(*) FILTER (WHERE policy_report_full_error IS NOT NULL)::int AS report_full_err,
                     MAX(transcript_download_at)                                 AS last_video,
-                    MAX(policy_analysis_at)                                     AS last_analysis,
-                    MAX(policy_report_at)                                       AS last_report
+                    MAX(policy_analysis_at)                                     AS last_analysis_light,
+                    MAX(policy_report_at)                                       AS last_report_light,
+                    MAX(policy_analysis_full_at)                                AS last_analysis_full,
+                    MAX(policy_report_full_at)                                  AS last_report_full
                 FROM bronze.bronze_event_youtube y
                 WHERE (%s::text[] IS NULL OR y.jurisdiction_id = ANY(%s))
                   AND (%s::text[] IS NULL OR y.state_code = ANY(%s))
@@ -465,9 +556,42 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
             )
             db_rows = cur.fetchall()
     except Exception as exc:
+        # Pre-114 DBs lack full_* columns — retry light-only query.
         conn.rollback()
-        logger.debug("pipeline_stage_report unavailable: %s", exc)
-        return out
+        logger.debug("pipeline_stage_report full columns unavailable, falling back: %s", exc)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        COALESCE(NULLIF(state_code, ''), '??')                     AS st,
+                        COUNT(*) FILTER (WHERE transcript_download_at IS NOT NULL)::int AS vids_ok,
+                        COUNT(*) FILTER (WHERE transcript_file_error IS NOT NULL)::int  AS vids_fail,
+                        COUNT(*) FILTER (WHERE policy_analysis_at IS NOT NULL)::int     AS analyses_light,
+                        COUNT(*) FILTER (WHERE policy_analysis_error IS NOT NULL)::int  AS analysis_light_err,
+                        COUNT(*) FILTER (WHERE policy_report_at IS NOT NULL)::int       AS reports_light,
+                        COUNT(*) FILTER (WHERE policy_report_error IS NOT NULL)::int    AS report_light_err,
+                        0::int AS analyses_full,
+                        0::int AS analysis_full_err,
+                        0::int AS reports_full,
+                        0::int AS report_full_err,
+                        MAX(transcript_download_at)                                 AS last_video,
+                        MAX(policy_analysis_at)                                     AS last_analysis_light,
+                        MAX(policy_report_at)                                       AS last_report_light,
+                        NULL::timestamp AS last_analysis_full,
+                        NULL::timestamp AS last_report_full
+                    FROM bronze.bronze_event_youtube y
+                    WHERE (%s::text[] IS NULL OR y.jurisdiction_id = ANY(%s))
+                      AND (%s::text[] IS NULL OR y.state_code = ANY(%s))
+                    GROUP BY 1
+                    """,
+                    (jf_a, jf_b, sf_a, sf_b),
+                )
+                db_rows = cur.fetchall()
+        except Exception as exc2:
+            conn.rollback()
+            logger.debug("pipeline_stage_report unavailable: %s", exc2)
+            return out
 
     # Stage 0 (channel discovery) lives in the scraped-jurisdiction tables, not in
     # bronze_event_youtube: per state, how many jurisdictions have a YouTube channel
@@ -611,49 +735,90 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
         ok = int(rec["vids_ok"])
         fail = int(rec["vids_fail"])
         attempted = ok + fail
-        lv, la, lr = rec["last_video"], rec["last_analysis"], rec["last_report"]
+        lv = rec["last_video"]
+        la_l = rec["last_analysis_light"]
+        lr_l = rec["last_report_light"]
+        la_f = rec["last_analysis_full"]
+        lr_f = rec["last_report_full"]
         # videos: YouTube download stamps (ok / attempted). transcripts: landed
-        # rows over that same attempted set. analyses/reports sit below
-        # transcripts in the funnel, denominated by transcripts that exist.
+        # rows over that same attempted set. Light analyses/reports sit below
+        # transcripts; full stages are denominated by light analyses (#755).
         tx_done = int(tx.get("done", 0))
         tx_total = max(int(tx.get("total", 0)), tx_done)
         tx_last = tx.get("last_at") or ""
-        analyses = int(rec["analyses"])
-        reports = int(rec["reports"])
+        analyses_light = int(rec["analyses_light"])
+        reports_light = int(rec["reports_light"])
+        analyses_full = int(rec["analyses_full"])
+        reports_full = int(rec["reports_full"])
         return [
             _discover_row(scope, disc),
             {"scope": scope, "stage": "videos", "done": ok, "total": attempted,
              "failed": fail, "last_at": lv},
             {"scope": scope, "stage": "transcripts", "done": tx_done, "total": tx_total,
              "failed": fail, "last_at": tx_last or lv},
-            {"scope": scope, "stage": "analyses", "done": analyses,
-             "total": max(tx_done, analyses),
-             "failed": int(rec["analysis_err"]), "last_at": la},
-            {"scope": scope, "stage": "reports", "done": reports,
-             "total": max(tx_done, reports),
-             "failed": int(rec["report_err"]), "last_at": lr},
+            {"scope": scope, "stage": "analyses_light", "done": analyses_light,
+             "total": max(tx_done, analyses_light),
+             "failed": int(rec["analysis_light_err"]), "last_at": la_l},
+            {"scope": scope, "stage": "reports_light", "done": reports_light,
+             "total": max(analyses_light, reports_light),
+             "failed": int(rec["report_light_err"]), "last_at": lr_l},
+            {"scope": scope, "stage": "analyses_full", "done": analyses_full,
+             "total": max(analyses_light, analyses_full),
+             "failed": int(rec["analysis_full_err"]), "last_at": la_f},
+            {"scope": scope, "stage": "reports_full", "done": reports_full,
+             "total": max(analyses_full, reports_full),
+             "failed": int(rec["report_full_err"]), "last_at": lr_f},
         ]
 
-    cols = ("st", "vids_ok", "vids_fail", "analyses", "analysis_err", "reports",
-            "report_err", "last_video", "last_analysis", "last_report")
+    cols = (
+        "st", "vids_ok", "vids_fail",
+        "analyses_light", "analysis_light_err", "reports_light", "report_light_err",
+        "analyses_full", "analysis_full_err", "reports_full", "report_full_err",
+        "last_video", "last_analysis_light", "last_report_light",
+        "last_analysis_full", "last_report_full",
+    )
     yt_by_state: Dict[str, Dict[str, Any]] = {}
     for r in db_rows:
         rec = dict(zip(cols, r))
-        for tk in ("last_video", "last_analysis", "last_report"):
+        for tk in (
+            "last_video",
+            "last_analysis_light",
+            "last_report_light",
+            "last_analysis_full",
+            "last_report_full",
+        ):
             rec[tk] = _iso(rec[tk])
         yt_by_state[str(rec["st"])] = rec
 
     _zero_rec = {
-        "vids_ok": 0, "vids_fail": 0, "analyses": 0, "analysis_err": 0,
-        "reports": 0, "report_err": 0,
-        "last_video": "", "last_analysis": "", "last_report": "",
+        "vids_ok": 0, "vids_fail": 0,
+        "analyses_light": 0, "analysis_light_err": 0,
+        "reports_light": 0, "report_light_err": 0,
+        "analyses_full": 0, "analysis_full_err": 0,
+        "reports_full": 0, "report_full_err": 0,
+        "last_video": "", "last_analysis_light": "", "last_report_light": "",
+        "last_analysis_full": "", "last_report_full": "",
     }
 
     rows: List[Dict[str, Any]] = []
     states: List[str] = []
-    totals = {k: 0 for k in ("vids_ok", "vids_fail", "analyses", "analysis_err",
-                             "reports", "report_err")}
-    last = {"last_video": "", "last_analysis": "", "last_report": ""}
+    totals = {
+        k: 0
+        for k in (
+            "vids_ok", "vids_fail",
+            "analyses_light", "analysis_light_err",
+            "reports_light", "report_light_err",
+            "analyses_full", "analysis_full_err",
+            "reports_full", "report_full_err",
+        )
+    }
+    last = {
+        "last_video": "",
+        "last_analysis_light": "",
+        "last_report_light": "",
+        "last_analysis_full": "",
+        "last_report_full": "",
+    }
     tx_totals = {"done": 0, "total": 0, "last_at": ""}
 
     # Surface every state that has entered the pipeline (any attempted YouTube

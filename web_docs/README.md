@@ -27,7 +27,7 @@ npm run clear          # Clear Docusaurus cache
 ## Documentation Structure
 
 - `docs/` - All documentation markdown files
-- `blog/` - Blog posts (optional)
+- `blog/` - removed (see #731)
 - `src/pages/` - Custom React pages (home, redirect to app)
 - `static/` - Static assets (images, files)
 - `docusaurus.config.ts` - Site configuration
