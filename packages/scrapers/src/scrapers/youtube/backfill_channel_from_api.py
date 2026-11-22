@@ -52,9 +52,36 @@ def _iso_duration_minutes(iso: str | None) -> int | None:
 
 
 def _api_get(path: str, params: dict[str, str]) -> dict[str, Any]:
-    url = f"https://www.googleapis.com/youtube/v3/{path}?" + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(url) as resp:
-        return json.load(resp)
+    """GET a YouTube Data API resource; rotate keys on ``quotaExceeded`` (#716)."""
+    from scrapers.youtube.youtube_api_keys import (
+        is_youtube_quota_error,
+        mark_youtube_key_exhausted,
+        youtube_api_key,
+    )
+
+    # Prefer an explicit key in params; else the current pool key.
+    if not (params.get("key") or "").strip():
+        pool_key = youtube_api_key()
+        if pool_key:
+            params = {**params, "key": pool_key}
+
+    attempts = 0
+    while True:
+        attempts += 1
+        url = f"https://www.googleapis.com/youtube/v3/{path}?" + urllib.parse.urlencode(
+            params
+        )
+        try:
+            with urllib.request.urlopen(url) as resp:
+                return json.load(resp)
+        except Exception as exc:
+            if not is_youtube_quota_error(exc) or attempts > 10:
+                raise
+            exhausted = (params.get("key") or "").strip()
+            nxt = mark_youtube_key_exhausted(exhausted) if exhausted else youtube_api_key()
+            if not nxt or nxt == exhausted:
+                raise
+            params = {**params, "key": nxt}
 
 
 def list_uploads(
@@ -230,9 +257,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args(argv)
 
-    api_key = os.environ.get("YOUTUBE_API_KEY")
+    from scrapers.youtube.youtube_api_keys import youtube_api_key as _yt_key
+
+    api_key = _yt_key() or os.environ.get("YOUTUBE_API_KEY")
     if not api_key:
-        logger.error("YOUTUBE_API_KEY is required")
+        logger.error("YOUTUBE_API_KEY / YOUTUBE_API_KEY_1 is required")
         return 2
 
     channel_id = args.channel_id.strip()

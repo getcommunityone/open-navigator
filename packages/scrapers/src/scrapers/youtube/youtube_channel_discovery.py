@@ -88,7 +88,15 @@ class YouTubeChannelDiscovery:
                             Get from: https://console.cloud.google.com/
                             Falls back to scraping if not provided
         """
-        self.api_key = youtube_api_key or os.getenv("YOUTUBE_API_KEY")
+        if youtube_api_key:
+            self.api_key = youtube_api_key
+        else:
+            try:
+                from scrapers.youtube.youtube_api_keys import youtube_api_key as _pool_key
+
+                self.api_key = _pool_key() or os.getenv("YOUTUBE_API_KEY")
+            except Exception:
+                self.api_key = os.getenv("YOUTUBE_API_KEY")
         # Each dict: channel_url, checked_at (UTC ISO), discovery_method,
         # outcome in found | not_found | error | skipped_invalid_url,
         # http_status?, reason?, channel_title? when found.
