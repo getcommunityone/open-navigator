@@ -76,21 +76,7 @@ const config: Config = {
           editUrl:
             'https://github.com/getcommunityone/open-navigator-for-engagement/tree/main/web_docs/',
         },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/getcommunityone/open-navigator-for-engagement/tree/main/web_docs/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -117,7 +103,7 @@ const config: Config = {
       require.resolve('@easyops-cn/docusaurus-search-local'),
       {
         hashed: true,
-        indexBlog: true,
+        indexBlog: false,
         docsRouteBasePath: process.env.DOCUSAURUS_BASE_URL ? '/' : 'docs',
         highlightSearchTermsOnTargetPage: true,
       },
@@ -202,7 +188,6 @@ const config: Config = {
           label: 'Data and Terms',
           position: 'left',
         },
-        {to: 'blog', label: 'Blog', position: 'left'},
         {
           href: 'https://github.com/getcommunityone/open-navigator-for-engagement',
           label: 'GitHub',
@@ -300,10 +285,6 @@ const config: Config = {
         {
           title: 'More',
           items: [
-            {
-              label: 'Blog',
-              to: 'blog',
-            },
             {
               label: 'License (MIT)',
               href: 'https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/LICENSE',
