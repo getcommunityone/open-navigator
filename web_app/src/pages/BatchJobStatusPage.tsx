@@ -2011,19 +2011,32 @@ export default function BatchJobStatusPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         {ls?.enabled ? (
-                          <button
-                            type="button"
-                            disabled={!canRunStage(st.stage)}
-                            onClick={() => runLaunch(stageStep[st.stage], launchScopeStates)}
-                            title={
-                              runningSteps.has(stageStep[st.stage])
-                                ? `${stageStep[st.stage]} is already running`
-                                : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
-                            }
-                            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {running ? '· · ·' : '▶ Run'}
-                          </button>
+                          running ? (
+                            <span
+                              title={`${stageStep[st.stage]} is running — expand this row for the live log`}
+                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800"
+                            >
+                              <span
+                                className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+                                aria-hidden
+                              />
+                              Running
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={!canRunStage(st.stage)}
+                              onClick={() => runLaunch(stageStep[st.stage], launchScopeStates)}
+                              title={
+                                anyFullRun
+                                  ? 'A full-pipeline run is already active'
+                                  : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
+                              }
+                              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              ▶ Run
+                            </button>
+                          )
                         ) : null}
                         {/* Transcripts only: global mart-wide sweep (also reaches
                             LocalView/union videos captions never visits). The
