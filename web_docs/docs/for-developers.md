@@ -111,9 +111,9 @@ Production deployment:
 ### 💻 Development
 
 Contributing and development:
-- **[Changelog](/docs/development/changelog)** - Version history
-- **[Migration Guides](/docs/development/migration-v2)** - Upgrading between versions
-- **[Refactoring Summary](/docs/development/refactoring-summary)** - Recent changes
+- **[Changelog (archive)](/docs/development/archive/changelog)** - Historical version notes
+- **[Migration Guides (archive)](/docs/development/archive/migration-v2)** - Historical v2 upgrade notes
+- **[Refactoring Summary (archive)](/docs/development/archive/refactoring-summary)** - Historical change notes
 
 ## Quick Start (TL;DR)
 
