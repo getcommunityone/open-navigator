@@ -222,10 +222,12 @@ def test_batch_plan_sql_has_no_stray_percent_signs():
         for n in ast.walk(tree)
         if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "execute"
     )
-    # psycopg2 formats like Python's % operator: four parameters, nothing else.
-    rendered = sql % ("'S'", "'S'", "true", "false")
+    # psycopg2 formats like Python's % operator: six parameters, nothing else.
+    rendered = sql % ("'S'", "'S'", "true", "false", "NULL", "NULL")
     assert "%" not in rendered.replace("%%", "")
-    assert "include_homepage_channels" in inspect.signature(b.fetch_batch_plan_jurisdictions).parameters
+    sig = inspect.signature(b.fetch_batch_plan_jurisdictions).parameters
+    assert "include_homepage_channels" in sig
+    assert "cohort" in sig
 
 
 class _FakeCursor:
@@ -279,12 +281,86 @@ def test_channel_only_jurisdiction_is_planned_when_homepage_channels_included(mo
     )
     sql, params = seen[0]
     assert "with_homepage_channel" in sql and "website_scrape" in sql
-    assert params == (["DE"], ["DE"], True, True)
+    assert params == (["DE"], ["DE"], True, True, None, None)
     assert [r.jurisdiction_id for r in runs] == ["sussex_10005"]
 
     seen.clear()
     fetch_batch_plan_jurisdictions(["DE"], round_robin=False, database_url="postgresql://fake")
-    assert seen[0][1] == (["DE"], ["DE"], False, False)
+    assert seen[0][1] == (["DE"], ["DE"], False, False, None, None)
+
+
+def test_fetch_batch_plan_respects_data_centers_cohort(monkeypatch):
+    """COHORT=data_centers keeps only data-center jurisdiction_ids in the plan."""
+    import psycopg2
+
+    dc_ids = {"county_01001", "municipality_0107000"}
+    rows = [
+        {
+            "state_code": "AL",
+            "jurisdiction_id": "county_01001",
+            "jurisdiction_name": "Autauga County",
+            "jurisdiction_type": "county",
+        },
+        {
+            "state_code": "AL",
+            "jurisdiction_id": "municipality_0107000",
+            "jurisdiction_name": "Anniston",
+            "jurisdiction_type": "municipality",
+        },
+        {
+            "state_code": "AL",
+            "jurisdiction_id": "chilton_01021",
+            "jurisdiction_name": "Chilton County",
+            "jurisdiction_type": "county",
+        },
+    ]
+
+    class _CohortCursor(_FakeCursor):
+        def fetchall(self):
+            params = self._seen[-1][1] if self._seen else None
+            if params and len(params) >= 6 and params[4]:
+                allowed = set(params[4])
+                return [r for r in self._rows if r["jurisdiction_id"] in allowed]
+            return list(self._rows)
+
+    seen: list = []
+
+    class _CohortConn(_FakeConn):
+        def cursor(self, cursor_factory=None):
+            return _CohortCursor(self._rows, seen)
+
+    monkeypatch.setattr(psycopg2, "connect", lambda url: _CohortConn(rows, seen))
+    monkeypatch.setattr(
+        "api.batch_jobs.cohorts.data_center_jurisdiction_ids",
+        lambda _conn: dc_ids,
+    )
+    monkeypatch.setattr(
+        "core_lib.jurisdictions.jurisdiction_id.ensure_canonical_jurisdiction_id",
+        lambda jid, **_kw: (jid or "").strip(),
+    )
+
+    runs = fetch_batch_plan_jurisdictions(
+        ["AL"], cohort="data_centers", database_url="postgresql://fake", round_robin=False
+    )
+    assert all(r.jurisdiction_id in dc_ids for r in runs)
+    assert {r.jurisdiction_id for r in runs} == dc_ids
+    sql, params = seen[0]
+    assert "j.jurisdiction_id = ANY(%s)" in sql
+    assert params[4] is not None and set(params[4]) == dc_ids
+
+
+def test_fetch_batch_plan_data_centers_empty_set_returns_empty(monkeypatch):
+    import psycopg2
+
+    monkeypatch.setattr(psycopg2, "connect", lambda url: _FakeConn([], []))
+    monkeypatch.setattr(
+        "api.batch_jobs.cohorts.data_center_jurisdiction_ids",
+        lambda _conn: set(),
+    )
+    runs = fetch_batch_plan_jurisdictions(
+        ["AL"], cohort="data_centers", database_url="postgresql://fake", round_robin=False
+    )
+    assert runs == []
 
 
 def test_failed_plan_query_is_reported_not_silent(monkeypatch, capsys):
