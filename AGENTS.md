@@ -50,6 +50,18 @@ asked.
 - **Decisions are written down.** A choice and its reason go in a page under `web_docs/docs/development/`, linked
   from the issue. Never leave a decision only in an issue or PR thread.
 
+## Docs with the change
+
+If a change alters behavior, contracts, operator UI, or data grain, the **same PR** updates or adds the governed
+page under `web_docs/docs/`. Name that page in the issue **Done when** and in the PR body.
+
+Keep publishing new designs and plans under `web_docs/docs/development/` (Working notes). **Archive is for
+pages that are wrong or misleading** (wrong paths, superseded product story) — not for every doc whose issue
+already shipped. If you find a wrong page mid-work: fix it, `git mv` it into `web_docs/docs/development/archive/`,
+or open an `action-item` when the rewrite is out of scope. Do not leave “TODO: fix docs” only in the PR.
+
+Lifecycle: [Development docs hygiene](web_docs/docs/development/development-docs-hygiene-design.md).
+
 ## Branches and pull requests
 
 - **Branch:** `<type>/<issue>-<slug>`, for example `fix/71-ct-county-map`. The type is a Conventional Commit type

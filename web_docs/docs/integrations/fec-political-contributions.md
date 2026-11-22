@@ -11,7 +11,7 @@ Track political donations and their relationship to nonprofit leadership, policy
 The Federal Election Commission (FEC) provides comprehensive data on political contributions. Integrating this with your nonprofit and grant data reveals important connections between:
 
 - **Nonprofit leadership** and political engagement
-- **Political donations** and federal grant awards  
+- **Political donations** and federal grant awards
 - **Policy advocacy** and campaign finance
 - **Jurisdiction politics** and oral health funding
 
@@ -21,19 +21,19 @@ The Federal Election Commission (FEC) provides comprehensive data on political c
 
 ### FEC Data (NEW)
 
-✅ **Individual Contributions**:
+Yes **Individual Contributions**:
 - Contributor name, address, employer
 - Contribution amount and date
 - Recipient (candidate or committee)
 - Employer information (links to nonprofits!)
 
-✅ **Candidate Information**:
+Yes **Candidate Information**:
 - Office (House, Senate, President)
 - Party affiliation
 - State and district
 - Election cycle
 
-✅ **Committee Finances**:
+Yes **Committee Finances**:
 - PAC and Super PAC spending
 - Committee receipts and disbursements
 - Independent expenditures
@@ -41,12 +41,12 @@ The Federal Election Commission (FEC) provides comprehensive data on political c
 ### Combined with Your Data
 
 ```
-FEC Contributions     Your Nonprofit Data     IRS 990 / Grants.gov
-─────────────────     ───────────────────     ───────────────────
-John Smith      ────> Board Member at    ────> Received $2M
-$5,000 to Sen X       MA Dental Clinic        federal grant
-2024-06-15            Executive Director      2024-09-01
-                      Salary: $150k
+FEC Contributions Your Nonprofit Data IRS 990 / Grants.gov
+───────────────── ─────────────────── ───────────────────
+John Smith ────> Board Member at ────> Received $2M
+$5,000 to Sen X MA Dental Clinic federal grant
+2024-06-15 Executive Director 2024-09-01
+ Salary: $150k
 ```
 
 ## Use Cases
@@ -68,10 +68,10 @@ officers = pd.read_parquet("data/gold/states/MA/nonprofits_officers.parquet")
 # Find their political contributions
 matcher = PoliticalContributionMatcher(api)
 contributions = matcher.find_nonprofit_leadership_contributions(
-    officers_df=officers,
-    state_code="MA",
-    min_amount=200,
-    election_cycle="2024"
+ officers_df=officers,
+ state_code="MA",
+ min_amount=200,
+ election_cycle="2024"
 )
 
 print(f"Found {len(contributions):,} political contributions")
@@ -88,14 +88,14 @@ grants = pd.read_parquet("data/gold/states/MA/grants_revenue_sources.parquet")
 
 # Analyze influence patterns
 influence_analysis = matcher.analyze_political_influence(
-    contributions_df=contributions,
-    grants_df=grants
+ contributions_df=contributions,
+ grants_df=grants
 )
 
 # Which nonprofits have politically active leadership AND received grants?
 influential_orgs = influence_analysis[
-    (influence_analysis['total_political_donations'] > 1000) &
-    (influence_analysis['total_grants_received'] > 100000)
+ (influence_analysis['total_political_donations'] > 1000) &
+ (influence_analysis['total_grants_received'] > 100000)
 ]
 ```
 
@@ -106,10 +106,10 @@ Track which health policy advocates donate to which campaigns:
 ```python
 # Search for contributions from health sector
 health_contributions = api.search_individual_contributions(
-    contributor_employer="Health",
-    contributor_state="MA",
-    min_amount=1000,
-    min_date="2024-01-01"
+ contributor_employer="Health",
+ contributor_state="MA",
+ min_amount=1000,
+ min_date="2024-01-01"
 )
 
 # Identify patterns
@@ -135,24 +135,24 @@ api = OpenFECAPI(api_key="your_key")
 
 # Search by contributor name
 results = api.search_individual_contributions(
-    contributor_name="John Smith",
-    contributor_state="MA",
-    min_amount=200
+ contributor_name="John Smith",
+ contributor_state="MA",
+ min_amount=200
 )
 
 # Search by employer (find nonprofit employee donations)
 results = api.search_individual_contributions(
-    contributor_employer="Community Health Center",
-    min_amount=500
+ contributor_employer="Community Health Center",
+ min_amount=500
 )
 
 # Search by amount and date range
 results = api.search_individual_contributions(
-    contributor_state="MA",
-    min_amount=1000,
-    max_amount=5000,
-    min_date="2024-01-01",
-    max_date="2024-12-31"
+ contributor_state="MA",
+ min_amount=1000,
+ max_amount=5000,
+ min_date="2024-01-01",
+ max_date="2024-12-31"
 )
 ```
 
@@ -161,17 +161,17 @@ results = api.search_individual_contributions(
 ```python
 # Find Massachusetts candidates
 candidates = api.search_candidates(
-    state="MA",
-    office="S",  # Senate
-    party="DEM",
-    cycle=2024
+ state="MA",
+ office="S", # Senate
+ party="DEM",
+ cycle=2024
 )
 
 # Find all House candidates
 house_reps = api.search_candidates(
-    state="MA",
-    office="H",  # House
-    cycle=2024
+ state="MA",
+ office="H", # House
+ cycle=2024
 )
 ```
 
@@ -217,10 +217,10 @@ zip_file = loader.download_individual_contributions(cycle="2024")
 
 # Parse with filters to reduce memory usage
 contributions_df = loader.parse_individual_contributions(
-    zip_path=zip_file,
-    state_filter="MA",  # Only Massachusetts
-    employer_filter="Health",  # Health sector only
-    min_amount=200  # Significant contributions only
+ zip_path=zip_file,
+ state_filter="MA", # Only Massachusetts
+ employer_filter="Health", # Health sector only
+ min_amount=200 # Significant contributions only
 )
 ```
 
@@ -232,46 +232,46 @@ contributions_df = loader.parse_individual_contributions(
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     YOUR DATA ECOSYSTEM                     │
+│ YOUR DATA ECOSYSTEM │
 ├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  FEC Contributions          Nonprofit Data       Grants     │
-│  ─────────────────          ──────────────       ──────     │
-│  John Smith           ────> Board Member    <──── $2M       │
-│  $5k to Sen X                MA Dental           Federal    │
-│  2024-06-15                  Exec Director        Grant     │
-│                              Salary: $150k        2024-09   │
-│                                                             │
-│  Voter Data                 Jurisdiction         Meetings   │
-│  ───────────                ────────────         ────────   │
-│  District: D+15       ────> Boston, MA     <──── Minutes    │
-│  Dem majority                90,000 pop           discussing│
-│  High turnout                                    fluoride  │
-│                                                             │
+│ │
+│ FEC Contributions Nonprofit Data Grants │
+│ ───────────────── ────────────── ────── │
+│ John Smith ────> Board Member <──── $2M │
+│ $5k to Sen X MA Dental Federal │
+│ 2024-06-15 Exec Director Grant │
+│ Salary: $150k 2024-09 │
+│ │
+│ Voter Data Jurisdiction Meetings │
+│ ─────────── ──────────── ──────── │
+│ District: D+15 ────> Boston, MA <──── Minutes │
+│ Dem majority 90,000 pop discussing│
+│ High turnout fluoride │
+│ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Analysis Questions You Can Answer
 
 1. **Political Influence**:
-   - Do nonprofits with politically active leaders receive more federal grants?
-   - What's the timeline from donation → grant award?
-   - Which party's donors get more oral health funding?
+ - Do nonprofits with politically active leaders receive more federal grants?
+ - What's the timeline from donation → grant award?
+ - Which party's donors get more oral health funding?
 
 2. **Advocacy Networks**:
-   - Which dental health advocates donate to which candidates?
-   - Do oral health nonprofits coordinate political giving?
-   - How does political engagement correlate with policy success?
+ - Which dental health advocates donate to which candidates?
+ - Do oral health nonprofits coordinate political giving?
+ - How does political engagement correlate with policy success?
 
 3. **Jurisdiction Politics**:
-   - Do Democratic or Republican areas get more oral health grants?
-   - Does legislator party affiliation affect local fluoridation votes?
-   - Political polarization of oral health policy?
+ - Do Democratic or Republican areas get more oral health grants?
+ - Does legislator party affiliation affect local fluoridation votes?
+ - Political polarization of oral health policy?
 
 4. **Follow the Money**:
-   - Corporate → Political donations → Policy decisions
-   - Nonprofit leaders → Campaign contributions → Federal grants
-   - Special interest influence on public health policy
+ - Corporate → Political donations → Policy decisions
+ - Nonprofit leaders → Campaign contributions → Federal grants
+ - Special interest influence on public health policy
 
 ## Example Analysis
 
@@ -291,16 +291,16 @@ api = OpenFECAPI(api_key="your_key")
 matcher = PoliticalContributionMatcher(api)
 
 contributions = matcher.find_nonprofit_leadership_contributions(
-    officers_df=officers,
-    state_code="MA",
-    min_amount=200,
-    election_cycle="2024"
+ officers_df=officers,
+ state_code="MA",
+ min_amount=200,
+ election_cycle="2024"
 )
 
 # 3. Analyze influence
 influence = matcher.analyze_political_influence(
-    contributions_df=contributions,
-    grants_df=grants
+ contributions_df=contributions,
+ grants_df=grants
 )
 
 # 4. Results
@@ -341,17 +341,17 @@ Our implementation includes automatic rate limiting (0.2s between requests).
 
 1. **Get API Key**: https://api.data.gov/signup/
 2. **Test Integration**:
-   ```bash
-   python scripts/discovery/fec_integration.py --api-key YOUR_KEY --state MA --employer "Health"
-   ```
+ ```bash
+ python scripts/discovery/fec_integration.py --api-key YOUR_KEY --state MA --employer "Health"
+ ```
 3. **Match to Your Data**:
-   - Link FEC contributions to nonprofit officers
-   - Compare with grant awards
-   - Analyze political patterns
+ - Link FEC contributions to nonprofit officers
+ - Compare with grant awards
+ - Analyze political patterns
 4. **Build Dashboard**:
-   - "Political Connections" widget
-   - Transparency reporting
-   - Influence analysis visualizations
+ - "Political Connections" widget
+ - Transparency reporting
+ - Influence analysis visualizations
 
 ## Related Integrations
 

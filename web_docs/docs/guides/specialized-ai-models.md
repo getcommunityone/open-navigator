@@ -4,11 +4,11 @@ sidebar_position: 8
 
 # Specialized AI Models for Legislative Analysis
 
-## 🎯 Overview
+## Overview
 
 Legislative and policy text analysis is a specialized domain with unique challenges. This guide covers AI models and approaches tailored for analyzing government documents, bills, meeting minutes, and policy text.
 
-## 🤖 Domain-Specific Models
+## Domain-Specific Models
 
 ### 1. **Legal-BERT Family**
 
@@ -34,9 +34,9 @@ model = AutoModel.from_pretrained("nlpaueb/legal-bert-base-uncased")
 **LexGLUE** - Legal understanding benchmark and models
 - **Paper**: [Chalkidis et al., "LexGLUE: A Benchmark Dataset for Legal Language Understanding" (2022)](https://arxiv.org/abs/2110.00976)
 - **Models**: Fine-tuned BERT/RoBERTa for 7 legal tasks including:
-  - Statutory reasoning
-  - Case outcome classification
-  - Legal document summarization
+ - Statutory reasoning
+ - Case outcome classification
+ - Legal document summarization
 
 **LegalBench** - Broader legal reasoning benchmark
 - **Paper**: [Guha et al., "LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in LLMs" (2023)](https://arxiv.org/abs/2308.11462)
@@ -53,45 +53,45 @@ model = AutoModel.from_pretrained("nlpaueb/legal-bert-base-uncased")
 - **Approach**: Fine-tune RoBERTa on government publications
 - **Sources**: Federal Register, Congressional Record, State legislation
 
-## 📚 Research Papers & Approaches
+## Research Papers & Approaches
 
 ### Legislative Bill Classification
 
-1. **"Predicting Legislative Roll Calls from Text"**  
-   - Authors: Kraft, Jelveh, & Nagler (2016)
-   - **Key insight**: Combine text analysis with voting patterns
-   - **Approach**: Topic modeling + supervised learning
-   - [Link](https://www.cambridge.org/core/journals/political-analysis/article/predicting-legislative-roll-calls-from-text/35E06B3E166D3EE62D54118747168B31)
+1. **"Predicting Legislative Roll Calls from Text"**
+ - Authors: Kraft, Jelveh, & Nagler (2016)
+ - **Key insight**: Combine text analysis with voting patterns
+ - **Approach**: Topic modeling + supervised learning
+ - [Link](https://www.cambridge.org/core/journals/political-analysis/article/predicting-legislative-roll-calls-from-text/35E06B3E166D3EE62D54118747168B31)
 
 2. **"Automated Coding of Policy Issues in the U.S. Congress"**
-   - Authors: Collingwood & Wilkerson (2012)
-   - **Approach**: Machine learning for Policy Agendas Project coding
-   - **Dataset**: Congressional bills (1947-2012)
+ - Authors: Collingwood & Wilkerson (2012)
+ - **Approach**: Machine learning for Policy Agendas Project coding
+ - **Dataset**: Congressional bills (1947-2012)
 
 3. **"Fine-Grained Sentiment Analysis of Political Texts"**
-   - Authors: Glavaš et al. (2017)
-   - **Focus**: Detecting policy positions in legislative debates
-   - **Method**: Aspect-based sentiment analysis
+ - Authors: Glavaš et al. (2017)
+ - **Focus**: Detecting policy positions in legislative debates
+ - **Method**: Aspect-based sentiment analysis
 
 4. **"Measuring Policy Sentiment: A Machine Learning Approach"**
-   - Authors: Widmann et al. (2024)
-   - **Contribution**: Detect pro/anti stances on specific policies
-   - **Application**: Fluoride, vaccine mandates, environmental regulations
+ - Authors: Widmann et al. (2024)
+ - **Contribution**: Detect pro/anti stances on specific policies
+ - **Application**: Fluoride, vaccine mandates, environmental regulations
 
 ### Meeting Minutes Analysis
 
 1. **"MeetingBank: A Benchmark Dataset for Meeting Summarization"**
-   - Authors: Hu et al. (2023) - ACL
-   - **Dataset**: 1,366 city council meetings, 6 U.S. cities
-   - **Tasks**: Summarization, action item extraction, decision tracking
-   - [Paper](https://arxiv.org/abs/2305.17529) | [Data](https://meetingbank.github.io/)
+ - Authors: Hu et al. (2023) - ACL
+ - **Dataset**: 1,366 city council meetings, 6 U.S. cities
+ - **Tasks**: Summarization, action item extraction, decision tracking
+ - [Paper](https://arxiv.org/abs/2305.17529) | [Data](https://meetingbank.github.io/)
 
 2. **"Extracting Decisions from Multi-Party Dialogue"**
-   - Authors: Bhatia et al. (2014)
-   - **Focus**: Identifying action items and commitments
-   - **Method**: Structured prediction with dialogue features
+ - Authors: Bhatia et al. (2014)
+ - **Focus**: Identifying action items and commitments
+ - **Method**: Structured prediction with dialogue features
 
-## 🛠️ Specialized Tools & Frameworks
+## Specialized Tools & Frameworks
 
 ### 1. **LexNLP** - Legal Text Processing
 
@@ -114,8 +114,8 @@ nlp = spacy.load("en_blackstone_proto")
 
 doc = nlp("Section 1234 of the Public Health Act requires...")
 for ent in doc.ents:
-    if ent.label_ == "PROVISION":
-        print(f"Found statute: {ent.text}")
+ if ent.label_ == "PROVISION":
+ print(f"Found statute: {ent.text}")
 ```
 
 **Repository**: [ICLRandD/Blackstone](https://github.com/ICLRandD/Blackstone)
@@ -134,13 +134,13 @@ entities = model.predict(text)
 # Extracts: bill_id="HB 1234", jurisdiction="Alabama", date="March 15, 2024"
 ```
 
-## 🏛️ Similar Open Source Projects
+## Similar Open Source Projects
 
 ### 1. **OpenStates** (Data + API)
 - **URL**: https://openstates.org
 - **What**: Comprehensive legislative data for all 50 states
 - **API**: Bill text, voting records, legislators, committees
-- **Your use case**: ✅ **Already using this!**
+- **Your use case**: Yes **Already using this!**
 
 ### 2. **Congress.gov API** (Federal)
 - **URL**: https://api.congress.gov/
@@ -174,7 +174,7 @@ entities = model.predict(text)
 - **What**: Model bill tracking (ALEC, advocacy groups)
 - **Academic**: Free access for research
 
-## 🎯 Recommendations for Your Use Case
+## Recommendations for Your Use Case
 
 ### Immediate Improvements
 
@@ -187,8 +187,8 @@ from transformers import AutoModelForSequenceClassification, TrainingArguments, 
 
 # Load LegalBERT
 model = AutoModelForSequenceClassification.from_pretrained(
-    "nlpaueb/legal-bert-base-uncased",
-    num_labels=7  # mandate, removal, funding, study, coverage, workforce, other
+ "nlpaueb/legal-bert-base-uncased",
+ num_labels=7 # mandate, removal, funding, study, coverage, workforce, other
 )
 
 # Fine-tune on your labeled OpenStates bills
@@ -208,16 +208,16 @@ model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Define policy prototypes
 prototypes = {
-    "mandate": "Bill requires water systems to add fluoride to public water supply",
-    "removal": "Bill prohibits fluoridation and bans adding fluoride to water",
-    "notification": "Bill requires reporting fluoride levels to health department"
+ "mandate": "Bill requires water systems to add fluoride to public water supply",
+ "removal": "Bill prohibits fluoridation and bans adding fluoride to water",
+ "notification": "Bill requires reporting fluoride levels to health department"
 }
 
 # Compare bill to prototypes
 bill_embedding = model.encode(bill_text)
 similarities = {
-    label: cosine_similarity(bill_embedding, model.encode(proto))
-    for label, proto in prototypes.items()
+ label: cosine_similarity(bill_embedding, model.encode(proto))
+ for label, proto in prototypes.items()
 }
 bill_type = max(similarities, key=similarities.get)
 ```
@@ -232,8 +232,8 @@ For bills with mixed sentiment (e.g., "ban removal" = pro-fluoride):
 from transformers import pipeline
 
 aspect_sentiment = pipeline(
-    "sentiment-analysis",
-    model="yangheng/deberta-v3-base-absa-v1.1"
+ "sentiment-analysis",
+ model="yangheng/deberta-v3-base-absa-v1.1"
 )
 
 text = "The bill prohibits removal of fluoride from public water systems"
@@ -271,7 +271,7 @@ Output JSON with:
 output = model.generate(tokenizer.encode(prompt, return_tensors="pt"))
 ```
 
-## 📊 Evaluation Datasets
+## Evaluation Datasets
 
 ### Label Some Data for Validation
 
@@ -291,13 +291,13 @@ y_true = [manual_labels]
 y_pred = [model_predictions]
 
 print(classification_report(y_true, y_pred, target_names=[
-    "mandate", "removal", "study", "funding", "coverage", "workforce", "other"
+ "mandate", "removal", "study", "funding", "coverage", "workforce", "other"
 ]))
 ```
 
 **Your Alabama case** is perfect for this - it was misclassified, so add it to test set.
 
-## 🔬 Cutting-Edge: Large Language Models
+## Cutting-Edge: Large Language Models
 
 ### GPT-4 / Claude for Few-Shot Classification
 
@@ -322,14 +322,14 @@ Output: type, status
 """
 
 response = client.messages.create(
-    model="claude-3-5-sonnet-20241022",
-    messages=[{"role": "user", "content": prompt}]
+ model="claude-3-5-sonnet-20241022",
+ messages=[{"role": "user", "content": prompt}]
 )
 ```
 
 **Trade-offs**:
-- ✅ **Pro**: High accuracy, handles edge cases, no training needed
-- ❌ **Con**: API costs (~$0.003/bill), slower, requires internet
+- Yes **Pro**: High accuracy, handles edge cases, no training needed
+- No **Con**: API costs (~$0.003/bill), slower, requires internet
 
 ### Open Source LLMs
 
@@ -343,10 +343,10 @@ response = client.messages.create(
 - Can run on modest hardware (RTX 3090)
 - **Fine-tuning**: [Mistral fine-tuning guide](https://docs.mistral.ai/guides/finetuning/)
 
-## 📈 Recommended Roadmap
+## Recommended Roadmap
 
 ### Phase 1: Quick Wins (This Week)
-1. ✅ Fix classification logic (notification vs mandate) - **DONE!**
+1. Yes Fix classification logic (notification vs mandate) - **DONE!**
 2. Add regex patterns for common bill structures
 3. Create test set of 50 manually labeled bills
 
@@ -365,31 +365,31 @@ response = client.messages.create(
 2. A/B test against GPT-4 for accuracy
 3. Continuous learning: retrain monthly with new bills
 
-## 📖 Further Reading
+## Further Reading
 
 ### Books
 - **"Text as Data"** by Grimmer, Roberts, & Stewart (2022)
-  - Chapter 15: Legislative Text Analysis
-  - Python code examples
+ - Chapter 15: Legislative Text Analysis
+ - Python code examples
 
 - **"Computational Legal Studies"** by Livermore & Rockmore (2019)
-  - Applications of NLP to legal texts
+ - Applications of NLP to legal texts
 
 ### Courses
 - **Stanford CS224U**: Natural Language Understanding
-  - Lecture on政策文本分析 (policy text analysis)
+ - Lecture on政策文本分析 (policy text analysis)
 
 - **Vanderbilt: Text as Data for Social Science**
-  - Free materials: https://cbail.github.io/textasdata/
+ - Free materials: https://cbail.github.io/textasdata/
 
 ### Tutorials
 - **HuggingFace: Fine-tuning for Text Classification**
-  - https://huggingface.co/docs/transformers/tasks/sequence_classification
+ - https://huggingface.co/docs/transformers/tasks/sequence_classification
 
 - **spaCy: Custom NER for Legislative Entities**
-  - https://spacy.io/usage/training#ner
+ - https://spacy.io/usage/training#ner
 
-## 🤝 Community & Collaboration
+## Community & Collaboration
 
 ### Organizations
 - **OpenGov Foundation**: Open source civic tools
@@ -408,11 +408,11 @@ response = client.messages.create(
 
 ---
 
-## 🎯 Bottom Line
+## Bottom Line
 
 **For your fluoride policy tracking:**
 
-1. **Short term**: Keep keyword approach but refine logic (already doing ✅)
+1. **Short term**: Keep keyword approach but refine logic (already doing Yes)
 2. **Medium term**: Add **sentence transformers** for semantic matching
 3. **Long term**: Fine-tune **LegalBERT** on labeled OpenStates bills
 

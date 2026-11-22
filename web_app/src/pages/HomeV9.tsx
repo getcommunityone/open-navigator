@@ -27,6 +27,7 @@ import MoneyMovesTeaser from '../components/MoneyMovesTeaser'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
 import AddressLookup from '../components/AddressLookup'
 import SiteHeader from '../components/SiteHeader'
+import SiteFooter from '../components/SiteFooter'
 import { LensCarousel, type ApiCard } from '../components/StoryLenses'
 import MeetingThumbnail from '../components/MeetingThumbnail'
 import { inferThumbnailKind } from '../lib/youtubeThumbnail'
@@ -2010,12 +2011,7 @@ export default function HomeV9() {
         </div>
       )}
 
-      {/* ── Why people use it (footer) ── */}
-      <footer style={{ background: '#fff', borderTop: '1px solid #e7e5e4' }}>
-        <div className="v9-footer-inner" style={{ maxWidth: 1180, margin: '0 auto', padding: '9px 24px', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, color: '#a8a29e' }}>CommunityOne · a 501(c)(3) nonprofit · Tuscaloosa, Alabama</span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

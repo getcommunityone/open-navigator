@@ -2,7 +2,7 @@
 sidebar_position: 13
 ---
 
-# 💰 Cost Breakdown: $0 for Data Access
+# Cost Breakdown: $0 for Data Access
 
 ## Summary: Everything Is FREE
 
@@ -12,7 +12,7 @@ This project uses **100% free, public data sources**. No paid APIs, no data subs
 
 ---
 
-## ✅ What's FREE (Everything!)
+## Yes What's FREE (Everything!)
 
 ### 1. Government Data Sources (FREE)
 - **Census Bureau Gazetteer Files** - $0 (public government data)
@@ -32,36 +32,36 @@ This project uses **100% free, public data sources**. No paid APIs, no data subs
 These are NOT paid services! They host FREE public government data:
 
 - **Legistar** (e.g., chicago.legistar.com)
-  - Status: FREE public access
-  - What it is: Platform municipalities pay for, but meeting data is publicly accessible by law
-  - Cost to us: $0
-  - How we access: Web scraping of public pages
+ - Status: FREE public access
+ - What it is: Platform municipalities pay for, but meeting data is publicly accessible by law
+ - Cost to us: $0
+ - How we access: Web scraping of public pages
 
 - **Granicus** (e.g., city.granicus.com/ViewPublisher.php)
-  - Status: FREE public access
-  - What it is: Government meeting platform with public video/agenda portals
-  - Cost to us: $0
-  - How we access: Web scraping of public pages
+ - Status: FREE public access
+ - What it is: Government meeting platform with public video/agenda portals
+ - Cost to us: $0
+ - How we access: Web scraping of public pages
 
 - **CivicPlus** (e.g., city.civicplus.com)
-  - Status: FREE public access
-  - What it is: Municipal website platform with public meeting sections
-  - Cost to us: $0
-  - How we access: Web scraping of public pages
+ - Status: FREE public access
+ - What it is: Municipal website platform with public meeting sections
+ - Cost to us: $0
+ - How we access: Web scraping of public pages
 
 - **Municode** (e.g., library.municode.com)
-  - Status: FREE public access
-  - What it is: Municipal code and meeting archive platform
-  - Cost to us: $0
-  - How we access: Web scraping of public pages
+ - Status: FREE public access
+ - What it is: Municipal code and meeting archive platform
+ - Cost to us: $0
+ - How we access: Web scraping of public pages
 
 **Cost: $0**
 
-**Important clarification**: 
-- ✅ Municipalities PAY for these platforms
-- ✅ The data is PUBLIC by law (open meetings laws, FOIA)
-- ✅ WE access it for FREE via web scraping
-- ✅ No API keys, no subscriptions, no fees
+**Important clarification**:
+- Yes Municipalities PAY for these platforms
+- Yes The data is PUBLIC by law (open meetings laws, FOIA)
+- Yes WE access it for FREE via web scraping
+- Yes No API keys, no subscriptions, no fees
 
 ### 4. Infrastructure (Can Be FREE)
 - **Local development** - $0 (runs on your laptop)
@@ -74,44 +74,44 @@ These are NOT paid services! They host FREE public government data:
 
 ---
 
-## 💵 Optional Costs (Only If You Want Them)
+## Optional Costs (Only If You Want Them)
 
 ### AI Summarization (OPTIONAL)
 - **OpenAI API** - ~$0.01-0.05 per meeting summary (GPT-4o-mini)
-  - Only needed if you want AI-generated summaries
-  - Can skip this and just use transcripts
-  - Or use free alternatives like Llama 2 (self-hosted)
+ - Only needed if you want AI-generated summaries
+ - Can skip this and just use transcripts
+ - Or use free alternatives like Llama 2 (self-hosted)
 
 ### Cloud Deployment (OPTIONAL)
 - **Databricks** - $0 (Community Edition) or paid tiers for scale
 - **AWS/Azure/GCP** - Pay-as-you-go if you deploy to cloud
-  - But can run entirely locally for FREE
+ - But can run entirely locally for FREE
 
 ---
 
-## 📊 Cost Comparison
+## Cost Comparison
 
-### ❌ What We DON'T Pay For:
-- ❌ Search APIs (Google Custom Search, Bing API) - Would cost $5-50/1000 queries
-- ❌ Data vendors (LexisNexis, Westlaw) - Would cost $100s-$1000s/month
-- ❌ Proprietary databases - Would cost $1000s/year
-- ❌ Meeting data APIs - Don't exist for most municipalities
-- ❌ Legistar API access - FREE (they have public APIs)
-- ❌ Granicus subscriptions - Not needed (data is public)
-- ❌ Web scraping services - Not needed (we build scrapers)
+### No What We DON'T Pay For:
+- No Search APIs (Google Custom Search, Bing API) - Would cost $5-50/1000 queries
+- No Data vendors (LexisNexis, Westlaw) - Would cost $100s-$1000s/month
+- No Proprietary databases - Would cost $1000s/year
+- No Meeting data APIs - Don't exist for most municipalities
+- No Legistar API access - FREE (they have public APIs)
+- No Granicus subscriptions - Not needed (data is public)
+- No Web scraping services - Not needed (we build scrapers)
 
-### ✅ What We DO Use (All FREE):
-- ✅ Official government datasets (Census, CISA, NCES)
-- ✅ Academic datasets (MeetingBank, LocalView)
-- ✅ Open-source civic tech (Council Data Project)
-- ✅ Public government websites (Legistar, Granicus, CivicPlus, Municode)
-- ✅ Open-source software (PySpark, Delta Lake, Python)
+### Yes What We DO Use (All FREE):
+- Yes Official government datasets (Census, CISA, NCES)
+- Yes Academic datasets (MeetingBank, LocalView)
+- Yes Open-source civic tech (Council Data Project)
+- Yes Public government websites (Legistar, Granicus, CivicPlus, Municode)
+- Yes Open-source software (PySpark, Delta Lake, Python)
 
 **Total: $0**
 
 ---
 
-## 🎯 Why This Matters
+## Why This Matters
 
 ### Sustainability
 - No vendor lock-in
@@ -132,7 +132,7 @@ These are NOT paid services! They host FREE public government data:
 
 ---
 
-## 🚀 Recommended Approach
+## Recommended Approach
 
 ### Phase 1: Use FREE Datasets (Week 1)
 ```bash
@@ -183,7 +183,7 @@ python scripts/discovery/external_url_datasets.py
 
 ---
 
-## 📋 Summary Table
+## Summary Table
 
 | Component | What It Is | Cost | Access Method |
 |-----------|-----------|------|---------------|
@@ -201,7 +201,7 @@ python scripts/discovery/external_url_datasets.py
 
 ---
 
-## ❓ FAQ
+## FAQ
 
 ### Q: Don't we need to pay Legistar for API access?
 **A: No.** Legistar hosts public meeting data that is FREE to access. They have public websites (e.g., chicago.legistar.com) that we can scrape for free. Some cities also provide Legistar APIs for free.
@@ -220,15 +220,15 @@ python scripts/discovery/external_url_datasets.py
 
 ---
 
-## 🎉 Bottom Line
+## Bottom Line
 
 **Every data source in this project is FREE.**
 
-- Census data: FREE ✅
-- Meeting datasets: FREE ✅
-- Public websites: FREE ✅
-- Software: FREE ✅
-- Total cost: $0 ✅
+- Census data: FREE Yes
+- Meeting datasets: FREE Yes
+- Public websites: FREE Yes
+- Software: FREE Yes
+- Total cost: $0 Yes
 
 The only potential costs are:
 1. **Optional AI summarization** (~$0.01/meeting with GPT-4o-mini)
@@ -237,4 +237,4 @@ The only potential costs are:
 
 But all DATA access is completely FREE and always will be, because it's public government information required by law to be accessible.
 
-**No paid services. No vendor lock-in. No API subscriptions. Just free, public data.** 🎯
+**No paid services. No vendor lock-in. No API subscriptions. Just free, public data.**

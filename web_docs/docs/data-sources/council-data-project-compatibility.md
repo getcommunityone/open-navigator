@@ -6,15 +6,15 @@ sidebar_position: 15
 
 Open Navigator's data model is designed to be compatible with the [Council Data Project (CDP)](https://councildataproject.org/) backend schema, enabling interoperability with CDP instances deployed across cities nationwide.
 
-## 🏛️ About Council Data Project
+## About Council Data Project
 
 Council Data Project (CDP) is an open-source project that makes local government more accessible by providing infrastructure to index, archive, and make searchable city council meetings. CDP instances are deployed in cities across the United States.
 
-**Website:** https://councildataproject.org/  
-**Documentation:** https://councildataproject.org/cdp-backend/  
+**Website:** https://councildataproject.org/
+**Documentation:** https://councildataproject.org/cdp-backend/
 **GitHub:** https://github.com/CouncilDataProject/cdp-backend
 
-## 🔗 Data Model Mapping
+## Data Model Mapping
 
 Our data model maps to CDP's core models while maintaining flexibility for additional data sources (YouTube, LocalView, Legistar, etc.):
 
@@ -55,7 +55,7 @@ Our data model maps to CDP's core models while maintaining flexibility for addit
 | `confidence` | `transcript_quality` | Transcript quality score |
 | `generator` | `ai_model` | AI model used (Gemini, Whisper, etc.) |
 
-## 🗄️ Database Schema
+## Database Schema
 
 ### Bronze Layer (open_navigator_bronze)
 
@@ -63,21 +63,21 @@ Our bronze tables include all CDP fields plus additional fields for YouTube and 
 
 ```sql
 CREATE TABLE bronze_event (
-    -- CDP-compatible core fields
-    event_datetime TIMESTAMP,
-    body_name VARCHAR(200),
-    body_description TEXT,
-    agenda_url TEXT,              -- CDP: agenda_uri
-    minutes_url TEXT,             -- CDP: minutes_uri
-    external_source_id VARCHAR(255),
-    
-    -- Extended fields for multi-source ingestion
-    video_url TEXT,               -- YouTube, Granicus, etc.
-    channel_id VARCHAR(50),       -- YouTube channel tracking
-    source VARCHAR(50),           -- 'youtube', 'localview', 'legistar'
-    jurisdiction_name VARCHAR(200),
-    state_code VARCHAR(2),
-    -- ... additional fields
+ -- CDP-compatible core fields
+ event_datetime TIMESTAMP,
+ body_name VARCHAR(200),
+ body_description TEXT,
+ agenda_url TEXT, -- CDP: agenda_uri
+ minutes_url TEXT, -- CDP: minutes_uri
+ external_source_id VARCHAR(255),
+
+ -- Extended fields for multi-source ingestion
+ video_url TEXT, -- YouTube, Granicus, etc.
+ channel_id VARCHAR(50), -- YouTube channel tracking
+ source VARCHAR(50), -- 'youtube', 'localview', 'legistar'
+ jurisdiction_name VARCHAR(200),
+ state_code VARCHAR(2),
+ -- ... additional fields
 );
 ```
 
@@ -85,23 +85,23 @@ CREATE TABLE bronze_event (
 
 The production `event` table (built via dbt) maintains CDP compatibility while providing a unified view across all data sources.
 
-## 🔄 Data Flow
+## Data Flow
 
 ```
 CDP Instance (e.g., Seattle) ──┐
-YouTube (Municipal Channels) ──┼──► Bronze Layer ──► dbt Staging ──► dbt Marts ──► event (CDP-compatible)
+YouTube (Municipal Channels) ──┼── Bronze Layer ── dbt Staging ── dbt Marts ── event (CDP-compatible)
 LocalView Dataset ─────────────┤
 Legistar API ──────────────────┘
 ```
 
-## 🎯 Benefits of CDP Compatibility
+## Benefits of CDP Compatibility
 
 1. **Interoperability**: Data can be shared with CDP instances in other cities
 2. **Standardization**: Follows civic tech best practices for meeting data
 3. **Community**: Leverage tools built by the CDP ecosystem
 4. **Federation**: Potential to federate queries across CDP instances nationwide
 
-## 📚 CDP Models Reference
+## CDP Models Reference
 
 ### Event
 An event can be a normally scheduled meeting, a special event such as a press conference or election debate, and can be upcoming or historical.
@@ -152,40 +152,40 @@ A reference tying a specific person and an event minutes item together.
 - `event_minutes_item_ref`: What they voted on
 - `decision`: approve/reject/abstain
 
-## 🔍 Querying CDP-Compatible Data
+## Querying CDP-Compatible Data
 
 ### Get all City Council meetings in 2024
 
 ```sql
-SELECT 
-    event_datetime,
-    body_name,
-    title,
-    agenda_url,
-    minutes_url,
-    video_url
+SELECT
+ event_datetime,
+ body_name,
+ title,
+ agenda_url,
+ minutes_url,
+ video_url
 FROM event
 WHERE body_name = 'City Council'
-  AND event_datetime BETWEEN '2024-01-01' AND '2024-12-31'
+ AND event_datetime BETWEEN '2024-01-01' AND '2024-12-31'
 ORDER BY event_datetime DESC;
 ```
 
 ### Find meetings with transcripts
 
 ```sql
-SELECT 
-    e.event_datetime,
-    e.body_name,
-    e.title,
-    t.transcript_quality,
-    t.ai_model
+SELECT
+ e.event_datetime,
+ e.body_name,
+ e.title,
+ t.transcript_quality,
+ t.ai_model
 FROM event e
 JOIN events_text_search t ON e.id = t.event_id
 WHERE t.has_transcript = true
 ORDER BY e.event_datetime DESC;
 ```
 
-## 🤝 Contributing to CDP Ecosystem
+## Contributing to CDP Ecosystem
 
 Open Navigator extends CDP's vision by:
 
@@ -194,7 +194,7 @@ Open Navigator extends CDP's vision by:
 3. **Nationwide coverage**: cities, counties, townships and school districts across the U.S.
 4. **Policy analysis**: AI models for policy opportunity detection
 
-## 📖 Further Reading
+## Further Reading
 
 - [CDP Documentation](https://councildataproject.org/cdp-backend/)
 - [CDP GitHub Repository](https://github.com/CouncilDataProject/cdp-backend)
@@ -202,16 +202,16 @@ Open Navigator extends CDP's vision by:
 - [Open Navigator Data Sources](./citations)
 - [Events Bronze Migration Guide](../deployment/events-bronze-migration)
 
-## 📜 Citation
+## Citation
 
 When citing Council Data Project compatibility in Open Navigator:
 
 ```bibtex
 @software{council_data_project,
-  title = {Council Data Project: Indexing City Council Meetings},
-  author = {{Council Data Project Team}},
-  year = {2020},
-  url = {https://councildataproject.org/},
-  note = {Open-source infrastructure for making local government more accessible}
+ title = {Council Data Project: Indexing City Council Meetings},
+ author = {{Council Data Project Team}},
+ year = {2020},
+ url = {https://councildataproject.org/},
+ note = {Open-source infrastructure for making local government more accessible}
 }
 ```
