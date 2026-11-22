@@ -34,8 +34,10 @@ def test_run_all_argv_mentions_light_chain(tmp_path: Path, monkeypatch: pytest.M
         n=10,
         parallel=2,
     )
-    assert "analyze-light → reports-light" in argv[2]
+    chain = argv[argv.index("-c") + 1]
+    assert "analyze-light → reports-light" in chain
     assert env.get("COHORT") == "priority"
+    assert not any(k.startswith("BASH_FUNC_") for k in env)
 
 
 def test_analyze_full_sets_full_filters_env(
@@ -53,7 +55,7 @@ def test_analyze_full_sets_full_filters_env(
         parallel=1,
         full_filters=["has_decisions", "interestingness"],
     )
-    assert argv == ["bash", str(shell), "analyze-full"]
+    assert argv == ["bash", "--noprofile", "--norc", str(shell), "analyze-full"]
     assert env["FULL_FILTERS"] == "has_decisions,interestingness"
 
 
@@ -70,6 +72,7 @@ def test_analyze_light_shell_alias(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         parallel=1,
     )
     assert argv[-1] == "analyze-light"
+    assert argv[:3] == ["bash", "--noprofile", "--norc"]
 
 
 @pytest.mark.asyncio

@@ -23,8 +23,9 @@ def test_run_all_argv_chains_discover_then_shell(tmp_path: Path, monkeypatch) ->
         n=10,
         parallel=4,
     )
-    assert argv[:2] == ["bash", "-c"]
-    chain = argv[2]
+    assert argv[:3] == ["bash", "--noprofile", "--norc"]
+    assert "-c" in argv
+    chain = argv[argv.index("-c") + 1]
     assert "load_missing_county_channels.py" in chain
     assert "--states WI,AL" in chain
     assert "--cohort data_centers" in chain

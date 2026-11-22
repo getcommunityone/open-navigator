@@ -789,7 +789,11 @@ def _build_launch_argv(
     import shlex
 
     root = _repo_root()
-    env = dict(os.environ)
+    # Drop exported bash completion functions. A broken BASH_FUNC_* (e.g.
+    # _xinetd_services with an extglob pattern) is reimported by every child
+    # `bash` and aborts the pipeline before the script runs — Run all then
+    # looks like a no-op (#687).
+    env = {k: v for k, v in os.environ.items() if not k.startswith("BASH_FUNC_")}
     env["COHORT"] = cohort
     env["STATES"] = ",".join(states)
     if step == "discover":
@@ -834,7 +838,11 @@ def _build_launch_argv(
     if step == "all":
         disc = _discover_argv(states, cohort)
         disc_cmd = " ".join(shlex.quote(a) for a in disc)
-        pipe_cmd = " ".join(shlex.quote(a) for a in ["bash", str(script), "all"])
+        # --noprofile/--norc: don't load operator rc files; BASH_FUNC_* already stripped (#687).
+        pipe_cmd = " ".join(
+            shlex.quote(a)
+            for a in ["bash", "--noprofile", "--norc", str(script), "all"]
+        )
         chain = (
             f'echo "=== Discover (channel candidates) ==="; {disc_cmd}; '
             f'disc_ec=$?; '
@@ -847,9 +855,9 @@ def _build_launch_argv(
             f'echo "=== Catalog → captions → analyze-light → reports-light ==="; '
             f'{pipe_cmd}; exit $?'
         )
-        return ["bash", "-c", chain], env
+        return ["bash", "--noprofile", "--norc", "-c", chain], env
     shell_step = _shell_step_for_launch(step)
-    return ["bash", str(script), shell_step], env
+    return ["bash", "--noprofile", "--norc", str(script), shell_step], env
 
 
 def _spawn_launch(
@@ -889,7 +897,7 @@ def _spawn_launch(
     )
     logf = open(log_path, "ab")
     proc = subprocess.Popen(
-        ["bash", "-c", wrapper],
+        ["bash", "--noprofile", "--norc", "-c", wrapper],
         cwd=str(root),
         env=env,
         stdout=logf,
