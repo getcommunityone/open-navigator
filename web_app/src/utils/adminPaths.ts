@@ -7,6 +7,9 @@ export const ADMIN_LIGHTHOUSE_REPORT = '/admin/lighthouse-report'
 /** YouTube caption / policy pipeline batch job progress (live from API). */
 export const ADMIN_BATCH_JOBS = '/admin/batch-jobs'
 
+/** Human-required pipeline blockers (quota / VPN / API key) — #712. */
+export const ADMIN_OPERATOR_ACTIONS = '/admin/operator-actions'
+
 /** Job-application links for data center projects (DC-1.3, #248). */
 export const ADMIN_APPLICATION_LINKS = '/admin/application-links'
 
