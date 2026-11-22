@@ -1749,11 +1749,14 @@ export default function BatchJobStatusPage() {
                   <div className="flex items-center gap-2">
                     {ls?.enabled ? (
                       <label
-                        className="flex items-center gap-1 text-xs text-slate-500"
-                        title="Launch cohort: which states a run targets. Pick a single state from the scope dropdown to run just that one. Applies to the next launch and stage numbers."
+                        className="flex items-center gap-1.5 text-xs text-slate-500"
+                        title="Filter: which places a run targets (priority states, data-center jurisdictions, or all US states). Use Scope to narrow to one state. Applies to the next launch and stage numbers."
                       >
-                        <span aria-hidden>🗺️</span>
+                        <span className="font-medium uppercase tracking-wide text-slate-500">
+                          Filter
+                        </span>
                         <select
+                          aria-label="Filter"
                           value={allScope}
                           onChange={(e) =>
                             setAllScope(
@@ -1815,19 +1818,27 @@ export default function BatchJobStatusPage() {
                       </button>
                     ) : null}
                     {stateOpts.length > 0 ? (
-                      <select
-                        value={scope === 'ALL' ? '' : scope}
-                        onChange={(e) => setScope(e.target.value)}
-                        title="Scope the stage numbers (and the detail tables) to one state"
-                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                      <label
+                        className="flex items-center gap-1.5 text-xs text-slate-500"
+                        title="Scope the stage numbers (and the detail tables) to one state within the Filter"
                       >
-                        <option value="">All states</option>
-                        {stateOpts.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                        <span className="font-medium uppercase tracking-wide text-slate-500">
+                          Scope
+                        </span>
+                        <select
+                          aria-label="Scope"
+                          value={scope === 'ALL' ? '' : scope}
+                          onChange={(e) => setScope(e.target.value)}
+                          className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                        >
+                          <option value="">All in filter</option>
+                          {stateOpts.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     ) : null}
                   </div>
                 </div>

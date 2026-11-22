@@ -39,21 +39,21 @@ a UI-resolved `jurisdiction_ids[]` payload).
 
 ## UI (left → right)
 
-1. **Cohort dropdown** (🗺️), always visible when launch is enabled:
+1. **Filter** (labeled control, always visible when launch is enabled) — the
+   launch cohort:
    - `priority` — Priority states (`AL, GA, IN, MA, MT, WA, WI`)
    - `data_centers` — site belt ∪ meeting-mention jurisdictions
    - `all` — All states (50 + DC)
 
-2. **State dropdown** (to the right of cohort): options are only states valid for
-   the selected cohort.
+2. **Scope** (to the right of Filter): options are only states valid for the
+   selected filter.
    - Priority → fixed priority list
    - Data centers → distinct `state_code`s that have ≥1 DC jurisdiction (from API)
    - All → full `STATE_CODES`
-   - First option: **All states in cohort** (empty `states` / every state in the
-     left set)
+   - First option: **All in filter** (empty `states` / every state in the left set)
 
-3. If the current state is not in the new cohort’s list when the cohort changes,
-   reset the state filter to **All states in cohort**.
+3. If the current state is not in the new filter’s list when Filter changes,
+   reset Scope to **All in filter**.
 
 4. Run button labels / confirmations name the cohort, e.g.
    `▶ Run all · data centers` or `▶ Run all · data centers · AL`.
