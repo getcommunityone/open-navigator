@@ -1,15 +1,15 @@
-"""YouTube Data API key pool — Gemini-style numbered keys + free/paid (#716).
+"""YouTube Data API key pool — numbered keys with rotation (#716).
 
-Env (same three Google accounts as Gemini when possible):
+Env:
 
-* ``YOUTUBE_API_KEY`` — legacy single key (included; tier from ``YOUTUBE_KEY_TIER``)
+* ``YOUTUBE_API_KEY`` — legacy single key (included in the pool)
 * ``YOUTUBE_API_KEY_1`` … ``YOUTUBE_API_KEY_10`` — rotated pool
-* ``YOUTUBE_KEY_TIER`` / ``YOUTUBE_KEY_TIER_{N}`` — ``free`` | ``paid``
-* ``YOUTUBE_USE_TIER`` — ``free`` | ``paid`` | ``all`` (default ``all``)
-* ``YOUTUBE_API_KEYS`` — optional comma/space/newline list (untagged)
+* ``YOUTUBE_API_KEYS`` — optional comma/space/newline list
 
-When ``YOUTUBE_USE_TIER=all``, keys are ordered **free → paid → untagged** so
-default 10k/day projects are tried before billed/quota-increased ones.
+YouTube has no Gemini-style free/paid product tier. Every Cloud Console
+API key (``AIzaSy…``) on a project with YouTube Data API v3 enabled shares
+the project's default daily quota (~10k units). Extra capacity is a Console
+quota increase, not a key tag — so this pool does not read ``YOUTUBE_KEY_TIER*``.
 
 On ``quotaExceeded``, call :func:`mark_youtube_key_exhausted` so the next
 :func:`youtube_api_key` skips that key for the process lifetime.
@@ -27,30 +27,12 @@ from loguru import logger
 
 _lock = threading.Lock()
 _POOL: Optional[list[str]] = None
-_POOL_TIER: Optional[str] = None
 _IDX: int = 0
 _EXHAUSTED: set[str] = set()
 
 
 def _strip_api_key(raw: str) -> str:
     return (raw or "").strip().strip('"').strip("'")
-
-
-def _normalize_key_tier(raw: Optional[str]) -> str:
-    t = (raw or "").strip().lower()
-    if t in ("free", "paid"):
-        return t
-    return "untagged"
-
-
-def _youtube_use_tier() -> str:
-    use = (os.getenv("YOUTUBE_USE_TIER") or "all").strip().lower()
-    if use in ("", "all", "*"):
-        return "all"
-    if use in ("free", "paid"):
-        return use
-    logger.warning("Unknown YOUTUBE_USE_TIER={!r}; using all", use)
-    return "all"
 
 
 def _repo_env_path() -> Path:
@@ -65,97 +47,55 @@ def _repo_env_path() -> Path:
 def resolve_youtube_api_keys(
     *,
     env_path: Optional[os.PathLike[str]] = None,
-    tier: Optional[str] = None,
 ) -> list[str]:
-    """Configured YouTube Data API keys, de-duplicated.
-
-    When ``tier``/``YOUTUBE_USE_TIER`` is ``all``, order is free → paid → untagged.
-    """
+    """Configured YouTube Data API keys, de-duplicated, in declaration order."""
     from dotenv import load_dotenv
 
     path = Path(env_path) if env_path is not None else _repo_env_path()
     if path.is_file():
         load_dotenv(path, override=False)
 
-    tagged: list[tuple[str, str]] = []
+    keys: list[str] = []
     for k in (_strip_api_key(x) for x in re.split(r"[,\s]+", os.getenv("YOUTUBE_API_KEYS") or "")):
         if k:
-            tagged.append((k, "untagged"))
+            keys.append(k)
     plain = _strip_api_key(os.getenv("YOUTUBE_API_KEY") or "")
     if plain:
-        tagged.append((plain, _normalize_key_tier(os.getenv("YOUTUBE_KEY_TIER"))))
+        keys.append(plain)
     for i in range(1, 11):
         k = _strip_api_key(os.getenv(f"YOUTUBE_API_KEY_{i}") or "")
         if k:
-            tagged.append((k, _normalize_key_tier(os.getenv(f"YOUTUBE_KEY_TIER_{i}"))))
+            keys.append(k)
 
-    use = (tier.strip().lower() if tier is not None else _youtube_use_tier())
-    if use in ("", "all", "*"):
-        use = "all"
-    elif use not in ("free", "paid"):
-        logger.warning("Unknown tier filter {!r}; using all", use)
-        use = "all"
-
-    free: list[str] = []
-    paid: list[str] = []
-    untagged: list[str] = []
+    out: list[str] = []
     seen: set[str] = set()
-    for k, key_tier in tagged:
+    for k in keys:
         if not k or k in seen:
             continue
-        if use != "all" and key_tier != use:
-            continue
         seen.add(k)
-        if key_tier == "free":
-            free.append(k)
-        elif key_tier == "paid":
-            paid.append(k)
-        else:
-            untagged.append(k)
-
-    if use == "all":
-        out = [*free, *paid, *untagged]
-    elif use == "free":
-        out = free
-    else:
-        out = paid
-
-    if use != "all" and not out:
-        raise RuntimeError(
-            f"YOUTUBE_USE_TIER={use!r} but no keys are tagged "
-            f"YOUTUBE_KEY_TIER[_N]={use!r}. Tag keys in .env or set "
-            f"YOUTUBE_USE_TIER=all."
-        )
+        out.append(k)
     return out
 
 
 def reset_youtube_key_pool() -> None:
     """Clear cached pool / exhaustion (tests)."""
-    global _POOL, _POOL_TIER, _IDX
+    global _POOL, _IDX
     with _lock:
         _POOL = None
-        _POOL_TIER = None
         _IDX = 0
         _EXHAUSTED.clear()
 
 
 def _ensure_pool() -> list[str]:
-    global _POOL, _POOL_TIER, _IDX
-    use = _youtube_use_tier()
+    global _POOL, _IDX
     with _lock:
-        if _POOL is None or _POOL_TIER != use:
-            _POOL = resolve_youtube_api_keys(tier=use)
-            _POOL_TIER = use
+        if _POOL is None:
+            _POOL = resolve_youtube_api_keys()
             _IDX = 0
             if len(_POOL) > 1:
-                logger.info(
-                    "YouTube API key rotation enabled: {} keys (tier={}, free-first={})",
-                    len(_POOL),
-                    use,
-                    use == "all",
-                )
+                logger.info("YouTube API key rotation enabled: {} keys", len(_POOL))
             elif _POOL:
-                logger.info("YouTube API key pool: 1 key (tier={})", use)
+                logger.info("YouTube API key pool: 1 key")
             else:
                 logger.warning(
                     "YouTube API key pool empty (set YOUTUBE_API_KEY or YOUTUBE_API_KEY_1)"
