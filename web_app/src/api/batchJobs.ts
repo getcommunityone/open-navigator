@@ -176,6 +176,7 @@ export async function launchPipeline(body: {
   states?: string[]
   n?: number
   parallel?: number
+  cohort?: BatchCohort
 }): Promise<LaunchResult> {
   const r = await tracedFetch('/api/batch-jobs/launch', {
     method: 'POST',
@@ -227,6 +228,23 @@ export async function stopPipeline(body: {
   return (await r.json()) as StopResult
 }
 
+export type BatchCohort = 'priority' | 'data_centers' | 'all'
+
+export type CohortsResponse = {
+  priority: string[]
+  data_centers: string[]
+  all: string[]
+}
+
+export async function fetchCohorts(): Promise<CohortsResponse> {
+  const r = await tracedFetch('/api/batch-jobs/cohorts', {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()) as CohortsResponse
+}
+
 export type BatchJobsDetailLevel = 'summary' | 'standard' | 'full'
 
 type ApiErrorBody = { detail?: string | { msg?: string }[] }
@@ -254,19 +272,30 @@ export function batchJobsFetchErrorMessage(error: unknown): string {
 export async function fetchBatchJobsDashboard(
   refreshFiles = false,
   detail: BatchJobsDetailLevel = 'summary',
+  cohort?: BatchCohort,
 ): Promise<BatchJobsDashboardPayload> {
-  const { data, error } = await apiTyped.GET('/api/batch-jobs/', {
-    params: {
-      query: {
-        refresh_files: refreshFiles,
-        enrich_bronze: false,
-        detail,
-        batch_limit: 25,
-      },
-    },
+  const query = new URLSearchParams({
+    refresh_files: String(refreshFiles),
+    enrich_bronze: 'false',
+    detail,
+    batch_limit: '25',
+  })
+  if (cohort) query.set('cohort', cohort)
+  const r = await tracedFetch(`/api/batch-jobs/?${query}`, {
+    headers: authHeaders(),
     signal: AbortSignal.timeout(30_000),
   })
-  if (error) throw error
+  if (!r.ok) {
+    let detailMsg = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { detail?: string }
+      if (j?.detail) detailMsg = j.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detailMsg)
+  }
+  const data = (await r.json()) as BatchJobsDashboardPayload
   if (data == null) {
     // openapi-fetch resolved with neither data nor error — e.g. an empty body
     // or a 30s-aborted request. Returning undefined here makes React Query emit
@@ -275,7 +304,7 @@ export async function fetchBatchJobsDashboard(
       'Batch jobs API returned an empty response (the API may be down, restarting, or slow — try restarting it and reloading).',
     )
   }
-  return data as BatchJobsDashboardPayload
+  return data
 }
 
 export type FailedVideosListPayload = {
@@ -355,10 +384,11 @@ export function mergeBatchIntoDashboard(
 }
 
 /** SSE URL for live dashboard updates (Postgres-backed). */
-export function batchJobsStreamUrl(): string {
+export function batchJobsStreamUrl(cohort?: BatchCohort): string {
   const base = import.meta.env.PROD
     ? '/api'
     : import.meta.env.VITE_API_URL || '/api'
   const prefix = base.endsWith('/') ? base.slice(0, -1) : base
-  return `${prefix}/batch-jobs/stream`
+  const q = cohort ? `?cohort=${encodeURIComponent(cohort)}` : ''
+  return `${prefix}/batch-jobs/stream${q}`
 }
