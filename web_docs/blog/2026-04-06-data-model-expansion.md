@@ -11,7 +11,7 @@ This week marks a significant milestone for Open Navigator as we've dramatically
 
 {/* truncate */}
 
-## 🎯 What We Accomplished
+## What We Accomplished
 
 ### 1. Added 8 New Civic Tech Entities
 
@@ -47,7 +47,7 @@ Integrated faith-based organizations into our nonprofit tracking:
 - Data sources: ARDA, HIFLD, National Congregations Study
 - Coverage: Churches, mosques, synagogues, temples
 
-## 📊 By the Numbers
+## By the Numbers
 
 - **40+ entities** in our comprehensive ERD
 - **2,827 lines** of data model documentation
@@ -55,7 +55,7 @@ Integrated faith-based organizations into our nonprofit tracking:
 - **3M+ nonprofits** monitored
 - **500K+ meeting pages** indexed
 
-## 🔮 What's Next
+## What's Next
 
 **Week of April 13:**
 - Migrate all citations to Docusaurus documentation
@@ -72,7 +72,7 @@ Integrated faith-based organizations into our nonprofit tracking:
 - Build hackathon event calendar
 - Create community solution templates
 
-## 🚀 Try It Out
+## Try It Out
 
 Our data model is fully documented in the [Data Model ERD](/docs/data-sources/data-model-erd) with interactive Mermaid diagrams showing all entity relationships.
 

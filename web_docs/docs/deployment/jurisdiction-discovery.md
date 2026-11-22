@@ -4,7 +4,7 @@ sidebar_position: 14
 
 # Jurisdiction Discovery - Deployment Options
 
-## Option 1: Local CLI ✅ Recommended for Testing
+## Option 1: Local CLI Yes Recommended for Testing
 
 Run discovery from your local machine.
 
@@ -42,30 +42,30 @@ python main.py discover-jurisdictions
 
 ---
 
-## Option 2: Databricks Notebook ✅ Recommended for Production
+## Option 2: Databricks Notebook Yes Recommended for Production
 
 Run discovery in a Databricks notebook with Spark parallel processing.
 
 ### Setup
 
 1. **Upload Notebook**
-   ```bash
-   databricks workspace import \
-     notebooks/Jurisdiction_Discovery.py \
-     /Users/your-email/Jurisdiction_Discovery \
-     --language PYTHON
-   ```
+ ```bash
+ databricks workspace import \
+ notebooks/Jurisdiction_Discovery.py \
+ /Users/your-email/Jurisdiction_Discovery \
+ --language PYTHON
+ ```
 
 2. **Create Cluster**
-   - Runtime: 14.3 LTS or higher
-   - Node type: Standard_DS3_v2
-   - Workers: 2-4 (for parallel processing)
-   - Libraries: Install from requirements.txt
+ - Runtime: 14.3 LTS or higher
+ - Node type: Standard_DS3_v2
+ - Workers: 2-4 (for parallel processing)
+ - Libraries: Install from requirements.txt
 
 3. **Run Notebook**
-   - Attach to cluster
-   - Execute all cells
-   - Monitor progress
+ - Attach to cluster
+ - Execute all cells
+ - Monitor progress
 
 ### Usage
 
@@ -98,18 +98,18 @@ Create Databricks Workflow for monthly re-discovery:
 
 ```json
 {
-  "name": "Monthly Jurisdiction Discovery",
-  "tasks": [{
-    "task_key": "discover_jurisdictions",
-    "notebook_task": {
-      "notebook_path": "/Users/you/Jurisdiction_Discovery"
-    },
-    "existing_cluster_id": "your-cluster-id"
-  }],
-  "schedule": {
-    "quartz_cron_expression": "0 0 1 * *",
-    "timezone_id": "America/Los_Angeles"
-  }
+ "name": "Monthly Jurisdiction Discovery",
+ "tasks": [{
+ "task_key": "discover_jurisdictions",
+ "notebook_task": {
+ "notebook_path": "/Users/you/Jurisdiction_Discovery"
+ },
+ "existing_cluster_id": "your-cluster-id"
+ }],
+ "schedule": {
+ "quartz_cron_expression": "0 0 1 * *",
+ "timezone_id": "America/Los_Angeles"
+ }
 }
 ```
 
@@ -125,8 +125,8 @@ Deploy discovery as a Databricks Model Serving endpoint for API access.
 from discovery.mlflow_discovery_agent import deploy_discovery_agent
 
 endpoint_url = deploy_discovery_agent(
-    endpoint_name="jurisdiction-discovery",
-    workload_size="Small"
+ endpoint_name="jurisdiction-discovery",
+ workload_size="Small"
 )
 ```
 
@@ -136,14 +136,14 @@ endpoint_url = deploy_discovery_agent(
 import requests
 
 response = requests.post(
-    endpoint_url,
-    headers={"Authorization": f"Bearer {databricks_token}"},
-    json={
-        "dataframe_records": [{
-            "action": "discover",
-            "params": {"limit": 100, "state": "CA"}
-        }]
-    }
+ endpoint_url,
+ headers={"Authorization": f"Bearer {databricks_token}"},
+ json={
+ "dataframe_records": [{
+ "action": "discover",
+ "params": {"limit": 100, "state": "CA"}
+ }]
+ }
 )
 ```
 
@@ -170,8 +170,8 @@ response = requests.post(
 | **Cost** | $0 | $8-15/run | $0.50-2/hr |
 | **Speed** | 3-5 min/100 | 2-4 hrs/30k | On-demand |
 | **Scale** | Limited | High | Auto-scale |
-| **API Access** | ❌ | ❌ | ✅ |
-| **Scheduling** | ❌ | ✅ | ✅ |
+| **API Access** | No | No | Yes |
+| **Scheduling** | No | Yes | Yes |
 | **Best For** | Testing | Production | API Integration |
 
 ---
@@ -194,7 +194,7 @@ Schedule monthly re-discovery job in Databricks Workflows.
 
 ## Cost Analysis
 
-**No External API Costs!** 🎉
+**No External API Costs!**
 
 Old approach (deprecated):
 - ~~Google Search: $150~~
@@ -206,8 +206,8 @@ New approach (pattern-based):
 - Databricks: **$8-15** (compute only)
 - AgentBricks: **$0.50-2/hour**
 
-**Savings: $240 per discovery run** ✅
+**Savings: $240 per discovery run** Yes
 
 ---
 
-**All options are production-ready and use sustainable, vendor-neutral methods!** 🚀
+**All options are production-ready and use sustainable, vendor-neutral methods!**

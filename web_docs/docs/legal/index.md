@@ -9,7 +9,7 @@ sidebar_label: Terms and Privacy
 This section contains all legal policies, terms of service, and compliance documentation for Open Navigator. Please review these documents carefully before using the Service.
 :::
 
-## 📋 Required Reading
+## Required Reading
 
 All users must comply with the following documents:
 
@@ -23,7 +23,7 @@ The main legal agreement governing your use of Open Navigator. This document inc
 - Intellectual property rights
 - Limitation of liability
 
-**⚠️ CRITICAL:** By using this Service, you agree to comply with ALL third-party provider terms, including Charity Navigator's strict attribution requirements and rate limits.
+**Warning CRITICAL:** By using this Service, you agree to comply with ALL third-party provider terms, including Charity Navigator's strict attribution requirements and rate limits.
 
 ---
 
@@ -70,16 +70,16 @@ Technical compliance documentation showing our adherence to all data source term
 
 ---
 
-## 🚨 Critical Compliance Requirements
+## Critical Compliance Requirements
 
 ### Charity Navigator
 **MANDATORY on ALL pages using their data:**
-- ✅ Display "Powered by Charity Navigator"
-- ✅ Link charity names to their CN profiles
-- ✅ Include trademark notice
-- ❌ Maximum 1,000 API calls per day
-- ❌ NO redistribution of CN data
-- ❌ NO competing rating systems
+- Yes Display "Powered by Charity Navigator"
+- Yes Link charity names to their CN profiles
+- Yes Include trademark notice
+- No Maximum 1,000 API calls per day
+- No NO redistribution of CN data
+- No NO competing rating systems
 
 **Violation consequences:** API access termination, potential legal action
 
@@ -87,67 +87,67 @@ Technical compliance documentation showing our adherence to all data source term
 
 ### Google Services
 **MANDATORY:**
-- ✅ Display "Data provided by Google" where applicable
-- ❌ Civic API data CANNOT be cached beyond 30 days
-- ❌ Must comply with Google Cloud Terms of Service
-- ❌ Subject to API quotas
+- Yes Display "Data provided by Google" where applicable
+- No Civic API data CANNOT be cached beyond 30 days
+- No Must comply with Google Cloud Terms of Service
+- No Subject to API quotas
 
 ---
 
 ### ProPublica APIs
 **MANDATORY:**
-- ✅ Provide attribution to ProPublica
-- ✅ Include API key in headers (`X-API-Key`)
-- ❌ **CRITICAL:** FEC Campaign Finance data CANNOT be used for commercial solicitation or fundraising
-- ❌ Rate limits: 5,000 requests/day
+- Yes Provide attribution to ProPublica
+- Yes Include API key in headers (`X-API-Key`)
+- No **CRITICAL:** FEC Campaign Finance data CANNOT be used for commercial solicitation or fundraising
+- No Rate limits: 5,000 requests/day
 
 ---
 
 ### Open States
 **MANDATORY:**
-- ✅ Display "Powered by Open States"
-- ✅ API key required (free registration)
-- ❌ 50,000 requests/month free tier
-- ❌ Data licenses vary by state
+- Yes Display "Powered by Open States"
+- Yes API key required (free registration)
+- No 50,000 requests/month free tier
+- No Data licenses vary by state
 
 ---
 
 ### DBpedia
 **MANDATORY:**
-- ✅ Attribute to DBpedia and Wikipedia
-- ✅ CC BY-SA 3.0 license (share-alike applies)
-- ❌ Derivative works must use compatible license
+- Yes Attribute to DBpedia and Wikipedia
+- Yes CC BY-SA 3.0 license (share-alike applies)
+- No Derivative works must use compatible license
 
 ---
 
-## ⚖️ Your Responsibilities
+## Your Responsibilities
 
 When using Open Navigator, you agree to:
 
 1. **Respect Rate Limits**
-   - Implement caching where permitted
-   - Add delays between requests
-   - Monitor your usage against quotas
+ - Implement caching where permitted
+ - Add delays between requests
+ - Monitor your usage against quotas
 
 2. **Provide Attribution**
-   - Include all required credits
-   - Link to data provider profiles where required
-   - Display trademark notices
+ - Include all required credits
+ - Link to data provider profiles where required
+ - Display trademark notices
 
 3. **Prohibited Uses**
-   - ❌ NO use of FEC donor data for commercial solicitation
-   - ❌ NO redistribution of Charity Navigator data
-   - ❌ NO circumvention of rate limits
-   - ❌ NO removal of attribution notices
+ - No NO use of FEC donor data for commercial solicitation
+ - No NO redistribution of Charity Navigator data
+ - No NO circumvention of rate limits
+ - No NO removal of attribution notices
 
 4. **Data Accuracy**
-   - Verify critical information with original sources
-   - Report errors or inaccuracies to us
-   - Don't misrepresent data provenance
+ - Verify critical information with original sources
+ - Report errors or inaccuracies to us
+ - Don't misrepresent data provenance
 
 ---
 
-## 🔒 Privacy & Security
+## Privacy & Security
 
 ### What We Collect
 - **Public data only:** Government records, tax filings, public meetings
@@ -155,24 +155,24 @@ When using Open Navigator, you agree to:
 - **Technical data:** IP address, browser info (for security)
 
 ### What We DON'T Collect
-- ❌ Private financial information
-- ❌ Health information
-- ❌ Social Security numbers
-- ❌ Any data requiring authentication to access
+- No Private financial information
+- No Health information
+- No Social Security numbers
+- No Any data requiring authentication to access
 
 ### Your Rights
-- ✅ Request removal of public records data (case-by-case)
-- ✅ Delete your account anytime
-- ✅ Access and download your data
-- ✅ Opt out of analytics
+- Yes Request removal of public records data (case-by-case)
+- Yes Delete your account anytime
+- Yes Access and download your data
+- Yes Opt out of analytics
 
 **See [Privacy Policy](./privacy-policy.md) for complete details.**
 
 ---
 
-## 📊 Data Sources Quick Reference
+## Data Sources Quick Reference
 
-### 🏛️ Government Data Sources (1-6)
+### Government Data Sources (1-6)
 
 | # | Abbrev | Source | Public Domain? | API Key? | Rate Limit | Attribution |
 |---|--------|--------|---------------|----------|------------|-------------|
@@ -183,13 +183,13 @@ When using Open Navigator, you agree to:
 | 5 | GRNT | **Grants.gov** | Yes | No | None | Recommended |
 | 6 | GSAD | **GSA Domains** | Yes | No | None | No |
 
-### 🎬 Media & Social Platforms (7)
+### Media & Social Platforms (7)
 
 | # | Abbrev | Source | Public Domain? | API Key? | Rate Limit | Attribution |
 |---|--------|--------|---------------|----------|------------|-------------|
 | 7 | YOUT | **YouTube Data API** | No | Yes | 10,000 units/day | **REQUIRED** |
 
-### 💼 Google Services (8-10)
+### Google Services (8-10)
 
 | # | Abbrev | Source | Public Domain? | API Key? | Rate Limit | Attribution |
 |---|--------|--------|---------------|----------|------------|-------------|
@@ -197,7 +197,7 @@ When using Open Navigator, you agree to:
 | 9 | GCIV | **Google Civic API** | No | Yes | 25,000 req/day | **REQUIRED** |
 | 10 | GDCM | **Google Data Commons** | Yes | No | None | **REQUIRED** |
 
-### 🏢 Nonprofit Data Providers (11-18)
+### Nonprofit Data Providers (11-18)
 
 | # | Abbrev | Source | Public Domain? | API Key? | Rate Limit | Attribution |
 |---|--------|--------|---------------|----------|------------|-------------|
@@ -210,7 +210,7 @@ When using Open Navigator, you agree to:
 | 17 | LOGO | **Logo.dev** | No | Yes | 1,000 req/month | Recommended |
 | 18 | GT90 | **GivingTuesday 990** | Yes | No | AWS egress | **REQUIRED** |
 
-### 🗳️ Civic & Open Data (19-21)
+### Civic & Open Data (19-21)
 
 | # | Abbrev | Source | Public Domain? | API Key? | Rate Limit | Attribution |
 |---|--------|--------|---------------|----------|------------|-------------|
@@ -218,7 +218,7 @@ When using Open Navigator, you agree to:
 | 20 | WKDT | **Wikidata** | Yes (CC0) | No | ~1 req/sec | No |
 | 21 | DBPD | **DBpedia** | CC BY-SA | No | ~1-2 req/sec | **REQUIRED** |
 
-### 🎓 Academic & Research (22-26)
+### Academic & Research (22-26)
 
 | # | Abbrev | Source | Public Domain? | API Key? | Rate Limit | Attribution |
 |---|--------|--------|---------------|----------|------------|-------------|
@@ -228,20 +228,20 @@ When using Open Navigator, you agree to:
 | 25 | CTSC | **City Scrapers / Documenters** | MIT License | No | None | **REQUIRED** |
 | 26 | ROPR | **Roper Center (iPoll)** | Academic | No** | N/A | **REQUIRED** |
 
-### 🗳️ Election Data (27-28)
+### Election Data (27-28)
 
 | # | Abbrev | Source | Public Domain? | API Key? | Rate Limit | Attribution |
 |---|--------|--------|---------------|----------|------------|-------------|
 | 27 | MITE | **MIT Election Lab** | Open Data | No | None | **REQUIRED** |
 | 28 | OPEL | **OpenElections** | Varies | No | None | **REQUIRED** |
 
-### 💰 Paid Services - NOT USED (29)
+### Paid Services - NOT USED (29)
 
 | # | Abbrev | Source | Public Domain? | API Key? | Rate Limit | Attribution |
 |---|--------|--------|---------------|----------|------------|-------------|
 | 29 | BLTP | **Ballotpedia** | No | Yes | **PAID** | **REQUIRED** |
 
-### 🌐 Scraped Meeting Platforms (30-34)
+### Scraped Meeting Platforms (30-34)
 
 These platforms are accessed via web scraping (no API):
 
@@ -257,8 +257,8 @@ These platforms are accessed via web scraping (no API):
 - *Census: Without API key = 500 requests/IP/day. With free API key = much higher limits
 - **Roper: Full data requires institutional membership; metadata is free
 
-**📖 Full Terms:** [Data Provider Terms](./data-provider-terms.md)  
-**📞 Provider Contacts:** [Contact Information](./data-provider-terms.md#-contact-information-for-providers)
+** Full Terms:** [Data Provider Terms](./data-provider-terms.md)
+** Provider Contacts:** [Contact Information](./data-provider-terms.md#-contact-information-for-providers)
 
 ---
 
@@ -267,24 +267,24 @@ These platforms are accessed via web scraping (no API):
 ### How to Stay Compliant
 
 1. **Read the Terms**
-   - Review [Terms of Service](./terms-of-service.md)
-   - Study [Data Provider Terms](./data-provider-terms.md) for sources you use
-   - Understand rate limits and quotas
+ - Review [Terms of Service](./terms-of-service.md)
+ - Study [Data Provider Terms](./data-provider-terms.md) for sources you use
+ - Understand rate limits and quotas
 
 2. **Implement Required Attributions**
-   - Use attribution templates from [Data Provider Terms](./data-provider-terms.md#compliance-summary-table)
-   - Include all mandatory credits
-   - Link to provider profiles where required
+ - Use attribution templates from [Data Provider Terms](./data-provider-terms.md#compliance-summary-table)
+ - Include all mandatory credits
+ - Link to provider profiles where required
 
 3. **Monitor Your Usage**
-   - Track API calls against rate limits
-   - Implement caching to reduce requests
-   - Set up alerts for quota thresholds
+ - Track API calls against rate limits
+ - Implement caching to reduce requests
+ - Set up alerts for quota thresholds
 
 4. **Document Your Compliance**
-   - Keep records of attribution implementations
-   - Log API usage and rate limiting
-   - Maintain audit trail for data sources
+ - Keep records of attribution implementations
+ - Log API usage and rate limiting
+ - Maintain audit trail for data sources
 
 ### Need Help?
 
@@ -297,7 +297,7 @@ These platforms are accessed via web scraping (no API):
 
 ---
 
-## 📅 Updates & Maintenance
+## Updates & Maintenance
 
 ### How We Keep These Documents Current
 
@@ -320,15 +320,15 @@ These platforms are accessed via web scraping (no API):
 
 ---
 
-## 📜 Software License
+## Software License
 
 **Open Navigator** is open-source software licensed under the **MIT License**.
 
 **Key Points:**
-- ✅ Free for commercial and non-commercial use
-- ✅ Modification and redistribution allowed
-- ✅ Must include MIT License notice in distributions
-- ✅ No warranty or liability
+- Yes Free for commercial and non-commercial use
+- Yes Modification and redistribution allowed
+- Yes Must include MIT License notice in distributions
+- Yes No warranty or liability
 
 **Full License:** [GitHub Repository](https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/LICENSE)
 
@@ -336,7 +336,7 @@ These platforms are accessed via web scraping (no API):
 
 ---
 
-## ⚠️ Disclaimers
+## Warning Disclaimers
 
 ### No Government Endorsement
 
@@ -370,7 +370,7 @@ While we strive for accuracy:
 
 ---
 
-## 📞 Contact Information
+## Contact Information
 
 **General Inquiries:**
 - **Email:** [contact email to be added]
@@ -391,7 +391,7 @@ While we strive for accuracy:
 
 ---
 
-## 🔗 Related Documentation
+## Related Documentation
 
 - [Citations & Data Sources](../data-sources/citations.md) - Academic citations and BibTeX
 - [Data Model & ERD](../data-sources/data-model-erd.md) - Database schema
@@ -416,5 +416,5 @@ Before redistributing data from this Service:
 
 ---
 
-**Last Updated:** April 28, 2026  
+**Last Updated:** April 28, 2026
 **Version:** 1.0

@@ -23,30 +23,30 @@ This update implements **dynamic, geography-specific trending causes** that show
 
 ### 1. Database Layer (dbt)
 - **`dbt_project/models/marts/jurisdiction_state_aggregate.sql`**
-  - Added CTEs to aggregate trending causes by jurisdiction
-  - Joins `int_trending_causes_by_jurisdiction` data
-  - Populates `trending_causes` JSONB column at all levels (national, state, county, city)
+ - Added CTEs to aggregate trending causes by jurisdiction
+ - Joins `int_trending_causes_by_jurisdiction` data
+ - Populates `trending_causes` JSONB column at all levels (national, state, county, city)
 
 ### 2. Frontend
 - **`frontend/src/pages/Home.tsx`**
-  - Updated `trendingTopics` to use `locationStats.trending_causes` when available
-  - Added `getCauseIcon()` helper to map cause names to emoji icons
-  - Falls back to `/api/trending` if no location-specific data
+ - Updated `trendingTopics` to use `locationStats.trending_causes` when available
+ - Added `getCauseIcon()` helper to map cause names to emoji icons
+ - Falls back to `/api/trending` if no location-specific data
 
 ### 3. Scripts
 - **`scripts/data/update_trending_causes.sh`** (NEW)
-  - Bash script to run dbt models and populate trending causes
-  - Can be added to cron for daily updates
+ - Bash script to run dbt models and populate trending causes
+ - Can be added to cron for daily updates
 
 ### 4. Documentation
 - **`web_docs/docs/dbt/trending-causes.md`**
-  - Updated to reflect new implementation
-  - Added examples for each aggregation level
+ - Updated to reflect new implementation
+ - Added examples for each aggregation level
 
 - **`website/docs/development/trending-causes-by-geography.md`** (NEW)
-  - Comprehensive guide on how trending causes work
-  - Troubleshooting tips
-  - Performance considerations
+ - Comprehensive guide on how trending causes work
+ - Troubleshooting tips
+ - Performance considerations
 
 ## Testing
 
@@ -72,20 +72,20 @@ Check that trending causes exist:
 psql -h localhost -p 5433 -U postgres -d open_navigator
 
 -- Check city-level causes
-SELECT 
-  city,
-  state_code,
-  jsonb_array_length(trending_causes) as num_causes
+SELECT
+ city,
+ state_code,
+ jsonb_array_length(trending_causes) as num_causes
 FROM jurisdiction_state_aggregate
-WHERE level = 'city' 
-  AND trending_causes IS NOT NULL
+WHERE level = 'city'
+ AND trending_causes IS NOT NULL
 LIMIT 10;
 
 -- View a sample
-SELECT jsonb_pretty(trending_causes) 
-FROM jurisdiction_state_aggregate 
-WHERE city ILIKE '%Mobile%' 
-  AND level = 'city'
+SELECT jsonb_pretty(trending_causes)
+FROM jurisdiction_state_aggregate
+WHERE city ILIKE '%Mobile%'
+ AND level = 'city'
 LIMIT 1;
 ```
 
@@ -124,21 +124,21 @@ curl "http://localhost:8001/api/stats?state=AL&city=Mobile" | jq '.trending_caus
 When trending causes data exists:
 - User selects "Mobile, AL"
 - API returns `trending_causes` array with causes like:
-  ```json
-  [
-    {
-      "cause": "Education and Workforce",
-      "decision_count": 12,
-      "rank": 1
-    },
-    {
-      "cause": "Health",
-      "decision_count": 8,
-      "rank": 2
-    }
-  ]
-  ```
-- Frontend displays: "📚 Education and Workforce" "🏥 Health" etc.
+ ```json
+ [
+ {
+ "cause": "Education and Workforce",
+ "decision_count": 12,
+ "rank": 1
+ },
+ {
+ "cause": "Health",
+ "decision_count": 8,
+ "rank": 2
+ }
+ ]
+ ```
+- Frontend displays: " Education and Workforce" " Health" etc.
 
 ### Without Data (Fallback)
 When no trending causes exist for a location:
@@ -156,21 +156,21 @@ When no trending causes exist for a location:
 ### Production (Neon/HuggingFace)
 1. Ensure dbt is installed in production environment
 2. Add cron job to run daily:
-   ```bash
-   0 2 * * * cd /path/to/open-navigator && ./scripts/data/update_trending_causes.sh
-   ```
+ ```bash
+ 0 2 * * * cd /path/to/open-navigator && ./scripts/data/update_trending_causes.sh
+ ```
 3. Or run manually after data ingestion:
-   ```bash
-   python scripts/datasources/gemini/load_meeting_transcripts_bronze.py
-   ./scripts/data/update_trending_causes.sh
-   ```
+ ```bash
+ python scripts/datasources/gemini/load_meeting_transcripts_bronze.py
+ ./scripts/data/update_trending_causes.sh
+ ```
 
 ## Troubleshooting
 
 ### Issue: No trending causes displayed
 **Solution**: Check if `bronze_decisions` table has recent data (last 90 days)
 ```sql
-SELECT COUNT(*) FROM bronze_decisions 
+SELECT COUNT(*) FROM bronze_decisions
 WHERE decision_date >= CURRENT_DATE - INTERVAL '90 days';
 ```
 
@@ -203,10 +203,10 @@ Ensure `profiles.yml` points to correct database.
 ## Migration Notes
 
 No migration needed! The implementation:
-- ✅ Backward compatible (falls back to `/api/trending` if no data)
-- ✅ No schema changes required (trending_causes column already exists)
-- ✅ Works immediately after running dbt models
-- ✅ No code changes needed in other parts of the app
+- Yes Backward compatible (falls back to `/api/trending` if no data)
+- Yes No schema changes required (trending_causes column already exists)
+- Yes Works immediately after running dbt models
+- Yes No code changes needed in other parts of the app
 
 ## Next Steps
 

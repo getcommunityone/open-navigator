@@ -11,7 +11,7 @@ This week we completed a major documentation overhaul - migrating all citations 
 
 {/* truncate */}
 
-## ✅ What We Accomplished
+## Yes What We Accomplished
 
 ### 1. Comprehensive Citations Page
 
@@ -62,29 +62,29 @@ Created comprehensive civic tech citations:
 ### 4. Made Citations Prominent
 
 Added citations to:
-- ✅ Navbar (top navigation)
-- ✅ Footer (all pages)
-- ✅ All sidebar navigations
-- ✅ Homepage introduction
-- ✅ For Advocates page
-- ✅ For Developers page
+- Yes Navbar (top navigation)
+- Yes Footer (all pages)
+- Yes All sidebar navigations
+- Yes Homepage introduction
+- Yes For Advocates page
+- Yes For Developers page
 
-## 📚 Citation Categories
+## Citation Categories
 
 Our documentation now covers:
 
-1. **🎓 Academic Research** - MeetingBank, LocalView, Council Data Project, City Scrapers
-2. **🏛️ Government Data** - U.S. Census, NCES, IRS TEOS
-3. **🌐 Civic Tech Standards** - OCD-ID, Popolo, Schema.org, CEDS, OMOP CDM
-4. **🗳️ Election & Advocacy** - Ballotpedia, MIT Election Lab, OpenElections
-5. **🏢 Nonprofit & Philanthropy** - ProPublica, IRS, Every.org, Findhelp, 211, Microsoft CDM
-6. **🌍 International Aid** - IATI Standard v2.03
-7. **✅ Fact-Checking** - Google API, FactCheck.org, PolitiFact
-8. **💼 Enterprise Tech** - Microsoft, Google, AWS, Databricks, Snowflake, Oracle, Salesforce, Cisco, IBM, Meta
-9. **💻 Civic Tech & Open Source** - GitHub, Code for America, USDR, Civic Tech Field Guide, DPGA
-10. **🌟 Community Solutions** - Spectrum of Engagement, Harvard, Brookings, Open Data Impact
+1. ** Academic Research** - MeetingBank, LocalView, Council Data Project, City Scrapers
+2. ** Government Data** - U.S. Census, NCES, IRS TEOS
+3. ** Civic Tech Standards** - OCD-ID, Popolo, Schema.org, CEDS, OMOP CDM
+4. ** Election & Advocacy** - Ballotpedia, MIT Election Lab, OpenElections
+5. ** Nonprofit & Philanthropy** - ProPublica, IRS, Every.org, Findhelp, 211, Microsoft CDM
+6. ** International Aid** - IATI Standard v2.03
+7. **Yes Fact-Checking** - Google API, FactCheck.org, PolitiFact
+8. ** Enterprise Tech** - Microsoft, Google, AWS, Databricks, Snowflake, Oracle, Salesforce, Cisco, IBM, Meta
+9. ** Civic Tech & Open Source** - GitHub, Code for America, USDR, Civic Tech Field Guide, DPGA
+10. ** Community Solutions** - Spectrum of Engagement, Harvard, Brookings, Open Data Impact
 
-## 🔍 Why This Matters
+## Why This Matters
 
 **For Researchers:**
 - Cite our data sources in your publications
@@ -101,7 +101,7 @@ Our documentation now covers:
 - Trust the sources backing our analysis
 - Reference credible research in your campaigns
 
-## 🚀 What's Next
+## What's Next
 
 **Week of April 20:**
 - Fix homepage routing configuration
@@ -115,7 +115,7 @@ Our documentation now covers:
 - Verify BibTeX exports
 - Add RSS feed for citation updates
 
-## 📖 Try It
+## Try It
 
 Visit [Citations & Data Sources](/docs/data-sources/citations) to explore the complete attribution system. Every dataset, standard, and research source is properly cited with complete licensing information.
 

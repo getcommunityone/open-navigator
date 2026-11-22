@@ -1,6 +1,6 @@
 # Jurisdiction Discovery - Quick Start Guide
 
-## No External APIs Required! 🎉
+## No External APIs Required!
 
 This discovery system uses **pattern-based matching** and **public datasets** only. No search API keys needed!
 
@@ -47,23 +47,23 @@ python main.py discovery-stats
 
 Expected output:
 ```
-📊 Jurisdiction Discovery Statistics
+ Jurisdiction Discovery Statistics
 
 Bronze Layer (Raw Data):
-  Total jurisdictions: 90,837
-    - county: 3,031
-    - municipality: 19,491
-    - school_district: 12,546
+ Total jurisdictions: 90,837
+ - county: 3,031
+ - municipality: 19,491
+ - school_district: 12,546
 
 Silver Layer (Discovered URLs):
-  Total discoveries: 87
-  Homepages found: 78 (89.7%)
-  Minutes URLs found: 65 (74.7%)
-  Avg confidence: 0.82
+ Total discoveries: 87
+ Homepages found: 78 (89.7%)
+ Minutes URLs found: 65 (74.7%)
+ Avg confidence: 0.82
 
 Gold Layer (Scraping Targets):
-  Total targets: 65
-  High priority: 42
+ Total targets: 65
+ High priority: 42
 ```
 
 ### 5. Start Scraping
@@ -80,7 +80,7 @@ The system directly matches jurisdiction names to the GSA .gov registry:
 
 ```python
 "Sacramento County" → normalized: "sacramento"
-GSA lookup → "sacramento.gov" ✓
+GSA lookup → "sacramento.gov" Yes
 Confidence: 1.0
 ```
 
@@ -103,7 +103,7 @@ Common government URL patterns are tested:
 **Example:**
 ```python
 "Fresno" (municipality, CA)
-Test: https://www.fresno.gov → ✓ Found
+Test: https://www.fresno.gov → Yes Found
 Confidence: 0.9
 ```
 
@@ -130,7 +130,7 @@ Once a homepage is found:
 ```bash
 # Process multiple states in parallel
 for state in CA TX NY FL PA; do
-  python main.py discover-jurisdictions --state $state &
+ python main.py discover-jurisdictions --state $state &
 done
 wait
 ```
@@ -150,10 +150,10 @@ Check if URL patterns need adjustment for specific regions:
 ```python
 # In discovery/url_discovery_agent.py
 # Add regional patterns, e.g.:
-if state == "MA":  # Massachusetts has unique patterns
-    patterns.extend([
-        (f"https://www.{name_slug}.ma.us", 0.85),
-    ])
+if state == "MA": # Massachusetts has unique patterns
+ patterns.extend([
+ (f"https://www.{name_slug}.ma.us", 0.85),
+ ])
 ```
 
 ### Memory Errors
@@ -186,7 +186,7 @@ Cached for 7 days by default. For manual download:
 
 ## Cost
 
-**Total: $0** 🎉
+**Total: $0**
 
 - No API fees
 - Uses free public datasets
@@ -211,48 +211,48 @@ The discovery system requires search API keys to find government websites. You c
 #### Option A: Google Custom Search API
 
 1. **Enable the API**
-   - Visit [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select existing
-   - Enable "Custom Search API"
+ - Visit [Google Cloud Console](https://console.cloud.google.com/)
+ - Create a new project or select existing
+ - Enable "Custom Search API"
 
 2. **Create API Key**
-   - Go to "Credentials" → "Create Credentials" → "API Key"
-   - Copy your API key
+ - Go to "Credentials" → "Create Credentials" → "API Key"
+ - Copy your API key
 
 3. **Create Search Engine**
-   - Visit [Google Custom Search](https://cse.google.com/cse/all)
-   - Click "Add" to create new search engine
-   - Set "Sites to search" to: `*.gov` (to focus on government sites)
-   - Copy your "Search Engine ID"
+ - Visit [Google Custom Search](https://cse.google.com/cse/all)
+ - Click "Add" to create new search engine
+ - Set "Sites to search" to: `*.gov` (to focus on government sites)
+ - Copy your "Search Engine ID"
 
 4. **Add to .env**
-   ```bash
-   GOOGLE_SEARCH_API_KEY=your_google_api_key
-   GOOGLE_SEARCH_ENGINE_ID=your_search_engine_id
-   ```
+ ```bash
+ GOOGLE_SEARCH_API_KEY=your_google_api_key
+ GOOGLE_SEARCH_ENGINE_ID=your_search_engine_id
+ ```
 
 **Pricing:** First 100 queries/day free, then $5 per 1,000 queries
 
 #### Option B: Bing Search API
 
 1. **Create Azure Account**
-   - Visit [Azure Portal](https://portal.azure.com/)
-   - Create account (free tier available)
+ - Visit [Azure Portal](https://portal.azure.com/)
+ - Create account (free tier available)
 
 2. **Create Bing Search Resource**
-   - Click "Create a resource" → Search for "Bing Search v7"
-   - Select pricing tier (F1 free tier: 1k queries/month)
-   - Create resource
+ - Click "Create a resource" → Search for "Bing Search v7"
+ - Select pricing tier (F1 free tier: 1k queries/month)
+ - Create resource
 
 3. **Get API Key**
-   - Go to your Bing Search resource
-   - Click "Keys and Endpoint"
-   - Copy one of the keys
+ - Go to your Bing Search resource
+ - Click "Keys and Endpoint"
+ - Copy one of the keys
 
 4. **Add to .env**
-   ```bash
-   BING_SEARCH_API_KEY=your_bing_api_key
-   ```
+ ```bash
+ BING_SEARCH_API_KEY=your_bing_api_key
+ ```
 
 **Pricing:** Free tier: 1,000 queries/month; Paid: $3 per 1,000 queries
 
@@ -288,25 +288,25 @@ python main.py discover-jurisdictions --limit 100
 
 Expected output:
 ```
-📊 Bronze Layer Complete:
-   Total records: 90,837
-   Counties: 3,031
-   Municipalities: 19,491
-   ...
+ Bronze Layer Complete:
+ Total records: 90,837
+ Counties: 3,031
+ Municipalities: 19,491
+ ...
 
-📊 URL Discovery Complete:
-   Attempted: 100
-   Successful: 87
-   Homepages found: 87
-   Minutes URLs found: 65
-   Avg confidence: 0.72
+ URL Discovery Complete:
+ Attempted: 100
+ Successful: 87
+ Homepages found: 87
+ Minutes URLs found: 65
+ Avg confidence: 0.72
 
-📊 Gold Layer Complete:
-   Scraping targets created: 65
-   High priority (>150): 42
-   ...
+ Gold Layer Complete:
+ Scraping targets created: 65
+ High priority (>150): 42
+ ...
 
-✅ Discovery Complete!
+Yes Discovery Complete!
 ```
 
 #### State-Specific Discovery
@@ -331,26 +331,26 @@ python main.py discovery-stats
 
 Output:
 ```
-📊 Jurisdiction Discovery Statistics
+ Jurisdiction Discovery Statistics
 
 Bronze Layer (Raw Data):
-  Total jurisdictions: 90,837
-    - county: 3,031
-    - municipality: 19,491
-    - school_district: 12,546
-    - special_district: 39,555
-    - township: 16,214
+ Total jurisdictions: 90,837
+ - county: 3,031
+ - municipality: 19,491
+ - school_district: 12,546
+ - special_district: 39,555
+ - township: 16,214
 
 Silver Layer (Discovered URLs):
-  Total discoveries: 27,483
-  Homepages found: 24,125 (87.8%)
-  Minutes URLs found: 18,562 (67.5%)
-  Avg confidence: 0.74
+ Total discoveries: 27,483
+ Homepages found: 24,125 (87.8%)
+ Minutes URLs found: 18,562 (67.5%)
+ Avg confidence: 0.74
 
 Gold Layer (Scraping Targets):
-  Total targets: 18,562
-  High priority: 12,340
-    - pending: 18,562
+ Total targets: 18,562
+ High priority: 12,340
+ - pending: 18,562
 ```
 
 ### 6. Start Scraping
@@ -368,34 +368,34 @@ python main.py scrape-batch --source discovered --limit 1000
 For production deployment on Databricks:
 
 1. **Upload Notebook**
-   ```bash
-   databricks workspace import notebooks/Jurisdiction_Discovery.py \
-     -l PYTHON \
-     -f SOURCE \
-     /Users/your-email@company.com/Jurisdiction_Discovery
-   ```
+ ```bash
+ databricks workspace import notebooks/Jurisdiction_Discovery.py \
+ -l PYTHON \
+ -f SOURCE \
+ /Users/your-email@company.com/Jurisdiction_Discovery
+ ```
 
 2. **Configure Secrets**
-   ```bash
-   # Create secret scope
-   databricks secrets create-scope oral-health-app
-   
-   # Add API keys
-   databricks secrets put-secret oral-health-app google-search-api-key
-   databricks secrets put-secret oral-health-app google-search-engine-id
-   databricks secrets put-secret oral-health-app bing-search-api-key
-   ```
+ ```bash
+ # Create secret scope
+ databricks secrets create-scope oral-health-app
+
+ # Add API keys
+ databricks secrets put-secret oral-health-app google-search-api-key
+ databricks secrets put-secret oral-health-app google-search-engine-id
+ databricks secrets put-secret oral-health-app bing-search-api-key
+ ```
 
 3. **Create Cluster**
-   - Runtime: 14.3 LTS or higher
-   - Node type: Standard_DS3_v2 (or similar)
-   - Workers: 2-4 (for parallel processing)
-   - Libraries: All from `requirements.txt`
+ - Runtime: 14.3 LTS or higher
+ - Node type: Standard_DS3_v2 (or similar)
+ - Workers: 2-4 (for parallel processing)
+ - Libraries: All from `requirements.txt`
 
 4. **Run Notebook**
-   - Open notebook in Databricks workspace
-   - Attach to cluster
-   - Run all cells
+ - Open notebook in Databricks workspace
+ - Attach to cluster
+ - Run all cells
 
 ## Cost Estimation
 
@@ -437,12 +437,12 @@ For discovering 30,000 jurisdictions:
 1. Check API keys are correct
 2. Verify API quotas not exceeded
 3. Review failed discoveries:
-   ```python
-   from pyspark.sql.functions import col
-   silver_df = spark.read.format("delta").load("silver/discovered_urls")
-   failed = silver_df.filter(col("homepage_url").isNull())
-   failed.show(20, truncate=False)
-   ```
+ ```python
+ from pyspark.sql.functions import col
+ silver_df = spark.read.format("delta").load("silver/discovered_urls")
+ failed = silver_df.filter(col("homepage_url").isNull())
+ failed.show(20, truncate=False)
+ ```
 
 ### Memory Errors
 
@@ -450,19 +450,19 @@ For discovering 30,000 jurisdictions:
 
 **Solutions:**
 1. Process by state:
-   ```bash
-   for state in CA TX NY FL PA OH IL MI NC GA; do
-     python main.py discover-jurisdictions --state $state
-   done
-   ```
+ ```bash
+ for state in CA TX NY FL PA OH IL MI NC GA; do
+ python main.py discover-jurisdictions --state $state
+ done
+ ```
 
 2. Increase Spark memory:
-   ```python
-   spark = SparkSession.builder \
-     .config("spark.driver.memory", "8g") \
-     .config("spark.executor.memory", "8g") \
-     .getOrCreate()
-   ```
+ ```python
+ spark = SparkSession.builder \
+ .config("spark.driver.memory", "8g") \
+ .config("spark.executor.memory", "8g") \
+ .getOrCreate()
+ ```
 
 3. Use Databricks cluster (more memory available)
 
@@ -472,14 +472,14 @@ For discovering 30,000 jurisdictions:
 
 **Solutions:**
 1. Reduce batch size in `url_discovery_agent.py`:
-   ```python
-   batch_size = 5  # Instead of 10
-   ```
+ ```python
+ batch_size = 5 # Instead of 10
+ ```
 
 2. Add delays between batches:
-   ```python
-   await asyncio.sleep(1)  # After each batch
-   ```
+ ```python
+ await asyncio.sleep(1) # After each batch
+ ```
 
 3. Use both Google and Bing to distribute load
 
@@ -490,10 +490,10 @@ For discovering 30,000 jurisdictions:
 **Solutions:**
 1. Use cached data (automatically cached for 7 days)
 2. Manual download:
-   ```bash
-   # Download files manually from Census Bureau
-   # Place in data/cache/census/
-   ```
+ ```bash
+ # Download files manually from Census Bureau
+ # Place in data/cache/census/
+ ```
 
 3. Check Census Bureau site status: https://www.census.gov/programs-surveys/gus.html
 
@@ -503,11 +503,11 @@ For discovering 30,000 jurisdictions:
 
 ```sql
 -- In Databricks SQL or Spark
-SELECT 
-    state,
-    COUNT(*) as total,
-    COUNT(homepage_url) as found,
-    ROUND(COUNT(homepage_url) * 100.0 / COUNT(*), 1) as success_rate
+SELECT
+ state,
+ COUNT(*) as total,
+ COUNT(homepage_url) as found,
+ ROUND(COUNT(homepage_url) * 100.0 / COUNT(*), 1) as success_rate
 FROM silver.discovered_urls
 GROUP BY state
 ORDER BY success_rate DESC;
@@ -516,10 +516,10 @@ ORDER BY success_rate DESC;
 ### Track Scraping Progress
 
 ```sql
-SELECT 
-    scraping_status,
-    COUNT(*) as count,
-    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM gold.scraping_targets), 1) as pct
+SELECT
+ scraping_status,
+ COUNT(*) as count,
+ ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM gold.scraping_targets), 1) as pct
 FROM gold.scraping_targets
 GROUP BY scraping_status;
 ```
@@ -529,23 +529,23 @@ GROUP BY scraping_status;
 Once discovery is complete:
 
 1. **Review High-Priority Targets**
-   - Check for false positives
-   - Validate CMS platform detection
+ - Check for false positives
+ - Validate CMS platform detection
 
 2. **Start Scraping**
-   - Begin with top 100 high-priority sites
-   - Monitor document quality
-   - Adjust priority scores as needed
+ - Begin with top 100 high-priority sites
+ - Monitor document quality
+ - Adjust priority scores as needed
 
 3. **Schedule Automation**
-   - Set up monthly re-discovery job
-   - Monitor for new jurisdictions
-   - Track URL changes
+ - Set up monthly re-discovery job
+ - Monitor for new jurisdictions
+ - Track URL changes
 
 4. **Integration**
-   - Connect to existing scraper agents
-   - Feed documents to classification pipeline
-   - Generate advocacy opportunities
+ - Connect to existing scraper agents
+ - Feed documents to classification pipeline
+ - Generate advocacy opportunities
 
 ## Support
 

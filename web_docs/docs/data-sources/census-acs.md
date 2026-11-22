@@ -28,7 +28,7 @@ The **American Community Survey (ACS)** is the premier source for detailed popul
 
 **Use both together**: Census of Governments tells you *which* jurisdictions exist, ACS tells you *about the people* who live there.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Get a Census API Key (Recommended)
 
@@ -61,7 +61,7 @@ This will:
 - Download health insurance data for California
 - Cache data to `data/cache/acs/`
 
-## 📊 Available Data Tables
+## Available Data Tables
 
 ### Demographics
 
@@ -82,7 +82,7 @@ This will:
 | B23025 | Employment Status | Economic health assessment |
 | C24010 | Sex by Occupation | Workforce composition |
 
-### Health Insurance ⭐ **Critical for Oral Health Policy**
+### Health Insurance **Critical for Oral Health Policy**
 
 | Table Code | Description | Use Case |
 |------------|-------------|----------|
@@ -97,7 +97,7 @@ This will:
 | B15003 | Educational Attainment | Community education levels |
 | B14001 | School Enrollment by Age | Number of school-aged children |
 
-## 💻 Usage Examples
+## Usage Examples
 
 ### Example 1: Download Data for All Counties
 
@@ -107,18 +107,18 @@ from pathlib import Path
 from scripts.datasources.census.acs_ingestion import ACSDataIngestion
 
 async def download_county_data():
-    # Initialize with default cache directory
-    acs = ACSDataIngestion()
-    
-    # Download median household income for all U.S. counties
-    income_df = await acs.download_acs_data_api(
-        table="B19013",        # Median household income
-        geography="county",    # County level
-        state="*"             # All states
-    )
-    
-    print(f"Downloaded {len(income_df)} counties")
-    print(income_df.head())
+ # Initialize with default cache directory
+ acs = ACSDataIngestion()
+
+ # Download median household income for all U.S. counties
+ income_df = await acs.download_acs_data_api(
+ table="B19013", # Median household income
+ geography="county", # County level
+ state="*" # All states
+ )
+
+ print(f"Downloaded {len(income_df)} counties")
+ print(income_df.head())
 
 asyncio.run(download_county_data())
 ```
@@ -129,22 +129,22 @@ asyncio.run(download_county_data())
 
 ```python
 async def analyze_child_insurance():
-    acs = ACSDataIngestion()
-    
-    # Download health insurance for children under 19
-    child_insurance_df = await acs.download_acs_data_api(
-        table="B27010",        # Health insurance (Under 19)
-        geography="county",
-        state="*"
-    )
-    
-    # This table includes:
-    # - With health insurance
-    # - With public coverage (Medicaid/CHIP)
-    # - With private coverage
-    # - No health insurance
-    
-    return child_insurance_df
+ acs = ACSDataIngestion()
+
+ # Download health insurance for children under 19
+ child_insurance_df = await acs.download_acs_data_api(
+ table="B27010", # Health insurance (Under 19)
+ geography="county",
+ state="*"
+ )
+
+ # This table includes:
+ # - With health insurance
+ # - With public coverage (Medicaid/CHIP)
+ # - With private coverage
+ # - No health insurance
+
+ return child_insurance_df
 
 df = asyncio.run(analyze_child_insurance())
 ```
@@ -153,17 +153,17 @@ df = asyncio.run(analyze_child_insurance())
 
 ```python
 async def download_comprehensive_data():
-    acs = ACSDataIngestion()
-    
-    # Download all key demographic tables for California
-    ca_data = await acs.download_all_demographics(
-        geography="county",
-        state="06"  # California FIPS code
-    )
-    
-    # Returns dictionary with multiple DataFrames
-    for table_code, df in ca_data.items():
-        print(f"{table_code}: {len(df)} counties")
+ acs = ACSDataIngestion()
+
+ # Download all key demographic tables for California
+ ca_data = await acs.download_all_demographics(
+ geography="county",
+ state="06" # California FIPS code
+ )
+
+ # Returns dictionary with multiple DataFrames
+ for table_code, df in ca_data.items():
+ print(f"{table_code}: {len(df)} counties")
 
 asyncio.run(download_comprehensive_data())
 ```
@@ -179,10 +179,10 @@ df1 = await acs.download_acs_data_api("B19013", "county", "*")
 # Subsequent calls use cached Parquet file (instant!)
 df2 = acs.get_cached_data("B19013", "county", "*")
 
-print(f"Same data: {df1.equals(df2)}")  # True
+print(f"Same data: {df1.equals(df2)}") # True
 ```
 
-## 🗄️ Data Storage Options
+## Data Storage Options
 
 ### Option 1: Default Cache (Recommended for Development)
 
@@ -220,16 +220,16 @@ acs = ACSDataIngestion(data_dir=Path("/mnt/external/acs-data"))
 acs = ACSDataIngestion(data_dir=Path("//server/shared/acs"))
 ```
 
-## 📁 Data File Format
+## Data File Format
 
 Downloaded data is cached as **Parquet files** for fast loading:
 
 ```
 data/cache/acs/
-├── B19013_county_*_2022.parquet   # Median income, all counties
-├── B27010_county_06_2022.parquet  # Child insurance, CA only
-├── B01001_place_*_2022.parquet    # Age/sex, all cities
-└── acs_2022_ALL/                  # Bulk download (if used)
+├── B19013_county_*_2022.parquet # Median income, all counties
+├── B27010_county_06_2022.parquet # Child insurance, CA only
+├── B01001_place_*_2022.parquet # Age/sex, all cities
+└── acs_2022_ALL/ # Bulk download (if used)
 ```
 
 **Parquet advantages**:
@@ -238,7 +238,7 @@ data/cache/acs/
 - Preserves data types
 - Columnar storage (efficient queries)
 
-## 🌍 Geography Levels
+## Geography Levels
 
 ACS data is available at multiple geographic levels:
 
@@ -257,7 +257,7 @@ ACS data is available at multiple geographic levels:
 - **Place-level**: City-specific programs
 - **Tract-level**: Neighborhood targeting (large datasets!)
 
-## 🔗 Integration with Open Navigator
+## Integration with Open Navigator
 
 ### Enriching Jurisdiction Data
 
@@ -287,35 +287,35 @@ Identify counties for oral health program targeting:
 
 ```python
 async def find_high_need_counties():
-    acs = ACSDataIngestion()
-    
-    # Get poverty data
-    poverty_df = await acs.download_acs_data_api("B17001", "county", "*")
-    
-    # Get child health insurance
-    child_insurance_df = await acs.download_acs_data_api("B27010", "county", "*")
-    
-    # Combine datasets
-    combined = poverty_df.merge(child_insurance_df, on=["state", "county"])
-    
-    # Filter for high poverty + low insurance coverage
-    high_need = combined[
-        (combined["poverty_rate"] > 0.15) &  # > 15% poverty
-        (combined["uninsured_children"] > 100)  # > 100 uninsured kids
-    ]
-    
-    return high_need
+ acs = ACSDataIngestion()
+
+ # Get poverty data
+ poverty_df = await acs.download_acs_data_api("B17001", "county", "*")
+
+ # Get child health insurance
+ child_insurance_df = await acs.download_acs_data_api("B27010", "county", "*")
+
+ # Combine datasets
+ combined = poverty_df.merge(child_insurance_df, on=["state", "county"])
+
+ # Filter for high poverty + low insurance coverage
+ high_need = combined[
+ (combined["poverty_rate"] > 0.15) & # > 15% poverty
+ (combined["uninsured_children"] > 100) # > 100 uninsured kids
+ ]
+
+ return high_need
 ```
 
-## ⚡ Performance Tips
+## Performance Tips
 
 ### 1. Use State Filters
 
 ```python
-# ❌ Slow: Downloads all 3,200 counties
+# No Slow: Downloads all 3,200 counties
 all_counties = await acs.download_acs_data_api("B19013", "county", "*")
 
-# ✅ Fast: Downloads only California's 58 counties
+# Yes Fast: Downloads only California's 58 counties
 ca_counties = await acs.download_acs_data_api("B19013", "county", "06")
 ```
 
@@ -333,16 +333,16 @@ df2 = acs.get_cached_data("B19013", "county", "*")
 
 ```python
 async def parallel_download():
-    acs = ACSDataIngestion()
-    
-    # Download 3 tables simultaneously
-    results = await asyncio.gather(
-        acs.download_acs_data_api("B19013", "county", "*"),
-        acs.download_acs_data_api("B27010", "county", "*"),
-        acs.download_acs_data_api("B17001", "county", "*"),
-    )
-    
-    income_df, insurance_df, poverty_df = results
+ acs = ACSDataIngestion()
+
+ # Download 3 tables simultaneously
+ results = await asyncio.gather(
+ acs.download_acs_data_api("B19013", "county", "*"),
+ acs.download_acs_data_api("B27010", "county", "*"),
+ acs.download_acs_data_api("B17001", "county", "*"),
+ )
+
+ income_df, insurance_df, poverty_df = results
 ```
 
 ### 4. Avoid Bulk Downloads (Unless Necessary)
@@ -350,7 +350,7 @@ async def parallel_download():
 The Census Bureau offers bulk downloads of ALL ACS data:
 
 ```python
-# ⚠️ WARNING: This downloads 15 GB!
+# Warning WARNING: This downloads 15 GB!
 await acs.download_bulk_files(state="ALL")
 ```
 
@@ -361,7 +361,7 @@ await acs.download_bulk_files(state="ALL")
 
 **Otherwise**: Use targeted API downloads (much faster!)
 
-## 📚 Resources
+## Resources
 
 ### Official Documentation
 
@@ -435,7 +435,7 @@ CENSUS_API_KEY=your_key_here
 3. Download during off-peak hours (late night/early morning EST)
 4. Consider bulk downloads if you need many tables
 
-## 🔮 Next Steps
+## Next Steps
 
 1. **Explore Available Tables**: Run `acs.list_available_tables()`
 2. **Download Sample Data**: Try the examples in this guide

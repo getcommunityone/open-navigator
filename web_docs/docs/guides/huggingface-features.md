@@ -1,4 +1,4 @@
-# ✅ HuggingFace Dataset Sharing Added!
+# Yes HuggingFace Dataset Sharing Added!
 
 ## What's New
 
@@ -6,7 +6,7 @@ You can now **publish your jurisdiction discovery datasets to HuggingFace Hub** 
 
 ---
 
-## 🎯 New Capabilities
+## New Capabilities
 
 ### 1. **HuggingFace Publisher Module**
 - File: [pipeline/huggingface_publisher.py](../pipeline/huggingface_publisher.py)
@@ -27,22 +27,22 @@ python main.py publish-to-hf --dataset all
 
 ---
 
-## 📦 Files Added/Updated
+## Files Added/Updated
 
 ### New Files
-- ✅ [pipeline/huggingface_publisher.py](../pipeline/huggingface_publisher.py) - HuggingFace publisher (~400 lines)
-- ✅ [docs/HUGGINGFACE_PUBLISHING.md](HUGGINGFACE_PUBLISHING.md) - Complete publishing guide
+- Yes [pipeline/huggingface_publisher.py](../pipeline/huggingface_publisher.py) - HuggingFace publisher (~400 lines)
+- Yes [docs/HUGGINGFACE_PUBLISHING.md](HUGGINGFACE_PUBLISHING.md) - Complete publishing guide
 
 ### Updated Files
-- ✅ [requirements.txt](../requirements.txt) - Added `datasets>=2.16.0` and `huggingface-hub>=0.20.0`
-- ✅ [config/settings.py](../config/settings.py) - Added `huggingface_token`, `hf_organization`, `hf_dataset_prefix`
-- ✅ [.env.example](../.env.example) - Added HuggingFace configuration
-- ✅ [main.py](../main.py) - Added `publish-to-hf` CLI command
-- ✅ [README.md](../README.md) - Added HuggingFace publishing section
+- Yes [requirements.txt](../requirements.txt) - Added `datasets>=2.16.0` and `huggingface-hub>=0.20.0`
+- Yes [config/settings.py](../config/settings.py) - Added `huggingface_token`, `hf_organization`, `hf_dataset_prefix`
+- Yes [.env.example](../.env.example) - Added HuggingFace configuration
+- Yes [main.py](../main.py) - Added `publish-to-hf` CLI command
+- Yes [README.md](../README.md) - Added HuggingFace publishing section
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Get HuggingFace Token
 
@@ -78,7 +78,7 @@ python main.py publish-to-hf --dataset discovered-urls
 
 ---
 
-## 📊 What Gets Published
+## What Gets Published
 
 ### Dataset URLs
 
@@ -109,7 +109,7 @@ print(f"Total counties: {len(counties)}")
 
 ---
 
-## 💡 Use Cases
+## Use Cases
 
 ### For Researchers
 ```python
@@ -140,7 +140,7 @@ high_conf = urls.filter(lambda x: x['confidence_score'] > 0.8)
 
 ---
 
-## 🔄 Update Workflow
+## Update Workflow
 
 ### After Each Discovery Run
 
@@ -167,7 +167,7 @@ python main.py publish-to-hf --dataset nces-schools
 
 ---
 
-## 🎯 CLI Options
+## CLI Options
 
 ```bash
 # Publish all datasets
@@ -189,23 +189,23 @@ python main.py publish-to-hf --dataset census --sample
 
 ---
 
-## 🔒 Privacy & Security
+## Privacy & Security
 
 ### What's Safe to Publish
 
-✅ **Public Data:**
+Yes **Public Data:**
 - Census Bureau GID (already public)
 - CISA .gov domains (already public)
 - NCES school districts (already public)
 - Discovered government URLs (public websites)
 - Scraping targets (public information)
 
-⚠️ **Use `--private` for:**
+Warning **Use `--private` for:**
 - Scraped meeting minutes content
 - Internal analysis results
 - Custom annotations
 
-❌ **Never Publish:**
+No **Never Publish:**
 - Personal information (PII)
 - API keys or tokens
 - Internal comments/notes
@@ -218,7 +218,7 @@ python main.py publish-to-hf --dataset census --sample
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 Complete guide: [HUGGINGFACE_PUBLISHING.md](HUGGINGFACE_PUBLISHING.md)
 
@@ -232,20 +232,20 @@ Covers:
 
 ---
 
-## 🌍 Community Impact
+## Community Impact
 
 **By publishing your datasets, you enable:**
-- 📊 Reproducible research on government accessibility
-- 🤝 Cross-project collaboration
-- 🔍 Discovery of missing government websites
-- 📈 Tracking government digital infrastructure over time
-- 🎓 Educational use for civic tech training
+- Reproducible research on government accessibility
+- Cross-project collaboration
+- Discovery of missing government websites
+- Tracking government digital infrastructure over time
+- Educational use for civic tech training
 
-**Your jurisdiction discovery data helps the entire civic tech community!** 🙏
+**Your jurisdiction discovery data helps the entire civic tech community!**
 
 ---
 
-## ✅ Benefits
+## Yes Benefits
 
 | Feature | Before | After |
 |---------|--------|-------|
@@ -258,4 +258,4 @@ Covers:
 
 ---
 
-**Ready to share your jurisdiction discovery data with the world!** 🌍🦷✨
+**Ready to share your jurisdiction discovery data with the world!**

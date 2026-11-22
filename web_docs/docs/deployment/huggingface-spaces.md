@@ -6,7 +6,7 @@ sidebar_position: 4
 
 Complete guide to deploy Open Navigator to Hugging Face Spaces with all three applications running together.
 
-## 📋 What Gets Deployed
+## What Gets Deployed
 
 This deployment runs **all three apps** in a single Docker Space:
 
@@ -18,7 +18,7 @@ This deployment runs **all three apps** in a single Docker Space:
 
 All served through nginx reverse proxy on port 7860 (Hugging Face Spaces default).
 
-## 🚀 Quick Start for Developers
+## Quick Start for Developers
 
 **TL;DR** - Deploy in 3 commands:
 
@@ -36,61 +36,61 @@ echo "HF_USERNAME=your_username" >> .env
 ```
 
 The script will:
-1. ✅ Test Docusaurus build (catches config errors)
-2. ✅ Test Docker build locally (validates deployment)
-3. ✅ Create the Space on Hugging Face
-4. ✅ Push your code
-5. ✅ Trigger automatic build (~10-15 minutes)
+1. Yes Test Docusaurus build (catches config errors)
+2. Yes Test Docker build locally (validates deployment)
+3. Yes Create the Space on Hugging Face
+4. Yes Push your code
+5. Yes Trigger automatic build (~10-15 minutes)
 
 **Note**: This project uses **Apache 2.0 license** (updated from MIT in April 2026).
 
 
-## 💰 Cost Breakdown
+## Cost Breakdown
 
 ### Required:
 - **CPU Basic Hardware**: ~$0.03/hour = ~$22/month
-  - 2 vCPU, 16 GB RAM
-  - Required to run Docker Spaces
+ - 2 vCPU, 16 GB RAM
+ - Required to run Docker Spaces
 
 ### Optional:
 - **Pro Plan**: $9/month
-  - Persistent storage (keeps data between restarts)
-  - Better performance
-  - Private Spaces option
-  - Longer timeout limits
+ - Persistent storage (keeps data between restarts)
+ - Better performance
+ - Private Spaces option
+ - Longer timeout limits
 
 **Total Cost**: $22-31/month depending on plan
 
-## 🛠️ Prerequisites
+## Prerequisites
 
 1. **Hugging Face Account**: Sign up at [huggingface.co](https://huggingface.co)
 2. **Hugging Face Token**: Create at [Settings → Access Tokens](https://huggingface.co/settings/tokens)
-   - Needs `write` permission
+ - Needs `write` permission
 3. **API Keys**: Your OpenAI/Anthropic keys for LLM features
 4. **Git**: Installed locally
 
-## 📦 Step 1: Prepare Your Repository
+## Step 1: Prepare Your Repository
 
 The deployment files are already created:
 ```
 .huggingface/
-  ├── README.md              # Space description (shown on HF)
-  ├── nginx.conf             # Reverse proxy config
-  ├── supervisord.conf       # Process manager config
-  └── start.sh               # Startup script
-Dockerfile.huggingface       # Multi-stage Docker build
+ ├── README.md # Space description (shown on HF)
+ ├── nginx.conf # Reverse proxy config
+ ├── supervisord.conf # Process manager config
+ └── start.sh # Startup script
+Dockerfile.huggingface # Multi-stage Docker build
 ```
 
-## 🚀 Step 2: Create the Hugging Face Space
+## Step 2: Create the Hugging Face Space
 
 ### Option A: Using the Web UI
 
 1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
 2. Configure:
-   - **Space name**: `open-navigator-for-engagement`
-   - **License**: `Apache 2.0`
-   - **Space SDK**: Select `Docker`
-   - **Visibility**: Public or Private
+ - **Space name**: `open-navigator-for-engagement`
+ - **License**: `Apache 2.0`
+ - **Space SDK**: Select `Docker`
+ - **Visibility**: Public or Private
 3. Click **Create Space**
 
 ### Option B: Using the CLI
@@ -106,7 +106,7 @@ huggingface-cli login
 huggingface-cli repo create open-navigator-for-engagement --type space --space-sdk docker
 ```
 
-## 📤 Step 3: Deploy Your Code
+## Step 3: Deploy Your Code
 
 ### Option A: Automated Deployment (Recommended)
 
@@ -121,7 +121,7 @@ echo "HF_USERNAME=your_hf_username" >> .env
 
 Or export for current session:
 ```bash
-export HF_USERNAME=getcommunityone  # Replace with your username
+export HF_USERNAME=getcommunityone # Replace with your username
 ```
 
 **Step 2: Run deployment script**
@@ -162,28 +162,28 @@ git commit -m "Configure Hugging Face Space deployment"
 git push hf huggingface-deploy:main
 ```
 
-## 🔧 Step 4: Configure Space Settings
+## Step 4: Configure Space Settings
 
 1. Go to your Space: `https://huggingface.co/spaces/YOUR_USERNAME/open-navigator-for-engagement`
 2. Click **Settings**
 3. Under **Resource configuration**:
-   - Select **CPU Basic** (minimum required)
-   - Or **CPU Upgrade** for better performance
-4. Under **Variables and secrets** (⚠️ IMPORTANT):
-   - Add your API keys as secrets:
-     ```
-     OPENAI_API_KEY = sk-your-key-here
-     ANTHROPIC_API_KEY = sk-ant-your-key-here
-     HF_TOKEN = hf_your-token-here
-     ```
-   - Set environment variables:
-     ```
-     LOG_LEVEL = INFO
-     PYTHONUNBUFFERED = 1
-     ```
+ - Select **CPU Basic** (minimum required)
+ - Or **CPU Upgrade** for better performance
+4. Under **Variables and secrets** (Warning IMPORTANT):
+ - Add your API keys as secrets:
+ ```
+ OPENAI_API_KEY = sk-your-key-here
+ ANTHROPIC_API_KEY = sk-ant-your-key-here
+ HF_TOKEN = hf_your-token-here
+ ```
+ - Set environment variables:
+ ```
+ LOG_LEVEL = INFO
+ PYTHONUNBUFFERED = 1
+ ```
 5. Click **Save**
 
-## 🔄 Step 5: Wait for Build
+## Step 5: Wait for Build
 
 The Space will automatically build when you push. This takes **10-15 minutes**:
 
@@ -195,7 +195,7 @@ The Space will automatically build when you push. This takes **10-15 minutes**:
 
 Watch build progress in the **Logs** tab.
 
-## ✅ Step 6: Verify Deployment
+## Yes Step 6: Verify Deployment
 
 Once built, test each component:
 
@@ -223,7 +223,7 @@ curl https://YOUR_USERNAME-open-navigator-for-engagement.hf.space/api/health
 ```
 Should return: `{"status": "healthy"}`
 
-## 🔄 Updating Your Space
+## Updating Your Space
 
 When you make changes to your code:
 
@@ -248,7 +248,7 @@ git push hf huggingface-deploy:main
 
 The Space will automatically rebuild.
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Build Fails
 
@@ -278,7 +278,7 @@ The Space will automatically rebuild.
 - **Timeouts**: Enable Pro plan for longer limits
 - **Out of memory**: Reduce concurrent workers or upgrade hardware
 
-## 📊 Monitoring
+## Monitoring
 
 ### View Logs
 ```
@@ -293,15 +293,15 @@ Settings → Resource configuration → Usage metrics
 ### Monitor API Calls
 FastAPI automatically logs requests to `/var/log/supervisor/api.log`
 
-## 🔒 Security Best Practices
+## Security Best Practices
 
 ### Secrets Management
-✅ DO:
+Yes DO:
 - Add API keys in Space Settings → Variables and secrets
 - Use `Secrets` (encrypted), not `Variables` for sensitive data
 - Set secrets as "Private" in settings
 
-❌ DON'T:
+No DON'T:
 - Commit `.env` files with real keys
 - Hardcode secrets in code
 - Share your Space's API keys
@@ -311,7 +311,7 @@ FastAPI automatically logs requests to `/var/log/supervisor/api.log`
 - Use Hugging Face OAuth for user authentication
 - Enable rate limiting in FastAPI
 
-## 💡 Optimization Tips
+## Optimization Tips
 
 ### Reduce Build Time
 1. Use smaller Docker base images
@@ -328,7 +328,7 @@ FastAPI automatically logs requests to `/var/log/supervisor/api.log`
 2. Set **Sleep timeout** for inactive Spaces
 3. Use **Persistent storage** only if needed (requires Pro)
 
-## 🎯 Advanced: Custom Domain
+## Advanced: Custom Domain
 
 Hugging Face Spaces supports custom domains:
 
@@ -336,11 +336,11 @@ Hugging Face Spaces supports custom domains:
 2. Under **Custom domain**
 3. Add your domain (e.g., `opennavigator.org`)
 4. Configure DNS:
-   ```
-   CNAME record: opennavigator.org → YOUR_USERNAME-open-navigator-for-engagement.hf.space
-   ```
+ ```
+ CNAME record: opennavigator.org → YOUR_USERNAME-open-navigator-for-engagement.hf.space
+ ```
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [Hugging Face Spaces Documentation](https://huggingface.co/docs/hub/spaces)
 - [Docker Spaces Guide](https://huggingface.co/docs/hub/spaces-sdks-docker)
@@ -354,18 +354,18 @@ Hugging Face Spaces supports custom domains:
 
 ---
 
-## 🎉 Next Steps
+## Next Steps
 
 After deployment:
-1. ✅ Test all three apps thoroughly
-2. ✅ Share your Space URL with users
-3. ✅ Monitor usage and costs
-4. ✅ Set up persistent storage if needed (Pro plan)
-5. ✅ Configure custom domain (optional)
+1. Yes Test all three apps thoroughly
+2. Yes Share your Space URL with users
+3. Yes Monitor usage and costs
+4. Yes Set up persistent storage if needed (Pro plan)
+5. Yes Configure custom domain (optional)
 
 **Your Space URL**:
 ```
 https://huggingface.co/spaces/YOUR_USERNAME/open-navigator-for-engagement
 ```
 
-Enjoy your fully deployed civic engagement platform! 🚀
+Enjoy your fully deployed civic engagement platform!

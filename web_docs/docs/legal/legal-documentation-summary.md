@@ -4,72 +4,72 @@ sidebar_position: 11
 
 # Legal Documentation Summary
 
-**Created:** April 28, 2026  
+**Created:** April 28, 2026
 **Purpose:** Comprehensive Terms of Service for Open Navigator
 
-## 📋 What Was Created
+## What Was Created
 
 ### 1. Complete Legal Framework
 
 Four comprehensive legal documents have been created in `website/docs/legal/`:
 
 1. **index.md** - Legal Overview & Quick Reference
-   - Landing page for legal section
-   - Quick compliance checklist
-   - Summary of critical requirements
-   - Links to all legal documents
+ - Landing page for legal section
+ - Quick compliance checklist
+ - Summary of critical requirements
+ - Links to all legal documents
 
 2. **terms-of-service.md** - Main Terms of Service
-   - Comprehensive user agreement
-   - Incorporates ALL third-party provider terms
-   - Most restrictive terms apply principle
-   - 18 sections covering all legal aspects
+ - Comprehensive user agreement
+ - Incorporates ALL third-party provider terms
+ - Most restrictive terms apply principle
+ - 18 sections covering all legal aspects
 
 3. **data-provider-terms.md** - Data Provider Terms Documentation
-   - Complete terms for 30+ data providers
-   - Rate limits, attribution requirements, usage restrictions
-   - Compliance summary table
-   - Provider contact information
+ - Complete terms for 30+ data providers
+ - Rate limits, attribution requirements, usage restrictions
+ - Compliance summary table
+ - Provider contact information
 
 4. **privacy-policy.md** - Privacy Policy
-   - CCPA and GDPR compliant
-   - Public records exceptions
-   - User privacy rights
-   - Data retention policies
+ - CCPA and GDPR compliant
+ - Public records exceptions
+ - User privacy rights
+ - Data retention policies
 
 5. **README.md** - Documentation Guide
-   - Maintenance procedures
-   - Compliance philosophy
-   - Update schedule
+ - Maintenance procedures
+ - Compliance philosophy
+ - Update schedule
 
 ### 2. Key Compliance Achievements
 
 The Terms of Service now incorporate the MOST RESTRICTIVE requirements from ALL data providers:
 
 #### Charity Navigator (Most Restrictive)
-- ✅ MANDATORY attribution: "Powered by Charity Navigator"
-- ✅ MANDATORY linkbacks to CN profile pages
-- ✅ MANDATORY trademark notice
-- ❌ STRICT 1,000 API calls/day limit
-- ❌ NO redistribution
-- ❌ NO competing rating systems
+- Yes MANDATORY attribution: "Powered by Charity Navigator"
+- Yes MANDATORY linkbacks to CN profile pages
+- Yes MANDATORY trademark notice
+- No STRICT 1,000 API calls/day limit
+- No NO redistribution
+- No NO competing rating systems
 
 #### Google Services
-- ✅ Attribution: "Data provided by Google"
-- ❌ Civic API: Cannot cache beyond 30 days
-- ❌ Must comply with Google Cloud ToS
+- Yes Attribution: "Data provided by Google"
+- No Civic API: Cannot cache beyond 30 days
+- No Must comply with Google Cloud ToS
 
 #### ProPublica
-- ✅ Attribution to ProPublica required
-- ❌ **CRITICAL:** FEC data cannot be used for commercial solicitation
+- Yes Attribution to ProPublica required
+- No **CRITICAL:** FEC data cannot be used for commercial solicitation
 
 #### Open States
-- ✅ Attribution: "Powered by Open States"
-- ❌ 50,000 requests/month free tier
+- Yes Attribution: "Powered by Open States"
+- No 50,000 requests/month free tier
 
 #### DBpedia
-- ✅ Attribution to DBpedia and Wikipedia
-- ✅ CC BY-SA 3.0 share-alike license applies
+- Yes Attribution to DBpedia and Wikipedia
+- Yes CC BY-SA 3.0 share-alike license applies
 
 ### 3. Complete Provider Coverage
 
@@ -115,29 +115,29 @@ Terms documented for:
 **Reference (Not Used):**
 - Ballotpedia (paid service - reference only)
 
-## 🚨 Critical Restrictions Documented
+## Critical Restrictions Documented
 
 ### Cannot Do (Would Violate Terms)
-1. ❌ Use FEC campaign finance contributor data for commercial solicitation or fundraising
-2. ❌ Redistribute Charity Navigator data
-3. ❌ Create competing rating systems using Charity Navigator data
-4. ❌ Cache Google Civic API data beyond 30 days
-5. ❌ Exceed rate limits (1,000/day for Charity Navigator, 50,000/month for Open States, etc.)
-6. ❌ Remove or obscure required attribution notices
-7. ❌ Claim endorsement by any data provider or government agency
+1. No Use FEC campaign finance contributor data for commercial solicitation or fundraising
+2. No Redistribute Charity Navigator data
+3. No Create competing rating systems using Charity Navigator data
+4. No Cache Google Civic API data beyond 30 days
+5. No Exceed rate limits (1,000/day for Charity Navigator, 50,000/month for Open States, etc.)
+6. No Remove or obscure required attribution notices
+7. No Claim endorsement by any data provider or government agency
 
 ### Must Do (Required by Terms)
-1. ✅ Display "Powered by Charity Navigator" on ALL pages using CN data
-2. ✅ Link charity names to Charity Navigator profile pages
-3. ✅ Include Charity Navigator trademark notice
-4. ✅ Display "Data provided by Google" for Google services
-5. ✅ Display "Powered by Open States" for Open States data
-6. ✅ Attribute to DBpedia and Wikipedia for DBpedia data
-7. ✅ Provide attribution to ProPublica for all ProPublica APIs
-8. ✅ Respect all rate limits and quotas
-9. ✅ Set descriptive User-Agent headers for APIs
+1. Yes Display "Powered by Charity Navigator" on ALL pages using CN data
+2. Yes Link charity names to Charity Navigator profile pages
+3. Yes Include Charity Navigator trademark notice
+4. Yes Display "Data provided by Google" for Google services
+5. Yes Display "Powered by Open States" for Open States data
+6. Yes Attribute to DBpedia and Wikipedia for DBpedia data
+7. Yes Provide attribution to ProPublica for all ProPublica APIs
+8. Yes Respect all rate limits and quotas
+9. Yes Set descriptive User-Agent headers for APIs
 
-## 📊 Legal Structure
+## Legal Structure
 
 ### Hierarchy
 ```
@@ -153,46 +153,46 @@ Where provider terms conflict, the MOST RESTRICTIVE applies:
 - Users must respect both limits for their respective data
 - Cannot mix data to circumvent restrictions
 
-## 🔒 Privacy Highlights
+## Privacy Highlights
 
 ### What We Collect
-- ✅ Public data only (government records, tax filings)
-- ✅ Optional account data (email if you create account)
-- ✅ Technical data (IP, browser for security)
+- Yes Public data only (government records, tax filings)
+- Yes Optional account data (email if you create account)
+- Yes Technical data (IP, browser for security)
 
 ### What We DON'T Collect
-- ❌ Private financial information
-- ❌ Health information
-- ❌ Social Security numbers
-- ❌ Any data requiring authentication
+- No Private financial information
+- No Health information
+- No Social Security numbers
+- No Any data requiring authentication
 
 ### User Rights
-- ✅ Request data removal (case-by-case for public records)
-- ✅ Delete account anytime
-- ✅ Access and download your data
-- ✅ Opt out of analytics
-- ✅ CCPA rights (California residents)
-- ✅ GDPR rights (EEA residents)
+- Yes Request data removal (case-by-case for public records)
+- Yes Delete account anytime
+- Yes Access and download your data
+- Yes Opt out of analytics
+- Yes CCPA rights (California residents)
+- Yes GDPR rights (EEA residents)
 
-## 📁 File Locations
+## File Locations
 
 All legal documents are in: `website/docs/legal/`
 
 ```
 website/docs/legal/
-├── index.md                    # Legal Overview
-├── terms-of-service.md         # Main ToS
-├── data-provider-terms.md      # Provider terms
-├── privacy-policy.md           # Privacy policy
-└── README.md                   # Documentation guide
+├── index.md # Legal Overview
+├── terms-of-service.md # Main ToS
+├── data-provider-terms.md # Provider terms
+├── privacy-policy.md # Privacy policy
+└── README.md # Documentation guide
 ```
 
 Updated existing file:
 ```
-website/docs/legal-compliance.md  # Now links to new legal docs
+website/docs/legal-compliance.md # Now links to new legal docs
 ```
 
-## 🎯 Next Steps
+## Next Steps
 
 ### For Users
 1. Read [Terms of Service](./terms-of-service.md)
@@ -207,15 +207,15 @@ website/docs/legal-compliance.md  # Now links to new legal docs
 5. Add attribution UI components to frontend
 
 ### For Deployment
-1. ✅ Replace placeholder contact information
-2. ✅ Add physical mailing address
-3. ✅ Specify governing jurisdiction
-4. ✅ Configure DPO contact (if EU users)
-5. ✅ Test all attribution displays
-6. ✅ Verify rate limit enforcement
-7. ✅ Review legal pages in production
+1. Yes Replace placeholder contact information
+2. Yes Add physical mailing address
+3. Yes Specify governing jurisdiction
+4. Yes Configure DPO contact (if EU users)
+5. Yes Test all attribution displays
+6. Yes Verify rate limit enforcement
+7. Yes Review legal pages in production
 
-## 🔗 Related Documents
+## Related Documents
 
 - [Legal Documentation Complete](./legal-documentation-complete.md)
 - [Legal Compliance Guide](../legal-compliance.md)

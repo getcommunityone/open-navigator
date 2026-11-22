@@ -11,11 +11,11 @@ Guide for migrating `events_channels_search` from direct production loading to t
 **What:** Move YouTube channel loading from direct production writes to bronze database with dbt transformations
 
 **Why:**
-- ✅ Separation of concerns (loading vs. transformation)
-- ✅ Testable data quality via dbt tests
-- ✅ Version-controlled transformations
-- ✅ Reusable intermediate models
-- ✅ Clear data lineage (bronze → staging → intermediate → mart)
+- Yes Separation of concerns (loading vs. transformation)
+- Yes Testable data quality via dbt tests
+- Yes Version-controlled transformations
+- Yes Reusable intermediate models
+- Yes Clear data lineage (bronze → staging → intermediate → mart)
 
 ## Architecture
 
@@ -23,7 +23,7 @@ Guide for migrating `events_channels_search` from direct production loading to t
 
 ```
 packages/scrapers/src/scrapers/youtube/load_channels.py
-    ↓ (direct write)
+ ↓ (direct write)
 events_channels_search (production table)
 ```
 
@@ -31,15 +31,15 @@ events_channels_search (production table)
 
 ```
 packages/scrapers/src/scrapers/youtube/load_youtube_channels_bronze.py
-    ↓ (write to bronze)
+ ↓ (write to bronze)
 bronze_events_channels (bronze table)
-    ↓ (Foreign Data Wrapper)
+ ↓ (Foreign Data Wrapper)
 bronze.bronze_events_channels (foreign table in production)
-    ↓ (dbt staging)
+ ↓ (dbt staging)
 stg_bronze_events_channels (view)
-    ↓ (dbt intermediate)
+ ↓ (dbt intermediate)
 int_events_channels_enriched (view with stats)
-    ↓ (dbt mart)
+ ↓ (dbt mart)
 events_channels_search (production table)
 ```
 
@@ -51,7 +51,7 @@ Run the migration in the bronze database:
 
 ```bash
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f packages/hosting/scripts/neon/migrations/002_create_bronze_events_channels.sql
+ -f packages/hosting/scripts/neon/migrations/002_create_bronze_events_channels.sql
 ```
 
 ### 2. Import Foreign Table
@@ -62,10 +62,10 @@ Run in the production database to make bronze table accessible:
 -- In open_navigator database
 BEGIN;
 
-IMPORT FOREIGN SCHEMA public 
-    LIMIT TO (bronze_events_channels)
-    FROM SERVER bronze_server 
-    INTO bronze;
+IMPORT FOREIGN SCHEMA public
+ LIMIT TO (bronze_events_channels)
+ FROM SERVER bronze_server
+ INTO bronze;
 
 COMMIT;
 ```
@@ -83,8 +83,8 @@ Use the new bronze loading script:
 ```bash
 # Load channels for specific states
 python packages/scrapers/src/scrapers/youtube/load_youtube_channels_bronze.py \
-  --states AL,GA,IN,MA,WA,WI \
-  --auto-flag
+ --states AL,GA,IN,MA,WA,WI \
+ --auto-flag
 
 # Or all states
 python packages/scrapers/src/scrapers/youtube/load_youtube_channels_bronze.py --auto-flag
@@ -111,11 +111,11 @@ dbt run --select events_channels_search
 
 # Verify counts
 dbt run --select events_channels_search && \
-  psql -h localhost -p 5433 -U postgres -d open_navigator \
-    -c "SELECT COUNT(*), 
-        COUNT(*) FILTER (WHERE is_government) as govt_channels,
-        COUNT(*) FILTER (WHERE in_localview) as localview_channels
-        FROM events_channels_search;"
+ psql -h localhost -p 5433 -U postgres -d open_navigator \
+ -c "SELECT COUNT(*),
+ COUNT(*) FILTER (WHERE is_government) as govt_channels,
+ COUNT(*) FILTER (WHERE in_localview) as localview_channels
+ FROM events_channels_search;"
 ```
 
 ### 5. Update Dependent Processes
@@ -152,10 +152,10 @@ Update any scripts that reference `events_channels_search`:
 - Input: `stg_bronze_events_channels`
 - Output: View with enrichments
 - Adds:
-  - Event statistics (count, date ranges)
-  - Quality scoring (based on validation sources)
-  - Government likelihood assessment
-  - Activity status (active/stale/inactive)
+ - Event statistics (count, date ranges)
+ - Quality scoring (based on validation sources)
+ - Government likelihood assessment
+ - Activity status (active/stale/inactive)
 
 ### Mart Layer
 
@@ -163,8 +163,8 @@ Update any scripts that reference `events_channels_search`:
 - Input: `int_events_channels_enriched`
 - Output: Production table
 - Filters:
-  - Excludes junk channels (unless in LocalView)
-  - Only validated channels (quality_score >= 0.7)
+ - Excludes junk channels (unless in LocalView)
+ - Only validated channels (quality_score >= 0.7)
 - Indexes: channel_id, in_localview, is_government, etc.
 
 ## Quality Scoring
@@ -210,20 +210,20 @@ Add to `dbt_project/tests/`:
 SELECT *
 FROM {{ ref('events_channels_search') }}
 WHERE NOT (
-    in_localview 
-    OR in_wikidata 
-    OR in_jurisdictions_details
-    OR quality_score >= 0.7
+ in_localview
+ OR in_wikidata
+ OR in_jurisdictions_details
+ OR quality_score >= 0.7
 )
 ```
 
 ```sql
--- tests/assert_no_flagged_junk_unless_localview.sql  
+-- tests/assert_no_flagged_junk_unless_localview.sql
 -- Flagged junk should only be in table if also in LocalView
 SELECT *
 FROM {{ ref('events_channels_search') }}
 WHERE flagged_as_junk = TRUE
-  AND in_localview = FALSE
+ AND in_localview = FALSE
 ```
 
 Run tests:
@@ -238,16 +238,16 @@ Compare old vs. new tables:
 
 ```sql
 -- Count comparison
-SELECT 
-    'OLD' as source, COUNT(*) as total,
-    COUNT(*) FILTER (WHERE is_government) as govt,
-    COUNT(*) FILTER (WHERE flagged_as_junk) as flagged
+SELECT
+ 'OLD' as source, COUNT(*) as total,
+ COUNT(*) FILTER (WHERE is_government) as govt,
+ COUNT(*) FILTER (WHERE flagged_as_junk) as flagged
 FROM events_channels_search_old
 UNION ALL
-SELECT 
-    'NEW' as source, COUNT(*) as total,
-    COUNT(*) FILTER (WHERE is_government) as govt,
-    COUNT(*) FILTER (WHERE flagged_as_junk) as flagged
+SELECT
+ 'NEW' as source, COUNT(*) as total,
+ COUNT(*) FILTER (WHERE is_government) as govt,
+ COUNT(*) FILTER (WHERE flagged_as_junk) as flagged
 FROM events_channels_search;
 
 -- Sample records
@@ -267,11 +267,11 @@ If issues arise, rollback to old process:
 
 # 2. Drop dbt-generated table
 psql -h localhost -p 5433 -U postgres -d open_navigator \
-  -c "DROP TABLE IF EXISTS events_channels_search;"
+ -c "DROP TABLE IF EXISTS events_channels_search;"
 
 # 3. Rename old table back
 psql -h localhost -p 5433 -U postgres -d open_navigator \
-  -c "ALTER TABLE events_channels_search_backup RENAME TO events_channels_search;"
+ -c "ALTER TABLE events_channels_search_backup RENAME TO events_channels_search;"
 ```
 
 ## Maintenance
@@ -301,35 +301,35 @@ Check for issues:
 SELECT channel_id, channel_title, days_since_last_video, activity_status
 FROM events_channels_search
 WHERE activity_status = 'inactive'
-  AND is_government = TRUE
+ AND is_government = TRUE
 ORDER BY days_since_last_video DESC
 LIMIT 20;
 
 -- Channels needing validation
-SELECT channel_id, channel_title, quality_score, 
-       in_localview, in_wikidata, in_jurisdictions_details
+SELECT channel_id, channel_title, quality_score,
+ in_localview, in_wikidata, in_jurisdictions_details
 FROM events_channels_search
 WHERE quality_score < 0.8
-  AND is_government IS NULL
+ AND is_government IS NULL
 ORDER BY event_count DESC
 LIMIT 20;
 ```
 
 ## Benefits
 
-✅ **Testable:** dbt tests ensure data quality  
-✅ **Auditable:** All transformations versioned in SQL  
-✅ **Flexible:** Easy to add new enrichments in intermediate layer  
-✅ **Performant:** Indexed mart table for fast queries  
-✅ **Maintainable:** Clear separation between loading and transformation  
-✅ **Incremental:** Can make mart incremental for large datasets
+Yes **Testable:** dbt tests ensure data quality
+Yes **Auditable:** All transformations versioned in SQL
+Yes **Flexible:** Easy to add new enrichments in intermediate layer
+Yes **Performant:** Indexed mart table for fast queries
+Yes **Maintainable:** Clear separation between loading and transformation
+Yes **Incremental:** Can make mart incremental for large datasets
 
 ## Next Steps
 
 Once this pattern works well:
 
 1. Migrate `event` to bronze pattern
-2. Migrate `jurisdictions_details_search` to bronze pattern  
+2. Migrate `jurisdictions_details_search` to bronze pattern
 3. Create unified dbt documentation
 4. Add more data quality tests
 5. Implement incremental materializations for large tables

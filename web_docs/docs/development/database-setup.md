@@ -11,7 +11,7 @@ sidebar_position: 1
 ```bash
 # Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate # On Windows: .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -35,11 +35,11 @@ cp .env.example .env
 ```
 
 This script will:
-- ✅ Verify environment is configured
-- 📤 Sync data from `data/gold/` to Neon database
-- 🔍 Verify all required tables exist
-- 📊 Display current stats (nonprofits, events, contacts, jurisdictions)
-- 🌐 Test API endpoint if server is running
+- Yes Verify environment is configured
+- Sync data from `data/gold/` to Neon database
+- Verify all required tables exist
+- Display current stats (nonprofits, events, contacts, jurisdictions)
+- Test API endpoint if server is running
 
 ## Manual Setup Steps
 
@@ -82,7 +82,7 @@ print(f'Contacts: {cur.fetchone()[0]:,}')
 # Start the API server
 cd /home/developer/projects/open-navigator
 NEON_DATABASE_URL_DEV="postgresql://user:password@host/db" \
-  .venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
+ .venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 
 # In another terminal, test stats endpoint
 curl "http://localhost:8001/api/stats?state=MA" | python3 -m json.tool
@@ -127,7 +127,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 conn = psycopg2.connect(os.getenv('NEON_DATABASE_URL'))
-print('✅ Connection successful')
+print('Yes Connection successful')
 "
 ```
 
@@ -156,14 +156,14 @@ GET /api/stats
 Response:
 ```json
 {
-  "location": "United States",
-  "level": "national",
-  "jurisdictions": 32000,
-  "nonprofits": 43726,
-  "events": 50000,
-  "contacts": 10000,
-  "total_revenue": 1500000000,
-  "total_assets": 3000000000
+ "location": "United States",
+ "level": "national",
+ "jurisdictions": 32000,
+ "nonprofits": 43726,
+ "events": 50000,
+ "contacts": 10000,
+ "total_revenue": 1500000000,
+ "total_assets": 3000000000
 }
 ```
 
@@ -187,7 +187,7 @@ GET /api/stats?state=MA&city=Boston
 #### Database Error
 ```json
 {
-  "detail": "Database error: connection timeout"
+ "detail": "Database error: connection timeout"
 }
 ```
 
@@ -196,11 +196,11 @@ GET /api/stats?state=MA&city=Boston
 #### No Data Available
 ```json
 {
-  "location": "Test City, XX",
-  "level": "city",
-  "jurisdictions": 0,
-  "nonprofits": 0,
-  "note": "No data available for this location"
+ "location": "Test City, XX",
+ "level": "city",
+ "jurisdictions": 0,
+ "nonprofits": 0,
+ "note": "No data available for this location"
 }
 ```
 
@@ -212,35 +212,35 @@ GET /api/stats?state=MA&city=Boston
 
 ```typescript
 // Correct - stats are at res.data
-const response = await api.get('/stats', { 
-  params: { state: 'MA' } 
+const response = await api.get('/stats', {
+ params: { state: 'MA' }
 })
-const stats = response.data  // ✅ Correct
+const stats = response.data // Yes Correct
 
 // Wrong - don't use res.data.data
-const stats = response.data.data  // ❌ Will be undefined
+const stats = response.data.data // No Will be undefined
 ```
 
 ### Error Handling
 
 ```typescript
 const { data: stats, isLoading, error } = useQuery({
-  queryKey: ['stats', state],
-  queryFn: async () => {
-    const response = await api.get('/stats', { 
-      params: { state } 
-    })
-    return response.data
-  },
-  onError: (error: any) => {
-    console.error('Stats error:', error.response?.data?.detail || error.message)
-    // Show user-friendly error message
-  }
+ queryKey: ['stats', state],
+ queryFn: async () => {
+ const response = await api.get('/stats', {
+ params: { state }
+ })
+ return response.data
+ },
+ onError: (error: any) => {
+ console.error('Stats error:', error.response?.data?.detail || error.message)
+ // Show user-friendly error message
+ }
 })
 
 // Check for errors in the data
 if (stats?.error) {
-  return <div>⚠️ Stats unavailable: {stats.error}</div>
+ return <div>Warning Stats unavailable: {stats.error}</div>
 }
 ```
 
@@ -260,14 +260,14 @@ if (stats?.error) {
 
 ```sql
 -- Check database size
-SELECT 
-  pg_size_pretty(pg_database_size(current_database())) as size;
+SELECT
+ pg_size_pretty(pg_database_size(current_database())) as size;
 
 -- Check table sizes
-SELECT 
-  schemaname,
-  tablename,
-  pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+SELECT
+ schemaname,
+ tablename,
+ pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
 FROM pg_tables
 WHERE schemaname = 'public'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
@@ -286,7 +286,7 @@ conn = psycopg2.connect(os.getenv('NEON_DATABASE_URL'))
 conn.autocommit = True
 cur = conn.cursor()
 cur.execute('VACUUM ANALYZE')
-print('✅ Vacuum complete')
+print('Yes Vacuum complete')
 "
 ```
 
@@ -309,7 +309,7 @@ curl "http://localhost:8001/api/stats?state=MA" | jq '.nonprofits'
 tail -f logs/api.log
 
 # Frontend logs (browser console)
-# Look for: 📊 [HomeModern] Stats data: ...
+# Look for: [HomeModern] Stats data: ...
 ```
 
 ## See Also

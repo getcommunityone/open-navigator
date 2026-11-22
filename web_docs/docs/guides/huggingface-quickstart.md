@@ -1,12 +1,12 @@
-# 🚀 QUICK START: FREE STORAGE WITH HUGGING FACE
+# QUICK START: FREE STORAGE WITH HUGGING FACE
 
 **TL;DR: Store unlimited data for FREE on Hugging Face!**
 
-**⚠️ IMPORTANT: Use Parquet format, NOT individual PDFs! See [file limits guide](HUGGINGFACE_FILE_LIMITS.md)**
+**Warning IMPORTANT: Use Parquet format, NOT individual PDFs! See [file limits guide](HUGGINGFACE_FILE_LIMITS.md)**
 
 ---
 
-## ⚡ 3-MINUTE SETUP
+## 3-MINUTE SETUP
 
 ### 1. Create Hugging Face Account (1 minute)
 ```bash
@@ -25,7 +25,7 @@
 # Copy the token (hf_xxxxxxxxxxxx)
 ```
 
-**⚠️ Important: Token Permissions**
+**Warning Important: Token Permissions**
 - **Write** access required for publishing datasets
 - **Read** access sufficient for downloading public datasets only
 - For this project: Use **Write** token to publish your scraped data
@@ -40,7 +40,7 @@ export HF_TOKEN="hf_YOUR_TOKEN_HERE"
 
 ---
 
-## ⚠️ CRITICAL: FILE LIMITS
+## Warning CRITICAL: FILE LIMITS
 
 **Hugging Face Limits:**
 - Files per folder: \<10,000
@@ -48,18 +48,18 @@ export HF_TOKEN="hf_YOUR_TOKEN_HERE"
 - For large datasets: Use Parquet or WebDataset format
 
 **Your Scale:**
-- 22,000 jurisdictions × 1,000 docs = 22 MILLION files ❌
+- 22,000 jurisdictions × 1,000 docs = 22 MILLION files No
 
 **Solution:**
 - Extract text from PDFs
 - Store in Parquet format
-- Result: 50 files instead of 22 million ✅
+- Result: 50 files instead of 22 million Yes
 
 **See detailed guide:** [HUGGINGFACE_FILE_LIMITS.md](HUGGINGFACE_FILE_LIMITS.md)
 
 ---
 
-## 📤 UPLOAD YOUR DATA
+## UPLOAD YOUR DATA
 
 ### Option 1: Use the Upload Script (Recommended)
 
@@ -74,8 +74,8 @@ source venv/bin/activate
 
 # Upload discovery results
 python scripts/upload_to_huggingface.py \
-    --repo "YOUR_USERNAME/oral-health-policy-data" \
-    --discovery
+ --repo "YOUR_USERNAME/oral-health-policy-data" \
+ --discovery
 
 # View your dataset
 # https://huggingface.co/datasets/YOUR_USERNAME/oral-health-policy-data
@@ -116,13 +116,13 @@ dataset = Dataset.from_pandas(df)
 # Upload to Hugging Face (FREE!)
 dataset.push_to_hub("YOUR_USERNAME/oral-health-policy-data", split="discovery")
 
-print("✅ Data uploaded! View at:")
+print("Yes Data uploaded! View at:")
 print("https://huggingface.co/datasets/YOUR_USERNAME/oral-health-policy-data")
 ```
 
 ---
 
-## 💰 COST BREAKDOWN
+## COST BREAKDOWN
 
 | What You Get | Cost |
 |--------------|------|
@@ -132,52 +132,52 @@ print("https://huggingface.co/datasets/YOUR_USERNAME/oral-health-policy-data")
 | Version control | FREE |
 | Search & filtering | FREE |
 | API access | FREE |
-| **TOTAL** | **$0/month** ✅ |
+| **TOTAL** | **$0/month** Yes |
 
 ---
 
-## 📊 STORAGE COMPARISON
+## STORAGE COMPARISON
 
 ### Bad Approach (Expensive)
 ```
-❌ Download all videos: 250 TB = $5,000/month
-❌ Store all PDFs: 30 TB = $600/month
-❌ Total: $5,600/month 💸
+No Download all videos: 250 TB = $5,000/month
+No Store all PDFs: 30 TB = $600/month
+No Total: $5,600/month
 ```
 
 ### Good Approach (FREE)
 ```
-✅ Store discovery data: 1 GB = FREE
-✅ Store extracted text: 25 GB = FREE
-✅ Store oral health subset: 5 GB = FREE
-✅ Total: $0/month 🎉
+Yes Store discovery data: 1 GB = FREE
+Yes Store extracted text: 25 GB = FREE
+Yes Store oral health subset: 5 GB = FREE
+Yes Total: $0/month
 ```
 
 **Savings: $5,600/month → $0/month**
 
 ---
 
-## 🎯 WHAT TO UPLOAD
+## WHAT TO UPLOAD
 
-### ✅ Upload These:
+### Yes Upload These:
 
 1. **Discovery Results** (~1 GB)
-   - Jurisdiction websites
-   - YouTube channels
-   - Meeting platforms
-   - Social media links
+ - Jurisdiction websites
+ - YouTube channels
+ - Meeting platforms
+ - Social media links
 
 2. **Meeting Metadata** (~2 GB)
-   - Meeting dates/titles
-   - Agenda item lists
-   - Source URLs
+ - Meeting dates/titles
+ - Agenda item lists
+ - Source URLs
 
 3. **Extracted Text** (~25 GB)
-   - Text from PDFs
-   - Meeting transcripts
-   - Filtered for oral health
+ - Text from PDFs
+ - Meeting transcripts
+ - Filtered for oral health
 
-### ❌ Don't Upload These:
+### No Don't Upload These:
 
 1. **Videos** - Link to YouTube instead
 2. **Full PDFs** - Store text + URL to original
@@ -186,7 +186,7 @@ print("https://huggingface.co/datasets/YOUR_USERNAME/oral-health-policy-data")
 
 ---
 
-## 📝 EXAMPLE WORKFLOW
+## EXAMPLE WORKFLOW
 
 ### Step 1: Run Discovery
 ```bash
@@ -200,8 +200,8 @@ python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
 ```bash
 # Upload discovery results
 python scripts/upload_to_huggingface.py \
-    --repo "YOUR_USERNAME/oral-health-policy-data" \
-    --discovery
+ --repo "YOUR_USERNAME/oral-health-policy-data" \
+ --discovery
 ```
 
 ### Step 3: Free Up Local Space
@@ -225,31 +225,31 @@ print(f"Alabama jurisdictions: {len(alabama)}")
 
 ---
 
-## 🔄 CONTINUOUS WORKFLOW
+## CONTINUOUS WORKFLOW
 
 ### Keep Local Storage Low (~100 MB)
 
 ```python
 # Process one jurisdiction at a time
 for jurisdiction in all_jurisdictions:
-    # 1. Download PDF (2 MB)
-    pdf = download_agenda(jurisdiction)
-    
-    # 2. Extract text (50 KB)
-    text = extract_text(pdf)
-    
-    # 3. Upload to Hugging Face
-    upload_to_hf(text)
-    
-    # 4. Delete local file
-    os.remove(pdf)
-    
-    # Local storage: Never exceeds 100 MB! ✅
+ # 1. Download PDF (2 MB)
+ pdf = download_agenda(jurisdiction)
+
+ # 2. Extract text (50 KB)
+ text = extract_text(pdf)
+
+ # 3. Upload to Hugging Face
+ upload_to_hf(text)
+
+ # 4. Delete local file
+ os.remove(pdf)
+
+ # Local storage: Never exceeds 100 MB! Yes
 ```
 
 ---
 
-## 📚 HUGGING FACE BASICS
+## HUGGING FACE BASICS
 
 ### Load Your Data Anywhere
 
@@ -284,8 +284,8 @@ indiana = data.filter(lambda x: x['state'] == 'IN')
 ```python
 # Only download what you need (save bandwidth)
 oral_health_only = load_dataset(
-    "YOUR_USERNAME/oral-health-policy-data",
-    split="oral_health"  # Only the filtered subset
+ "YOUR_USERNAME/oral-health-policy-data",
+ split="oral_health" # Only the filtered subset
 )
 
 # Maybe only 5 GB instead of 50 GB!
@@ -293,7 +293,7 @@ oral_health_only = load_dataset(
 
 ---
 
-## ✅ BENEFITS
+## Yes BENEFITS
 
 ### 1. **FREE Unlimited Storage**
 - No storage limits for public datasets
@@ -322,7 +322,7 @@ oral_health_only = load_dataset(
 
 ---
 
-## 🎓 LEARN MORE
+## LEARN MORE
 
 ### Official Docs
 - **Hugging Face Datasets:** https://huggingface.co/docs/datasets/
@@ -352,8 +352,8 @@ huggingface-cli login
 ### "Permission denied"
 ```bash
 # Make sure repo name includes your username
-# ✅ Correct: "myusername/oral-health-policy-data"
-# ❌ Wrong: "oral-health-policy-data"
+# Yes Correct: "myusername/oral-health-policy-data"
+# No Wrong: "oral-health-policy-data"
 ```
 
 ### "Dataset too large"
@@ -361,33 +361,33 @@ huggingface-cli login
 # Don't upload raw files!
 # Upload processed/filtered data only
 
-# ❌ Bad: Upload 50 GB of PDFs
-# ✅ Good: Upload 5 GB of extracted text
+# No Bad: Upload 50 GB of PDFs
+# Yes Good: Upload 5 GB of extracted text
 ```
 
 ---
 
-## 🎯 NEXT STEPS
+## NEXT STEPS
 
-1. ✅ Create Hugging Face account
-2. ✅ Get API token
-3. ✅ Run discovery for your state
-4. ✅ Upload to Hugging Face
-5. ✅ Delete local files to free space
-6. ✅ Scale to all 22,000+ jurisdictions!
+1. Yes Create Hugging Face account
+2. Yes Get API token
+3. Yes Run discovery for your state
+4. Yes Upload to Hugging Face
+5. Yes Delete local files to free space
+6. Yes Scale to all 22,000+ jurisdictions!
 
-**Your data is safe in the cloud, FREE, forever!** 🎉
+**Your data is safe in the cloud, FREE, forever!**
 
 ---
 
-## 💡 PRO TIP
+## PRO TIP
 
 Make your dataset **public** (not private):
-- ✅ FREE unlimited storage
-- ✅ Helps research community
-- ✅ Builds your portfolio
-- ✅ Appears in search results
+- Yes FREE unlimited storage
+- Yes Helps research community
+- Yes Builds your portfolio
+- Yes Appears in search results
 
 Private datasets are limited to 100 GB and don't help anyone!
 
-**Public = Win-Win-Win** 🏆
+**Public = Win-Win-Win**

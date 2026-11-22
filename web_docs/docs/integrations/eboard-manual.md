@@ -21,16 +21,16 @@ After `dbt seed` and `dbt run --select int_jurisdiction_websites`, use **`interm
 
 ```sql
 SELECT
-  jurisdiction_id,
-  organization_name,
-  website_source,
-  website_url
+ jurisdiction_id,
+ organization_name,
+ website_source,
+ website_url
 FROM intermediate.int_jurisdiction_websites
 WHERE jurisdiction_id = 'school_district_0103390'
-  AND (
-    website_url ILIKE '%tcss.net%'
-    OR website_url ILIKE '%simbli.eboardsolutions.com%'
-  )
+ AND (
+ website_url ILIKE '%tcss.net%'
+ OR website_url ILIKE '%simbli.eboardsolutions.com%'
+ )
 ORDER BY website_url;
 ```
 
@@ -38,16 +38,16 @@ ORDER BY website_url;
 
 ```sql
 SELECT
-  jurisdiction_id,
-  organization_name,
-  website_source,
-  website_url
+ jurisdiction_id,
+ organization_name,
+ website_source,
+ website_url
 FROM intermediate.int_jurisdiction_websites
 WHERE jurisdiction_id = 'school_district_0103360'
-  AND (
-    website_url ILIKE '%tuscaloosacityschools.com%'
-    OR website_url ILIKE '%simbli.eboardsolutions.com%'
-  )
+ AND (
+ website_url ILIKE '%tuscaloosacityschools.com%'
+ OR website_url ILIKE '%simbli.eboardsolutions.com%'
+ )
 ORDER BY website_url;
 ```
 
@@ -55,17 +55,17 @@ ORDER BY website_url;
 
 ```sql
 SELECT
-  jurisdiction_id,
-  organization_name,
-  website_source,
-  trim(website_url) AS website_url
+ jurisdiction_id,
+ organization_name,
+ website_source,
+ trim(website_url) AS website_url
 FROM intermediate.int_jurisdiction_websites
 WHERE jurisdiction_id = 'school_district_0103360'
-  AND (
-    trim(website_url) ILIKE '%simbli%'
-    OR trim(website_url) ILIKE '%SB_MeetingListing.aspx%'
-    OR trim(website_url) ILIKE '%/SB_Meetings/%'
-  )
+ AND (
+ trim(website_url) ILIKE '%simbli%'
+ OR trim(website_url) ILIKE '%SB_MeetingListing.aspx%'
+ OR trim(website_url) ILIKE '%/SB_Meetings/%'
+ )
 ORDER BY website_url;
 ```
 
@@ -100,9 +100,9 @@ ORDER BY jurisdiction_id, website_url;
 For each meeting:
 - Click on the meeting date to view details
 - Look for:
-  - **Agenda** (usually PDF)
-  - **Minutes** (usually PDF)
-  - **Packets** (supporting materials)
+ - **Agenda** (usually PDF)
+ - **Minutes** (usually PDF)
+ - **Packets** (supporting materials)
 - Right-click each document → "Save As"
 
 ### 3. Organize Downloads
@@ -122,39 +122,39 @@ from agents.scraper import ScraperAgent
 import asyncio
 
 async def import_manual_pdfs(pdf_directory: str):
-    """Import manually downloaded PDFs into the system."""
-    scraper = ScraperAgent()
-    async with scraper:
-        documents = []
-        
-        for pdf_path in Path(pdf_directory).glob("*.pdf"):
-            # Extract content from PDF
-            content = await scraper._scrape_pdf_document(str(pdf_path))
-            
-            if content:
-                # Parse filename for metadata
-                parts = pdf_path.stem.split('_')
-                date_str = parts[2] if len(parts) > 2 else ""
-                doc_type = parts[3] if len(parts) > 3 else "document"
-                
-                doc = {
-                    'document_id': hashlib.md5(str(pdf_path).encode()).hexdigest(),
-                    'source_url': f'file://{pdf_path}',
-                    'municipality': 'Tuscaloosa City Schools',
-                    'state': 'AL',
-                    'meeting_date': date_str,
-                    'meeting_type': 'Board Meeting',
-                    'title': pdf_path.stem,
-                    'content': content,
-                    'metadata': {'source': 'manual_download', 'platform': 'eboard'}
-                }
-                documents.append(doc)
-        
-        # Write to Delta Lake
-        pipeline = DeltaLakePipeline()
-        pipeline.write_raw_documents(documents)
-        
-        return documents
+ """Import manually downloaded PDFs into the system."""
+ scraper = ScraperAgent()
+ async with scraper:
+ documents = []
+
+ for pdf_path in Path(pdf_directory).glob("*.pdf"):
+ # Extract content from PDF
+ content = await scraper._scrape_pdf_document(str(pdf_path))
+
+ if content:
+ # Parse filename for metadata
+ parts = pdf_path.stem.split('_')
+ date_str = parts[2] if len(parts) > 2 else ""
+ doc_type = parts[3] if len(parts) > 3 else "document"
+
+ doc = {
+ 'document_id': hashlib.md5(str(pdf_path).encode()).hexdigest(),
+ 'source_url': f'file://{pdf_path}',
+ 'municipality': 'Tuscaloosa City Schools',
+ 'state': 'AL',
+ 'meeting_date': date_str,
+ 'meeting_type': 'Board Meeting',
+ 'title': pdf_path.stem,
+ 'content': content,
+ 'metadata': {'source': 'manual_download', 'platform': 'eboard'}
+ }
+ documents.append(doc)
+
+ # Write to Delta Lake
+ pipeline = DeltaLakePipeline()
+ pipeline.write_raw_documents(documents)
+
+ return documents
 
 # Usage:
 # asyncio.run(import_manual_pdfs('/path/to/downloaded/pdfs'))
@@ -195,6 +195,6 @@ For comprehensive school district data:
 
 ## Status
 
-- ✅ **Tuscaloosa City Government**: Automated scraping works (SuiteOne Media platform)
-- ❌ **Tuscaloosa City Schools**: Manual download required (eBoard + Incapsula)
-- ❌ **Tuscaloosa County Schools**: Manual download required (eBoard + Incapsula)
+- Yes **Tuscaloosa City Government**: Automated scraping works (SuiteOne Media platform)
+- No **Tuscaloosa City Schools**: Manual download required (eBoard + Incapsula)
+- No **Tuscaloosa County Schools**: Manual download required (eBoard + Incapsula)

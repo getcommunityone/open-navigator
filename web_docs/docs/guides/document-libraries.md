@@ -1,10 +1,10 @@
-# 📦 INSTALLING DOCUMENT PROCESSING LIBRARIES
+# INSTALLING DOCUMENT PROCESSING LIBRARIES
 
 **Quick guide to install all libraries for handling multiple document formats.**
 
 ---
 
-## 🚀 QUICK INSTALL
+## QUICK INSTALL
 
 ```bash
 cd /home/developer/projects/open-navigator
@@ -19,7 +19,7 @@ pip install pytesseract Pillow
 
 ---
 
-## 📋 WHAT GETS INSTALLED
+## WHAT GETS INSTALLED
 
 | Library | Purpose | Size |
 |---------|---------|------|
@@ -35,7 +35,7 @@ pip install pytesseract Pillow
 
 ---
 
-## 🔧 OPTIONAL: OCR SUPPORT
+## OPTIONAL: OCR SUPPORT
 
 **For scanned PDFs and images, install Tesseract OCR engine:**
 
@@ -55,7 +55,7 @@ Download installer from: https://github.com/UB-Mannheim/tesseract/wiki
 
 ---
 
-## ✅ VERIFY INSTALLATION
+## Yes VERIFY INSTALLATION
 
 ```bash
 # Test all libraries
@@ -65,21 +65,21 @@ import pdfplumber
 from pptx import Presentation
 from docx import Document
 import openpyxl
-print('✅ All document libraries installed!')
+print('Yes All document libraries installed!')
 "
 
 # Test OCR (optional)
 python -c "
 import pytesseract
 from PIL import Image
-print('✅ OCR libraries installed!')
+print('Yes OCR libraries installed!')
 print(f'Tesseract version: {pytesseract.get_tesseract_version()}')
 "
 ```
 
 ---
 
-## 🎯 TEST WITH REAL DOCUMENT
+## TEST WITH REAL DOCUMENT
 
 ```bash
 # Test PDF extraction
@@ -134,28 +134,28 @@ pip install -r requirements.txt
 
 ---
 
-## 📊 STORAGE IMPACT
+## STORAGE IMPACT
 
 **Even with all libraries installed:**
 - Virtual environment size: ~500 MB (unchanged)
 - Libraries add: ~8 MB
-- **Total: Still under 1 GB** ✅
+- **Total: Still under 1 GB** Yes
 
 **Processing impact:**
 - Extract text from 1000 PDFs: ~50 MB local storage (temporary)
 - Store in Parquet: ~5 MB (compressed)
-- **Save 90% storage vs storing original files** ✅
+- **Save 90% storage vs storing original files** Yes
 
 ---
 
-## ✅ DONE!
+## Yes DONE!
 
 **You can now extract text from:**
-- ✅ PDF documents
-- ✅ PowerPoint presentations
-- ✅ Word documents
-- ✅ Excel spreadsheets
-- ✅ HTML pages
-- ✅ Scanned documents (with OCR)
+- Yes PDF documents
+- Yes PowerPoint presentations
+- Yes Word documents
+- Yes Excel spreadsheets
+- Yes HTML pages
+- Yes Scanned documents (with OCR)
 
-**All will be stored efficiently in Parquet format for FREE on Hugging Face!** 🎉
+**All will be stored efficiently in Parquet format for FREE on Hugging Face!**

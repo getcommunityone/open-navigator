@@ -6,11 +6,11 @@ sidebar_position: 10
 
 This page tracks planned features, enhancements, and research directions for Open Navigator. Items are organized by theme and priority.
 
-## 🎯 High Priority Features
+## High Priority Features
 
 ### Politician Personality Profiles
 
-**Status:** Planned  
+**Status:** Planned
 **Reference:** [Personality Politics - Joe Biden Example](http://personality-politics.org/joe-biden-2024)
 
 Create comprehensive personality and behavioral profiles for elected officials based on:
@@ -31,72 +31,72 @@ Create comprehensive personality and behavioral profiles for elected officials b
 **Output Format:**
 ```json
 {
-  "person_id": "ocd-person/12345",
-  "full_name": "Jane Smith",
-  "office": "City Council Member, District 3",
-  "jurisdiction": "Boston, MA",
-  "personality_profile": {
-    "big_five": {
-      "openness": 0.75,
-      "conscientiousness": 0.82,
-      "extraversion": 0.68,
-      "agreeableness": 0.71,
-      "neuroticism": 0.35
-    },
-    "moral_foundations": {
-      "care_harm": 0.85,
-      "fairness_cheating": 0.78,
-      "loyalty_betrayal": 0.52,
-      "authority_subversion": 0.48,
-      "sanctity_degradation": 0.42,
-      "liberty_oppression": 0.71
-    },
-    "leadership_style": "collaborative",
-    "policy_priorities": ["housing", "education", "climate"],
-    "communication_style": {
-      "clarity_score": 0.82,
-      "consistency_score": 0.76,
-      "emotional_tone": "optimistic"
-    }
-  },
-  "voting_analysis": {
-    "total_votes": 247,
-    "attendance_rate": 0.94,
-    "party_loyalty_score": 0.68,
-    "bipartisan_collaboration_score": 0.45,
-    "key_issues": [
-      {
-        "issue": "affordable_housing",
-        "vote_count": 32,
-        "support_rate": 0.91,
-        "alignment_with_platform": 0.95
-      }
-    ]
-  },
-  "constituent_alignment": {
-    "demographic_match": 0.72,
-    "policy_position_match": 0.68,
-    "responsiveness_score": 0.81
-  },
-  "sources": [
-    "OpenStates voting records",
-    "City Council meeting transcripts",
-    "Campaign website positions",
-    "Social media analysis (Twitter/X, Facebook)"
-  ],
-  "last_updated": "2026-05-05"
+ "person_id": "ocd-person/12345",
+ "full_name": "Jane Smith",
+ "office": "City Council Member, District 3",
+ "jurisdiction": "Boston, MA",
+ "personality_profile": {
+ "big_five": {
+ "openness": 0.75,
+ "conscientiousness": 0.82,
+ "extraversion": 0.68,
+ "agreeableness": 0.71,
+ "neuroticism": 0.35
+ },
+ "moral_foundations": {
+ "care_harm": 0.85,
+ "fairness_cheating": 0.78,
+ "loyalty_betrayal": 0.52,
+ "authority_subversion": 0.48,
+ "sanctity_degradation": 0.42,
+ "liberty_oppression": 0.71
+ },
+ "leadership_style": "collaborative",
+ "policy_priorities": ["housing", "education", "climate"],
+ "communication_style": {
+ "clarity_score": 0.82,
+ "consistency_score": 0.76,
+ "emotional_tone": "optimistic"
+ }
+ },
+ "voting_analysis": {
+ "total_votes": 247,
+ "attendance_rate": 0.94,
+ "party_loyalty_score": 0.68,
+ "bipartisan_collaboration_score": 0.45,
+ "key_issues": [
+ {
+ "issue": "affordable_housing",
+ "vote_count": 32,
+ "support_rate": 0.91,
+ "alignment_with_platform": 0.95
+ }
+ ]
+ },
+ "constituent_alignment": {
+ "demographic_match": 0.72,
+ "policy_position_match": 0.68,
+ "responsiveness_score": 0.81
+ },
+ "sources": [
+ "OpenStates voting records",
+ "City Council meeting transcripts",
+ "Campaign website positions",
+ "Social media analysis (Twitter/X, Facebook)"
+ ],
+ "last_updated": "2026-05-05"
 }
 ```
 
 **Implementation Steps:**
-1. ✅ Create `bronze_contacts` table (DONE - already exists)
-2. ✅ Extract people from meeting transcripts (DONE)
-3. 🔲 Build personality analysis pipeline using LLMs
-4. 🔲 Integrate voting record analysis from OpenStates
-5. 🔲 Apply psychological frameworks (Big Five, Moral Foundations)
-6. 🔲 Create profile aggregation and scoring system
-7. 🔲 Build UI components for profile visualization
-8. 🔲 Add profile comparison tools (compare candidates, track changes over time)
+1. Yes Create `bronze_contacts` table (DONE - already exists)
+2. Yes Extract people from meeting transcripts (DONE)
+3. Build personality analysis pipeline using LLMs
+4. Integrate voting record analysis from OpenStates
+5. Apply psychological frameworks (Big Five, Moral Foundations)
+6. Create profile aggregation and scoring system
+7. Build UI components for profile visualization
+8. Add profile comparison tools (compare candidates, track changes over time)
 
 **Related Tables:**
 - `bronze_contacts` - People extracted from meetings
@@ -106,7 +106,7 @@ Create comprehensive personality and behavioral profiles for elected officials b
 
 ---
 
-## 📊 Data & Analytics Features
+## Data & Analytics Features
 
 ### Multi-Model AI Evaluation Dashboard
 
@@ -145,7 +145,7 @@ Use historical meeting data to predict:
 
 ---
 
-## 🔍 Search & Discovery
+## Search & Discovery
 
 ### Semantic Search Across All Content
 
@@ -171,7 +171,7 @@ Multi-dimensional filtering:
 
 ---
 
-## 🤝 Collaboration & Engagement
+## Collaboration & Engagement
 
 ### Constituent Communication Tools
 
@@ -197,7 +197,7 @@ Tools for organizers:
 
 ---
 
-## 🧠 AI & Machine Learning
+## AI & Machine Learning
 
 ### Fine-Tuned Models for Civic Analysis
 
@@ -223,7 +223,7 @@ Implement production-ready ensemble pipelines:
 
 ---
 
-## 🗺️ Geographic & Spatial Features
+## Geographic & Spatial Features
 
 ### Interactive Power Maps
 
@@ -247,7 +247,7 @@ Map-based views:
 
 ---
 
-## 📱 Platform & Infrastructure
+## Platform & Infrastructure
 
 ### Mobile Application
 
@@ -282,7 +282,7 @@ Expand to support:
 
 ---
 
-## 🔒 Privacy & Security
+## Privacy & Security
 
 ### Differential Privacy Implementation
 
@@ -305,7 +305,7 @@ Implement comprehensive governance:
 
 ---
 
-## 🧪 Research & Experiments
+## Research & Experiments
 
 ### Causal Analysis of Policy Outcomes
 
@@ -339,7 +339,7 @@ Automatically generate:
 
 ---
 
-## 🎨 User Experience
+## User Experience
 
 ### Personalized Dashboard
 
@@ -364,7 +364,7 @@ Enhance accessibility:
 
 ---
 
-## 📚 Documentation & Education
+## Documentation & Education
 
 ### Civic Education Curriculum
 
@@ -389,7 +389,7 @@ Comprehensive developer docs:
 
 ---
 
-## 🔗 Integration Goals
+## Integration Goals
 
 ### Third-Party Integrations
 
@@ -415,7 +415,7 @@ Enable data export:
 
 ---
 
-## 💡 Community Requested Features
+## Community Requested Features
 
 ### Issue Tracking
 
@@ -448,39 +448,39 @@ Analyze public comments:
 
 ---
 
-## 📅 Timeline (Rough Estimates)
+## Timeline (Rough Estimates)
 
 ### Q2 2026
-- ✅ Multi-model comparison infrastructure (COMPLETE)
-- ✅ MoA synthesis pipeline (COMPLETE)
-- 🔲 Politician personality profiles (v1 prototype)
-- 🔲 Multi-model evaluation dashboard
+- Yes Multi-model comparison infrastructure (COMPLETE)
+- Yes MoA synthesis pipeline (COMPLETE)
+- Politician personality profiles (v1 prototype)
+- Multi-model evaluation dashboard
 
 ### Q3 2026
-- 🔲 Fine-tuned civic models
-- 🔲 Advanced filtering
-- 🔲 Mobile app (beta)
-- 🔲 Real-time meeting analysis (pilot)
+- Fine-tuned civic models
+- Advanced filtering
+- Mobile app (beta)
+- Real-time meeting analysis (pilot)
 
 ### Q4 2026
-- 🔲 Interactive power maps
-- 🔲 Multi-language support (Spanish)
-- 🔲 Constituent communication tools
-- 🔲 API v2 launch
+- Interactive power maps
+- Multi-language support (Spanish)
+- Constituent communication tools
+- API v2 launch
 
 ### Q1 2027
-- 🔲 Pipeline reliability, phase 1: log every pipeline run, triage failures, monthly report (read-only) ([#220](https://github.com/getcommunityone/open-navigator/issues/220))
-- 🔲 Pipeline reliability, phase 2 (if phase 1 is useful): run logging in CI and jobs; one issue per recurring failure
+- Pipeline reliability, phase 1: log every pipeline run, triage failures, monthly report (read-only) ([#220](https://github.com/getcommunityone/open-navigator/issues/220))
+- Pipeline reliability, phase 2 (if phase 1 is useful): run logging in CI and jobs; one issue per recurring failure
 
 ### 2027+
-- 🔲 Predictive analytics
-- 🔲 Causal analysis research
-- 🔲 Civic education curriculum
-- 🔲 Global expansion
+- Predictive analytics
+- Causal analysis research
+- Civic education curriculum
+- Global expansion
 
 ---
 
-## 🤝 How to Contribute
+## How to Contribute
 
 Have ideas for new features? Want to help implement something from this backlog?
 
@@ -492,29 +492,29 @@ Have ideas for new features? Want to help implement something from this backlog?
 
 ---
 
-## 📊 Priority Framework
+## Priority Framework
 
 We prioritize features using:
 
-**Impact:** How many users benefit? (🔴 High / 🟡 Medium / 🟢 Low)  
-**Effort:** How much work is required? (🟢 Low / 🟡 Medium / 🔴 High)  
-**Strategic:** Does it align with our mission? (⭐ Yes / - No)
+**Impact:** How many users benefit? ( High / Medium / Low)
+**Effort:** How much work is required? ( Low / Medium / High)
+**Strategic:** Does it align with our mission? ( Yes / - No)
 
-**High Priority:** 🔴 Impact + 🟢 Low Effort + ⭐ Strategic  
-**Medium Priority:** 🟡 Impact + 🟡 Effort + ⭐ Strategic  
-**Research Phase:** 🔴 Impact + 🔴 High Effort (needs more investigation)
-
----
-
-## 🎯 Feature Status Legend
-
-- ✅ **Complete** - Feature is live and available
-- 🔄 **In Progress** - Actively being developed
-- 🔲 **Planned** - Committed to roadmap
-- 🧪 **Research Phase** - Exploring feasibility
-- 💭 **Idea** - Community suggestion, not yet scoped
+**High Priority:** Impact + Low Effort + Strategic
+**Medium Priority:** Impact + Effort + Strategic
+**Research Phase:** Impact + High Effort (needs more investigation)
 
 ---
 
-*Last updated: May 5, 2026*  
+## Feature Status Legend
+
+- Yes **Complete** - Feature is live and available
+- **In Progress** - Actively being developed
+- **Planned** - Committed to roadmap
+- **Research Phase** - Exploring feasibility
+- **Idea** - Community suggestion, not yet scoped
+
+---
+
+*Last updated: May 5, 2026*
 *Next review: June 1, 2026*
