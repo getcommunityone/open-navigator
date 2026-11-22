@@ -104,7 +104,7 @@ def test_pipeline_stage_report_data_centers_smaller_all_rollup(monkeypatch: pyte
         if "AS vids_ok" in c[0] and "bronze_event_youtube" in c[0]
     ]
     assert len(yt_stamp_calls) == 2
-    assert tuple(set(yt_stamp_calls[1][1][0])) == tuple(set(dc_jids))
+    assert set(yt_stamp_calls[1][1][0]) == set(dc_jids)
     assert yt_stamp_calls[1][1][0] == yt_stamp_calls[1][1][1]
     # state filter unused for data_centers
     assert yt_stamp_calls[1][1][2] is None
