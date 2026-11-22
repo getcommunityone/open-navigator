@@ -6,7 +6,7 @@ sidebar_label: Terms of Service
 # Terms of Service
 
 **Effective Date:** April 28, 2026  
-**Last Updated:** April 28, 2026
+**Last Updated:** November 22, 2026
 
 :::info[Important Legal Agreement]
 By accessing or using Open Navigator ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, do not use the Service.
@@ -47,6 +47,12 @@ The following restrictions from our data providers apply to your use of the Serv
 - API quotas and rate limits apply
 - Must display attribution: "Data provided by Google" where applicable
 - Cannot cache Google Civic API data beyond 30 days
+
+#### YouTube API Services
+- CommunityOne uses [YouTube API Services](https://developers.google.com/youtube/terms/api-services-terms-of-service) to find public meeting-related videos and channels
+- **By using the Service, you agree to be bound by the [YouTube Terms of Service](https://www.youtube.com/t/terms)**
+- Privacy practices for YouTube API use are described in our [Privacy Policy — YouTube API Services](./privacy-policy.md#9-youtube-api-services)
+- We link users to YouTube to watch content; we do not replace the YouTube player or redistribute audiovisual streams via the API
 
 #### Charity Navigator
 - Maximum 1,000 API calls per day (rate limit enforced)
