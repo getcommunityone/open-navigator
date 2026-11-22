@@ -7,6 +7,8 @@ displayed_sidebar: developersSidebar
 **Generated:** April 22, 2026
 **Context:** User discovered `@TuscaloosaCityAL` was missed
 
+For the YouTube Data API **compliance audit** (architecture, user flow, endpoints, quota fill-in), see [YouTube API Services audit](./youtube-api-audit.md) (#737).
+
 ---
 
 ## YOUR QUESTION

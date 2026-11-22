@@ -504,10 +504,11 @@ https://github.com/cisagov/dotgov-data
 **Organization:** Google LLC
 **API Documentation:** [YouTube Data API](https://developers.google.com/youtube/v3)
 **Terms of Service:** [YouTube API Terms of Service](https://developers.google.com/youtube/terms/api-services-terms-of-service)
+**Operator audit pack (diagrams + form answers):** [YouTube API Services audit](../data-sources/youtube-api-audit.md)
 
 **Quota:**
-- **10,000 units per day** (free tier)
-- Different operations cost different units (e.g., search = 100 units, list = 1 unit)
+- Default project allocation is documented on Google’s [quota calculator](https://developers.google.com/youtube/data/determine_quota_cost) (general units/day plus separate buckets for `search.list` and `videos.insert`)
+- CommunityOne requests an increase via the compliance audit when nationwide discovery exhausts the default; see the audit page for current fill-in numbers
 
 **Requirements:**
 - Yes **API key required** (free from Google Cloud Console)
