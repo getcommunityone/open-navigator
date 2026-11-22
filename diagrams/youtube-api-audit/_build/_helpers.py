@@ -125,6 +125,115 @@ def box(cid, label, x, y, w, h, color=DBX, fill="#FFF3F0"):
     )
 
 
+# Databricks-style reference palette (dark teal + coral)
+TEAL_DK = "#1B3139"
+CORAL = "#FF6E57"
+CORAL_DK = "#FF3621"
+CARD = "#FFFFFF"
+MUTED = "#5F6B6D"
+DASH = "#C0C7C9"
+
+
+def header_panel(cid, title_text, body_html, x, y, w, h, head_h=36):
+    """Dark-teal header bar + white body card (Databricks reference style)."""
+    # outer card
+    cells.append(
+        f'<mxCell id="{cid}" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor={CARD};'
+        f'strokeColor={DASH};strokeWidth=1.5;" vertex="1" parent="1">'
+        f'<mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/></mxCell>'
+    )
+    # header bar
+    cells.append(
+        f'<mxCell id="{cid}_h" value="{escape(title_text)}" style="rounded=1;whiteSpace=wrap;html=1;'
+        f'fillColor={TEAL_DK};strokeColor={TEAL_DK};fontColor=#FFFFFF;fontStyle=1;fontSize=13;'
+        f'align=left;spacingLeft=12;verticalAlign=middle;" vertex="1" parent="1">'
+        f'<mxGeometry x="{x}" y="{y}" width="{w}" height="{head_h}" as="geometry"/></mxCell>'
+    )
+    if body_html:
+        cells.append(
+            f'<mxCell id="{cid}_b" value="{escape(body_html).replace(chr(10), "&lt;br&gt;")}" '
+            f'style="text;html=1;fontSize=11;fontColor=#1B3139;align=left;verticalAlign=top;'
+            f'spacingLeft=10;spacingTop=4;whiteSpace=wrap;" vertex="1" parent="1">'
+            f'<mxGeometry x="{x}" y="{y + head_h}" width="{w}" height="{h - head_h}" as="geometry"/></mxCell>'
+        )
+
+
+def platform_frame(cid, label, x, y, w, h):
+    """Thick coral outer frame for the central platform."""
+    cells.append(
+        f'<mxCell id="{cid}" value="{escape(label)}" style="rounded=1;whiteSpace=wrap;html=1;'
+        f'verticalAlign=top;align=center;spacingTop=8;fontStyle=1;fontSize=14;fontColor={TEAL_DK};'
+        f'fillColor=#FFF9F8;strokeColor={CORAL};strokeWidth=3;" vertex="1" parent="1">'
+        f'<mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/></mxCell>'
+    )
+
+
+def teal_bar(cid, label, x, y, w, h=32):
+    cells.append(
+        f'<mxCell id="{cid}" value="{escape(label)}" style="rounded=1;whiteSpace=wrap;html=1;'
+        f'fillColor={TEAL_DK};strokeColor={TEAL_DK};fontColor=#FFFFFF;fontStyle=1;fontSize=12;'
+        f'align=center;verticalAlign=middle;" vertex="1" parent="1">'
+        f'<mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/></mxCell>'
+    )
+
+
+def coral_bar(cid, label, x, y, w, h=36):
+    cells.append(
+        f'<mxCell id="{cid}" value="{escape(label)}" style="rounded=1;whiteSpace=wrap;html=1;'
+        f'fillColor={CORAL};strokeColor={CORAL};fontColor=#FFFFFF;fontStyle=1;fontSize=13;'
+        f'align=center;verticalAlign=middle;" vertex="1" parent="1">'
+        f'<mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/></mxCell>'
+    )
+
+
+def cylinder(cid, label, x, y, w, h, stroke, fill="#FFFFFF"):
+    style = (
+        f"shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;"
+        f"fontSize=11;fontStyle=1;fontColor=#1B3139;strokeColor={stroke};strokeWidth=2;fillColor={fill};"
+    )
+    cells.append(
+        f'<mxCell id="{cid}" value="{escape(label).replace(chr(10), "&lt;br&gt;")}" style="{style}" '
+        f'vertex="1" parent="1"><mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/></mxCell>'
+    )
+
+
+def soft_card(cid, label, x, y, w, h, stroke=DASH):
+    style = (
+        f"rounded=1;whiteSpace=wrap;html=1;fontSize=11;fontColor=#1B3139;"
+        f"strokeColor={stroke};strokeWidth=1.5;fillColor=#FFFFFF;align=center;verticalAlign=middle;"
+    )
+    cells.append(
+        f'<mxCell id="{cid}" value="{escape(label).replace(chr(10), "&lt;br&gt;")}" style="{style}" '
+        f'vertex="1" parent="1"><mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/></mxCell>'
+    )
+
+
+def dashed_group(cid, label, x, y, w, h):
+    style = (
+        "rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;"
+        f"fontStyle=1;fontSize=12;fontColor={TEAL_DK};dashed=1;dashPattern=6 4;"
+        f"strokeColor={DASH};strokeWidth=1.5;fillColor=none;"
+    )
+    cells.append(
+        f'<mxCell id="{cid}" value="{escape(label)}" style="{style}" vertex="1" parent="1">'
+        f'<mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/></mxCell>'
+    )
+
+
+def line_icon(cid, label, res, x, y, size=40):
+    """Monochrome teal AWS icon (consistent with reference, not rainbow)."""
+    style = (
+        "sketch=0;outlineConnect=0;fontColor=#1B3139;gradientColor=none;dashed=0;"
+        "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;"
+        f"fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.{res};"
+        f"fillColor={TEAL_DK};strokeColor=#ffffff;"
+    )
+    cells.append(
+        f'<mxCell id="{cid}" value="{escape(label).replace(chr(10), "&lt;br&gt;")}" style="{style}" '
+        f'vertex="1" parent="1"><mxGeometry x="{x}" y="{y}" width="{size}" height="{size}" as="geometry"/></mxCell>'
+    )
+
+
 def edge(src, dst, label="", dashed=False, exit=None, entry=None, via=()):
     pts = ""
     if exit:
