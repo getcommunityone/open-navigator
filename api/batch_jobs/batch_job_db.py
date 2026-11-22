@@ -544,15 +544,11 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
     except Exception:
         conn.rollback()  # scraped tables absent — discover stage degrades to zeros
 
-    # Transcript coverage per state over the int_events_union candidate set
-    # (CivicSearch + YouTube-API + LocalView): total = candidate videos, done =
-    # candidates with a transcript landed in bronze_event_youtube_transcript.
-    # Counting both from the same population keeps the bar honest — counting
-    # done from the transcript table alone gave it no denominator and reported
-    # done/done = 100% even with a large backlog (the "118k / 118k" artifact).
-    # Videos with no state_code (most CivicSearch school meetings) group under
-    # '??'; they get no per-state row but are folded into the ALL total below so
-    # the headline coverage isn't overstated.
+    # Transcript coverage for the *YouTube pipeline* only: same population as the
+    # Videos stage (bronze_event_youtube rows we attempted captions for). Using
+    # int_events_union here inflated Data centers (and other filters) to include
+    # LocalView/CivicSearch candidates (~142k) while Videos stayed ~13k (#683).
+    # total = attempted downloads; done = those with a landed transcript row.
     tx_by_state: Dict[str, Dict[str, Any]] = {}
     tx_unknown_total = 0
     tx_unknown_done = 0
@@ -561,15 +557,17 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
             cur.execute(
                 """
                 SELECT
-                    COALESCE(NULLIF(u.state_code, ''), '??')   AS st,
+                    COALESCE(NULLIF(y.state_code, ''), '??')   AS st,
                     COUNT(*)::int                              AS total,
                     COUNT(t.video_id)::int                     AS done,
                     MAX(COALESCE(t.last_updated, t.created_at)) AS last_at
-                FROM intermediate.int_events_union u
+                FROM bronze.bronze_event_youtube y
                 LEFT JOIN bronze.bronze_event_youtube_transcript t
-                    ON t.video_id = u.video_id
-                WHERE (%s::text[] IS NULL OR u.jurisdiction_id = ANY(%s))
-                  AND (%s::text[] IS NULL OR u.state_code = ANY(%s))
+                    ON t.video_id = y.video_id
+                WHERE (y.transcript_download_at IS NOT NULL
+                       OR y.transcript_file_error IS NOT NULL)
+                  AND (%s::text[] IS NULL OR y.jurisdiction_id = ANY(%s))
+                  AND (%s::text[] IS NULL OR y.state_code = ANY(%s))
                 GROUP BY 1
                 """,
                 (jf_a, jf_b, sf_a, sf_b),
@@ -583,7 +581,7 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                         "done": int(done), "total": int(total), "last_at": _iso(last_at),
                     }
     except Exception:
-        conn.rollback()  # int_events_union absent — transcript coverage degrades to zeros
+        conn.rollback()  # transcript table absent — coverage degrades to zeros
 
     def _discover_row(scope: str, disc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         d = disc or {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
@@ -614,12 +612,9 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
         fail = int(rec["vids_fail"])
         attempted = ok + fail
         lv, la, lr = rec["last_video"], rec["last_analysis"], rec["last_report"]
-        # videos: YouTube download stamps (ok / attempted). transcripts: actual
-        # landed coverage from bronze_event_youtube_transcript over the int_events_union
-        # candidate set (done = with transcript, total = candidates) — reaches
-        # LocalView/union videos the YouTube stamp never counted. analyses/reports
-        # sit below transcripts in the funnel, so they are denominated by the
-        # transcripts that exist (clamped so a stamp count can't exceed total).
+        # videos: YouTube download stamps (ok / attempted). transcripts: landed
+        # rows over that same attempted set. analyses/reports sit below
+        # transcripts in the funnel, denominated by transcripts that exist.
         tx_done = int(tx.get("done", 0))
         tx_total = max(int(tx.get("total", 0)), tx_done)
         tx_last = tx.get("last_at") or ""

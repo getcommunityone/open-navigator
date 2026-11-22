@@ -1628,12 +1628,7 @@ export default function BatchJobStatusPage() {
                 n: 2,
                 stage: 'transcripts',
                 unit: 'videos',
-                sub:
-                  allScope === 'data_centers'
-                    ? 'data-center jurisdictions only'
-                    : allScope === 'priority'
-                      ? 'priority states only'
-                      : `${formatCompactNumber(data.totals.files_transcripts_disk ?? 0)} segment rows · deduped to videos`,
+                sub: 'YouTube caption attempts in this Filter (not LocalView/CivicSearch)',
                 pill: true,
                 drill: openFailed,
                 failTitle: 'Videos with no usable transcript — tap to list',
