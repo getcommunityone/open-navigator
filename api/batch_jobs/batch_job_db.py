@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -206,6 +207,71 @@ def reap_stale_running_batches(*, limit: int = 30) -> int:
     except Exception as exc:
         logger.warning("stale batch reap failed: %s", exc)
     return reaped
+
+
+def cancel_running_batches(
+    *,
+    reason: str = "operator Stop all",
+    step: str | None = None,
+    limit: int = 50,
+) -> int:
+    """Force-cancel ``running`` batch rows (used by dashboard Stop all).
+
+    Stop kills launch PIDs tracked in ``launch.json``, but orphan / already-dead
+    workers leave ``youtube_batch_job_runs.status = 'running'``, which keeps
+    ``totals.running > 0`` and disables **Run all** (#742). Returns how many
+    rows were cancelled.
+    """
+    if not _use_db():
+        return 0
+    from api.batch_jobs.batch_job_status import persist_batch_job
+
+    cancelled = 0
+    step_l = (step or "").strip().lower() or None
+    try:
+        with get_db_connection() as conn:
+            ensure_batch_job_tables(conn)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT payload
+                    FROM bronze.youtube_batch_job_runs
+                    WHERE status = 'running'
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+        finished = datetime.now(timezone.utc).isoformat()
+        for row in rows:
+            payload = row["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            job = BatchJob.from_dict(payload)
+            if (job.status or "").lower() != "running":
+                continue
+            if step_l and (job.step or "").lower() != step_l:
+                continue
+            job.status = "cancelled"
+            job.finished_at = finished
+            cfg = dict(job.config or {})
+            cfg["stop_all_reason"] = reason
+            job.config = cfg
+            for j in job.jurisdictions:
+                if (j.status or "").lower() == "running":
+                    j.status = "failed"
+                    j.exit_code = -1
+                    j.finished_at = finished
+                    j.updated_at = finished
+                    j.current_video_id = ""
+                    j.current_video_title = ""
+                    j.current_video_started_at = ""
+            persist_batch_job(job)
+            cancelled += 1
+    except Exception as exc:
+        logger.warning("cancel running batches failed: %s", exc)
+    return cancelled
 
 
 def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:

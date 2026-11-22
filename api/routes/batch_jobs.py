@@ -814,20 +814,39 @@ async def stop_pipeline(req: StopRequest) -> StopResponse:
         return stopped_steps, stopped_pids
 
     stopped_steps, stopped_pids = await asyncio.to_thread(_do_stop)
-    if not stopped_pids:
+
+    # Also clear orphan ``running`` batch rows so Run all re-enables (#742).
+    # Stop may find no live PIDs (launch.json already empty) while
+    # youtube_batch_job_runs still shows status=running.
+    from api.batch_jobs.batch_job_db import cancel_running_batches
+
+    cancelled_rows = await asyncio.to_thread(
+        cancel_running_batches,
+        reason="operator Stop all (#742)",
+        step=step or None,
+    )
+
+    if not stopped_pids and cancelled_rows == 0:
         scope = f"step '{step}'" if step else "any step"
         return StopResponse(detail=f"No running launch found for {scope}.")
     steps = sorted(set(s for s in stopped_steps if s))
     how = "SIGKILL" if req.force else "SIGTERM"
-    logger.info(f"stopped pipeline launches via {how}: steps={steps} pids={stopped_pids}")
+    logger.info(
+        f"stopped pipeline launches via {how}: steps={steps} pids={stopped_pids} "
+        f"cancelled_rows={cancelled_rows}"
+    )
+    parts: List[str] = []
+    if stopped_pids:
+        parts.append(
+            f"Stopped {len(stopped_pids)} launch(es) ({', '.join(steps) or 'unknown'})"
+        )
+    if cancelled_rows:
+        parts.append(f"cancelled {cancelled_rows} running batch row(s)")
     return StopResponse(
         stopped=len(stopped_pids),
         steps=steps,
         pids=stopped_pids,
-        detail=(
-            f"Stopped {len(stopped_pids)} launch(es) ({', '.join(steps) or 'unknown'}). "
-            "The dashboard will clear as the process exits."
-        ),
+        detail="; ".join(parts) + ". The dashboard will clear shortly.",
     )
 
 
