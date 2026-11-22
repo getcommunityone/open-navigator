@@ -72,7 +72,7 @@ def build_architecture():
     dashed_group("ing", "Data ingestion", 380, 190, 220, 340)
     soft_card("api_key", "1  API key pool\nYOUTUBE_API_KEY_*\nserver-side only", 395, 230, 190, 70)
     soft_card("api_v3", "2  YouTube Data API v3\nsearch · channels\nvideos · playlistItems", 395, 315, 190, 80)
-    soft_card("disc", "3  Discovery + enrich\n+ VPN guard for\nyoutube.com pages", 395, 410, 190, 80)
+    soft_card("disc", "3  Discovery + enrich\nchannel / video metadata\nfrom public sources", 395, 410, 190, 80)
 
     # Medallion / ETL
     dashed_group("etl", "Medallion warehouse (Postgres)", 620, 190, 400, 340)
