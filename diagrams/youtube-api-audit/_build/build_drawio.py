@@ -1,27 +1,25 @@
-"""YouTube API audit diagrams — same draw.io builder pattern as HTL / milliman.
+"""YouTube API architecture — medallion layout (same pattern as HTL d0 / milliman).
 
-Run from this directory:
-  python3 build_drawio.py
-  python3 render_png.py
+Run:  python3 build_drawio.py
+PNG:  see render.md / render_drawio.py (draw.io export engine)
 """
-from __future__ import annotations
-
 from _helpers import (
-    BLUE,
-    BLUE_F,
-    GREEN,
-    GREEN_F,
-    GREY,
-    GREY_F,
-    ORANGE,
-    ORANGE_F,
-    RED,
-    RED_F,
+    ANALYTICS,
+    APP_INT,
+    COMPUTE,
+    DB,
+    DBX,
+    GOOGLE,
+    MGMT,
+    NETWORK,
+    SECURITY,
+    STORAGE,
     TEAL,
-    TEAL_F,
     box,
+    dbx_icon,
     edge,
     group,
+    icon,
     lane,
     note,
     reset,
@@ -29,112 +27,210 @@ from _helpers import (
     title,
 )
 
+GREY, GREY_F = "#7D8998", "#F5F5F5"
+BRONZE_C, BRONZE_F = "#A0522D", "#F6E7DA"
+SILVER_C, SILVER_F = "#6B7280", "#EEF0F2"
+GOLD_C, GOLD_F = "#B8860B", "#FFF6D6"
+GREEN, GREEN_F = "#15803D", "#DCFCE7"
+RED, RED_F = "#B91C1C", "#FEE2E2"
+BLUE, BLUE_F = "#1E3A5F", "#DBEAFE"
+
 
 def build_architecture():
     reset()
-    title("CommunityOne — YouTube API Services architecture (read + embed only; no uploads)")
+    title(
+        "Architecture: public YouTube → API ingest → bronze / silver / gold → meeting pages (read + embed only)"
+    )
     note(
-        "API key auth only (no user OAuth). Public metadata via YouTube Data API v3. "
-        "Playback stays on YouTube (iframe embed + Open on YouTube). We do not upload, edit, or delete videos.",
+        "API key only (no user OAuth). YouTube Data API v3 reads public metadata. "
+        "Playback stays on YouTube (iframe + Open on YouTube). CommunityOne does not upload, edit, or delete videos.",
         40,
-        50,
-        1520,
+        48,
+        1780,
         36,
     )
 
-    lane("Public YouTube", 40, 100, 280)
-    lane("Google Cloud", 340, 100, 300)
-    lane("CommunityOne ingest", 660, 100, 360)
-    lane("Warehouse", 1040, 100, 260)
-    lane("Product (communityone.com)", 1320, 100, 280)
+    # Lanes — same rhythm as HTL d0_medallion_architecture
+    for label, x, w in [
+        ("Source", 40, 260),
+        ("Ingest", 320, 300),
+        ("Bronze · Silver · Gold", 640, 620),
+        ("Serve", 1280, 260),
+        ("Consumer", 1560, 220),
+    ]:
+        lane(label, x, 95, w)
 
-    group("g_yt", "YouTube (public content)", "ext", 40, 150, 280, 420)
-    box("yt_ch", "Public meeting channels\ncity councils · boards\nschool districts", 60, 200, 240, 70, GREY, GREY_F)
-    box("yt_vid", "Public videos\ntitles · descriptions\nthumbnails · publish dates", 60, 300, 240, 70, GREY, GREY_F)
-    box("yt_no", "NOT used\nupload / update / delete\nprivate or Authorized Data", 60, 420, 240, 80, RED, RED_F)
+    # ---- Source ----
+    group("g_yt", "YouTube (public content)", "ext", 40, 145, 260, 520)
+    icon("yt_ch", "Public meeting\nchannels", "users", NETWORK, 118, 200, 48)
+    icon("yt_vid", "Public videos\nmetadata + stream", "video", MGMT, 118, 330, 48)
+    box(
+        "yt_no",
+        "Out of scope\nno upload / update / delete\nno Authorized Data / OAuth",
+        60,
+        470,
+        220,
+        70,
+        RED,
+        RED_F,
+    )
 
-    group("g_gcp", "Google Cloud project", "google", 340, 150, 300, 420)
-    box("api_key", "API key (server-side)\nYOUTUBE_API_KEY_* pool\nno end-user OAuth", 360, 200, 260, 70, BLUE, BLUE_F)
-    box("api_v3", "YouTube Data API v3\nsearch.list · channels.list\nvideos.list · playlistItems", 360, 300, 260, 80, BLUE, BLUE_F)
-    box("quota", "Quota / rate limits\nread-only discovery", 360, 420, 260, 60, BLUE, BLUE_F)
+    # ---- Ingest ----
+    group("g_gcp", "Google Cloud · YouTube Data API v3", "google", 320, 145, 300, 250)
+    icon("api_key", "API key pool\nYOUTUBE_API_KEY_*", "permissions", SECURITY, 360, 200, 44)
+    icon("api_v3", "search · channels\nvideos · playlistItems", "api_gateway", APP_INT, 480, 200, 44)
+    box("quota", "Read-only quota\npublic metadata JSON", 350, 310, 240, 50, GOOGLE, "#E8F0FE")
 
-    group("g_on", "Open Navigator scrapers", "app", 660, 150, 360, 420)
-    box("disc", "Channel / video discovery\njurisdiction websites +\nYouTube API enrichment", 680, 200, 320, 80, TEAL, TEAL_F)
-    box("meta", "Store public metadata only\nvideo_id · channel_id\ntitle · url · published_at", 680, 310, 320, 80, TEAL, TEAL_F)
-    box("vpn", "YouTube page fetches\nvia VPN guard (scrapers)\nAPI calls use Google APIs host", 680, 420, 320, 80, ORANGE, ORANGE_F)
+    group("g_scrape", "Open Navigator scrapers", "app", 320, 415, 300, 250)
+    icon("disc", "Channel / video\ndiscovery + enrich", "search_document", ANALYTICS, 360, 470, 44)
+    box(
+        "vpn",
+        "youtube.com page fetches\nvia VPN guard (#488)\nAPI host: googleapis.com",
+        350,
+        560,
+        240,
+        70,
+        TEAL,
+        "#E8F0F1",
+    )
 
-    group("g_db", "Postgres warehouse", "plain", 1040, 150, 260, 420)
-    box("bronze", "bronze YouTube / events\nraw public payloads", 1060, 220, 220, 70, GREY, GREY_F)
-    box("marts", "public meeting marts\njoin video → meeting", 1060, 330, 220, 70, GREY, GREY_F)
-    box("serve", "API serves metadata +\nembed URL to web app", 1060, 440, 220, 70, GREY, GREY_F)
+    # ---- Medallion warehouse ----
+    group(
+        "g_lake",
+        "CommunityOne warehouse (Postgres) · medallion path for YouTube meeting metadata",
+        "dbxlake",
+        640,
+        145,
+        620,
+        520,
+    )
+    box(
+        "gov",
+        "Governance: public metadata only · no private YouTube user data · Privacy §9 + Terms disclosures",
+        660,
+        185,
+        580,
+        44,
+        SECURITY,
+        "#FBE9EB",
+    )
+    box(
+        "jobs",
+        "Orchestration: scrapers + loaders → bronze; dbt bronze → staging → intermediate → marts",
+        660,
+        245,
+        580,
+        44,
+        GREY,
+        GREY_F,
+    )
 
-    group("g_web", "Web app + docs", "app", 1320, 150, 280, 420)
-    box("meet", "Meeting page\nYouTube iframe embed\nWatch / Open on YouTube", 1340, 210, 240, 90, TEAL, TEAL_F)
-    box("legal", "Privacy §9 + Terms\nYouTube API disclosures\nGoogle Privacy Policy link", 1340, 330, 240, 90, GREEN, GREEN_F)
-    box("footer", "Homepage / docs footer\nPrivacy · Terms links", 1340, 450, 240, 60, GREEN, GREEN_F)
+    box(
+        "bronze",
+        "BRONZE\nraw YouTube / event\npayloads (public JSON)\nvideo_id · channel_id",
+        670,
+        320,
+        170,
+        110,
+        BRONZE_C,
+        BRONZE_F,
+    )
+    box(
+        "silver",
+        "SILVER / staging\ncleaned metadata\njoined to jurisdictions\n& meeting keys",
+        870,
+        320,
+        170,
+        110,
+        SILVER_C,
+        SILVER_F,
+    )
+    box(
+        "gold",
+        "GOLD / marts\npublic meeting rows\nembed URL + title\nserved to the API",
+        1070,
+        320,
+        170,
+        110,
+        GOLD_C,
+        GOLD_F,
+    )
+    note(
+        "bronze → silver: normalize public fields · silver → gold: meeting join, browse/search surfaces",
+        670,
+        445,
+        560,
+        36,
+    )
+    icon("db", "Postgres\nlocalhost / Neon", "database", DB, 760, 510, 48)
+    icon("dbt", "dbt Core\nmedallion models", "gear", COMPUTE, 960, 510, 48)
+    box(
+        "api_svc",
+        "FastAPI public schema\nmeeting + video metadata\nno YouTube write calls",
+        870,
+        590,
+        280,
+        50,
+        TEAL,
+        "#E8F0F1",
+    )
 
-    edge("yt_ch", "api_v3", "public metadata")
+    # ---- Serve ----
+    group("g_web", "communityone.com", "app", 1280, 145, 260, 520)
+    icon("meet", "Meeting page\nYouTube iframe", "client", TEAL, 1368, 210, 48)
+    box(
+        "embed",
+        "Watch on YouTube\nOpen on YouTube →\n(stream stays on YT)",
+        1310,
+        320,
+        200,
+        70,
+        TEAL,
+        "#E8F0F1",
+    )
+    box(
+        "legal",
+        "Docs: Privacy §9\nTerms → YouTube ToS\nfooter Privacy / Terms",
+        1310,
+        430,
+        200,
+        80,
+        GREEN,
+        GREEN_F,
+    )
+    box(
+        "no_ads",
+        "No ads / tracking\nvia YouTube API",
+        1310,
+        550,
+        200,
+        55,
+        RED,
+        RED_F,
+    )
+
+    # ---- Consumer ----
+    icon("citizen", "Citizen /\nresident", "user", TEAL, 1620, 230, 56)
+    icon("advocate", "Advocate /\njournalist", "users", TEAL, 1620, 380, 56)
+    icon("ops", "Operator\n(API keys / quota)", "business_people", GREY, 1620, 530, 56)
+
+    # Edges
+    edge("yt_ch", "api_v3", "public")
     edge("yt_vid", "api_v3", "")
     edge("api_key", "api_v3", "auth")
     edge("api_v3", "disc", "JSON")
-    edge("disc", "meta", "")
-    edge("meta", "bronze", "load")
-    edge("bronze", "marts", "dbt")
-    edge("marts", "serve", "")
-    edge("serve", "meet", "HTTPS")
-    edge("meet", "yt_vid", "embed / watch on YT", dashed=True, exit=(0.5, 0), entry=(1, 0.5), via=[(1460, 160), (320, 160), (320, 335)])
+    edge("disc", "bronze", "load", exit=(1, 0.5), entry=(0, 0.35), via=[(630, 494), (630, 358)])
+    edge("bronze", "silver", "")
+    edge("silver", "gold", "")
+    edge("gold", "api_svc", "", exit=(0.5, 1), entry=(0.5, 0))
+    edge("api_svc", "meet", "HTTPS", exit=(1, 0.5), entry=(0, 0.5), via=[(1260, 615), (1260, 234)])
+    edge("meet", "citizen", "")
+    edge("embed", "advocate", "", exit=(1, 0.5), entry=(0, 0.5), via=[(1540, 355), (1540, 408)])
+    edge("meet", "yt_vid", "embed / watch", dashed=True, exit=(0.5, 0), entry=(1, 0.4), via=[(1410, 160), (300, 160), (300, 354)])
+    edge("legal", "citizen", "disclosures", dashed=True, exit=(1, 0.2), entry=(0, 0.8), via=[(1540, 446), (1540, 290)])
 
-    return save("yt1_architecture", 1640, 620)
-
-
-def build_user_flow():
-    reset()
-    title("CommunityOne — user flow for meeting recordings (YouTube embed; no upload)")
-    note(
-        "Citizens never grant YouTube OAuth to CommunityOne. They watch public meeting video on YouTube "
-        "(embedded player or Open on YouTube). CommunityOne does not upload video to YouTube.",
-        40,
-        50,
-        1520,
-        36,
-    )
-
-    lane("Citizen", 40, 110, 300)
-    lane("communityone.com", 360, 110, 420)
-    lane("YouTube", 800, 110, 360)
-    lane("Out of scope", 1180, 110, 380)
-
-    box("u1", "1. Open Open Navigator\nSearch place / meeting / topic", 60, 180, 260, 70, TEAL, TEAL_F)
-    box("u2", "2. Open a meeting page\nwith a linked recording", 60, 290, 260, 70, TEAL, TEAL_F)
-    box("u3", "3. Watch in-page player\nor click Open on YouTube", 60, 400, 260, 70, TEAL, TEAL_F)
-    box("u4", "4. Optionally read Privacy §9\n/ Terms (YouTube API notices)", 60, 510, 260, 70, GREEN, GREEN_F)
-
-    box("a1", "Web app loads meeting\nfrom public API / warehouse", 390, 180, 360, 70, TEAL, TEAL_F)
-    box("a2", "Shows title, date, board\n+ YouTube video_id metadata", 390, 290, 360, 70, TEAL, TEAL_F)
-    box("a3", "Renders youtube.com embed\n+ Watch / Open on YouTube link", 390, 400, 360, 70, TEAL, TEAL_F)
-    box("a4", "Docs site: Privacy Policy §9\nTerms → YouTube ToS acknowledgment", 390, 510, 360, 70, GREEN, GREEN_F)
-
-    box("y1", "Public video / channel\nalready published by the city", 820, 200, 320, 80, GREY, GREY_F)
-    box("y2", "YouTube player serves stream\n(user stays under YouTube ToS)", 820, 340, 320, 80, GREY, GREY_F)
-    box("y3", "Google Privacy Policy applies\nto YouTube playback", 820, 470, 320, 70, BLUE, BLUE_F)
-
-    box("x1", "CommunityOne does NOT\nupload videos to YouTube", 1200, 220, 340, 80, RED, RED_F)
-    box("x2", "No YouTube write APIs\nNo Authorized Data access", 1200, 340, 340, 80, RED, RED_F)
-    box("x3", "No ads / device tracking\nvia YouTube API Services", 1200, 460, 340, 80, RED, RED_F)
-
-    edge("u1", "a1", "")
-    edge("a1", "u2", "")
-    edge("u2", "a2", "")
-    edge("a2", "a3", "")
-    edge("a3", "u3", "")
-    edge("u3", "y2", "play / open")
-    edge("y1", "y2", "")
-    edge("u4", "a4", "read")
-    edge("a3", "y1", "video_id", dashed=True)
-
-    return save("yt2_user_flow", 1600, 640)
+    return save("yt1_architecture", 1820, 720)
 
 
 if __name__ == "__main__":
     build_architecture()
-    build_user_flow()

@@ -1,25 +1,20 @@
 # YouTube API audit diagrams (#737)
 
-draw.io sources built with the same Python helper pattern as
-`health-transformation-lab-nlp/diagrams/_build` and `milliman-panel-notes`.
-
-```bash
-cd diagrams/youtube-api-audit/_build
-python3 build_drawio.py   # writes ../yt1_architecture.drawio, ../yt2_user_flow.drawio
-python3 render_png.py     # PNG next to sources + copies into form-ready evidence folder
-```
+Same pattern as `health-transformation-lab-nlp` / `milliman-panel-notes`:
+Python → `.drawio` (AWS icons + medallion lanes), PNG via draw.io’s export engine.
 
 | File | Form field |
 |------|------------|
-| `yt1_architecture.drawio` / `.png` | Architecture Diagram |
-| `yt2_user_flow.drawio` / `.png` | User Flow Diagrams |
+| `yt1_architecture.drawio` / `.png` | Architecture Diagram (medallion: Source → Ingest → Bronze/Silver/Gold → Serve → Consumer) |
+| `yt2_user_flow.drawio` / `.png` | User Flow Diagrams (standard oval / rect / diamond / predefined-process) |
+| `flows/yt2_user_flow.mmd` | Mermaid alternate of the same journey |
 
-Form-ready copies (descriptive names):
+```bash
+cd diagrams/youtube-api-audit/_build
+# once: git sparse-clone draw.io webapp (see render.md)
+python3 -m http.server 8765 --directory drawio/src/main/webapp   # terminal A
+python3 build_drawio.py && python3 build_user_flow_drawio.py
+python3 render_drawio.py ../yt1_architecture.drawio ../yt2_user_flow.drawio
+```
 
-- `data/cache/youtube-api-audit-screenshots/form-ready/architecture-diagram.png`
-- `data/cache/youtube-api-audit-screenshots/form-ready/user-flow-diagram.png`
-
-**Scope note:** CommunityOne uses YouTube Data API v3 for **public metadata only**
-and embeds / links out for playback. We **do not upload** videos to YouTube, so the
-form’s “upload script / screencast of upload to YouTube” requirement does not apply;
-use the player-embed screenshot as evidence of the playback path instead.
+Form copies: `web_docs/static/img/legal/youtube-api-audit/{architecture,user-flow}-diagram.png`
