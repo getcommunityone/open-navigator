@@ -5,6 +5,7 @@ import {
   ADMIN_BATCH_JOBS,
   ADMIN_LIGHTHOUSE_REPORT,
   ADMIN_MEETING_KINDS,
+  ADMIN_OPERATOR_ACTIONS,
 } from '../utils/adminPaths'
 
 function tabCls({ isActive }: { isActive: boolean }) {
@@ -37,6 +38,8 @@ export default function AdminLayout() {
   const onLighthouseReport =
     pathname === ADMIN_LIGHTHOUSE_REPORT || pathname.startsWith(`${ADMIN_LIGHTHOUSE_REPORT}/`)
   const onBatchJobs = pathname === ADMIN_BATCH_JOBS || pathname.startsWith(`${ADMIN_BATCH_JOBS}/`)
+  const onOperatorActions =
+    pathname === ADMIN_OPERATOR_ACTIONS || pathname.startsWith(`${ADMIN_OPERATOR_ACTIONS}/`)
   const onApplicationLinks = pathname === ADMIN_APPLICATION_LINKS
   const onMeetingKinds =
     pathname === ADMIN_MEETING_KINDS || pathname.startsWith(`${ADMIN_MEETING_KINDS}/`)
@@ -70,6 +73,13 @@ export default function AdminLayout() {
               Batch jobs
             </NavLink>
             <NavLink
+              to={ADMIN_OPERATOR_ACTIONS}
+              end
+              className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
+            >
+              Operator actions
+            </NavLink>
+            <NavLink
               to={ADMIN_MEETING_KINDS}
               end
               className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
@@ -94,6 +104,12 @@ export default function AdminLayout() {
             <p className="mt-0.5 text-[10px] leading-snug text-slate-600 sm:text-[11px]" aria-live="polite">
               Troubleshoot Jev not_government screens: sort by probability and override false labels
               (`bronze.bronze_video_meeting_kind_override`).
+            </p>
+          )}
+          {onOperatorActions && (
+            <p className="mt-0.5 text-[10px] leading-snug text-slate-600 sm:text-[11px]" aria-live="polite">
+              Open human-required pipeline blockers (YouTube API quota, VPN, missing API key) with
+              standard playbooks. Dismiss hides a fingerprint until Discover writes a new one.
             </p>
           )}
           {(onLighthouseReport || onBatchJobs) && (

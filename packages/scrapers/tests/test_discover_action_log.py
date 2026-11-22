@@ -46,6 +46,8 @@ def test_format_uploads_fetch_failure_reads_http_body():
 
 
 def test_write_action_required_markdown(tmp_path: Path):
+    import json
+
     stats = DiscoverIssueStats()
     stats.note_state("VA")
     stats.record_accept("albemarle_51003", "jev_ok:0.740 video=x")
@@ -67,3 +69,9 @@ def test_write_action_required_markdown(tmp_path: Path):
     assert (tmp_path / "discover_action_required_test.md").is_file()
     assert stats.action_counts
     assert stats.noise_counts
+    payload = json.loads((tmp_path / "action_required.json").read_text())
+    assert payload["stamp"] == "test"
+    assert payload["actions"]
+    assert payload["actions"][0]["code"] == "youtube_api_quota"
+    assert payload["actions"][0]["count"] == 2
+    assert "fingerprint" in payload["actions"][0]

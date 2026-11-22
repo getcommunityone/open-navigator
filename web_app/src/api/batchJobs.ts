@@ -171,6 +171,75 @@ export async function fetchLaunchStatus(): Promise<LaunchStatus> {
   return (await r.json()) as LaunchStatus
 }
 
+
+export type OperatorActionItem = {
+  code: string
+  title: string
+  count: number
+  examples: string[]
+  states: string[]
+  fingerprint: string
+  template_id: string
+  first_seen_at?: string | null
+  detail: string
+}
+
+export type OperatorActionTemplate = {
+  id: string
+  title: string
+  summary: string
+  docs_path: string
+  steps: string[]
+}
+
+export type OperatorActionsPayload = {
+  generated_at?: string | null
+  source: string
+  stamp?: string | null
+  open: OperatorActionItem[]
+  templates: OperatorActionTemplate[]
+}
+
+export async function fetchOperatorActions(): Promise<OperatorActionsPayload> {
+  const r = await tracedFetch('/api/batch-jobs/operator-actions', {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()) as OperatorActionsPayload
+}
+
+export async function dismissOperatorAction(
+  code: string,
+  fingerprint?: string,
+): Promise<{ dismissed: boolean; code: string; fingerprint: string }> {
+  const r = await tracedFetch(
+    `/api/batch-jobs/operator-actions/${encodeURIComponent(code)}/dismiss`,
+    {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(fingerprint ? { fingerprint } : {}),
+      signal: AbortSignal.timeout(10_000),
+    },
+  )
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { detail?: string }
+      if (j?.detail) detail = j.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  return (await r.json()) as {
+    dismissed: boolean
+    code: string
+    fingerprint: string
+  }
+}
+
+
 export async function launchPipeline(body: {
   step: string
   states?: string[]

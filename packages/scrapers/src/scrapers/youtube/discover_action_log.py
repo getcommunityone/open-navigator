@@ -1,14 +1,16 @@
-"""Operator-facing Discover issue rollup (#710).
+"""Operator-facing Discover issue rollup (#710 / #712).
 
 Per-row ``Discover reject …`` lines are easy to miss in a long launch log.
 This module accumulates accept/reject reasons and writes:
 
 * ``data/cache/batch_jobs/ACTION_REQUIRED.md`` — stable path to open after a run
 * ``data/cache/batch_jobs/discover_action_required_<stamp>.md`` — run copy
+* ``data/cache/batch_jobs/action_required.json`` — machine feed for the admin API
 """
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -18,6 +20,18 @@ from typing import Any, Optional
 from loguru import logger
 
 STABLE_ACTION_REQUIRED = Path("data/cache/batch_jobs/ACTION_REQUIRED.md")
+STABLE_ACTION_REQUIRED_JSON = Path("data/cache/batch_jobs/action_required.json")
+
+# Stable codes for /admin/operator-actions (#712).
+CODE_YOUTUBE_API_QUOTA = "youtube_api_quota"
+CODE_MISSING_YOUTUBE_API_KEY = "missing_youtube_api_key"
+CODE_VPN_DOWN = "vpn_down"
+
+ACTION_TITLES = {
+    CODE_YOUTUBE_API_QUOTA: "YouTube Data API quota exhausted",
+    CODE_MISSING_YOUTUBE_API_KEY: "Missing YOUTUBE_API_KEY",
+    CODE_VPN_DOWN: "Surfshark / VPN down",
+}
 
 
 def classify_reject_reason(reason: str) -> tuple[str, bool]:
@@ -36,6 +50,8 @@ def classify_reject_reason(reason: str) -> tuple[str, bool]:
         )
     if "missing_youtube_api_key" in low:
         return ("missing_youtube_api_key", True)
+    if "vpn" in low and ("required" in low or "down" in low or "surfshark" in low):
+        return ("vpn_down", True)
     if r.startswith("channel_gate:"):
         return (r.split(":", 1)[0] + ":*", False)
     if r.startswith("jev_exhausted"):
@@ -43,6 +59,25 @@ def classify_reject_reason(reason: str) -> tuple[str, bool]:
     if r.startswith("uploads_fetch_failed"):
         return (r.split(":", 1)[0] + ":*", True)
     return (r[:160] or "unknown", False)
+
+
+def bucket_to_code(bucket: str) -> Optional[str]:
+    """Map a reject bucket label to a stable operator-action code, or None."""
+    low = (bucket or "").lower()
+    if "quota" in low or ("403" in low and "upload" in low):
+        return CODE_YOUTUBE_API_QUOTA
+    if "missing_youtube_api_key" in low:
+        return CODE_MISSING_YOUTUBE_API_KEY
+    if "vpn" in low:
+        return CODE_VPN_DOWN
+    if low.startswith("uploads_fetch_failed"):
+        # Other uploads failures still need an operator look.
+        return CODE_YOUTUBE_API_QUOTA
+    return None
+
+
+def action_fingerprint(code: str, count: int, stamp: str) -> str:
+    return f"{code}:{int(count)}:{stamp}"
 
 
 def format_uploads_fetch_failure(exc: BaseException) -> str:
@@ -110,28 +145,86 @@ class DiscoverIssueStats:
         else:
             self.noise_counts[bucket] += 1
 
+    def actions_payload(
+        self,
+        *,
+        stamp: str,
+        generated_at: Optional[datetime] = None,
+    ) -> dict[str, Any]:
+        """Machine-readable open actions for the admin API (#712)."""
+        when = generated_at or datetime.now(timezone.utc)
+        by_code: dict[str, dict[str, Any]] = {}
+        for bucket, n in self.action_counts.items():
+            code = bucket_to_code(bucket)
+            if not code:
+                continue
+            entry = by_code.setdefault(
+                code,
+                {
+                    "code": code,
+                    "title": ACTION_TITLES.get(code, code),
+                    "count": 0,
+                    "examples": [],
+                    "raw_buckets": [],
+                    "template_id": code,
+                    "detail": _action_detail(code),
+                },
+            )
+            entry["count"] += int(n)
+            entry["raw_buckets"].append(bucket)
+            for ex in self.reject_examples.get(bucket) or []:
+                if ex not in entry["examples"] and len(entry["examples"]) < 12:
+                    entry["examples"].append(ex)
+        actions = []
+        for code, entry in sorted(by_code.items(), key=lambda kv: (-kv[1]["count"], kv[0])):
+            entry["fingerprint"] = action_fingerprint(code, entry["count"], stamp)
+            entry["states"] = list(self.states)
+            actions.append(entry)
+        return {
+            "generated_at": when.isoformat(),
+            "stamp": stamp,
+            "states": list(self.states),
+            "accept_count": len(self.accepts),
+            "reject_count": sum(self.reject_counts.values()),
+            "source_log": self.source_log or None,
+            "actions": actions,
+        }
+
     def write(
         self,
         *,
         out_dir: Path | None = None,
         stamp: str | None = None,
     ) -> Path:
-        """Write stable + stamped markdown; return the stable path."""
+        """Write stable + stamped markdown and ``action_required.json``; return markdown path."""
         root = out_dir or STABLE_ACTION_REQUIRED.parent
         root.mkdir(parents=True, exist_ok=True)
         when = stamp or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        body = self.render_markdown(generated_at=datetime.now(timezone.utc))
+        generated = datetime.now(timezone.utc)
+        body = self.render_markdown(generated_at=generated)
         stable = root / "ACTION_REQUIRED.md"
         stamped = root / f"discover_action_required_{when}.md"
+        json_path = root / "action_required.json"
         stable.write_text(body, encoding="utf-8")
         stamped.write_text(body, encoding="utf-8")
+        payload = self.actions_payload(stamp=when, generated_at=generated)
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         if self.action_counts:
             logger.error(
-                "Discover finished with action-required issues — open {}",
+                "Discover finished with action-required issues — open {} "
+                "(JSON {})",
                 stable,
+                json_path,
             )
         else:
-            logger.info("Discover action summary (no operator blockers): {}", stable)
+            logger.info(
+                "Discover action summary (no operator blockers): {} / {}",
+                stable,
+                json_path,
+            )
         return stable
 
     def render_markdown(self, *, generated_at: Optional[datetime] = None) -> str:
@@ -199,6 +292,19 @@ class DiscoverIssueStats:
         return "\n".join(lines)
 
 
+def _action_detail(code: str) -> str:
+    if code == CODE_YOUTUBE_API_QUOTA:
+        return (
+            "Channel hits found but bronze Jev gate cannot fetch uploads "
+            "(YouTube Data API quota)."
+        )
+    if code == CODE_MISSING_YOUTUBE_API_KEY:
+        return "YOUTUBE_API_KEY is unset; uploads→Jev gate cannot run."
+    if code == CODE_VPN_DOWN:
+        return "Surfshark/VPN is down; YouTube traffic is blocked by vpn_guard."
+    return "Operator action required."
+
+
 def _action_guidance(bucket: str) -> list[str]:
     low = bucket.lower()
     if "quota" in low or "403" in low:
@@ -212,11 +318,23 @@ def _action_guidance(bucket: str) -> list[str]:
             "with remaining quota in `.env` as `YOUTUBE_API_KEY`, **or** request a quota increase.",
             "  3. Re-run Discover for states that rejected with this reason "
             "(accepted bronze rows are fine).",
+            "- **Admin:** `/admin/operator-actions` · playbook "
+            "`operator-action-templates#youtube-api-quota`",
         ]
     if "missing_youtube_api_key" in low:
         return [
             "- **What:** `YOUTUBE_API_KEY` is unset; bronze Jev gate cannot fetch uploads.",
             "- **Do:** Set `YOUTUBE_API_KEY` in `.env` and re-run Discover.",
+            "- **Admin:** `/admin/operator-actions` · playbook "
+            "`operator-action-templates#missing-youtube-api-key`",
+        ]
+    if "vpn" in low:
+        return [
+            "- **What:** Surfshark/VPN is down; YouTube is blocked by vpn_guard.",
+            "- **Do:** Connect Surfshark on the host, confirm "
+            "`.venv/bin/python -m scrapers.youtube.vpn_guard`, then resume Discover.",
+            "- **Admin:** `/admin/operator-actions` · playbook "
+            "`operator-action-templates#vpn-down`",
         ]
     return [
         "- **What:** Discover recorded an operator-class failure; see reject examples.",

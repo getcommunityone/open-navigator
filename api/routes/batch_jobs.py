@@ -902,6 +902,80 @@ async def launch_log(
     )
 
 
+class OperatorActionItem(BaseModel):
+    code: str
+    title: str = ""
+    count: int = 0
+    examples: List[str] = Field(default_factory=list)
+    states: List[str] = Field(default_factory=list)
+    fingerprint: str = ""
+    template_id: str = ""
+    first_seen_at: Optional[str] = None
+    detail: str = ""
+
+
+class OperatorActionTemplate(BaseModel):
+    id: str
+    title: str = ""
+    summary: str = ""
+    docs_path: str = ""
+    steps: List[str] = Field(default_factory=list)
+
+
+class OperatorActionsResponse(BaseModel):
+    generated_at: Optional[str] = None
+    source: str = ""
+    stamp: Optional[str] = None
+    open: List[OperatorActionItem] = Field(default_factory=list)
+    templates: List[OperatorActionTemplate] = Field(default_factory=list)
+
+
+class OperatorActionDismissRequest(BaseModel):
+    fingerprint: Optional[str] = None
+
+
+class OperatorActionDismissResponse(BaseModel):
+    dismissed: bool = True
+    code: str = ""
+    fingerprint: str = ""
+
+
+@router.get(
+    "/operator-actions",
+    response_model=OperatorActionsResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def get_operator_actions() -> OperatorActionsResponse:
+    """Open human-required pipeline actions + standard templates (#712)."""
+    from api.batch_jobs.operator_actions import list_open_actions
+
+    payload = await asyncio.to_thread(list_open_actions)
+    return OperatorActionsResponse(**payload)
+
+
+@router.post(
+    "/operator-actions/{code}/dismiss",
+    response_model=OperatorActionDismissResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def dismiss_operator_action(
+    code: str,
+    body: Optional[OperatorActionDismissRequest] = None,
+) -> OperatorActionDismissResponse:
+    """Mark an open action resolved until its fingerprint changes (#712)."""
+    from api.batch_jobs.operator_actions import dismiss_action
+
+    try:
+        result = await asyncio.to_thread(
+            dismiss_action,
+            code,
+            fingerprint=(body.fingerprint if body else None),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return OperatorActionDismissResponse(**result)
+
+
 class BatchJurisdictionsResponse(BaseModel):
     batch_id: str
     state_code: str

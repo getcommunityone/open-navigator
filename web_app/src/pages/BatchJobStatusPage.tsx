@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   batchJobsStreamUrl,
   batchJobsFetchErrorMessage,
@@ -12,6 +12,7 @@ import {
   fetchFailedVideos,
   fetchLaunchLog,
   fetchLaunchStatus,
+  fetchOperatorActions,
   launchPipeline,
   stopPipeline,
   mergeBatchIntoDashboard,
@@ -23,6 +24,7 @@ import {
   type PipelineStage,
   type StageReportRow,
 } from '../api/batchJobs'
+import { ADMIN_OPERATOR_ACTIONS } from '../utils/adminPaths'
 import DeploymentPanel from '../components/DeploymentPanel'
 import { LinkifiedText } from '../utils/linkifiedText'
 import {
@@ -1040,6 +1042,13 @@ export default function BatchJobStatusPage() {
     }
   }, [queryClient, refetch, allScope])
 
+  const { data: operatorActions } = useQuery({
+    queryKey: ['admin', 'operator-actions'],
+    queryFn: fetchOperatorActions,
+    refetchInterval: 30_000,
+    retry: false,
+  })
+
   const { data: launchStatus, refetch: refetchLaunch } = useQuery({
     queryKey: ['batch-launch-status'],
     queryFn: fetchLaunchStatus,
@@ -1468,9 +1477,26 @@ export default function BatchJobStatusPage() {
     )
   }
 
+  const openActionCount = operatorActions?.open?.length ?? 0
+
   return (
     <div className="min-h-0 w-full space-y-4">
       <JobTypeTabs active={jobType} onChange={setJobType} />
+      {openActionCount > 0 && (
+        <Link
+          to={ADMIN_OPERATOR_ACTIONS}
+          className="flex items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 shadow-sm hover:bg-amber-100"
+        >
+          <span>
+            <strong>{openActionCount}</strong> human action
+            {openActionCount === 1 ? '' : 's'} required
+            {operatorActions?.open?.[0]?.title
+              ? ` — ${operatorActions.open[0].title}`
+              : ''}
+          </span>
+          <span className="shrink-0 text-xs font-medium underline">Open →</span>
+        </Link>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-600">
           Live from <code>bronze.youtube_batch_job_runs</code> via{' '}
