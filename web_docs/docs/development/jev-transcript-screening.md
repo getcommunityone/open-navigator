@@ -12,6 +12,19 @@ from a government at all. [Jev](https://docs.typesafe.ai/introduction), TypeSafe
 questions about a transcript for a small fraction of that cost, so it screens transcripts first and the batch can leave
 out the ones with no decision in them.
 
+## Light blurb for keepers (#705)
+
+After a video passes the meeting-kind keep-score, generate a 1–2 sentence blurb without
+full Part‑1 analysis:
+
+```bash
+.venv/bin/python -m llm.typesafe.light_blurb --state AL --limit 20 --dry-run
+.venv/bin/python -m llm.typesafe.light_blurb --state AL --limit 20
+```
+
+Stores ``bronze.bronze_transcript_blurb_light``. UI excerpt order: Part‑1 summary → blurb →
+long YouTube description → extractive snippet → empty. See the Jev-light cascade design.
+
 ## In short
 
 - **Jev doesn't replace the analysis.** It returns labels and probabilities, never text, so it can't extract a
