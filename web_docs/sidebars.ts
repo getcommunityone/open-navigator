@@ -11,6 +11,11 @@ const youtubeNavCategory = {
   type: 'category' as const,
   label: 'YouTube',
   items: [
+    {
+      type: 'doc' as const,
+      id: 'data-sources/youtube-api-audit',
+      label: 'API audit (form + diagrams)',
+    },
     'data-sources/youtube-discovery',
     'data-sources/video-channels',
     'development/youtube-channel-rules',
