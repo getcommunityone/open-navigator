@@ -74,6 +74,21 @@ def test_resolve_gemini_api_keys_filters_by_tier_tag(clean_key_env):
     ]
 
 
+def test_resolve_gemini_api_keys_all_orders_free_before_paid(clean_key_env):
+    """#719: paid listed as KEY_1 must still come after free when tier=all."""
+    clean_key_env.setenv("GEMINI_API_KEY_1", "AIzaPaidFirst")
+    clean_key_env.setenv("GEMINI_KEY_TIER_1", "paid")
+    clean_key_env.setenv("GEMINI_API_KEY_2", "AIzaFreeSecond")
+    clean_key_env.setenv("GEMINI_KEY_TIER_2", "free")
+    clean_key_env.setenv("GEMINI_API_KEY_3", "AIzaUntagged")
+
+    assert resolve_gemini_api_keys(env_path="/nonexistent/.env", tier="all") == [
+        "AIzaFreeSecond",
+        "AIzaPaidFirst",
+        "AIzaUntagged",
+    ]
+
+
 def test_resolve_gemini_api_keys_use_tier_env(clean_key_env):
     clean_key_env.setenv("GEMINI_API_KEY_1", "AIzaFree")
     clean_key_env.setenv("GEMINI_KEY_TIER_1", "free")
