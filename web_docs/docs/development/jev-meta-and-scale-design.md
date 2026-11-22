@@ -28,6 +28,12 @@ Jev across captioned videos, and (3) only then an opt-in caption-backfill skip.
 
 Phase 1 issue: [#660](https://github.com/getcommunityone/open-navigator/issues/660).
 
+## Related: Jev-light cascade
+
+After screens exist at scale, prefer the cheap coverage path in
+[Jev-light cascade](./jev-light-cascade-design.md) (#702): topic flags on the
+screen request, short blurb for keepers, full Gemini only for high-value keepers.
+
 ## Phase 1 contract
 
 ### Metadata screen
