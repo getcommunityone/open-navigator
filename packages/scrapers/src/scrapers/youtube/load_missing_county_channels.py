@@ -31,6 +31,10 @@ _REPO_ROOT = repo_root(__file__)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scrapers.youtube.discover_action_log import (
+    DiscoverIssueStats,
+    format_uploads_fetch_failure,
+)
 from scrapers.youtube.vpn_guard import (
     VpnRequiredError,
     async_call_with_vpn_retry,
@@ -254,7 +258,7 @@ def evaluate_discover_for_bronze(
     except VpnRequiredError:
         raise
     except Exception as exc:
-        return False, f"uploads_fetch_failed:{exc}", None
+        return False, format_uploads_fetch_failure(exc), None
     if not uploads:
         return False, "no_uploads", None
 
@@ -592,8 +596,11 @@ def discover_one_state(
     write_bronze: bool = True,
     jev_min_meeting_p: float = DEFAULT_JEV_MIN_MEETING_P,
     skip_jev_gate: bool = False,
+    issues: Optional[DiscoverIssueStats] = None,
 ) -> int:
     """Discover candidate channels for one state; returns # rows with a channel."""
+    if issues is not None:
+        issues.note_state(state_code)
     missing = fetch_missing_counties(
         db_url, state_code, data_center_jids=data_center_jids,
     )
@@ -628,6 +635,8 @@ def discover_one_state(
             )
             if not ok:
                 bronze_rejects += 1
+                if issues is not None:
+                    issues.record_reject(result.get("jurisdiction_id"), reason)
                 logger.info(
                     "Discover reject {}: {} (keep_p={})",
                     result.get("jurisdiction_id"),
@@ -646,6 +655,8 @@ def discover_one_state(
                 method=DISCOVER_JEV_METHOD,
             ):
                 bronze_writes += 1
+                if issues is not None:
+                    issues.record_accept(result.get("jurisdiction_id"), reason)
                 logger.success(
                     "Discover accept {}: {}",
                     result.get("jurisdiction_id"),
@@ -763,21 +774,26 @@ def main() -> int:
     db_url = resolve_database_url(args.database_url)
 
     multi = len(states) > 1
-    for state_code in states:
-        call_with_vpn_retry(
-            lambda sc=state_code: discover_one_state(
-                sc,
-                db_url,
-                output=args.output,
-                multi=multi,
-                skip_homepage_scrape=args.skip_homepage_scrape,
-                data_center_jids=data_center_jids,
-                write_bronze=not args.no_bronze_write,
-                jev_min_meeting_p=args.jev_min_meeting_p,
-                skip_jev_gate=args.skip_jev_gate,
-            ),
-            what=f"discover state {state_code}",
-        )
+    issues = DiscoverIssueStats()
+    try:
+        for state_code in states:
+            call_with_vpn_retry(
+                lambda sc=state_code: discover_one_state(
+                    sc,
+                    db_url,
+                    output=args.output,
+                    multi=multi,
+                    skip_homepage_scrape=args.skip_homepage_scrape,
+                    data_center_jids=data_center_jids,
+                    write_bronze=not args.no_bronze_write,
+                    jev_min_meeting_p=args.jev_min_meeting_p,
+                    skip_jev_gate=args.skip_jev_gate,
+                    issues=issues,
+                ),
+                what=f"discover state {state_code}",
+            )
+    finally:
+        issues.write(out_dir=_REPO_ROOT / "data" / "cache" / "batch_jobs")
     return 0
 
 
