@@ -51,6 +51,10 @@ const config: Config = {
   // Custom fields to make environment variables available in client-side code
   customFields: {
     appUrl: process.env.APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : 'https://www.communityone.com'),
+    // Docs Developers sidebar: Archive category (see sidebars.ts). Default off.
+    showDocsArchive: ['1', 'true', 'yes', 'on'].includes(
+      (process.env.DOCUSAURUS_SHOW_ARCHIVE || '').trim().toLowerCase(),
+    ),
   },
 
   // Even if you don't use internationalization, you can use this field to set
