@@ -198,7 +198,6 @@ const config: Config = {
           position: 'right',
           target: '_self',
         },
-        {to: 'blog', label: 'Blog', position: 'right'},
         {
           href: 'https://github.com/getcommunityone/open-navigator',
           label: 'GitHub',
