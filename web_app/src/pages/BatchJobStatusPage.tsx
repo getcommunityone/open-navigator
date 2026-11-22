@@ -1121,17 +1121,34 @@ export default function BatchJobStatusPage() {
 
   // Per-stage drill-down: expand one stage to see its live log + current file.
   const [expandedStage, setExpandedStage] = useState<string | null>(null)
+  const liveLaunchSteps = useMemo(() => {
+    const steps = new Set<string>([
+      ...(launchStatus?.running_steps ?? []),
+      ...(launchStatus?.stalled_steps ?? []),
+    ])
+    return steps
+  }, [launchStatus?.running_steps, launchStatus?.stalled_steps])
   // The Transcripts stage is advanced by two steps — per-jurisdiction `captions`
   // and the global `backfill` — which write separate launch logs. Show the
   // backfill log while it's the live (running/stalled) step; otherwise the
   // conventional captions log.
-  const transcriptsBackfillLive =
-    (launchStatus?.running_steps ?? []).includes('backfill') ||
-    (launchStatus?.stalled_steps ?? []).includes('backfill')
+  const transcriptsBackfillLive = liveLaunchSteps.has('backfill')
+  // Run all / each write launch_all_*.log / launch_each_*.log — not discover/
+  // catalog/captions files. While a full run is live, expanded pipeline stages
+  // must tail that log or the UI looks frozen on a stale step log (#753).
+  const fullRunLogStep = liveLaunchSteps.has('each')
+    ? 'each'
+    : liveLaunchSteps.has('all')
+      ? 'all'
+      : null
   const expandedStep = expandedStage
     ? expandedStage === 'transcripts' && transcriptsBackfillLive
       ? 'backfill'
-      : STAGE_STEP[expandedStage]
+      : fullRunLogStep &&
+          expandedStage !== 'discover' &&
+          ['videos', 'transcripts', 'analyses', 'reports'].includes(expandedStage)
+        ? fullRunLogStep
+        : STAGE_STEP[expandedStage]
     : null
   const { data: stageLog } = useQuery({
     queryKey: ['launch-log', expandedStep],
@@ -1669,8 +1686,10 @@ export default function BatchJobStatusPage() {
               // Global mart-wide sweep — advances only the transcripts stage.
               backfill: ['transcripts'],
               analyze: ['analyses', 'reports'],
-              all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
-              each: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
+              // `all` / `each` never run Discover (separate launch). Marking
+              // discover live here made the UI show a dead discover log.
+              all: ['videos', 'transcripts', 'analyses', 'reports'],
+              each: ['videos', 'transcripts', 'analyses', 'reports'],
             }
             const runningSteps = new Set(ls?.running_steps ?? [])
             const stalledSteps = new Set(ls?.stalled_steps ?? [])
@@ -2159,6 +2178,14 @@ export default function BatchJobStatusPage() {
                             </span>
                           ) : null}
                         </div>
+                        {fullRunLogStep &&
+                        expandedStep === fullRunLogStep &&
+                        st.stage !== 'discover' ? (
+                          <p className="mb-1 text-[11px] text-teal-800">
+                            Showing the live <code className="text-[10px]">Run {fullRunLogStep}</code>{' '}
+                            log (catalog → captions → analyze), not a previous Discover run.
+                          </p>
+                        ) : null}
                         <pre className="mt-2 max-h-56 overflow-auto rounded bg-slate-900 p-2 text-[10px] leading-snug text-slate-100">
                           {stageLog?.lines?.length
                             ? stageLog.lines.join('\n')
