@@ -254,6 +254,7 @@ def persist_policy_analysis_bronze(
 
 
 _POLICY_EVENT_STAGES = {"analysis", "report"}
+_POLICY_EVENT_TIERS = {"light", "full"}
 
 
 def record_policy_event(
@@ -264,14 +265,16 @@ def record_policy_event(
     path: Optional[str] = None,
     error: Optional[str] = None,
     database_url_override: Optional[str] = None,
+    tier: str = "light",
 ) -> bool:
     """
     Best-effort: stamp a policy ``analysis``/``report`` outcome onto the bronze event row.
 
-    On success sets ``policy_<stage>_at = now()`` (+ path) and clears the error; on
-    failure sets ``policy_<stage>_error`` and leaves the success timestamp untouched.
-    Keyed by ``video_id`` (same as ``persist_policy_analysis_bronze``). Swallows all
-    errors so it never breaks the pipeline. Returns True when a row was updated.
+    ``tier="light"`` writes ``policy_<stage>_at`` (and path/error); ``tier="full"``
+    writes ``policy_<stage>_full_*`` (#755). On success sets the timestamp (+ path)
+    and clears the error; on failure sets the error and leaves the success
+    timestamp untouched. Keyed by ``video_id``. Swallows all errors so it never
+    breaks the pipeline. Returns True when a row was updated.
     """
     import psycopg2
 
@@ -281,18 +284,23 @@ def record_policy_event(
     if stage not in _POLICY_EVENT_STAGES:
         logger.warning("record_policy_event: unknown stage {!r}", stage)
         return False
+    tier_norm = (tier or "light").strip().lower() or "light"
+    if tier_norm not in _POLICY_EVENT_TIERS:
+        logger.warning("record_policy_event: unknown tier {!r}", tier)
+        return False
+    col = f"policy_{stage}" if tier_norm == "light" else f"policy_{stage}_full"
 
     if ok:
         set_clause = (
-            f"policy_{stage}_at = %s, "
-            f"policy_{stage}_path = %s, "
-            f"policy_{stage}_error = NULL, "
+            f"{col}_at = %s, "
+            f"{col}_path = %s, "
+            f"{col}_error = NULL, "
             "last_updated = CURRENT_TIMESTAMP"
         )
         params = [datetime.now(timezone.utc), path, vid]
     else:
         set_clause = (
-            f"policy_{stage}_error = %s, last_updated = CURRENT_TIMESTAMP"
+            f"{col}_error = %s, last_updated = CURRENT_TIMESTAMP"
         )
         params = [(error or "unknown error")[:2000], vid]
 

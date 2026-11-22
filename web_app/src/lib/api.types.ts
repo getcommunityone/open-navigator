@@ -2151,6 +2151,11 @@ export interface components {
             /** Enabled */
             enabled: boolean;
             /**
+             * Inactive Seconds
+             * @description Seconds since the most inactive live launch last progressed.
+             */
+            inactive_seconds?: number | null;
+            /**
              * Running
              * @default 0
              */
@@ -2161,6 +2166,25 @@ export interface components {
             stalled_steps?: string[];
             /** Steps */
             steps?: string[];
+            /**
+             * Vpn Down
+             * @default false
+             * @description True when the newest launch log mentions Surfshark / VPN required.
+             */
+            vpn_down?: boolean;
+            /**
+             * Warning
+             * @default
+             * @description Operator warning when a live launch is inactive or VPN appears down.
+             */
+            warning?: string;
+            /** Resumed Steps */
+            resumed_steps?: string[];
+            /**
+             * Auto Resume Note
+             * @default
+             */
+            auto_resume_note?: string;
         };
         /** ProjectCompany */
         ProjectCompany: {

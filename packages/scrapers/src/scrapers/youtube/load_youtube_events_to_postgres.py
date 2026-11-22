@@ -998,11 +998,15 @@ class YouTubeEventsLoader:
         self._ensure_scraped_youtube_channel_id_column(table)
         cursor = self.conn.cursor()
         try:
+            # Bump discovered_at so Discover-stage Last activity
+            # (MAX(discovered_at) on bronze_jurisdictions_*_scraped) moves as
+            # each channel load lands (#740).
             cursor.execute(
                 f"""
                 UPDATE {table}
                 SET youtube_channel_id = %s,
-                    youtube_channel_url = %s
+                    youtube_channel_url = %s,
+                    discovered_at = NOW()
                 WHERE geoid = %s
                   AND (
                         youtube_channel_id IS NULL
