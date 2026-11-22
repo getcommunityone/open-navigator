@@ -35,6 +35,7 @@
 #   DRY_RUN=1          — print jurisdictions / dry-run loaders only
 #   SKIP_DISCOVER=1    — skip stage 0 (channel discovery) when STEP=all
 #   SKIP_CATALOG=1     — skip catalog when STEP=all
+#   SKIP_REPORTS=1     — skip Part 2 reports pass when STEP=all
 #   CATALOG_FORCE=1    — pass --force (last N videos, not incremental-only-after-last insert)
 #   CATALOG_YTDLP=1    — unset YOUTUBE_API_KEY for catalog (avoid googleapis.com hangs; use yt-dlp)
 #   CHANNEL_SOURCE=    — override per-jurisdiction catalog source (auto|counties-scraped|municipalities-scraped)
@@ -466,6 +467,50 @@ run_analyze() {
   fi
 }
 
+reports_one() {
+  # Part 2 only: write *_report.md from existing Part 1 JSON (closes the
+  # analyses→reports gap for videos analyze skipped as already-analyzed) (#691).
+  local st="$1" jid="$2" name="$3"
+  echo "=== Reports (part-2-only, N=$N): $st — $name ($jid) ==="
+  local -a rep_args=(
+    --part-2-only
+    --newest "$N"
+    --jurisdiction-id "$jid"
+    --state "$st"
+  )
+  if [[ -n "${DRY_RUN:-}" ]]; then
+    rep_args+=(--dry-run)
+  fi
+  local ec=0
+  "$PYTHON" -m llm.gemini.meeting_transcript_policy "${rep_args[@]}" || ec=$?
+  if (( ec != 0 )); then
+    if (( ec == 1 )); then
+      echo "WARN: reports skipped for $jid (no analysis JSON yet)" >&2
+    else
+      echo "WARN: reports failed for $jid (exit $ec)" >&2
+    fi
+  fi
+}
+
+run_reports() {
+  local jid st name
+  local running=0
+  while IFS=$'\t' read -r st jid name _jtype; do
+    if (( PARALLEL > 1 )); then
+      reports_one "$st" "$jid" "$name" &
+      if (( ++running >= PARALLEL )); then
+        wait -n
+        (( running-=1 ))
+      fi
+    else
+      reports_one "$st" "$jid" "$name"
+    fi
+  done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
+  if (( PARALLEL > 1 )); then
+    wait
+  fi
+}
+
 # One jurisdiction at a time (round-robin list order): catalog (optional) → captions → analyze.
 run_each_jurisdiction() {
   local -a cat_extra=()
@@ -569,19 +614,21 @@ case "$STEP" in
   captions) run_captions ;;
   analyze) run_analyze ;;
   each) run_each_jurisdiction ;;
+  reports) run_reports ;;
   all)
     [[ -z "${SKIP_DISCOVER:-}" ]] && run_discover
     [[ -z "${SKIP_CATALOG:-}" ]] && run_catalog
     run_captions
     run_analyze
+    [[ -z "${SKIP_REPORTS:-}" ]] && run_reports
     ;;
   list)
     export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"
     list_jurisdictions
     ;;
   *)
-    echo "Usage: $0 [catalog|captions|analyze|each|all|list]" >&2
-    echo "  all  — discover → catalog → captions → analyze" >&2
+    echo "Usage: $0 [catalog|captions|analyze|reports|each|all|list]" >&2
+    echo "  all  — discover → catalog → captions → analyze → reports" >&2
     echo "  each — round-robin: per jurisdiction, captions then analyze, then next" >&2
     exit 1
     ;;

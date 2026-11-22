@@ -88,7 +88,7 @@ const STAGE_STEP: Record<string, string> = {
   videos: 'catalog',
   transcripts: 'captions',
   analyses: 'analyze',
-  reports: 'analyze',
+  reports: 'reports',
 }
 
 function fmtSecs(s?: number | null): string {
@@ -1588,14 +1588,14 @@ export default function BatchJobStatusPage() {
               videos: 'catalog',
               transcripts: 'captions',
               analyses: 'analyze',
-              reports: 'analyze',
+              reports: 'reports',
             }
             const stepDesc: Record<PipelineStage, string> = {
               discover: 'discover channels (scrape sites / search YouTube)',
               videos: 'catalog — list videos on the channel',
               transcripts: 'captions — download transcripts',
               analyses: 'analyze — Gemini policy analysis',
-              reports: 'analyze — regenerates reports too',
+              reports: 'reports — Part 2 Markdown from existing analyses',
             }
             type Def = {
               n: number
@@ -1669,6 +1669,7 @@ export default function BatchJobStatusPage() {
               // Global mart-wide sweep — advances only the transcripts stage.
               backfill: ['transcripts'],
               analyze: ['analyses', 'reports'],
+              reports: ['reports'],
               all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
               each: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
             }
@@ -1814,7 +1815,7 @@ export default function BatchJobStatusPage() {
                         title={
                           runningSteps.size > 0
                             ? 'Finish the running step(s) before a full-pipeline run'
-                            : `Run the full pipeline (discover → catalog → captions → analyze) for ${scopeLaunchLabel} states`
+                            : `Run the full pipeline (discover → catalog → captions → analyze → reports) for ${scopeLaunchLabel} states`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >

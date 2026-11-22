@@ -403,7 +403,16 @@ _DISCOVER_SCRIPT = "packages/scrapers/src/scrapers/youtube/load_missing_county_c
 # `backfill` runs the flat, mart-wide transcript sweep (reaches LocalView/union
 # videos with no jurisdiction the per-jurisdiction `captions` loop never visits).
 _BACKFILL_SCRIPT = "packages/scrapers/src/scrapers/youtube/backfill_transcripts.py"
-_LAUNCH_STEPS = ("discover", "catalog", "captions", "backfill", "analyze", "each", "all")
+_LAUNCH_STEPS = (
+    "discover",
+    "catalog",
+    "captions",
+    "backfill",
+    "analyze",
+    "reports",
+    "each",
+    "all",
+)
 _STATE_RE = re.compile(r"^[A-Z]{2}$")
 
 
