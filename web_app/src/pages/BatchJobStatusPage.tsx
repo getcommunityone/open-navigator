@@ -1834,11 +1834,6 @@ export default function BatchJobStatusPage() {
               !launching &&
               !runningSteps.has('backfill') &&
               !anyFullRun
-            const canRunAll =
-              !!ls?.enabled &&
-              !launching &&
-              runningSteps.size === 0 &&
-              data.totals.running === 0
             // Header "last activity" = the freshest per-step stamp for this scope,
             // not the stale batch-step clock.
             const freshestIso = stageList
@@ -1862,6 +1857,13 @@ export default function BatchJobStatusPage() {
               freshestAgeSecs != null &&
               freshestAgeSecs > STALL_SECONDS
             const liveRunningRows = data.totals.running > 0 && !rowsStale
+            // Gate on live rows (not raw totals.running) so a phantom/stale
+            // status=running batch after Stop all does not pin Run all (#742).
+            const canRunAll =
+              !!ls?.enabled &&
+              !launching &&
+              runningSteps.size === 0 &&
+              !liveRunningRows
             const isActive = liveRunningRows || runningSteps.size > 0
             const anyStalled = stalledSteps.size > 0 || rowsStale
             const launchWarning = (
