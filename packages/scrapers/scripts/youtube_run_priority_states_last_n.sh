@@ -407,6 +407,22 @@ run_captions() {
   echo "=== Captions complete: processed=$processed success=$success failed=$failed target=$target_total ==="
 }
 
+# Jev meeting-kind gate for analyze (#704). data_centers cohort defaults to 0.6;
+# override with SKIP_JEV_MEETING_BELOW= (empty to disable) or an explicit float.
+append_jev_analyze_flags() {
+  local -n _arr=$1
+  local t="${SKIP_JEV_MEETING_BELOW-}"
+  if [[ -z "${t}" && "${COHORT:-}" == "data_centers" ]]; then
+    t="0.6"
+  fi
+  if [[ -n "${t}" ]]; then
+    _arr+=(--skip-jev-meeting-below "$t")
+  fi
+  if [[ -n "${SKIP_JEV_BELOW:-}" ]]; then
+    _arr+=(--skip-jev-below "$SKIP_JEV_BELOW")
+  fi
+}
+
 analyze_one() {
   local st="$1" jid="$2" name="$3"
   echo "=== Analyze ($N newest): $st — $name ($jid) ==="
@@ -415,6 +431,7 @@ analyze_one() {
     --jurisdiction-id "$jid"
     --state "$st"
   )
+  append_jev_analyze_flags ana_args
   if [[ -n "${DRY_RUN:-}" ]]; then
     ana_args+=(--dry-run)
   fi
@@ -532,6 +549,7 @@ run_each_jurisdiction() {
       --jurisdiction-id "$jid"
       --state "$st"
     )
+    append_jev_analyze_flags ana_args
     if [[ -n "${DRY_RUN:-}" ]]; then
       ana_args+=(--dry-run)
     elif ! "$PYTHON" -m llm.gemini.meeting_transcript_policy "${ana_args[@]}"; then

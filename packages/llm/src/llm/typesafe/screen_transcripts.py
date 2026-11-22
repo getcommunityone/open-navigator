@@ -347,10 +347,11 @@ def jev_skip_video_ids(database_url: str, min_decisions_p: float) -> set[str]:
             cur.execute("SELECT to_regclass(%s)", [TABLE])
             if cur.fetchone()[0] is None:
                 return set()
+            # Any screen version: topic-flag bumps must not disable the decisions gate.
             cur.execute(
-                f"SELECT video_id FROM {TABLE} WHERE question_version = %s "
-                "AND has_decisions_p IS NOT NULL AND has_decisions_p < %s",
-                [QUESTION_VERSION, min_decisions_p],
+                f"SELECT video_id FROM {TABLE} "
+                "WHERE has_decisions_p IS NOT NULL AND has_decisions_p < %s",
+                [min_decisions_p],
             )
             return {row[0] for row in cur.fetchall()}
     finally:
@@ -413,8 +414,7 @@ def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[s
                 cur.execute(
                     f"""
                     SELECT s.video_id FROM {TABLE} s
-                    WHERE s.question_version = %s
-                      AND (
+                    WHERE (
                         s.meeting_kind_probabilities ? 'government_meeting'
                         OR s.meeting_kind_probabilities ? 'town_hall'
                       )
@@ -428,14 +428,13 @@ def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[s
                           AND o.override_kind = ANY(%s)
                       )
                     """,
-                    [QUESTION_VERSION, min_meeting_p, list(KEEP_OVERRIDE_KINDS)],
+                    [min_meeting_p, list(KEEP_OVERRIDE_KINDS)],
                 )
             else:
                 cur.execute(
                     f"""
                     SELECT video_id FROM {TABLE}
-                    WHERE question_version = %s
-                      AND (
+                    WHERE (
                         meeting_kind_probabilities ? 'government_meeting'
                         OR meeting_kind_probabilities ? 'town_hall'
                       )
@@ -444,7 +443,7 @@ def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[s
                         + COALESCE((meeting_kind_probabilities->>'town_hall')::float, 0)
                       ) < %s
                     """,
-                    [QUESTION_VERSION, min_meeting_p],
+                    [min_meeting_p],
                 )
             return {row[0] for row in cur.fetchall()}
     finally:

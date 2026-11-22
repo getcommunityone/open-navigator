@@ -704,6 +704,9 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         env["BATCH_STATUS"] = "1"
         env["N"] = str(n)
         env["PARALLEL"] = str(parallel)
+        # Jev-light cascade (#704): gate Gemini for data_centers analyze launches.
+        if cohort == "data_centers" and step in ("analyze", "each", "all"):
+            env.setdefault("SKIP_JEV_MEETING_BELOW", "0.6")
         argv = ["bash", str(script), step]  # fixed argv, no shell
 
     import datetime as _dt
