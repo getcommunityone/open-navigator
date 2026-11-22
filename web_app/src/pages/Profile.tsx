@@ -58,7 +58,7 @@ export default function Profile() {
             </div>
 
             <Link
-              to="/settings?section=person&tab=account"
+              to="/settings?section=account&tab=profile"
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Cog6ToothIcon className="h-5 w-5" />
@@ -75,7 +75,7 @@ export default function Profile() {
             Manage leaders, charities, and tags you follow in Settings.
           </p>
           <Link
-            to="/settings?section=person&tab=following"
+            to="/settings?section=account&tab=following"
             className="inline-flex text-sm font-medium text-teal-800 hover:underline"
           >
             Open Following in Settings →

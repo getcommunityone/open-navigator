@@ -1,6 +1,6 @@
 /**
- * Settings panel (#674): top-level Person / Site / Admin sections.
- * Person includes account, location, and Following tabs (from Profile).
+ * Settings panel (#674): top-level My account / Site / Admin sections.
+ * My account includes profile fields, location, and Following tabs (from Profile).
  */
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -30,20 +30,22 @@ import {
   ADMIN_LIGHTHOUSE_REPORT,
 } from '../utils/adminPaths'
 
-type Section = 'person' | 'site' | 'admin'
-type PersonTab = 'account' | 'location' | 'following'
+type Section = 'account' | 'site' | 'admin'
+type AccountTab = 'profile' | 'location' | 'following'
 
 const DATA_EXPLORER_ENTRY = `${DATA_EXPLORER_MAP_BASE}/us/2024/median_household_income`
 
 function parseSection(raw: string | null, isAdmin: boolean): Section {
   if (raw === 'site') return 'site'
   if (raw === 'admin' && isAdmin) return 'admin'
-  return 'person'
+  // `person` kept as alias for older links
+  return 'account'
 }
 
-function parsePersonTab(raw: string | null): PersonTab {
+function parseAccountTab(raw: string | null): AccountTab {
   if (raw === 'location' || raw === 'following') return raw
-  return 'account'
+  // `account` kept as alias for the profile fields tab
+  return 'profile'
 }
 
 export default function Settings() {
@@ -53,19 +55,19 @@ export default function Settings() {
   const isAdmin = Boolean(user?.is_admin)
 
   const section = parseSection(searchParams.get('section'), isAdmin)
-  const personTab = parsePersonTab(searchParams.get('tab'))
+  const accountTab = parseAccountTab(searchParams.get('tab'))
 
   const setSection = (s: Section) => {
     const next = new URLSearchParams(searchParams)
     next.set('section', s)
-    if (s !== 'person') next.delete('tab')
-    else if (!next.get('tab')) next.set('tab', 'account')
+    if (s !== 'account') next.delete('tab')
+    else if (!next.get('tab') || next.get('tab') === 'account') next.set('tab', 'profile')
     setSearchParams(next, { replace: true })
   }
 
-  const setPersonTab = (t: PersonTab) => {
+  const setAccountTab = (t: AccountTab) => {
     const next = new URLSearchParams(searchParams)
-    next.set('section', 'person')
+    next.set('section', 'account')
     next.set('tab', t)
     setSearchParams(next, { replace: true })
   }
@@ -238,7 +240,7 @@ export default function Settings() {
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
-            {/* Top-level: Person | Site | Admin */}
+            {/* Top-level under Settings: My account | Site | Admin */}
             <div
               className="flex flex-wrap gap-2 border-b border-slate-200 bg-white px-5 py-3 sm:px-6"
               role="tablist"
@@ -247,11 +249,11 @@ export default function Settings() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={section === 'person'}
-                className={topTabCls(section === 'person')}
-                onClick={() => setSection('person')}
+                aria-selected={section === 'account'}
+                className={topTabCls(section === 'account')}
+                onClick={() => setSection('account')}
               >
-                Person settings
+                My account
               </button>
               <button
                 type="button"
@@ -260,7 +262,7 @@ export default function Settings() {
                 className={topTabCls(section === 'site')}
                 onClick={() => setSection('site')}
               >
-                Site settings
+                Site
               </button>
               {isAdmin && (
                 <button
@@ -276,33 +278,33 @@ export default function Settings() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-              {section === 'person' && (
+              {section === 'account' && (
                 <div className="space-y-4">
-                  <div className="flex gap-1 border-b border-slate-200" role="tablist" aria-label="Person settings">
+                  <div className="flex gap-1 border-b border-slate-200" role="tablist" aria-label="My account">
                     <button
                       type="button"
-                      className={subTabCls(personTab === 'account')}
-                      onClick={() => setPersonTab('account')}
+                      className={subTabCls(accountTab === 'profile')}
+                      onClick={() => setAccountTab('profile')}
                     >
-                      Account
+                      Profile
                     </button>
                     <button
                       type="button"
-                      className={subTabCls(personTab === 'location')}
-                      onClick={() => setPersonTab('location')}
+                      className={subTabCls(accountTab === 'location')}
+                      onClick={() => setAccountTab('location')}
                     >
                       Location
                     </button>
                     <button
                       type="button"
-                      className={subTabCls(personTab === 'following')}
-                      onClick={() => setPersonTab('following')}
+                      className={subTabCls(accountTab === 'following')}
+                      onClick={() => setAccountTab('following')}
                     >
                       Following
                     </button>
                   </div>
 
-                  {personTab === 'account' && (
+                  {accountTab === 'profile' && (
                     <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
                       <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
                         <UserCircleIcon className="h-5 w-5 text-slate-600" />
@@ -324,7 +326,7 @@ export default function Settings() {
                     </div>
                   )}
 
-                  {personTab === 'location' && (
+                  {accountTab === 'location' && (
                     <form onSubmit={handleSubmit} className="space-y-4">
                       <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
                         <div className="border-b border-slate-200 px-4 py-3">
@@ -429,7 +431,7 @@ export default function Settings() {
                     </form>
                   )}
 
-                  {personTab === 'following' && (
+                  {accountTab === 'following' && (
                     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                       <SettingsFollowing />
                     </div>
