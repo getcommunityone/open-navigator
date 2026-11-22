@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Discover candidate YouTube channels for county jurisdictions missing channel mappings.
 
-Writes each hit into ``bronze.bronze_jurisdictions_counties_scraped`` as it is
-found (same write-through pattern as catalog/captions), and still emits a CSV
-audit file. Rows are flagged ``discover_unreviewed`` so a later review pass can
-filter them (#695).
+Each hit is gated automatically before bronze write-through (#697):
+
+1. Channel name/mismatch gate (website-linked finds skip this)
+2. Jev meta screen on the newest channel upload — accept when
+   ``P(government_meeting)+P(town_hall) >= --jev-min-meeting-p`` (default 0.6)
+
+Accepted rows UPDATE ``bronze.bronze_jurisdictions_counties_scraped`` with
+``youtube_channel_selection_method = discover_jev``. CSV audit output is always
+written. Use ``--no-bronze-write`` or ``--skip-jev-gate`` for CSV-only / gates-only.
 """
 
 from __future__ import annotations
@@ -28,9 +33,11 @@ if str(_REPO_ROOT) not in sys.path:
 
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 
-# Review flag on scraped bronze — catalog still uses these channels (unlike
-# pattern_match_unverified). Filter WHERE method = this for a review queue.
+# Accepted after channel gates + Jev meta keep-score (#697).
+DISCOVER_JEV_METHOD = "discover_jev"
+# Legacy label from #695 (human-review queue); no longer written by default.
 DISCOVER_UNREVIEWED_METHOD = "discover_unreviewed"
+DEFAULT_JEV_MIN_MEETING_P = 0.6
 
 
 def resolve_database_url(explicit: str | None) -> str:
@@ -117,12 +124,133 @@ def _confidence_from_row(row: dict[str, Any]) -> Optional[float]:
         return None
 
 
+def channel_gate_reject_reason(row: dict[str, Any], *, state_code: str) -> Optional[str]:
+    """Return a reject reason from name/mismatch gates, or None if the hit may proceed to Jev.
+
+    Website-linked finds skip the title-mismatch gate (the site is the proof).
+    API / pattern guesses that name another government are rejected here.
+    """
+    method = str(row.get("discovery_method") or "").strip().lower()
+    if method in ("website_scrape", "scraped_official_website"):
+        return None
+    from scrapers.discovery.channel_government_mismatch import title_names_other_government
+
+    reason = title_names_other_government(
+        str(row.get("channel_title") or ""),
+        jurisdiction_name=str(row.get("county_name") or ""),
+        jurisdiction_type="county",
+        state_code=state_code,
+        channel_url=str(row.get("channel_url") or ""),
+    )
+    return reason
+
+
+def fetch_newest_channel_upload(
+    api_key: str, channel_id: str
+) -> Optional[dict[str, Any]]:
+    """Newest uploads-playlist item for *channel_id*, or None."""
+    from scrapers.youtube.backfill_channel_from_api import list_uploads
+
+    cid = (channel_id or "").strip()
+    if not cid.startswith("UC") or not (api_key or "").strip():
+        return None
+    uploads = list_uploads(
+        api_key.strip(),
+        cid,
+        published_after=None,
+        published_before=None,
+        max_pages=1,
+    )
+    return uploads[0] if uploads else None
+
+
+def jev_meta_keep_for_upload(
+    upload: dict[str, Any],
+    *,
+    channel_title: str = "",
+    client: Any = None,
+) -> tuple[Optional[float], str]:
+    """Screen one upload's title/description with Jev; return (keep_p, video_id)."""
+    from llm.typesafe.client import JevClient
+    from llm.typesafe.screen_transcripts import meeting_keep_p
+    from llm.typesafe.screen_video_meta import build_meta_state, screen_meta
+
+    video_id = str(upload.get("video_id") or "").strip()
+    if not video_id:
+        return None, ""
+    state = build_meta_state(
+        title=upload.get("title"),
+        description=upload.get("description"),
+        channel_title=channel_title or None,
+    )
+    own_client = client is None
+    jev = client or JevClient()
+    try:
+        if own_client and hasattr(jev, "__enter__"):
+            jev.__enter__()
+        result = screen_meta(jev, video_id, state)
+    finally:
+        if own_client and hasattr(jev, "__exit__"):
+            jev.__exit__(None, None, None)
+    if result is None:
+        return None, video_id
+    return meeting_keep_p(result.meeting_kind_probabilities), video_id
+
+
+def evaluate_discover_for_bronze(
+    row: dict[str, Any],
+    *,
+    state_code: str,
+    min_meeting_p: float = DEFAULT_JEV_MIN_MEETING_P,
+    youtube_api_key: str = "",
+    jev_client: Any = None,
+    skip_jev: bool = False,
+) -> tuple[bool, str, Optional[float]]:
+    """Channel gates then Jev meta keep-score. Returns (accepted, reason, keep_p)."""
+    channel_id = str(row.get("channel_id") or "").strip()
+    if not channel_id:
+        return False, "no_channel_id", None
+
+    mismatch = channel_gate_reject_reason(row, state_code=state_code)
+    if mismatch:
+        return False, f"channel_gate:{mismatch}", None
+
+    if skip_jev:
+        return True, "skip_jev_gate", _confidence_from_row(row)
+
+    key = (youtube_api_key or os.getenv("YOUTUBE_API_KEY") or "").strip()
+    if not key:
+        return False, "missing_youtube_api_key", None
+
+    try:
+        upload = fetch_newest_channel_upload(key, channel_id)
+    except Exception as exc:
+        return False, f"uploads_fetch_failed:{exc}", None
+    if not upload:
+        return False, "no_uploads", None
+
+    try:
+        keep_p, video_id = jev_meta_keep_for_upload(
+            upload,
+            channel_title=str(row.get("channel_title") or ""),
+            client=jev_client,
+        )
+    except Exception as exc:
+        return False, f"jev_failed:{exc}", None
+
+    if keep_p is None:
+        return False, f"jev_unscreened:{video_id}", None
+    if keep_p < float(min_meeting_p):
+        return False, f"jev_below_threshold:{keep_p:.3f}<{min_meeting_p} video={video_id}", keep_p
+    return True, f"jev_ok:{keep_p:.3f} video={video_id}", keep_p
+
+
 def persist_discovered_channel_to_bronze(
     conn: Any,
     row: dict[str, Any],
     *,
     state_code: str,
-    method: str = DISCOVER_UNREVIEWED_METHOD,
+    method: str = DISCOVER_JEV_METHOD,
 ) -> bool:
     """Write one discover hit onto ``bronze_jurisdictions_counties_scraped``.
 
@@ -389,6 +517,8 @@ def discover_one_state(
     skip_homepage_scrape: bool,
     data_center_jids: frozenset[str] | None = None,
     write_bronze: bool = True,
+    jev_min_meeting_p: float = DEFAULT_JEV_MIN_MEETING_P,
+    skip_jev_gate: bool = False,
 ) -> int:
     """Discover candidate channels for one state; returns # rows with a channel."""
     missing = fetch_missing_counties(
@@ -400,20 +530,55 @@ def discover_one_state(
         return 0
 
     bronze_writes = 0
+    bronze_rejects = 0
     bronze_conn = None
+    jev_client = None
     on_result: Optional[Callable[[dict[str, Any]], None]] = None
     if write_bronze:
         bronze_conn = psycopg2.connect(db_url)
+        if not skip_jev_gate:
+            from llm.typesafe.client import JevClient
+
+            jev_client = JevClient()
+            jev_client.__enter__()
 
         def _persist(result: dict[str, Any]) -> None:
-            nonlocal bronze_writes
+            nonlocal bronze_writes, bronze_rejects
             if not str(result.get("channel_id") or "").strip():
                 return
             try:
+                ok, reason, keep_p = evaluate_discover_for_bronze(
+                    result,
+                    state_code=state_code,
+                    min_meeting_p=jev_min_meeting_p,
+                    jev_client=jev_client,
+                    skip_jev=skip_jev_gate,
+                )
+                if not ok:
+                    bronze_rejects += 1
+                    logger.info(
+                        "Discover reject {}: {} (keep_p={})",
+                        result.get("jurisdiction_id"),
+                        reason,
+                        keep_p,
+                    )
+                    return
+                conf = keep_p if keep_p is not None else _confidence_from_row(result)
+                row = dict(result)
+                if conf is not None:
+                    row["policy_score"] = conf
                 if persist_discovered_channel_to_bronze(
-                    bronze_conn, result, state_code=state_code,
+                    bronze_conn,
+                    row,
+                    state_code=state_code,
+                    method=DISCOVER_JEV_METHOD,
                 ):
                     bronze_writes += 1
+                    logger.success(
+                        "Discover accept {}: {}",
+                        result.get("jurisdiction_id"),
+                        reason,
+                    )
             except Exception as exc:
                 if bronze_conn is not None:
                     bronze_conn.rollback()
@@ -435,6 +600,8 @@ def discover_one_state(
             )
         )
     finally:
+        if jev_client is not None:
+            jev_client.__exit__(None, None, None)
         if bronze_conn is not None:
             bronze_conn.close()
 
@@ -443,11 +610,13 @@ def discover_one_state(
 
     with_channel = sum(1 for r in results if r.get("channel_id"))
     logger.success(
-        "Wrote {} rows to {} ({} with candidate channel_id; {} bronze write-through)",
+        "Wrote {} rows to {} ({} with candidate channel_id; "
+        "{} bronze accepted; {} gated rejects)",
         len(results),
         out_path,
         with_channel,
         bronze_writes,
+        bronze_rejects,
     )
     return with_channel
 
@@ -481,6 +650,17 @@ def main() -> int:
         action="store_true",
         help="CSV only — do not UPDATE bronze_jurisdictions_counties_scraped (#695)",
     )
+    p.add_argument(
+        "--skip-jev-gate",
+        action="store_true",
+        help="Channel mismatch gate only — skip Jev meta keep-score (#697)",
+    )
+    p.add_argument(
+        "--jev-min-meeting-p",
+        type=float,
+        default=float(os.getenv("DISCOVER_JEV_MIN_MEETING_P") or DEFAULT_JEV_MIN_MEETING_P),
+        help="Min P(government_meeting)+P(town_hall) to accept (default 0.6)",
+    )
     args = p.parse_args()
 
     cohort = (args.cohort or "").strip().lower()
@@ -510,6 +690,8 @@ def main() -> int:
             skip_homepage_scrape=args.skip_homepage_scrape,
             data_center_jids=data_center_jids,
             write_bronze=not args.no_bronze_write,
+            jev_min_meeting_p=args.jev_min_meeting_p,
+            skip_jev_gate=args.skip_jev_gate,
         )
     return 0
 
