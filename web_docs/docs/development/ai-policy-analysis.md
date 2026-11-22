@@ -19,7 +19,29 @@ The AI Policy Analysis system uses local LLMs (Llama 3) to extract:
 - **Compromises**: How did the bill evolve through amendments?
 - **Outcome Reasoning**: Why did it pass or fail?
 
-## � Quick Start
+## Operator hub (meeting analyze pipeline)
+
+The live caption → screen → analyze path for jurisdiction meetings is operated
+from **Admin → Batch jobs** (`/admin/batch-jobs`). Use this page as the entry
+guide from that screen; drill down below for cohort and Jev details.
+
+Related:
+
+- [Jev transcript screening](./jev-transcript-screening.md) — chunked meeting-kind / decision / topic flags
+- [Jev meeting-kind analysis gate](./jev-meeting-kind-gate.md) — keep-score gate before Gemini analyze
+- [Jev-light cascade](./jev-light-cascade-design.md) — screen everyone, short blurb for keepers, full analyze for high-value keepers
+
+### Data centers
+
+For the **Data centers** cohort on the batch-jobs dashboard (site-belt ∪ mention
+jurisdictions), start here then open the cohort contract:
+
+- [Data centers cohort on batch jobs](./batch-jobs-data-centers-cohort.md) — launch `cohort=data_centers`, cascading filters, stage-report scope
+
+Do not invent backlog counts or dollar figures on this page; pull live totals
+from Admin → Batch jobs or the warehouse.
+
+## Quick Start
 
 ### 1. Install Ollama (Local LLM)
 
