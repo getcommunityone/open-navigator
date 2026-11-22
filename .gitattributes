@@ -29,6 +29,10 @@ web_docs/static/img/deck-cover.png -filter -diff -merge
 # without git-lfs (the old single-canvas PNGs were LFS pointers and unopenable). Last so it wins over *.png above.
 web_docs/static/img/erd/** -filter -diff -merge
 
+# YouTube Data API audit form evidence JPEGs (#725): plain blobs so checkouts without git-lfs can open them
+# for the quota form, and so CI does not require LFS upload for these small legal screenshots.
+web_docs/static/img/legal/youtube-api-audit/** -filter -diff -merge
+
 # Small site icons, logos and bug screenshots committed as normal blobs (#257). Kept plain so a checkout matches the
 # commit (otherwise git status lists them as modified and `git add -A` moves them into LFS) and sessions that can't
 # upload LFS objects can still commit next to them. Last so they win over the *.png / *.jpg / *.svg / *.ico lines above.
