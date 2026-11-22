@@ -871,6 +871,39 @@ class FailedVideosListResponse(BaseModel):
     truncated: bool = False
 
 
+class CohortsResponse(BaseModel):
+    priority: List[str]
+    data_centers: List[str]
+    all: List[str]
+
+
+@router.get("/cohorts", response_model=CohortsResponse)
+async def list_cohorts() -> CohortsResponse:
+    """State-code lists for priority, data-center, and full-US launch cohorts."""
+    from api.batch_jobs.batch_job_db import get_db_connection
+    from api.batch_jobs.cohorts import cohort_state_codes
+
+    def _load() -> CohortsResponse:
+        conn = get_db_connection()
+        try:
+            return CohortsResponse(
+                priority=cohort_state_codes("priority"),
+                data_centers=cohort_state_codes("data_centers", conn=conn),
+                all=cohort_state_codes("all"),
+            )
+        finally:
+            conn.close()
+
+    try:
+        return await asyncio.to_thread(_load)
+    except Exception as exc:
+        logger.exception("batch-jobs cohorts failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch jobs cohorts failed: {exc}",
+        ) from exc
+
+
 @router.get("/failed-videos", response_model=FailedVideosListResponse)
 async def list_failed_videos(
     batch_id: Optional[str] = Query(

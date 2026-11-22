@@ -1,9 +1,45 @@
 # tests/test_batch_job_cohorts.py
+import asyncio
+
+import httpx
+import pytest
+from fastapi import FastAPI
+
 from api.batch_jobs.cohorts import (
     PRIORITY_STATE_CODES,
     cohort_state_codes,
     resolve_launch_states,
 )
+from api.routes import batch_jobs
+
+
+class TestClient:
+    """Minimal sync client over httpx.ASGITransport (httpx 0.28-compatible)."""
+
+    __test__ = False
+
+    def __init__(self, asgi_app):
+        self._app = asgi_app
+
+    def request(self, method: str, url: str, follow_redirects: bool = True, **kwargs) -> httpx.Response:
+        async def go() -> httpx.Response:
+            transport = httpx.ASGITransport(app=self._app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver", follow_redirects=follow_redirects
+            ) as client:
+                return await client.request(method.upper(), url, **kwargs)
+
+        return asyncio.run(go())
+
+    def get(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("GET", url, **kwargs)
+
+
+@pytest.fixture
+def api_app():
+    application = FastAPI()
+    application.include_router(batch_jobs.router, prefix="/api")
+    return application
 
 
 def test_priority_states_are_fixed():
@@ -33,3 +69,43 @@ def test_resolve_launch_states_data_centers_intersects(monkeypatch):
         assert False
     except ValueError:
         pass
+
+
+def test_cohorts_endpoint_shape(api_app, monkeypatch):
+    class _FakeConn:
+        def close(self) -> None:
+            pass
+
+    def _fake_cohort(cohort, **kw):
+        return {
+            "priority": ["AL", "GA"],
+            "data_centers": ["AL", "VA"],
+            "all": ["AL", "AK", "DC"],
+        }[cohort]
+
+    monkeypatch.setattr(
+        "api.batch_jobs.batch_job_db.get_db_connection",
+        lambda: _FakeConn(),
+    )
+    monkeypatch.setattr(
+        "api.batch_jobs.cohorts.cohort_state_codes",
+        _fake_cohort,
+    )
+    client = TestClient(api_app)
+    r = client.get("/api/batch-jobs/cohorts")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body.keys()) == {"priority", "data_centers", "all"}
+    assert body["priority"] == ["AL", "GA"]
+    assert body["data_centers"] == ["AL", "VA"]
+    assert body["all"] == ["AL", "AK", "DC"]
+
+
+def test_cohorts_endpoint_db_failure_returns_500(api_app, monkeypatch):
+    def _boom():
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr("api.batch_jobs.batch_job_db.get_db_connection", _boom)
+    client = TestClient(api_app)
+    r = client.get("/api/batch-jobs/cohorts")
+    assert r.status_code == 500
