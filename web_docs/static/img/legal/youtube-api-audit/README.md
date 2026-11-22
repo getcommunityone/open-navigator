@@ -1,5 +1,7 @@
 # YouTube Data API audit screenshots (one file per form field)
 
+Operator write-up (form answers + embedded diagrams): `web_docs/docs/data-sources/youtube-api-audit.md` (#737).
+
 Captured from the live site after #723 / #724. **One JPEG per upload.**
 
 | Upload this file | Form field | What’s in the image |

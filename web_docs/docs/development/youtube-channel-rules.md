@@ -6,6 +6,8 @@ description: Which YouTube channels count as a jurisdiction's own, and the decis
 
 # YouTube channel rules
 
+API compliance audit (architecture, user flow, quota form answers): [YouTube API Services audit](../data-sources/youtube-api-audit.md).
+
 A jurisdiction's YouTube channel enters the canonical table only when
 `qualifies_for_bronze_jurisdiction_youtube` (`packages/scrapers/src/scrapers/discovery/youtube_channel_verification.py`)
 accepts it. `rejection_reason_for_channel` names the first rule a channel fails. This page records decisions about
