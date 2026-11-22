@@ -45,7 +45,8 @@ def build_architecture():
         420,
     )
     line_icon("yt_ch", "Meeting channels\ncity · board · school", "users", 150, 170, 44)
-    line_icon("yt_vid", "Public videos\ntitle · thumb · stream", "video", 150, 280, 44)
+    # mxgraph.aws4.video does not exist — use multimedia (renders as media tile)
+    line_icon("yt_vid", "Public videos\ntitle · thumb · stream", "multimedia", 150, 280, 44)
     soft_card(
         "yt_out",
         "Out of scope\nno upload / update / delete\nno Authorized Data · no OAuth",
@@ -109,7 +110,8 @@ def build_architecture():
     soft_card("out1", "Watch meeting recording\n(embed or youtube.com)", 1380, 240, 220, 55)
     line_icon("advocate", "Advocate /\njournalist", "users", 1420, 330, 48)
     soft_card("out2", "Cite public meeting video\n+ money / agenda context", 1380, 410, 220, 55)
-    line_icon("ops", "Operator", "business_people", 1420, 500, 48)
+    # business_people is not in aws4 — identity_and_access_management reads as ops/admin
+    line_icon("ops", "Operator", "identity_and_access_management", 1420, 500, 48)
     soft_card("out3", "API keys · quota ·\ninventory health", 1380, 580, 220, 50)
 
     # Edges — clean left→right
