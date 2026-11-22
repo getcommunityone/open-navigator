@@ -1688,7 +1688,8 @@ export default function BatchJobStatusPage() {
               reports_full: 'reports-full',
             }
             const stepDesc: Record<string, string> = {
-              discover: 'discover channels (scrape sites / search YouTube)',
+              discover:
+                'discover channels (scrape sites / search YouTube) then load matches to bronze',
               videos: 'catalog — list videos on the channel',
               transcripts: 'captions — download transcripts',
               analyses_light: 'analyze-light — lite Gemini Part 1',
@@ -1711,7 +1712,7 @@ export default function BatchJobStatusPage() {
                 n: 0,
                 stage: 'discover',
                 unit: 'jurisdictions',
-                sub: 'channel discovery — scrape county sites / search YouTube',
+                sub: 'channel discovery + load — scrape sites / search YouTube, then catalog matches',
                 pill: true,
                 drill: null,
                 failTitle: 'Jurisdictions still missing a YouTube channel',

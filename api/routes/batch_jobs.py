@@ -751,7 +751,15 @@ def _discover_argv(states: List[str], cohort: str) -> List[str]:
         raise ValueError(f"discover script missing: {target}")
     import sys as _sys
 
-    argv = [_sys.executable, str(target), "--states", ",".join(states)]
+    # --load: after each state CSV, catalog candidates so scraped bronze
+    # youtube_channel_* / discovered_at update as loads land (#740).
+    argv = [
+        _sys.executable,
+        str(target),
+        "--states",
+        ",".join(states),
+        "--load",
+    ]
     if cohort == "data_centers":
         argv += ["--cohort", "data_centers"]
     return argv
