@@ -4,6 +4,8 @@ title: YouTube API Services audit
 description: Architecture, user flow, endpoints, and quota answers for the YouTube Data API compliance audit (#737).
 ---
 
+import ZoomableImage from '@site/src/components/ZoomableImage';
+
 # YouTube API Services audit
 
 Operator notes for the [YouTube API Services — Audit and Quota Extension Form](https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits).
@@ -19,7 +21,11 @@ Evidence PNGs/JPEGs for the form live under `web_docs/static/img/legal/youtube-a
 
 Read + embed only: public YouTube → API key pool → Data API v3 (`search` / `channels` / `videos` / `playlistItems`) → bronze → staging → marts → FastAPI → meeting pages (iframe or open on YouTube). No upload, update, delete, Authorized Data, or user OAuth.
 
-![CommunityOne YouTube API Services architecture](/img/legal/youtube-api-audit/architecture-diagram.png)
+<ZoomableImage
+  src="/img/legal/youtube-api-audit/architecture-diagram.png"
+  alt="CommunityOne YouTube API Services architecture"
+  title="Architecture diagram"
+/>
 
 | Layer | What happens |
 |-------|----------------|
@@ -35,7 +41,11 @@ Read + embed only: public YouTube → API key pool → Data API v3 (`search` / `
 
 Citizen path: homepage search → meeting page → in-page YouTube embed **or** open on youtube.com. Optional stop at Privacy §9 / Terms. **Not** in this journey: upload via CommunityOne, or YouTube OAuth through CommunityOne.
 
-![User flow: citizen watches a meeting recording](/img/legal/youtube-api-audit/user-flow-diagram.png)
+<ZoomableImage
+  src="/img/legal/youtube-api-audit/user-flow-diagram.png"
+  alt="User flow: citizen watches a meeting recording"
+  title="User flow diagram"
+/>
 
 ---
 
