@@ -1,12 +1,14 @@
 """Screen meeting transcripts with Jev before the paid Gemini analysis.
 
-For each captioned video not yet screened, Jev answers three questions about the
-transcript:
+For each captioned video not yet screened, Jev answers meeting-kind / decision /
+data-center questions plus light topic Noul flags (same request — #702 / #703):
 
 - ``meeting_kind`` (Choice): governing-body meeting, town hall, other government
   video (press conference, ceremony, training), or not government at all.
 - ``has_decisions`` (Noul): the body votes on or approves something.
 - ``mentions_data_center`` (Noul): a data center is discussed.
+- ``mentions_zoning``, ``mentions_budget``, ``mentions_housing``,
+  ``mentions_environment`` (Noul): light topic flags for browse without Gemini.
 
 The answers land in ``bronze.bronze_transcript_screen_jev``, one row per video.
 ``llm.gemini.batch_backlog submit --skip-jev-below P`` then leaves out videos whose
@@ -72,6 +74,14 @@ MEETING_KINDS = {
 # Probabilities summed for ``--skip-jev-meeting-below`` (meetings + town halls stay in).
 MEETING_KEEP_KIND_KEYS: tuple[str, ...] = ("government_meeting", "town_hall")
 
+# Light topic flags (#703) — same Jev request as the screen; nearly free once state is paid.
+TOPIC_NOUL_KEYS: tuple[str, ...] = (
+    "mentions_zoning",
+    "mentions_budget",
+    "mentions_housing",
+    "mentions_environment",
+)
+
 QUESTIONS: dict[str, dict[str, Any]] = {
     "meeting_kind": choice(
         "What kind of video this transcript comes from", MEETING_KINDS
@@ -83,6 +93,22 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     "mentions_data_center": noul(
         "The transcript discusses a data center: a proposed, approved or operating facility, "
         "its zoning, tax deal, power or water use, or residents' views on one"
+    ),
+    "mentions_zoning": noul(
+        "The transcript discusses zoning, land use, site plans, special exceptions, "
+        "variances, annexation, or a planning/zoning board decision"
+    ),
+    "mentions_budget": noul(
+        "The transcript discusses a budget, tax or millage rate, bond issue, appropriation, "
+        "or a material contract / spend approval"
+    ),
+    "mentions_housing": noul(
+        "The transcript discusses housing, affordable housing, homelessness housing programs, "
+        "or residential density / multifamily zoning"
+    ),
+    "mentions_environment": noul(
+        "The transcript discusses water, sewer, stormwater, electric power or utilities capacity, "
+        "or an environmental impact / pollution concern (including data-center utilities)"
     ),
 }
 
@@ -100,6 +126,10 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
     meeting_kind_probabilities  jsonb,
     has_decisions_p             double precision,
     mentions_data_center_p      double precision,
+    mentions_zoning_p           double precision,
+    mentions_budget_p           double precision,
+    mentions_housing_p          double precision,
+    mentions_environment_p      double precision,
     chunk_count                 integer NOT NULL,
     chunks_screened             integer NOT NULL,
     transcript_chars            integer NOT NULL,
@@ -109,14 +139,27 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
 )
 """
 
+# Additive columns for DBs created before #703 topic flags.
+ALTER_TOPIC_COLUMNS_SQL = f"""
+ALTER TABLE {TABLE}
+    ADD COLUMN IF NOT EXISTS mentions_zoning_p double precision,
+    ADD COLUMN IF NOT EXISTS mentions_budget_p double precision,
+    ADD COLUMN IF NOT EXISTS mentions_housing_p double precision,
+    ADD COLUMN IF NOT EXISTS mentions_environment_p double precision
+"""
+
 UPSERT_SQL = f"""
 INSERT INTO {TABLE} (
     video_id, question_version, model, meeting_kind, meeting_kind_probabilities,
-    has_decisions_p, mentions_data_center_p, chunk_count, chunks_screened,
+    has_decisions_p, mentions_data_center_p,
+    mentions_zoning_p, mentions_budget_p, mentions_housing_p, mentions_environment_p,
+    chunk_count, chunks_screened,
     transcript_chars, input_tokens, answers, screened_at
 ) VALUES (
     %(video_id)s, %(question_version)s, %(model)s, %(meeting_kind)s,
     %(meeting_kind_probabilities)s, %(has_decisions_p)s, %(mentions_data_center_p)s,
+    %(mentions_zoning_p)s, %(mentions_budget_p)s, %(mentions_housing_p)s,
+    %(mentions_environment_p)s,
     %(chunk_count)s, %(chunks_screened)s, %(transcript_chars)s, %(input_tokens)s,
     %(answers)s, %(screened_at)s
 )
@@ -127,6 +170,10 @@ ON CONFLICT (video_id) DO UPDATE SET
     meeting_kind_probabilities = EXCLUDED.meeting_kind_probabilities,
     has_decisions_p = EXCLUDED.has_decisions_p,
     mentions_data_center_p = EXCLUDED.mentions_data_center_p,
+    mentions_zoning_p = EXCLUDED.mentions_zoning_p,
+    mentions_budget_p = EXCLUDED.mentions_budget_p,
+    mentions_housing_p = EXCLUDED.mentions_housing_p,
+    mentions_environment_p = EXCLUDED.mentions_environment_p,
     chunk_count = EXCLUDED.chunk_count,
     chunks_screened = EXCLUDED.chunks_screened,
     transcript_chars = EXCLUDED.transcript_chars,
@@ -146,6 +193,10 @@ class ScreenResult:
     meeting_kind_probabilities: dict[str, float]
     has_decisions_p: float | None
     mentions_data_center_p: float | None
+    mentions_zoning_p: float | None
+    mentions_budget_p: float | None
+    mentions_housing_p: float | None
+    mentions_environment_p: float | None
     chunk_count: int
     chunks_screened: int
     transcript_chars: int
@@ -161,6 +212,10 @@ class ScreenResult:
             "meeting_kind_probabilities": json.dumps(self.meeting_kind_probabilities),
             "has_decisions_p": self.has_decisions_p,
             "mentions_data_center_p": self.mentions_data_center_p,
+            "mentions_zoning_p": self.mentions_zoning_p,
+            "mentions_budget_p": self.mentions_budget_p,
+            "mentions_housing_p": self.mentions_housing_p,
+            "mentions_environment_p": self.mentions_environment_p,
             "chunk_count": self.chunk_count,
             "chunks_screened": self.chunks_screened,
             "transcript_chars": self.transcript_chars,
@@ -237,12 +292,15 @@ def aggregate(responses: Sequence[JevResponse]) -> dict[str, Any]:
         ]
         return max(values) if values else None
 
-    return {
+    out: dict[str, Any] = {
         "meeting_kind": meeting_kind,
         "meeting_kind_probabilities": probs,
         "has_decisions_p": _max_noul("has_decisions"),
         "mentions_data_center_p": _max_noul("mentions_data_center"),
     }
+    for key in TOPIC_NOUL_KEYS:
+        out[f"{key}_p"] = _max_noul(key)
+    return out
 
 
 def screen_transcript(
@@ -602,6 +660,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     try:
         with conn.cursor() as cur:
             cur.execute(CREATE_SQL)
+            cur.execute(ALTER_TOPIC_COLUMNS_SQL)
         conn.commit()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, [*params, args.limit])
