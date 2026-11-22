@@ -1073,6 +1073,9 @@ export default function BatchJobStatusPage() {
     setBackfillSizeState(v)
     localStorage.setItem('batch-backfill-size', String(v))
   }, [])
+  // Per-stage drill-down: expand one stage to see its live log + current file.
+  const [expandedStage, setExpandedStage] = useState<string | null>(null)
+
   const runLaunch = useCallback(
     async (step: string, states: string[], nOverride?: number) => {
       setLaunching(true)
@@ -1086,6 +1089,17 @@ export default function BatchJobStatusPage() {
           cohort: allScope,
         })
         setLaunchMsg(res.detail || 'Launched.')
+        // Run all/each/catalog → open Videos so the live launch_all log is visible
+        // (Discover is a separate step and its old log looks "stuck").
+        if (step === 'all' || step === 'each' || step === 'catalog') {
+          setExpandedStage('videos')
+        } else if (step === 'discover') {
+          setExpandedStage('discover')
+        } else if (step === 'captions' || step === 'backfill') {
+          setExpandedStage('transcripts')
+        } else if (step === 'analyze') {
+          setExpandedStage('analyses')
+        }
         void refetchLaunch()
         window.setTimeout(() => void refetch(), 2500)
       } catch (e) {
@@ -1118,9 +1132,6 @@ export default function BatchJobStatusPage() {
     },
     [refetchLaunch, refetch],
   )
-
-  // Per-stage drill-down: expand one stage to see its live log + current file.
-  const [expandedStage, setExpandedStage] = useState<string | null>(null)
   const liveLaunchSteps = useMemo(() => {
     const steps = new Set<string>([
       ...(launchStatus?.running_steps ?? []),
@@ -1141,11 +1152,18 @@ export default function BatchJobStatusPage() {
     : liveLaunchSteps.has('all')
       ? 'all'
       : null
+  // Run all never executes Discover. If Discover is open while a full run is
+  // live, jump to Videos so the panel tails launch_all_*.log instead of a
+  // stale launch_discover_*.log (#753).
+  useEffect(() => {
+    if (fullRunLogStep && expandedStage === 'discover') {
+      setExpandedStage('videos')
+    }
+  }, [fullRunLogStep, expandedStage])
   const expandedStep = expandedStage
     ? expandedStage === 'transcripts' && transcriptsBackfillLive
       ? 'backfill'
       : fullRunLogStep &&
-          expandedStage !== 'discover' &&
           ['videos', 'transcripts', 'analyses', 'reports'].includes(expandedStage)
         ? fullRunLogStep
         : STAGE_STEP[expandedStage]
@@ -1968,15 +1986,34 @@ export default function BatchJobStatusPage() {
                     <div className={`${cols} border-t border-slate-100 px-4 py-3`}>
                       <button
                         type="button"
-                        onClick={() => setExpandedStage(expanded ? null : st.stage)}
+                        onClick={() => {
+                          if (expanded) {
+                            setExpandedStage(null)
+                            return
+                          }
+                          // Don't open the stale Discover log while Run all is live.
+                          if (st.stage === 'discover' && fullRunLogStep) {
+                            setExpandedStage('videos')
+                            return
+                          }
+                          setExpandedStage(st.stage)
+                        }}
                         className="min-w-0 text-left"
-                        title="Show this stage's live log + timing"
+                        title={
+                          st.stage === 'discover' && fullRunLogStep
+                            ? 'Run all does not run Discover — opening Videos (live catalog log)'
+                            : "Show this stage's live log + timing"
+                        }
                       >
                         <div className="flex items-center gap-1 text-sm font-semibold text-slate-800">
                           <span className="text-slate-400">{expanded ? '▾' : '▸'}</span>
                           {idx + 1} · {stageLabel[st.stage]}
                         </div>
-                        {st.sub ? (
+                        {st.stage === 'discover' && fullRunLogStep ? (
+                          <div className="mt-0.5 text-[11px] text-teal-700">
+                            Not part of Run {fullRunLogStep} — open Videos for the live log
+                          </div>
+                        ) : st.sub ? (
                           <div className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600">
                             <span aria-hidden>⚠️</span>
                             <span className="truncate" title={st.sub}>
