@@ -513,6 +513,7 @@ class LaunchRequest(BaseModel):
     states: List[str] = Field(default_factory=list)
     n: int = 10
     parallel: int = 4
+    cohort: str = "priority"
 
 
 class LaunchStatusResponse(BaseModel):
@@ -564,7 +565,25 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     step = (req.step or "").strip().lower()
     if step not in _LAUNCH_STEPS:
         raise HTTPException(status_code=400, detail=f"step must be one of {list(_LAUNCH_STEPS)}")
-    states = [s.strip().upper() for s in (req.states or []) if s and s.strip()]
+    cohort = (req.cohort or "priority").strip().lower()
+    if cohort not in ("priority", "data_centers", "all"):
+        raise HTTPException(
+            status_code=400,
+            detail="cohort must be one of priority, data_centers, all",
+        )
+    from api.batch_jobs.batch_job_db import get_db_connection
+    from api.batch_jobs.cohorts import resolve_launch_states
+
+    conn = None
+    try:
+        if cohort == "data_centers":
+            conn = get_db_connection()
+        states = resolve_launch_states(cohort, req.states or [], conn=conn)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        if conn is not None:
+            conn.close()
     bad = [s for s in states if not _STATE_RE.match(s)]
     if bad:
         raise HTTPException(status_code=400, detail=f"invalid state code(s): {bad}")
@@ -597,6 +616,8 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
 
     root = _repo_root()
     env = dict(os.environ)
+    env["COHORT"] = cohort
+    env["STATES"] = ",".join(states)
     if step == "discover":
         # Stage 0 runs the channel-discovery script. It accepts one state or a
         # comma list (--states A,B,C); we always pass --states so the ALL-scope
@@ -612,6 +633,8 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         import sys as _sys
 
         argv = [_sys.executable, str(target), "--states", ",".join(states)]
+        if cohort == "data_centers":
+            argv += ["--cohort", "data_centers"]
     elif step == "backfill":
         # Global transcript backfill over the int_events_union mart. Unlike the
         # per-jurisdiction `captions` step (which reads bronze_event_youtube
@@ -637,6 +660,8 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
             argv += ["--limit", str(min(backfill_limit, 100000))]
         if states:
             argv += ["--states", ",".join(states)]
+        if cohort == "data_centers":
+            argv += ["--cohort", "data_centers"]
         # Caption egress (Webshare vs cookies+direct) is left to the environment /
         # .env (YOUTUBE_USE_WEBSHARE). Don't force Webshare here: the residential
         # pool is bandwidth-capped and, once exhausted, every fetch TLS-times-out
@@ -650,8 +675,6 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         env["BATCH_STATUS"] = "1"
         env["N"] = str(n)
         env["PARALLEL"] = str(parallel)
-        if states:
-            env["STATES"] = ",".join(states)
         argv = ["bash", str(script), step]  # fixed argv, no shell
 
     import datetime as _dt

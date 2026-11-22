@@ -34,6 +34,12 @@ class TestClient:
     def get(self, url: str, **kwargs) -> httpx.Response:
         return self.request("GET", url, **kwargs)
 
+    def post(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("POST", url, **kwargs)
+
+    def post(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("POST", url, **kwargs)
+
 
 @pytest.fixture
 def api_app():
@@ -109,3 +115,59 @@ def test_cohorts_endpoint_db_failure_returns_500(api_app, monkeypatch):
     client = TestClient(api_app)
     r = client.get("/api/batch-jobs/cohorts")
     assert r.status_code == 500
+
+
+@pytest.fixture
+def launch_client(api_app, monkeypatch):
+    from api.auth import User, require_admin
+
+    monkeypatch.setenv("BATCH_JOBS_ALLOW_LAUNCH", "1")
+    monkeypatch.setenv("ADMIN_EMAILS", "admin@test.com")
+    api_app.dependency_overrides[require_admin] = lambda: User(
+        user_id=1, email="admin@test.com", is_admin=True,
+    )
+    monkeypatch.setattr("api.routes.batch_jobs._dashboard_runtime", lambda: (0, ""))
+    monkeypatch.setattr("api.routes.batch_jobs._read_launches", lambda: [])
+    monkeypatch.setattr("api.routes.batch_jobs._write_launches", lambda *_a, **_k: None)
+    yield TestClient(api_app)
+    api_app.dependency_overrides.pop(require_admin, None)
+
+
+def test_launch_rejects_unknown_cohort(launch_client):
+    r = launch_client.post(
+        "/api/batch-jobs/launch",
+        json={"step": "analyze", "cohort": "nope", "states": ["AL"]},
+    )
+    assert r.status_code == 400
+
+
+def test_launch_sets_cohort_env(launch_client, monkeypatch):
+    captured = {}
+
+    def fake_popen(argv, **kwargs):
+        captured["env"] = kwargs["env"]
+        captured["argv"] = argv
+
+        class P:
+            pid = 4242
+
+        return P()
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    monkeypatch.setattr(
+        "api.batch_jobs.cohorts.resolve_launch_states",
+        lambda cohort, states, **kw: ["AL"],
+    )
+    r = launch_client.post(
+        "/api/batch-jobs/launch",
+        json={
+            "step": "analyze",
+            "cohort": "data_centers",
+            "states": ["AL"],
+            "n": 5,
+            "parallel": 2,
+        },
+    )
+    assert r.status_code == 200
+    assert captured["env"]["COHORT"] == "data_centers"
+    assert captured["env"]["STATES"] == "AL"
