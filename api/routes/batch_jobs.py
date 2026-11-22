@@ -644,7 +644,11 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         )
 
     root = _repo_root()
-    env = dict(os.environ)
+    # Drop exported bash completion functions. A broken BASH_FUNC_* (e.g.
+    # _xinetd_services with an extglob pattern) is reimported by every child
+    # `bash` and aborts the pipeline before the script runs — Run all then
+    # looks like a no-op (#687).
+    env = {k: v for k, v in os.environ.items() if not k.startswith("BASH_FUNC_")}
     env["COHORT"] = cohort
     env["STATES"] = ",".join(states)
     if step == "discover":
@@ -704,7 +708,8 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         env["BATCH_STATUS"] = "1"
         env["N"] = str(n)
         env["PARALLEL"] = str(parallel)
-        argv = ["bash", str(script), step]  # fixed argv, no shell
+        # --noprofile/--norc: don't load operator rc files; BASH_FUNC_* already stripped.
+        argv = ["bash", "--noprofile", "--norc", str(script), step]
 
     import datetime as _dt
 

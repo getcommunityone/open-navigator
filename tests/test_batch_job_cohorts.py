@@ -177,3 +177,34 @@ def test_launch_sets_cohort_env(launch_client, monkeypatch):
     assert r.status_code == 200
     assert captured["env"]["COHORT"] == "data_centers"
     assert captured["env"]["STATES"] == "AL"
+    assert captured["argv"][:3] == ["bash", "--noprofile", "--norc"]
+    assert not any(k.startswith("BASH_FUNC_") for k in captured["env"])
+
+
+def test_launch_strips_bash_func_env(launch_client, monkeypatch):
+    """Exported completion funcs must not reach child bash (#687)."""
+    monkeypatch.setenv(
+        "BASH_FUNC__xinetd_services%%",
+        "() {  local -a svcs=($(printf '%s\\n' $xinetddir/!($_backup_glob))); }",
+    )
+    captured = {}
+
+    def fake_popen(argv, **kwargs):
+        captured["env"] = kwargs["env"]
+        captured["argv"] = argv
+
+        class P:
+            pid = 4243
+
+        return P()
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    monkeypatch.setattr("api.routes.batch_jobs._dashboard_runtime", lambda: (0, ""))
+    r = launch_client.post(
+        "/api/batch-jobs/launch",
+        json={"step": "catalog", "cohort": "priority", "states": ["AL"]},
+    )
+    assert r.status_code == 200
+    assert "BASH_FUNC__xinetd_services%%" not in captured["env"]
+    assert not any(k.startswith("BASH_FUNC_") for k in captured["env"])
+    assert captured["argv"][:3] == ["bash", "--noprofile", "--norc"]
