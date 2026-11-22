@@ -58,26 +58,6 @@
   outline-offset: 2px;
 }
 
-.previewBtn {
-  appearance: none !important;
-  position: relative;
-  display: block !important;
-  width: 100%;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: #f5f5f4 !important;
-  cursor: zoom-in !important;
-  text-align: left;
-  box-shadow: none !important;
-}
-
-.previewBtn:focus-visible {
-  outline: 2px solid #0f766e;
-  outline-offset: -2px;
-}
-
 .preview {
   display: block;
   width: 100%;
@@ -89,19 +69,6 @@
     linear-gradient(90deg, #e7e5e4 1px, transparent 1px);
   background-size: 18px 18px;
   background-color: #fafaf9;
-}
-
-.previewBadge {
-  position: absolute;
-  right: 0.75rem;
-  bottom: 0.75rem;
-  padding: 0.35rem 0.65rem;
-  border-radius: 999px;
-  background: rgba(28, 25, 23, 0.78);
-  color: #fafaf9;
-  font-size: 0.75rem;
-  font-weight: 600;
-  pointer-events: none;
 }
 
 /* Fullscreen lightbox — absolute regions so TransformWrapper height can't collapse */

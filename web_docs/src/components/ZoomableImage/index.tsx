@@ -202,22 +202,14 @@ export default function ZoomableImage({
           Open &amp; zoom
         </button>
       </div>
-      <button
-        type="button"
-        className={styles.previewBtn}
-        onClick={() => setOpen(true)}
-        aria-label={`Open zoomable view: ${label}`}
-      >
-        <img
-          className={styles.preview}
-          src={src}
-          alt={alt}
-          style={{maxHeight: previewMaxHeight}}
-          loading="lazy"
-          decoding="async"
-        />
-        <span className={styles.previewBadge}>Click to zoom</span>
-      </button>
+      <img
+        className={styles.preview}
+        src={src}
+        alt={alt}
+        style={{maxHeight: previewMaxHeight}}
+        loading="lazy"
+        decoding="async"
+      />
       {lightbox}
     </div>
   );
