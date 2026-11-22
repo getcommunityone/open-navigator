@@ -33,6 +33,8 @@ export default function ZoomableImage({
 }: ZoomableImageProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
+  // Start low so Fit can shrink below 1×; locked to fit scale after first fit.
+  const [minScale, setMinScale] = useState(0.05);
   const titleId = useId();
   const label = title || alt;
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -46,6 +48,7 @@ export default function ZoomableImage({
 
   useEffect(() => {
     if (!open) return;
+    setMinScale(0.05);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
@@ -58,17 +61,40 @@ export default function ZoomableImage({
     };
   }, [open, close]);
 
-  const fitToView = useCallback(() => {
-    const api = apiRef.current;
-    const img = imgRef.current;
-    if (!api || !img) return;
-    // zoomToElement scales the element into the TransformComponent viewport.
-    try {
-      api.zoomToElement(img, undefined, 200, 'easeOut');
-    } catch {
-      /* image or stage not ready */
-    }
+  const lockMinToFitScale = useCallback((scale: number) => {
+    if (!Number.isFinite(scale) || scale <= 0) return;
+    // Floor at fit — no zoom-out past the full-diagram view.
+    setMinScale(Number(scale.toFixed(4)));
   }, []);
+
+  const fitToView = useCallback(
+    (animate = true) => {
+      const api = apiRef.current;
+      const img = imgRef.current;
+      if (!api || !img) return;
+      // zoomToElement scales the element into the TransformComponent viewport.
+      try {
+        api.zoomToElement(
+          img,
+          undefined,
+          animate ? 200 : 0,
+          'easeOut',
+        );
+        const applyFloor = () => {
+          const scale = api.state.scale;
+          lockMinToFitScale(scale);
+        };
+        if (animate) {
+          window.setTimeout(applyFloor, 220);
+        } else {
+          applyFloor();
+        }
+      } catch {
+        /* image or stage not ready */
+      }
+    },
+    [lockMinToFitScale],
+  );
 
   const lightbox =
     open && portalReady
@@ -81,7 +107,7 @@ export default function ZoomableImage({
           >
             <TransformWrapper
               initialScale={1}
-              minScale={0.05}
+              minScale={minScale}
               maxScale={8}
               centerOnInit={false}
               // Library default step is 0.015 with smooth=true → step*deltaY per
@@ -90,10 +116,14 @@ export default function ZoomableImage({
               wheel={{step: 0.006}}
               doubleClick={{mode: 'toggle', step: 0.5}}
               panning={{velocityDisabled: true}}
+              // Default zoomAnimation.size (0.4) lets wheel go minScale-0.4 —
+              // that is what produced the tiny corner thumbnail.
+              zoomAnimation={{size: 0, disabled: true}}
+              disablePadding
               limitToBounds={false}
               onInit={(ref) => {
                 apiRef.current = ref;
-                requestAnimationFrame(() => fitToView());
+                requestAnimationFrame(() => fitToView(false));
               }}
             >
               {({zoomIn, zoomOut}) => (
@@ -120,7 +150,7 @@ export default function ZoomableImage({
                       <button
                         type="button"
                         className={styles.toolBtn}
-                        onClick={() => fitToView()}
+                        onClick={() => fitToView(true)}
                       >
                         Fit
                       </button>
@@ -144,7 +174,7 @@ export default function ZoomableImage({
                         src={src}
                         alt={alt}
                         draggable={false}
-                        onLoad={() => fitToView()}
+                        onLoad={() => fitToView(false)}
                       />
                     </TransformComponent>
                   </div>
