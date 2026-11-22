@@ -20,6 +20,7 @@ import {
   type BatchJurisdictionRun,
   type BatchJobsDashboardPayload,
   type BatchVideoResult,
+  FULL_FILTER_OPTIONS,
   type PipelineStage,
   type StageReportRow,
 } from '../api/batchJobs'
@@ -87,8 +88,38 @@ const STAGE_STEP: Record<string, string> = {
   discover: 'discover',
   videos: 'catalog',
   transcripts: 'captions',
-  analyses: 'analyze',
-  reports: 'analyze',
+  analyses_light: 'analyze-light',
+  reports_light: 'reports-light',
+  analyses_full: 'analyze-full',
+  reports_full: 'reports-full',
+  // Legacy
+  analyses: 'analyze-light',
+  reports: 'reports-light',
+}
+
+const FULL_STAGE_SET = new Set(['analyses_full', 'reports_full'])
+const FULL_FILTERS_STORAGE_KEY = 'batch-full-filters'
+
+function defaultFullFilters(cohort: string): string[] {
+  const keys = ['has_decisions', 'interestingness']
+  if (cohort === 'data_centers') keys.push('data_center')
+  return keys
+}
+
+function loadFullFilters(cohort: string): string[] {
+  try {
+    const raw = localStorage.getItem(FULL_FILTERS_STORAGE_KEY)
+    if (!raw) return defaultFullFilters(cohort)
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return defaultFullFilters(cohort)
+    const allowed = new Set(['has_decisions', 'interestingness', 'data_center'])
+    const out = parsed
+      .map((x) => String(x))
+      .filter((k) => allowed.has(k))
+    return out.length ? out : defaultFullFilters(cohort)
+  } catch {
+    return defaultFullFilters(cohort)
+  }
 }
 
 function fmtSecs(s?: number | null): string {
@@ -1075,31 +1106,61 @@ export default function BatchJobStatusPage() {
   }, [])
   // Per-stage drill-down: expand one stage to see its live log + current file.
   const [expandedStage, setExpandedStage] = useState<string | null>(null)
+  const [fullFilters, setFullFiltersState] = useState<string[]>(() =>
+    loadFullFilters('priority'),
+  )
+  const setFullFilters = useCallback((next: string[]) => {
+    setFullFiltersState(next)
+    localStorage.setItem(FULL_FILTERS_STORAGE_KEY, JSON.stringify(next))
+  }, [])
+  const toggleFullFilter = useCallback(
+    (key: string) => {
+      setFullFilters(
+        fullFilters.includes(key)
+          ? fullFilters.filter((k) => k !== key)
+          : [...fullFilters, key],
+      )
+    },
+    [fullFilters, setFullFilters],
+  )
 
   const runLaunch = useCallback(
     async (step: string, states: string[], nOverride?: number) => {
       setLaunching(true)
       setLaunchMsg(null)
       try {
+        const needsFilters =
+          step === 'analyze-full' || step === 'reports-full'
+        if (needsFilters && fullFilters.length === 0) {
+          setLaunchMsg('Select at least one full eligibility filter before running.')
+          return
+        }
         const res = await launchPipeline({
           step,
           states,
           parallel: parallelism,
           n: nOverride ?? 25,
           cohort: allScope,
+          ...(needsFilters ? { full_filters: fullFilters } : {}),
         })
         setLaunchMsg(res.detail || 'Launched.')
         // Open the stage that matches the launch so the live log is visible.
         if (step === 'all') {
-          setExpandedStage('discover') // Run all starts with Discover (#754)
+          setExpandedStage('discover') // Run all starts with Discover (#754/#755)
         } else if (step === 'each' || step === 'catalog') {
           setExpandedStage('videos')
         } else if (step === 'discover') {
           setExpandedStage('discover')
         } else if (step === 'captions' || step === 'backfill') {
           setExpandedStage('transcripts')
-        } else if (step === 'analyze') {
-          setExpandedStage('analyses')
+        } else if (step === 'analyze' || step === 'analyze-light') {
+          setExpandedStage('analyses_light')
+        } else if (step === 'reports-light') {
+          setExpandedStage('reports_light')
+        } else if (step === 'analyze-full') {
+          setExpandedStage('analyses_full')
+        } else if (step === 'reports-full') {
+          setExpandedStage('reports_full')
         }
         void refetchLaunch()
         window.setTimeout(() => void refetch(), 2500)
@@ -1109,7 +1170,7 @@ export default function BatchJobStatusPage() {
         setLaunching(false)
       }
     },
-    [refetchLaunch, refetch, parallelism, allScope],
+    [refetchLaunch, refetch, parallelism, allScope, fullFilters],
   )
 
   const stopLaunch = useCallback(
@@ -1593,15 +1654,19 @@ export default function BatchJobStatusPage() {
               'discover',
               'videos',
               'transcripts',
-              'analyses',
-              'reports',
+              'analyses_light',
+              'reports_light',
+              'analyses_full',
+              'reports_full',
             ]
-            const stageLabel: Record<PipelineStage, string> = {
+            const stageLabel: Record<string, string> = {
               discover: 'Discover',
               videos: 'Videos',
               transcripts: 'Transcripts',
-              analyses: 'Analyses',
-              reports: 'Reports',
+              analyses_light: 'Analysis light',
+              reports_light: 'Reports light',
+              analyses_full: 'Analysis full',
+              reports_full: 'Reports full',
             }
             // Discover-stage per-entity split labels (counties vs municipalities).
             const entityShort: Record<string, string> = {
@@ -1613,19 +1678,23 @@ export default function BatchJobStatusPage() {
               municipalities: 'Municipalities (cities/towns)',
             }
             // Which runnable step each stage's "Run" button kicks off.
-            const stageStep: Record<PipelineStage, string> = {
+            const stageStep: Record<string, string> = {
               discover: 'discover',
               videos: 'catalog',
               transcripts: 'captions',
-              analyses: 'analyze',
-              reports: 'analyze',
+              analyses_light: 'analyze-light',
+              reports_light: 'reports-light',
+              analyses_full: 'analyze-full',
+              reports_full: 'reports-full',
             }
-            const stepDesc: Record<PipelineStage, string> = {
+            const stepDesc: Record<string, string> = {
               discover: 'discover channels (scrape sites / search YouTube)',
               videos: 'catalog — list videos on the channel',
               transcripts: 'captions — download transcripts',
-              analyses: 'analyze — Gemini policy analysis',
-              reports: 'analyze — regenerates reports too',
+              analyses_light: 'analyze-light — lite Gemini Part 1',
+              reports_light: 'reports-light — Part 2 from light analysis',
+              analyses_full: 'analyze-full — deep Part 1 on filtered subset',
+              reports_full: 'reports-full — Part 2 from full analysis',
             }
             type Def = {
               n: number
@@ -1635,6 +1704,7 @@ export default function BatchJobStatusPage() {
               pill: boolean
               drill: (() => void) | null
               failTitle: string
+              inRunAll?: boolean
             }
             const defs: Def[] = [
               {
@@ -1645,6 +1715,7 @@ export default function BatchJobStatusPage() {
                 pill: true,
                 drill: null,
                 failTitle: 'Jurisdictions still missing a YouTube channel',
+                inRunAll: true,
               },
               {
                 n: 1,
@@ -1653,6 +1724,7 @@ export default function BatchJobStatusPage() {
                 pill: false,
                 drill: openFailed,
                 failTitle: 'Videos whose caption fetch failed — tap to list',
+                inRunAll: true,
               },
               {
                 n: 2,
@@ -1662,22 +1734,45 @@ export default function BatchJobStatusPage() {
                 pill: true,
                 drill: openFailed,
                 failTitle: 'Videos with no usable transcript — tap to list',
+                inRunAll: true,
               },
               {
                 n: 3,
-                stage: 'analyses',
+                stage: 'analyses_light',
                 unit: 'videos',
                 pill: true,
                 drill: null,
                 failTitle: 'Analysis errors (bronze policy_analysis_error)',
+                inRunAll: true,
               },
               {
                 n: 4,
-                stage: 'reports',
+                stage: 'reports_light',
                 unit: 'videos',
                 pill: true,
                 drill: null,
                 failTitle: 'Report errors (bronze policy_report_error)',
+                inRunAll: true,
+              },
+              {
+                n: 5,
+                stage: 'analyses_full',
+                unit: 'videos',
+                sub: 'Opt-in — requires analysis light + any checked filter',
+                pill: true,
+                drill: null,
+                failTitle: 'Full analysis errors (bronze policy_analysis_full_error)',
+                inRunAll: false,
+              },
+              {
+                n: 6,
+                stage: 'reports_full',
+                unit: 'videos',
+                sub: 'Opt-in — requires analysis full',
+                pill: true,
+                drill: null,
+                failTitle: 'Full report errors (bronze policy_report_full_error)',
+                inRunAll: false,
               },
             ]
             // Fixed-width Failed/Run columns so the progress column lines up across rows.
@@ -1698,10 +1793,25 @@ export default function BatchJobStatusPage() {
               captions: ['videos', 'transcripts'],
               // Global mart-wide sweep — advances only the transcripts stage.
               backfill: ['transcripts'],
-              analyze: ['analyses', 'reports'],
-              // `all` = discover → catalog → captions → analyze (#754).
-              all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
-              each: ['videos', 'transcripts', 'analyses', 'reports'],
+              analyze: ['analyses_light'],
+              'analyze-light': ['analyses_light'],
+              'reports-light': ['reports_light'],
+              'analyze-full': ['analyses_full'],
+              'reports-full': ['reports_full'],
+              // `all` = discover → … → reports-light (#755). Full stages excluded.
+              all: [
+                'discover',
+                'videos',
+                'transcripts',
+                'analyses_light',
+                'reports_light',
+              ],
+              each: [
+                'videos',
+                'transcripts',
+                'analyses_light',
+                'reports_light',
+              ],
             }
             const runningSteps = new Set(ls?.running_steps ?? [])
             const stalledSteps = new Set(ls?.stalled_steps ?? [])
@@ -1885,7 +1995,7 @@ export default function BatchJobStatusPage() {
                         title={
                           runningSteps.size > 0
                             ? 'Finish the running step(s) before a full-pipeline run'
-                            : `Run the full pipeline (discover → catalog → captions → analyze) for ${scopeLaunchLabel} states`
+                            : `Run stages 1–5 (discover → catalog → captions → analysis light → reports light) for ${scopeLaunchLabel}`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -2085,12 +2195,17 @@ export default function BatchJobStatusPage() {
                         {ls?.enabled ? (
                           <button
                             type="button"
-                            disabled={!canRunStage(st.stage)}
+                            disabled={
+                              !canRunStage(st.stage) ||
+                              (FULL_STAGE_SET.has(st.stage) && fullFilters.length === 0)
+                            }
                             onClick={() => runLaunch(stageStep[st.stage], launchScopeStates)}
                             title={
-                              runningSteps.has(stageStep[st.stage])
-                                ? `${stageStep[st.stage]} is already running`
-                                : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
+                              FULL_STAGE_SET.has(st.stage) && fullFilters.length === 0
+                                ? 'Select at least one eligibility filter (expand this stage)'
+                                : runningSteps.has(stageStep[st.stage])
+                                  ? `${stageStep[st.stage]} is already running`
+                                  : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
                             }
                             className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
@@ -2192,12 +2307,41 @@ export default function BatchJobStatusPage() {
                             </span>
                           ) : null}
                         </div>
+                        {FULL_STAGE_SET.has(st.stage) ? (
+                          <div className="mb-2 rounded border border-slate-200 bg-white px-3 py-2">
+                            <p className="mb-1.5 text-[11px] text-slate-600">
+                              Full runs only on videos that already have analysis light and
+                              match any checked filter.
+                            </p>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+                              {FULL_FILTER_OPTIONS.map((opt) => (
+                                <label
+                                  key={opt.key}
+                                  className="inline-flex items-center gap-1.5 text-[11px] text-slate-700"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={fullFilters.includes(opt.key)}
+                                    onChange={() => toggleFullFilter(opt.key)}
+                                    className="rounded border-slate-300"
+                                  />
+                                  {opt.label}
+                                </label>
+                              ))}
+                            </div>
+                            {fullFilters.length === 0 ? (
+                              <p className="mt-1 text-[11px] font-medium text-amber-700">
+                                Check at least one filter to enable Run.
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {fullRunLogStep && expandedStep === fullRunLogStep ? (
                           <p className="mb-1 text-[11px] text-teal-800">
                             Showing the live{' '}
                             <code className="text-[10px]">Run {fullRunLogStep}</code> log
                             {fullRunLogStep === 'all'
-                              ? ' (discover → catalog → captions → analyze)'
+                              ? ' (discover → catalog → captions → analysis light → reports light)'
                               : ''}
                             .
                           </p>

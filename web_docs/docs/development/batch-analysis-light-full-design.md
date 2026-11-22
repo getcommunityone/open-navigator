@@ -139,9 +139,9 @@ POST /api/batch-jobs/launch
 
 ## Done when (implementation)
 
-- Design this page linked from #755
-- Seven stages on Batch Job Status; Run all = 1–5
-- Full Run UI = multi-select checkboxes with v1 defaults
-- Launch API accepts `full_filters`; full steps refuse empty selection
-- Light/full stamps distinguishable in stage report
-- Docs + tests for filter OR semantics and Run all composition
+- [x] Design this page linked from #755
+- [x] Seven stages on Batch Job Status; Run all = 1–5
+- [x] Full Run UI = multi-select checkboxes with v1 defaults
+- [x] Launch API accepts `full_filters`; full steps refuse empty selection
+- [x] Light/full stamps distinguishable in stage report (`policy_*` vs `policy_*_full_*`, migration 114)
+- [x] Docs + tests for filter OR semantics and Run all composition

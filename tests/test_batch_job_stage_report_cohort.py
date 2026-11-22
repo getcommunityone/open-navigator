@@ -15,17 +15,24 @@ from api.batch_jobs.cohorts import PRIORITY_STATE_CODES
 
 def _yt_row(st: str, vids_ok: int) -> Tuple[Any, ...]:
     ts = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # Matches pipeline_stage_report SELECT (#755 light + full stamps).
     return (
         st,
-        vids_ok,
-        0,
-        vids_ok,
-        0,
-        vids_ok,
-        0,
-        ts,
-        ts,
-        ts,
+        vids_ok,  # vids_ok
+        0,  # vids_fail
+        vids_ok,  # analyses_light
+        0,  # analysis_light_err
+        vids_ok,  # reports_light
+        0,  # report_light_err
+        0,  # analyses_full
+        0,  # analysis_full_err
+        0,  # reports_full
+        0,  # report_full_err
+        ts,  # last_video
+        ts,  # last_analysis_light
+        ts,  # last_report_light
+        None,  # last_analysis_full
+        None,  # last_report_full
     )
 
 

@@ -420,7 +420,23 @@ _DISCOVER_SCRIPT = "packages/scrapers/src/scrapers/youtube/load_missing_county_c
 # `backfill` runs the flat, mart-wide transcript sweep (reaches LocalView/union
 # videos with no jurisdiction the per-jurisdiction `captions` loop never visits).
 _BACKFILL_SCRIPT = "packages/scrapers/src/scrapers/youtube/backfill_transcripts.py"
-_LAUNCH_STEPS = ("discover", "catalog", "captions", "backfill", "analyze", "each", "all")
+# analyze / analyze-light are aliases (light Part 1). reports-* = Part 2 only.
+# analyze-full / reports-full are opt-in and require full_filters (#755).
+_LAUNCH_STEPS = (
+    "discover",
+    "catalog",
+    "captions",
+    "backfill",
+    "analyze",
+    "analyze-light",
+    "reports-light",
+    "analyze-full",
+    "reports-full",
+    "each",
+    "all",
+)
+_FULL_FILTER_STEPS = frozenset({"analyze-full", "reports-full"})
+_FULL_FILTER_KEYS = frozenset({"has_decisions", "interestingness", "data_center"})
 # Steps that talk to YouTube and must wait for the VPN tunnel before auto-resume (#752).
 _LAUNCH_STEPS_NEED_VPN = frozenset(_LAUNCH_STEPS)
 _STATE_RE = re.compile(r"^[A-Z]{2}$")
@@ -639,6 +655,8 @@ class LaunchRequest(BaseModel):
     n: int = 10
     parallel: int = 4
     cohort: str = "priority"
+    # Multi-select eligibility for analyze-full / reports-full (#755). OR semantics.
+    full_filters: List[str] = Field(default_factory=list)
 
 
 class LaunchStatusResponse(BaseModel):
@@ -739,6 +757,25 @@ def _discover_argv(states: List[str], cohort: str) -> List[str]:
     return argv
 
 
+def _normalize_full_filters(raw: Optional[List[str]]) -> List[str]:
+    out: List[str] = []
+    seen: set[str] = set()
+    for item in raw or []:
+        key = str(item or "").strip().lower()
+        if key not in _FULL_FILTER_KEYS or key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
+def _shell_step_for_launch(step: str) -> str:
+    """Map API launch step → shell wrapper argument."""
+    if step in ("analyze", "analyze-light"):
+        return "analyze-light"
+    return step
+
+
 def _build_launch_argv(
     step: str,
     *,
@@ -746,6 +783,7 @@ def _build_launch_argv(
     cohort: str,
     n: int,
     parallel: int,
+    full_filters: Optional[List[str]] = None,
 ) -> "tuple[List[str], Dict[str, str]]":
     """Return (argv, env updates) for a pipeline step. Raises ValueError on bad paths."""
     import shlex
@@ -777,9 +815,21 @@ def _build_launch_argv(
     env["BATCH_STATUS"] = "1"
     env["N"] = str(n)
     env["PARALLEL"] = str(parallel)
-    if cohort == "data_centers" and step in ("analyze", "each", "all"):
+    filters = _normalize_full_filters(full_filters)
+    if filters:
+        env["FULL_FILTERS"] = ",".join(filters)
+    analyze_like = {
+        "analyze",
+        "analyze-light",
+        "reports-light",
+        "analyze-full",
+        "reports-full",
+        "each",
+        "all",
+    }
+    if cohort == "data_centers" and step in analyze_like:
         env.setdefault("SKIP_JEV_MEETING_BELOW", "0.6")
-    # Run all = Discover first, then catalog → captions → analyze (#754).
+    # Run all = Discover → catalog → captions → analyze-light → reports-light (#755).
     # Discover is a separate Python CLI; the shell wrapper never ran it.
     if step == "all":
         disc = _discover_argv(states, cohort)
@@ -794,10 +844,12 @@ def _build_launch_argv(
             f'if [ "$disc_ec" -ne 0 ]; then '
             f'echo "WARN: Discover exited $disc_ec — continuing to catalog"; '
             f'fi; '
-            f'echo "=== Catalog → captions → analyze ==="; {pipe_cmd}; exit $?'
+            f'echo "=== Catalog → captions → analyze-light → reports-light ==="; '
+            f'{pipe_cmd}; exit $?'
         )
         return ["bash", "-c", chain], env
-    return ["bash", str(script), step], env
+    shell_step = _shell_step_for_launch(step)
+    return ["bash", str(script), shell_step], env
 
 
 def _spawn_launch(
@@ -809,13 +861,20 @@ def _spawn_launch(
     parallel: int,
     resume_count: int = 0,
     auto_resume: bool = True,
+    full_filters: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Start a detached launch and return its tracking meta (includes exit_path)."""
     import datetime as _dt
     import shlex
 
+    filters = _normalize_full_filters(full_filters)
     argv, env = _build_launch_argv(
-        step, states=states, cohort=cohort, n=n, parallel=parallel
+        step,
+        states=states,
+        cohort=cohort,
+        n=n,
+        parallel=parallel,
+        full_filters=filters,
     )
     root = _repo_root()
     log_dir = root / "data" / "cache" / "batch_jobs"
@@ -845,6 +904,7 @@ def _spawn_launch(
         "cohort": cohort,
         "n": int(n),
         "parallel": int(parallel),
+        "full_filters": list(filters),
         "started_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
         "log": str(log_path.relative_to(root)),
         "exit_path": str(exit_path),
@@ -922,6 +982,9 @@ def _maybe_auto_resume_launches(freshest: str) -> "tuple[List[str], str]":
                 parallel=int(m.get("parallel") or 1),
                 resume_count=count + 1,
                 auto_resume=True,
+                full_filters=[
+                    str(f) for f in (m.get("full_filters") or []) if str(f).strip()
+                ],
             )
         except Exception as exc:
             logger.warning("auto-resume spawn failed step={}: {!r}", step, exc)
@@ -993,6 +1056,15 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     step = (req.step or "").strip().lower()
     if step not in _LAUNCH_STEPS:
         raise HTTPException(status_code=400, detail=f"step must be one of {list(_LAUNCH_STEPS)}")
+    full_filters = _normalize_full_filters(req.full_filters)
+    if step in _FULL_FILTER_STEPS and not full_filters:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{step} requires a non-empty full_filters list "
+                f"(one of {sorted(_FULL_FILTER_KEYS)})"
+            ),
+        )
     cohort = (req.cohort or "priority").strip().lower()
     if cohort not in ("priority", "data_centers", "all"):
         raise HTTPException(
@@ -1055,6 +1127,7 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
             parallel=parallel,
             resume_count=0,
             auto_resume=True,
+            full_filters=full_filters,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

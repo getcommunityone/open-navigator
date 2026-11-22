@@ -77,7 +77,25 @@ export type BatchJob = {
   jurisdictions: BatchJurisdictionRun[]
 }
 
-export type PipelineStage = 'discover' | 'videos' | 'transcripts' | 'analyses' | 'reports'
+export type PipelineStage =
+  | 'discover'
+  | 'videos'
+  | 'transcripts'
+  | 'analyses_light'
+  | 'reports_light'
+  | 'analyses_full'
+  | 'reports_full'
+  // Legacy aliases (pre-#755) — still accepted if an older API payload arrives.
+  | 'analyses'
+  | 'reports'
+
+export const FULL_FILTER_OPTIONS = [
+  { key: 'has_decisions', label: 'Has decisions', defaultChecked: true },
+  { key: 'interestingness', label: 'High interestingness', defaultChecked: true },
+  { key: 'data_center', label: 'Data-center mention', defaultChecked: false },
+] as const
+
+export type FullFilterKey = (typeof FULL_FILTER_OPTIONS)[number]['key']
 
 /** Per-entity split of a stage (discover: counties vs municipalities). Sums to the row. */
 export type StageBreakdownEntry = {
@@ -187,6 +205,7 @@ export async function launchPipeline(body: {
   n?: number
   parallel?: number
   cohort?: BatchCohort
+  full_filters?: string[]
 }): Promise<LaunchResult> {
   const r = await tracedFetch('/api/batch-jobs/launch', {
     method: 'POST',
