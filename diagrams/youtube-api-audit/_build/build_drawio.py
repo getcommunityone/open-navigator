@@ -74,20 +74,54 @@ def build_architecture():
     soft_card("api_v3", "2  YouTube Data API v3\nsearch · channels\nvideos · playlistItems", 395, 315, 190, 80)
     soft_card("disc", "3  Discovery + enrich\nchannel / video metadata\nfrom public sources", 395, 410, 190, 80)
 
-    # Medallion / ETL
-    dashed_group("etl", "Medallion warehouse (Postgres)", 620, 190, 400, 340)
-    cylinder("bronze", "BRONZE\nraw public JSON", 645, 240, 100, 90, "#E35D4B", "#FFF5F3")
-    cylinder("silver", "SILVER\nclean + join", 770, 240, 100, 90, "#5F6B6D", "#F4F5F5")
-    cylinder("gold", "GOLD\nmeeting marts", 895, 240, 100, 90, "#C9A227", "#FFF9E6")
+    # Medallion / ETL — real Postgres relation names
+    dashed_group("etl", "Medallion warehouse (Postgres / Neon)", 620, 190, 400, 340)
+    cylinder(
+        "bronze",
+        "bronze.\nbronze_event_\nyoutube",
+        640,
+        230,
+        115,
+        110,
+        "#E35D4B",
+        "#FFF5F3",
+    )
+    cylinder(
+        "silver",
+        "staging.\nstg_youtube__\nevent",
+        765,
+        230,
+        115,
+        110,
+        "#5F6B6D",
+        "#F4F5F5",
+    )
+    cylinder(
+        "gold",
+        "gold.event\n→ public.event",
+        890,
+        230,
+        115,
+        110,
+        "#C9A227",
+        "#FFF9E6",
+    )
     soft_card(
         "norm",
-        "bronze→silver: normalize public fields\nsilver→gold: meeting join · browse/search",
-        645,
+        "bronze_event_youtube → stg_youtube__event → int_youtube__events\n→ gold.event / public.event (video_url for embed)",
+        640,
         360,
-        350,
+        360,
         55,
     )
-    soft_card("store", "Postgres / Neon  ·  public schema API  ·  no YouTube write calls", 645, 430, 350, 55)
+    soft_card(
+        "store",
+        "FastAPI reads public.event  ·  no YouTube write calls",
+        640,
+        430,
+        360,
+        55,
+    )
 
     # Serving inside platform
     dashed_group("serve", "Serving", 1040, 190, 280, 340)
