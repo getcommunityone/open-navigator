@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # dbt Quick Reference
 
-## 🚀 Common Commands
+## Common Commands
 
 ### Running Models
 
@@ -83,7 +83,7 @@ dbt deps
 dbt deps --upgrade
 ```
 
-## 🎯 Useful Flags
+## Useful Flags
 
 ```bash
 # Run with specific target (dev/prod)
@@ -102,7 +102,7 @@ dbt run --fail-fast
 dbt run --debug
 ```
 
-## 🔍 Selection Syntax
+## Selection Syntax
 
 ```bash
 # Model name
@@ -111,7 +111,7 @@ dbt run --select my_model
 # Model and downstream
 dbt run --select my_model+
 
-# Model and upstream  
+# Model and upstream
 dbt run --select +my_model
 
 # Model and both directions
@@ -136,44 +136,44 @@ dbt run --select model_a model_b
 dbt run --select staging,tag:daily
 ```
 
-## 📊 Model Configuration
+## Model Configuration
 
 ```sql
 -- In .sql file
 {{
-    config(
-        materialized='incremental',
-        unique_key='id',
-        on_schema_change='sync_all_columns',
-        tags=['daily'],
-        enabled=true
-    )
+ config(
+ materialized='incremental',
+ unique_key='id',
+ on_schema_change='sync_all_columns',
+ tags=['daily'],
+ enabled=true
+ )
 }}
 ```
 
 ```yaml
 # In .yml file
 models:
-  - name: my_model
-    config:
-      materialized: table
-      tags: ['hourly']
+ - name: my_model
+ config:
+ materialized: table
+ tags: ['hourly']
 ```
 
-## 🧪 Test Examples
+## Test Examples
 
 ```yaml
 # Schema tests in .yml
 columns:
-  - name: id
-    tests:
-      - unique
-      - not_null
-      - relationships:
-          to: ref('other_table')
-          field: id
-      - accepted_values:
-          values: ['a', 'b', 'c']
+ - name: id
+ tests:
+ - unique
+ - not_null
+ - relationships:
+ to: ref('other_table')
+ field: id
+ - accepted_values:
+ values: ['a', 'b', 'c']
 ```
 
 ```sql
@@ -183,7 +183,7 @@ SELECT * FROM {{ ref('my_model') }}
 WHERE invalid_condition
 ```
 
-## 🔄 Incremental Strategies
+## Incremental Strategies
 
 ```sql
 -- Append (default)
@@ -191,34 +191,34 @@ WHERE invalid_condition
 
 -- Delete + insert
 {{
-    config(
-        materialized='incremental',
-        unique_key='id',
-        incremental_strategy='delete+insert'
-    )
+ config(
+ materialized='incremental',
+ unique_key='id',
+ incremental_strategy='delete+insert'
+ )
 }}
 
 -- Merge (upsert)
 {{
-    config(
-        materialized='incremental',
-        unique_key='id',
-        incremental_strategy='merge'
-    )
+ config(
+ materialized='incremental',
+ unique_key='id',
+ incremental_strategy='merge'
+ )
 }}
 ```
 
-## 📝 Jinja Snippets
+## Jinja Snippets
 
 ```sql
 -- Conditional logic
 {% if is_incremental() %}
-    WHERE updated_at > (SELECT MAX(updated_at) FROM {{ this }})
+ WHERE updated_at > (SELECT MAX(updated_at) FROM {{ this }})
 {% endif %}
 
 -- Loop
 {% for column in ['a', 'b', 'c'] %}
-    {{ column }},
+ {{ column }},
 {% endfor %}
 
 -- Reference model
@@ -234,19 +234,19 @@ WHERE invalid_condition
 {{ my_macro(argument) }}
 ```
 
-## 🛠️ Macros
+## Macros
 
 ```sql
 -- Define macro in macros/
 {% macro cents_to_dollars(column_name, scale=2) %}
-    ({{ column_name }} / 100)::numeric(16, {{ scale }})
+ ({{ column_name }} / 100)::numeric(16, {{ scale }})
 {% endmacro %}
 
 -- Use in model
 SELECT {{ cents_to_dollars('price_cents') }} as price_dollars
 ```
 
-## 📋 Project Setup
+## Project Setup
 
 ```bash
 # Initialize new project
@@ -259,10 +259,10 @@ dbt deps
 dbt debug
 
 # Run project
-dbt build  # Run + test everything
+dbt build # Run + test everything
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ```bash
 # Clear compiled files
@@ -278,12 +278,12 @@ dbt compile --select my_model
 dbt parse
 ```
 
-## 🎨 Common Patterns
+## Common Patterns
 
 ### Safe column selection
 ```sql
 SELECT
-    {{ dbt_utils.star(from=ref('my_table'), except=['sensitive_column']) }}
+ {{ dbt_utils.star(from=ref('my_table'), except=['sensitive_column']) }}
 FROM {{ ref('my_table') }}
 ```
 
@@ -295,16 +295,16 @@ FROM {{ ref('my_table') }}
 ### Union tables
 ```sql
 {{ dbt_utils.union_relations(
-    relations=[ref('table1'), ref('table2')]
+ relations=[ref('table1'), ref('table2')]
 ) }}
 ```
 
 ### Pivot
 ```sql
 {{ dbt_utils.pivot(
-    column='status',
-    values=['pending', 'approved', 'rejected'],
-    agg='sum',
-    then_value='amount'
+ column='status',
+ values=['pending', 'approved', 'rejected'],
+ agg='sum',
+ then_value='amount'
 ) }}
 ```

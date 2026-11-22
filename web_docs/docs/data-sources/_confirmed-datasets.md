@@ -1,6 +1,6 @@
-# ✅ CONFIRMED: Existing URL Datasets You Should Use
+# Yes CONFIRMED: Existing URL Datasets You Should Use
 
-## 🎯 Summary: You're Right to Ask!
+## Summary: You're Right to Ask!
 
 **Current approach**: Matching 85,302 Census jurisdictions → 76 URLs (15% match rate)
 
@@ -8,17 +8,17 @@
 
 ---
 
-## 🏆 TOP PRIORITY: LocalView Dataset
+## TOP PRIORITY: LocalView Dataset
 
-**Website**: https://www.localview.net  
-**Dataset**: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NJTBEM  
+**Website**: https://www.localview.net
+**Dataset**: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NJTBEM
 **Paper**: https://www.nature.com/articles/s41597-023-02044-y
 
 ### What They Have:
-✅ "Largest known database of local government public meetings"  
-✅ Continuously collected automated pipeline  
-✅ **Publicly downloadable** on Harvard Dataverse  
-✅ Covers meetings nationwide  
+Yes "Largest known database of local government public meetings"
+Yes Continuously collected automated pipeline
+Yes **Publicly downloadable** on Harvard Dataverse
+Yes Covers meetings nationwide
 
 ### What You Get:
 - Municipality/jurisdiction names
@@ -27,7 +27,7 @@
 - Possibly transcripts
 - Metadata about each jurisdiction
 
-### 🔥 ACTION: Download This First
+### ACTION: Download This First
 ```bash
 # 1. Visit: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NJTBEM
 # 2. Download the dataset files (likely CSV/JSON)
@@ -39,7 +39,7 @@
 
 ---
 
-## 🏆 SECOND PRIORITY: Council Data Project URLs
+## SECOND PRIORITY: Council Data Project URLs
 
 **Website**: https://councildataproject.org
 
@@ -72,20 +72,20 @@
 - Legislation tracking
 - These are **premium jurisdictions** (large cities, high value for oral health advocacy)
 
-### 🔥 ACTION: Extract CDP URLs
+### ACTION: Extract CDP URLs
 ```text
 # Python code - Each CDP deployment has a GitHub repo with config
 # Example: https://github.com/CouncilDataProject/seattle
 # Config file contains the source URLs for that jurisdiction
 
 cdp_jurisdictions = [
-    {
-        "name": "Seattle",
-        "state": "WA",
-        "cdp_url": "https://councildataproject.org/seattle",
-        "source_repo": "https://github.com/CouncilDataProject/seattle"
-    },
-    # ... (all 20+)
+ {
+ "name": "Seattle",
+ "state": "WA",
+ "cdp_url": "https://councildataproject.org/seattle",
+ "source_repo": "https://github.com/CouncilDataProject/seattle"
+ },
+ # ... (all 20+)
 ]
 ```
 
@@ -93,9 +93,9 @@ cdp_jurisdictions = [
 
 ---
 
-## 🔍 THIRD PRIORITY: Legistar Subdomain Enumeration
+## THIRD PRIORITY: Legistar Subdomain Enumeration
 
-**Why**: Legistar is used by 1,000+ municipalities  
+**Why**: Legistar is used by 1,000+ municipalities
 **Pattern**: `{{city}}.legistar.com` or `{{city}}-{{state}}.legistar.com`
 
 ### Known Legistar Cities (Examples):
@@ -105,15 +105,15 @@ cdp_jurisdictions = [
 - boston.legistar.com
 - phoenix.legistar.com
 
-### 🔥 ACTION: Enumerate Legistar Subdomains
+### ACTION: Enumerate Legistar Subdomains
 ```text
 # Try common city names against legistar.com
 # Or use DNS enumeration tools
 
 legistar_pattern_tests = [
-    f"{{city.lower()}}.legistar.com",
-    f"{{city.lower()}}-{{state.lower()}}.legistar.com",
-    f"{{city.lower()}}{{state.lower()}}.legistar.com"
+ f"{{city.lower()}}.legistar.com",
+ f"{{city.lower()}}-{{state.lower()}}.legistar.com",
+ f"{{city.lower()}}{{state.lower()}}.legistar.com"
 ]
 
 # Test against our 85,302 jurisdictions
@@ -124,19 +124,19 @@ legistar_pattern_tests = [
 
 ---
 
-## 📊 FOURTH PRIORITY: City Scrapers Jurisdiction Lists
+## FOURTH PRIORITY: City Scrapers Jurisdiction Lists
 
-**Website**: https://cityscrapers.org  
+**Website**: https://cityscrapers.org
 **GitHub**: https://github.com/city-scrapers
 
 ### Known City Scrapers Deployments:
 1. **Chicago** → ~100 agencies/boards
-   - City Council
-   - Board of Education
-   - Housing Authority
-   - Board of Health
-   - Planning Commission
-   - etc.
+ - City Council
+ - Board of Education
+ - Housing Authority
+ - Board of Health
+ - Planning Commission
+ - etc.
 
 2. **Pittsburgh** → https://github.com/city-scrapers/city-scrapers-pitt
 
@@ -151,7 +151,7 @@ legistar_pattern_tests = [
 - Multiple agencies per city
 - URLs already validated (they're actively scraped)
 
-### 🔥 ACTION: Extract City Scrapers URLs
+### ACTION: Extract City Scrapers URLs
 ```bash
 # Clone City Scrapers repos
 git clone https://github.com/city-scrapers/city-scrapers.git
@@ -168,7 +168,7 @@ cd city-scrapers
 
 ---
 
-## 📋 FIFTH PRIORITY: Councilmatic Deployments
+## FIFTH PRIORITY: Councilmatic Deployments
 
 **GitHub**: https://github.com/datamade
 
@@ -189,9 +189,9 @@ cd city-scrapers
 
 ---
 
-## ❌ NOT USEFUL: HuggingFace
+## No NOT USEFUL: HuggingFace
 
-**Search Results**: 
+**Search Results**:
 - 0 results for "council meetings"
 - 1 result for "local government" (Korean ordinances, not US)
 
@@ -199,62 +199,62 @@ cd city-scrapers
 
 ---
 
-## 🎯 REVISED STRATEGY
+## REVISED STRATEGY
 
 ### Phase 1: Download Existing Datasets (HIGHEST ROI)
-**Timeline**: 1-2 days  
+**Timeline**: 1-2 days
 **Expected URLs**: 2,000-10,000+
 
-1. ✅ **Download LocalView dataset** (Harvard Dataverse)
-   - Likely the single best source
-   - Probably has 1,000-10,000 jurisdictions
-   
-2. ✅ **Extract CDP deployment URLs** (20 jurisdictions)
-   - Premium quality data
-   - Full pipelines already built
-   
-3. ✅ **Clone City Scrapers repos** (100-500 agencies)
-   - Extract URLs from spider files
-   - Multiple agencies per city
+1. Yes **Download LocalView dataset** (Harvard Dataverse)
+ - Likely the single best source
+ - Probably has 1,000-10,000 jurisdictions
 
-4. ✅ **List Councilmatic instances** (6-10 cities)
-   - Major city councils
+2. Yes **Extract CDP deployment URLs** (20 jurisdictions)
+ - Premium quality data
+ - Full pipelines already built
+
+3. Yes **Clone City Scrapers repos** (100-500 agencies)
+ - Extract URLs from spider files
+ - Multiple agencies per city
+
+4. Yes **List Councilmatic instances** (6-10 cities)
+ - Major city councils
 
 **Total from Phase 1**: ~2,000-10,000 URLs
 
 ---
 
 ### Phase 2: Platform Enumeration
-**Timeline**: 1 week  
+**Timeline**: 1 week
 **Expected URLs**: 1,000-3,000
 
-1. ✅ Enumerate Legistar subdomains
-   - Test all 85,302 jurisdiction names against legistar.com
-   - Pattern: {{city}}.legistar.com
-   
-2. ✅ Scrape Granicus client list
-   - Check granicus.com website for clients
-   
-3. ✅ Scrape CivicPlus client list
+1. Yes Enumerate Legistar subdomains
+ - Test all 85,302 jurisdiction names against legistar.com
+ - Pattern: {{city}}.legistar.com
 
-4. ✅ Scrape Municode directory
+2. Yes Scrape Granicus client list
+ - Check granicus.com website for clients
+
+3. Yes Scrape CivicPlus client list
+
+4. Yes Scrape Municode directory
 
 **Total from Phase 2**: 1,000-3,000 URLs
 
 ---
 
 ### Phase 3: Census + CISA Matching (Current System)
-**Timeline**: Already built  
+**Timeline**: Already built
 **Expected URLs**: 1,000-2,000 additional
 
 Keep our current system as **fallback** for jurisdictions not covered above.
 
-**Current results**: 76 URLs from 500 tested (15% match rate)  
+**Current results**: 76 URLs from 500 tested (15% match rate)
 **Projected**: ~5,000 URLs if we test all 32,333 municipalities
 
 ---
 
-## 💡 THE BIG INSIGHT
+## THE BIG INSIGHT
 
 **You were absolutely right to ask!**
 
@@ -278,7 +278,7 @@ We should instead:
 
 ---
 
-## 🚀 IMMEDIATE NEXT STEPS
+## IMMEDIATE NEXT STEPS
 
 ### Step 1: Download LocalView Dataset (Do This NOW)
 ```bash
@@ -312,7 +312,7 @@ git clone https://github.com/city-scrapers/city-scrapers.git
 
 ---
 
-## 📊 ROI Comparison
+## ROI Comparison
 
 | Approach | Time Investment | Expected URLs | Success Rate |
 |----------|----------------|---------------|--------------|
@@ -327,7 +327,7 @@ git clone https://github.com/city-scrapers/city-scrapers.git
 
 ---
 
-## ✅ RECOMMENDATION
+## Yes RECOMMENDATION
 
 **Stop trying to match Census names to domains.**
 

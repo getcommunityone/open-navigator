@@ -94,6 +94,7 @@ def _record_policy_event_safe(
     path: Optional[Path] = None,
     error: Optional[str] = None,
     database_url: Optional[str] = None,
+    tier: str = "light",
 ) -> None:
     """Thin best-effort wrapper around ``record_policy_event`` (never raises)."""
     if not (video_id or "").strip():
@@ -108,9 +109,24 @@ def _record_policy_event_safe(
             path=_rel_to_repo(path) if path is not None else None,
             error=error,
             database_url_override=database_url or _database_url(None),
+            tier=tier,
         )
     except Exception as exc:  # tracking must never break the pipeline
         logger.warning("policy event record skipped for {} ({}): {}", video_id, stage, exc)
+
+
+def _analysis_tier(args: Any) -> str:
+    raw = str(getattr(args, "analysis_tier", None) or "light").strip().lower()
+    return "full" if raw == "full" else "light"
+
+
+def _with_tier_suffix(path: Path, tier: str) -> Path:
+    """Full-tier artifacts use ``*_full.json`` / ``*_full.md`` so light files stay intact."""
+    if tier != "full":
+        return path
+    if path.stem.endswith("_full"):
+        return path
+    return path.with_name(f"{path.stem}_full{path.suffix}")
 
 from llm.gemini.agenda_presenter_hints import (  # noqa: E402
     enrich_uncontested_media_anchors,
@@ -455,12 +471,14 @@ def save_transcript_policy_output(
     generation_source: str = "ai_studio_api",
     pipeline: str = "transcript_flash_lite",
     extra_meta: Optional[Dict[str, Any]] = None,
+    analysis_tier: str = "light",
 ) -> Path:
     """Write one Part 1 answer (analysis JSON, report, meta, manifest, bronze stamps).
 
     ``generation_source`` / ``pipeline`` say where the answer came from (the Colab Gemma import passes
     ``colab_hf``); ``extra_meta`` adds keys to the meta (model, backend, quantization, GPU, ...) and may set
-    ``prompt_sha256`` to the hash of the prompt the answer was made with (#511)."""
+    ``prompt_sha256`` to the hash of the prompt the answer was made with (#511).
+    ``analysis_tier`` (``light``|``full``) chooses stamp columns and ``*_full`` filenames (#755)."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     jid = video.jurisdiction_id
     geo = {
@@ -475,12 +493,15 @@ def save_transcript_policy_output(
     prompt_name = prompt_path.stem
     prompt_hash = prompt_file_sha256(prompt_path)
     rel = lambda p: str(p.relative_to(_REPO_ROOT))
+    tier = "full" if (analysis_tier or "light").strip().lower() == "full" else "light"
 
-    analysis_path = analysis_cache_path(
-        output_dir, jid, title=title, event_date=event_date, **geo
+    analysis_path = _with_tier_suffix(
+        analysis_cache_path(output_dir, jid, title=title, event_date=event_date, **geo),
+        tier,
     )
-    report_md_path = report_cache_path(
-        output_dir, jid, title=title, event_date=event_date, **geo
+    report_md_path = _with_tier_suffix(
+        report_cache_path(output_dir, jid, title=title, event_date=event_date, **geo),
+        tier,
     )
     meta_path = run_meta_path(output_dir, jid, title=title, event_date=event_date, **geo)
     diagrams_md_path = run_diagrams_path(
@@ -551,6 +572,7 @@ def save_transcript_policy_output(
             path=analysis_path,
             error=str(analysis_error) if analysis_error else None,
             database_url=database_url,
+            tier=tier,
         )
         # Non-meeting uploads (promos, news segments, etc.) must not stay searchable.
         if analysis_error:
@@ -816,6 +838,7 @@ def run_part2_for_analysis_file(
             stage="report",
             ok=True,
             path=report_path,
+            tier=_analysis_tier(args),
         )
     return report_path
 
@@ -861,6 +884,12 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
         raise SystemExit(f"No output folder: {folder}")
 
     paths = iter_analysis_files(cache_dir, jurisdiction_id, state_code=state_code)
+    tier = _analysis_tier(args)
+    # Full reports only from *_full.json; light reports skip those.
+    if tier == "full":
+        paths = [p for p in paths if p.stem.endswith("_full")]
+    else:
+        paths = [p for p in paths if not p.stem.endswith("_full")]
     video_filter = (args.video_id or "").strip()
     if video_filter:
         from llm.gemini.transcript_cache_paths import resolve_analysis_path
@@ -868,7 +897,11 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
         one = resolve_analysis_path(
             cache_dir, jurisdiction_id, video_id=video_filter, state_code=state_code
         )
-        paths = [one] if one else [p for p in paths if _video_id_from_analysis_path(p) == video_filter]
+        if one is not None:
+            one = _with_tier_suffix(one, tier)
+            paths = [one] if one.is_file() else []
+        else:
+            paths = [p for p in paths if _video_id_from_analysis_path(p) == video_filter]
     if getattr(args, "latest_only", True):
         paths = _dedupe_latest_analysis_per_video(paths)
     if args.limit is not None:
@@ -877,7 +910,7 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
     if not paths:
         raise SystemExit(f"No analysis JSON under {folder} (check 02_analysis/ or legacy flat files)")
 
-    logger.info("Part 2 only: {} analysis file(s)", len(paths))
+    logger.info("Part 2 only (tier={}): {} analysis file(s)", tier, len(paths))
     for i, path in enumerate(paths, 1):
         logger.info("[{}/{}] {}", i, len(paths), path.name)
         try:
@@ -891,6 +924,7 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
                     stage="report",
                     ok=False,
                     error=str(exc),
+                    tier=tier,
                 )
             continue
         except Exception as exc:
@@ -901,6 +935,7 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
                     stage="report",
                     ok=False,
                     error=str(exc),
+                    tier=tier,
                 )
             if args.stop_on_error:
                 raise
@@ -1242,6 +1277,7 @@ def save_part1_response(
         generation_source=generation_source,
         pipeline=pipeline,
         extra_meta=extra_meta,
+        analysis_tier=_analysis_tier(args),
     )
 
 
@@ -1330,12 +1366,20 @@ def process_one_video(
                 )
                 if _db_events_enabled(args):
                     _record_policy_event_safe(
-                        video_id, stage="report", ok=True, path=report_path
+                        video_id,
+                        stage="report",
+                        ok=True,
+                        path=report_path,
+                        tier=_analysis_tier(args),
                     )
             except Exception as exc:
                 if _db_events_enabled(args):
                     _record_policy_event_safe(
-                        video_id, stage="report", ok=False, error=str(exc)
+                        video_id,
+                        stage="report",
+                        ok=False,
+                        error=str(exc),
+                        tier=_analysis_tier(args),
                     )
                 raise
         else:
@@ -1349,6 +1393,7 @@ def process_one_video(
                     stage="report",
                     ok=False,
                     error="Skipped Part 2 — Part 1 JSON invalid",
+                    tier=_analysis_tier(args),
                 )
     return analysis_path
 
@@ -1432,6 +1477,16 @@ def iter_videos_to_analyze(
                 video.video_id,
             )
             continue
+        jev_skip = getattr(args, "_jev_skip_video_ids", None) or set()
+        if video.video_id in jev_skip:
+            logger.info(
+                "[{}/{}] Skip {} — Jev screen below keep threshold "
+                "(--skip-jev-meeting-below / --skip-jev-below)",
+                i,
+                len(videos),
+                video.video_id,
+            )
+            continue
         if getattr(args, "skip_analyzed", False):
             existing = resolve_analysis_path(
                 out_dir,
@@ -1442,13 +1497,26 @@ def iter_videos_to_analyze(
                 state_code=state_code,
                 channel_id=getattr(video, "channel_id", None),
             )
+            tier = _analysis_tier(args)
             if existing is not None:
+                existing = _with_tier_suffix(existing, tier)
+            if existing is not None and existing.is_file():
                 logger.info(
-                    "[{}/{}] Skip {} — analysis exists ({})",
+                    "[{}/{}] Skip {} — {} analysis exists ({})",
                     i,
                     len(videos),
                     video.video_id,
+                    tier,
                     existing.name,
+                )
+                continue
+            allow = getattr(args, "_full_eligible_video_ids", None)
+            if tier == "full" and allow is not None and video.video_id not in allow:
+                logger.info(
+                    "[{}/{}] Skip {} — not eligible for full (filters / need light first)",
+                    i,
+                    len(videos),
+                    video.video_id,
                 )
                 continue
 
@@ -1488,15 +1556,29 @@ def iter_videos_to_analyze(
 def run_pipeline(args: argparse.Namespace) -> None:
     load_dotenv(_REPO_ROOT / ".env")
     newest_n = int(getattr(args, "newest", 0) or 0)
+    tier = _analysis_tier(args)
     if newest_n > 0:
         args.from_bronze = True
         args.limit = newest_n
         args.order_by = "published_at"
         args.use_local_transcript = True
-        args.run_part_2 = True
+        # Split light/full: --newest no longer implies Part 2; shell launches
+        # reports-* with --part-2-only. Opt in with --run-part-2 (#755).
+        if not getattr(args, "run_part_2", False) and not getattr(args, "part_2_only", False):
+            args.run_part_2 = False
         args.only_has_transcript = True
         args.ensure_local_from_bronze = True
         args.skip_analyzed = True
+
+    # Default prompts by tier when the caller left the built-in Part 1 path.
+    prompt_file = Path(getattr(args, "prompt_file", None) or DEFAULT_PROMPT_PART_1)
+    if prompt_file.resolve() == Path(DEFAULT_PROMPT_PART_1).resolve():
+        if tier == "light":
+            lite = _REPO_ROOT / "prompts" / "policy_analysis_lite.md"
+            if lite.is_file():
+                args.prompt_file = lite
+        else:
+            args.prompt_file = DEFAULT_PROMPT_PART_1
 
     # --from-bronze is transcript-driven by default: only analyze rows bronze knows
     # have a transcript. Without this, the batch pulls every video on the channel
@@ -1531,6 +1613,65 @@ def run_pipeline(args: argparse.Namespace) -> None:
         return
 
     speaker_hints, known = load_speaker_context(args, jurisdiction_id)
+
+    # Jev gates (#704): load once per run; unscreened ids are never in these sets.
+    jev_skip: set[str] = set()
+    db_url_for_jev = _database_url(args.database_url or None)
+    if getattr(args, "skip_jev_below", None) is not None and db_url_for_jev:
+        from llm.typesafe.screen_transcripts import jev_skip_video_ids
+
+        decision_skip = jev_skip_video_ids(db_url_for_jev, float(args.skip_jev_below))
+        logger.info(
+            "Jev decisions gate --skip-jev-below {}: {:,} video(s) to skip",
+            args.skip_jev_below,
+            len(decision_skip),
+        )
+        jev_skip |= decision_skip
+    if getattr(args, "skip_jev_meeting_below", None) is not None and db_url_for_jev:
+        from llm.typesafe.screen_transcripts import jev_skip_meeting_video_ids
+
+        meeting_skip = jev_skip_meeting_video_ids(
+            db_url_for_jev, float(args.skip_jev_meeting_below)
+        )
+        logger.info(
+            "Jev meeting-kind gate --skip-jev-meeting-below {}: {:,} video(s) to skip",
+            args.skip_jev_meeting_below,
+            len(meeting_skip),
+        )
+        jev_skip |= meeting_skip
+    args._jev_skip_video_ids = jev_skip
+
+    # Full-tier eligibility (#755): require light stamp + OR of --full-filters.
+    args._full_eligible_video_ids = None
+    if tier == "full" and db_url_for_jev:
+        from llm.gemini.full_analysis_filters import (
+            eligible_full_video_ids,
+            normalize_full_filters,
+        )
+
+        raw_filters = getattr(args, "full_filters", None) or []
+        if isinstance(raw_filters, str):
+            raw_filters = [p.strip() for p in raw_filters.split(",") if p.strip()]
+        filters = normalize_full_filters(raw_filters)
+        if not filters:
+            raise SystemExit(
+                "Full analysis requires --full-filters (e.g. has_decisions,interestingness)"
+            )
+        # Candidate pool = this jurisdiction's bronze videos (filtered after fetch).
+        preview = select_bronze_videos(args, jurisdiction_id, newest_n=newest_n)
+        args._full_eligible_video_ids = eligible_full_video_ids(
+            db_url_for_jev,
+            [v.video_id for v in preview],
+            filters,
+            require_light=True,
+            require_full_analysis=False,
+        )
+        logger.info(
+            "Full filters {}: {:,} eligible of {:,} candidate video(s)",
+            ",".join(filters),
+            len(args._full_eligible_video_ids),
+            len(preview),
+        )
 
     if args.from_bronze:
         videos = select_bronze_videos(args, jurisdiction_id, newest_n=newest_n)
@@ -1659,6 +1800,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip videos that already have 02_analysis/*_analysis.json",
     )
     parser.add_argument(
+        "--skip-jev-below",
+        type=float,
+        default=None,
+        metavar="P",
+        help="Skip videos whose Jev has_decisions_p is below P (unscreened never skipped)",
+    )
+    parser.add_argument(
+        "--skip-jev-meeting-below",
+        type=float,
+        default=None,
+        metavar="T",
+        help="Skip videos whose Jev keep-score P(government_meeting)+P(town_hall) "
+        "is below T (default for data_centers launches: 0.6; unscreened never skipped)",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -1773,6 +1929,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Don't attach scraped agenda/minutes PDF text (bronze_meeting_document_text, "
         "matched by geoid+date) as supporting context for the analysis (default: attach).",
+    )
+    parser.add_argument(
+        "--analysis-tier",
+        choices=("light", "full"),
+        default=os.getenv("ANALYZE_TIER", "light") or "light",
+        help="light = lite prompt + policy_analysis_* stamps; full = deep Part 1 + "
+        "policy_*_full_* stamps and *_full.json (#755). Env ANALYZE_TIER.",
+    )
+    parser.add_argument(
+        "--full-filters",
+        default=os.getenv("FULL_FILTERS", "") or "",
+        help="Comma-separated eligibility keys for --analysis-tier full "
+        "(has_decisions,interestingness,data_center). OR semantics. Env FULL_FILTERS.",
     )
     parser.add_argument(
         "--run-part-2",

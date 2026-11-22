@@ -6,7 +6,7 @@ sidebar_position: 12
 
 This guide walks you through renaming your GitHub repository to "open-navigator-for-engagement" and making it public.
 
-## 📋 Pre-Flight Checklist
+## Pre-Flight Checklist
 
 Before you begin:
 - [ ] Commit and push all local changes
@@ -14,7 +14,7 @@ Before you begin:
 - [ ] Ensure you have admin access to the repository
 - [ ] Review what will be made public
 
-## 🔄 Step 1: Rename Repository on GitHub
+## Step 1: Rename Repository on GitHub
 
 ### Option A: Via GitHub Web Interface (Recommended)
 
@@ -24,7 +24,7 @@ Before you begin:
 4. **Change name to:** `open-navigator-for-engagement`
 5. **Click "Rename"** button
 
-**✅ GitHub automatically:**
+**Yes GitHub automatically:**
 - Redirects old URL to new URL
 - Updates all clone URLs
 - Preserves issues, PRs, stars, watchers
@@ -33,8 +33,8 @@ Before you begin:
 
 ```bash
 # Install GitHub CLI if not already installed
-# sudo apt install gh  # Linux
-# brew install gh      # macOS
+# sudo apt install gh # Linux
+# brew install gh # macOS
 
 # Authenticate
 gh auth login
@@ -43,7 +43,7 @@ gh auth login
 gh repo rename open-navigator-for-engagement
 ```
 
-## 🌍 Step 2: Make Repository Public
+## Step 2: Make Repository Public
 
 ### Option A: Via GitHub Web Interface
 
@@ -60,14 +60,14 @@ gh repo rename open-navigator-for-engagement
 gh repo edit --visibility public
 ```
 
-## ⚠️ Important: Review Before Making Public
+## Warning Important: Review Before Making Public
 
 **Things that will become public:**
-- ✅ All code and commit history
-- ✅ All issues and pull requests
-- ✅ All releases and tags
-- ✅ Wiki pages
-- ✅ GitHub Actions workflows
+- Yes All code and commit history
+- Yes All issues and pull requests
+- Yes All releases and tags
+- Yes Wiki pages
+- Yes GitHub Actions workflows
 
 **Check for sensitive data:**
 ```bash
@@ -104,7 +104,7 @@ credentials.json
 config/local.py
 ```
 
-## 🔗 Step 3: Update Local Repository
+## Step 3: Update Local Repository
 
 After renaming on GitHub:
 
@@ -124,11 +124,11 @@ git remote -v
 git fetch
 
 # Output should show:
-# origin  https://github.com/getcommunityone/open-navigator-for-engagement.git (fetch)
-# origin  https://github.com/getcommunityone/open-navigator-for-engagement.git (push)
+# origin https://github.com/getcommunityone/open-navigator-for-engagement.git (fetch)
+# origin https://github.com/getcommunityone/open-navigator-for-engagement.git (push)
 ```
 
-## 📝 Step 4: Update Code References
+## Step 4: Update Code References
 
 Run the provided script to update all repository URLs in your code:
 
@@ -160,7 +160,7 @@ Key files to check:
 4. **agents/scraper.py** - User-Agent string
 5. **package.json** (if exists) - Repository field
 
-## 🎯 Step 5: Update External Services (If Applicable)
+## Step 5: Update External Services (If Applicable)
 
 If you're using external services, update them:
 
@@ -170,7 +170,7 @@ If you're using external services, update them:
 - **Badges**: Update markdown badge URLs
 - **Documentation links**: Already handled by script
 
-## ✅ Verification Checklist
+## Yes Verification Checklist
 
 After completing all steps:
 
@@ -184,7 +184,7 @@ After completing all steps:
 - [ ] Documentation links work
 - [ ] No sensitive data exposed
 
-## 🔍 Test the New Repository
+## Test the New Repository
 
 ```bash
 # Clone from new URL (in a different directory)
@@ -201,7 +201,7 @@ cd ..
 rm -rf open-navigator-for-engagement
 ```
 
-## 🎉 Post-Rename Actions
+## Post-Rename Actions
 
 ### Update Social & Marketing
 
@@ -216,13 +216,13 @@ rm -rf open-navigator-for-engagement
 Make your repository discoverable:
 
 1. **Add Topics** (on GitHub):
-   - civic-tech
-   - open-data
-   - government-transparency
-   - advocacy
-   - policy-analysis
-   - municipal-data
-   - nonprofit-data
+ - civic-tech
+ - open-data
+ - government-transparency
+ - advocacy
+ - policy-analysis
+ - municipal-data
+ - nonprofit-data
 
 2. **Add Description**: "AI-powered platform analyzing municipal meetings and budgets across U.S. cities, counties and school districts to identify advocacy opportunities"
 
@@ -232,7 +232,7 @@ Make your repository discoverable:
 
 5. **Add License Badge** to README (already has MIT badge)
 
-## 📚 Documentation Updates
+## Documentation Updates
 
 The script automatically updates:
 - All README files
@@ -241,29 +241,29 @@ The script automatically updates:
 - Documentation pages
 - Issue templates
 
-## 🔒 Security Considerations
+## Security Considerations
 
 **After making public:**
 
 1. **Enable Security Features**:
-   - Go to Settings → Security
-   - Enable Dependabot alerts
-   - Enable Dependabot security updates
-   - Enable Code scanning (if applicable)
+ - Go to Settings → Security
+ - Enable Dependabot alerts
+ - Enable Dependabot security updates
+ - Enable Code scanning (if applicable)
 
 2. **Add SECURITY.md**:
-   ```markdown
-   # Security Policy
-   
-   ## Reporting a Vulnerability
-   
-   Please report security vulnerabilities to: johnbowyer@communityone.com
-   ```
+ ```markdown
+ # Security Policy
+
+ ## Reporting a Vulnerability
+
+ Please report security vulnerabilities to: johnbowyer@communityone.com
+ ```
 
 3. **Review Branch Protection**:
-   - Protect main branch
-   - Require pull request reviews
-   - Require status checks
+ - Protect main branch
+ - Require pull request reviews
+ - Require status checks
 
 ## 🆘 Troubleshooting
 
@@ -289,19 +289,19 @@ git remote set-url origin https://github.com/getcommunityone/open-navigator-for-
 2. **Rotate secrets**: Change any exposed API keys, tokens, passwords
 3. **Contact GitHub Support**: For complete removal assistance
 
-## 📞 Support
+## Support
 
 - **GitHub Renaming Docs**: https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository
 - **Making Public**: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility
 
-## ✨ Success!
+## Success!
 
 Your repository is now:
-- ✅ Renamed to `open-navigator-for-engagement`
-- ✅ Publicly accessible
-- ✅ All references updated
-- ✅ Ready for community contributions
+- Yes Renamed to `open-navigator-for-engagement`
+- Yes Publicly accessible
+- Yes All references updated
+- Yes Ready for community contributions
 
 **New Repository URL**: https://github.com/getcommunityone/open-navigator-for-engagement
 
-Welcome to open source! 🎉
+Welcome to open source!

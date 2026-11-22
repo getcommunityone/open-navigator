@@ -35,29 +35,29 @@ Opens at `http://localhost:3000` with the new impact-focused interface.
 
 Click a persona card to see targeted impact:
 
-#### 🏠 Parent → Student Dental Health
+#### Parent → Student Dental Health
 **Shows:** "The Learning Barrier Map"
 - Left: School map with dental pain absence rates (red = high)
 - Right: Veto chain flowchart (1,200 petitions → blocked by 1 memo)
 - Bottom: Key fact (0 liability suits in 35 states with programs)
 
-#### 📢 Advocate → Transparency & Vetoes
+#### Advocate → Transparency & Vetoes
 **Shows:** "The Influence Radar"
 - Who has veto power
 - Public input vs bureaucratic influence
 - Name the blocker directly
 
-#### 🚰 Resident → Water & Infrastructure
+#### Resident → Water & Infrastructure
 **Shows:** "The Lifetime Health Tax"
 - Coming soon (template provided)
 
 ### 3. Browse by Topic (Filterable View)
 
 **Primary Navigation (Topic/Domain):**
-- ✅ Public Health (Dental, Water, Mental Health)
-- 📚 Education & Youth (School Board, Pre-K)
-- 🏗️ Infrastructure (Roads, Utilities, Construction)
-- 🚨 Public Safety (Police, Fire, EMS)
+- Yes Public Health (Dental, Water, Mental Health)
+- Education & Youth (School Board, Pre-K)
+- Infrastructure (Roads, Utilities, Construction)
+- Public Safety (Police, Fire, EMS)
 
 **Secondary Filters (Pattern):**
 - [ ] Technocratic Veto (legal/risk managers blocking)
@@ -143,7 +143,7 @@ Example:
 ```javascript
 // In ImpactDashboard.jsx
 if (persona === 'business-owner' && topic === 'economic-development') {
-  return <EconomicImpactStory />;
+ return <EconomicImpactStory />;
 }
 ```
 
@@ -157,11 +157,11 @@ Edit `src/components/HomePage.jsx`:
 
 ```javascript
 // Update "City Pulse" numbers
-Capital Projects: $28M  // Change this
-Health: $2.4M           // And this
+Capital Projects: $28M // Change this
+Health: $2.4M // And this
 
 // Update accountability alert
-West Alabama Dental Clinic... 152 consecutive days  // Update days
+West Alabama Dental Clinic... 152 consecutive days // Update days
 ```
 
 ### Add New Topics
@@ -170,8 +170,8 @@ Edit `src/components/TopicNavigation.jsx`:
 
 ```javascript
 const topics = [
-  { id: 'environment', label: 'Environment', sublabel: 'Parks, Recycling', color: '#2C7A7B' },
-  // Add more...
+ { id: 'environment', label: 'Environment', sublabel: 'Parks, Recycling', color: '#2C7A7B' },
+ // Add more...
 ];
 ```
 
@@ -179,8 +179,8 @@ const topics = [
 
 ```javascript
 const patterns = [
-  { id: 'grant-chasing', label: 'Grant Chasing', description: 'Decisions driven by available grants' },
-  // Add more...
+ { id: 'grant-chasing', label: 'Grant Chasing', description: 'Decisions driven by available grants' },
+ // Add more...
 ];
 ```
 
@@ -213,17 +213,17 @@ const patterns = [
 
 ```
 src/components/
-├── HomePage.jsx              # Landing page with personas
-├── ImpactDashboard.jsx       # Impact stories by persona
-├── TopicNavigation.jsx       # Topic/pattern/resource filters
-├── WordsVsDollars.jsx        # Original dashboards (still available)
-├── EndlessStudyLoop.jsx      
-├── WhereMoneyWent.jsx        
-├── WhoIsInCharge.jsx         
+├── HomePage.jsx # Landing page with personas
+├── ImpactDashboard.jsx # Impact stories by persona
+├── TopicNavigation.jsx # Topic/pattern/resource filters
+├── WordsVsDollars.jsx # Original dashboards (still available)
+├── EndlessStudyLoop.jsx
+├── WhereMoneyWent.jsx
+├── WhoIsInCharge.jsx
 └── shared/
-    ├── FilterPanel.jsx       # Legacy search/filter
-    ├── DecisionCard.jsx      # Individual decision cards
-    └── DashboardTile.jsx     # Tile-based navigation
+ ├── FilterPanel.jsx # Legacy search/filter
+ ├── DecisionCard.jsx # Individual decision cards
+ └── DashboardTile.jsx # Tile-based navigation
 ```
 
 ### State Management
@@ -232,9 +232,9 @@ src/components/
 viewMode: 'home' | 'impact' | 'browse' | 'dashboards' | 'decisions'
 selectedPersona: 'parent' | 'advocate' | 'resident' | null
 selectedTopic: string | null
-selectedTopics: string[]      // Filter by domain
-selectedPatterns: string[]    // Filter by pattern
-selectedResources: string[]   // Filter by resource type
+selectedTopics: string[] // Filter by domain
+selectedPatterns: string[] // Filter by pattern
+selectedResources: string[] // Filter by resource type
 ```
 
 ---
@@ -254,14 +254,14 @@ npm install leaflet react-leaflet
 import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 
 <MapContainer center={[33.2098, -87.5692]} zoom={12}>
-  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-  {schools.map(school => (
-    <CircleMarker
-      center={[school.lat, school.lng]}
-      radius={school.dentalPainRate * 10}
-      color={school.dentalPainRate > 0.4 ? 'red' : 'blue'}
-    />
-  ))}
+ <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+ {schools.map(school => (
+ <CircleMarker
+ center={[school.lat, school.lng]}
+ radius={school.dentalPainRate * 10}
+ color={school.dentalPainRate > 0.4 ? 'red' : 'blue'}
+ />
+ ))}
 </MapContainer>
 ```
 
@@ -283,7 +283,7 @@ Link to actual budget documents:
 
 ```javascript
 <a href="/budgets/fy2026-tuscaloosa.pdf" download>
-  Download FY2026 Budget
+ Download FY2026 Budget
 </a>
 ```
 
@@ -294,9 +294,9 @@ For the "Accountability Alert":
 ```javascript
 // Auto-scroll through multiple alerts
 const alerts = [
-  "Dental clinic: 152 days",
-  "Water quality study: 89 days",
-  // ...
+ "Dental clinic: 152 days",
+ "Water quality study: 89 days",
+ // ...
 ];
 
 // Rotate every 5 seconds

@@ -8,9 +8,9 @@ This migration creates bronze tables for `event` and `events_text_search` (renam
 
 ```
 Bronze Layer (open_navigator_bronze)
-    ↓
+ ↓
 Staging Layer (dbt views with cleaning/validation)
-    ↓
+ ↓
 Marts Layer (dbt tables - production-ready)
 ```
 
@@ -19,56 +19,56 @@ Marts Layer (dbt tables - production-ready)
 ### Database Migrations
 
 1. **003_create_bronze_event.sql**
-   - Creates `bronze_event` table in `open_navigator_bronze` database
-   - Stores raw meeting events from LocalView, YouTube, Legistar, etc.
-   - Includes all fields from current production `event`
-   - Tracks data source (`source`, `datasource_id` columns)
+ - Creates `bronze_event` table in `open_navigator_bronze` database
+ - Stores raw meeting events from LocalView, YouTube, Legistar, etc.
+ - Includes all fields from current production `event`
+ - Tracks data source (`source`, `datasource_id` columns)
 
 2. **004_create_bronze_event_youtube_transcript.sql**
-   - Creates `bronze_event_youtube_transcript` table in `open_navigator_bronze` database
-   - Stores video transcripts and AI-extracted text
-   - Replaces production `events_text_search` table
-   - Includes quality flags and AI model tracking
+ - Creates `bronze_event_youtube_transcript` table in `open_navigator_bronze` database
+ - Stores video transcripts and AI-extracted text
+ - Replaces production `events_text_search` table
+ - Includes quality flags and AI model tracking
 
 ### dbt Staging Models
 
 3. **stg_bronze_event.sql**
-   - Staging view applying basic cleaning to bronze events
-   - Normalizes state codes (UPPER), cities (INITCAP)
-   - Adds quality flags: `missing_title`, `missing_date`, `missing_state`, `video_missing_channel`
-   - Filters out events without title or date
+ - Staging view applying basic cleaning to bronze events
+ - Normalizes state codes (UPPER), cities (INITCAP)
+ - Adds quality flags: `missing_title`, `missing_date`, `missing_state`, `video_missing_channel`
+ - Filters out events without title or date
 
 4. **stg_bronze_event_youtube_transcript.sql**
-   - Staging view cleaning video transcripts
-   - Calculates `word_count` and `transcript_length`
-   - Adds quality flags: `missing_transcript`, `very_short_transcript`, `missing_segments`
-   - Filters out transcripts &lt;100 characters
+ - Staging view cleaning video transcripts
+ - Calculates `word_count` and `transcript_length`
+ - Adds quality flags: `missing_transcript`, `very_short_transcript`, `missing_segments`
+ - Filters out transcripts &lt;100 characters
 
 ### dbt Mart Models (Production)
 
 5. **event.sql**
-   - Production-ready events table (replaces current `event`)
-   - **Deduplicates by video_url** (keeps most recent)
-   - Applies quality filters
-   - Compatible with current API schema
+ - Production-ready events table (replaces current `event`)
+ - **Deduplicates by video_url** (keeps most recent)
+ - Applies quality filters
+ - Compatible with current API schema
 
 6. **events_text_search.sql**
-   - Production-ready transcripts table (replaces current `events_text_search`)
-   - Joins to `event` to get `event_id`
-   - **Deduplicates by video_id** (keeps highest quality)
-   - Quality scoring: prefers manual transcripts, then by word count
+ - Production-ready transcripts table (replaces current `events_text_search`)
+ - Joins to `event` to get `event_id`
+ - **Deduplicates by video_id** (keeps highest quality)
+ - Quality scoring: prefers manual transcripts, then by word count
 
 ### Configuration Files
 
 7. **dbt_project/models/staging/_staging.yml**
-   - Added `bronze_event` source definition
-   - Added `bronze_event_youtube_transcript` source definition
-   - Added `stg_bronze_event` model documentation
-   - Added `stg_bronze_event_youtube_transcript` model documentation
+ - Added `bronze_event` source definition
+ - Added `bronze_event_youtube_transcript` source definition
+ - Added `stg_bronze_event` model documentation
+ - Added `stg_bronze_event_youtube_transcript` model documentation
 
 8. **dbt_project/models/marts/_marts.yml**
-   - Added `event` model documentation
-   - Added `events_text_search` model documentation
+ - Added `event` model documentation
+ - Added `events_text_search` model documentation
 
 ## Migration Steps
 
@@ -77,11 +77,11 @@ Marts Layer (dbt tables - production-ready)
 ```bash
 # Create bronze_event table
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f packages/hosting/scripts/neon/migrations/003_create_bronze_event.sql
+ -f packages/hosting/scripts/neon/migrations/003_create_bronze_event.sql
 
 # Create bronze_event_youtube_transcript table
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f packages/hosting/scripts/neon/migrations/004_create_bronze_event_youtube_transcript.sql
+ -f packages/hosting/scripts/neon/migrations/004_create_bronze_event_youtube_transcript.sql
 ```
 
 ### Step 2: Import Foreign Tables
@@ -90,8 +90,8 @@ psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
 # In open_navigator database, import bronze tables via FDW
 psql -h localhost -p 5433 -U postgres -d open_navigator -c "
 IMPORT FOREIGN SCHEMA public
-    LIMIT TO (bronze_event, bronze_event_youtube_transcript)
-    FROM SERVER bronze_server INTO bronze;
+ LIMIT TO (bronze_event, bronze_event_youtube_transcript)
+ FROM SERVER bronze_server INTO bronze;
 "
 ```
 
@@ -101,23 +101,23 @@ IMPORT FOREIGN SCHEMA public
 # Copy 100 sample events from production to bronze for testing
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze -c "
 INSERT INTO bronze_event (
-    title, description, event_date, event_time,
-    jurisdiction_id, jurisdiction_name, jurisdiction_type,
-    state_code, state, city, location, meeting_type, status,
-    agenda_url, minutes_url, video_url,
-    channel_id, channel_url, channel_type,
-    view_count, duration_minutes, like_count, language,
-    source, datasource_id
+ title, description, event_date, event_time,
+ jurisdiction_id, jurisdiction_name, jurisdiction_type,
+ state_code, state, city, location, meeting_type, status,
+ agenda_url, minutes_url, video_url,
+ channel_id, channel_url, channel_type,
+ view_count, duration_minutes, like_count, language,
+ source, datasource_id
 )
-SELECT 
-    event_title, event_description, event_date, event_time,
-    jurisdiction_id, jurisdiction_name, jurisdiction_type,
-    state_code, state, city, location, meeting_type, status,
-    agenda_url, minutes_url, video_url,
-    channel_id, channel_url, channel_type,
-    view_count, duration_minutes, like_count, language,
-    COALESCE(source, 'unknown') AS source,
-    CAST(event_id AS VARCHAR) AS datasource_id
+SELECT
+ event_title, event_description, event_date, event_time,
+ jurisdiction_id, jurisdiction_name, jurisdiction_type,
+ state_code, state, city, location, meeting_type, status,
+ agenda_url, minutes_url, video_url,
+ channel_id, channel_url, channel_type,
+ view_count, duration_minutes, like_count, language,
+ COALESCE(source, 'unknown') AS source,
+ CAST(event_id AS VARCHAR) AS datasource_id
 FROM open_navigator.public.event
 ORDER BY event_date DESC
 LIMIT 100;
@@ -126,14 +126,14 @@ LIMIT 100;
 # Copy sample transcripts
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze -c "
 INSERT INTO bronze_event_youtube_transcript (
-    event_id, video_id, raw_text, segments,
-    language, is_auto_generated, transcript_source,
-    has_transcript, created_at
+ event_id, video_id, raw_text, segments,
+ language, is_auto_generated, transcript_source,
+ has_transcript, created_at
 )
-SELECT 
-    event_id, video_id, raw_text, segments,
-    language, is_auto_generated, transcript_source,
-    TRUE AS has_transcript, created_at
+SELECT
+ event_id, video_id, raw_text, segments,
+ language, is_auto_generated, transcript_source,
+ TRUE AS has_transcript, created_at
 FROM open_navigator.public.events_text_search
 LIMIT 100;
 "
@@ -158,31 +158,31 @@ dbt test --select event events_text_search
 
 ```sql
 -- Check events count
-SELECT 
-    'bronze_event' AS table_name, 
-    COUNT(*) 
+SELECT
+ 'bronze_event' AS table_name,
+ COUNT(*)
 FROM bronze.bronze_event
 UNION ALL
-SELECT 
-    'event (dbt mart)', 
-    COUNT(*) 
+SELECT
+ 'event (dbt mart)',
+ COUNT(*)
 FROM event;
 
 -- Check transcripts count
-SELECT 
-    'bronze_event_youtube_transcript' AS table_name, 
-    COUNT(*) 
+SELECT
+ 'bronze_event_youtube_transcript' AS table_name,
+ COUNT(*)
 FROM bronze.bronze_event_youtube_transcript
 UNION ALL
-SELECT 
-    'events_text_search (dbt mart)', 
-    COUNT(*) 
+SELECT
+ 'events_text_search (dbt mart)',
+ COUNT(*)
 FROM events_text_search;
 
 -- Verify deduplication worked
-SELECT 
-    COUNT(*) AS total_bronze_events,
-    COUNT(DISTINCT video_url) AS unique_video_urls
+SELECT
+ COUNT(*) AS total_bronze_events,
+ COUNT(DISTINCT video_url) AS unique_video_urls
 FROM bronze.bronze_event
 WHERE video_url IS NOT NULL;
 ```
@@ -191,46 +191,46 @@ WHERE video_url IS NOT NULL;
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        DATA SOURCES                             │
+│ DATA SOURCES │
 ├────────────┬────────────┬────────────┬──────────────────────────┤
-│  LocalView │  YouTube   │  Legistar  │  Other (Granicus, etc.)  │
+│ LocalView │ YouTube │ Legistar │ Other (Granicus, etc.) │
 └──────┬─────┴──────┬─────┴──────┬─────┴──────┬──────────────────┘
-       │            │            │            │
-       ↓            ↓            ↓            ↓
+ │ │ │ │
+ ↓ ↓ ↓ ↓
 ┌──────────────────────────────────────────────────────────────────┐
-│             BRONZE LAYER (open_navigator_bronze)                 │
+│ BRONZE LAYER (open_navigator_bronze) │
 ├──────────────────────────────┬───────────────────────────────────┤
-│  bronze_event        │  bronze_event_youtube_transcript            │
-│  - Raw events from all       │  - Raw transcripts                │
-│    sources                   │  - AI extraction metadata         │
-│  - May contain duplicates    │  - Quality flags                  │
-│  - Tracks source system      │                                   │
+│ bronze_event │ bronze_event_youtube_transcript │
+│ - Raw events from all │ - Raw transcripts │
+│ sources │ - AI extraction metadata │
+│ - May contain duplicates │ - Quality flags │
+│ - Tracks source system │ │
 └──────────────┬───────────────┴──────────────┬────────────────────┘
-               │                              │
-               ↓ (FDW)                        ↓ (FDW)
+ │ │
+ ↓ (FDW) ↓ (FDW)
 ┌──────────────────────────────────────────────────────────────────┐
-│           STAGING LAYER (dbt views - open_navigator)             │
+│ STAGING LAYER (dbt views - open_navigator) │
 ├──────────────────────────────┬───────────────────────────────────┤
-│  stg_bronze_event    │  stg_bronze_event_youtube_transcript        │
-│  - Clean & normalize         │  - Calculate word count           │
-│  - Quality flags             │  - Filter &lt;100 chars              │
-│  - No deduplication          │  - Quality scoring                │
+│ stg_bronze_event │ stg_bronze_event_youtube_transcript │
+│ - Clean & normalize │ - Calculate word count │
+│ - Quality flags │ - Filter &lt;100 chars │
+│ - No deduplication │ - Quality scoring │
 └──────────────┬───────────────┴──────────────┬────────────────────┘
-               │                              │
-               ↓                              ↓
+ │ │
+ ↓ ↓
 ┌──────────────────────────────────────────────────────────────────┐
-│           MARTS LAYER (dbt tables - open_navigator)              │
+│ MARTS LAYER (dbt tables - open_navigator) │
 ├──────────────────────────────┬───────────────────────────────────┤
-│  event               │  events_text_search               │
-│  - Deduplicate by video_url  │  - Join to get event_id           │
-│  - Production-ready          │  - Deduplicate by video_id        │
-│  - API-compatible schema     │  - Production-ready               │
+│ event │ events_text_search │
+│ - Deduplicate by video_url │ - Join to get event_id │
+│ - Production-ready │ - Deduplicate by video_id │
+│ - API-compatible schema │ - Production-ready │
 └──────────────┬───────────────┴──────────────┬────────────────────┘
-               │                              │
-               ↓                              ↓
+ │ │
+ ↓ ↓
 ┌──────────────────────────────────────────────────────────────────┐
-│                   API & FRONTEND                                 │
-│         (api/routes/search_postgres.py)                          │
+│ API & FRONTEND │
+│ (api/routes/search_postgres.py) │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -239,7 +239,7 @@ WHERE video_url IS NOT NULL;
 ### Events Deduplication
 
 **Before:** Direct loading to production could create duplicates
-**After:** 
+**After:**
 - Bronze layer tracks all raw events
 - Staging adds quality flags
 - Marts deduplicate by `video_url` (keeps most recent)
@@ -265,15 +265,15 @@ WHERE video_url IS NOT NULL;
 ### Current Scripts to Update
 
 1. **packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py**
-   - Change: Insert to `bronze_event` instead of `event`
-   - Change: Insert to `bronze_event_youtube_transcript` instead of `events_text_search`
+ - Change: Insert to `bronze_event` instead of `event`
+ - Change: Insert to `bronze_event_youtube_transcript` instead of `events_text_search`
 
 2. **scripts/datasources/localview/load_to_postgres.py**
-   - Change: Insert to `bronze_event` instead of `event`
+ - Change: Insert to `bronze_event` instead of `event`
 
 3. **Any other scripts inserting to event**
-   - Search: `grep -r "INSERT INTO event" scripts/`
-   - Update to insert to `bronze_event`
+ - Search: `grep -r "INSERT INTO event" scripts/`
+ - Update to insert to `bronze_event`
 
 ### After Updating Scripts
 
@@ -290,12 +290,12 @@ dbt run --select event events_text_search
 
 ## Benefits
 
-✅ **Version Control** - All transformations in SQL tracked by git
-✅ **Testable** - dbt tests ensure data quality
-✅ **Deduplication** - Automatic deduplication in marts layer
-✅ **Quality Filters** - Consistent quality rules applied
-✅ **Data Lineage** - Clear path from source to production
-✅ **Rollback-able** - Can rebuild from bronze at any time
+Yes **Version Control** - All transformations in SQL tracked by git
+Yes **Testable** - dbt tests ensure data quality
+Yes **Deduplication** - Automatic deduplication in marts layer
+Yes **Quality Filters** - Consistent quality rules applied
+Yes **Data Lineage** - Clear path from source to production
+Yes **Rollback-able** - Can rebuild from bronze at any time
 
 ## Next Steps
 

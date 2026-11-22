@@ -6,7 +6,7 @@ sidebar_position: 5
 
 Create interactive choropleth maps showing state-level legislative activity across multiple social issues.
 
-## 🎯 Quick Start
+## Quick Start
 
 ### Recommended: Bulk Download Method
 
@@ -34,19 +34,19 @@ df = pd.read_csv('data/cache/legislation_bulk/all_states_2024.csv')
 # Categorize and map
 categorized = []
 for _, bill in df.iterrows():
-    cat = tracker.categorize_bill(bill.to_dict(), 'fluoridation')
-    categorized.append(cat)
+ cat = tracker.categorize_bill(bill.to_dict(), 'fluoridation')
+ categorized.append(cat)
 
 df_cat = pd.DataFrame(categorized)
 tracker.create_choropleth_map(df_cat, "fluoridation")
 ```
 
 **Why bulk downloads?**
-- ✅ **No API key** - Public bulk data
-- ✅ **No rate limits** - Download encouraged  
-- ✅ **Faster** - All 50 states in minutes vs hours
-- ✅ **Complete** - Entire legislative sessions
-- ✅ **Offline** - Process without internet
+- Yes **No API key** - Public bulk data
+- Yes **No rate limits** - Download encouraged
+- Yes **Faster** - All 50 states in minutes vs hours
+- Yes **Complete** - Entire legislative sessions
+- Yes **Offline** - Process without internet
 
 ---
 
@@ -78,7 +78,7 @@ Open in browser:
 - `data/visualizations/fluoridation_map.html` - Interactive map
 - `data/cache/legislation/fluoridation_2024.csv` - Raw data
 
-## 📊 Supported Issues
+## Supported Issues
 
 Pre-configured keywords for:
 - **fluoridation** - Water fluoridation bans/mandates
@@ -88,7 +88,7 @@ Pre-configured keywords for:
 - **lgbtq** - LGBTQ+ protections
 - **education** - Education policy (CRT, books, etc.)
 
-## 🗺️ Map Features
+## Map Features
 
 **Visualization shows:**
 - **Colors:** Bill type (ban/restriction/protection)
@@ -97,31 +97,31 @@ Pre-configured keywords for:
 - **Legend:** Explanation of colors/patterns
 
 **Color Coding:**
-- 🟤 **Brown** - Ban enacted
-- 🟠 **Orange** - Ban introduced
-- 🔵 **Blue** - Protection enacted
-- 💛 **Yellow** - Restriction
+- **Brown** - Ban enacted
+- **Orange** - Ban introduced
+- **Blue** - Protection enacted
+- **Yellow** - Restriction
 
-## 📝 Example Usage
+## Example Usage
 
 ```python
 from scripts.legislative_tracker import LegislativeTracker
 import asyncio
 
 async def track_multiple_issues():
-    tracker = LegislativeTracker()
-    
-    # Track abortion legislation
-    df = await tracker.track_issue("abortion", year=2024)
-    print(f"Found {len(df)} bills")
-    
-    # Generate map
-    tracker.create_choropleth_map(df, "abortion")
-    
+ tracker = LegislativeTracker()
+
+ # Track abortion legislation
+ df = await tracker.track_issue("abortion", year=2024)
+ print(f"Found {len(df)} bills")
+
+ # Generate map
+ tracker.create_choropleth_map(df, "abortion")
+
 asyncio.run(track_multiple_issues())
 ```
 
-## 🎨 Custom Issues
+## Custom Issues
 
 Add your own keywords:
 
@@ -130,16 +130,16 @@ tracker = LegislativeTracker()
 
 # Add gun control tracking
 tracker.issue_keywords["gun_control"] = {
-    "ban": ["ban assault weapons", "prohibit firearms"],
-    "restriction": ["background check", "waiting period"],
-    "protection": ["constitutional carry", "gun rights"]
+ "ban": ["ban assault weapons", "prohibit firearms"],
+ "restriction": ["background check", "waiting period"],
+ "protection": ["constitutional carry", "gun rights"]
 }
 
 # Track it
 df = await tracker.track_issue("gun_control", year=2024)
 ```
 
-## 📦 Output Files
+## Output Files
 
 ### CSV Data
 **Location:** `data/cache/legislation/{issue}_{year}.csv`
@@ -161,7 +161,7 @@ df = await tracker.track_issue("gun_control", year=2024)
 - Zoom/pan
 - Embeddable
 
-## 🔧 Advanced Features
+## Advanced Features
 
 ### Filter by States
 
@@ -178,9 +178,9 @@ import pandas as pd
 
 dfs = []
 for year in range(2020, 2025):
-    df = await tracker.track_issue("fluoridation", year=year)
-    df['year'] = year
-    dfs.append(df)
+ df = await tracker.track_issue("fluoridation", year=year)
+ df['year'] = year
+ dfs.append(df)
 
 all_years = pd.concat(dfs)
 ```
@@ -190,13 +190,13 @@ all_years = pd.concat(dfs)
 ```python
 # Export with multiple sheets
 with pd.ExcelWriter('analysis.xlsx') as writer:
-    df.to_excel(writer, sheet_name='All Bills', index=False)
-    
-    state_summary = tracker.generate_state_summary(df)
-    state_summary.to_excel(writer, sheet_name='Summary', index=False)
+ df.to_excel(writer, sheet_name='All Bills', index=False)
+
+ state_summary = tracker.generate_state_summary(df)
+ state_summary.to_excel(writer, sheet_name='Summary', index=False)
 ```
 
-## 📚 Full Documentation
+## Full Documentation
 
 See [Legislative Tracking Maps Guide](legislative-tracking-maps.md) for:
 - Detailed API documentation
@@ -205,12 +205,12 @@ See [Legislative Tracking Maps Guide](legislative-tracking-maps.md) for:
 - Use cases and examples
 - Troubleshooting
 
-## 🔗 Data Sources
+## Data Sources
 
 - **Open States API** - 100,000+ state bills (free)
 - **Ballotpedia** - Ballot measures (paid API)
 
-## 💡 Tips
+## Tips
 
 1. **Cache results** - API calls are rate-limited
 2. **Review categorization** - Check sample bills for accuracy
@@ -218,7 +218,7 @@ See [Legislative Tracking Maps Guide](legislative-tracking-maps.md) for:
 4. **Update regularly** - Legislation changes daily
 5. **Share maps** - Export as images for social media
 
-## ❓ Troubleshooting
+## Troubleshooting
 
 **"OPENSTATES_API_KEY not found"**
 → Add key to `.env` file
@@ -229,7 +229,7 @@ See [Legislative Tracking Maps Guide](legislative-tracking-maps.md) for:
 **"Plotly not installed"**
 → Already in requirements.txt, run `pip install -r requirements.txt`
 
-## 🚀 Next Steps
+## Next Steps
 
 - Add legislation to knowledge graph
 - Embed maps in React dashboard

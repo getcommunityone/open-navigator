@@ -95,11 +95,11 @@ Matches by **county name + state code**:
 
 ### Key Insights
 
-✅ **Cities:** 8-26% have official .gov domains registered
+Yes **Cities:** 8-26% have official .gov domains registered
 - Best coverage: **Georgia (25.8%)**, **Alabama (19.4%)**, **Washington (19.4%)**
 - Lowest coverage: **Indiana (8.7%)**
 
-⚠️ **Counties:** Very low .gov domain registration
+Warning **Counties:** Very low .gov domain registration
 - Only **2 out of 443 counties** have .gov domains (0.5%)
 - Counties typically use state-run websites or no dedicated domain
 
@@ -111,21 +111,21 @@ Matches by **county name + state code**:
 
 ```json
 {
-  "jurisdiction_name": "Monroe",
-  "state_code": "WI",
-  "jurisdiction_type": "city",
-  "gov_domains": [
-    "cityofmonroewi.gov",
-    "pdmonroewi.gov",
-    "townofclarnowi.gov",
-    "townofjordanwi.gov",
-    "townofmonroewi.gov",
-    "townofsylvesterwi.gov"
-  ],
-  "security_contact_email": "rjacobson@cityofmonroe.org",
-  "gsa_organization_name": "City of Monroe",
-  "gsa_domain_type": "City",
-  "website_url": "https://cityofmonroewi.gov"
+ "jurisdiction_name": "Monroe",
+ "state_code": "WI",
+ "jurisdiction_type": "city",
+ "gov_domains": [
+ "cityofmonroewi.gov",
+ "pdmonroewi.gov",
+ "townofclarnowi.gov",
+ "townofjordanwi.gov",
+ "townofmonroewi.gov",
+ "townofsylvesterwi.gov"
+ ],
+ "security_contact_email": "rjacobson@cityofmonroe.org",
+ "gsa_organization_name": "City of Monroe",
+ "gsa_domain_type": "City",
+ "website_url": "https://cityofmonroewi.gov"
 }
 ```
 
@@ -133,18 +133,18 @@ Matches by **county name + state code**:
 
 ```json
 {
-  "jurisdiction_name": "Beloit",
-  "state_code": "WI",
-  "jurisdiction_type": "city",
-  "gov_domains": [
-    "beloitwi.gov",
-    "newarkwi.gov",
-    "townofbeloitwi.gov",
-    "townofturtlewi.gov"
-  ],
-  "security_contact_email": "adminnotification@beloitwi.gov",
-  "gsa_organization_name": "City of Beloit",
-  "gsa_domain_type": "City"
+ "jurisdiction_name": "Beloit",
+ "state_code": "WI",
+ "jurisdiction_type": "city",
+ "gov_domains": [
+ "beloitwi.gov",
+ "newarkwi.gov",
+ "townofbeloitwi.gov",
+ "townofturtlewi.gov"
+ ],
+ "security_contact_email": "adminnotification@beloitwi.gov",
+ "gsa_organization_name": "City of Beloit",
+ "gsa_domain_type": "City"
 }
 ```
 
@@ -168,25 +168,25 @@ python scripts/datasources/gsa/load_gsa_domains_to_postgres.py --states AL,GA --
 ```
 
 **Features:**
-- ✅ Downloads latest GSA data from GitHub (cached for 24 hours)
-- ✅ Normalizes jurisdiction names for matching
-- ✅ Batch updates with ON CONFLICT handling
-- ✅ Dry-run mode for testing
-- ✅ Comprehensive statistics and logging
+- Yes Downloads latest GSA data from GitHub (cached for 24 hours)
+- Yes Normalizes jurisdiction names for matching
+- Yes Batch updates with ON CONFLICT handling
+- Yes Dry-run mode for testing
+- Yes Comprehensive statistics and logging
 
 ### Database Schema Updates
 ```sql
 -- Add columns (idempotent)
-ALTER TABLE jurisdictions_details_search 
-  ADD COLUMN IF NOT EXISTS gov_domains JSONB DEFAULT '[]',
-  ADD COLUMN IF NOT EXISTS security_contact_email TEXT,
-  ADD COLUMN IF NOT EXISTS gsa_organization_name TEXT,
-  ADD COLUMN IF NOT EXISTS gsa_domain_type TEXT,
-  ADD COLUMN IF NOT EXISTS gsa_last_updated TIMESTAMP;
+ALTER TABLE jurisdictions_details_search
+ ADD COLUMN IF NOT EXISTS gov_domains JSONB DEFAULT '[]',
+ ADD COLUMN IF NOT EXISTS security_contact_email TEXT,
+ ADD COLUMN IF NOT EXISTS gsa_organization_name TEXT,
+ ADD COLUMN IF NOT EXISTS gsa_domain_type TEXT,
+ ADD COLUMN IF NOT EXISTS gsa_last_updated TIMESTAMP;
 
 -- Create index for domain lookups
-CREATE INDEX IF NOT EXISTS idx_jurisdiction_details_gov_domains 
-  ON jurisdictions_details_search USING gin(gov_domains);
+CREATE INDEX IF NOT EXISTS idx_jurisdiction_details_gov_domains
+ ON jurisdictions_details_search USING gin(gov_domains);
 ```
 
 ---
@@ -195,11 +195,11 @@ CREATE INDEX IF NOT EXISTS idx_jurisdiction_details_gov_domains
 
 ### 1. Find Jurisdictions with Official Government Domains
 ```sql
-SELECT 
-    jurisdiction_name,
-    state_code,
-    gov_domains,
-    website_url
+SELECT
+ jurisdiction_name,
+ state_code,
+ gov_domains,
+ website_url
 FROM jurisdictions_details_search
 WHERE jsonb_array_length(gov_domains) > 0
 ORDER BY state_code, jurisdiction_name;
@@ -207,22 +207,22 @@ ORDER BY state_code, jurisdiction_name;
 
 ### 2. Get Security Contact for a Jurisdiction
 ```sql
-SELECT 
-    jurisdiction_name,
-    security_contact_email,
-    gsa_organization_name
+SELECT
+ jurisdiction_name,
+ security_contact_email,
+ gsa_organization_name
 FROM jurisdictions_details_search
 WHERE jurisdiction_name ILIKE '%boston%'
-  AND state_code = 'MA';
+ AND state_code = 'MA';
 ```
 
 ### 3. Find Jurisdictions with Multiple Domains
 ```sql
-SELECT 
-    jurisdiction_name,
-    state_code,
-    jsonb_array_length(gov_domains) as domain_count,
-    gov_domains
+SELECT
+ jurisdiction_name,
+ state_code,
+ jsonb_array_length(gov_domains) as domain_count,
+ gov_domains
 FROM jurisdictions_details_search
 WHERE jsonb_array_length(gov_domains) > 3
 ORDER BY domain_count DESC;
@@ -230,15 +230,15 @@ ORDER BY domain_count DESC;
 
 ### 4. Validate Website URLs Against GSA Registry
 ```sql
-SELECT 
-    jurisdiction_name,
-    website_url,
-    gov_domains,
-    CASE 
-        WHEN website_url IS NULL THEN 'No website'
-        WHEN gov_domains ? REPLACE(REPLACE(website_url, 'https://', ''), 'http://', '') THEN 'GSA verified'
-        ELSE 'Not in GSA registry'
-    END as verification_status
+SELECT
+ jurisdiction_name,
+ website_url,
+ gov_domains,
+ CASE
+ WHEN website_url IS NULL THEN 'No website'
+ WHEN gov_domains ? REPLACE(REPLACE(website_url, 'https://', ''), 'http://', '') THEN 'GSA verified'
+ ELSE 'Not in GSA registry'
+ END as verification_status
 FROM jurisdictions_details_search
 WHERE jsonb_array_length(gov_domains) > 0
 LIMIT 20;
@@ -283,11 +283,11 @@ python scripts/datasources/gsa/load_gsa_domains_to_postgres.py --states AL,GA,IN
 ### Monitoring
 Check for stale data:
 ```sql
-SELECT 
-    state_code,
-    COUNT(*) as jurisdictions_with_gsa,
-    MAX(gsa_last_updated) as most_recent_update,
-    MIN(gsa_last_updated) as oldest_update
+SELECT
+ state_code,
+ COUNT(*) as jurisdictions_with_gsa,
+ MAX(gsa_last_updated) as most_recent_update,
+ MIN(gsa_last_updated) as oldest_update
 FROM jurisdictions_details_search
 WHERE gov_domains IS NOT NULL
 GROUP BY state_code
@@ -301,25 +301,25 @@ ORDER BY state_code;
 ### Potential Enhancements
 
 1. **Expand to All 50 States**
-   ```bash
-   python scripts/datasources/gsa/load_gsa_domains_to_postgres.py
-   # (no --states filter = all states)
-   ```
+ ```bash
+ python scripts/datasources/gsa/load_gsa_domains_to_postgres.py
+ # (no --states filter = all states)
+ ```
 
 2. **Domain Validation**
-   - Check if domains are actually active (HTTP status)
-   - Verify SSL certificates
-   - Update `website_url` with verified primary domain
+ - Check if domains are actually active (HTTP status)
+ - Verify SSL certificates
+ - Update `website_url` with verified primary domain
 
 3. **County Domain Discovery**
-   - Scrape state government portals for county websites
-   - Check for `<county-name>.<state>.gov` patterns
-   - Alternative sources: Wikipedia, county associations
+ - Scrape state government portals for county websites
+ - Check for `<county-name>.<state>.gov` patterns
+ - Alternative sources: Wikipedia, county associations
 
 4. **Integration with YouTube Discovery**
-   - Cross-reference .gov domains with YouTube channel URLs
-   - Identify official government channels
-   - Flag non-governmental channels
+ - Cross-reference .gov domains with YouTube channel URLs
+ - Identify official government channels
+ - Flag non-governmental channels
 
 ---
 

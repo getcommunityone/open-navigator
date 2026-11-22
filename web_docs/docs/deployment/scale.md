@@ -2,13 +2,13 @@
 sidebar_position: 15
 ---
 
-# 🚀 RUNNING DISCOVERY FOR ALL U.S. CITIES AND COUNTIES
+# RUNNING DISCOVERY FOR ALL U.S. CITIES AND COUNTIES
 
 **Automated discovery pipeline for 22,000+ jurisdictions nationwide**
 
 ---
 
-## 📊 SCALE
+## SCALE
 
 **Target Coverage:**
 - **3,143 U.S. Counties** (from NACo database)
@@ -18,7 +18,7 @@ sidebar_position: 15
 **What Gets Discovered Per Jurisdiction:**
 1. Official government website(s)
 2. YouTube channels (with subscriber/video counts)
-3. Vimeo and other video platforms  
+3. Vimeo and other video platforms
 4. Meeting platforms (Legistar, SuiteOne, Granicus, etc.)
 5. Social media accounts (Facebook, Twitter)
 6. Agenda portals and document systems
@@ -31,7 +31,7 @@ sidebar_position: 15
 
 ---
 
-## 🏃 QUICK START
+## QUICK START
 
 ### 1. Test with a Single State (Alabama)
 
@@ -49,12 +49,12 @@ python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
 ```
 Starting batch discovery for 67 jurisdictions (Alabama counties)
 Discovering: Birmingham, AL (city)
-  Step 1/6: Finding website
-  Step 2/6: Finding YouTube channels
-  ...
-✓ Birmingham: 85% complete
-✓ Mobile: 72% complete
-✓ Tuscaloosa: 90% complete
+ Step 1/6: Finding website
+ Step 2/6: Finding YouTube channels
+ ...
+Yes Birmingham: 85% complete
+Yes Mobile: 72% complete
+Yes Tuscaloosa: 90% complete
 ...
 DISCOVERY COMPLETE!
 Total jurisdictions: 67
@@ -83,15 +83,15 @@ python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all
 
 ---
 
-## ⚙️ CONFIGURATION OPTIONS
+## CONFIGURATION OPTIONS
 
 ### Rate Limiting
 
 ```bash
 # Control concurrent requests (prevent rate limiting)
 python scripts/discovery/archive/comprehensive_discovery_pipeline.py \
-    --max-concurrent 5 \
-    --state CA
+ --max-concurrent 5 \
+ --state CA
 
 # Default: 10 concurrent (safe for most networks)
 # Lower to 5 for slower connections
@@ -108,87 +108,87 @@ export YOUTUBE_API_KEY="AIza..."
 
 # Or pass directly
 python scripts/discovery/archive/comprehensive_discovery_pipeline.py \
-    --youtube-api-key "AIza..." \
-    --state AL
+ --youtube-api-key "AIza..." \
+ --state AL
 ```
 
 **Why Use API Key:**
-- ✅ Accurate video counts
-- ✅ Exact subscriber numbers
-- ✅ View counts, upload dates
-- ✅ Channel verification status
+- Yes Accurate video counts
+- Yes Exact subscriber numbers
+- Yes View counts, upload dates
+- Yes Channel verification status
 - 🆓 FREE (10,000 units/day = ~3,000 channels)
 
 **Without API Key:**
-- ⚠️ HTML scraping (less accurate)
-- ⚠️ Approximate statistics
-- ✅ Still finds all channels
+- Warning HTML scraping (less accurate)
+- Warning Approximate statistics
+- Yes Still finds all channels
 
 ---
 
-## 📁 OUTPUT FILES
+## OUTPUT FILES
 
 ### File Locations
 
 ```
 data/bronze/discovered_sources/
-├── discovery_results_batch_100_20260422_143022.json    # Detailed results
-├── discovery_results_final_20260422_150145.json        # Final complete
-├── discovery_summary_batch_100_20260422_143022.csv     # Summary table
-└── discovery_summary_final_20260422_150145.csv         # Final summary
+├── discovery_results_batch_100_20260422_143022.json # Detailed results
+├── discovery_results_final_20260422_150145.json # Final complete
+├── discovery_summary_batch_100_20260422_143022.csv # Summary table
+└── discovery_summary_final_20260422_150145.csv # Final summary
 ```
 
 ### JSON Structure (Detailed)
 
 ```json
 {
-  "jurisdiction": {
-    "name": "Tuscaloosa",
-    "state_code": "AL",
-    "type": "city",
-    "population": 99600
-  },
-  "discovery_timestamp": "2026-04-22T14:30:00",
-  "websites": [
-    {
-      "url": "https://www.tuscaloosa.com",
-      "final_url": "https://www.tuscaloosa.com/",
-      "status": "active",
-      "discovery_method": "pattern_match"
-    }
-  ],
-  "youtube_channels": [
-    {
-      "channel_url": "https://www.youtube.com/@TuscaloosaCityAL",
-      "channel_id": "UCxxx",
-      "channel_title": "City of Tuscaloosa",
-      "video_count": 245,
-      "subscriber_count": 382,
-      "view_count": 50000,
-      "discovery_method": "pattern_match"
-    }
-  ],
-  "meeting_platforms": [
-    {
-      "type": "suiteone",
-      "url": "https://tuscaloosaal.suiteonemedia.com",
-      "method": "url_test"
-    }
-  ],
-  "agenda_portals": [
-    {
-      "url": "https://tuscaloosaal.suiteonemedia.com/Web/Home.aspx",
-      "link_text": "agendas and synopses",
-      "discovery_method": "homepage_scrape"
-    }
-  ],
-  "social_media": {
-    "facebook": ["https://www.facebook.com/163854056994765"],
-    "twitter": ["https://x.com/tuscaloosacity"],
-    "vimeo": ["https://vimeo.com/tuscaloosacity"]
-  },
-  "completeness_score": 0.90,
-  "status": "success"
+ "jurisdiction": {
+ "name": "Tuscaloosa",
+ "state_code": "AL",
+ "type": "city",
+ "population": 99600
+ },
+ "discovery_timestamp": "2026-04-22T14:30:00",
+ "websites": [
+ {
+ "url": "https://www.tuscaloosa.com",
+ "final_url": "https://www.tuscaloosa.com/",
+ "status": "active",
+ "discovery_method": "pattern_match"
+ }
+ ],
+ "youtube_channels": [
+ {
+ "channel_url": "https://www.youtube.com/@TuscaloosaCityAL",
+ "channel_id": "UCxxx",
+ "channel_title": "City of Tuscaloosa",
+ "video_count": 245,
+ "subscriber_count": 382,
+ "view_count": 50000,
+ "discovery_method": "pattern_match"
+ }
+ ],
+ "meeting_platforms": [
+ {
+ "type": "suiteone",
+ "url": "https://tuscaloosaal.suiteonemedia.com",
+ "method": "url_test"
+ }
+ ],
+ "agenda_portals": [
+ {
+ "url": "https://tuscaloosaal.suiteonemedia.com/Web/Home.aspx",
+ "link_text": "agendas and synopses",
+ "discovery_method": "homepage_scrape"
+ }
+ ],
+ "social_media": {
+ "facebook": ["https://www.facebook.com/163854056994765"],
+ "twitter": ["https://x.com/tuscaloosacity"],
+ "vimeo": ["https://vimeo.com/tuscaloosacity"]
+ },
+ "completeness_score": 0.90,
+ "status": "success"
 }
 ```
 
@@ -204,7 +204,7 @@ Mobile,AL,city,187041,https://www.cityofmobile.org,1,2,1,0.85,success
 
 ---
 
-## 📊 EXAMPLE: Alabama Discovery
+## EXAMPLE: Alabama Discovery
 
 Let's run discovery for all Alabama jurisdictions and analyze results:
 
@@ -215,7 +215,7 @@ source venv/bin/activate
 
 # Discover all Alabama cities and counties
 python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL \
-    --youtube-api-key "$YOUTUBE_API_KEY"
+ --youtube-api-key "$YOUTUBE_API_KEY"
 ```
 
 ### Step 2: Analyze Results
@@ -250,17 +250,17 @@ With agendas: 42 (63%)
 Average completeness: 71%
 
 Top 10 Alabama cities by data completeness:
-           name  youtube_channels  meeting_platforms  completeness
-0    Tuscaloosa                 2                  1          0.90
-1    Birmingham                 1                  1          0.85
-2        Mobile                 1                  2          0.85
-3    Montgomery                 1                  1          0.80
+ name youtube_channels meeting_platforms completeness
+0 Tuscaloosa 2 1 0.90
+1 Birmingham 1 1 0.85
+2 Mobile 1 2 0.85
+3 Montgomery 1 1 0.80
 ...
 ```
 
 ---
 
-## 🎯 RECOMMENDED STRATEGY
+## RECOMMENDED STRATEGY
 
 ### Phase 1: Test (1 Day)
 ```bash
@@ -286,7 +286,7 @@ python scripts/discovery/archive/comprehensive_discovery_pipeline.py --top 500
 # South
 python scripts/discovery/archive/comprehensive_discovery_pipeline.py --states AL,GA,FL,SC,NC
 
-# Midwest  
+# Midwest
 python scripts/discovery/archive/comprehensive_discovery_pipeline.py --states IL,IN,OH,MI,WI
 
 # West
@@ -308,7 +308,7 @@ python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all
 
 ---
 
-## ⚡ PERFORMANCE OPTIMIZATION
+## PERFORMANCE OPTIMIZATION
 
 ### For Faster Discovery
 
@@ -370,7 +370,7 @@ pipeline.discover_batch(retry_list)
 
 ---
 
-## 📈 EXPECTED RESULTS (National Scale)
+## EXPECTED RESULTS (National Scale)
 
 ### Coverage Estimates
 
@@ -410,7 +410,7 @@ pipeline.discover_batch(retry_list)
 
 ---
 
-## 🔍 NEXT STEPS AFTER DISCOVERY
+## NEXT STEPS AFTER DISCOVERY
 
 ### 1. Analyze Results
 
@@ -437,20 +437,20 @@ print(top_targets[['name', 'state', 'population', 'completeness']])
 from agents.scraper import ScraperAgent
 
 for _, row in top_targets.iterrows():
-    # Get their agenda portal URL from discovery results
-    jurisdiction_data = load_discovery_json(row['name'], row['state'])
-    
-    if jurisdiction_data['meeting_platforms']:
-        platform = jurisdiction_data['meeting_platforms'][0]
-        
-        # Scrape agendas
-        scraper = ScraperAgent()
-        docs = await scraper.scrape(
-            url=platform['url'],
-            municipality=row['name'],
-            state=row['state'],
-            platform=platform['type']
-        )
+ # Get their agenda portal URL from discovery results
+ jurisdiction_data = load_discovery_json(row['name'], row['state'])
+
+ if jurisdiction_data['meeting_platforms']:
+ platform = jurisdiction_data['meeting_platforms'][0]
+
+ # Scrape agendas
+ scraper = ScraperAgent()
+ docs = await scraper.scrape(
+ url=platform['url'],
+ municipality=row['name'],
+ state=row['state'],
+ platform=platform['type']
+ )
 ```
 
 ### 3. Search for Oral Health Content
@@ -458,33 +458,33 @@ for _, row in top_targets.iterrows():
 ```python
 # Search agenda text for keywords
 keywords = [
-    'fluoride', 'fluoridation', 'water treatment',
-    'dental', 'oral health', 'tooth decay',
-    'dental clinic', 'school dental'
+ 'fluoride', 'fluoridation', 'water treatment',
+ 'dental', 'oral health', 'tooth decay',
+ 'dental clinic', 'school dental'
 ]
 
 # Filter to relevant meetings
 relevant_docs = []
 for doc in all_documents:
-    doc_text = doc['content'].lower()
-    if any(kw in doc_text for kw in keywords):
-        relevant_docs.append(doc)
+ doc_text = doc['content'].lower()
+ if any(kw in doc_text for kw in keywords):
+ relevant_docs.append(doc)
 
 print(f"Found {len(relevant_docs)} relevant meetings across all jurisdictions")
 ```
 
 ---
 
-## ✅ SUCCESS METRICS
+## Yes SUCCESS METRICS
 
 **After running national discovery, you should have:**
 
-✅ **~19,000 government websites** discovered  
-✅ **~5,000 YouTube channels** with statistics  
-✅ **~3,000 Legistar** API endpoints  
-✅ **~10,000 agenda portals** cataloged  
-✅ **~15,000 social media** accounts  
-✅ **Completeness scores** for prioritization  
+Yes **~19,000 government websites** discovered
+Yes **~5,000 YouTube channels** with statistics
+Yes **~3,000 Legistar** API endpoints
+Yes **~10,000 agenda portals** cataloged
+Yes **~15,000 social media** accounts
+Yes **Completeness scores** for prioritization
 
 **This gives you complete coverage of where to find oral health policy discussions across the entire United States!**
 
@@ -498,8 +498,8 @@ print(f"Found {len(relevant_docs)} relevant meetings across all jurisdictions")
 ```bash
 # Reduce concurrent requests
 python scripts/discovery/archive/comprehensive_discovery_pipeline.py \
-    --max-concurrent 3 \
-    --state AL
+ --max-concurrent 3 \
+ --state AL
 ```
 
 **2. YouTube API Quota Exceeded**
@@ -516,13 +516,13 @@ Or: Continue without API key (less accurate stats)
 # Process in smaller batches
 # Instead of --all, do state by state
 for state in AL GA FL SC NC; do
-    python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state $state
+ python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state $state
 done
 ```
 
 ---
 
-## 📞 SUPPORT
+## SUPPORT
 
 **Questions?**
 - Check logs: `logs/discovery_pipeline.log`
@@ -536,4 +536,4 @@ done
 
 ---
 
-**Bottom Line:** You can now discover data sources for ALL 22,000+ U.S. cities and counties automatically! Start with Alabama (67 jurisdictions) to test, then scale nationwide. 🚀
+**Bottom Line:** You can now discover data sources for ALL 22,000+ U.S. cities and counties automatically! Start with Alabama (67 jurisdictions) to test, then scale nationwide.

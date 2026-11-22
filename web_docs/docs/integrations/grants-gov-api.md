@@ -16,7 +16,7 @@ The Grants.gov API provides access to **federal grant opportunities** from all f
 
 ### Data NOT in Your Current System
 
-✅ **Federal Grant Opportunities**:
+Yes **Federal Grant Opportunities**:
 - Grant titles, descriptions, and purposes
 - Funding amounts and award ceilings
 - Eligibility criteria
@@ -25,7 +25,7 @@ The Grants.gov API provides access to **federal grant opportunities** from all f
 - Assistance Listing Numbers (ALN/CFDA)
 - Agency contact information
 
-✅ **Search Capabilities**:
+Yes **Search Capabilities**:
 - Filter by keyword (e.g., "oral health", "dental care")
 - Filter by funding category (HL = Health)
 - Filter by federal agency (HHS, NIH, CDC)
@@ -50,7 +50,7 @@ matcher = GrantMatcher(api)
 
 # Find all oral health grants
 oral_health_grants = matcher.find_oral_health_grants(
-    opp_statuses="forecasted|posted"
+ opp_statuses="forecasted|posted"
 )
 
 print(f"Found {len(oral_health_grants):,} opportunities")
@@ -66,9 +66,9 @@ nonprofits = pd.read_parquet("data/gold/states/MA/nonprofits_organizations.parqu
 
 # Match grants to MA organizations
 matches = matcher.match_grants_to_state(
-    state_code="MA",
-    grants_df=oral_health_grants,
-    nonprofits_df=nonprofits
+ state_code="MA",
+ grants_df=oral_health_grants,
+ nonprofits_df=nonprofits
 )
 
 # Save results
@@ -82,9 +82,9 @@ Compare available opportunities (Grants.gov) with received funding (IRS 990):
 ```python
 # What grants are AVAILABLE?
 available = api.search_to_dataframe(
-    keyword="oral health",
-    funding_categories="HL",
-    opp_statuses="posted"
+ keyword="oral health",
+ funding_categories="HL",
+ opp_statuses="posted"
 )
 
 # What grants were RECEIVED? (from IRS 990)
@@ -101,18 +101,18 @@ received = pd.read_parquet("data/gold/states/MA/grants_revenue_sources.parquet")
 
 ```bash
 python scripts/discovery/grants_gov_integration.py \
-  --oral-health \
-  --output data/gold/grants
+ --oral-health \
+ --output data/gold/grants
 ```
 
 ### Custom Search
 
 ```bash
 python scripts/discovery/grants_gov_integration.py \
-  --keyword "fluoridation" \
-  --funding-category HL \
-  --agency HHS \
-  --output data/gold/grants
+ --keyword "fluoridation" \
+ --funding-category HL \
+ --agency HHS \
+ --output data/gold/grants
 ```
 
 ## API Endpoints
@@ -125,11 +125,11 @@ Search for grant opportunities:
 api = GrantsGovAPI()
 
 results = api.search_opportunities(
-    keyword="oral health",
-    funding_categories="HL",      # Health
-    agencies="HHS",                # Health & Human Services
-    opp_statuses="forecasted|posted",
-    rows=100
+ keyword="oral health",
+ funding_categories="HL", # Health
+ agencies="HHS", # Health & Human Services
+ opp_statuses="forecasted|posted",
+ rows=100
 )
 ```
 
@@ -178,28 +178,28 @@ funding = details['data']['fundingDetails']
 
 ```
 ┌─────────────────────────┐
-│  Grants.gov API         │  ← FUTURE: Available opportunities
-│  (This Integration)     │
-│  • Posted grants        │
-│  • Eligibility          │
-│  • Deadlines            │
+│ Grants.gov API │ ← FUTURE: Available opportunities
+│ (This Integration) │
+│ • Posted grants │
+│ • Eligibility │
+│ • Deadlines │
 └───────────┬─────────────┘
-            │
-            ▼
+ │
+
 ┌─────────────────────────┐
-│  Your Dashboard         │  ← PRESENT: Alert & match
-│  • Match to nonprofits  │
-│  • Send alerts          │
-│  • Track applications   │
+│ Your Dashboard │ ← PRESENT: Alert & match
+│ • Match to nonprofits │
+│ • Send alerts │
+│ • Track applications │
 └───────────┬─────────────┘
-            │
-            ▼
+ │
+
 ┌─────────────────────────┐
-│  IRS Form 990           │  ← PAST: Received funding
-│  (Existing Data)        │
-│  • Government grants    │
-│  • Foundation grants    │
-│  • Revenue sources      │
+│ IRS Form 990 │ ← PAST: Received funding
+│ (Existing Data) │
+│ • Government grants │
+│ • Foundation grants │
+│ • Revenue sources │
 └─────────────────────────┘
 ```
 
@@ -212,10 +212,10 @@ federal_recipients = past_grants[past_grants['government_grants'] > 0]
 
 # What federal health grants are available NOW?
 current_opportunities = api.search_to_dataframe(
-    keyword="health",
-    funding_categories="HL",
-    agencies="HHS",
-    opp_statuses="posted"
+ keyword="health",
+ funding_categories="HL",
+ agencies="HHS",
+ opp_statuses="posted"
 )
 
 # Analysis: Success rate, funding gaps, opportunity awareness
@@ -265,34 +265,34 @@ All API responses include an error code:
 response = api.search_opportunities(keyword="health")
 
 if response.get("errorcode") == 0:
-    # Success
-    opportunities = response['data']['oppHits']
+ # Success
+ opportunities = response['data']['oppHits']
 else:
-    # Error
-    print(f"Error: {response.get('msg')}")
+ # Error
+ print(f"Error: {response.get('msg')}")
 ```
 
 ## Next Steps
 
 1. **Test the integration**:
-   ```bash
-   python scripts/discovery/grants_gov_integration.py --oral-health
-   ```
+ ```bash
+ python scripts/discovery/grants_gov_integration.py --oral-health
+ ```
 
 2. **Schedule regular updates**:
-   - Daily cron job to fetch new opportunities
-   - Weekly digest emails to nonprofits
-   - Dashboard widget showing "Latest Grants"
+ - Daily cron job to fetch new opportunities
+ - Weekly digest emails to nonprofits
+ - Dashboard widget showing "Latest Grants"
 
 3. **Enhance matching**:
-   - Filter by NTEE codes (oral health orgs only)
-   - Check organization size (capacity to apply)
-   - Historical success rate analysis
+ - Filter by NTEE codes (oral health orgs only)
+ - Check organization size (capacity to apply)
+ - Historical success rate analysis
 
 4. **Build alerts system**:
-   - Email notifications for relevant grants
-   - SMS alerts for approaching deadlines
-   - Dashboard notifications for new opportunities
+ - Email notifications for relevant grants
+ - SMS alerts for approaching deadlines
+ - Dashboard notifications for new opportunities
 
 ## Additional Resources
 
