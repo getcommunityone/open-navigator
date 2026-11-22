@@ -292,17 +292,32 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
 PIPELINE_STAGES = ("discover", "videos", "transcripts", "analyses", "reports")
 
 
-def _stage_report_jid_filter(cohort: str | None, conn: Any) -> Optional[List[str]]:
-    """Return DC jurisdiction ids for ``data_centers`` cohort, else no SQL filter."""
-    cohort_norm = (cohort or "").strip().lower() or None
-    if cohort_norm != "data_centers":
-        return None
-    from api.batch_jobs.cohorts import data_center_jurisdiction_ids
+def _stage_report_filters(
+    cohort: str | None, conn: Any
+) -> tuple[Optional[List[str]], Optional[List[str]]]:
+    """Return ``(jurisdiction_ids, state_codes)`` filters for a launch cohort.
 
-    dc_ids = data_center_jurisdiction_ids(conn)
-    if not dc_ids:
-        return []
-    return list(dc_ids)
+    - ``data_centers``: jurisdiction_id ∈ DC site-belt ∪ meeting-mention set
+    - ``priority``: state_code ∈ priority launch states
+    - ``all`` / unset: no filter (full warehouse)
+    """
+    cohort_norm = (cohort or "").strip().lower() or None
+    if cohort_norm == "data_centers":
+        from api.batch_jobs.cohorts import data_center_jurisdiction_ids
+
+        dc_ids = data_center_jurisdiction_ids(conn)
+        return (list(dc_ids) if dc_ids else [], None)
+    if cohort_norm == "priority":
+        from api.batch_jobs.cohorts import PRIORITY_STATE_CODES
+
+        return (None, list(PRIORITY_STATE_CODES))
+    return (None, None)
+
+
+def _stage_report_jid_filter(cohort: str | None, conn: Any) -> Optional[List[str]]:
+    """Deprecated wrapper — prefer ``_stage_report_filters``."""
+    jids, _states = _stage_report_filters(cohort, conn)
+    return jids
 
 
 def _stage_timing(conn: Any) -> Dict[str, Any]:
@@ -404,8 +419,8 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
     over ``bronze_event_youtube`` so per-state and overall numbers are consistent
     and live (covering standalone/parallel analyze runs). Empty on pre-083 DBs.
 
-    When ``cohort="data_centers"``, counts are limited to jurisdictions in the
-    data-center cohort (via ``data_center_jurisdiction_ids``).
+    When ``cohort="data_centers"``, counts are limited to DC jurisdictions.
+    When ``cohort="priority"``, counts are limited to the priority launch states.
     """
     out: Dict[str, Any] = {"states": [], "rows": []}
 
@@ -415,12 +430,16 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
     def _max_iso(a: str, b: str) -> str:
         return a if a >= b else b
 
-    jid_filter = _stage_report_jid_filter(cohort, conn)
+    jid_filter, state_filter = _stage_report_filters(cohort, conn)
     if jid_filter is not None and not jid_filter:
+        return out
+    if state_filter is not None and not state_filter:
         return out
 
     jf_a: Optional[List[str]] = jid_filter
     jf_b: Optional[List[str]] = jid_filter
+    sf_a: Optional[List[str]] = state_filter
+    sf_b: Optional[List[str]] = state_filter
 
     try:
         with conn.cursor() as cur:
@@ -439,9 +458,10 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                     MAX(policy_report_at)                                       AS last_report
                 FROM bronze.bronze_event_youtube y
                 WHERE (%s::text[] IS NULL OR y.jurisdiction_id = ANY(%s))
+                  AND (%s::text[] IS NULL OR y.state_code = ANY(%s))
                 GROUP BY 1
                 """,
-                (jf_a, jf_b),
+                (jf_a, jf_b, sf_a, sf_b),
             )
             db_rows = cur.fetchall()
     except Exception as exc:
@@ -481,9 +501,10 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                       ON j.geoid = s.geoid AND j.state_code = s.usps
                     WHERE COALESCE(s.usps, '') <> ''
                       AND j.jurisdiction_id = ANY(%s)
+                      AND (%s::text[] IS NULL OR j.state_code = ANY(%s))
                     GROUP BY j.state_code, s.entity
                     """,
-                    (jid_filter,),
+                    (jid_filter, sf_a, sf_b),
                 )
             else:
                 cur.execute(
@@ -505,8 +526,10 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                           FROM bronze.bronze_jurisdictions_municipalities_scraped
                     ) j
                     WHERE COALESCE(usps, '') <> ''
+                      AND (%s::text[] IS NULL OR usps = ANY(%s))
                     GROUP BY usps, entity
-                    """
+                    """,
+                    (sf_a, sf_b),
                 )
             for st, entity, total, done, last_at in cur.fetchall():
                 rec = discover_by_state.setdefault(
@@ -546,9 +569,10 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                 LEFT JOIN bronze.bronze_event_youtube_transcript t
                     ON t.video_id = u.video_id
                 WHERE (%s::text[] IS NULL OR u.jurisdiction_id = ANY(%s))
+                  AND (%s::text[] IS NULL OR u.state_code = ANY(%s))
                 GROUP BY 1
                 """,
-                (jf_a, jf_b),
+                (jf_a, jf_b, sf_a, sf_b),
             )
             for st, total, done, last_at in cur.fetchall():
                 if str(st) == "??":

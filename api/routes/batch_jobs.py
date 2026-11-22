@@ -176,7 +176,7 @@ def _sanitize_dashboard_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _parse_dashboard_cohort(cohort: Optional[str] = None) -> Optional[str]:
-    """Normalize optional dashboard ``?cohort=`` (only ``data_centers`` filters stage report)."""
+    """Normalize optional dashboard ``?cohort=`` (priority / data_centers scope stage_report)."""
     if cohort is None or not str(cohort).strip():
         return None
     c = str(cohort).strip().lower()
