@@ -1177,7 +1177,8 @@ export default function BatchJobStatusPage() {
         setLaunchMsg(res.detail || 'Launched.')
         // Open the stage that matches the launch so the live log is visible.
         if (step === 'all') {
-          setExpandedStage('discover') // Run all starts with Discover (#754/#755)
+          // Run all fans out stages 1–5 in parallel (#763); no single shared log.
+          setExpandedStage(null)
         } else if (step === 'each' || step === 'catalog') {
           setExpandedStage('videos')
         } else if (step === 'discover') {
@@ -2071,7 +2072,7 @@ export default function BatchJobStatusPage() {
                         title={
                           runningSteps.size > 0
                             ? 'Finish the running step(s) before a full-pipeline run'
-                            : `Run stages 1–5 (discover → catalog → captions → analysis light → reports light) for ${scopeLaunchLabel}`
+                            : `Run stages 1–5 in parallel (discover, catalog, captions, analysis light, reports light) for ${scopeLaunchLabel}`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >

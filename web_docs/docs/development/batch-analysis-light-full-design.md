@@ -33,9 +33,10 @@ default.
 | 6 | Analysis full | `analyze-full` | **No** |
 | 7 | Reports full | `reports-full` | **No** |
 
-**Run all** = 1 → 5 only (discover → catalog → captions → analyze-light →
-reports-light). Same single `launch_all_*.log` chain as today, with light
-analyze/report instead of today’s combined Part 1+2 “full-ish” pass.
+**Run all** = stages 1–5 only (`discover`, `catalog`, `captions`,
+`analyze-light`, `reports-light`), started **in parallel** as five separate
+launches (#763) — each with its own log / Stop / VPN auto-resume — not a
+sequential shell chain. Analysis/reports full stay opt-in.
 
 **Each** (per-jurisdiction) stays catalog/captions/light-oriented unless we
 explicitly extend it later; it does **not** run full by default.
