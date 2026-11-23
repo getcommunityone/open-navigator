@@ -43,6 +43,11 @@ video under whichever town it was refreshing, and its upsert overwrote `jurisdic
   `dbt run-operation repair_youtube_channel_attribution` (dry run, then
   `--args '{dry_run: false}'`). Per-video rows never touch the channel catalogs. Plan on
   2026-11-23: 92 shared channels, 682 moves (69 already analyzed), 1,140 unresolved (#779).
+- **Unresolved videos decided (#779).** Of the 1,140 videos the #777 plan could not place:
+  - About 677 moved to the government their title names, even though it isn't linked to the channel (mostly a town holding its county commission's meetings).
+  - Three channels got a channel-wide default because the whole channel was filed under the wrong place: `Union` → Carroll County, MD (plus per-video rows to the eight towns it names), `Clayton` → Clayton County, GA, and `hptv15` → Highland Park, NJ.
+  - Four non-government channels are served with no place (empty default).
+  - Angels Camp's videos were false alarms and stay where they are; AbingtonTownship's channel link still needs checking.
 
 ## YOUR QUESTION
 
