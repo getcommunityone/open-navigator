@@ -251,12 +251,16 @@ def _process_jurisdiction_worker(
         loader.close()
 
 
-# True when the stored row belongs to another place and this refresh has no title
-# evidence for its own jurisdiction (#778). Used inside insert_events' ON CONFLICT.
+# True when the stored row belongs to another place on a shared channel and this
+# refresh has no title evidence for its own jurisdiction (#778). Used inside
+# insert_events' ON CONFLICT. Never keeps a NULL or placeholder (c-XX-nnnnn) id, and
+# treats ids ending in the same GEOID (5+ digits) as the same place.
 _KEEP_OTHER_PLACE_SQL = (
-    "(y.jurisdiction_id IS NOT NULL"
-    " AND COALESCE(substring(y.jurisdiction_id from '[0-9]+$'), y.jurisdiction_id)"
-    " IS DISTINCT FROM COALESCE(substring(EXCLUDED.jurisdiction_id from '[0-9]+$'), EXCLUDED.jurisdiction_id)"
+    "(%(shared_channel)s"
+    " AND y.jurisdiction_id IS NOT NULL"
+    " AND y.jurisdiction_id !~ '^c-[A-Z]{2}-[0-9]+$'"
+    " AND COALESCE(substring(y.jurisdiction_id from '[0-9]{5,}$'), y.jurisdiction_id)"
+    " IS DISTINCT FROM COALESCE(substring(EXCLUDED.jurisdiction_id from '[0-9]{5,}$'), EXCLUDED.jurisdiction_id)"
     " AND NOT %(title_names_jurisdiction)s)"
 )
 
@@ -2428,7 +2432,11 @@ class YouTubeEventsLoader:
         try:
             # Insert events and collect their IDs
             for event in events:
-                params = {**event, "title_names_jurisdiction": event_title_names_its_jurisdiction(event)}
+                params = {
+                    **event,
+                    "shared_channel": bool(event.get("shared_channel")),
+                    "title_names_jurisdiction": event_title_names_its_jurisdiction(event),
+                }
                 cursor.execute(insert_query, params)
                 result = cursor.fetchone()
                 if result:
@@ -3132,12 +3140,13 @@ class YouTubeEventsLoader:
                 # A shared channel (county news, regional media) posts several
                 # governments' meetings; leave a video whose title names another
                 # jurisdiction linked to this channel to that jurisdiction (#777).
+                siblings = self.channel_sibling_jurisdictions(channel_id, jurisdiction_id)
                 videos, skipped_other = split_videos_naming_other_government(
                     videos,
                     jurisdiction_name=jurisdiction_name,
                     jurisdiction_type=jurisdiction_type,
                     state_code=state_code,
-                    siblings=self.channel_sibling_jurisdictions(channel_id, jurisdiction_id),
+                    siblings=siblings,
                 )
                 if skipped_other:
                     logger.info(
@@ -3163,6 +3172,8 @@ class YouTubeEventsLoader:
                         channel_id=channel_id,
                         channel_type=channel.get('channel_type', 'unknown')
                     )
+                    # Re-crawls of a shared channel keep each video's place (#778).
+                    event["shared_channel"] = bool(siblings)
                     all_events.append(event)
                 
             except VpnRequiredError:
