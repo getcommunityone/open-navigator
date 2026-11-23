@@ -167,3 +167,21 @@ def test_running_twice_replaces_the_first_copy(sandbox):
 def test_vite_refuses_to_hop_ports():
     cfg = (ROOT / "web_app" / "vite.config.ts").read_text(encoding="utf-8")
     assert "strictPort: true" in cfg
+
+
+def test_stops_a_stuck_vite_that_holds_no_port_but_only_inside_this_repo(sandbox, tmp_path):
+    """#789: a Vite hung during startup never binds 5173, so port cleanup alone misses it."""
+    repo, env, _ = sandbox
+    cmd = ["bash", "-c", "exec -a 'node vite' sleep 300"]
+    inside = subprocess.Popen(cmd, cwd=repo / "web_app")  # stuck dev server in this repo
+    outside = subprocess.Popen(cmd, cwd=tmp_path)  # a vite belonging to some other project
+    try:
+        time.sleep(0.5)
+        done = _run(repo, env)
+        assert done.returncode == 0, done.stdout + done.stderr
+        assert "leftover dev processes" in done.stdout
+        assert inside.wait(timeout=10) is not None  # stopped
+        assert outside.poll() is None  # untouched
+    finally:
+        inside.kill()
+        outside.kill()

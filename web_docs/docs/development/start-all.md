@@ -18,11 +18,14 @@ cd ~/projects/open-navigator
 That is the whole procedure. It does the following, in order, and never asks a question:
 
 1. Checks the `.venv` and the `node_modules` folders (installs the Node ones if missing).
-2. Frees ports **3000** (docs), **5173** (web app) and **8001** (API). It asks old processes to stop, forces them
+2. Stops this repo's leftover dev processes (`vite`, `npm run dev`, `npm start`, `main.py serve`, `uvicorn api.main`,
+   `docusaurus`) even when they hold no port. A Vite that hung during startup never binds 5173, so freeing ports alone
+   would miss it. It only touches processes whose working directory is inside this repository, never other projects.
+3. Frees ports **3000** (docs), **5173** (web app) and **8001** (API). It asks old processes to stop, forces them
    if they ignore that, and waits until each port is really free. If a port stays busy it stops with the PID.
-3. Starts the API, the web app and the docs site, in a `tmux` session named `open-navigator` (or as background
+4. Starts the API, the web app and the docs site, in a `tmux` session named `open-navigator` (or as background
    processes when `tmux` is missing or `START_ALL_NO_TMUX=1` is set).
-4. Waits up to 90 seconds for `http://localhost:8001/docs` and `http://localhost:5173/` to answer, and prints
+5. Waits up to 90 seconds for `http://localhost:8001/docs` and `http://localhost:5173/` to answer, and prints
    `OK` or `FAILED` for each one, with the last lines of its log when it fails.
 
 It exits `0` only when the API and the web app both answer. The docs site is reported but never fails the run.
