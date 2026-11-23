@@ -11,6 +11,27 @@ For the YouTube Data API **compliance audit** (architecture, user flow, endpoint
 
 ---
 
+## Shared channels: one channel, several governments (#777)
+
+Some channels post meetings for more than one government. `49 County News.Net`
+(`UCZ47nYYggC17NbmBs0Mx3Ww`) covers seven Marion County, AL towns, and LocalView links it to all
+seven. Before #777 the loader (`scrapers.youtube.load_youtube_events_to_postgres`) filed every new
+video under whichever town it was refreshing, and its upsert overwrote `jurisdiction_id`, so
+"Hamilton City Council Meeting" videos landed under Winfield.
+
+- **Loader guard.** On refresh, a video whose title names a different government
+  (`title_names_other_government`, for example "Hamilton City Council ..." for Winfield, or
+  "Marion County Commissioners ..." for a town) is skipped for that jurisdiction:
+  `split_videos_naming_other_government` in `scrapers.discovery.channel_government_mismatch`.
+  The refresh of the government it names files it. Titles that name no government (parades,
+  ceremonies) are kept as before.
+- **Correction.** `python -m scrapers.youtube.reassign_shared_channel_videos` is read-only by
+  default. It lists videos on shared channels whose title names another government, and moves a
+  video only when the title names exactly one of the channel's other jurisdictions; everything
+  else is reported as `unresolved`. `--apply` writes the moves in one transaction (only
+  `jurisdiction_id`, `jurisdiction_name` and `city` change); rebuild the dbt event marts afterwards.
+  Dry run on 2026-11-23: 92 shared channels, 682 moves (69 already analyzed), 1,140 unresolved.
+
 ## YOUR QUESTION
 
 > "Why did it not find https://www.youtube.com/@TuscaloosaCityAL which appears to be the latest and largest youtube site? If there are multiple, does the system store both and does it provide the number of videos on each channel?"

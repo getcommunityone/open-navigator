@@ -108,7 +108,10 @@ from scrapers.youtube.youtube_loader_logging import (
     log_progress,
 )
 from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn  # noqa: E402
-from scrapers.discovery.channel_government_mismatch import real_channel_title  # noqa: E402
+from scrapers.discovery.channel_government_mismatch import (  # noqa: E402
+    real_channel_title,
+    split_videos_naming_other_government,
+)
 from scrapers.youtube.pattern_match_gate import PATTERN_MATCH_UNVERIFIED_METHOD  # noqa: E402
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
 
@@ -3066,7 +3069,26 @@ class YouTubeEventsLoader:
                         self.min_duration_seconds,
                     )
                     continue
-                
+
+                # A shared channel (county news, regional media) posts several
+                # governments' meetings; file only the ones whose title does not
+                # name another government under this jurisdiction (#777).
+                videos, skipped_other = split_videos_naming_other_government(
+                    videos,
+                    jurisdiction_name=jurisdiction_name,
+                    jurisdiction_type=jurisdiction_type,
+                    state_code=state_code,
+                )
+                if skipped_other:
+                    logger.info(
+                        "    Skipped {} video(s) whose title names another government, e.g. {!r} ({})",
+                        len(skipped_other),
+                        skipped_other[0][0].get("title"),
+                        skipped_other[0][1],
+                    )
+                if not videos:
+                    continue
+
                 logger.info(f"    Retrieved {len(videos)} new videos")
                 
                 # Convert videos to event records

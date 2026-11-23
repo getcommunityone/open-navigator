@@ -247,6 +247,83 @@ def title_names_other_government(
     return None
 
 
+def title_names_jurisdiction(
+    title: str,
+    *,
+    jurisdiction_name: str,
+    jurisdiction_type: str,
+) -> bool:
+    """True when *title* names this jurisdiction as a government (e.g. "Hamilton City
+    Council ..." names Hamilton; "Bear Creek Christmas Parade" names nobody)."""
+    named = named_governments(title or "")
+    target = _target_token(jurisdiction_name or "")
+    if not target:
+        return False
+    jtype = (jurisdiction_type or "").strip().lower()
+    pool = named.counties if jtype == "county" else named.cities
+    return any(_names_match(c, target) for c in pool)
+
+
+def split_videos_naming_other_government(
+    videos: Iterable[dict],
+    *,
+    jurisdiction_name: Optional[str],
+    jurisdiction_type: str,
+    state_code: str = "",
+) -> tuple[list[dict], list[tuple[dict, str]]]:
+    """
+    Split a channel's videos into ``(kept, skipped)`` for one jurisdiction (#777).
+
+    A channel can serve several governments: a county news channel posts every
+    town's council meetings (``49 County News.Net`` covers seven Marion County, AL
+    towns). The loader files every new video under the jurisdiction being
+    refreshed, so Hamilton's meetings landed under Winfield. A video whose title
+    names a different government is skipped here (``skipped`` holds the video and
+    the reason); its own jurisdiction's refresh files it. Titles that name no
+    government (parades, ceremonies) are kept, as before.
+    """
+    kept: list[dict] = []
+    skipped: list[tuple[dict, str]] = []
+    for video in videos:
+        reason = (
+            title_names_other_government(
+                video.get("title") or "",
+                jurisdiction_name=jurisdiction_name,
+                jurisdiction_type=jurisdiction_type,
+                state_code=state_code,
+            )
+            if jurisdiction_name
+            else None
+        )
+        if reason:
+            skipped.append((video, reason))
+        else:
+            kept.append(video)
+    return kept, skipped
+
+
+def pick_named_sibling(title: str, siblings: Iterable[dict]) -> Optional[dict]:
+    """
+    Among the jurisdictions that share a channel (dicts with ``name``,
+    ``jurisdiction_type``, ``state_code``), return the single one *title* names
+    and does not contradict; ``None`` when none or more than one qualifies.
+    Used to move a misfiled video to the sibling its title is about (#777).
+    """
+    hits = [
+        s for s in siblings
+        if title_names_jurisdiction(
+            title, jurisdiction_name=s.get("name") or "", jurisdiction_type=s.get("jurisdiction_type") or ""
+        )
+        and not title_names_other_government(
+            title,
+            jurisdiction_name=s.get("name") or "",
+            jurisdiction_type=s.get("jurisdiction_type") or "",
+            state_code=s.get("state_code") or "",
+        )
+    ]
+    return hits[0] if len(hits) == 1 else None
+
+
 def real_channel_title(channel_title: Optional[str], jurisdiction_name: Optional[str]) -> Optional[str]:
     """
     The channel's own title, or ``None`` when *channel_title* is just the
