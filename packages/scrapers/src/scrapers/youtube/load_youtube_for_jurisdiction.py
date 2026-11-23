@@ -39,6 +39,9 @@ from scrapers.youtube.download_audio_to_drive import (  # noqa: E402
 from scrapers.youtube.load_youtube_events_to_postgres import (  # noqa: E402
     YouTubeEventsLoader,
 )
+from scrapers.youtube.discover_progress import (  # noqa: E402
+    stamp_channel_checked_for_jurisdiction,
+)
 from scrapers.youtube.vpn_guard import exit_if_vpn_off, require_vpn  # noqa: E402
 
 
@@ -190,7 +193,7 @@ def main() -> None:
         jurisdiction["jurisdiction_id"],
         channel_id,
     )
-    inserted = loader.process_jurisdiction(jurisdiction)
+    inserted = load_and_stamp(loader, jurisdiction)
     if inserted > 0:
         logger.success("Done — wrote {} new/updated event row(s)", inserted)
     else:
@@ -198,6 +201,25 @@ def main() -> None:
             "Done — NOOP (0 new rows written; channel already up to date or no videos found)"
         )
     loader.conn.close()
+
+
+def load_and_stamp(loader: YouTubeEventsLoader, jurisdiction: dict) -> int:
+    """Load the jurisdiction's channel, then stamp its scraped row whatever happened (#770).
+
+    The stamp is what moves Discover's Last activity while ``discover --load`` runs.
+    """
+    jurisdiction_id = str(jurisdiction.get("jurisdiction_id") or "")
+    try:
+        inserted = loader.process_jurisdiction(jurisdiction)
+    except Exception:
+        try:
+            loader.conn.rollback()  # a failed load can leave the transaction aborted
+        except Exception:  # noqa: BLE001 - the stamp below then just warns
+            pass
+        stamp_channel_checked_for_jurisdiction(loader.conn, jurisdiction_id)
+        raise
+    stamp_channel_checked_for_jurisdiction(loader.conn, jurisdiction_id)
+    return inserted
 
 
 if __name__ == "__main__":

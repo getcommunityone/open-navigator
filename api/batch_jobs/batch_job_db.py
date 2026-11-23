@@ -504,6 +504,34 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
     }
 
 
+def discover_last_at_sql(conn: Any) -> str:
+    """Per-row SQL for Discover's Last activity on the scraped-jurisdiction tables (#770).
+
+    ``GREATEST(discovered_at, channel_checked_at)`` when both tables have
+    ``channel_checked_at`` (stamped for each jurisdiction a Discover run tries),
+    else ``discovered_at``. Read-only: the column is added by the writers, never here.
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = 'bronze'
+                  AND table_name IN ('bronze_jurisdictions_counties_scraped',
+                                     'bronze_jurisdictions_municipalities_scraped')
+                  AND column_name = 'channel_checked_at'
+                """
+            )
+            row = cur.fetchone()
+        if row and int(row[0]) == 2:
+            return "GREATEST(discovered_at, channel_checked_at)"
+    except Exception as exc:
+        conn.rollback()
+        logger.debug("discover_last_at_sql: column lookup failed: %s", exc)
+    return "discovered_at"
+
+
 def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, Any]:
     """
     Long-format per-state pipeline coverage from the bronze per-event stamps.
@@ -624,25 +652,28 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
     # the combined coverage; the per-entity rows sum back to the combined total.
     DISCOVER_ENTITIES = ("counties", "municipalities")
     discover_by_state: Dict[str, Dict[str, Any]] = {}
+    # Last activity: when a channel was found, or when a Discover run last tried the
+    # jurisdiction, whichever is later (#770). ``activity`` is SQL from discover_last_at_sql.
+    activity = discover_last_at_sql(conn)
     try:
         with conn.cursor() as cur:
             if jid_filter is not None:
                 cur.execute(
-                    """
+                    f"""
                     SELECT j.state_code AS st, s.entity,
                         COUNT(*)::int AS total,
                         COUNT(*) FILTER (
                             WHERE COALESCE(NULLIF(s.youtube_channel_id, ''),
                                            NULLIF(s.youtube_channel_url, '')) IS NOT NULL
                         )::int AS done,
-                        MAX(s.discovered_at) AS last_at
+                        MAX(s.activity_at) AS last_at
                     FROM (
                         SELECT usps, geoid, youtube_channel_id, youtube_channel_url,
-                               discovered_at, 'counties' AS entity
+                               {activity} AS activity_at, 'counties' AS entity
                           FROM bronze.bronze_jurisdictions_counties_scraped
                         UNION ALL
                         SELECT usps, geoid, youtube_channel_id, youtube_channel_url,
-                               discovered_at, 'municipalities' AS entity
+                               {activity} AS activity_at, 'municipalities' AS entity
                           FROM bronze.bronze_jurisdictions_municipalities_scraped
                     ) s
                     JOIN intermediate.int_jurisdictions j
@@ -656,21 +687,21 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                 )
             else:
                 cur.execute(
-                    """
+                    f"""
                     SELECT usps AS st, entity,
                         COUNT(*)::int AS total,
                         COUNT(*) FILTER (
                             WHERE COALESCE(NULLIF(youtube_channel_id, ''),
                                            NULLIF(youtube_channel_url, '')) IS NOT NULL
                         )::int AS done,
-                        MAX(discovered_at) AS last_at
+                        MAX(activity_at) AS last_at
                     FROM (
-                        SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at,
-                               'counties' AS entity
+                        SELECT usps, youtube_channel_id, youtube_channel_url,
+                               {activity} AS activity_at, 'counties' AS entity
                           FROM bronze.bronze_jurisdictions_counties_scraped
                         UNION ALL
-                        SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at,
-                               'municipalities' AS entity
+                        SELECT usps, youtube_channel_id, youtube_channel_url,
+                               {activity} AS activity_at, 'municipalities' AS entity
                           FROM bronze.bronze_jurisdictions_municipalities_scraped
                     ) j
                     WHERE COALESCE(usps, '') <> ''
