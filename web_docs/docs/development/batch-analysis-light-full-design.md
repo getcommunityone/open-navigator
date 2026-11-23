@@ -113,13 +113,17 @@ POST /api/batch-jobs/launch
 
 ### Stage progress
 
-- **Analysis light / reports light:** count light stamps (new columns or path
-  convention — prefer explicit `policy_analysis_light_at` /
-  `policy_report_light_at` if we can migrate; interim: path suffix `_light` or
-  `pipeline` tag in bronze). Grain remains one row per video.
-- **Analysis full / reports full:** count full stamps only; denominator = videos
-  with light analysis in scope (or full-eligible estimate), never the full
-  transcript pile.
+- **Analysis light / reports light:** count `policy_analysis_at` /
+  `policy_report_at` (lite Part 1 / Part 2). Denominator for analysis light =
+  transcripts in scope; for reports light = analysis light in scope.
+- **Analysis full / reports full:** count `policy_*_full_*` only. Denominator for
+  analysis full = transcripts in scope (same grain as light — pre-split deep
+  Part 1 rows often have no light stamp after #766 reclassify); for reports
+  full = analysis full. New full runs still require light first at launch time.
+- **Pre-split deep Part 1** (`prompts/policy_analysis_part_1.md`) that landed on
+  light columns before #755 must be reclassified onto full stamps
+  (`python -m llm.gemini.reclassify_policy_tier_stamps`, #766) so Analysis light
+  % is not the old full-job coverage.
 - Do **not** invent counts (No Fabricated Data).
 
 ### Out of scope (follow-ups)

@@ -765,8 +765,12 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
         la_f = rec["last_analysis_full"]
         lr_f = rec["last_report_full"]
         # videos: YouTube download stamps (ok / attempted). transcripts: landed
-        # rows over that same attempted set. Light analyses/reports sit below
-        # transcripts; full stages are denominated by light analyses (#755).
+        # rows over that same attempted set. Light + full analysis are both
+        # warehouse coverage over transcripts (#755 / #766). Reports are
+        # denominated by their matching analysis tier. Full analysis must NOT
+        # use light as its denominator: pre-split deep Part 1 rows were moved
+        # onto full stamps without a light stamp (#766), which would otherwise
+        # show Analysis full at ~100% while light is a few percent.
         tx_done = int(tx.get("done", 0))
         tx_total = max(int(tx.get("total", 0)), tx_done)
         tx_last = tx.get("last_at") or ""
@@ -787,7 +791,7 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
              "total": max(analyses_light, reports_light),
              "failed": int(rec["report_light_err"]), "last_at": lr_l},
             {"scope": scope, "stage": "analyses_full", "done": analyses_full,
-             "total": max(analyses_light, analyses_full),
+             "total": max(tx_done, analyses_full),
              "failed": int(rec["analysis_full_err"]), "last_at": la_f},
             {"scope": scope, "stage": "reports_full", "done": reports_full,
              "total": max(analyses_full, reports_full),

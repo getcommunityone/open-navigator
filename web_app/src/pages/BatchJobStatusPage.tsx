@@ -1785,6 +1785,7 @@ export default function BatchJobStatusPage() {
                 n: 3,
                 stage: 'analyses_light',
                 unit: 'videos',
+                sub: 'lite Part 1 stamps ÷ transcripts in this Filter (not deep Part 1 / full)',
                 pill: true,
                 drill: null,
                 failTitle: 'Analysis errors (bronze policy_analysis_error)',
@@ -1794,6 +1795,7 @@ export default function BatchJobStatusPage() {
                 n: 4,
                 stage: 'reports_light',
                 unit: 'videos',
+                sub: 'lite Part 2 stamps ÷ analysis light in this Filter',
                 pill: true,
                 drill: null,
                 failTitle: 'Report errors (bronze policy_report_error)',
@@ -1803,7 +1805,7 @@ export default function BatchJobStatusPage() {
                 n: 5,
                 stage: 'analyses_full',
                 unit: 'videos',
-                sub: 'Opt-in — requires analysis light + any checked filter',
+                sub: 'deep Part 1 stamps ÷ transcripts · opt-in filters',
                 pill: true,
                 drill: null,
                 failTitle: 'Full analysis errors (bronze policy_analysis_full_error)',
@@ -1813,7 +1815,7 @@ export default function BatchJobStatusPage() {
                 n: 6,
                 stage: 'reports_full',
                 unit: 'videos',
-                sub: 'Opt-in — requires analysis full',
+                sub: 'deep Part 2 stamps ÷ analysis full · opt-in',
                 pill: true,
                 drill: null,
                 failTitle: 'Full report errors (bronze policy_report_full_error)',
@@ -1947,17 +1949,20 @@ export default function BatchJobStatusPage() {
               ''
             ).trim()
             const vpnDown = !!ls?.vpn_down
+            const billingExhausted = !!ls?.billing_exhausted
             const resumedSteps = ls?.resumed_steps ?? []
-            const statusText = vpnDown
-              ? 'VPN down'
-              : isActive
-                ? launchWarning
-                  ? 'Running · warning'
-                  : 'Running'
-                : anyStalled
-                  ? 'Stalled'
-                  : 'Idle'
-            const statusDot = vpnDown
+            const statusText = billingExhausted
+              ? 'Billing down'
+              : vpnDown
+                ? 'VPN down'
+                : isActive
+                  ? launchWarning
+                    ? 'Running · warning'
+                    : 'Running'
+                  : anyStalled
+                    ? 'Stalled'
+                    : 'Idle'
+            const statusDot = billingExhausted || vpnDown
               ? 'bg-rose-500'
               : isActive
                 ? launchWarning
@@ -1973,17 +1978,19 @@ export default function BatchJobStatusPage() {
                   <div
                     role="status"
                     className={`border-b px-4 py-2 text-sm ${
-                      vpnDown
+                      billingExhausted || vpnDown
                         ? 'border-rose-200 bg-rose-50 text-rose-900'
                         : 'border-amber-200 bg-amber-50 text-amber-950'
                     }`}
                   >
                     <span className="font-semibold">
-                      {vpnDown
-                        ? 'VPN error'
-                        : resumedSteps.length > 0
-                          ? 'Auto-resumed'
-                          : 'Inactivity warning'}
+                      {billingExhausted
+                        ? 'Billing error'
+                        : vpnDown
+                          ? 'VPN error'
+                          : resumedSteps.length > 0
+                            ? 'Auto-resumed'
+                            : 'Inactivity warning'}
                     </span>
                     <span className="mx-1.5 text-current/40">·</span>
                     <span>{launchWarning}</span>
@@ -2445,6 +2452,17 @@ export default function BatchJobStatusPage() {
                             this stage has not started yet. Open that stage for the live log.
                           </p>
                         ) : null}
+                        {displayLog?.blocker &&
+                        !(fullRunLogStep && !expandedOwnsFullRunLog) ? (
+                          <p
+                            role="status"
+                            className="mb-1 rounded border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-900"
+                          >
+                            <span className="font-semibold">Blocker</span>
+                            <span className="mx-1 text-rose-300">·</span>
+                            {displayLog.blocker}
+                          </p>
+                        ) : null}
                         <pre className="mt-2 max-h-56 overflow-auto rounded bg-slate-900 p-2 text-[10px] leading-snug text-slate-100">
                           {fullRunLogStep && !expandedOwnsFullRunLog
                             ? `(waiting) Run ${fullRunLogStep} is in ${fullRunPhaseLabel(fullRunPhase)} — no ${st.stage} output yet.`
@@ -2751,7 +2769,7 @@ export default function BatchJobStatusPage() {
               }
             />
             <SummaryCard
-              label="Analysis progress"
+              label="Analysis light %"
               value={
                 data.totals.files_transcripts_disk > 0
                   ? `${Math.round((data.totals.files_analysis / data.totals.files_transcripts_disk) * 100)}%`
@@ -2759,10 +2777,10 @@ export default function BatchJobStatusPage() {
               }
               title={`${formatCompactNumber(data.totals.files_analysis)} of ${formatCompactNumber(
                 data.totals.files_transcripts_disk ?? 0,
-              )} transcripts have an AI analysis (live bronze stamps)`}
+              )} transcripts have a light-tier analysis stamp (policy_analysis_at). Pre-split deep Part 1 rows are reclassified onto full stamps (#766).`}
             />
             <SummaryCard
-              label="Reports progress"
+              label="Reports light %"
               value={
                 data.totals.files_transcripts_disk > 0
                   ? `${Math.round((data.totals.files_reports / data.totals.files_transcripts_disk) * 100)}%`
@@ -2770,7 +2788,7 @@ export default function BatchJobStatusPage() {
               }
               title={`${formatCompactNumber(data.totals.files_reports)} of ${formatCompactNumber(
                 data.totals.files_transcripts_disk ?? 0,
-              )} transcripts have a generated report (live bronze stamps; same denominator as Analysis progress, so the two read as one funnel — not reports÷analyses)`}
+              )} transcripts have a light-tier report stamp (policy_report_at; same denominator as Analysis light %).`}
             />
             <SummaryCard
               label="Analysis (24h)"
