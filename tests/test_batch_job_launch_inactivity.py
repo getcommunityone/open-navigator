@@ -43,6 +43,17 @@ def test_vpn_down_regex_matches_surfshark_lines() -> None:
     assert not bj._VPN_DOWN_RE.search("vpn_guard: VPN up via eth3")
 
 
+def test_billing_exhausted_regex_matches_402_lines() -> None:
+    assert bj._BILLING_EXHAUSTED_RE.search(
+        "google.genai.errors.ClientError: 402 RESOURCE_EXHAUSTED. "
+        "{'error': {'message': 'Your prepayment credits are depleted.'}}"
+    )
+    assert bj._BILLING_EXHAUSTED_RE.search(
+        "billing exhaustion (402 prepaid credits depleted)"
+    )
+    assert not bj._BILLING_EXHAUSTED_RE.search("429 RESOURCE_EXHAUSTED free tier quota")
+
+
 def test_launch_warn_seconds_env(monkeypatch) -> None:
     monkeypatch.setenv("BATCH_JOB_LAUNCH_WARN_SECONDS", "120")
     assert bj._launch_warn_seconds() == 120.0
@@ -50,7 +61,12 @@ def test_launch_warn_seconds_env(monkeypatch) -> None:
     assert bj._launch_warn_seconds() == float(bj._LAUNCH_WARN_SECONDS_DEFAULT)
 
 
-def test_launch_activity_iso_ignores_unrelated_freshest_for_discover() -> None:
+def test_launch_activity_iso_ignores_unrelated_freshest_for_discover(
+    monkeypatch, tmp_path: Path
+) -> None:
+    # Isolate from live launch logs under the real repo (#699 flaky otherwise).
+    monkeypatch.setattr(bj, "_repo_root", lambda: tmp_path)
+    (tmp_path / "data" / "cache" / "batch_jobs").mkdir(parents=True)
     started = "2026-11-22T20:00:00+00:00"
     meta = {"step": "discover", "started_at": started}
     # Fresher analyze stamp must not hide a hung discover launch.
@@ -101,6 +117,26 @@ def test_launch_operator_signals_vpn_down_from_log(monkeypatch, tmp_path: Path) 
     signals = bj._launch_operator_signals(freshest="", running=running, stalled=[])
     assert signals["vpn_down"] is True
     assert "Surfshark" in signals["warning"]
+
+
+def test_launch_operator_signals_billing_from_log(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BATCH_JOB_LAUNCH_WARN_SECONDS", "3600")
+    monkeypatch.setattr(bj, "_repo_root", lambda: tmp_path)
+    log_dir = tmp_path / "data" / "cache" / "batch_jobs"
+    log_dir.mkdir(parents=True)
+    now = datetime.now(timezone.utc)
+    (log_dir / "launch_analyze-light_billing.log").write_text(
+        f"{now.strftime('%Y-%m-%d %H:%M:%S')} ClientError: 402 RESOURCE_EXHAUSTED. "
+        f"Your prepayment credits are depleted.\n",
+        encoding="utf-8",
+    )
+    started = now.isoformat()
+    running = [{"step": "analyze-light", "started_at": started, "pid": 1}]
+    signals = bj._launch_operator_signals(freshest="", running=running, stalled=[])
+    assert signals["billing_exhausted"] is True
+    assert signals["vpn_down"] is False
+    assert "prepaid credits depleted" in signals["warning"]
+    assert "analyze-light" in signals["warning"]
 
 
 def test_orphan_vpn_warning_after_process_exits(monkeypatch, tmp_path: Path) -> None:

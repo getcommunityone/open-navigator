@@ -10,6 +10,8 @@ from llm.gemini.genai_text_client import (
     GenAIServerOverloadGiveUp,
     GenAITransientGiveUp,
     call_with_genai_quota_retry,
+    classify_genai_error,
+    is_genai_billing_error,
     is_genai_model_unavailable_error,
     is_genai_quota_error,
     is_genai_retryable,
@@ -189,6 +191,25 @@ def test_overload_classifier_excludes_quota():
     assert not is_genai_server_overload_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
     assert is_genai_quota_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
     assert not is_genai_quota_error(RuntimeError("503 UNAVAILABLE"))
+
+
+def test_billing_402_distinct_from_free_tier_429():
+    """Prepaid depletion must not look like a midnight-Pacific daily wall (#699)."""
+    billing = RuntimeError(
+        "402 RESOURCE_EXHAUSTED. Your prepayment credits are depleted. "
+        "Please go to AI Studio to manage billing."
+    )
+    assert is_genai_billing_error(billing)
+    assert not is_genai_quota_error(billing)
+    assert not is_genai_retryable(billing)
+    assert "402" in classify_genai_error(billing)
+    assert "billing" in classify_genai_error(billing).lower()
+
+    daily = RuntimeError("429 RESOURCE_EXHAUSTED")
+    assert not is_genai_billing_error(daily)
+    assert is_genai_quota_error(daily)
+    assert is_genai_retryable(daily)
+    assert "429" in classify_genai_error(daily)
 
 
 # --- Half-open-connection timeout (the 37-minute-hang fix) -------------------
