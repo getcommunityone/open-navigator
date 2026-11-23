@@ -26,6 +26,10 @@ def _reset(monkeypatch):
     sh.direct_egress_interface.cache_clear()
     sh._DIRECT_FIRST_HOSTS.clear()
     monkeypatch.delenv("SCRAPE_DIRECT_INTERFACE", raising=False)
+    monkeypatch.delenv("SCRAPE_DIRECT_PROXY", raising=False)
+    # Never read or write the real data/cache hosts file from a test (#767).
+    monkeypatch.setenv("SCRAPE_DIRECT_HOSTS_FILE", "off")
+    sh._reset_saved_hosts_state()
     yield
     sh.direct_egress_interface.cache_clear()
     sh._DIRECT_FIRST_HOSTS.clear()
