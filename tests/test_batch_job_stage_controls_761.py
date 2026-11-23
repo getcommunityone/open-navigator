@@ -27,7 +27,18 @@ def fake_scripts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return root
 
 
-def test_run_all_chains_discover_then_shell_all(fake_scripts: Path) -> None:
+def test_run_all_parallel_steps_constant() -> None:
+    assert bj._RUN_ALL_PARALLEL_STEPS == (
+        "discover",
+        "catalog",
+        "captions",
+        "analyze-light",
+        "reports-light",
+    )
+
+
+def test_legacy_all_argv_still_chains_for_old_pids(fake_scripts: Path) -> None:
+    """Sequential ``all`` argv remains for resuming a legacy single-PID Run all."""
     argv, env = bj._build_launch_argv(
         "all",
         states=["AL"],
@@ -39,10 +50,53 @@ def test_run_all_chains_discover_then_shell_all(fake_scripts: Path) -> None:
     chain = argv[4]
     assert "=== Discover (channel candidates) ===" in chain
     assert "load_missing_county_channels.py" in chain
-    assert "--load" in chain
-    assert "youtube_run_priority_states_last_n.sh" in chain
-    assert chain.count(" all") >= 1 or chain.endswith("all")
     assert env.get("BATCH_STATUS") == "1"
+
+
+def test_run_all_fans_out_five_spawns(
+    fake_scripts: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spawned: list[str] = []
+    pid = 5000
+
+    def _fake_spawn(step: str, **kwargs: object) -> dict:
+        nonlocal pid
+        pid += 1
+        spawned.append(step)
+        return {
+            "pid": pid,
+            "step": step,
+            "states": kwargs.get("states") or [],
+            "cohort": kwargs.get("cohort") or "priority",
+            "n": kwargs.get("n") or 10,
+            "parallel": kwargs.get("parallel") or 1,
+            "full_filters": [],
+            "started_at": "2026-11-23T00:00:00+00:00",
+            "log": f"data/cache/batch_jobs/launch_{step}_test.log",
+            "exit_path": f"/tmp/launch_{step}.exit",
+            "auto_resume": True,
+            "resume_count": 0,
+            "stopped": False,
+            "awaiting_vpn": False,
+        }
+
+    monkeypatch.setattr(bj, "_spawn_launch", _fake_spawn)
+    monkeypatch.setattr(bj, "_launch_enabled", lambda: True)
+    monkeypatch.setattr(bj, "_read_launches", lambda: [])
+    monkeypatch.setattr(bj, "_write_launches", lambda _m: None)
+    monkeypatch.setattr(bj, "_dashboard_runtime", lambda: (0, ""))
+    monkeypatch.setattr(
+        "api.batch_jobs.cohorts.resolve_launch_states",
+        lambda cohort, states, conn=None: ["AL"],
+    )
+
+    import asyncio
+
+    req = bj.LaunchRequest(step="all", states=["AL"], n=10, parallel=2, cohort="priority")
+    res = asyncio.run(bj.launch_pipeline(req))
+    assert res.launched is True
+    assert spawned == list(bj._RUN_ALL_PARALLEL_STEPS)
+    assert "parallel" in res.detail.lower()
 
 
 @pytest.mark.parametrize(

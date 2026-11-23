@@ -437,6 +437,15 @@ _DISCOVER_SCRIPT = "packages/scrapers/src/scrapers/youtube/load_missing_county_c
 _BACKFILL_SCRIPT = "packages/scrapers/src/scrapers/youtube/backfill_transcripts.py"
 # analyze / analyze-light are aliases (light Part 1). reports-* = Part 2 only.
 # analyze-full / reports-full are opt-in and require full_filters (#755).
+# Stages 1–5 started together by Run all (#763). Each is its own launch.json
+# entry with its own log / Stop / VPN auto-resume — not a sequential chain.
+_RUN_ALL_PARALLEL_STEPS = (
+    "discover",
+    "catalog",
+    "captions",
+    "analyze-light",
+    "reports-light",
+)
 _LAUNCH_STEPS = (
     "discover",
     "catalog",
@@ -1156,6 +1165,65 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     # Backfill: UI size picker sends n = 100/500/2000/4000, or 0 for "All".
     # Discover / wrapper steps still use the clamped n above.
     launch_n = int(req.n or 0) if step == "backfill" else n
+
+    # Run all = five concurrent stage launches (#763), not one sequential chain.
+    if step == "all":
+        metas: List[Dict[str, Any]] = []
+        try:
+            for stage_step in _RUN_ALL_PARALLEL_STEPS:
+                metas.append(
+                    _spawn_launch(
+                        stage_step,
+                        states=states,
+                        cohort=cohort,
+                        n=launch_n,
+                        parallel=parallel,
+                        resume_count=0,
+                        auto_resume=True,
+                        full_filters=full_filters if stage_step in _FULL_FILTER_STEPS else None,
+                    )
+                )
+        except ValueError as exc:
+            for m in metas:
+                _kill_launch(m)
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            for m in metas:
+                _kill_launch(m)
+            logger.exception("pipeline Run all fan-out failed")
+            raise HTTPException(status_code=500, detail=f"launch failed: {exc}") from exc
+
+        fan_steps = set(_RUN_ALL_PARALLEL_STEPS) | {"all"}
+        others = [
+            m for m in kept if str(m.get("step") or "") not in fan_steps
+        ]
+        try:
+            _write_launches(others + metas)
+        except Exception:
+            pass
+
+        pids = [int(m["pid"]) for m in metas if m.get("pid") is not None]
+        steps_started = [str(m.get("step") or "") for m in metas]
+        logger.info(
+            "launched Run all in parallel steps={} states={} n={} parallel={} pids={}",
+            steps_started,
+            states or "default",
+            launch_n,
+            parallel,
+            pids,
+        )
+        return LaunchResponse(
+            launched=True,
+            pid=pids[0] if pids else None,
+            step="all",
+            states=states,
+            log=str(metas[0].get("log") or "") if metas else "",
+            detail=(
+                f"Started stages 1–5 in parallel ({', '.join(steps_started)}; "
+                f"pids {', '.join(str(p) for p in pids)}). "
+                "Each stage has its own log and auto-resume (Stop all disables it)."
+            ),
+        )
 
     try:
         meta = _spawn_launch(
