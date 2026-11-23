@@ -76,6 +76,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Fail loudly if 5173 is taken instead of silently moving to 5174: Google sign-in
+    // redirects to 5173, so a hop breaks login with no error (#787).
+    strictPort: true,
     // WSL2's inotify often misses edits made from the Linux side, so HMR never
     // fires and the browser keeps serving the build from when Vite started.
     // Polling reliably picks up changes (slightly higher idle CPU is the trade).
