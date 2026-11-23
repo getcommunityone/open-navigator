@@ -17,7 +17,8 @@ jurisdictions, the video moves there. Every other flagged video is reported as
 Read-only by default: it prints a summary and writes a CSV of planned moves.
 ``--apply`` performs the moves in one transaction; each UPDATE also matches the old
 ``jurisdiction_id``, so a row changed since the plan is not touched. Only
-``jurisdiction_id``, ``jurisdiction_name`` and ``city`` change; ``video_id`` (the
+``jurisdiction_id``, ``jurisdiction_name`` and ``city`` change (``city`` is cleared for a
+county); ``video_id`` (the
 primary key) and the analysis columns stay as they are. Rebuild the dbt event
 marts afterwards.
 
@@ -74,7 +75,8 @@ _UPDATE_SQL = """
     UPDATE bronze.bronze_event_youtube
     SET jurisdiction_id = %(to_jurisdiction_id)s,
         jurisdiction_name = %(to_name)s,
-        city = CASE WHEN city IS NULL THEN NULL ELSE %(to_name)s END,
+        city = CASE WHEN %(to_jurisdiction_type)s = 'county' THEN NULL
+                    WHEN city IS NULL THEN NULL ELSE %(to_name)s END,
         last_updated = now()
     WHERE video_id = %(video_id)s AND jurisdiction_id = %(from_jurisdiction_id)s
 """
@@ -88,6 +90,7 @@ class Planned:
     from_jurisdiction_id: str
     to_jurisdiction_id: str | None
     to_name: str | None
+    to_jurisdiction_type: str | None
     reason: str
     action: str  # "move" | "unresolved"
     analyzed: bool
@@ -122,6 +125,7 @@ def plan_moves(
                 from_jurisdiction_id=own["jurisdiction_id"],
                 to_jurisdiction_id=target["jurisdiction_id"] if target else None,
                 to_name=target["name"] if target else None,
+                to_jurisdiction_type=target["jurisdiction_type"] if target else None,
                 reason=reason,
                 action="move" if target else "unresolved",
                 analyzed=bool(v.get("analyzed")),

@@ -1633,6 +1633,35 @@ class YouTubeEventsLoader:
         
         return channels
     
+    def channel_sibling_jurisdictions(self, channel_id: str, jurisdiction_id: str) -> List[Dict[str, Any]]:
+        """Other jurisdictions linked to *channel_id* (bronze videos or int_events_channels), #777.
+        Empty when the channel serves only this jurisdiction or the lookup fails."""
+        cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cursor.execute(
+                """
+                WITH links AS (
+                    SELECT jurisdiction_id FROM bronze.bronze_event_youtube
+                    WHERE channel_id = %(c)s AND jurisdiction_id IS NOT NULL
+                    UNION
+                    SELECT jurisdiction_id FROM intermediate.int_events_channels
+                    WHERE youtube_channel_id = %(c)s AND jurisdiction_id IS NOT NULL
+                )
+                SELECT j.jurisdiction_id, j.name, j.jurisdiction_type::text AS jurisdiction_type, j.state_code
+                FROM links l
+                JOIN intermediate.int_jurisdictions j ON j.jurisdiction_id = l.jurisdiction_id
+                WHERE l.jurisdiction_id <> %(j)s
+                """,
+                {"c": channel_id, "j": jurisdiction_id},
+            )
+            return [dict(r) for r in cursor.fetchall()]
+        except Exception as exc:
+            self.conn.rollback()
+            logger.debug("Sibling lookup failed for channel {}: {}", channel_id, exc)
+            return []
+        finally:
+            cursor.close()
+
     def video_to_event_record(
         self,
         video: Dict,
@@ -3071,17 +3100,18 @@ class YouTubeEventsLoader:
                     continue
 
                 # A shared channel (county news, regional media) posts several
-                # governments' meetings; file only the ones whose title does not
-                # name another government under this jurisdiction (#777).
+                # governments' meetings; leave a video whose title names another
+                # jurisdiction linked to this channel to that jurisdiction (#777).
                 videos, skipped_other = split_videos_naming_other_government(
                     videos,
                     jurisdiction_name=jurisdiction_name,
                     jurisdiction_type=jurisdiction_type,
                     state_code=state_code,
+                    siblings=self.channel_sibling_jurisdictions(channel_id, jurisdiction_id),
                 )
                 if skipped_other:
                     logger.info(
-                        "    Skipped {} video(s) whose title names another government, e.g. {!r} ({})",
+                        "    Skipped {} video(s) whose title names another jurisdiction on this channel, e.g. {!r} -> {}",
                         len(skipped_other),
                         skipped_other[0][0].get("title"),
                         skipped_other[0][1],

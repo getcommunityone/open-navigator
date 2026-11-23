@@ -19,12 +19,14 @@ seven. Before #777 the loader (`scrapers.youtube.load_youtube_events_to_postgres
 video under whichever town it was refreshing, and its upsert overwrote `jurisdiction_id`, so
 "Hamilton City Council Meeting" videos landed under Winfield.
 
-- **Loader guard.** On refresh, a video whose title names a different government
-  (`title_names_other_government`, for example "Hamilton City Council ..." for Winfield, or
-  "Marion County Commissioners ..." for a town) is skipped for that jurisdiction:
-  `split_videos_naming_other_government` in `scrapers.discovery.channel_government_mismatch`.
-  The refresh of the government it names files it. Titles that name no government (parades,
-  ceremonies) are kept as before.
+- **Loader guard.** On refresh, a video is skipped for the jurisdiction being refreshed when its
+  title names a different government (`title_names_other_government`) **and** names exactly one
+  other jurisdiction linked to the same channel (for example "Hamilton City Council ..." while
+  refreshing Winfield). That jurisdiction's refresh files it:
+  `split_videos_naming_other_government` in `scrapers.discovery.channel_government_mismatch`, with
+  siblings from `channel_sibling_jurisdictions`. A channel linked to one jurisdiction loses nothing,
+  and a title naming a government that is not linked to the channel (a city channel posting county
+  commission meetings) stays where it is. Titles that name no government are kept as before.
 - **Correction.** `python -m scrapers.youtube.reassign_shared_channel_videos` is read-only by
   default. It lists videos on shared channels whose title names another government, and moves a
   video only when the title names exactly one of the channel's other jurisdictions; everything

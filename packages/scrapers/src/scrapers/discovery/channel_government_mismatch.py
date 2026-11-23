@@ -270,33 +270,40 @@ def split_videos_naming_other_government(
     jurisdiction_name: Optional[str],
     jurisdiction_type: str,
     state_code: str = "",
+    siblings: Iterable[dict] = (),
 ) -> tuple[list[dict], list[tuple[dict, str]]]:
     """
-    Split a channel's videos into ``(kept, skipped)`` for one jurisdiction (#777).
+    Split a shared channel's videos into ``(kept, skipped)`` for one jurisdiction (#777).
 
     A channel can serve several governments: a county news channel posts every
     town's council meetings (``49 County News.Net`` covers seven Marion County, AL
-    towns). The loader files every new video under the jurisdiction being
-    refreshed, so Hamilton's meetings landed under Winfield. A video whose title
-    names a different government is skipped here (``skipped`` holds the video and
-    the reason); its own jurisdiction's refresh files it. Titles that name no
-    government (parades, ceremonies) are kept, as before.
+    towns). The loader filed every new video under the jurisdiction being
+    refreshed, so Hamilton's meetings landed under Winfield.
+
+    *siblings* are the other jurisdictions linked to the same channel (dicts with
+    ``jurisdiction_id``, ``name``, ``jurisdiction_type``, ``state_code``). A video is
+    skipped only when its title names another government **and** names exactly one
+    sibling (``pick_named_sibling``): that sibling's refresh files it. ``skipped``
+    holds ``(video, sibling jurisdiction_id)``. Everything else is kept, so a
+    channel linked to one jurisdiction loses nothing, and a title naming a
+    government that is not linked to the channel (a city channel posting county
+    commission meetings) stays where it was.
     """
+    sibs = list(siblings)
     kept: list[dict] = []
     skipped: list[tuple[dict, str]] = []
     for video in videos:
-        reason = (
-            title_names_other_government(
-                video.get("title") or "",
-                jurisdiction_name=jurisdiction_name,
-                jurisdiction_type=jurisdiction_type,
-                state_code=state_code,
-            )
-            if jurisdiction_name
-            else None
-        )
-        if reason:
-            skipped.append((video, reason))
+        title = video.get("title") or ""
+        target = None
+        if sibs and jurisdiction_name and title_names_other_government(
+            title,
+            jurisdiction_name=jurisdiction_name,
+            jurisdiction_type=jurisdiction_type,
+            state_code=state_code,
+        ):
+            target = pick_named_sibling(title, sibs)
+        if target:
+            skipped.append((video, target["jurisdiction_id"]))
         else:
             kept.append(video)
     return kept, skipped
