@@ -48,6 +48,35 @@ def test_non_html_is_never_blocked():
     assert not sh.looks_blocked_or_partial(_resp("%PDF-1.4 tiny", ctype="application/pdf"))
 
 
+class _BareResponse:
+    """An httpx-like response with no headers, as the site-search tests use."""
+
+    def __init__(self, text: str):
+        self.url = "https://www.cobbcounty.org/"
+        self.text = text
+        self.content = text.encode()
+        self.status_code = 200
+
+
+def test_a_response_without_headers_is_not_judged():
+    assert not sh.looks_blocked_or_partial(_BareResponse("<html><body>Access Denied</body></html>"))
+
+
+def test_a_response_without_headers_passes_through_the_bypass(monkeypatch):
+    bare = _BareResponse('<html><body><a href="https://www.youtube.com/user/CobbCountyGovt">YouTube</a></body></html>')
+
+    async def fake_direct(client, url, kwargs):
+        raise AssertionError("no direct retry for an unjudged response")
+
+    monkeypatch.setattr(sh, "_direct_get", fake_direct)
+
+    class Client:
+        async def get(self, url, **kw):
+            return bare
+
+    assert asyncio.run(sh.async_get_with_vpn_bypass(Client(), "https://www.cobbcounty.org/")) is bare
+
+
 def test_a_blocked_200_is_retried_outside_the_vpn_and_the_host_saved(monkeypatch, tmp_path):
     async def fake_direct(client, url, kwargs):
         return _resp(NORMAL)

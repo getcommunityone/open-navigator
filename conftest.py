@@ -21,3 +21,11 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "live" in item.keywords:
             item.add_marker(skip)
+
+
+def pytest_configure(config):
+    """Tests never read or write the real saved-hosts file in data/cache (#767): a test that sends a request through
+    the VPN bypass would otherwise save its fake host there. A test that needs the file sets its own path."""
+    import os
+
+    os.environ.setdefault("SCRAPE_DIRECT_HOSTS_FILE", "off")

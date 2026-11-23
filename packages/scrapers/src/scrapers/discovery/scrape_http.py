@@ -286,15 +286,21 @@ _STRIP = re.compile(r"<script.*?</script>|<style.*?</style>|<[^>]+>", re.IGNOREC
 def looks_blocked_or_partial(response: httpx.Response) -> bool:
     """True when a successful HTML response is a block page or a near-empty shell (#767).
 
-    Non-HTML content (PDF, JSON, images) and error statuses are never judged here.
+    Non-HTML content (PDF, JSON, images), error statuses and responses without a
+    content type are never judged here, and a response it can't read is never judged:
+    the detector must never break a fetch.
     """
-    if not 200 <= response.status_code < 300:
+    try:
+        if not 200 <= int(response.status_code) < 300:
+            return False
+        headers = getattr(response, "headers", None) or {}
+        ctype = str(headers.get("content-type") or "").lower()
+        if "html" not in ctype:
+            return False
+        body = response.content or b""
+        text = (response.text or "") if body else ""
+    except Exception:  # noqa: BLE001 - an httpx-like stand-in without the usual fields
         return False
-    ctype = (response.headers.get("content-type") or "").lower()
-    if "html" not in ctype:
-        return False
-    body = response.content or b""
-    text = response.text if body else ""
     lower = text.lower()
     title = _TITLE.search(text)
     title_text = (title.group(1) if title else "").lower()

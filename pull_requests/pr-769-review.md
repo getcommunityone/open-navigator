@@ -27,8 +27,9 @@ where binding to the home interface can't work. Reviewed against `.claude/review
 
 ## Checks
 
-- `pytest` on every test that imports the module (`test_scrape_http_direct_interface.py`,
-  `test_scrape_http_block_pages.py`, `test_youtube_vpn_guard.py`, `tests/test_scrape_http.py`): 59 passed.
+- `pytest` on every test that sends requests through the module (`test_scrape_http_direct_interface.py`,
+  `test_scrape_http_block_pages.py`, `test_youtube_vpn_guard.py`, `tests/test_scrape_http.py`,
+  `tests/test_youtube_site_search_scrape.py`): 67 passed, with no file left in `data/cache/`.
 - Live: coffeecounty.us without a VPN is 200, 104,784 bytes and not flagged. With the VPN on it is untested; that
   needs the owner's machine.
 
@@ -47,6 +48,13 @@ None.
 - **The old test wrote to the real `data/cache/`.** `test_scrape_http_direct_interface.py` didn't isolate the new
   hosts file, so a run left `city.gov` and `other.gov` in `data/cache/scrape_direct_hosts.json`. Its fixture now sets
   the file to `off`.
+
+- **CI caught the detector raising on an httpx-like stand-in.** The site-search tests use a fake response with no
+  `.headers`, and `looks_blocked_or_partial` read `response.headers`; the error escaped the fetch and 5 tests in
+  `tests/test_youtube_site_search_scrape.py` found no channels. The detector now never raises: a response without a
+  content type, or one it can't read, is not judged (`test_a_response_without_headers_*`).
+- **`test_youtube_vpn_guard.py` saved `www.tuscaloosa.com` to the real hosts file.** The root `conftest.py` now sets
+  `SCRAPE_DIRECT_HOSTS_FILE=off` for every test run, so no test touches `data/cache/`.
 
 ### Nits
 
