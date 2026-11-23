@@ -444,6 +444,14 @@ analyze_one() {
   if [[ -n "${FULL_FILTERS:-}" ]]; then
     ana_args+=(--full-filters "$FULL_FILTERS")
   fi
+  # Light tier skips Gemini: DeepSeek writes Part 1 / Part 2 (#774). Full keeps the
+  # Gemini default. LIGHT_MODEL= (empty) or a gemini-* id restores Gemini for light.
+  if [[ "$tier" == "light" ]]; then
+    local light_model="${LIGHT_MODEL-deepseek-flash}"
+    if [[ -n "$light_model" ]]; then
+      ana_args+=(--model "$light_model" --part-2-model "$light_model")
+    fi
+  fi
   append_jev_analyze_flags ana_args
   if [[ -n "${DRY_RUN:-}" ]]; then
     ana_args+=(--dry-run)

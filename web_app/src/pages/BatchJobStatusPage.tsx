@@ -1736,8 +1736,8 @@ export default function BatchJobStatusPage() {
                 'discover channels (scrape sites / search YouTube) then load matches to bronze',
               videos: 'catalog — list videos on the channel',
               transcripts: 'captions — download transcripts',
-              analyses_light: 'analyze-light — lite Gemini Part 1',
-              reports_light: 'reports-light — Part 2 from light analysis',
+              analyses_light: 'analyze-light — lite Part 1 (DeepSeek, Jev-gated)',
+              reports_light: 'reports-light — Part 2 from light analysis (DeepSeek)',
               analyses_full: 'analyze-full — deep Part 1 on filtered subset',
               reports_full: 'reports-full — Part 2 from full analysis',
             }
