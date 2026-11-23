@@ -282,10 +282,22 @@ async def stream_batch_jobs(
     async def event_generator() -> AsyncIterator[str]:
         last_rev: Optional[str] = None
         running_batches = 0
+        last_push_mono = 0.0
+        # Catalog/discover launches do not bump youtube_batch_job_runs, so a
+        # revision-only stream freezes Last activity while those runs land
+        # rows (#757 / #761). Refresh on a short interval when a launch PID is live.
+        launch_refresh_seconds = 5.0
+        loop = asyncio.get_running_loop()
         while True:
             rev = await _latest_dashboard_revision_async()
+            launches_live = await asyncio.to_thread(_any_launch_pid_alive)
+            now_mono = loop.time()
+            due_for_launch = launches_live and (
+                last_rev is None
+                or (now_mono - last_push_mono) >= launch_refresh_seconds
+            )
 
-            if last_rev is None or rev != last_rev:
+            if last_rev is None or rev != last_rev or due_for_launch:
                 summary = await _load_dashboard_async(
                     refresh_files=False,
                     enrich_bronze=False,
@@ -299,8 +311,11 @@ async def stream_batch_jobs(
                 totals = summary.get("totals") or {}
                 running_batches = int(totals.get("running") or 0)
                 last_rev = rev
+                last_push_mono = now_mono
 
-            await asyncio.sleep(1.0 if running_batches > 0 else 3.0)
+            await asyncio.sleep(
+                1.0 if (running_batches > 0 or launches_live) else 3.0
+            )
 
     return StreamingResponse(
         event_generator(),
@@ -544,6 +559,14 @@ def _pid_alive(pid: Any) -> bool:
     except (FileNotFoundError, IndexError):
         pass
     return True
+
+
+def _any_launch_pid_alive() -> bool:
+    """True when launch.json tracks a live catalog/discover/etc process (#761)."""
+    try:
+        return any(_pid_alive(m.get("pid")) for m in _read_launches())
+    except Exception:
+        return False
 
 
 def _dashboard_runtime() -> "tuple[int, str]":
