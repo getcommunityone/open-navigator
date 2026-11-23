@@ -27,6 +27,12 @@ video under whichever town it was refreshing, and its upsert overwrote `jurisdic
   siblings from `channel_sibling_jurisdictions`. A channel linked to one jurisdiction loses nothing,
   and a title naming a government that is not linked to the channel (a city channel posting county
   commission meetings) stays where it is. Titles that name no government are kept as before.
+- **Ownership on re-crawl (#778).** When a video is already filed under another place, the
+  loader's upsert keeps that place unless the incoming title names the jurisdiction being refreshed.
+  On a shared channel every linked town refreshes the same videos, so before this a "Christmas
+  Parade" video moved to whichever town ran last. The same place under another id scheme
+  (`municipality_0182992` and `winfield_0182992`) is matched on the trailing GEOID, so ids can
+  still be normalized. Any other reassignment goes through the override seed below.
 - **Correction.** `python -m scrapers.youtube.reassign_shared_channel_videos` only reads the
   database. It lists videos on shared channels whose title names another government, and plans a
   move only when the title names exactly one of the channel's other jurisdictions; everything else

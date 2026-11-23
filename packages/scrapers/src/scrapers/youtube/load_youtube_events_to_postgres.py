@@ -111,6 +111,7 @@ from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, requir
 from scrapers.discovery.channel_government_mismatch import (  # noqa: E402
     real_channel_title,
     split_videos_naming_other_government,
+    title_names_jurisdiction,
 )
 from scrapers.youtube.pattern_match_gate import PATTERN_MATCH_UNVERIFIED_METHOD  # noqa: E402
 from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
@@ -248,6 +249,28 @@ def _process_jurisdiction_worker(
         return loader.process_jurisdiction(jurisdiction)
     finally:
         loader.close()
+
+
+# True when the stored row belongs to another place and this refresh has no title
+# evidence for its own jurisdiction (#778). Used inside insert_events' ON CONFLICT.
+_KEEP_OTHER_PLACE_SQL = (
+    "(y.jurisdiction_id IS NOT NULL"
+    " AND COALESCE(substring(y.jurisdiction_id from '[0-9]+$'), y.jurisdiction_id)"
+    " IS DISTINCT FROM COALESCE(substring(EXCLUDED.jurisdiction_id from '[0-9]+$'), EXCLUDED.jurisdiction_id)"
+    " AND NOT %(title_names_jurisdiction)s)"
+)
+
+
+def event_title_names_its_jurisdiction(event: Dict[str, Any]) -> bool:
+    """True when the event's title names the jurisdiction it is being filed under (#778)."""
+    name = event.get("jurisdiction_name")
+    if not name:
+        return False
+    return title_names_jurisdiction(
+        event.get("title") or "",
+        jurisdiction_name=name,
+        jurisdiction_type=event.get("jurisdiction_type") or "",
+    )
 
 
 class YouTubeEventsLoader:
@@ -2362,23 +2385,29 @@ class YouTubeEventsLoader:
             )
             -- loaded_at is when the video was first loaded: set on insert, never on update.
             ON CONFLICT (video_id) DO UPDATE SET
-                jurisdiction_id = EXCLUDED.jurisdiction_id,
+                -- A video already filed under another place keeps that place unless
+                -- its title names the jurisdiction being refreshed (#778): on a shared
+                -- channel every linked town refreshes the same videos. Same place
+                -- under another id scheme (municipality_0182992 / winfield_0182992)
+                -- is matched on the trailing GEOID. Reassignment otherwise goes
+                -- through the youtube_channel_attribution_override seed (#777).
+                jurisdiction_id = CASE WHEN {keep} THEN y.jurisdiction_id ELSE EXCLUDED.jurisdiction_id END,
                 -- NULL incoming name (id had no display name) keeps a real stored
                 -- name but never keeps an id-shaped one (#501).
-                jurisdiction_name = COALESCE(
+                jurisdiction_name = CASE WHEN {keep} THEN y.jurisdiction_name ELSE COALESCE(
                     EXCLUDED.jurisdiction_name,
                     CASE
-                        WHEN y.jurisdiction_name ~ '^[a-z0-9_]+_[0-9]{5,10}$'
-                          OR y.jurisdiction_name ~ '^c-[A-Z]{2}-[0-9]+$'
+                        WHEN y.jurisdiction_name ~ '^[a-z0-9_]+_[0-9]{{5,10}}$'
+                          OR y.jurisdiction_name ~ '^c-[A-Z]{{2}}-[0-9]+$'
                           OR y.jurisdiction_name = EXCLUDED.jurisdiction_id
                         THEN NULL
                         ELSE y.jurisdiction_name
                     END
-                ),
-                jurisdiction_type = EXCLUDED.jurisdiction_type,
-                state_code = EXCLUDED.state_code,
-                state = EXCLUDED.state,
-                city = EXCLUDED.city,
+                ) END,
+                jurisdiction_type = CASE WHEN {keep} THEN y.jurisdiction_type ELSE EXCLUDED.jurisdiction_type END,
+                state_code = CASE WHEN {keep} THEN y.state_code ELSE EXCLUDED.state_code END,
+                state = CASE WHEN {keep} THEN y.state ELSE EXCLUDED.state END,
+                city = CASE WHEN {keep} THEN y.city ELSE EXCLUDED.city END,
                 channel_id = EXCLUDED.channel_id,
                 channel_url = EXCLUDED.channel_url,
                 title = EXCLUDED.title,
@@ -2390,7 +2419,7 @@ class YouTubeEventsLoader:
                 like_count = EXCLUDED.like_count,
                 last_updated = EXCLUDED.last_updated
             RETURNING y.id, y.event_id, y.video_id
-        """
+        """.format(keep=_KEEP_OTHER_PLACE_SQL)
         
         cursor = self.conn.cursor()
         inserted = 0
@@ -2399,7 +2428,8 @@ class YouTubeEventsLoader:
         try:
             # Insert events and collect their IDs
             for event in events:
-                cursor.execute(insert_query, event)
+                params = {**event, "title_names_jurisdiction": event_title_names_its_jurisdiction(event)}
+                cursor.execute(insert_query, params)
                 result = cursor.fetchone()
                 if result:
                     db_id, event_id, video_id = result
