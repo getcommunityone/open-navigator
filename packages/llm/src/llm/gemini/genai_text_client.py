@@ -137,8 +137,30 @@ def is_genai_transient_network_error(exc: BaseException) -> bool:
     return any(marker in msg for marker in _TRANSIENT_NETWORK_MARKERS)
 
 
+def is_genai_billing_error(exc: BaseException) -> bool:
+    """True for prepaid billing exhaustion (HTTP 402), not free-tier daily 429 (#699).
+
+    Google returns ``402 RESOURCE_EXHAUSTED`` with “prepayment credits are depleted”
+    when AI Studio prepaid balance is empty. That will not clear at midnight Pacific.
+    """
+    code = _genai_http_code(exc)
+    if code == 402:
+        return True
+    msg = str(exc).upper()
+    if "PREPAYMENT CREDITS" in msg or "CREDITS ARE DEPLETED" in msg:
+        return True
+    if "402" in msg and (
+        "RESOURCE_EXHAUSTED" in msg or "BILLING" in msg or "PREPAY" in msg
+    ):
+        return True
+    return False
+
+
 def is_genai_retryable(exc: BaseException) -> bool:
     """429/503/502 quota/overload and transient network disconnects — retry with backoff."""
+    # Prepaid depletion is permanent until top-up — do not spin on it (#699).
+    if is_genai_billing_error(exc):
+        return False
     if is_genai_transient_network_error(exc):
         return True
     msg = str(exc).upper()
@@ -195,16 +217,18 @@ def _genai_http_code(exc: BaseException) -> Optional[int]:
         if s.isdigit():
             return int(s)
     msg = str(exc)
-    for token in ("429", "502", "503", "504"):
+    for token in ("429", "402", "502", "503", "504"):
         if token in msg:
             return int(token)
     return None
 
 
 def classify_genai_error(exc: BaseException) -> str:
-    """Short category for logs (quota vs overload vs gateway vs network)."""
+    """Short category for logs (billing vs quota vs overload vs gateway vs network)."""
     if is_genai_transient_network_error(exc):
         return "transient network disconnect"
+    if is_genai_billing_error(exc):
+        return "billing exhaustion (402 prepaid credits depleted)"
     code = _genai_http_code(exc)
     msg = str(exc).upper()
     if code == 429 or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg:
@@ -221,7 +245,12 @@ def classify_genai_error(exc: BaseException) -> str:
 
 
 def is_genai_quota_error(exc: BaseException) -> bool:
-    """True for a quota / 429 / resource-exhausted failure (the daily-wall family)."""
+    """True for a quota / 429 / resource-exhausted failure (the daily-wall family).
+
+    Prepaid ``402`` billing exhaustion is excluded — it will not reset at midnight (#699).
+    """
+    if is_genai_billing_error(exc):
+        return False
     code = _genai_http_code(exc)
     msg = str(exc).upper()
     return code == 429 or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg
@@ -680,32 +709,82 @@ def check_gemini_api_key(api_key: str, *, model: Optional[str] = None) -> None:
                 classify_genai_error(exc),
             )
             return
+        if is_genai_billing_error(exc):
+            raise SystemExit(
+                "Gemini prepaid credits are depleted (402 RESOURCE_EXHAUSTED). "
+                "Top up at https://ai.studio/projects (AI Studio billing / prepay) "
+                "or switch GEMINI_USE_TIER to a pool that still has balance. "
+                "This is not a free-tier daily wall — it will not clear at midnight Pacific."
+            ) from exc
         raise
 
 
 def ensure_valid_gemini_api_key(
     *, env_path: Optional[os.PathLike[str]] = None, model: Optional[str] = None
 ) -> str:
-    """Resolve key, probe API once, and retry ``.env`` if shell env had a stale invalid key."""
-    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
-    key = resolve_gemini_api_key(env_path=path)
-    try:
-        check_gemini_api_key(key, model=model)
-        return key
-    except SystemExit:
-        if not path.is_file():
-            raise
-        from dotenv import load_dotenv
+    """Resolve a working key from the active ``GEMINI_USE_TIER`` pool (#699).
 
-        load_dotenv(path, override=True)
-        key_from_file = _strip_api_key(
-            os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
-        )
-        if key_from_file and key_from_file != key:
-            check_gemini_api_key(key_from_file, model=model)
-            logger.info("Using GEMINI_API_KEY from {} (shell env had invalid key)", path)
-            return key_from_file
-        raise
+    Probes each key in pool order. Returns the first that validates. On total
+    billing exhaustion, exits with a pool-size / tier summary (no secret material).
+    Retries ``.env`` once if the shell had a stale invalid key.
+    """
+    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
+    try:
+        keys = resolve_gemini_api_keys(env_path=path)
+    except RuntimeError:
+        keys = []
+    if not keys:
+        single = resolve_gemini_api_key(env_path=path)
+        keys = [single] if single else []
+
+    billing_fails = 0
+    last_billing: Optional[BaseException] = None
+    for key in keys:
+        try:
+            check_gemini_api_key(key, model=model)
+            return key
+        except SystemExit as exc:
+            msg = str(exc)
+            if "prepaid credits are depleted" in msg or "402 RESOURCE_EXHAUSTED" in msg:
+                billing_fails += 1
+                last_billing = exc
+                continue
+            # API_KEY_INVALID — try .env override once, then re-raise.
+            if not path.is_file():
+                raise
+            from dotenv import load_dotenv
+
+            load_dotenv(path, override=True)
+            key_from_file = _strip_api_key(
+                os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+            )
+            if key_from_file and key_from_file != key:
+                try:
+                    check_gemini_api_key(key_from_file, model=model)
+                    logger.info(
+                        "Using GEMINI_API_KEY from {} (shell env had invalid key)", path
+                    )
+                    return key_from_file
+                except SystemExit as exc2:
+                    msg2 = str(exc2)
+                    if "prepaid credits are depleted" in msg2 or "402 RESOURCE_EXHAUSTED" in msg2:
+                        billing_fails += 1
+                        last_billing = exc2
+                        continue
+                    raise
+            raise
+
+    tier = _gemini_use_tier()
+    if billing_fails and billing_fails >= len(keys):
+        raise SystemExit(
+            f"Gemini prepaid credits depleted on all {billing_fails} key(s) in the "
+            f"GEMINI_USE_TIER={tier!r} pool (402). Top up at https://ai.studio/projects "
+            "or retag / switch tiers. This is billing exhaustion, not a free-tier daily wall."
+        ) from last_billing
+    raise SystemExit(
+        "No usable GEMINI_API_KEY / GEMINI_API_KEYS found. "
+        "Set a key at https://aistudio.google.com/apikey"
+    )
 
 
 # --- API key rotation across workers -----------------------------------------
