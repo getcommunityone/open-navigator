@@ -11,6 +11,33 @@ For the YouTube Data API **compliance audit** (architecture, user flow, endpoint
 
 ---
 
+## Shared channels: one channel, several governments (#777)
+
+Some channels post meetings for more than one government. `49 County News.Net`
+(`UCZ47nYYggC17NbmBs0Mx3Ww`) covers seven Marion County, AL towns, and LocalView links it to all
+seven. Before #777 the loader (`scrapers.youtube.load_youtube_events_to_postgres`) filed every new
+video under whichever town it was refreshing, and its upsert overwrote `jurisdiction_id`, so
+"Hamilton City Council Meeting" videos landed under Winfield.
+
+- **Loader guard.** On refresh, a video is skipped for the jurisdiction being refreshed when its
+  title names a different government (`title_names_other_government`) **and** names exactly one
+  other jurisdiction linked to the same channel (for example "Hamilton City Council ..." while
+  refreshing Winfield). That jurisdiction's refresh files it:
+  `split_videos_naming_other_government` in `scrapers.discovery.channel_government_mismatch`, with
+  siblings from `channel_sibling_jurisdictions`. A channel linked to one jurisdiction loses nothing,
+  and a title naming a government that is not linked to the channel (a city channel posting county
+  commission meetings) stays where it is. Titles that name no government are kept as before.
+- **Correction.** `python -m scrapers.youtube.reassign_shared_channel_videos` only reads the
+  database. It lists videos on shared channels whose title names another government, and plans a
+  move only when the title names exactly one of the channel's other jurisdictions; everything else
+  is reported as `unresolved`. `--write-seed` appends the moves as per-video rows (issue `777`, the
+  title as evidence) to `dbt_project/seeds/youtube_channel_attribution_override.csv`, and the
+  #514 repair applies them: `dbt seed --select youtube_channel_attribution_override`,
+  `dbt run --select int_youtube__attribution_override`, then
+  `dbt run-operation repair_youtube_channel_attribution` (dry run, then
+  `--args '{dry_run: false}'`). Per-video rows never touch the channel catalogs. Plan on
+  2026-11-23: 92 shared channels, 682 moves (69 already analyzed), 1,140 unresolved (#779).
+
 ## YOUR QUESTION
 
 > "Why did it not find https://www.youtube.com/@TuscaloosaCityAL which appears to be the latest and largest youtube site? If there are multiple, does the system store both and does it provide the number of videos on each channel?"
