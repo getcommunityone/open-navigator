@@ -107,6 +107,36 @@ free_port() {
     return 1
 }
 
+# Stop this repo's own leftover dev processes even when they hold no port (#789): a Vite that hung
+# during startup never binds 5173, so freeing ports alone would miss it. Only processes whose working
+# directory is inside this repository are touched, and never this script.
+stop_stale_processes() {
+    local pattern="vite|npm run dev|npm start|main\\.py serve|uvicorn api\\.main|docusaurus"
+    local pid cwd victims=""
+    for pid in $(pgrep -f "$pattern" 2>/dev/null); do
+        [ "$pid" = "$$" ] && continue
+        cwd="$(readlink "/proc/$pid/cwd" 2>/dev/null || true)"
+        case "$cwd" in
+            "$SCRIPT_DIR"|"$SCRIPT_DIR"/*) victims="$victims $pid" ;;
+        esac
+    done
+    [ -z "$(echo "$victims" | tr -d ' ')" ] && return 0
+
+    echo -e "${YELLOW}⚠️  Stopping leftover dev processes from this repo (PID:$victims)${NC}"
+    # shellcheck disable=SC2086
+    kill $victims 2>/dev/null || true
+    local tries alive
+    for tries in 1 2 3 4 5 6 7 8 9 10; do
+        alive=""
+        for pid in $victims; do kill -0 "$pid" 2>/dev/null && alive="$alive $pid"; done
+        [ -z "$(echo "$alive" | tr -d ' ')" ] && return 0
+        sleep 0.5
+    done
+    # shellcheck disable=SC2086
+    kill -9 $alive 2>/dev/null || true
+    sleep 0.5
+}
+
 kill_port_processes() {
     echo -e "${BLUE}Clearing ports...${NC}"
 
@@ -114,6 +144,8 @@ kill_port_processes() {
     if command -v tmux >/dev/null 2>&1; then
         tmux kill-session -t "$SESSION" 2>/dev/null || true
     fi
+
+    stop_stale_processes
 
     local failed=0 port
     for port in "$DOCS_PORT" "$WEB_PORT" "$API_PORT"; do
