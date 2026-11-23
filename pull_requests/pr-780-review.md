@@ -16,9 +16,10 @@ Fixes #777. Channel `UCZ47nYYggC17NbmBs0Mx3Ww` (49 County News.Net) is linked to
 ## Scope of Change
 - Files changed: 5 (see `git diff --shortstat`), areas: packages (scrapers), web_docs
 - Commits:
+  - 860a936b fix(youtube): correct #777 videos through the attribution override seed
   - 729368dc fix(youtube): file shared-channel videos under the government their title names
   - f42c44db fix(youtube): skip a shared-channel video only when it names a linked sibling
-- Range reviewed: `origin/main..f42c44db`
+- Range reviewed: `origin/main..860a936b`
 
 ## CI Status
 | Check | Status |
@@ -71,6 +72,16 @@ Covered: the helpers on verbatim Winfield/Hamilton titles, the no-sibling and no
 - the CLI dry run (read-only), and the sibling SQL run read-only against localhost:5433.
 
 Not covered: `--apply` against a database (deliberately not run).
+
+## Addendum (860a936b)
+The correction now goes through the existing #514 path instead of a direct UPDATE. `--write-seed` adds the 682 planned moves as per-video rows (issue 777, verbatim title as evidence) to `dbt_project/seeds/youtube_channel_attribution_override.csv`, and `repair_youtube_channel_attribution` applies them.
+
+Verified by reading the macro and model:
+- Per-video rows don't trigger the catalog steps 2–4, including the `int_events_channels` delete: those steps read only rows where `video_id` is empty.
+- `int_youtube__attribution_override` emits only videos that have a per-video or channel-default row, so other videos on these channels are untouched.
+- `city` is set only for municipalities, which supersedes the earlier county `city` nit.
+
+The CLI is now read-only end to end. Tests: 10 passed, including `test_seed_rows_skip_listed_and_unresolved`. The seed has not yet been loaded into the warehouse.
 
 ## Verdict
 approve-with-nits. Merge waits for the owner: the PR ships a tool whose `--apply` changes warehouse rows, and the owner reserved that write.
