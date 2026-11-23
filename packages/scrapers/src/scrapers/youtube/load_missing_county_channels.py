@@ -18,7 +18,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import psycopg2
 from dotenv import load_dotenv
@@ -29,6 +29,7 @@ _REPO_ROOT = repo_root(__file__)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scrapers.youtube.discover_progress import stamp_channel_checked
 from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 
@@ -136,8 +137,18 @@ async def discover_channels(
     state_code: str,
     *,
     skip_homepage_scrape: bool = False,
+    on_checked: Callable[[dict[str, Any]], Any] | None = None,
 ) -> list[dict[str, Any]]:
+    """Search each county for its channel. ``on_checked(row)`` runs after each county, found or not (#770)."""
     out: list[dict[str, Any]] = []
+
+    def report_checked(row: dict[str, Any]) -> None:
+        if on_checked is None:
+            return
+        try:
+            on_checked(row)
+        except Exception as exc:  # noqa: BLE001 - progress bookkeeping never stops discovery
+            logger.warning("Discover progress not recorded for {}: {}", row.get("geoid"), exc)
 
     def title_fallback(channel: dict[str, Any]) -> str:
         title = str(channel.get("channel_title") or "").strip()
@@ -230,6 +241,7 @@ async def discover_channels(
                         "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
                     }
                 )
+                report_checked(row)
                 if idx % 10 == 0 or idx == total:
                     logger.info("Progress: {}/{}", idx, total)
                 continue
@@ -280,6 +292,7 @@ async def discover_channels(
                     "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
                 }
             )
+            report_checked(row)
             if idx % 10 == 0 or idx == total:
                 logger.info("Progress: {}/{}", idx, total)
     return out
@@ -382,13 +395,29 @@ def discover_one_state(
         logger.success("No missing county mappings for {}", state_code)
         return 0
 
-    results = asyncio.run(
-        discover_channels(
-            missing,
-            state_code,
-            skip_homepage_scrape=skip_homepage_scrape,
+    # Stamp each county as it is tried, so Discover's Last activity moves during the run (#770).
+    progress_conn = None
+    try:
+        progress_conn = psycopg2.connect(db_url)
+    except Exception as exc:  # noqa: BLE001 - discovery still runs; only the clock lags
+        logger.warning("Discover progress connection failed ({}); Last activity will lag", exc)
+
+    def on_checked(row: dict[str, Any]) -> None:
+        if progress_conn is not None:
+            stamp_channel_checked(progress_conn, state_code=state_code, geoid=str(row.get("geoid") or ""))
+
+    try:
+        results = asyncio.run(
+            discover_channels(
+                missing,
+                state_code,
+                skip_homepage_scrape=skip_homepage_scrape,
+                on_checked=on_checked,
+            )
         )
-    )
+    finally:
+        if progress_conn is not None:
+            progress_conn.close()
     out_path = _state_output_path(output, state_code, multi)
     write_csv(out_path, results)
 

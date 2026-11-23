@@ -38,6 +38,14 @@ default.
 launches (#763) — each with its own log / Stop / VPN auto-resume — not a
 sequential shell chain. Analysis/reports full stay opt-in.
 
+**Discover's Last activity** is the latest of two stamps on the scraped-jurisdiction tables
+(`bronze.bronze_jurisdictions_counties_scraped`, `bronze.bronze_jurisdictions_municipalities_scraped`):
+`discovered_at`, when a channel was found, and `channel_checked_at`, the last time a Discover run tried that
+jurisdiction, whatever came of it. `discover --load` stamps `channel_checked_at` after each county it searches
+(`load_missing_county_channels.py`) and after each channel it loads (`load_youtube_for_jurisdiction.py`), so the
+column moves while the run works (#770). Before #770 it read `discovered_at` only, which that run never writes, so it
+could say "23h ago" while counties were loading.
+
 **Each** (per-jurisdiction) stays catalog/captions/light-oriented unless we
 explicitly extend it later; it does **not** run full by default.
 
