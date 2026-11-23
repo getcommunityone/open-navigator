@@ -55,7 +55,7 @@ explicitly extend it later; it does **not** run full by default.
 |---|--------|------|
 | Prompt | `policy_analysis_lite.md` (or successor short Part 1) | Current `policy_analysis_part_1.md` (deep) |
 | Report | Short digest / lite Part 2 (or truncated Part 2) | Current `policy_analysis_part_2.md` |
-| Model | Flash-Lite / free-tier friendly | Paid Flash (or configured full model) |
+| Model | DeepSeek (`deepseek-flash`, set by `LIGHT_MODEL`); no Gemini call (#774) | Paid Flash (or configured full model) |
 | Stamp | Prefer distinct paths or metadata so stage counts split (see Contract) | Distinct from light |
 | Who | Broad transcript set (Jev meeting gate still allowed) | Subset of videos that already have **analysis light**, matching filter checkboxes |
 
@@ -158,3 +158,15 @@ POST /api/batch-jobs/launch
 - [x] Launch API accepts `full_filters`; full steps refuse empty selection
 - [x] Light/full stamps distinguishable in stage report (`policy_*` vs `policy_*_full_*`, migration 114)
 - [x] Docs + tests for filter OR semantics and Run all composition
+
+## Update 2026-11-23 — light tier runs on DeepSeek (#774)
+
+Analysis light and Reports light no longer call Gemini. `youtube_run_priority_states_last_n.sh`
+passes `--model "$LIGHT_MODEL" --part-2-model "$LIGHT_MODEL"` to
+`llm.gemini.meeting_transcript_policy` when the tier is `light`, and `LIGHT_MODEL` defaults to
+`deepseek-flash`. The full tier is unchanged. When every model in a run is `deepseek-*`, the
+policy script skips its Gemini key probe, so Gemini billing exhaustion (HTTP 402) cannot stop
+a light run. The Jev gate (`--skip-jev-meeting-below`) still applies where it already did.
+
+Needs `DEEPSEEK_API_KEY` in `.env`. To put light back on Gemini, set `LIGHT_MODEL=` (empty) or a
+`gemini-*` id in the environment that launches the job.

@@ -115,6 +115,17 @@ def _record_policy_event_safe(
         logger.warning("policy event record skipped for {} ({}): {}", video_id, stage, exc)
 
 
+def uses_only_deepseek(model: str = "", part_2_model: str = "") -> bool:
+    """True when every model this run will call is a ``deepseek-*`` model.
+
+    ``--model`` drives Part 1; Part 2 uses ``--part-2-model`` and falls back to
+    ``--model``. An empty ``--model`` means the Gemini default, so it is not DeepSeek.
+    """
+    part_1 = (model or "").strip()
+    part_2 = (part_2_model or "").strip() or part_1
+    return part_1.startswith("deepseek") and part_2.startswith("deepseek")
+
+
 def _analysis_tier(args: Any) -> str:
     raw = str(getattr(args, "analysis_tier", None) or "light").strip().lower()
     return "full" if raw == "full" else "light"
@@ -1593,7 +1604,11 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
     needs_api = not args.transcript_only
     api_key = ""
-    if needs_api:
+    if needs_api and uses_only_deepseek(args.model, args.part_2_model):
+        # DeepSeek keys are resolved inside call_gemini_text; probing a Gemini key
+        # here would fail on Gemini billing (402) for a run that never calls Gemini.
+        api_key = "deepseek"
+    elif needs_api:
         api_key = ensure_valid_gemini_api_key(
             env_path=_REPO_ROOT / ".env",
             model=(args.model or args.part_2_model or default_flash_lite_model()).strip(),
