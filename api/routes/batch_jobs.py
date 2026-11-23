@@ -47,6 +47,12 @@ _VPN_DOWN_RE = re.compile(
     r"Surfshark is off|VpnRequiredError|no VPN tunnel route",
     re.IGNORECASE,
 )
+# Gemini prepaid billing exhaustion in launch logs (#699) — not free-tier daily 429.
+_BILLING_EXHAUSTED_RE = re.compile(
+    r"402\s*RESOURCE_EXHAUSTED|prepayment credits are depleted|credits are depleted|"
+    r"billing exhaustion \(402|ClientError:\s*402|prepaid credits depleted",
+    re.IGNORECASE,
+)
 
 
 class BatchJobsTotals(BaseModel):
@@ -616,10 +622,15 @@ def _latest_launch_log(step: str) -> Optional[Path]:
 
 
 def _launch_log_signals(step: str, *, lines: int = 80) -> Dict[str, Any]:
-    """Last activity timestamp + VPN-down hint from the newest launch log for ``step``."""
+    """Last activity + VPN / billing hints from the newest launch log for ``step``."""
     path = _latest_launch_log(step)
     if path is None:
-        return {"last_at": "", "vpn_down": False, "path": ""}
+        return {
+            "last_at": "",
+            "vpn_down": False,
+            "billing_exhausted": False,
+            "path": "",
+        }
     tail = _tail_lines(path, lines)
     _current, since = _parse_current(tail)
     if not since:
@@ -627,8 +638,15 @@ def _launch_log_signals(step: str, *, lines: int = 80) -> Dict[str, Any]:
             since = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
         except OSError:
             since = ""
-    vpn_down = any(_VPN_DOWN_RE.search(ln or "") for ln in tail[-40:])
-    return {"last_at": since, "vpn_down": vpn_down, "path": str(path)}
+    recent = tail[-40:]
+    vpn_down = any(_VPN_DOWN_RE.search(ln or "") for ln in recent)
+    billing_exhausted = any(_BILLING_EXHAUSTED_RE.search(ln or "") for ln in recent)
+    return {
+        "last_at": since,
+        "vpn_down": vpn_down,
+        "billing_exhausted": billing_exhausted,
+        "path": str(path),
+    }
 
 
 def _launch_activity_iso(live: Dict[str, Any], freshest: str) -> str:
@@ -699,9 +717,11 @@ class LaunchStatusResponse(BaseModel):
     running_steps: List[str] = Field(default_factory=list)
     stalled_steps: List[str] = Field(default_factory=list)
     steps: List[str] = Field(default_factory=lambda: list(_LAUNCH_STEPS))
-    # Operator-facing stall / VPN signals (#750). ``warning`` is empty when idle.
+    # Operator-facing stall / VPN / billing signals (#750 / #699).
+    # ``warning`` is empty when idle.
     warning: str = ""
     vpn_down: bool = False
+    billing_exhausted: bool = False
     inactive_seconds: Optional[float] = None
     # Steps the watchdog re-spawned on this status poll (#752).
     resumed_steps: List[str] = Field(default_factory=list)
@@ -717,16 +737,25 @@ class LaunchResponse(BaseModel):
     detail: str = ""
 
 
-def _recent_log_vpn_down(*, max_age_seconds: float = 7200.0) -> bool:
-    """True when a recent launch log (even after the PID exited) mentions VPN down."""
+def _recent_log_flag(
+    flag: str, *, max_age_seconds: float = 7200.0
+) -> "tuple[bool, List[str]]":
+    """True + matching steps when a recent launch log (even after PID exit) has ``flag``."""
+    hits: List[str] = []
     for step in _LAUNCH_STEPS:
         signals = _launch_log_signals(step)
-        if not signals.get("vpn_down"):
+        if not signals.get(flag):
             continue
         age = _iso_age_seconds(str(signals.get("last_at") or ""))
         if age is not None and age <= max_age_seconds:
-            return True
-    return False
+            hits.append(step)
+    return bool(hits), hits
+
+
+def _recent_log_vpn_down(*, max_age_seconds: float = 7200.0) -> bool:
+    """True when a recent launch log (even after the PID exited) mentions VPN down."""
+    hit, _steps = _recent_log_flag("vpn_down", max_age_seconds=max_age_seconds)
+    return hit
 
 
 def _launch_operator_signals(
@@ -734,16 +763,22 @@ def _launch_operator_signals(
     running: List[Dict[str, Any]],
     stalled: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """Build warning / vpn_down / inactive_seconds for the dashboard header."""
+    """Build warning / vpn_down / billing_exhausted / inactive_seconds for the header."""
     warn_after = _launch_warn_seconds()
     warning = ""
     vpn_down = False
+    billing_exhausted = False
+    billing_steps: List[str] = []
     inactive_seconds: Optional[float] = None
     for m in (*running, *stalled):
         step = str(m.get("step") or "") or "pipeline"
         signals = _launch_log_signals(step)
         if signals.get("vpn_down"):
             vpn_down = True
+        if signals.get("billing_exhausted"):
+            billing_exhausted = True
+            if step not in billing_steps:
+                billing_steps.append(step)
         last_seen = _launch_activity_iso(m, freshest)
         age = _iso_age_seconds(last_seen) if last_seen else None
         if age is None:
@@ -758,11 +793,26 @@ def _launch_operator_signals(
     # Process already exited after VpnRequiredError — still show the error for a while.
     if not vpn_down and _recent_log_vpn_down():
         vpn_down = True
+    if not billing_exhausted:
+        recent_billing, recent_steps = _recent_log_flag("billing_exhausted")
+        if recent_billing:
+            billing_exhausted = True
+            for s in recent_steps:
+                if s not in billing_steps:
+                    billing_steps.append(s)
+    # Billing / VPN beat inactivity — operator must top up or reconnect (#699 / #750).
     if vpn_down:
         warning = (
             "VPN appears down (Surfshark off in launch log). "
             "Connect Surfshark and re-run."
             + (f" {warning}" if warning and "Surfshark off" not in warning else "")
+        )
+    elif billing_exhausted:
+        steps = ", ".join(sorted(billing_steps)) or "analyze"
+        warning = (
+            f"{steps}: Gemini prepaid credits depleted (402). "
+            "Top up at https://ai.studio/projects — this is not a free-tier daily wall "
+            "and will not clear at midnight Pacific. Stop the run until billed."
         )
     elif stalled and not warning:
         steps = ", ".join(sorted({str(m.get("step") or "") for m in stalled} - {""})) or "pipeline"
@@ -770,6 +820,7 @@ def _launch_operator_signals(
     return {
         "warning": warning,
         "vpn_down": vpn_down,
+        "billing_exhausted": billing_exhausted,
         "inactive_seconds": inactive_seconds,
     }
 
@@ -1084,6 +1135,7 @@ async def launch_status() -> LaunchStatusResponse:
         busy=running_rows > 0 or bool(running_steps),
         warning=warning,
         vpn_down=bool(signals.get("vpn_down")),
+        billing_exhausted=bool(signals.get("billing_exhausted")),
         inactive_seconds=signals.get("inactive_seconds"),
         resumed_steps=resumed_steps,
         auto_resume_note=resume_note,
@@ -1417,6 +1469,8 @@ class LaunchLogResponse(BaseModel):
     lines: List[str] = Field(default_factory=list)
     current: str = ""
     current_since: str = ""
+    # Operator blocker from the log tail (#699) — e.g. Gemini 402 billing.
+    blocker: Optional[str] = None
 
 
 @router.get(
@@ -1438,12 +1492,22 @@ async def launch_log(
     path = candidates[0]
     tail = await asyncio.to_thread(_tail_lines, path, lines)
     current, since = _parse_current(tail)
+    blocker: Optional[str] = None
+    recent = tail[-40:]
+    if any(_BILLING_EXHAUSTED_RE.search(ln or "") for ln in recent):
+        blocker = (
+            "Gemini prepaid credits depleted (402). "
+            "Top up at https://ai.studio/projects — not a free-tier daily wall."
+        )
+    elif any(_VPN_DOWN_RE.search(ln or "") for ln in recent):
+        blocker = "VPN appears down (Surfshark off). Connect Surfshark and re-run."
     return LaunchLogResponse(
         step=step,
         path=str(path.relative_to(_repo_root())),
         lines=tail,
         current=current,
         current_since=since,
+        blocker=blocker,
     )
 
 

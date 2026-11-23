@@ -137,6 +137,8 @@ export type LaunchLog = {
   /** Best-effort "current item" line parsed from the log tail. */
   current: string
   current_since: string
+  /** Operator blocker from the log tail (billing / VPN) (#699). */
+  blocker?: string | null
 }
 
 export async function fetchLaunchLog(step: string): Promise<LaunchLog> {
@@ -170,10 +172,12 @@ export type LaunchStatus = {
   /** Live but stalled (>1h no activity) — re-launchable. */
   stalled_steps: string[]
   steps: string[]
-  /** Operator warning when a live launch is inactive or VPN appears down (#750). */
+  /** Operator warning when a live launch is inactive, VPN down, or billing exhausted. */
   warning?: string
   /** True when the newest launch log mentions Surfshark / VPN required. */
   vpn_down?: boolean
+  /** True when launch log shows Gemini 402 prepaid credits depleted (#699). */
+  billing_exhausted?: boolean
   /** Seconds since the most inactive live launch last progressed (log/DB). */
   inactive_seconds?: number | null
   /** Steps the watchdog re-spawned on this poll (#752). */
