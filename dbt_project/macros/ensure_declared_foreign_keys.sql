@@ -54,22 +54,36 @@
   {%- set child_rel = child.schema ~ '.' ~ (child.alias or child.name) -%}
   {%- set label = child_rel ~ '(' ~ (s.cols | join(', ')) ~ ')' -%}
 
-  {#- Resolve `to: ref('x')` to the parent model node. -#}
-  {%- set found = namespace(node=none) -%}
+  {#- Resolve the parent relation. dbt hands the graph a `to:` already rendered to a
+      relation ("db"."schema"."name"); a raw ref('name') is read too. -#}
   {%- set to_txt = (s.to or '') | trim -%}
+  {%- set parent_schema = none -%}
+  {%- set parent_name = none -%}
   {%- if to_txt.startswith('ref(') and to_txt.endswith(')') -%}
     {%- set ref_args = to_txt[4:-1].split(',') -%}
     {%- set parent_name = (ref_args[-1] | trim(" '\"")) -%}
+    {%- set found = namespace(node=none) -%}
     {%- for n in graph.nodes.values() if n.resource_type == 'model' and n.name == parent_name -%}
       {%- set found.node = n -%}
     {%- endfor -%}
+    {%- if found.node is not none -%}
+      {%- set parent_schema = found.node.schema -%}
+      {%- set parent_name = found.node.alias or found.node.name -%}
+    {%- else -%}
+      {%- set parent_name = none -%}
+    {%- endif -%}
+  {%- elif to_txt -%}
+    {%- set parts = to_txt.replace('"', '').split('.') -%}
+    {%- if parts | length >= 2 -%}
+      {%- set parent_schema = parts[-2] | trim -%}
+      {%- set parent_name = parts[-1] | trim -%}
+    {%- endif -%}
   {%- endif -%}
 
-  {%- set parent = found.node -%}
-  {%- if parent is none or not s.cols or not s.to_cols or (s.cols | length) != (s.to_cols | length) -%}
+  {%- if parent_name is none or parent_schema is none or not s.cols or not s.to_cols or (s.cols | length) != (s.to_cols | length) -%}
     {%- do skipped.append(label ~ ': cannot resolve parent or columns from "' ~ (s.to or '') ~ '"') -%}
   {%- else -%}
-    {%- set parent_rel = parent.schema ~ '.' ~ (parent.alias or parent.name) -%}
+    {%- set parent_rel = parent_schema ~ '.' ~ parent_name -%}
     {%- set both = run_query("select to_regclass('" ~ child_rel ~ "') is not null and to_regclass('" ~ parent_rel ~ "') is not null") -%}
     {%- if not (both and both.rows and both.rows[0][0]) -%}
       {%- do skipped.append(label ~ ': child or parent table not built yet') -%}

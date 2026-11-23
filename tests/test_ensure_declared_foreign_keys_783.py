@@ -63,14 +63,14 @@ def _node(name, *, schema="gold", constraints=None, columns=None, materialized="
     }
 
 
-def _render(db: _Db, *, dry_run=False):
+def _render(db: _Db, *, dry_run=False, to='"postgres"."gold"."jurisdictions"'):
     child = _node(
         "bills",
         constraints=[
             {
                 "type": "foreign_key",
                 "columns": ["jurisdiction_id"],
-                "to": "ref('jurisdictions')",
+                "to": to,
                 "to_columns": ["jurisdiction_id"],
             }
         ],
@@ -92,6 +92,14 @@ def _render(db: _Db, *, dry_run=False):
     template = env.from_string(src + "{{ ensure_declared_foreign_keys(dry_run) }}")
     template.render(dry_run=dry_run, **ctx)
     return logs
+
+
+@pytest.mark.parametrize("to", ['"postgres"."gold"."jurisdictions"', "ref('jurisdictions')", 'gold.jurisdictions'])
+def test_macro_reads_the_parent_from_every_form_of_to(to):
+    """dbt hands the graph a rendered relation, not ref(...): found with a real dbt run (#783)."""
+    db = _Db()
+    _render(db, to=to)
+    assert len(db.alters) == 1 and "references gold.jurisdictions" in db.alters[0]
 
 
 def test_macro_adds_missing_foreign_key():
