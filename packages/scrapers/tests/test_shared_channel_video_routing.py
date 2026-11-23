@@ -145,3 +145,22 @@ def test_plan_moves_hamilton_out_of_winfield_and_leaves_the_rest():
     )
     assert planned["county"].action == "unresolved" and planned["county"].to_jurisdiction_id is None
     assert move.to_jurisdiction_type == "municipality"
+
+
+def test_seed_rows_skip_listed_and_unresolved():
+    from scrapers.youtube.reassign_shared_channel_videos import seed_rows
+
+    videos = [
+        {"video_id": "p1hBIWUhGtM", "channel_id": CHANNEL, "jurisdiction_id": "winfield_0182992",
+         "title": HAMILTON_MEETING, "analyzed": False},
+        {"video_id": "yiOKTptN978", "channel_id": CHANNEL, "jurisdiction_id": "winfield_0182992",
+         "title": HAMILTON_WORK, "analyzed": False},
+        {"video_id": "county", "channel_id": CHANNEL, "jurisdiction_id": "winfield_0182992",
+         "title": COUNTY_COMMISSION, "analyzed": False},
+    ]
+    planned = plan_moves(videos, {CHANNEL: SIBLINGS})
+    rows = seed_rows(planned, already_listed={"yiOKTptN978"}, state_codes={"hamilton_0132848": "AL"})
+    assert rows == [{
+        "channel_id": CHANNEL, "video_id": "p1hBIWUhGtM", "jurisdiction_id": "hamilton_0132848",
+        "state_code": "AL", "issue": "777", "evidence": f"title: {HAMILTON_MEETING}",
+    }]

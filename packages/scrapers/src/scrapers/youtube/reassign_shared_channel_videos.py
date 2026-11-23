@@ -14,19 +14,27 @@ the title names a government other than the one it is filed under
 jurisdictions, the video moves there. Every other flagged video is reported as
 ``unresolved`` and left alone.
 
-Read-only by default: it prints a summary and writes a CSV of planned moves.
-``--apply`` performs the moves in one transaction; each UPDATE also matches the old
-``jurisdiction_id``, so a row changed since the plan is not touched. Only
-``jurisdiction_id``, ``jurisdiction_name`` and ``city`` change (``city`` is cleared for a
-county); ``video_id`` (the
-primary key) and the analysis columns stay as they are. Rebuild the dbt event
-marts afterwards.
+The database is only read. By default the tool prints a summary and writes a CSV of
+the plan. ``--write-seed`` appends each move as a per-video row (issue 777, the
+title as evidence) to ``dbt_project/seeds/youtube_channel_attribution_override.csv``,
+skipping videos the seed already lists. The correction then lands through the
+reviewed #514 path, which updates bronze, ``civic_event``, the append-only event
+marts, ``event_documents`` and question instances together::
+
+    cd dbt_project
+    dbt seed --select youtube_channel_attribution_override
+    dbt run --select int_youtube__attribution_override
+    dbt run-operation repair_youtube_channel_attribution                    # dry run
+    dbt run-operation repair_youtube_channel_attribution --args '{dry_run: false}'
+
+Per-video seed rows never touch the channel catalogs: those steps of the repair
+read only channel-wide rows.
 
 Usage::
 
-    python -m scrapers.youtube.reassign_shared_channel_videos                 # dry run
+    python -m scrapers.youtube.reassign_shared_channel_videos                 # plan only
     python -m scrapers.youtube.reassign_shared_channel_videos --channel-id UCZ47nYYggC17NbmBs0Mx3Ww
-    python -m scrapers.youtube.reassign_shared_channel_videos --apply         # writes
+    python -m scrapers.youtube.reassign_shared_channel_videos --write-seed    # add moves to the seed
 """
 
 from __future__ import annotations
@@ -71,15 +79,25 @@ _VIDEOS_SQL = """
     WHERE channel_id = ANY(%s) AND jurisdiction_id IS NOT NULL AND title IS NOT NULL
 """
 
-_UPDATE_SQL = """
-    UPDATE bronze.bronze_event_youtube
-    SET jurisdiction_id = %(to_jurisdiction_id)s,
-        jurisdiction_name = %(to_name)s,
-        city = CASE WHEN %(to_jurisdiction_type)s = 'county' THEN NULL
-                    WHEN city IS NULL THEN NULL ELSE %(to_name)s END,
-        last_updated = now()
-    WHERE video_id = %(video_id)s AND jurisdiction_id = %(from_jurisdiction_id)s
-"""
+SEED_PATH = Path("dbt_project/seeds/youtube_channel_attribution_override.csv")
+SEED_FIELDS = ["channel_id", "video_id", "jurisdiction_id", "state_code", "issue", "evidence"]
+
+
+def seed_rows(moves: Iterable[Planned], already_listed: set[str], state_codes: dict[str, str]) -> list[dict]:
+    """Pure: per-video override rows for *moves* not already in the seed."""
+    rows = []
+    for p in moves:
+        if p.action != "move" or p.video_id in already_listed:
+            continue
+        rows.append({
+            "channel_id": p.channel_id,
+            "video_id": p.video_id,
+            "jurisdiction_id": p.to_jurisdiction_id,
+            "state_code": state_codes.get(p.to_jurisdiction_id or "", ""),
+            "issue": "777",
+            "evidence": f"title: {p.title}",
+        })
+    return rows
 
 
 @dataclass(frozen=True)
@@ -161,7 +179,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="CSV of planned moves and unresolved rows",
     )
     parser.add_argument("--database-url", help="Default: local warehouse on localhost:5433")
-    parser.add_argument("--apply", action="store_true", help="Perform the moves (default: dry run)")
+    parser.add_argument(
+        "--write-seed",
+        nargs="?",
+        const=SEED_PATH,
+        type=Path,
+        help=f"Append the moves as per-video rows to this seed (default {SEED_PATH})",
+    )
     args = parser.parse_args(argv)
 
     import psycopg2
@@ -169,10 +193,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     conn = psycopg2.connect(args.database_url or _default_dsn())
     params = conn.get_dsn_parameters()
-    logger.info("Database {}:{}/{} ({})", params.get("host"), params.get("port"), params.get("dbname"),
-                "WRITE" if args.apply else "read-only")
+    logger.info("Database {}:{}/{} (read-only)", params.get("host"), params.get("port"), params.get("dbname"))
     try:
-        conn.set_session(readonly=not args.apply)
+        conn.set_session(readonly=True)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(_SIBLINGS_SQL, {"channel_id": args.channel_id})
             siblings: dict[str, list[dict]] = {}
@@ -180,38 +203,39 @@ def main(argv: Sequence[str] | None = None) -> int:
                 siblings.setdefault(row["channel_id"], []).append(dict(row))
             cur.execute(_VIDEOS_SQL, (list(siblings),))
             planned = plan_moves(cur.fetchall(), siblings)
-
-        moves = [p for p in planned if p.action == "move"]
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        with args.out.open("w", newline="") as fh:
-            writer = csv.DictWriter(fh, fieldnames=list(Planned.__dataclass_fields__))
-            writer.writeheader()
-            for p in planned:
-                writer.writerow(asdict(p))
-        logger.info(
-            "{} shared channels; {} misfiled videos: {} to move ({} already analyzed), {} unresolved; CSV {}",
-            len(siblings),
-            len(planned),
-            len(moves),
-            sum(p.analyzed for p in moves),
-            len(planned) - len(moves),
-            args.out,
-        )
-
-        if not args.apply:
-            logger.success("Dry run: nothing written. Re-run with --apply to move {} videos.", len(moves))
-            return 0
-
-        with conn.cursor() as cur:
-            changed = 0
-            for p in moves:
-                cur.execute(_UPDATE_SQL, asdict(p))
-                changed += cur.rowcount
-        conn.commit()
-        logger.success("Moved {} of {} planned videos; rebuild the dbt event marts next.", changed, len(moves))
-        return 0
     finally:
         conn.close()
+
+    moves = [p for p in planned if p.action == "move"]
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    with args.out.open("w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(Planned.__dataclass_fields__))
+        writer.writeheader()
+        for p in planned:
+            writer.writerow(asdict(p))
+    logger.info(
+        "{} shared channels; {} misfiled videos: {} to move ({} already analyzed), {} unresolved; CSV {}",
+        len(siblings),
+        len(planned),
+        len(moves),
+        sum(p.analyzed for p in moves),
+        len(planned) - len(moves),
+        args.out,
+    )
+    if not args.write_seed:
+        logger.success("Plan only. Re-run with --write-seed to add {} moves to the override seed.", len(moves))
+        return 0
+
+    with args.write_seed.open(newline="") as fh:
+        listed = {r["video_id"].strip() for r in csv.DictReader(fh) if (r.get("video_id") or "").strip()}
+    state_codes = {s["jurisdiction_id"]: s["state_code"] or "" for sibs in siblings.values() for s in sibs}
+    rows = seed_rows(moves, listed, state_codes)
+    rows.sort(key=lambda r: (r["channel_id"], r["jurisdiction_id"], r["video_id"]))
+    with args.write_seed.open("a", newline="") as fh:
+        csv.DictWriter(fh, fieldnames=SEED_FIELDS, lineterminator="\n").writerows(rows)
+    logger.success("Added {} per-video rows to {} ({} already listed)", len(rows), args.write_seed,
+                   len(moves) - len(rows))
+    return 0
 
 
 if __name__ == "__main__":
