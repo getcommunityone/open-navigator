@@ -74,10 +74,14 @@ def test_prs_opened_before_the_rule_are_not_checked(pc):
     assert pc.applies_to_pr("2026-11-14T00:00:01Z") is True
 
 
-def test_the_workflow_runs_the_check_with_read_only_issue_access():
+def test_the_workflow_runs_auto_review_then_conventions():
     wf = (ROOT / ".github" / "workflows" / "pr-conventions.yml").read_text(encoding="utf-8")
-    assert "pr_conventions.py" in wf and "issues: read" in wf and "pull-requests: read" in wf
-    assert "contents: write" not in wf
+    assert "pr_conventions.py" in wf and "auto_pr_review.py" in wf
+    assert "issues: read" in wf and "pull-requests: read" in wf
+    # Auto-review commits pull_requests/pr-N-review.md onto the head branch (#648).
+    assert "contents: write" in wf
+    assert "needs: [auto-review]" in wf
+    assert "[skip review]" in wf
 
 
 def test_agents_md_states_the_rule_and_claude_md_imports_it():
@@ -141,8 +145,45 @@ def test_main_fails_with_an_annotation_when_the_linked_issue_cannot_be_read(pc, 
 
 
 def test_main_passes_a_good_pr(pc, tmp_path, monkeypatch):
-    pr = {"created_at": "2026-12-01T00:00:00Z", "head": {"ref": "feat/300-money-sankey"}, "body": "Closes #300"}
+    # Before REVIEW_SINCE: no review file required.
+    pr = {"created_at": "2026-11-20T00:00:00Z", "number": 300, "head": {"ref": "feat/300-money-sankey"}, "body": "Closes #300"}
     assert run_main(pc, tmp_path, monkeypatch, pr, issue=issue(FULL)) == 0
+
+
+def test_main_requires_review_file_from_review_since(pc, tmp_path, monkeypatch, capsys):
+    pr = {
+        "created_at": "2026-12-01T00:00:00Z",
+        "number": 300,
+        "head": {"ref": "feat/300-money-sankey"},
+        "body": "Closes #300",
+    }
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+    assert run_main(pc, tmp_path, monkeypatch, pr, issue=issue(FULL)) == 1
+    assert "pull_requests/pr-300-review.md" in capsys.readouterr().out
+
+
+def test_main_passes_when_review_file_has_verdict(pc, tmp_path, monkeypatch):
+    pr = {
+        "created_at": "2026-12-01T00:00:00Z",
+        "number": 300,
+        "head": {"ref": "feat/300-money-sankey"},
+        "body": "Closes #300",
+    }
+    review = tmp_path / "pull_requests" / "pr-300-review.md"
+    review.parent.mkdir(parents=True)
+    review.write_text("---\nverdict: approve\n---\n# ok\n", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+    assert run_main(pc, tmp_path, monkeypatch, pr, issue=issue(FULL)) == 0
+
+
+def test_review_file_problems_helper(pc, tmp_path):
+    assert any("missing" in p for p in pc.review_file_problems(tmp_path, 1))
+    path = tmp_path / "pull_requests" / "pr-1-review.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("# no verdict\n", encoding="utf-8")
+    assert any("verdict" in p for p in pc.review_file_problems(tmp_path, 1))
+    path.write_text("verdict: approve\n", encoding="utf-8")
+    assert pc.review_file_problems(tmp_path, 1) == []
 
 
 def test_the_colon_form_counts_as_a_link(pc):

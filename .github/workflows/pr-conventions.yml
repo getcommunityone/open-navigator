@@ -1,6 +1,6 @@
-# Every pull request belongs to a logged issue (AGENTS.md, "Issues first"; issue #225). Pull requests opened before
-# November 14, 2026 and tool branches (dependabot/, renovate/) are not checked. Not a required check until the owner
-# makes it one in the branch protection settings.
+# PR conventions + automated written review (#225, #648).
+# Job order: write pull_requests/pr-<n>-review.md (same-repo only), then check
+# branch / Closes / issue parts / review file + verdict.
 name: PR conventions
 
 on:
@@ -8,19 +8,112 @@ on:
     types: [opened, edited, synchronize, reopened]
 
 permissions:
+  contents: write
   pull-requests: read
   issues: read
 
 jobs:
+  auto-review:
+    name: Write pull_requests/pr-N-review.md
+    runs-on: ubuntu-latest
+    # Forks cannot push to the head branch; conventions still runs and will fail
+    # until a review is committed another way.
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.action != 'edited'
+    outputs:
+      skipped: ${{ steps.guard.outputs.skip }}
+    steps:
+      - name: Loop / tool-branch guard
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ref="${{ github.head_ref }}"
+          case "$ref" in
+            dependabot/*|renovate/*|kaggle-results/*)
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Tool branch — skip auto-review."
+              exit 0
+              ;;
+          esac
+          sha="${{ github.event.pull_request.head.sha }}"
+          msg=$(gh api "repos/${{ github.repository }}/commits/$sha" --jq '.commit.message' | head -1 || true)
+          files=$(gh api "repos/${{ github.repository }}/commits/$sha" --jq '[.files[].filename] | join("\n")' || true)
+          if echo "$msg" | grep -q '\[skip review\]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "[skip review] in commit message."
+            exit 0
+          fi
+          if [ -n "$files" ] && ! echo "$files" | grep -qvE '^pull_requests/pr-[0-9]+-review\.md$'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Only review file(s) changed — loop guard."
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          python-version: '3.11'
+
+      - name: Fetch base for diff
+        if: steps.guard.outputs.skip != 'true'
+        run: git fetch origin "${{ github.base_ref }}" --depth=200
+
+      - name: Write review if missing or stale
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          python .github/scripts/auto_pr_review.py \
+            --pr "${{ github.event.pull_request.number }}" \
+            --base "origin/${{ github.base_ref }}" \
+            --head HEAD \
+            --title "${{ github.event.pull_request.title }}" \
+            --branch "${{ github.head_ref }}" \
+            --author "${{ github.event.pull_request.user.login }}"
+
+      - name: Commit and push review file
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "pull_requests/pr-${{ github.event.pull_request.number }}-review.md" || true
+          if git diff --cached --quiet; then
+            echo "No review file changes to commit."
+            exit 0
+          fi
+          git commit -m "docs(pr-${{ github.event.pull_request.number }}): auto-write rubric review [skip review]"
+          git push origin "HEAD:${{ github.head_ref }}"
+
   pr-conventions:
     name: PR conventions (linked issue)
     runs-on: ubuntu-latest
+    needs: [auto-review]
+    # Always run the gate, even when auto-review was skipped (fork / tool branch / edited).
+    if: always()
     steps:
       - uses: actions/checkout@v4
+        with:
+          # After auto-review push, head.sha in the event may be stale — fetch the branch tip.
+          ref: ${{ github.head_ref }}
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Check the branch, the description and the linked issue
+
+      - name: Check branch, description, linked issue, and review file
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python .github/scripts/pr_conventions.py
