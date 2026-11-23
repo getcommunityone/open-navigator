@@ -50,7 +50,24 @@ import {
   formatDateTimeAbsolute,
   formatUpdatedAt,
 } from '../utils/dateTime'
+import {
+  fullRunPhaseFromLog,
+  fullRunPhaseLabel,
+  stageOwnsFullRunLog,
+  type FullRunPhase,
+} from '../lib/batchJobFullRunPhase'
 import { STATE_CODES } from '../lib/usStates'
+
+/** Stages lit as "running" for a live Run-all / Run-each phase (#761). */
+function phasesToRunningStages(phase: FullRunPhase | null): PipelineStage[] {
+  if (!phase) return []
+  if (phase === 'discover') return ['discover']
+  if (phase === 'videos') return ['videos']
+  if (phase === 'transcripts') return ['transcripts']
+  if (phase === 'analyses') return ['analyses_light']
+  if (phase === 'reports') return ['reports_light']
+  return []
+}
 
 type FailedVideoRow = {
   batch_id: string
@@ -1074,9 +1091,23 @@ export default function BatchJobStatusPage() {
   const { data: launchStatus, refetch: refetchLaunch } = useQuery({
     queryKey: ['batch-launch-status'],
     queryFn: fetchLaunchStatus,
-    refetchInterval: 20_000,
+    // Snappy so Run/Stop enablement and dashboard poll wake with the launch (#761).
+    refetchInterval: 4000,
     retry: false,
   })
+  const launchBusy =
+    !!launchStatus?.busy ||
+    (launchStatus?.running_steps?.length ?? 0) > 0 ||
+    (launchStatus?.stalled_steps?.length ?? 0) > 0
+  // Catalog/discover do not bump youtube_batch_job_runs — poll while a launch
+  // is live so Last activity / pills move (#757 / #761).
+  useEffect(() => {
+    if (!launchBusy) return
+    const id = window.setInterval(() => {
+      void refetch()
+    }, 5000)
+    return () => window.clearInterval(id)
+  }, [launchBusy, refetch])
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [launchMsg, setLaunchMsg] = useState<string | null>(null)
@@ -1206,31 +1237,43 @@ export default function BatchJobStatusPage() {
   // backfill log while it's the live (running/stalled) step; otherwise the
   // conventional captions log.
   const transcriptsBackfillLive = liveLaunchSteps.has('backfill')
-  // Run all / each write launch_all_*.log / launch_each_*.log — not per-stage
-  // files. While a full run is live, expanded stages must tail that log (#753).
-  // Run all now includes Discover first (#754).
+  // Run all / each write one shared log. Only the *active* phase stage tails it
+  // so Videos never dumps Discover output while Discover is still running (#761).
   const fullRunLogStep = liveLaunchSteps.has('each')
     ? 'each'
     : liveLaunchSteps.has('all')
       ? 'all'
       : null
+  const { data: fullRunLog } = useQuery({
+    queryKey: ['launch-log', fullRunLogStep, 'phase'],
+    queryFn: () => fetchLaunchLog(fullRunLogStep as string),
+    enabled: !!fullRunLogStep,
+    refetchInterval: 4000,
+    retry: false,
+  })
+  const fullRunPhase = useMemo(
+    () =>
+      fullRunPhaseFromLog(fullRunLog?.lines ?? [], fullRunLog?.current ?? '', {
+        step: fullRunLogStep,
+      }),
+    [fullRunLog?.lines, fullRunLog?.current, fullRunLogStep],
+  )
+  const expandedOwnsFullRunLog = stageOwnsFullRunLog(expandedStage, fullRunPhase)
   const expandedStep = expandedStage
     ? expandedStage === 'transcripts' && transcriptsBackfillLive
       ? 'backfill'
-      : fullRunLogStep &&
-          ['discover', 'videos', 'transcripts', 'analyses', 'reports'].includes(
-            expandedStage,
-          )
+      : expandedOwnsFullRunLog && fullRunLogStep
         ? fullRunLogStep
         : STAGE_STEP[expandedStage]
     : null
   const { data: stageLog } = useQuery({
     queryKey: ['launch-log', expandedStep],
     queryFn: () => fetchLaunchLog(expandedStep as string),
-    enabled: !!expandedStep,
+    enabled: !!expandedStep && !expandedOwnsFullRunLog,
     refetchInterval: 4000,
     retry: false,
   })
+  const displayLog = expandedOwnsFullRunLog ? fullRunLog : stageLog
 
   const selectedBatch = useMemo(() => {
     if (!data?.batches?.length) return null
@@ -1817,37 +1860,67 @@ export default function BatchJobStatusPage() {
             const runningSteps = new Set(ls?.running_steps ?? [])
             const stalledSteps = new Set(ls?.stalled_steps ?? [])
             const runningStages = new Set<PipelineStage>()
-            runningSteps.forEach((s) =>
-              (stepStages[s] ?? []).forEach((g) => runningStages.add(g)),
-            )
-            const anyFullRun = runningSteps.has('all') || runningSteps.has('each')
-            // A stage's Run is allowed unless its step (or a full-pipeline run) is
-            // already running — so e.g. Discover can launch while Analyze runs.
-            const canRunStage = (g: PipelineStage) =>
-              !!ls?.enabled &&
-              !launching &&
-              !runningSteps.has(stageStep[g]) &&
-              !anyFullRun
-            // The global backfill is its own step, so it may run alongside
-            // captions; it's only blocked by another backfill or a full run.
+            runningSteps.forEach((s) => {
+              if ((s === 'all' || s === 'each') && fullRunPhase) {
+                phasesToRunningStages(fullRunPhase).forEach((g) =>
+                  runningStages.add(g),
+                )
+                return
+              }
+              ;(stepStages[s] ?? []).forEach((g) => runningStages.add(g))
+            })
+            // One launch at a time: Stop is the only action while busy (#761).
+            const pipelineBusy =
+              runningSteps.size > 0 || stalledSteps.size > 0 || !!ls?.busy
+            const canRunStage = (_g: PipelineStage) =>
+              !!ls?.enabled && !launching && !pipelineBusy
             const canRunBackfill =
-              !!ls?.enabled &&
-              !launching &&
-              !runningSteps.has('backfill') &&
-              !anyFullRun
-            // Header "last activity" = the freshest per-step stamp for this scope,
-            // not the stale batch-step clock.
+              !!ls?.enabled && !launching && !pipelineBusy
+            /** Which launch step a stage's ■ Stop should target. */
+            const stopStepForStage = (stage: PipelineStage): string | null => {
+              const step = stageStep[stage]
+              if (runningSteps.has(step) || stalledSteps.has(step)) return step
+              if (
+                stage === 'transcripts' &&
+                (runningSteps.has('backfill') || stalledSteps.has('backfill'))
+              ) {
+                return 'backfill'
+              }
+              if (
+                (runningSteps.has('all') || stalledSteps.has('all')) &&
+                stageOwnsFullRunLog(stage, fullRunPhase)
+              ) {
+                return 'all'
+              }
+              if (
+                (runningSteps.has('each') || stalledSteps.has('each')) &&
+                stageOwnsFullRunLog(stage, fullRunPhase)
+              ) {
+                return 'each'
+              }
+              return null
+            }
+            // Header "last activity" = freshest stage stamp (parsed time, not string).
             const freshestIso = stageList
               .map((s) => rowFor(scope, s)?.last_at || '')
-              .reduce((a, b) => (a > b ? a : b), '')
-            const freshestAgo = agoFromIso(freshestIso)
+              .filter(Boolean)
+              .reduce<(string | null)>((best, iso) => {
+                if (!best) return iso
+                const a = Date.parse(best)
+                const b = Date.parse(iso)
+                if (!Number.isFinite(b)) return best
+                if (!Number.isFinite(a)) return iso
+                return b >= a ? iso : best
+              }, null)
+            const freshestAgo = agoFromIso(freshestIso ?? undefined)
             // Mirrors the API stall window (_LAUNCH_STALL_SECONDS /
             // BATCH_JOB_INACTIVITY_SECONDS, default 3600s). Warn earlier via
             // launchStatus.warning / vpn_down (#750, default 15m).
             const STALL_SECONDS = 3600
-            const freshestAgeSecs = freshestIso
-              ? Math.max(0, Math.floor((agoClockMs - Date.parse(freshestIso)) / 1000))
-              : null
+            const freshestAgeSecs =
+              freshestIso && Number.isFinite(Date.parse(freshestIso))
+                ? Math.max(0, Math.floor((agoClockMs - Date.parse(freshestIso)) / 1000))
+                : null
             // A batch row stays status='running' after its worker dies or starts
             // skipping already-done work, so totals.running alone overstates
             // liveness. Count row-running as live only with recent recorded
@@ -1863,7 +1936,7 @@ export default function BatchJobStatusPage() {
             const canRunAll =
               !!ls?.enabled &&
               !launching &&
-              runningSteps.size === 0 &&
+              !pipelineBusy &&
               !liveRunningRows
             const isActive = liveRunningRows || runningSteps.size > 0
             const anyStalled = stalledSteps.size > 0 || rowsStale
@@ -2063,6 +2136,7 @@ export default function BatchJobStatusPage() {
                   const pct = total ? (done / total) * 100 : 0
                   const ago = agoFromIso(r?.last_at)
                   const running = runningStages.has(st.stage)
+                  const stopStep = stopStepForStage(st.stage)
                   const expanded = expandedStage === st.stage
                   const tm = data.stage_report?.timing?.[st.stage]
                   // Live pace: avg_seconds is the median gap between *completed*
@@ -2195,7 +2269,18 @@ export default function BatchJobStatusPage() {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        {ls?.enabled ? (
+                        {ls?.enabled && stopStep ? (
+                          <button
+                            type="button"
+                            disabled={stopping}
+                            onClick={() => void stopLaunch(stopStep)}
+                            title={`Stop ${stopStep} (auto-resume off for this step)`}
+                            className="whitespace-nowrap rounded-md border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {stopping ? 'Stopping…' : '■ Stop'}
+                          </button>
+                        ) : null}
+                        {ls?.enabled && !stopStep ? (
                           <button
                             type="button"
                             disabled={
@@ -2206,13 +2291,13 @@ export default function BatchJobStatusPage() {
                             title={
                               FULL_STAGE_SET.has(st.stage) && fullFilters.length === 0
                                 ? 'Select at least one eligibility filter (expand this stage)'
-                                : runningSteps.has(stageStep[st.stage])
-                                  ? `${stageStep[st.stage]} is already running`
+                                : pipelineBusy
+                                  ? 'A pipeline job is running — Stop it before starting another'
                                   : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
                             }
                             className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            {running ? '· · ·' : '▶ Run'}
+                            ▶ Run
                           </button>
                         ) : null}
                         {/* Transcripts only: global mart-wide sweep (also reaches
@@ -2300,12 +2385,14 @@ export default function BatchJobStatusPage() {
                             </b>
                             {tm?.last_at ? ` · ${agoFromIso(tm.last_at) ?? ''}` : ''}
                           </span>
-                          {running && stageLog?.current ? (
+                          {running &&
+                          expandedOwnsFullRunLog &&
+                          displayLog?.current ? (
                             <span className="min-w-0">
                               current:{' '}
-                              <b className="text-emerald-700">{stageLog.current}</b>
-                              {stageLog.current_since
-                                ? ` · ${agoFromIso(stageLog.current_since) ?? ''} on it`
+                              <b className="text-emerald-700">{displayLog.current}</b>
+                              {displayLog.current_since
+                                ? ` · ${agoFromIso(displayLog.current_since) ?? ''} on it`
                                 : ''}
                             </span>
                           ) : null}
@@ -2339,23 +2426,35 @@ export default function BatchJobStatusPage() {
                             ) : null}
                           </div>
                         ) : null}
-                        {fullRunLogStep && expandedStep === fullRunLogStep ? (
+                        {fullRunLogStep && expandedOwnsFullRunLog ? (
                           <p className="mb-1 text-[11px] text-teal-800">
                             Showing the live{' '}
                             <code className="text-[10px]">Run {fullRunLogStep}</code> log
                             {fullRunLogStep === 'all'
-                              ? ' (discover → catalog → captions → analysis light → reports light)'
+                              ? ` · currently in ${fullRunPhaseLabel(fullRunPhase)}`
                               : ''}
                             .
                           </p>
                         ) : null}
+                        {fullRunLogStep && !expandedOwnsFullRunLog ? (
+                          <p className="mb-1 text-[11px] text-amber-800">
+                            Run {fullRunLogStep} is still in{' '}
+                            <b>{fullRunPhaseLabel(fullRunPhase)}</b>
+                            {' — '}
+                            this stage has not started yet. Open that stage for the live log.
+                          </p>
+                        ) : null}
                         <pre className="mt-2 max-h-56 overflow-auto rounded bg-slate-900 p-2 text-[10px] leading-snug text-slate-100">
-                          {stageLog?.lines?.length
-                            ? stageLog.lines.join('\n')
-                            : 'No log for this step yet — launch it to see live output.'}
+                          {fullRunLogStep && !expandedOwnsFullRunLog
+                            ? `(waiting) Run ${fullRunLogStep} is in ${fullRunPhaseLabel(fullRunPhase)} — no ${st.stage} output yet.`
+                            : displayLog?.lines?.length
+                              ? displayLog.lines.join('\n')
+                              : 'No log for this step yet — launch it to see live output.'}
                         </pre>
-                        {stageLog?.path ? (
-                          <div className="mt-1 text-[10px] text-slate-400">log: {stageLog.path}</div>
+                        {!(fullRunLogStep && !expandedOwnsFullRunLog) && displayLog?.path ? (
+                          <div className="mt-1 text-[10px] text-slate-400">
+                            log: {displayLog.path}
+                          </div>
                         ) : null}
                       </div>
                     ) : null}

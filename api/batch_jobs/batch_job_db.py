@@ -467,7 +467,17 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
             conn.rollback()
         return out
 
-    vids = _one("transcript_download_at", "transcript_file_path")
+    # Videos ▶ Run is catalog: upserts bump ``last_updated`` with --skip-transcripts.
+    # Timing must follow that clock (and caption stamps when present), not only
+    # ``transcript_download_at``, or Last activity freezes during catalog (#757).
+    vids = _one(
+        "CASE"
+        " WHEN last_updated IS NULL THEN transcript_download_at"
+        " WHEN transcript_download_at IS NULL THEN last_updated"
+        " ELSE GREATEST(last_updated, transcript_download_at)"
+        " END",
+        "COALESCE(NULLIF(transcript_file_path, ''), NULLIF(title, ''), video_id)",
+    )
     # Transcripts cadence/last-file come from bronze_event_youtube_transcript (where the
     # backfill actually writes), not the YouTube download stamp — otherwise the
     # dashboard reads "stalled · 0/hr · last file <days ago>" while a DB-only
@@ -542,7 +552,15 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                     COUNT(*) FILTER (WHERE policy_analysis_full_error IS NOT NULL)::int AS analysis_full_err,
                     COUNT(*) FILTER (WHERE policy_report_full_at IS NOT NULL)::int  AS reports_full,
                     COUNT(*) FILTER (WHERE policy_report_full_error IS NOT NULL)::int AS report_full_err,
-                    MAX(transcript_download_at)                                 AS last_video,
+                    -- Catalog bumps last_updated; captions stamp transcript_download_at.
+                    -- Videos Last activity must move for either (#757 / #761).
+                    MAX(
+                        CASE
+                            WHEN last_updated IS NULL THEN transcript_download_at
+                            WHEN transcript_download_at IS NULL THEN last_updated
+                            ELSE GREATEST(last_updated, transcript_download_at)
+                        END
+                    )                                                          AS last_video,
                     MAX(policy_analysis_at)                                     AS last_analysis_light,
                     MAX(policy_report_at)                                       AS last_report_light,
                     MAX(policy_analysis_full_at)                                AS last_analysis_full,
@@ -575,7 +593,13 @@ def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, 
                         0::int AS analysis_full_err,
                         0::int AS reports_full,
                         0::int AS report_full_err,
-                        MAX(transcript_download_at)                                 AS last_video,
+                        MAX(
+                            CASE
+                                WHEN last_updated IS NULL THEN transcript_download_at
+                                WHEN transcript_download_at IS NULL THEN last_updated
+                                ELSE GREATEST(last_updated, transcript_download_at)
+                            END
+                        )                                                          AS last_video,
                         MAX(policy_analysis_at)                                     AS last_analysis_light,
                         MAX(policy_report_at)                                       AS last_report_light,
                         NULL::timestamp AS last_analysis_full,
