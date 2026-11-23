@@ -73,6 +73,27 @@ def test_saved_hosts_are_tried_direct_first_in_a_later_run(tmp_path):
     assert not sh.prefers_direct("https://example.org/")
 
 
+def test_a_saved_host_that_fails_direct_falls_back_to_the_vpn(monkeypatch, tmp_path):
+    """A host saved in an earlier run is not stuck outside the VPN once the direct route fails."""
+    (tmp_path / "hosts.json").write_text(json.dumps(["coffeecounty.us"]))
+    direct_calls = []
+
+    async def fake_direct(client, url, kwargs):
+        direct_calls.append(url)
+        return _resp(BLOCK, status=403)
+
+    monkeypatch.setattr(sh, "_direct_get", fake_direct)
+    transport = httpx.MockTransport(lambda request: _resp(NORMAL))
+
+    async def run():
+        async with httpx.AsyncClient(transport=transport) as client:
+            return await sh.async_get_with_vpn_bypass(client, "https://coffeecounty.us/")
+
+    resp = asyncio.run(run())
+    assert resp.status_code == 200 and "Official Website" in resp.text
+    assert direct_calls == ["https://coffeecounty.us/"]
+
+
 def test_saving_can_be_turned_off(monkeypatch, tmp_path):
     monkeypatch.setenv("SCRAPE_DIRECT_HOSTS_FILE", "off")
     sh.remember_direct_host("https://coffeecounty.us/")

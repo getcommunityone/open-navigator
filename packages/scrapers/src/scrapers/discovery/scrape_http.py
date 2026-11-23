@@ -446,7 +446,16 @@ async def async_get_with_vpn_bypass(
 
     if prefers_direct(url):
         try:
-            return await _direct_get(client, url, kwargs)
+            direct = await _direct_get(client, url, kwargs)
+            # A host saved in an earlier run must not be stuck outside the VPN once the
+            # direct route starts failing (#767): an error or a block page falls through.
+            if direct.status_code < 400 and not looks_blocked_or_partial(direct):
+                return direct
+            logger.info(
+                "scrape_direct_first_unusable url={!r} status={}; trying the normal route",
+                url,
+                direct.status_code,
+            )
         except Exception as exc:  # noqa: BLE001 - fall back to the normal route
             logger.debug("scrape_direct_first failed url={!r}: {!r}", url, exc)
 
