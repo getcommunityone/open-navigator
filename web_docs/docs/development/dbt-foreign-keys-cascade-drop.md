@@ -58,6 +58,29 @@ where contype = 'f' and connamespace = 'gold'::regnamespace
 order by 1, 2;
 ```
 
+## Finding the tables with orphan rows (#786)
+
+`ensure_declared_foreign_keys` skips a key when the child has rows with no parent. To list every such candidate
+with its orphan count and a few sample values in one run, read-only:
+
+```bash
+dbt run-operation audit_orphan_foreign_keys
+dbt run-operation audit_orphan_foreign_keys --args '{schema: gold, samples: 5, show_clean: false}'
+```
+
+A candidate is a `*_id` column whose name and type match another table's single-column primary key, with no foreign
+key between them. It matches by name only, so check that a pair is a real relationship before declaring it. It only
+runs `SELECT` queries, and it is not part of `on-run-end` because it scans every candidate table.
+
+What the model code says about two of the four tables named in #786 (the counts still need your warehouse):
+
+| Table | Why orphans can exist |
+|---|---|
+| `events_text_search.event_id` | The model uses `COALESCE(event mart id, the id already on bronze)`. A transcript whose video has no row in the event mart keeps its bronze id, which points at nothing. |
+| `event_person.person_id` | The model header says the extracted person is resolved to `civic_person` "later", so orphans may be expected until that step runs. |
+
+`localview_events` and the `civic_*` tables are loaded by Python, not built by dbt, so the cause is in their loaders.
+
 ## Not fixed here
 
 Tables whose `*_id` columns match another table's key but have orphan rows keep no key, and each needs its own
