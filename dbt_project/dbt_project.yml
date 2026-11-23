@@ -37,6 +37,7 @@ on-run-start:
 # See macros/publish_public_serving.sql.
 on-run-end:
   - "{{ ensure_search_indexes() }}"
+  - "{{ ensure_declared_foreign_keys() }}"
   - "{{ publish_public_serving() }}"
 
 # These configurations specify where dbt should look for different types of files.
