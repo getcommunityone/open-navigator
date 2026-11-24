@@ -36,6 +36,7 @@ Apply only to **`decisions[]`** (contested items). Do **not** add `human_element
     * **Very High:** Shouting, walkouts, gaveling down, personal attacks, explicit threats of legal action or electoral retaliation, crying.
     * **Not applicable:** Stakeholder group was **not present and did not speak at all** — no comments, no questions, nothing on the record.
     - **Floor rule:** If a group spoke *in any way* — even one polite question or a single neutral comment — the intensity is **at least Low**. Never pair "Not applicable" with a `plain_summary` that describes anything they said or asked. If you wrote a non-empty `plain_summary` for a group, its intensity cannot be "Not applicable".
+
 ## Public Comment Stance (`public_participation[]`)
 Emit one row per **member of the public or outside stakeholder** (resident, business owner, advocate, applicant's representative, organization spokesperson) who addressed the body, whether or not they told a personal story. Do **not** add rows for members of the body or staff; their position is the vote and `competing_views.held_by`.
 - `speaker_id`: the speaker's `people[].person_id`. Add them to `people[]` first. Skip a speaker who cannot be identified at all; never invent a name.

@@ -22,10 +22,12 @@ decision_id / stance_evidence were added with the prompt version that asks for
 public_participation[] in both the full and lite prompts (meeting-sentiment-design.md).
 A speaker can comment on more than one item, so the key gains '_' || decision_id
 when one is present; rows without a decision_id keep the original key.
+Run this model once with --full-refresh after the change lands, so a re-loaded
+analysis cannot leave an old-format row beside its new-format rows.
 
 Powers the `engagement` interestingness component (speaker count + duration).
 
-COVERAGE CAVEAT: as of 2026-06 only ~1 of ~1,569 analyses carries a
+COVERAGE CAVEAT (before the prompts asked for the array, #807): as of 2026-06 only ~1 of ~1,569 analyses carries a
 public_participation array (the analyzer rarely emits it yet), so engagement is
 near-empty in practice today. This model mirrors the bronze_*_from_ai family so
 the signal lights up automatically as the analyzer backfills the array — no

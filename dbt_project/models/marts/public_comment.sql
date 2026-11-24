@@ -16,14 +16,14 @@ GRAIN  : one row per bronze public_participation key
 SOURCE : bronze.bronze_public_participation_from_ai, emitted by BOTH analysis tiers
          (full: policy_analysis_part_1.md, light: policy_analysis_lite.md).
 STANCE : `stance` is the extraction's own value; `stance_bucket` maps it to
-         for / against / neutral with public_stance_bucket(). A missing stance stays
-         null — unknown is never counted as neutral (CLAUDE.md No Fabricated Data).
+         for / against / neutral with public_stance_bucket(). A missing or unrecognised
+         stance stays null — unknown is never counted as neutral (CLAUDE.md No Fabricated Data).
 LINKS  : event_meeting_id always; event_decision_id only when decision_id names a
          contested decision that exists in event_decision (uncontested items and
          general public comment have none).
-KEYS   : single-column PK (public_comment_id). event_meeting / event_decision are
-         partitioned with composite PKs, so the FKs are asserted with relationships
-         tests, following the event_* family convention.
+KEYS   : single-column PK (public_comment_id). FK event_meeting_id -> event_meeting is
+         an enforced constraint. event_decision is partitioned with a composite PK, so
+         that FK is a relationships test, following the event_* family convention.
 Design : web_docs/docs/development/meeting-sentiment-design.md
 */
 

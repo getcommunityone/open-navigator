@@ -80,6 +80,10 @@ wording that produced it.
   shown beside it.
 - A missing stance is **unknown**, not neutral, and is not counted.
 
+After this lands: run `bronze_public_participation_from_ai` once with `--full-refresh` (its key now includes the item
+id). A speaker who comments on several items now has several rows, so the public-comment duration in
+`int_civic__item_signals` sums each row's span; the speaker count is unchanged.
+
 ### Tables (dbt)
 
 | Model | Grain | Key | Notes |
@@ -88,7 +92,8 @@ wording that produced it.
 | `public_comment` (new) | meeting × speaker × item | `public_comment_id` | `stance`, `stance_bucket`, quote, timestamps, `state_code` and `state`, `video_id`; links to `event_meeting` and, when it is a contested decision, `event_decision` |
 | `decision_public_stance` (new) | decision | `event_decision_id` | `speakers_for`, `speakers_against`, `speakers_neutral`, `speakers_total`, `stance_balance`; each speaker counts once |
 
-`public_stance_bucket()` is the one macro that maps stance text to a bucket. A decision with no public-comment data has
+`public_stance_bucket()` is the one macro that maps stance text to a bucket; a value outside the vocabulary maps to
+null, not neutral. `public_comment.event_meeting_id` is an enforced foreign key. A decision with no public-comment data has
 **no row**, so the page shows "No public-comment data for this meeting", never a neutral bar. The foreign keys into
 `event_meeting` and `event_decision` are relationships tests because those tables are partitioned with composite keys
 (the same convention as `decision_speakers`).
