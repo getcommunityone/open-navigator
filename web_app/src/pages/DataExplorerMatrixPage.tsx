@@ -12,7 +12,7 @@ type Metric = CensusMetricFormatRow & { label: string }
 type Manifest = { vintage?: string; vintages?: string[]; metrics?: Metric[] }
 type StatePayload = { values: Record<string, Record<string, number | null | undefined>> }
 
-type Layout = 'tiles' | 'pivot' | 'dumbbell' | 'scatter' | 'diverging'
+type Layout = 'tiles' | 'pivot' | 'dumbbell' | 'scatter' | 'diverging' | 'share'
 type GroupBy = 'none' | 'region'
 
 const MAX_COLS = 8
@@ -39,7 +39,7 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 export default function DataExplorerMatrixPage() {
   const [sp, setSp] = useSearchParams()
   const layoutQ = sp.get('layout')
-  const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' || layoutQ === 'scatter' || layoutQ === 'diverging' ? layoutQ : 'tiles'
+  const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' || layoutQ === 'scatter' || layoutQ === 'diverging' || layoutQ === 'share' ? layoutQ : 'tiles'
   const groupBy: GroupBy = sp.get('group') === 'region' ? 'region' : 'none'
   const sortKey = sp.get('sort') ?? ''
   const minPct = Math.min(95, Math.max(0, Number(sp.get('min')) || 0))
@@ -86,7 +86,22 @@ export default function DataExplorerMatrixPage() {
   })
 
   const metrics = manifest?.metrics ?? []
-  const metricSlug = sp.get('metric') || metrics[0]?.slug || ''
+  const countMetrics = metrics.filter((m) => m.format === 'count')
+  const metricQ = sp.get('metric') || metrics[0]?.slug || ''
+  // Part-of-whole only makes sense for additive (count) metrics.
+  const metricSlug = layout === 'share' && !countMetrics.some((m) => m.slug === metricQ) ? countMetrics[0]?.slug ?? metricQ : metricQ
+  const partScope: 'state' | 'county' = sp.get('part') === 'county' ? 'county' : 'state'
+  const partState = sp.get('st') || '01'
+  const { data: countyPayload } = useQuery({
+    queryKey: ['census-county-metrics', vintage],
+    queryFn: async (): Promise<{ values: Record<string, Record<string, number | string | null | undefined>> } | null> => {
+      const r = await fetch(`/data/census-map/${vintage}/county_metrics.json`)
+      return r.ok ? r.json() : null
+    },
+    enabled: layout === 'share' && partScope === 'county' && !!vintage,
+    retry: false,
+    staleTime: 1000 * 60 * 60,
+  })
   const cols = useMemo(() => {
     const fromUrl = (sp.get('cols') ?? '').split(',').filter((s) => metrics.some((m) => m.slug === s))
     return (fromUrl.length ? fromUrl : metrics.slice(0, 4).map((m) => m.slug)).slice(0, MAX_COLS)
@@ -137,12 +152,12 @@ export default function DataExplorerMatrixPage() {
   }, [rows, activeSort, sortDir])
 
   const groups = useMemo(() => {
-    if (groupBy === 'none') return [{ label: null as string | null, items: sorted }]
+    if (groupBy === 'none' || layout === 'share') return [{ label: null as string | null, items: sorted }]
     return (Object.keys(CENSUS_REGION_LABEL) as CensusRegionId[]).map((id) => ({
       label: CENSUS_REGION_LABEL[id],
       items: sorted.filter((r) => r.region === id),
     }))
-  }, [sorted, groupBy])
+  }, [sorted, groupBy, layout])
 
   const dim = (t: number | null) => (minPct > 0 && (t == null || t * 100 < minPct) ? 0.25 : 1)
   const fmt = (slug: string, v: number | null) => formatMetricValueDisplay(slug, v, metrics)
@@ -206,6 +221,9 @@ export default function DataExplorerMatrixPage() {
           <button type="button" className={btn(layout === 'diverging')} onClick={() => setQP('layout', 'diverging')}>
             ⇋ Diverging
           </button>
+          <button type="button" className={btn(layout === 'share')} onClick={() => setQP('layout', 'share')}>
+            ◔ Share
+          </button>
         </div>
         <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Group by">
           <button type="button" className={btn(groupBy === 'none')} onClick={() => setQP('group', null)}>
@@ -223,7 +241,7 @@ export default function DataExplorerMatrixPage() {
               value={metricSlug}
               onChange={(e) => setQP('metric', e.target.value)}
             >
-              {metrics.map((m) => (
+              {(layout === 'share' ? countMetrics : metrics).map((m) => (
                 <option key={m.slug} value={m.slug}>
                   {m.label}
                 </option>
@@ -244,6 +262,32 @@ export default function DataExplorerMatrixPage() {
               ))}
             </div>
           </details>
+        )}
+        {layout === 'share' && (
+          <>
+            <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Whole">
+              <button type="button" className={btn(partScope === 'state')} onClick={() => setQP('part', null)}>
+                States of U.S.
+              </button>
+              <button type="button" className={btn(partScope === 'county')} onClick={() => setQP('part', 'county')}>
+                Counties of a state
+              </button>
+            </div>
+            {partScope === 'county' && (
+              <select
+                aria-label="State"
+                className="rounded border border-slate-300 px-1.5 py-1 text-xs"
+                value={partState}
+                onChange={(e) => setQP('st', e.target.value)}
+              >
+                {[...rows].sort((a, b) => a.name.localeCompare(b.name)).map((r) => (
+                  <option key={r.fips} value={r.fips}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
         )}
         {layout === 'scatter' && (
           <label className="text-xs text-slate-700">
@@ -285,7 +329,19 @@ export default function DataExplorerMatrixPage() {
         {groups.map((g) => (
           <section key={g.label ?? 'all'} className="mb-3">
             {g.label && <h3 className="mb-1 text-xs font-semibold text-slate-700">{g.label}</h3>}
-            {layout === 'scatter' ? (
+            {layout === 'share' ? (
+              <Share
+                slug={metricSlug}
+                label={metricLabel(metricSlug)}
+                fmt={fmt}
+                scope={partScope}
+                states={rows}
+                stateName={rows.find((r) => r.fips === partState)?.name ?? partState}
+                stateFips={partState}
+                counties={countyPayload?.values}
+                countsAvailable={countMetrics.length > 0}
+              />
+            ) : layout === 'scatter' ? (
               <Scatter
                 items={g.items}
                 xSlug={metricSlug}
@@ -575,6 +631,119 @@ function Diverging({
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+const SEG_COLORS = ['#354F52', '#4338ca', '#b45309', '#be123c', '#0f766e', '#7c3aed', '#a16207', '#0369a1', '#94a3b8']
+
+interface Part {
+  id: string
+  name: string
+  value: number
+}
+
+/** Part-of-whole: states of the U.S. total, or counties of one state. Additive (count) metrics only. */
+function Share({
+  slug,
+  label,
+  fmt,
+  scope,
+  states,
+  stateName,
+  stateFips,
+  counties,
+  countsAvailable,
+}: {
+  slug: string
+  label: string
+  fmt: (slug: string, v: number | null) => string
+  scope: 'state' | 'county'
+  states: Row[]
+  stateName: string
+  stateFips: string
+  counties: Record<string, Record<string, number | string | null | undefined>> | undefined
+  countsAvailable: boolean
+}) {
+  if (!countsAvailable) return <p className="p-2 text-xs text-slate-600">No data available — no additive (count) metrics are published.</p>
+  let parts: Part[] = []
+  if (scope === 'state') {
+    // ACS "United States" excludes Puerto Rico, so it is left out of the whole.
+    parts = states
+      .filter((r) => r.fips.padStart(2, '0') !== '72' && r.vals[slug] != null)
+      .map((r) => ({ id: r.fips, name: r.name, value: r.vals[slug] as number }))
+  } else if (counties) {
+    const pre = stateFips.padStart(2, '0')
+    parts = Object.entries(counties)
+      .filter(([gid, v]) => gid.startsWith(pre) && typeof v[slug] === 'number')
+      .map(([gid, v]) => ({ id: gid, name: typeof v.NAME === 'string' ? v.NAME.replace(/,.*$/, '') : gid, value: v[slug] as number }))
+  } else {
+    return <p className="p-2 text-xs text-slate-600" role="status">No data available — county_metrics.json for this vintage is not published.</p>
+  }
+  parts = parts.filter((p) => p.value > 0).sort((a, b) => b.value - a.value)
+  const total = parts.reduce((a, p) => a + p.value, 0)
+  if (!parts.length || total <= 0) return <p className="p-2 text-xs text-slate-600">No data available for this metric.</p>
+  const whole = scope === 'state' ? 'U.S. total (50 states + DC)' : stateName
+  const TOP = 8
+  const head = parts.slice(0, TOP)
+  const restVal = parts.slice(TOP).reduce((a, p) => a + p.value, 0)
+  const segs = restVal > 0 ? [...head, { id: 'rest', name: `All others (${parts.length - TOP})`, value: restVal }] : head
+  // Waffle: largest-remainder allocation of 100 cells.
+  const raw = segs.map((g) => (g.value / total) * 100)
+  const cells = raw.map(Math.floor)
+  let left = 100 - cells.reduce((a, c) => a + c, 0)
+  raw
+    .map((r, i) => ({ i, f: r - Math.floor(r) }))
+    .sort((a, b) => b.f - a.f)
+    .forEach(({ i }) => {
+      if (left > 0) {
+        cells[i]! += 1
+        left -= 1
+      }
+    })
+  const waffle = cells.flatMap((n, i) => Array<number>(n).fill(i))
+  const pct = (v: number) => `${((v / total) * 100).toFixed(1)}%`
+  return (
+    <div>
+      <p className="mb-1 text-xs text-slate-700">
+        <strong>{label}</strong> · share of {whole} · whole = {fmt(slug, total)} ({parts.length} {scope === 'state' ? 'states' : 'counties'} with data)
+      </p>
+      <div className="flex h-7 w-full overflow-hidden rounded border border-slate-300" role="img" aria-label={`Share of ${whole}`}>
+        {segs.map((g, i) => (
+          <div key={g.id} style={{ width: `${(g.value / total) * 100}%`, background: SEG_COLORS[i] }} title={`${g.name}: ${pct(g.value)}`} />
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-4">
+        <div className="grid grid-cols-10 gap-0.5" role="img" aria-label="Waffle: each square is 1% of the whole" style={{ width: '9rem' }}>
+          {waffle.map((si, k) => (
+            <span key={k} className="aspect-square rounded-[2px]" style={{ background: SEG_COLORS[si] }} />
+          ))}
+        </div>
+        <table className="min-w-[16rem] flex-1 border-collapse text-xs">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <th className="p-1">{scope === 'state' ? 'State' : 'County'}</th>
+              <th className="p-1 text-right">{label}</th>
+              <th className="p-1 text-right">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parts.map((p) => {
+              const si = segs.findIndex((g) => g.id === p.id)
+              return (
+                <tr key={p.id} className="border-t border-slate-200">
+                  <td className="p-1 font-medium">
+                    <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: SEG_COLORS[si >= 0 ? si : SEG_COLORS.length - 1] }} />
+                    {p.name}
+                  </td>
+                  <td className="p-1 text-right tabular-nums">{fmt(slug, p.value)}</td>
+                  <td className="p-1 text-right tabular-nums">{pct(p.value)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
