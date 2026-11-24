@@ -28,6 +28,10 @@ Four steps run in order. A failing step stops the run, and **Stop** ends the run
    `relation "staging.stg_youtube__event" does not exist` and the rest of the run was skipped. It is one view, so the
    step takes seconds. Its row shows dbt counts like "Rebuild gold", and the run header adds the two dbt steps
    together.
+Both dbt steps use the profile in `dbt_project/profiles.yml` when that file exists (#875), the same one
+`./scripts/dbt.sh` uses, so a Load run and a run by hand write to the same database. An explicit `DBT_PROFILES_DIR`
+in the environment wins. Each dbt step's log starts with the profiles directory it used.
+
 1. **Promote events - videos → civic_event** (#827) runs
    `python -m ingestion.youtube.promote_to_c1_event --local-warehouse`. An analysis can only be stored against an event
    row, so this step gives every analysed video one before the load looks for it. Without it those analyses are

@@ -394,7 +394,28 @@ def _child_env() -> Dict[str, str]:
     ]
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = os.pathsep.join(srcs + ([existing] if existing else []))
+    profiles_dir = dbt_profiles_dir(env)
+    if profiles_dir:
+        env["DBT_PROFILES_DIR"] = profiles_dir
     return env
+
+
+def dbt_profiles_dir(env: Optional[Dict[str, str]] = None) -> Optional[str]:
+    """The dbt profiles directory the dbt steps should use (#875).
+
+    An explicit ``DBT_PROFILES_DIR`` is kept. Otherwise the project's own ``dbt_project/profiles.yml``
+    is used when it exists, as ``scripts/dbt.sh`` does, so a Load run and a run by hand hit the same
+    database. dbt is started from the repository root, where it would not look in ``dbt_project``
+    by itself and would fall back to ``~/.dbt``. ``None`` leaves dbt to its own search.
+    """
+    env = os.environ if env is None else env
+    explicit = (env.get("DBT_PROFILES_DIR") or "").strip()
+    if explicit:
+        return explicit
+    project = _repo_root() / "dbt_project"
+    if (project / "profiles.yml").is_file():
+        return str(project)
+    return None
 
 
 class _Orchestrator:
@@ -451,6 +472,9 @@ class _Orchestrator:
             try:
                 with open(log_path, "w") as logf:
                     logf.write(f"[{_now_iso()}] $ {step['cmd']}\n")
+                    if step["key"].startswith("dbt-"):
+                        # Which database a dbt step writes to depends on this, so say it in the log (#875).
+                        logf.write(f"[{_now_iso()}] dbt profiles directory: {dbt_profiles_dir() or 'dbt default (~/.dbt)'}\n")
                     logf.flush()
                     self._current = subprocess.Popen(
                         argv,

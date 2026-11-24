@@ -125,3 +125,26 @@ def test_dry_run_of_a_load_job_runs_nothing(orch, tmp_path, monkeypatch):
     assert [s["status"] for s in job["steps"]] == ["completed", "completed"]
     log = (tmp_path / "load_test_load-analysis.log").read_text()
     assert "[dry-run] no command executed" in log
+
+
+# --- #875: the dbt steps use the project's own profiles directory -------------------------------------------------
+
+
+def test_dbt_profiles_dir_prefers_explicit_then_project_then_none(orch, monkeypatch, tmp_path):
+    monkeypatch.setattr(orch, "_repo_root", lambda: tmp_path)
+    assert orch.dbt_profiles_dir({}) is None  # no project profile: leave dbt to its own search
+    (tmp_path / "dbt_project").mkdir()
+    (tmp_path / "dbt_project" / "profiles.yml").write_text("open_navigator: {}\n")
+    assert orch.dbt_profiles_dir({}) == str(tmp_path / "dbt_project")
+    assert orch.dbt_profiles_dir({"DBT_PROFILES_DIR": " /somewhere/else "}) == "/somewhere/else"
+
+
+def test_child_env_carries_the_profiles_dir(orch, monkeypatch, tmp_path):
+    monkeypatch.setattr(orch, "_repo_root", lambda: tmp_path)
+    monkeypatch.delenv("DBT_PROFILES_DIR", raising=False)
+    assert "DBT_PROFILES_DIR" not in orch._child_env()
+    (tmp_path / "dbt_project").mkdir()
+    (tmp_path / "dbt_project" / "profiles.yml").write_text("open_navigator: {}\n")
+    assert orch._child_env()["DBT_PROFILES_DIR"] == str(tmp_path / "dbt_project")
+    monkeypatch.setenv("DBT_PROFILES_DIR", "/kept")
+    assert orch._child_env()["DBT_PROFILES_DIR"] == "/kept"
