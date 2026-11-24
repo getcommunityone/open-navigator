@@ -69,6 +69,18 @@ def test_load_step_argv_uses_the_loader_and_dbt_run(orch, monkeypatch):
     gold = orch._step_argv("dbt-gold")
     assert gold[:2] == ["/opt/dbt/bin/dbt", "run"]
     assert "int_preferred_event_analysis+" in gold and "bronze_decisions_from_ai+" in gold
+    # #836: every bronze_*_from_ai model is selected with its descendants, so no mart is built from a
+    # stale or out-of-date bronze table. Adding a new one without selecting it here fails this test.
+    on_disk = {
+        p.stem
+        for p in (ROOT / "dbt_project" / "models" / "bronze").glob("bronze_*_from_ai.sql")
+        if "bronze_events_analysis_ai" in p.read_text(encoding="utf-8")  # not the empty ballot-measures placeholder
+    }
+    selectors = gold[gold.index("--select") + 1 :]
+    selected = {tok.rstrip("+") for tok in selectors if tok.startswith("bronze_")}
+    assert on_disk and selected == on_disk
+    # only the two mart roots take their descendants; the others would drag in the MDM clustering
+    assert [tok for tok in selectors if tok.endswith("+")] == ["int_preferred_event_analysis+", "bronze_decisions_from_ai+"]
     assert "{dbt}" not in " ".join(gold)
 
 
