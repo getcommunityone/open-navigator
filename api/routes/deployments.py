@@ -270,7 +270,7 @@ class StepResultResponse(BaseModel):
 
 # What each reason means and what to do about it. Unknown reasons are shown under their own name.
 _REASON_INFO: Dict[str, tuple] = {
-    "unreadable": ("File could not be read", "The analysis file is empty or not valid JSON. Re-run the analysis for that meeting."),
+    "unreadable": ("File could not be read", "The analysis file is empty or not valid JSON, usually from an interrupted run. The next analysis run redoes it; then load again."),
     "upsert_failed": ("Database write failed", "Read the error text; a foreign-key error usually means the meeting's event row is missing."),
     "no_event": ("No event row yet", "Run ingestion.youtube.promote_to_c1_event so the video has a civic_event row, then load again."),
     "no_meta": ("No run metadata", "The file has no metadata file of its own in 04_runs, so its model and video are unknown."),

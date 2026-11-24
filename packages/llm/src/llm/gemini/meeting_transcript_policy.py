@@ -140,6 +140,7 @@ def _with_tier_suffix(path: Path, tier: str) -> Path:
     return path.with_name(f"{path.stem}_full{path.suffix}")
 
 from llm.gemini.tier_names import meta_with_tier_suffix as _meta_with_tier_suffix  # noqa: E402
+from llm.gemini.tier_names import analysis_file_usable as _analysis_file_usable  # noqa: E402
 from llm.gemini.agenda_presenter_hints import (  # noqa: E402
     enrich_uncontested_media_anchors,
     format_agenda_presenter_hints_block,
@@ -1518,7 +1519,17 @@ def iter_videos_to_analyze(
             tier = _analysis_tier(args)
             if existing is not None:
                 existing = _with_tier_suffix(existing, tier)
-            if existing is not None and existing.is_file():
+            if existing is not None and existing.is_file() and not _analysis_file_usable(existing):
+                # Empty or truncated (an interrupted run): not an analysis, so redo it (#825).
+                logger.warning(
+                    "[{}/{}] {} — {} analysis file is empty or not JSON ({}); analysing again",
+                    i,
+                    len(videos),
+                    video.video_id,
+                    tier,
+                    existing.name,
+                )
+            elif existing is not None and existing.is_file():
                 logger.info(
                     "[{}/{}] Skip {} — {} analysis exists ({})",
                     i,

@@ -22,3 +22,19 @@ def meta_with_tier_suffix(meta_path: Path, tier: str) -> Path:
     if stem.endswith("_full"):
         return meta_path
     return meta_path.with_name(f"{stem}_full{suffix}")
+
+
+def analysis_file_usable(path: Path) -> bool:
+    """True when a saved analysis file can count as "already analysed" (#825).
+
+    An interrupted run can leave an empty or truncated file. Treating that as done means the meeting
+    is never analysed and the loader reports the same unreadable file on every run. Only the start
+    of the file is read, because this runs once per video over thousands of files: the file must
+    exist, hold something, and begin with a JSON object.
+    """
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(256)
+    except OSError:
+        return False
+    return head.lstrip(b"\xef\xbb\xbf \t\r\n").startswith(b"{")
