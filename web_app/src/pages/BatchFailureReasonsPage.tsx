@@ -6,8 +6,10 @@ import {
   fetchFailureRows,
   retryFailures,
   type FailureReasonGroup,
+  type FailureGridStage,
   type FailureStage,
 } from '../api/batchJobs'
+import FailureGrid from '../components/FailureGrid'
 import { LinkifiedText } from '../utils/linkifiedText'
 
 const watchUrl = (videoId: string) => `https://www.youtube.com/watch?v=${videoId}`
@@ -16,9 +18,13 @@ const watchUrl = (videoId: string) => `https://www.youtube.com/watch?v=${videoId
 // The scope (stage, cohort, state) lives in the URL and the title states it exactly, so the label
 // and the numbers always describe the same filter (CLAUDE.md "Scope Label Must Match the Active Filter").
 
-const STAGE_LABEL: Record<FailureStage, string> = {
+const STAGE_LABEL: Record<FailureGridStage, string> = {
   videos: 'Videos',
   transcripts: 'Transcripts',
+  analyses_light: 'Analysis light',
+  reports_light: 'Reports light',
+  analyses_full: 'Analysis full',
+  reports_full: 'Reports full',
 }
 
 const COHORT_LABEL: Record<string, string> = {
@@ -29,8 +35,8 @@ const COHORT_LABEL: Record<string, string> = {
 
 const PAGE_SIZE = 50
 
-function asStage(raw: string | null): FailureStage {
-  return raw === 'videos' ? 'videos' : 'transcripts'
+function asStage(raw: string | null): FailureGridStage {
+  return raw && raw in STAGE_LABEL ? (raw as FailureGridStage) : 'transcripts'
 }
 
 function ReasonVideos({
@@ -287,9 +293,13 @@ export default function BatchFailureReasonsPage() {
   const cohort = params.get('cohort') || 'all'
   const state = (params.get('state') || '').toUpperCase()
 
+  // The reason breakdown reads transcript_file_error, so only Videos and Transcripts have it; every
+  // stage has the grid of failed items below (#800).
+  const hasReasons = stage === 'videos' || stage === 'transcripts'
   const { data, isLoading, error } = useQuery({
     queryKey: ['batch-failure-reasons', stage, cohort, state],
-    queryFn: () => fetchFailureReasons(stage, cohort, state),
+    queryFn: () => fetchFailureReasons(stage as FailureStage, cohort, state),
+    enabled: hasReasons,
   })
 
   const cohortLabel = COHORT_LABEL[cohort] ?? cohort
@@ -297,7 +307,7 @@ export default function BatchFailureReasonsPage() {
   const back = `/admin/batch-jobs?cohort=${encodeURIComponent(cohort)}${state ? `&state=${state}` : ''}`
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
+    <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
       <div>
         <Link to={back} className="text-xs font-medium text-teal-700 hover:underline">
           ← Back to Batch Job Status
@@ -309,25 +319,26 @@ export default function BatchFailureReasonsPage() {
           </span>
         </h1>
         <p className="text-xs text-slate-500">
-          Why videos in this scope failed, from the error saved on each video. The reasons add up to the
-          failed count on the stage row.
+          {hasReasons
+            ? 'Why videos in this scope failed, from the error saved on each video. The reasons add up to the failed count on the stage row.'
+            : 'The items in this scope whose stage recorded an error. The count matches the failed count on the stage row.'}
         </p>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading reasons…</p> : null}
-      {error ? (
+      {hasReasons && isLoading ? <p className="text-sm text-slate-500">Loading reasons…</p> : null}
+      {hasReasons && error ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           Failure reasons are unavailable: {(error as Error).message}
         </div>
       ) : null}
 
-      {data && data.total === 0 ? (
+      {hasReasons && data && data.total === 0 ? (
         <div className="rounded-md border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-600">
           No failed videos recorded for this scope.
         </div>
       ) : null}
 
-      {data && data.total > 0 ? (
+      {hasReasons && data && data.total > 0 ? (
         <>
           <div className="text-sm text-slate-700">
             <span className="font-semibold tabular-nums text-red-700">{data.total.toLocaleString()}</span>{' '}
@@ -348,6 +359,8 @@ export default function BatchFailureReasonsPage() {
           </div>
         </>
       ) : null}
+
+      <FailureGrid stage={stage} cohort={cohort} state={state} />
     </div>
   )
 }

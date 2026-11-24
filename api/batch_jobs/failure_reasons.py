@@ -323,6 +323,180 @@ def failure_rows(
     return out
 
 
+# --- #800: one grid for every stage with a failed count -------------------------------------------
+# Stage -> the error column the stage report counts (``pipeline_stage_report``), all on
+# ``bronze.bronze_event_youtube``. Column names come only from this dict, never from the request.
+STAGE_ERROR_COLUMN: Dict[str, str] = {
+    "videos": "transcript_file_error",
+    "transcripts": "transcript_file_error",
+    "analyses_light": "policy_analysis_error",
+    "reports_light": "policy_report_error",
+    "analyses_full": "policy_analysis_full_error",
+    "reports_full": "policy_report_full_error",
+}
+GRID_STAGES = tuple(STAGE_ERROR_COLUMN)
+
+# Where to read more, per stage: the step on the Batch Job Status page whose log holds the failure.
+STAGE_WHERE_TO_LOOK: Dict[str, str] = {
+    "videos": "Batch Job Status, Videos row: open its log. The error is the caption fetch result.",
+    "transcripts": "Batch Job Status, Transcripts row: open its log (caption backfill).",
+    "analyses_light": "Batch Job Status, Analysis light row: open its log (light analysis step).",
+    "reports_light": "Batch Job Status, Reports light row: open its log (light report step).",
+    "analyses_full": "Batch Job Status, Analysis full row: open its log (full analysis step).",
+    "reports_full": "Batch Job Status, Reports full row: open its log (full report step).",
+}
+
+# Sort allow-list: request value -> SQL. ``{err}`` is the stage's error column. No request text reaches SQL.
+_SORT_SQL: Dict[str, str] = {
+    "video_id": "y.video_id",
+    "title": "y.title",
+    "state_code": "y.state_code",
+    "jurisdiction_name": "y.jurisdiction_name",
+    "error": "btrim(y.{err})",
+    "last_updated": "y.last_updated",
+    "event_date": "y.event_date",
+    "meeting_type": "y.meeting_type",
+}
+SORT_KEYS = tuple(_SORT_SQL)
+
+GRID_COLUMNS: List[Dict[str, Any]] = [
+    {"key": "video_id", "label": "Video", "sortable": True},
+    {"key": "title", "label": "Title", "sortable": True},
+    {"key": "jurisdiction_name", "label": "Jurisdiction", "sortable": True},
+    {"key": "state_code", "label": "State", "sortable": True},
+    {"key": "channel_id", "label": "Channel", "sortable": False},
+    {"key": "event_date", "label": "Meeting date", "sortable": True},
+    {"key": "meeting_type", "label": "Meeting type", "sortable": True},
+    {"key": "error", "label": "Error", "sortable": True},
+    {"key": "group", "label": "Reason", "sortable": False},
+    {"key": "last_updated", "label": "Last changed", "sortable": True},
+]
+
+
+def _norm_sql_for(col: str) -> str:
+    return (
+        f"regexp_replace(regexp_replace(btrim(y.{col}), "
+        r"'(v=|youtu\.be/)[A-Za-z0-9_-]{11}', '\1#', 'g'), '[0-9]{3,}', '#', 'g')"
+    )
+
+
+def _iso(v: Any) -> str:
+    return v.isoformat() if hasattr(v, "isoformat") else ("" if v is None else str(v))
+
+
+def failure_grid(
+    conn: Any,
+    *,
+    stage: str,
+    cohort: Optional[str],
+    state: Optional[str],
+    q: Optional[str] = None,
+    group: Optional[str] = None,
+    sort: str = "last_updated",
+    direction: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """Failed items for a stage and scope: one row per failed video, sortable and pageable (#800).
+
+    ``total`` uses the same row filter and cohort/state scope as ``pipeline_stage_report``'s failed
+    count for the stage, so with no ``q``/``group`` it equals the badge on the stage row. Raises
+    ``ValueError`` for an unknown stage, sort key or group.
+    """
+    col = STAGE_ERROR_COLUMN.get(stage)
+    if col is None:
+        raise ValueError(f"unknown stage {stage!r}")
+    if sort not in _SORT_SQL:
+        raise ValueError(f"unknown sort {sort!r}")
+    if group is not None and group != "" and group not in _META:
+        raise ValueError(f"unknown group {group!r}")
+    desc = str(direction).lower() != "asc"
+    jids, states, st = _scope_params(cohort, state, conn)
+    out: Dict[str, Any] = {
+        "stage": stage,
+        "cohort": (cohort or "").strip().lower() or "all",
+        "state": st or "",
+        "error_column": col,
+        "where_to_look": STAGE_WHERE_TO_LOOK[stage],
+        "total": 0,
+        "columns": GRID_COLUMNS,
+        "rows": [],
+    }
+    if (jids is not None and not jids) or (states is not None and not states):
+        return out
+    params: Dict[str, Any] = {
+        "jids": jids,
+        "states": states,
+        "state": st,
+        "q": (q or "").strip().lower() or None,
+        "limit": int(limit),
+        "offset": int(offset),
+    }
+    where = f"""
+    WHERE y.{col} IS NOT NULL
+      AND (%(jids)s::text[] IS NULL OR y.jurisdiction_id = ANY(%(jids)s))
+      AND (%(states)s::text[] IS NULL OR y.state_code = ANY(%(states)s))
+      AND (%(state)s::text IS NULL OR y.state_code = %(state)s)
+      AND (%(q)s::text IS NULL OR position(%(q)s in lower(
+            concat_ws(' ', y.title, y.video_id, y.jurisdiction_name, y.{col}))) > 0)
+    """
+    norm = _norm_sql_for(col)
+    with conn.cursor() as cur:
+        if group:
+            # Group is decided in Python (keywords), so find the reasons that fall in it, then filter by id.
+            cur.execute(
+                f"SELECT {norm} AS reason FROM bronze.bronze_event_youtube y "
+                f"WHERE y.{col} IS NOT NULL GROUP BY 1 LIMIT 5000"
+            )
+            ids = [reason_id(r[0] or "") for r in cur.fetchall() if classify_reason(r[0]) == group]
+            if not ids:
+                return out
+            where += f" AND md5({norm}) = ANY(%(gids)s)"
+            params["gids"] = ids
+        cur.execute(f"SELECT COUNT(*)::int FROM bronze.bronze_event_youtube y {where}", params)
+        out["total"] = int(cur.fetchone()[0])
+        order = _SORT_SQL[sort].format(err=col)
+        cur.execute(
+            f"""
+            SELECT y.video_id, y.title, y.jurisdiction_id, y.jurisdiction_name, y.state_code,
+                   y.channel_id, y.channel_url, y.event_date, y.meeting_type,
+                   btrim(y.{col}), y.last_updated, y.event_id
+            FROM bronze.bronze_event_youtube y
+            {where}
+            ORDER BY {order} {"DESC" if desc else "ASC"} NULLS LAST, y.video_id
+            LIMIT %(limit)s OFFSET %(offset)s
+            """,
+            params,
+        )
+        fetched = cur.fetchall()
+    rows = []
+    for r in fetched:
+        key = classify_reason(r[9])
+        label, advice = _META[key]
+        rows.append(
+            {
+                "video_id": r[0] or "",
+                "title": r[1] or "",
+                "jurisdiction_id": r[2] or "",
+                "jurisdiction_name": r[3] or "",
+                "state_code": r[4] or "",
+                "channel_id": r[5] or "",
+                "channel_url": r[6] or "",
+                "event_date": _iso(r[7]),
+                "meeting_type": r[8] or "",
+                "error": r[9] or "",
+                "group": key,
+                "group_label": label,
+                "advice": advice,
+                "retryable": key in RETRYABLE_GROUPS,
+                "last_updated": _iso(r[10]),
+                "event_id": r[11] or "",
+            }
+        )
+    out["rows"] = rows
+    return out
+
+
 def pick_retry_reason_ids(
     groups: List[Dict[str, Any]], *, group: Optional[str] = None, reason_id: Optional[str] = None
 ) -> List[str]:

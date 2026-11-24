@@ -1693,7 +1693,7 @@ export default function BatchJobStatusPage() {
               iso ? formatAgoCompact(iso, agoClockMs) : null
             // #792: the failed count on Videos / Transcripts opens the reason breakdown for the
             // same Filter and Scope (both ride in the URL so the page's title matches the numbers).
-            const openReasons = (stage: 'videos' | 'transcripts') => () => {
+            const openReasons = (stage: PipelineStage) => () => {
               const q = new URLSearchParams({ stage, cohort: allScope })
               if (scope !== 'ALL') q.set('state', scope)
               navigate(`/admin/batch-jobs/failures?${q}`)
@@ -1797,8 +1797,8 @@ export default function BatchJobStatusPage() {
                 unit: 'videos',
                 sub: 'lite Part 1 stamps ÷ transcripts in this Filter (not deep Part 1 / full)',
                 pill: true,
-                drill: null,
-                failTitle: 'Analysis errors (bronze policy_analysis_error)',
+                drill: openReasons('analyses_light'),
+                failTitle: 'Analysis errors (bronze policy_analysis_error) — tap to see them',
                 inRunAll: true,
               },
               {
@@ -1807,8 +1807,8 @@ export default function BatchJobStatusPage() {
                 unit: 'videos',
                 sub: 'lite Part 2 stamps ÷ analysis light in this Filter',
                 pill: true,
-                drill: null,
-                failTitle: 'Report errors (bronze policy_report_error)',
+                drill: openReasons('reports_light'),
+                failTitle: 'Report errors (bronze policy_report_error) — tap to see them',
                 inRunAll: true,
               },
               {
@@ -1817,8 +1817,8 @@ export default function BatchJobStatusPage() {
                 unit: 'videos',
                 sub: 'deep Part 1 stamps ÷ transcripts · opt-in filters',
                 pill: true,
-                drill: null,
-                failTitle: 'Full analysis errors (bronze policy_analysis_full_error)',
+                drill: openReasons('analyses_full'),
+                failTitle: 'Full analysis errors (bronze policy_analysis_full_error) — tap to see them',
                 inRunAll: false,
               },
               {
@@ -1827,8 +1827,8 @@ export default function BatchJobStatusPage() {
                 unit: 'videos',
                 sub: 'deep Part 2 stamps ÷ analysis full · opt-in',
                 pill: true,
-                drill: null,
-                failTitle: 'Full report errors (bronze policy_report_full_error)',
+                drill: openReasons('reports_full'),
+                failTitle: 'Full report errors (bronze policy_report_full_error) — tap to see them',
                 inRunAll: false,
               },
             ]

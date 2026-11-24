@@ -1710,6 +1710,84 @@ async def list_failures(
     return FailureRowsResponse(**payload)
 
 
+class FailureGridColumn(BaseModel):
+    key: str
+    label: str
+    sortable: bool = False
+
+
+class FailureGridRow(BaseModel):
+    video_id: str = ""
+    title: str = ""
+    jurisdiction_id: str = ""
+    jurisdiction_name: str = ""
+    state_code: str = ""
+    channel_id: str = ""
+    channel_url: str = ""
+    event_date: str = ""
+    meeting_type: str = ""
+    error: str = ""
+    group: str = ""
+    group_label: str = ""
+    advice: str = ""
+    retryable: bool = False
+    last_updated: str = ""
+    event_id: str = ""
+
+
+class FailureGridResponse(BaseModel):
+    stage: str
+    cohort: str
+    state: str = ""
+    error_column: str = ""
+    where_to_look: str = ""
+    total: int = 0
+    columns: List[FailureGridColumn] = Field(default_factory=list)
+    rows: List[FailureGridRow] = Field(default_factory=list)
+
+
+@router.get("/failure-grid", response_model=FailureGridResponse)
+async def failure_grid_route(
+    stage: str = Query("transcripts", description="videos, transcripts, analyses_light, reports_light, analyses_full or reports_full"),
+    cohort: Optional[str] = Query(None, description="all | priority | data_centers"),
+    state: Optional[str] = Query(None, description="2-letter state code; omit for the whole cohort"),
+    q: Optional[str] = Query(None, max_length=200, description="Text search over title, video id, jurisdiction and error"),
+    group: Optional[str] = Query(None, description="Reason group key, e.g. rate_limit"),
+    sort: str = Query("last_updated", description="video_id, title, state_code, jurisdiction_name, error, last_updated, event_date or meeting_type"),
+    dir: str = Query("desc", pattern="^(asc|desc)$"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> FailureGridResponse:
+    """Failed items for any stage, sortable and pageable (#800).
+
+    ``total`` equals the failed badge on the stage row for the same cohort and state when no ``q``
+    or ``group`` is set. The sort key comes from a fixed allow-list; no request text reaches SQL.
+    """
+    from api.batch_jobs.failure_reasons import GRID_STAGES, failure_grid
+
+    st = (stage or "").strip().lower()
+    if st not in GRID_STAGES:
+        raise HTTPException(status_code=422, detail=f"Unknown stage {stage!r}; supported: {', '.join(GRID_STAGES)}")
+
+    def _run() -> Dict[str, Any]:
+        from api.batch_jobs.batch_job_db import get_db_connection
+
+        with get_db_connection() as conn:
+            return failure_grid(
+                conn, stage=st, cohort=cohort, state=state, q=q, group=group,
+                sort=sort, direction=dir, limit=limit, offset=offset,
+            )
+
+    try:
+        payload = await asyncio.to_thread(_run)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("failure grid failed")
+        raise HTTPException(status_code=500, detail=f"Failure grid failed: {exc}") from exc
+    return FailureGridResponse(**payload)
+
+
 class RetryFailuresRequest(BaseModel):
     stage: str = "transcripts"
     cohort: Optional[str] = None
