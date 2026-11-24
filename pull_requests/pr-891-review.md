@@ -5,7 +5,7 @@ title: "docs(citations): cite American Sentiment and ProphecyGov as blocked refe
 author: jcbowyer
 reviewed_at: 2026-11-24
 reviewer: github-actions
-head_sha: 1309fbc660b582e4940fbfa416e2a2f3138c6048
+head_sha: b043d94dc297a4f93cd667e0e794755c0cf1b7c2
 verdict: approve
 ---
 
@@ -19,13 +19,14 @@ Automated review (#648) for PR #891 on `docs/890-citations-american-sentiment`. 
 ## Scope of Change
 
 - `CITATIONS.md`
+- `pull_requests/pr-891-review.md`
 - `web_docs/docs/data-sources/citations.md`
 - `web_docs/docs/development/data-center-community-meetings.md`
 - `web_docs/docs/development/meeting-sentiment-design.md`
 
 ## CI Status
 
-See the PR checks on `1309fbc660b5`.
+See the PR checks on `b043d94dc297`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
