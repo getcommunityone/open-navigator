@@ -33,6 +33,10 @@ This page documents all data sources, standards, and research contributions used
  <strong> Proprietary competitors</strong><br/>
  <span style={{fontSize: '0.9em', color: '#666'}}>American Sentiment, ProphecyGov, GroundVue, USLege, Hamlet</span>
  </a>
+ <a href="#meeting-agenda-and-video-platforms" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #009688'}}>
+ <strong> Meeting agenda &amp; video platforms</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>Granicus, CivicPlus / CivicClerk, Town Hall Streams</span>
+ </a>
  <a href="#government-data" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #4CAF50'}}>
  <strong> Government Data</strong><br/>
  <span style={{fontSize: '0.9em', color: '#666'}}>U.S. Census, IRS, Open States, LegiScan</span>
@@ -730,6 +734,78 @@ These are **commercial peers** in local government data, meeting intelligence, l
  title = {Hamlet},
  url = {https://hamlet.com/},
  note = {Local government / civic AI peer; friendly reference-only.}
+}
+```
+
+---
+
+## Meeting agenda and video platforms
+
+**In this section:**
+- [Granicus](#granicus)
+- [CivicPlus / CivicClerk](#civicplus--civicclerk)
+- [Town Hall Streams](#town-hall-streams)
+
+Municipalities and school boards often publish **official agendas, packets, and meeting video** through commercial agenda/streaming platforms. We cite these vendors as **friendly reference** for where public meeting video commonly lives. Public agenda and minutes content remains government records; follow each vendor's and jurisdiction's terms when linking or fetching. Discovery tips below help operators find the official player for a city or county.
+
+### Granicus
+
+**Organization:** Granicus
+**What they do:** Agenda, legislative, and **agenda-linked video** products used by a large share of U.S. local governments (on the order of **1,800+ agencies** for Granicus meeting/video tooling).
+
+- **Website:** https://www.granicus.com/
+- **How we reference them:** As a primary host pattern for official meeting video players and packets (alongside YouTube mirrors).
+- **Discovery tip:** Search `site:granicus.com "[City or County Name]"` to find official agenda-linked video players.
+- **License / use:** Vendor platform; public meeting materials are typically the jurisdiction's. Link and credit; respect robots.txt and jurisdiction terms.
+
+**BibTeX:**
+```bibtex
+@misc{granicus,
+ author = {{Granicus}},
+ title = {Granicus: Government Meeting and Agenda Platforms},
+ url = {https://www.granicus.com/},
+ note = {Agenda-linked meeting video platforms used by 1,800+ agencies; reference for discovery.}
+}
+```
+
+### CivicPlus / CivicClerk
+
+**Organization:** CivicPlus (CivicClerk)
+**What they do:** Municipal website CMS and **CivicClerk** agenda/minutes products that many cities use to publish meetings on their official sites.
+
+- **Website:** https://www.civicplus.com/
+- **CivicClerk:** often reachable as `*.civicclerk.com` portals for agendas and packets.
+- **How we reference them:** As a common CMS and agenda host for U.S. municipalities.
+- **Discovery tip:** Search `site:civicclerk.com "[City or County Name]"`, or open the municipality's official `.gov` site and look under **Agendas & Minutes**.
+- **License / use:** Vendor platform; public agendas/minutes are typically the jurisdiction's. Link and credit; respect robots.txt and jurisdiction terms.
+
+**BibTeX:**
+```bibtex
+@misc{civicplus_civicclerk,
+ author = {{CivicPlus}},
+ title = {CivicPlus / CivicClerk: Municipal Websites and Agenda Centers},
+ url = {https://www.civicplus.com/},
+ note = {Municipal CMS and CivicClerk agenda portals; reference for discovery.}
+}
+```
+
+### Town Hall Streams
+
+**Organization:** Town Hall Streams
+**What they do:** Live and archived **meeting streams** used heavily by **smaller towns and school districts**, especially in the Northeast and Mid-Atlantic.
+
+- **Website:** https://www.townhallstreams.com/
+- **How we reference them:** As a common streaming host for smaller jurisdictions' official meetings.
+- **Discovery tip:** Browse active feeds directly on Town Hall Streams, or search for the town/school board name on the site.
+- **License / use:** Vendor streaming platform; recordings are typically the jurisdiction's. Link and credit; respect robots.txt and jurisdiction terms.
+
+**BibTeX:**
+```bibtex
+@misc{town_hall_streams,
+ author = {{Town Hall Streams}},
+ title = {Town Hall Streams},
+ url = {https://www.townhallstreams.com/},
+ note = {Meeting streams for smaller towns and school districts; reference for discovery.}
 }
 ```
 

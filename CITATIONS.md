@@ -187,6 +187,13 @@ Peers in local government data, meeting intelligence, legislative AI, and civic 
 - **USLege** — [https://app.uslege.ai/](https://app.uslege.ai/) — legislative AI app
 - **Hamlet** — [https://hamlet.com/](https://hamlet.com/) — local government / civic AI
 
+### **Meeting agenda and video platforms** (friendly reference)
+Where many agencies publish official agendas and meeting video. Full section: [web_docs/docs/data-sources/citations.md](web_docs/docs/data-sources/citations.md#meeting-agenda-and-video-platforms).
+
+- **Granicus** — [https://www.granicus.com/](https://www.granicus.com/) — search `site:granicus.com "[City or County Name]"` for agenda-linked players (1,800+ agencies)
+- **CivicPlus / CivicClerk** — [https://www.civicplus.com/](https://www.civicplus.com/) — search `site:civicclerk.com "[City or County Name]"` or the city `.gov` **Agendas & Minutes**
+- **Town Hall Streams** — [https://www.townhallstreams.com/](https://www.townhallstreams.com/) — smaller towns and school districts (esp. Northeast / Mid-Atlantic); browse active feeds on the site
+
 ### **Reason Foundation** (reference)
 - Nonprofit policy research organization ([https://reason.org/](https://reason.org/)); transportation, infrastructure, and governance are among its topic areas (for example the Annual Highway Report and related publications).
 - **Use:** Cite specific Reason reports or pages when you use their materials; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#reason-foundation)
