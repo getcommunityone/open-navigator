@@ -1,8 +1,9 @@
 """
 Public meeting Q&A chat (#630).
 
-Normal path: analyzed-meeting search (top 5 summaries) → one Flash-Lite call.
-Detail path: one video's Neon segments → topic passages → one Flash-Lite call.
+Normal path: analyzed-meeting search (top 5 summaries) → one model call.
+Detail path: one video's Neon segments → topic passages → one model call.
+The model is Claude Haiku by default (#848); CHAT_PROVIDER=gemini keeps the Flash-Lite path.
 No agent framework; no transcript dump into the prompt.
 """
 from __future__ import annotations
@@ -168,8 +169,13 @@ def _record_spend(usd: Optional[float]) -> None:
 
 
 def _estimate_cost_usd(
-    model: str, input_tokens: Optional[int], output_tokens: Optional[int]
+    model: str,
+    input_tokens: Optional[int],
+    output_tokens: Optional[int],
+    *,
+    cached_tokens: int = 0,
 ) -> Optional[float]:
+    """Cost from the sourced, dated price of ``model`` in prices.yaml; ``None`` when there is none."""
     if input_tokens is None or output_tokens is None:
         return None
     try:
@@ -181,15 +187,16 @@ def _estimate_cost_usd(
                 "api_mode": "interactive",
                 "input_token_count": input_tokens,
                 "output_token_count": output_tokens,
-                "cached_input_token_count": 0,
+                "cached_input_token_count": cached_tokens,
                 "thinking_token_count": 0,
                 "called_at": datetime.now(timezone.utc).isoformat(),
             },
             load_prices(),
         )
     except Exception as exc:  # noqa: BLE001
+        # No guessed rate (#848): an unknown cost is reported as unknown.
         logger.warning("chat cost estimate skipped: {}", exc)
-        return round((input_tokens * 0.10 + output_tokens * 0.40) / 1_000_000, 6)
+        return None
 
 
 async def search_analyzed_meetings_for_chat(
@@ -380,7 +387,28 @@ def _passages_to_prompt(question: str, topic: str, video_id: str, passages: List
     )
 
 
-def _call_flash_lite(
+def chat_provider() -> str:
+    """``anthropic`` (default) or ``gemini``, from ``CHAT_PROVIDER`` (#848)."""
+    name = (os.environ.get("CHAT_PROVIDER") or "anthropic").strip().lower()
+    if name not in ("anthropic", "gemini"):
+        raise ValueError(f"CHAT_PROVIDER must be 'anthropic' or 'gemini', not {name!r}")
+    return name
+
+
+def _call_claude(
+    system: str, user: str
+) -> Tuple[str, str, Optional[int], Optional[int], Optional[float]]:
+    from llm.claude.text_client import DEFAULT_CHAT_MODEL, call_claude_text
+
+    model = (os.environ.get("CHAT_MODEL") or "").strip() or DEFAULT_CHAT_MODEL
+    result = call_claude_text(model=model, system=system, user_text=user)
+    usd = _estimate_cost_usd(
+        model, result.input_tokens, result.output_tokens, cached_tokens=result.cached_input_tokens
+    )
+    return result.text, model, result.input_tokens, result.output_tokens, usd
+
+
+def _call_gemini(
     system: str, user: str
 ) -> Tuple[str, str, Optional[int], Optional[int], Optional[float]]:
     from llm.gemini.genai_text_client import (
@@ -389,7 +417,7 @@ def _call_flash_lite(
         resolve_gemini_api_key,
     )
 
-    model = default_flash_lite_model()
+    model = (os.environ.get("CHAT_MODEL") or "").strip() or default_flash_lite_model()
     result = call_gemini_text(
         api_key=resolve_gemini_api_key(),
         model=model,
@@ -404,6 +432,15 @@ def _call_flash_lite(
     out_tok = getattr(usage, "output_token_count", None) if usage else None
     usd = _estimate_cost_usd(model, in_tok, out_tok)
     return (result.text or "").strip(), model, in_tok, out_tok, usd
+
+
+def _call_chat_model(
+    system: str, user: str
+) -> Tuple[str, str, Optional[int], Optional[int], Optional[float]]:
+    """The chat's one model call: Claude Haiku by default, Gemini when ``CHAT_PROVIDER=gemini``."""
+    if chat_provider() == "gemini":
+        return _call_gemini(system, user)
+    return _call_claude(system, user)
 
 
 def _answer_looks_empty(text: str) -> bool:
@@ -490,11 +527,11 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
 
         try:
             text, model, in_tok, out_tok, usd = await run_in_threadpool(
-                _call_flash_lite, _SYSTEM_SUMMARIES, _meetings_to_prompt(question, meetings)
+                _call_chat_model, _SYSTEM_SUMMARIES, _meetings_to_prompt(question, meetings)
             )
         except Exception as exc:  # noqa: BLE001
             span.record_exception(exc)
-            logger.error("chat Flash-Lite failed: {}", exc)
+            logger.error("chat model call failed ({}): {}", type(exc).__name__, exc)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="The answer service is temporarily unavailable.",
@@ -544,13 +581,13 @@ async def _chat_passages(
 
     try:
         text, model, in_tok, out_tok, usd = await run_in_threadpool(
-            _call_flash_lite,
+            _call_chat_model,
             _SYSTEM_PASSAGES,
             _passages_to_prompt(question, topic, video_id, passages),
         )
     except Exception as exc:  # noqa: BLE001
         span.record_exception(exc)
-        logger.error("chat passages Flash-Lite failed: {}", exc)
+        logger.error("chat passages model call failed ({}): {}", type(exc).__name__, exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The answer service is temporarily unavailable.",

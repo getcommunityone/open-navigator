@@ -18,6 +18,18 @@
 # page says gemini-2.5-flash is deprecated: from 2026-12-01 its requests are routed
 # to gemini-3.5-flash-lite and billed at that model's rates.
 models:
+  # Claude Haiku 5.5: Anthropic's pricing page, read on 2026-11-24 (#848). These are the
+  # rates "for prompts up to 100,000 tokens"; a longer prompt costs five times as much
+  # (0.50 / 0.05 / 2.50) and is not priced here. The meeting chat, its only caller, caps
+  # its prompt far below that. `cached_input_usd_per_1m` is the "cache hits and refreshes"
+  # rate; the batch one is that rate with the page's 50 percent batch discount, which
+  # the page says stacks with caching. Output tokens include thinking tokens, as the API
+  # reports them.
+  claude-haiku-5-5:
+    source: https://platform.claude.com/docs/en/about-claude/pricing
+    read_date: "2026-11-24"
+    interactive: {input_usd_per_1m: 0.10, cached_input_usd_per_1m: 0.01, output_usd_per_1m: 0.50}
+    batch: {input_usd_per_1m: 0.05, cached_input_usd_per_1m: 0.005, output_usd_per_1m: 0.25}
   gemini-2.5-flash:
     source: https://ai.google.dev/gemini-api/docs/pricing
     read_date: "2026-11-14"
