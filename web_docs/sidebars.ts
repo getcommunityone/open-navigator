@@ -419,6 +419,33 @@ const sidebars: SidebarsConfig = {
   ],
 
   // ========================================
+  // OPERATIONS - running costs and money-saving decisions (#868)
+  // ========================================
+  operationsSidebar: [
+    {
+      type: 'category',
+      label: 'Finance',
+      collapsed: false,
+      items: [
+        'operations/finance/overview',
+        'operations/finance/expense-log',
+        'operations/finance/savings-decisions',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Related cost pages',
+      collapsed: false,
+      items: [
+        'development/llm-usage-tracking',
+        'development/transcript-analysis-cost',
+        'development/gpu-compute-decisions',
+        'development/neon-serving-scope',
+      ],
+    },
+  ],
+
+  // ========================================
   // MAIN SIDEBAR - All Documentation
   // ========================================
   docsSidebar: [
