@@ -5,7 +5,7 @@ title: "fix(batch-jobs): clear VPN-down banner when the Surfshark tunnel is back
 author: jcbowyer
 reviewed_at: 2026-11-24
 reviewer: github-actions
-head_sha: ea402f866c313110d36a3395a3a53bf7c92175d9
+head_sha: 090e282b723aa3e9a29893e59fec12d06e50a4fc
 verdict: approve
 ---
 
@@ -19,11 +19,12 @@ Automated review (#648) for PR #835 on `fix/834-vpn-banner-when-up`. Heuristic r
 ## Scope of Change
 
 - `api/routes/batch_jobs.py`
+- `pull_requests/pr-835-review.md`
 - `tests/test_batch_job_launch_inactivity.py`
 
 ## CI Status
 
-See the PR checks on `ea402f866c31`.
+See the PR checks on `090e282b723a`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
