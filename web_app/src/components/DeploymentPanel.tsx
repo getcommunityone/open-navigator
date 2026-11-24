@@ -10,7 +10,7 @@ import {
   type DeploymentStep,
 } from '../api/deployments'
 import { formatAgoCompact, formatDateTimeAbsolute } from '../utils/dateTime'
-import { hasProblems } from '../utils/stepCounts'
+import { hasProblems, sumDbtCounts } from '../utils/stepCounts'
 import StepResultPanel, { StepCounts } from './StepResultPanel'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -114,9 +114,9 @@ function stepSummary(job: DeploymentJob): string {
     if (load.skipped) parts.push(`${load.skipped.toLocaleString()} skipped`)
     if (load.errors) parts.push(`${load.errors.toLocaleString()} file ${load.errors === 1 ? 'error' : 'errors'}`)
   }
-  const dbt = job.steps.find((s) => s.counts && typeof s.counts.models === 'number')?.counts
+  const dbt = sumDbtCounts(job.steps)
   if (dbt) {
-    parts.push(`${(dbt.success ?? 0).toLocaleString()} of ${(dbt.models ?? 0).toLocaleString()} models built`)
+    parts.push(`${dbt.success.toLocaleString()} of ${dbt.models.toLocaleString()} models built`)
     if (dbt.error) parts.push(`${dbt.error.toLocaleString()} models failed`)
   }
   return parts.join(' · ')

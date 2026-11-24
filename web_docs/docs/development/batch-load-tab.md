@@ -20,8 +20,14 @@ Deep links: `?type=load` and `?type=deployment` (tab 1 has no parameter).
 
 ## Tab 2: Load
 
-Three steps run in order. A failing step stops the run, and **Stop** ends the running step.
+Four steps run in order. A failing step stops the run, and **Stop** ends the running step.
 
+0. **Prepare video names - dbt** (#843) runs `dbt run --select stg_youtube__event`. The promotion step reads each
+   video's jurisdiction name from that staging view (#501), and nothing else in a Load run builds it. When the view
+   was missing (never built, or dropped when its bronze table was recreated) promotion failed with
+   `relation "staging.stg_youtube__event" does not exist` and the rest of the run was skipped. It is one view, so the
+   step takes seconds. Its row shows dbt counts like "Rebuild gold", and the run header adds the two dbt steps
+   together.
 1. **Promote events - videos → civic_event** (#827) runs
    `python -m ingestion.youtube.promote_to_c1_event --local-warehouse`. An analysis can only be stored against an event
    row, so this step gives every analysed video one before the load looks for it. Without it those analyses are
@@ -72,8 +78,8 @@ How it works:
 
 - The loader takes `--result-json PATH` and writes its counts plus one entry for every file it did **not** load. The
   job runner passes the path, `data/cache/batch_jobs/deployments/<job_id>_load-analysis.result.json`, next to the log.
-- After the dbt step, the runner reads dbt's own `dbt_project/target/run_results.json` and writes
-  `<job_id>_dbt-gold.result.json` with each model that failed or was skipped and dbt's message. If that file is older
+- After each dbt step, the runner reads dbt's own `dbt_project/target/run_results.json` and writes
+  `<job_id>_dbt-gold.result.json` (and `<job_id>_dbt-staging.result.json` for the first step) with each model that failed or was skipped and dbt's message. If that file is older
   than the step (left by another dbt run), nothing is recorded.
 - `GET /api/deployments/{job_id}/result?step=&outcome=&reason=&q=&limit=&offset=` serves a step's counts, its reasons
   with counts, and the filtered, paged items.

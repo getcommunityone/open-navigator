@@ -58,6 +58,18 @@ from typing import Any, Dict, List, Optional
 # local serving objects to prod). The two groups never run in the same job (#796).
 # ``{dbt}`` is replaced with the dbt executable (see :func:`dbt_bin`).
 STEP_DEFS: Dict[str, Dict[str, Any]] = {
+    "dbt-staging": {
+        "group": "load",
+        "label": "Prepare video names — dbt",
+        "description": (
+            "Build the staging view the next step reads for each video's jurisdiction name "
+            "(staging.stg_youtube__event). One view; quick. Without it the promotion step fails."
+        ),
+        "target": "local-warehouse",
+        # One view, no "+": promotion reads only this (#843). It is built here because nothing else in a
+        # Load run builds it, and a recreated bronze table drops it.
+        "argv": ["{dbt}", "run", "--project-dir", "dbt_project", "--select", "stg_youtube__event"],
+    },
     "promote-events": {
         "group": "load",
         "label": "Promote events — videos → civic_event",
@@ -122,7 +134,7 @@ STEP_DEFS: Dict[str, Dict[str, Any]] = {
 # Default pipeline per group. For ``deploy`` it is the database serving copy only; ``web`` is
 # selectable in the panel but not run by default (it's a separate, flakier concern).
 DEFAULT_STEPS_BY_GROUP: Dict[str, List[str]] = {
-    "load": ["promote-events", "load-analysis", "dbt-gold"],
+    "load": ["dbt-staging", "promote-events", "load-analysis", "dbt-gold"],
     "deploy": ["database"],
 }
 DEFAULT_STEPS: List[str] = DEFAULT_STEPS_BY_GROUP["deploy"]  # back-compat
@@ -350,7 +362,7 @@ def dbt_result_from_run_results(run_results: Path, started_epoch: float) -> Opti
 def collect_step_result(key: str, result_path: Path, root: Path, started_epoch: float) -> Optional[Dict[str, int]]:
     """Counts for a finished step, or ``None`` when it left nothing to count. Never raises."""
     try:
-        if key == "dbt-gold":
+        if key.startswith("dbt-"):
             result = dbt_result_from_run_results(root / "dbt_project" / "target" / "run_results.json", started_epoch)
             if result is None:
                 return None

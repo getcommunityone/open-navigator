@@ -51,6 +51,16 @@ router = APIRouter(
 # separate, optional step — selectable in the panel but not run by default.
 _STEP_DEFS: List[Dict[str, str]] = [
     {
+        "key": "dbt-staging",
+        "group": "load",
+        "label": "Prepare video names — dbt",
+        "description": (
+            "Build the staging view the next step reads for each video's jurisdiction name "
+            "(staging.stg_youtube__event). One view; quick. Without it the promotion step fails."
+        ),
+        "target": "local-warehouse",
+    },
+    {
         "key": "promote-events",
         "group": "load",
         "label": "Promote events — videos → civic_event",
@@ -99,7 +109,7 @@ _STEP_GROUP = {d["key"]: d["group"] for d in _STEP_DEFS}
 _DEFAULT_STEPS = ["database"]
 # Default steps per group (keep in sync with hosting.deploy.run_deployment.DEFAULT_STEPS_BY_GROUP).
 _DEFAULT_STEPS_BY_GROUP: Dict[str, List[str]] = {
-    "load": ["promote-events", "load-analysis", "dbt-gold"],
+    "load": ["dbt-staging", "promote-events", "load-analysis", "dbt-gold"],
     "deploy": ["database"],
 }
 # Steps that publish outside this machine. Only these need DEPLOYMENTS_ALLOW_LAUNCH; the load

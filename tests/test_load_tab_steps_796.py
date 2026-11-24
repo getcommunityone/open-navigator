@@ -38,7 +38,7 @@ def test_load_steps_target_the_local_warehouse_not_prod(orch):
 
 
 def test_defaults_per_group(orch):
-    assert orch.DEFAULT_STEPS_BY_GROUP["load"] == ["promote-events", "load-analysis", "dbt-gold"]  # #827
+    assert orch.DEFAULT_STEPS_BY_GROUP["load"] == ["dbt-staging", "promote-events", "load-analysis", "dbt-gold"]  # #827
     assert orch.DEFAULT_STEPS_BY_GROUP["deploy"] == ["database"]
     assert orch.DEFAULT_STEPS == ["database"]  # unchanged for existing callers
 
@@ -46,6 +46,7 @@ def test_defaults_per_group(orch):
 def test_available_steps_carry_their_group(orch):
     by_key = {s["key"]: s["group"] for s in orch.available_steps()}
     assert by_key == {
+        "dbt-staging": "load",
         "promote-events": "load",
         "load-analysis": "load",
         "dbt-gold": "load",

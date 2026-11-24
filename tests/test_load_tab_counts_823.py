@@ -237,7 +237,7 @@ def test_summarize_load_counts(orch):
 
 # --------------------------------------------------------------------------- promotion (#827)
 def test_promotion_runs_first_against_the_local_warehouse(orch, tmp_path):
-    assert orch.DEFAULT_STEPS_BY_GROUP["load"][0] == "promote-events"
+    assert orch.DEFAULT_STEPS_BY_GROUP["load"][:2] == ["dbt-staging", "promote-events"]  # #843
     assert orch.step_group("promote-events") == "load"
     assert orch.STEP_DEFS["promote-events"]["target"] == "local-warehouse"
     path = orch.result_path_for(tmp_path, "load_1", "promote-events")
@@ -349,6 +349,25 @@ def test_collect_step_result(orch, tmp_path):
     dbt_result = tmp_path / "j_dbt-gold.result.json"
     assert orch.collect_step_result("dbt-gold", dbt_result, root, time.time() - 5)["error"] == 1
     assert json.loads(dbt_result.read_text())["kind"] == "dbt"  # written for the drill-down
+    # #843: the staging step is a dbt step too, and gets the same counts and drill-down file.
+    staging_result = tmp_path / "j_dbt-staging.result.json"
+    assert orch.collect_step_result("dbt-staging", staging_result, root, time.time() - 5)["models"] >= 1
+    assert json.loads(staging_result.read_text())["kind"] == "dbt"
+
+
+def test_staging_step_builds_the_one_view_promotion_reads(orch, monkeypatch):
+    """#843: promotion joins staging.stg_youtube__event; the step before it must build exactly that view."""
+    monkeypatch.setenv("DBT_BIN", "/opt/dbt/bin/dbt")
+    argv = orch._step_argv("dbt-staging", Path("/tmp/x.json"))
+    assert argv == ["/opt/dbt/bin/dbt", "run", "--project-dir", "dbt_project", "--select", "stg_youtube__event"]
+    assert orch.step_group("dbt-staging") == "load"
+    assert orch.STEP_DEFS["dbt-staging"]["target"] == "local-warehouse"
+    order = orch.DEFAULT_STEPS_BY_GROUP["load"]
+    assert order.index("dbt-staging") < order.index("promote-events")
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "dbt_project" / "models" / "staging" / "stg_youtube__event.sql").is_file()
+    promote = (root / "packages/ingestion/src/ingestion/youtube/promote_to_c1_event.py").read_text()
+    assert "staging.stg_youtube__event" in promote
 
 
 def _job(orch, monkeypatch, tmp_path, steps):
