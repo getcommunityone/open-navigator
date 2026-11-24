@@ -276,7 +276,8 @@ def local_warehouse_url() -> str:
     dev = (os.getenv("NEON_DATABASE_URL_DEV") or "").strip()
     if dev:
         return dev
-    return "postgresql://postgres:%s@localhost:5433/open_navigator" % os.getenv("POSTGRES_PASSWORD", "password")
+    password = os.getenv("POSTGRES_PASSWORD", "password")
+    return f"postgresql://postgres:{password}@localhost:5433/open_navigator"
 
 
 def write_result_json(path: Path, stats: dict[str, int], *, dry_run: bool) -> None:
