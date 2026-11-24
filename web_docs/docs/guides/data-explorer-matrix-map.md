@@ -23,8 +23,10 @@ buttons at the top of the tab.
 ## Reading the colours
 
 Tiles, Pivot and Dot map use six shade steps per metric, cut at 10, 25, 45, 65 and 80 percent of that metric's range.
-Darker means a better rank: for metrics where lower is better (for example poverty), the scale is flipped. The
-**Highlight** slider dims every cell below a chosen point in the range and says how many cells remain highlighted.
+Darker means a better rank: for metrics where lower is better (for example poverty), the scale is flipped. In
+Tiles and Pivot, the **Highlight** slider grays out every cell below a chosen point on the scale and says how many
+cells remain highlighted. In the Dot map, a state's counties are scaled within that state, so county shades are not
+comparable with the national view.
 
 ## Things to know
 
@@ -32,6 +34,8 @@ Darker means a better rank: for metrics where lower is better (for example pover
   have no meaningful total, so they are not offered there. The U.S. total is the 50 states plus the District of
   Columbia; Puerto Rico is left out, as in the ACS definition of the United States.
 - **Scatter shows association between places, not cause**, and not anything about individual people.
+- **The Dot map needs a pointer to read a dot's value.** With a keyboard, choose a state from the list above the map
+  to open its counties, and use Tiles or Pivot to read the values.
 - **Missing data is shown as missing.** A state or county with no value is gray and reads `—`. If a year or the
   county file has not been published, the layout says "No data available" instead of drawing a chart.
 - **The view is in the address bar.** Layout, metric, columns, sort, grouping, threshold and the drilled state are URL

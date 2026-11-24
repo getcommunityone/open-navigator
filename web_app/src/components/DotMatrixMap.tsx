@@ -86,14 +86,19 @@ interface Props {
  */
 export default function DotMatrixMap({ slug, vintage, stateValue, stateName, stateT, color, fmt, drill, onDrill }: Props) {
   const [hover, setHover] = useState<string | null>(null)
-  const { data: statesTopo } = useQuery({
+  const fetchTopo = async (url: string) => {
+    const r = await fetch(url)
+    if (!r.ok) throw new Error(`map shapes ${r.status}`)
+    return r.json()
+  }
+  const { data: statesTopo, isError: statesError } = useQuery({
     queryKey: ['us-atlas-states-albers'],
-    queryFn: async () => (await fetch(STATES_ALBERS_TOPO)).json(),
+    queryFn: () => fetchTopo(STATES_ALBERS_TOPO),
     staleTime: 1000 * 60 * 60,
   })
-  const { data: countiesTopo } = useQuery({
+  const { data: countiesTopo, isError: countiesError } = useQuery({
     queryKey: ['us-atlas-counties-albers'],
-    queryFn: async () => (await fetch(COUNTIES_ALBERS_TOPO)).json(),
+    queryFn: () => fetchTopo(COUNTIES_ALBERS_TOPO),
     enabled: !!drill,
     staleTime: 1000 * 60 * 60,
   })
@@ -148,6 +153,13 @@ export default function DotMatrixMap({ slug, vintage, stateValue, stateName, sta
   const inCounty = !!drill
   const model = inCounty ? state : national
   const scope = inCounty ? stateName(drill!) : 'United States'
+  if (statesError || (inCounty && countiesError)) {
+    return (
+      <p className="p-2 text-xs text-slate-700" role="status">
+        No data available — the map shapes could not be loaded. The Tiles and Pivot layouts show the same values without a map.
+      </p>
+    )
+  }
   if (!model) {
     return <p className="p-2 text-xs text-slate-600">{inCounty && countiesTopo ? 'No data available — no county shapes for this state.' : 'Loading map…'}</p>
   }
@@ -172,7 +184,27 @@ export default function DotMatrixMap({ slug, vintage, stateValue, stateName, sta
             <span className="font-semibold">{scope} · counties</span>
           </>
         )}
-        <span className="ml-2 text-slate-500">{inCounty ? 'One dot ≈ a patch of the state, coloured by its county.' : 'Click a state to drill into its counties.'}</span>
+        <span className="ml-2 text-slate-500">
+          {inCounty ? 'One dot ≈ a patch of the state, coloured by its county (scaled within this state).' : 'Click a state, or choose one:'}
+        </span>
+        {!inCounty && (
+          <select
+            aria-label="Drill into a state's counties"
+            className="rounded border border-slate-300 px-1.5 py-0.5 text-xs"
+            value=""
+            onChange={(e) => e.target.value && onDrill(e.target.value)}
+          >
+            <option value="">State…</option>
+            {[...model.feats]
+              .map((f) => ({ id: f.id, name: stateName(f.id) }))
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+          </select>
+        )}
       </nav>
       {noCounty && (
         <p className="mb-1 text-xs text-slate-600" role="status">

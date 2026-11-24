@@ -7,6 +7,7 @@ import { CENSUS_REGION_LABEL, censusRegionForStateFips, type CensusRegionId } fr
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { STATE_FIPS_TO_CODE } from '../utils/stateFips'
 import DotMatrixMap from '../components/DotMatrixMap'
+import { activeSortKey, largestRemainder, medianOf, olsFit, shadeT } from '../utils/matrixMapMath'
 import { DATA_EXPLORER_MAP_BASE, mapPathUs } from '../utils/dataExplorerPaths'
 
 type Metric = CensusMetricFormatRow & { label: string }
@@ -76,7 +77,7 @@ export default function DataExplorerMatrixPage() {
 
   const vintageList = manifest?.vintages ?? []
   const baseVintage = vintageList.length > 1 ? vintageList[0]! : ''
-  const { data: basePayload } = useQuery({
+  const { data: basePayload, isLoading: baseLoading } = useQuery({
     queryKey: ['census-state-metrics', baseVintage],
     queryFn: async (): Promise<StatePayload | null> => {
       const r = await fetch(`/data/census-map/${baseVintage}/state_metrics.json`)
@@ -88,7 +89,9 @@ export default function DataExplorerMatrixPage() {
 
   const metrics = useMemo(() => manifest?.metrics ?? [], [manifest])
   const countMetrics = metrics.filter((m) => m.format === 'count')
-  const metricQ = sp.get('metric') || metrics[0]?.slug || ''
+  // An unknown ?metric= falls back to the first published metric instead of drawing an empty layout.
+  const metricParam = sp.get('metric')
+  const metricQ = (metricParam && metrics.some((m) => m.slug === metricParam) ? metricParam : metrics[0]?.slug) || ''
   // Part-of-whole only makes sense for additive (count) metrics.
   const metricSlug = layout === 'share' && !countMetrics.some((m) => m.slug === metricQ) ? countMetrics[0]?.slug ?? metricQ : metricQ
   const partScope: 'state' | 'county' = sp.get('part') === 'county' ? 'county' : 'state'
@@ -134,12 +137,12 @@ export default function DataExplorerMatrixPage() {
       const lo = Math.min(...xs)
       const hi = Math.max(...xs)
       const flip = censusMetricRankDirection(m.slug) === 'lower'
-      out[m.slug] = (v) => (v == null || hi === lo ? null : flip ? 1 - (v - lo) / (hi - lo) : (v - lo) / (hi - lo))
+      out[m.slug] = (v) => shadeT(v, lo, hi, flip)
     }
     return out
   }, [rows, metrics])
 
-  const activeSort = layout === 'tiles' ? metricSlug : sortKey || cols[0] || ''
+  const activeSort = activeSortKey(layout, metricSlug, sortKey, cols)
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
     return [...rows].sort((a, b) => {
@@ -154,7 +157,7 @@ export default function DataExplorerMatrixPage() {
   }, [rows, activeSort, sortDir])
 
   const groups = useMemo(() => {
-    if (groupBy === 'none' || layout === 'share' || layout === 'dots') return [{ label: null as string | null, items: sorted }]
+    if (groupBy === 'none' || layout === 'share' || layout === 'dots' || layout === 'scatter') return [{ label: null as string | null, items: sorted }]
     return (Object.keys(CENSUS_REGION_LABEL) as CensusRegionId[]).map((id) => ({
       label: CENSUS_REGION_LABEL[id],
       items: sorted.filter((r) => r.region === id),
@@ -172,6 +175,7 @@ export default function DataExplorerMatrixPage() {
   const mapHref = mapPathUs(DATA_EXPLORER_MAP_BASE, vintage, layout === 'pivot' ? cols[0] ?? metricSlug : metricSlug)
 
   const toggleCol = (slug: string) => {
+    if (cols.length === 1 && cols[0] === slug) return // keep at least one column
     const next = cols.includes(slug) ? cols.filter((c) => c !== slug) : [...cols, slug].slice(0, MAX_COLS)
     setQP('cols', next.join(','))
   }
@@ -240,7 +244,7 @@ export default function DataExplorerMatrixPage() {
             Dot map
           </button>
         </div>
-{layout !== 'share' && layout !== 'dots' && (
+{layout !== 'share' && layout !== 'dots' && layout !== 'scatter' && (
         <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Group by">
           <button type="button" className={btn(groupBy === 'none')} onClick={() => setQP('group', null)}>
             Flat
@@ -273,7 +277,12 @@ export default function DataExplorerMatrixPage() {
             <div className="absolute z-10 mt-1 max-h-64 w-72 overflow-y-auto rounded-md border border-slate-300 bg-white p-2 shadow-lg">
               {metrics.map((m) => (
                 <label key={m.slug} className="flex items-center gap-1.5 py-0.5">
-                  <input type="checkbox" checked={cols.includes(m.slug)} onChange={() => toggleCol(m.slug)} />
+                  <input
+                    type="checkbox"
+                    checked={cols.includes(m.slug)}
+                    disabled={cols.length === 1 && cols[0] === m.slug}
+                    onChange={() => toggleCol(m.slug)}
+                  />
                   {m.label}
                 </label>
               ))}
@@ -330,16 +339,19 @@ export default function DataExplorerMatrixPage() {
       {(layout === 'tiles' || layout === 'pivot' || layout === 'dots') && (
         <div className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-slate-600" aria-label="Scale">
           <span className="font-semibold uppercase tracking-wide">Scale</span>
-          {['Lowest', '', '', '', '', 'Highest'].map((l, i) => (
+          {['Lower rank', '', '', '', '', 'Higher rank'].map((l, i) => (
             <span key={i} className="inline-flex items-center gap-1">
               <span className="inline-block h-3 w-5 rounded-sm border border-slate-300" style={{ background: stepColor([0.05, 0.175, 0.35, 0.55, 0.725, 0.9][i]!) }} />
               {l}
             </span>
           ))}
-          <span>(per column · darker = better rank)</span>
+          <span>
+            ({layout === 'pivot' ? 'each column has its own scale' : layout === 'dots' && sp.get('dot') ? 'scaled within this state' : 'scaled across states'}; for
+            lower-is-better metrics a low value ranks higher)
+          </span>
           {layout !== 'dots' && (
           <label className="ml-2 inline-flex items-center gap-1">
-            Highlight ≥ {minPct}% of range
+            Highlight the top of the scale, from {minPct}%
             <input type="range" min={0} max={95} step={5} value={minPct} onChange={(e) => setQP('min', e.target.value === '0' ? null : e.target.value)} />
           </label>
           )}
@@ -390,6 +402,8 @@ export default function DataExplorerMatrixPage() {
                 items={g.items}
                 slug={metricSlug}
                 base={basePayload?.values}
+                loading={baseLoading}
+                missing={basePayload === null}
                 baseLabel={baseVintage}
                 curLabel={vintage}
                 fmt={fmt}
@@ -418,13 +432,20 @@ export default function DataExplorerMatrixPage() {
               <table className="w-full table-fixed border-collapse text-xs">
                 <thead>
                   <tr>
-                    <th className="sticky left-0 bg-white p-1 text-left">
+                    <th
+                      className="sticky left-0 bg-white p-1 text-left"
+                      aria-sort={activeSort === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    >
                       <button type="button" onClick={() => clickHeader('name')}>
                         State{activeSort === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                       </button>
                     </th>
                     {cols.map((c) => (
-                      <th key={c} className="p-1 text-right align-bottom">
+                      <th
+                        key={c}
+                        className="p-1 text-right align-bottom"
+                        aria-sort={activeSort === c ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      >
                         <button type="button" onClick={() => clickHeader(c)}>
                           {metricLabel(c)}
                           {activeSort === c ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
@@ -471,6 +492,8 @@ function Dumbbell({
   items,
   slug,
   base,
+  loading,
+  missing,
   baseLabel,
   curLabel,
   fmt,
@@ -478,15 +501,25 @@ function Dumbbell({
   items: Row[]
   slug: string
   base: Record<string, Record<string, number | null | undefined>> | undefined
+  loading: boolean
+  missing: boolean
   baseLabel: string
   curLabel: string
   fmt: (slug: string, v: number | null) => string
 }) {
-  if (!base || !baseLabel || baseLabel === curLabel) {
+  if (!baseLabel || baseLabel === curLabel) {
     return <p className="p-2 text-xs text-slate-600">No data available — only one vintage is published, so there is nothing to compare.</p>
   }
+  if (loading) return <p className="p-2 text-xs text-slate-600">Loading {baseLabel}…</p>
+  if (missing || !base) {
+    return (
+      <p className="p-2 text-xs text-slate-600" role="status">
+        No data available — the {baseLabel} state file could not be loaded, so there is nothing to compare with.
+      </p>
+    )
+  }
   const pts = items.map((r) => {
-    const b = base[r.fips]?.[slug]
+    const b = (base[r.fips] ?? base[String(Number(r.fips))])?.[slug]
     return { r, a: typeof b === 'number' && Number.isFinite(b) ? b : null, c: r.vals[slug] ?? null }
   })
   const all = pts.flatMap((p) => [p.a, p.c]).filter((x): x is number => x != null)
@@ -556,20 +589,10 @@ function Scatter({
   const [y0, y1] = [Math.min(...ys), Math.max(...ys)]
   const sx = (v: number) => pad.l + (x1 === x0 ? 0.5 : (v - x0) / (x1 - x0)) * (W - pad.l - pad.r)
   const sy = (v: number) => H - pad.b - (y1 === y0 ? 0.5 : (v - y0) / (y1 - y0)) * (H - pad.t - pad.b)
-  let slope = 0
-  let icpt = 0
-  let r2 = 0
-  if (vis.length >= 3) {
-    const n = vis.length
-    const mx = vis.reduce((a, p) => a + p.x, 0) / n
-    const my = vis.reduce((a, p) => a + p.y, 0) / n
-    const sxx = vis.reduce((a, p) => a + (p.x - mx) ** 2, 0)
-    const sxy = vis.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0)
-    const syy = vis.reduce((a, p) => a + (p.y - my) ** 2, 0)
-    slope = sxx ? sxy / sxx : 0
-    icpt = my - slope * mx
-    r2 = sxx && syy ? (sxy * sxy) / (sxx * syy) : 0
-  }
+  const fit = olsFit(vis)
+  const slope = fit?.slope ?? 0
+  const icpt = fit?.intercept ?? 0
+  const r2 = fit?.r2 ?? 0
   return (
     <div>
       <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px]">
@@ -593,7 +616,7 @@ function Scatter({
         <label className="inline-flex items-center gap-1">
           <input type="checkbox" checked={trend} onChange={(e) => setTrend(e.target.checked)} /> Trend line
         </label>
-        {trend && vis.length >= 3 && (
+        {trend && fit && (
           <span className="text-slate-600">
             slope {slope.toPrecision(3)} · r² {r2.toFixed(2)} · n={vis.length}
           </span>
@@ -608,7 +631,7 @@ function Scatter({
         <text transform={`translate(12 ${(H - pad.b) / 2}) rotate(-90)`} textAnchor="middle" fontSize="11" fill="#475569">
           {label(ySlug)} ({fmt(ySlug, y0)} – {fmt(ySlug, y1)})
         </text>
-        {trend && vis.length >= 3 && (
+        {trend && fit && (
           <line x1={sx(x0)} x2={sx(x1)} y1={sy(slope * x0 + icpt)} y2={sy(slope * x1 + icpt)} stroke="#0f172a" strokeDasharray="5 4" strokeWidth="1.5" />
         )}
         {vis.map((p) => (
@@ -635,9 +658,10 @@ function Diverging({
   slug: string
   fmt: (slug: string, v: number | null) => string
 }) {
-  const vals = allItems.map((r) => r.vals[slug]).filter((x): x is number => x != null).sort((a, b) => a - b)
-  if (vals.length < 3) return <p className="p-2 text-xs text-slate-600">No data available for this metric.</p>
-  const med = vals[Math.floor(vals.length / 2)]!
+  const med = medianOf(allItems.map((r) => r.vals[slug]))
+  if (med == null || allItems.filter((r) => r.vals[slug] != null).length < 3) {
+    return <p className="p-2 text-xs text-slate-600">No data available for this metric.</p>
+  }
   const dev = items.map((r) => ({ r, d: r.vals[slug] != null ? r.vals[slug]! - med : null }))
   const maxAbs = Math.max(...dev.map((x) => Math.abs(x.d ?? 0))) || 1
   return (
@@ -722,18 +746,7 @@ function Share({
   const restVal = parts.slice(TOP).reduce((a, p) => a + p.value, 0)
   const segs = restVal > 0 ? [...head, { id: 'rest', name: `All others (${parts.length - TOP})`, value: restVal }] : head
   // Waffle: largest-remainder allocation of 100 cells.
-  const raw = segs.map((g) => (g.value / total) * 100)
-  const cells = raw.map(Math.floor)
-  let left = 100 - cells.reduce((a, c) => a + c, 0)
-  raw
-    .map((r, i) => ({ i, f: r - Math.floor(r) }))
-    .sort((a, b) => b.f - a.f)
-    .forEach(({ i }) => {
-      if (left > 0) {
-        cells[i]! += 1
-        left -= 1
-      }
-    })
+  const cells = largestRemainder(segs.map((g) => g.value))
   const waffle = cells.flatMap((n, i) => Array<number>(n).fill(i))
   const pct = (v: number) => `${((v / total) * 100).toFixed(1)}%`
   return (
