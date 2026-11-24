@@ -127,6 +127,16 @@ def test_topic_list_city_grain_uses_place_transcript_counts(get):
     assert "jurisdiction_name ILIKE $3" in sql
 
 
+def test_topic_list_query_failure_is_503_not_an_empty_list(get):
+    class _Broken(_Conn):
+        async def fetch(self, sql: str, *params: Any):
+            raise RuntimeError("relation does not exist")
+
+    resp = get(_Broken(), "/api/topics")
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Topics are unavailable right now."
+
+
 def test_topic_list_source_defaults_when_column_missing(get):
     conn = _Conn(rows=[dict(topic_id=1, name="X", query_id=None, keyword_stats=None,
                             transcript_occurrences=3, source=None, meeting_count=None)])
@@ -173,6 +183,18 @@ def test_curated_topic_tsquery_matches_phrases_not_loose_words():
     assert tq == (
         "(data <-> center) | (data <-> centre) | (data <-> centers) | hyperscale | (server <-> farm)"
     )
+
+
+def test_default_curated_topics_match_phrases_and_never_a_bare_flock():
+    """The #808 seed rows: hyphens split into adjacent words, brand words stay phrases."""
+    assert search._curated_topic_tsquery("Short-term rentals", ["short-term rental", "airbnb"]) == (
+        "(short <-> term <-> rental) | airbnb"
+    )
+    tq = search._curated_topic_tsquery(
+        "Flock and license plate readers", ["license plate reader", "flock safety", "flock camera", "alpr"]
+    )
+    assert tq == "(license <-> plate <-> reader) | (flock <-> safety) | (flock <-> camera) | alpr"
+    assert "flock |" not in tq and not tq.endswith("flock")
 
 
 def test_curated_topic_tsquery_is_injection_safe_and_handles_empty():
