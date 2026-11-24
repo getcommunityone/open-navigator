@@ -66,6 +66,7 @@ def post(monkeypatch):
         body: dict[str, Any],
         *,
         llm_text: str = "Based on the Madison meeting summary, …",
+        llm: Any = None,
     ) -> httpx.Response:
         async def pool():
             return _Pool(conn)
@@ -73,8 +74,8 @@ def post(monkeypatch):
         monkeypatch.setattr(chat, "get_db_pool", pool)
         monkeypatch.setattr(
             chat,
-            "_call_flash_lite",
-            lambda system, user: (llm_text, "gemini-2.5-flash-lite", 900, 200, 0.0002),
+            "_call_chat_model",
+            llm or (lambda system, user: (llm_text, "claude-haiku-5-5", 900, 200, 0.00019)),
         )
 
         app = FastAPI()
@@ -126,7 +127,7 @@ def test_no_meetings_found_false_no_llm_needed(post, monkeypatch):
         calls["n"] += 1
         raise AssertionError("LLM should not run when search is empty")
 
-    monkeypatch.setattr(chat, "_call_flash_lite", boom)
+    monkeypatch.setattr(chat, "_call_chat_model", boom)
     resp = post(_Conn(rows=[]), {"question": "zzz-no-match-term"})
     assert resp.status_code == 200
     data = resp.json()
@@ -181,3 +182,63 @@ def test_passages_path(post):
     assert data["mode"] == "passages"
     assert data["found"] is True
     assert data["citations"][0]["video_id"] == "Sk0m1dHUJjg"
+
+
+# --- #848: Claude Haiku by default, Gemini by choice -------------------------------------------------------------
+
+
+def test_provider_defaults_to_anthropic_and_rejects_unknown(monkeypatch):
+    monkeypatch.delenv("CHAT_PROVIDER", raising=False)
+    assert chat.chat_provider() == "anthropic"
+    monkeypatch.setenv("CHAT_PROVIDER", " Gemini ")
+    assert chat.chat_provider() == "gemini"
+    monkeypatch.setenv("CHAT_PROVIDER", "openai")
+    with pytest.raises(ValueError):
+        chat.chat_provider()
+
+
+def test_chat_model_call_goes_to_the_chosen_provider(monkeypatch):
+    seen: list[str] = []
+    monkeypatch.setattr(chat, "_call_claude", lambda s, u: seen.append("claude") or ("a", "m", 1, 1, None))
+    monkeypatch.setattr(chat, "_call_gemini", lambda s, u: seen.append("gemini") or ("a", "m", 1, 1, None))
+    monkeypatch.delenv("CHAT_PROVIDER", raising=False)
+    chat._call_chat_model("sys", "user")
+    monkeypatch.setenv("CHAT_PROVIDER", "gemini")
+    chat._call_chat_model("sys", "user")
+    assert seen == ["claude", "gemini"]
+
+
+def test_claude_call_uses_haiku_and_a_sourced_price(monkeypatch):
+    from llm.claude import text_client
+
+    captured: dict[str, Any] = {}
+
+    def fake(**kwargs):
+        captured.update(kwargs)
+        return text_client.ClaudeTextResult("Answer.", 900, 200, 0, "end_turn")
+
+    monkeypatch.setattr(text_client, "call_claude_text", fake)
+    monkeypatch.delenv("CHAT_MODEL", raising=False)
+    text, model, in_tok, out_tok, usd = chat._call_claude("sys", "user")
+    assert (text, model, in_tok, out_tok) == ("Answer.", "claude-haiku-5-5", 900, 200)
+    assert captured == {"model": "claude-haiku-5-5", "system": "sys", "user_text": "user"}
+    # 900 input at $0.10 and 200 output at $0.50 per 1M tokens, from prices.yaml.
+    assert usd == pytest.approx(0.00019)
+    monkeypatch.setenv("CHAT_MODEL", "claude-sonnet-5-5")
+    assert chat._call_claude("sys", "user")[1] == "claude-sonnet-5-5"
+
+
+def test_a_model_without_a_price_has_no_cost_estimate():
+    assert chat._estimate_cost_usd("no-such-model", 900, 200) is None
+    assert chat._estimate_cost_usd("claude-haiku-5-5", None, 200) is None
+
+
+def test_a_refusal_is_a_502_not_an_answer(post):
+    def refuse(system, user):
+        from llm.claude.text_client import ClaudeRefusalError
+
+        raise ClaudeRefusalError("general_harms")
+
+    r = post(_Conn(rows=[_meeting_row()]), {"question": "fluoride in Madison"}, llm=refuse)
+    assert r.status_code == 502
+    assert "answer" not in r.json()
