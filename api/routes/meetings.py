@@ -31,6 +31,7 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from api.meeting_type import meeting_type_label
 from api.routes.search_postgres import get_db_pool
 
 router = APIRouter(prefix="/meeting", tags=["meeting"])
@@ -186,6 +187,7 @@ class MeetingDetail(BaseModel):
     state_code: Optional[str] = None
     meeting_date: Optional[str] = None
     video_id: Optional[str] = None
+    meeting_type: Optional[str] = None  # normalized label; None when blank/UNKNOWN (#797)
     has_agenda: bool = False
     has_minutes: bool = False
     documents: List[MeetingDocument] = []
@@ -210,7 +212,9 @@ _MEETING_SQL = """
         state_code,
         CASE WHEN COALESCE(NULLIF(event_date, ''), NULLIF(meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
              THEN COALESCE(NULLIF(event_date, ''), NULLIF(meeting_date, '')) END AS meeting_date,
-        video_id
+        video_id,
+        (SELECT y.meeting_type FROM event_youtube_with_jurisdiction y
+          WHERE y.video_id = event_meeting.video_id LIMIT 1) AS meeting_type
     FROM event_meeting
     WHERE event_meeting_id = $1
 """
@@ -292,6 +296,7 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
             state_code=row["state_code"],
             meeting_date=_meeting_iso_date(row["meeting_date"]),
             video_id=row["video_id"],
+            meeting_type=meeting_type_label(row["meeting_type"]),
             has_agenda=any(d.document_type == "agenda" for d in doc_models),
             has_minutes=any(d.document_type == "minutes" for d in doc_models),
             documents=doc_models,

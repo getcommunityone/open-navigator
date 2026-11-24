@@ -48,6 +48,7 @@ interface MeetingDetailData {
   state?: string | null
   state_code?: string | null
   meeting_date?: string | null
+  meeting_type?: string | null
   video_id?: string | null
   has_agenda?: boolean
   has_minutes?: boolean
@@ -207,6 +208,11 @@ function MeetingDetailBody() {
               <span className="inline-flex items-center gap-1.5">
                 <CalendarIcon className="h-4 w-4 text-gray-400" />
                 {data.meeting_date}
+              </span>
+            )}
+            {data.meeting_type && (
+              <span className="inline-flex items-center gap-1.5" data-testid="meeting-type">
+                {data.meeting_type}
               </span>
             )}
           </div>

@@ -203,6 +203,8 @@ export interface ApiCard {
   /** Status pill shown on the card (e.g. "Not yet analyzed"). Separate from
    *  `badge`, which the lens API sets to the lens name and the card never shows. */
   status?: string | null
+  /** Meeting type label (e.g. "City Council"); absent when the stored type is blank/UNKNOWN. */
+  meeting_type?: string | null
 }
 interface ApiLens {
   id: string
@@ -250,6 +252,8 @@ export interface RenderCard {
    *  card shows a compact "Voices" attribution row (overlapping initial avatars +
    *  names). Undefined/empty ⇒ the row doesn't render (never invent a speaker). */
   speakers?: Speaker[]
+  /** Meeting type label shown next to the date; undefined ⇒ omitted (never guessed). */
+  meetingType?: string
 }
 
 // Census place names carry a *lowercase* generic type suffix ("Douglas city",
@@ -468,6 +472,12 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
           <span className="font-semibold text-[#56635e]">{c.juris}</span>
           <span className="opacity-50">&middot;</span>
           <span>{c.when}</span>
+          {c.meetingType ? (
+            <>
+              <span className="opacity-50">&middot;</span>
+              <span data-testid="meeting-type">{c.meetingType}</span>
+            </>
+          ) : null}
           <button
             type="button"
             onClick={(e) => {
@@ -654,6 +664,7 @@ export function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCar
     excerpt: c.description ? highlightSnippet(c.description) : undefined,
     excerptLabel: c.description && c.description_label ? c.description_label : undefined,
     badge: c.status || undefined,
+    meetingType: c.meeting_type || undefined,
   }))
   const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
   const showState = unscoped || distinctStates.size > 1

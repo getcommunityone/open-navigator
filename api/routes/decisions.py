@@ -22,6 +22,7 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from api.meeting_type import meeting_type_label
 from api.routes.search_postgres import get_db_pool
 
 router = APIRouter(prefix="/decision", tags=["decision"])
@@ -79,6 +80,8 @@ class DecisionDetail(BaseModel):
     meeting_name: Optional[str] = None
     meeting_date: Optional[str] = None
     meeting_video_id: Optional[str] = None
+    # Normalized label of the meeting's stored meeting_type; None when blank/UNKNOWN (#797).
+    meeting_type: Optional[str] = None
     source_ai_model: Optional[str] = None
     extracted_at: Optional[str] = None
     # Associated meeting documents (agenda/minutes), joined on analysis_id ->
@@ -126,7 +129,9 @@ _DECISION_SQL = """
         m.body_name AS meeting_name,
         CASE WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
              THEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) END AS meeting_date,
-        m.video_id AS meeting_video_id
+        m.video_id AS meeting_video_id,
+        (SELECT y.meeting_type FROM event_youtube_with_jurisdiction y
+          WHERE y.video_id = m.video_id LIMIT 1) AS meeting_type
     FROM event_decision d
     LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
     WHERE d.event_decision_id = $1
@@ -477,6 +482,7 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
             span.set_attribute("decision.found", True)
 
             data = dict(row)
+            data["meeting_type"] = meeting_type_label(data.get("meeting_type"))
             data.pop("analysis_id", None)  # internal join key, not part of the response shape
             for field in _JSON_FIELDS:
                 data[field] = _parse_json(data.get(field))
