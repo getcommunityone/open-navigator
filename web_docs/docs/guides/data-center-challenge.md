@@ -34,15 +34,15 @@ A challenge statement must sit beside a chart built from meeting recordings or t
 | Home, End | The first screen, the end screen |
 | Arrow keys inside a unit chart | Move between dots |
 
-Focus moves to **Ask me** when a round settles, then to the answer buttons once they show, and to **Continue** once the results have landed. Keys that move between rounds do nothing while focus is in a field, a select, a table or a figure that scrolls on its own, and wheel and touch scrolling are never taken over. Each round ends with a **Continue to ...** button that names the next category in words, and, after the first, a quieter **Back**. Nothing in the headers or the progress rail is a number: the category is the header and each stop in the rail is named after its screen.
+Focus moves to **Ask me** when a round settles, then to the answer buttons once they show, and to **Next** once the results have landed. Keys that move between rounds do nothing while focus is in a field, a select, a table or a figure that scrolls on its own, and touch scrolling is never taken over. Each round ends with a **Next: ...** button that names the next category in words, and, after the first, a quieter **Back**. Nothing in the headers or the progress rail is a number: the category is the header and each stop in the rail is named after its screen.
 
 ## Pacing and sound
 
 A round plays in three beats, in this order.
 
 1. **The finding.** The category and the finding sentence are the title, with the chart drawing in. Under it sits **Ask me** (key: Space) and **Skip this one**. If a source supplies verbatim quotes, a "What was said for" and a "What was said against" block sits here too, each quote linked to its recording at that moment; nothing is shown there unless both sides have real quotes. The answer buttons are not on the page yet. After the chart has finished drawing and a pause of about two and a half seconds, the question arrives by itself; a thin line under **Ask me** shows the time left. The timer waits while your pointer or keyboard focus is on the chart or its data table, while the data table is open, while a menu is open, and while the tab is hidden.
-2. **The question.** "Where do you stand?" and the statement arrive large, and the three answers follow one after another. The chart stays, quieter. A phone hides the chart here so the round fits one screen. **Skip this one** is offered; **Continue** is not, because nothing has been answered.
-3. **The results.** The answer you chose locks in and the other two step back. Then the national, state and place results land one after another. A group with too few answers still reads "Not enough answers yet (N so far, M needed)". Last, **Continue to ...** appears. A round you already answered goes straight to this beat, with no animation.
+2. **The question.** "Where do you stand?" and the statement arrive large, and the three answers follow one after another. The chart stays, quieter. A phone hides the chart here so the round fits one screen. **Skip this one** is offered; **Next** is not, because nothing has been answered.
+3. **The results.** The answer you chose locks in and the other two step back. Then the national, state and place results land one after another. A group with too few answers still reads "Not enough answers yet (N so far, M needed)". Last, **Next: ...** appears. A round you already answered goes straight to this beat, with no animation.
 
 Each round fits one screen at 1366 by 768 and at 390 by 844 at every beat.
 
@@ -52,7 +52,15 @@ For a screen reader, a polite live region reads the finding, then the question, 
 
 ## Motion
 
-With **prefers-reduced-motion** on, or on a screen narrower than 768 pixels, the game is a plain stack of panels with native scrolling and no smooth scrolling, pinning or scroll-driven animation. The three beats still happen as steps, with no animation: the question appears when you press **Ask me** or Space, or after the pause. The sound button still decides whether cues play. All buttons and keys work the same.
+The challenge moves between screens the same way the data story does (the three modes are described in [Data stories](data-stories.md#how-the-screens-move)):
+
+- **768 pixels or wider:** each round is pinned and scrubbed by the scroll, and one gesture never passes more than one round.
+- **A phone:** each round is one frame tall and the page snaps one round per swipe. As a round arrives its category card, its headline (word by word) and its chart rise in; as it leaves they fade and lift; coming back plays the entrance again. A round whose chart is taller than the frame scrolls inside its own block first.
+- **prefers-reduced-motion on:** a plain stack of panels with native scrolling and no animation. The three beats still happen as steps: the question appears when you press **Ask me** or Space, or after the pause. The sound button still decides whether cues play. All buttons and keys work the same.
+
+The challenge is the livelier of the two pages. Its main button (**Start the challenge**, **Ask me**, **Next: ...**) springs in when its round is in view, nudges its arrow and catches the light after a couple of seconds of stillness, and squashes when pressed. The answer you choose locks and throws a ring while the other two step back. The progress segments along the top bar pop as a round arrives or is answered (an answered round turns ink), and the words beside them say what is left ("Three to go"). None of it says right or wrong. The data story uses the same layout, palette and type with calmer motion.
+
+One primary action is always on screen: **Start the challenge** on the first screen, then per beat **Ask me**, the three answers, and **Next: ...**. When that control is out of view, a bar pinned to the bottom of the window shows the same action (the three answers as three buttons), with **Back** beside it.
 
 ## What the reveal means
 
@@ -85,6 +93,6 @@ Every chart has a caption that names its source and what it counts. The numbers 
 
 ## Add a topic pack
 
-A pack is a JSON file in `api/stance_packs/`, changed through a pull request. It holds `pack_id`, `title`, `version` and a list of statements. Each statement has `statement_id`, `version`, `order`, `category`, `statement` and `chart`. The `chart` value must be one of `job-claims`, `sites`, `concerns`, `meeting-mentions`, `agenda-items`, `community-events` or `projects`; a new kind of chart needs a new function in `web_app/src/utils/stanceGame.ts` and its test.
+A pack is a JSON file in `api/stance_packs/`, changed through a pull request. It holds `pack_id`, `title`, `version`, an optional `question` and a list of statements. The `question` is the one the topic's data story opens and closes on: `question_id`, `version`, `text` (for the whole country), `place_text` (with `{place}` where a place name goes) and `options` (each an `id` and a `label`, at least two). Rewording the question or changing its options means raising its `version`, which starts a fresh count. Each statement has `statement_id`, `version`, `order`, `category`, `statement` and `chart`. The `chart` value must be one of `job-claims`, `sites`, `concerns`, `meeting-mentions`, `agenda-items`, `community-events` or `projects`; a new kind of chart needs a new function in `web_app/src/utils/stanceGame.ts` and its test.
 
 The API checks packs when it starts: ids must be unique, required fields present and orders distinct. Rewording a statement means raising its `version`, which starts a fresh count: results count only answers to the current version. The game lists other packs on its end screen and links to them. The design and the API contract are in `development/where-you-stand-game-design`.

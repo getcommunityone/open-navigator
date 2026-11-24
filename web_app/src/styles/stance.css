@@ -1533,3 +1533,614 @@ select.stance-blank {
     opacity: 1;
   }
 }
+
+/* ===================================================================================================================
+ * #915: the story opens and closes on one question; phones get one screen per swipe with entrances and exits; a floating
+ * "next" when the screen's own is out of view; progress pips. Kept in one block at the end of the file.
+ * =================================================================================================================== */
+
+/* --- The question, "Where?" and the verdict ---------------------------------------------------------------------------- */
+.stance-game .stance-grid.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.stance-grid.is-single .stance-left {
+  width: 100%;
+  max-width: 64rem;
+  gap: 16px;
+}
+.stance-story .stance-bigq {
+  font-size: clamp(34px, 6.2vw, 88px);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.stance-vote .stance-card {
+  padding: 5px 10px;
+}
+.stance-choices {
+  max-width: 46rem;
+}
+.stance-choices .stance-answer {
+  min-height: 64px;
+  font-size: 18px;
+}
+.stance-answer {
+  position: relative;
+}
+.stance-choices .stance-answer-agree[aria-pressed='true'] {
+  background: var(--violet-ink);
+  border-color: var(--violet-ink);
+  color: var(--on-violet);
+}
+.stance-choices .stance-answer-disagree[aria-pressed='true'] {
+  background: var(--vermilion);
+  border-color: var(--ink);
+  color: var(--on-vermilion);
+}
+.stance-choices .stance-answer[aria-pressed='true'] > span::before {
+  content: '✓ ';
+}
+.stance-choices .stance-answer[aria-pressed='true']:disabled {
+  opacity: 1;
+}
+.stance-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.35em;
+  font-size: clamp(22px, 2.6vw, 34px);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+.stance-where .stance-blank {
+  font: inherit;
+  font-weight: 500;
+}
+.stance-vote .stance-statement {
+  font-size: clamp(20px, 2.2vw, 30px);
+}
+.stance-change {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.stance-vote .stance-nav {
+  align-items: center;
+  gap: 8px 16px;
+}
+.folio a.stance-next {
+  color: var(--on-violet);
+  text-decoration: none;
+}
+.stance-after-links {
+  max-width: 40rem;
+}
+.stance-scopeblock {
+  margin: 0 0 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+}
+.stance-scopeblock-title {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.stance-choice .stance-result-title {
+  font-weight: 500;
+}
+.stance-choice .stance-stack {
+  height: 20px;
+}
+
+/* --- Titles: every word rises out of its own mask ---------------------------------------------------------------------- */
+.stance-kw {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding: 0.1em 0.04em 0.16em;
+  margin: -0.1em -0.04em -0.16em;
+}
+.stance-kw-i {
+  display: inline-block;
+}
+@keyframes stance-word {
+  from {
+    transform: translateY(118%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* --- The primary "next": large, and alive ---------------------------------------------------------------------------- */
+.stance-next,
+.stance-ask-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: transform 110ms var(--ease-std), background-color var(--d-1) var(--ease-std);
+}
+.stance-next:active,
+.stance-ask-btn:active,
+.stance-float-btn:active,
+.stance-answer:active:not(:disabled) {
+  transform: scale(0.94);
+}
+@keyframes stance-spring {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stance-nudge {
+  0%,
+  78%,
+  100% {
+    transform: none;
+  }
+  86% {
+    transform: translateX(7px);
+  }
+  93% {
+    transform: translateX(-2px);
+  }
+}
+@keyframes stance-sweep {
+  0%,
+  70% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
+}
+@keyframes stance-burst {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.12, 1.55);
+  }
+}
+@keyframes stance-pop {
+  0% {
+    transform: scaleY(1);
+  }
+  45% {
+    transform: scaleY(2.4);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+@keyframes stance-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- The floating "next": shown only while the screen's own primary action is out of view ------------------------------ */
+.stance-float {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1px solid var(--ink);
+  box-shadow: 0 -6px 18px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.stance-float-btn {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 52px;
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--on-violet);
+  background: var(--violet-ink);
+  border: 1px solid var(--violet-ink);
+  cursor: pointer;
+  transition: transform 110ms var(--ease-std);
+}
+.stance-float.is-many .stance-float-btn {
+  color: var(--ink);
+  background: var(--paper-raised);
+  border-color: var(--ink);
+}
+.stance-float.is-many .stance-float-btn.is-pressed {
+  color: var(--paper);
+  background: var(--ink);
+}
+.stance-float-btn:disabled {
+  opacity: 0.55;
+}
+.stance-float-back {
+  flex: 0 0 auto;
+  min-height: 52px;
+  min-width: 44px;
+  padding: 0 10px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+@media (min-width: 768px) {
+  .stance-float {
+    left: auto;
+    right: 40px;
+    bottom: 20px;
+    padding: 8px;
+    border: 1px solid var(--ink);
+  }
+  .stance-float-btn {
+    flex: 0 0 auto;
+    padding: 8px 24px;
+  }
+}
+
+/* --- Progress pips along the lower edge of the top bar ------------------------------------------------------------------ */
+.stance-top:has(.stance-pips) {
+  flex-wrap: wrap;
+}
+.stance-pips {
+  flex: 0 0 100%;
+  order: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.stance-pips-row {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 12px;
+}
+.stance-pip {
+  position: relative;
+  flex: 1 1 0;
+  height: 5px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.stance-pip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--violet-ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stance-pip.is-past::after,
+.stance-pip.is-now::after,
+.stance-pip.is-done::after {
+  transform: scaleX(1);
+}
+.stance-pip.is-done::after {
+  background: var(--ink);
+}
+.stance-pip.is-now {
+  height: 9px;
+}
+.stance-pips-left {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+/* --- The hub card leads with the question ---------------------------------------------------------------------------- */
+.stories-card-title {
+  font-size: clamp(30px, 4.6vw, 60px);
+}
+.stories-actions {
+  align-items: center;
+  gap: 10px 18px;
+}
+.folio .stories-actions a.stories-start {
+  min-height: 52px;
+  font-size: 16px;
+  text-align: left;
+}
+.stories-second {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+@media (max-width: 767px) {
+  .stories-list {
+    margin-top: 16px;
+  }
+  .stories-card {
+    padding: 14px 14px 18px;
+  }
+  .stance-sentence.stories-title {
+    font-size: 26px;
+  }
+  .folio .stories-actions a.stories-start {
+    width: 100%;
+  }
+  .stance-vote .stance-skip,
+  .stories-second {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .stance-story .stance-bigq {
+    font-size: clamp(32px, 10.5vw, 44px);
+  }
+  .stance-choices .stance-answer {
+    min-height: 60px;
+    font-size: 16px;
+    padding: 6px 4px;
+    line-height: 1.1;
+  }
+  /* The verdict's results come after its answers on a phone. */
+  .stance-game .stance-vote-verdict .stance-right {
+    order: 6;
+  }
+  .stance-game .stance-after-links {
+    order: 8;
+  }
+}
+
+/* --- Phones: one screen per swipe (snap mode) -------------------------------------------------------------------------- */
+html.stance-snap {
+  scroll-snap-type: y mandatory;
+}
+.stance-game[data-mode='snap'] .stance-act,
+.stance-game[data-mode='snap'] .stance-cover {
+  height: calc(100svh - var(--hdr) - var(--top-h));
+  min-height: 0;
+  padding: 14px 16px 0;
+  overflow: hidden;
+  border-bottom: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  scroll-margin-top: calc(var(--hdr) + var(--top-h));
+}
+/* What cannot fit scrolls inside its own block, never the page inside a screen. */
+.stance-game[data-mode='snap'] .stance-grid,
+.stance-game[data-mode='snap'] .stance-end-body,
+.stance-game[data-mode='snap'] .stance-cover-body {
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-bottom: 14px;
+  scrollbar-width: none;
+}
+.stance-game[data-mode='snap'] .stance-cover {
+  align-items: stretch;
+}
+.stance-game[data-mode='snap'] .stance-keys {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Wide screens: the headline's words are scrubbed by the scroll (--title runs 0 to 1 on the screen's timeline). */
+  .stance-game[data-mode='pinned'] .stance-act:not([data-state]) .stance-head .stance-kw-i {
+    transform: translateY(calc((1 - clamp(0, var(--title, 1) * 2 - var(--wf, 0), 1)) * 118%));
+  }
+
+  /* A screen marked by the scroll (every screen on a phone; the cover and the end screen on a wide one): its blocks rise in,
+     staggered, when it arrives, step back as it starts to leave, and are gone once it has left. */
+  .stance-game [data-state] :is(.stance-card, .stance-head > :not(.stance-headline), .stance-right, .stance-qblock, .stance-reveal, .stance-nav, .stance-broaden, .stance-askrow, .stance-sides, .stance-after-links, .stance-cover-body > :not(.stance-cover-title), .stance-end-body > :not(.stance-card)) {
+    transition:
+      opacity 360ms var(--ease-std),
+      transform 460ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(60ms + var(--en, 1) * 55ms);
+  }
+  .stance-game [data-state] .stance-card {
+    --en: 0;
+  }
+  .stance-game [data-state] .stance-right {
+    --en: 2;
+  }
+  .stance-game [data-state] :is(.stance-qblock, .stance-askrow, .stance-sides) {
+    --en: 3;
+  }
+  .stance-game [data-state] :is(.stance-reveal, .stance-broaden) {
+    --en: 4;
+  }
+  .stance-game [data-state] :is(.stance-nav, .stance-after-links) {
+    --en: 5;
+  }
+  .stance-game [data-state]:not([data-state='in']) :is(.stance-card, .stance-head > :not(.stance-headline), .stance-right, .stance-qblock, .stance-reveal, .stance-nav, .stance-broaden, .stance-askrow, .stance-sides, .stance-after-links, .stance-cover-body > :not(.stance-cover-title), .stance-end-body > :not(.stance-card)) {
+    opacity: 0;
+    transform: translateY(40px);
+    transition-duration: 200ms;
+    transition-delay: 0ms;
+  }
+  .stance-game [data-state='above'] :is(.stance-card, .stance-head > :not(.stance-headline), .stance-right, .stance-qblock, .stance-reveal, .stance-nav, .stance-broaden, .stance-askrow, .stance-sides, .stance-after-links, .stance-cover-body > :not(.stance-cover-title), .stance-end-body > :not(.stance-card)) {
+    transform: translateY(-40px);
+  }
+  .stance-game [data-state='in'][data-leaving] :is(.stance-card, .stance-head > :not(.stance-headline), .stance-right, .stance-qblock, .stance-reveal, .stance-nav, .stance-broaden, .stance-askrow, .stance-sides, .stance-after-links, .stance-cover-body > :not(.stance-cover-title), .stance-end-body > :not(.stance-card)) {
+    opacity: 0.25;
+    transform: translateY(-16px) scale(0.985);
+    transition-duration: 200ms;
+    transition-delay: 0ms;
+  }
+  /* The title's words: up out of the mask on arrival, on through its top as the screen leaves. */
+  .stance-game [data-state] .stance-kw-i {
+    transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(80ms + min(var(--wi, 0) * 32ms, 320ms));
+  }
+  .stance-game [data-state]:not([data-state='in']) .stance-kw-i {
+    transform: translateY(118%);
+    transition-duration: 160ms;
+    transition-delay: 0ms;
+  }
+  .stance-game [data-state='in'][data-leaving] .stance-kw-i {
+    transform: translateY(-118%);
+    transition-duration: 220ms;
+    transition-delay: 0ms;
+  }
+  /* The challenge's own clock animations on the headline give way to the screen's entrance on a phone. */
+  .stance-game[data-mode='snap'][data-beats] .stance-act.is-played .stance-headline,
+  .stance-game[data-mode='snap'][data-beats] .stance-act.is-played .stance-context {
+    animation: none;
+  }
+  /* The challenge's statement arrives word by word when the question is asked. */
+  .stance-game[data-beats] .stance-act[data-beat='question'] .stance-statement .stance-kw-i {
+    animation: stance-word 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(80ms + min(var(--wi, 0) * 30ms, 300ms));
+  }
+  /* A story chart draws each time its screen arrives on a phone. */
+  .stance-story[data-mode='snap'] .stance-act:not([data-state='in']) {
+    --draw: 0;
+  }
+  .stance-story[data-mode='snap'] .stance-act[data-state='in'] {
+    animation: stance-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) 220ms both;
+  }
+
+  /* Everywhere: the floating bar slides up, and the primary button rises in with its screen. Calm, no overshoot. */
+  .stance-float {
+    animation: stance-float-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  [data-live] .stance-next,
+  .stories-start,
+  .stance-float-btn {
+    animation: stance-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
+  }
+  .stance-float-btn {
+    animation-delay: 100ms;
+  }
+  .stance-pips-left {
+    animation: stance-rise 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* The challenge only (data-beats): quiz-show energy. The primary button springs in when its screen is the one in view,
+     then nudges its arrow and catches the light; the chosen answer throws a ring; the pips pop. The hub and the story keep
+     the calm versions above. */
+  .stance-game[data-beats] [data-live] .stance-next,
+  .stance-game[data-beats] [data-live] .stance-ask-btn,
+  .stance-game[data-beats] [data-cover] .stance-next,
+  .stance-game[data-beats] .stance-end .stance-next,
+  .stance-game[data-beats] .stance-float-btn {
+    animation: stance-spring 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 320ms both;
+  }
+  .stance-game[data-beats] .stance-float-btn {
+    animation-delay: 120ms;
+  }
+  .stance-game[data-beats] .stance-next > span[aria-hidden='true'],
+  .stance-game[data-beats] .stance-ask-btn > span[aria-hidden='true'] {
+    display: inline-block;
+    animation: stance-nudge 2.6s ease-in-out 2.4s infinite;
+  }
+  .stance-game[data-beats] .stance-next::after,
+  .stance-game[data-beats] .stance-ask-btn::after,
+  .stance-game[data-beats] .stance-float:not(.is-many) .stance-float-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 36%, color-mix(in srgb, var(--paper) 32%, transparent) 50%, transparent 64%);
+    transform: translateX(-130%);
+    animation: stance-sweep 3.4s ease-in-out 2s infinite;
+  }
+  .stance-game[data-beats] .stance-answer.is-locked::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 2px solid var(--ink);
+    pointer-events: none;
+    animation: stance-burst 520ms ease-out both;
+  }
+  .stance-game[data-beats] .stance-pip.is-now,
+  .stance-game[data-beats] .stance-pip.is-done {
+    animation: stance-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stance-pip::after,
+  .stance-next,
+  .stance-ask-btn,
+  .stance-float-btn {
+    transition: none !important;
+  }
+  .stance-next:active,
+  .stance-ask-btn:active,
+  .stance-float-btn:active,
+  .stance-answer:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* On a phone the story keeps its top bar short: the sound switch is its icon (the words stay for a screen reader). */
+@media (max-width: 767px) {
+  .stance-story .stance-sound-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .stance-story .stance-sound {
+    justify-content: center;
+  }
+}
+/* A screen is only a starting point for Tab (tabindex -1), never a control: it takes focus without a ring. */
+.folio .stance-act[tabindex='-1']:focus-visible {
+  outline: none;
+}
+
+/* The crumb link in the top bar keeps a 44 px touch target without making the bar taller. */
+@media (max-width: 767px) {
+  .stance-scope > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin: -14px 0;
+  }
+}
+@media (max-width: 767px) {
+  .stance-act .folio-link-btn,
+  .stance-end .folio-link-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

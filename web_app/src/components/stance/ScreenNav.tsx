@@ -8,13 +8,13 @@ interface Props {
   onPrev?: () => void
 }
 
-/** "Continue to <what comes next>" and, after the first screen, a quieter "Back". Shared by the challenge and the story. */
+/** "Next: <what comes next>" and, after the first screen, a quieter "Back". Shared by the challenge and the story. */
 const ScreenNav = forwardRef<HTMLButtonElement, Props>(function ScreenNav({ nextLabel, onNext, onPrev }, ref) {
   return (
     <div className="stance-nav">
       {nextLabel && (
-        <button type="button" className="folio-btn stance-next" ref={ref} onClick={onNext}>
-          Continue to {nextLabel} <span aria-hidden="true">→</span>
+        <button type="button" className="folio-btn stance-next" ref={ref} onClick={onNext} data-primary>
+          Next: {nextLabel} <span aria-hidden="true">→</span>
         </button>
       )}
       {onPrev && (

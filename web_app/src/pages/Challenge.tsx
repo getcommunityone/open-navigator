@@ -16,10 +16,12 @@ import {
 } from '../api/stance'
 import Cover from '../components/stance/Cover'
 import EndPanel from '../components/stance/EndPanel'
+import FloatingNext from '../components/stance/FloatingNext'
+import ProgressPips from '../components/stance/ProgressPips'
 import ProgressRail from '../components/stance/ProgressRail'
 import RoundPanel from '../components/stance/RoundPanel'
 import ScopeBar from '../components/stance/ScopeBar'
-import { useActs, type Hold } from '../components/stance/useActs'
+import { actsMode, useActs, type Hold } from '../components/stance/useActs'
 import { useRecentWrites } from '../components/stance/useRecentWrites'
 import { useScreenKeys } from '../components/stance/useScreenKeys'
 import { useMediaQuery } from '../hooks/useMediaQuery'
@@ -114,9 +116,10 @@ export default function Challenge() {
     return () => io.disconnect()
   }, [pack])
 
-  // --- scrolling: pinned acts with Lenis, or plain stacked panels ------------------------------------------------------
+  // --- scrolling: pinned acts with Lenis (wide), one screen per swipe (phone), or plain stacked panels (reduced motion) ---
   const wide = useMediaQuery('(min-width: 768px)')
-  const animated = !reduced && wide
+  const mode = actsMode(reduced, wide)
+  const animated = mode === 'pinned'
   const gameRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
   // Offsets under the sticky site header and this page's own HUD bar, as CSS variables for the act height and anchors.
@@ -184,7 +187,7 @@ export default function Challenge() {
   }, [])
 
   const acts = useActs({
-    animated,
+    mode,
     smooth: !reduced,
     beats: true,
     gameRef,
@@ -210,7 +213,7 @@ export default function Challenge() {
       cancelAnimationFrame(id)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pack, animated])
+  }, [pack, mode])
 
   // A round in the URL that changed from outside (a link, the back button) moves the page.
   useEffect(() => {
@@ -382,7 +385,7 @@ export default function Challenge() {
   const rounds = statements.map((s) => ({ statementId: s.statement_id, answer: confirmed[s.statement_id] ?? null, results: resultsById.get(s.statement_id) }))
 
   return (
-    <div className="folio stance-game" style={HOUSE_STYLE} ref={gameRef} data-mode={animated ? 'pinned' : 'stacked'} data-beats>
+    <div className="folio stance-game" style={HOUSE_STYLE} ref={gameRef} data-mode={mode} data-beats>
       <ScopeBar
         backTo={`/stories${placeQuery}`}
         backLabel="← Data stories"
@@ -393,6 +396,7 @@ export default function Challenge() {
         city={city}
         current={active < n ? (statements[active]?.category ?? '') : 'Where you stood'}
         extra={<SoundToggle on={soundOn} onToggle={toggleSound} />}
+        progress={<ProgressPips count={n + 1} active={active} done={answeredFlags} />}
         placeOpen={placeOpen}
         onPlaceOpenChange={setPlaceOpen}
         onApply={applyPlace}
@@ -454,6 +458,7 @@ export default function Challenge() {
         </div>
         <ProgressRail labels={railLabels} active={active} answered={answeredFlags} onJump={goToRound} navLabel="Challenge screens" />
       </div>
+      <FloatingNext rootRef={gameRef} screen={coverGone ? `[data-panel="${active}"]` : '[data-cover]'} />
       <p className="stance-keys">Keys: Space ask me the question · then A agree · D disagree · N not sure · PageDown or Enter next · PageUp or Shift+Space back</p>
     </div>
   )

@@ -11,6 +11,7 @@ import {
   statsScopeNote,
   stopLabel,
   storyScopeLabel,
+  storyScreenIndex,
   storyStats,
   type StoryData,
   type StoryScope,
@@ -60,22 +61,70 @@ const ready: StoryStatus = Object.fromEntries(STORY_CHARTS.map((k) => [k, 'ready
 const BANNED = /\b(because|due to|driven by|good|bad|worrying|best|worst|should|problem|crisis|hates?|loves?|will|expected|likely)\b/i
 
 describe('story structure', () => {
-  it('ends on the closing screen and never uses a number as a header', () => {
-    expect(DATA_CENTER_STORY[DATA_CENTER_STORY.length - 1]!.kind).toBe('closing')
+  it('opens on the question, then the place, and ends on the question again; a header is never a number', () => {
+    expect(DATA_CENTER_STORY.map((s) => s.id)).toEqual([
+      'question',
+      'scope',
+      'overview',
+      'sites',
+      'projects',
+      'jobs',
+      'concerns',
+      'meetings',
+      'agendas',
+      'gatherings',
+      'verdict',
+    ])
+    expect(DATA_CENTER_STORY.slice(0, 2).map((s) => s.kind)).toEqual(['question', 'scope'])
+    expect(DATA_CENTER_STORY[DATA_CENTER_STORY.length - 1]!.kind).toBe('verdict')
     for (const s of DATA_CENTER_STORY) expect(s.eyebrow).toMatch(/^[A-Za-z]/)
     expect(new Set(DATA_CENTER_STORY.map((s) => s.id)).size).toBe(DATA_CENTER_STORY.length)
   })
 })
 
+describe('the screens around the record', () => {
+  const q = { text: 'Should we allow new data centers?', place_text: 'Should {place} allow new data centers?' }
+  const at = (id: string) => DATA_CENTER_STORY.find((s) => s.id === id)!
+  it('word the question for the place in scope', () => {
+    expect(screenText(at('question'), {}, {}, nat, q).headline).toBe('Should we allow new data centers?')
+    expect(screenText(at('question'), {}, {}, tus, q).headline).toBe('Should Tuscaloosa allow new data centers?')
+    expect(screenText(at('verdict'), {}, {}, al, q).headline).toBe("You've seen the record. Where do you stand now?")
+    expect(screenText(at('verdict'), {}, {}, al, q).context).toBe('Should Alabama allow new data centers?')
+    expect(screenText(at('scope'), {}, {}, nat, q).headline).toBe('Where?')
+  })
+  it('state no number and no question that was not loaded', () => {
+    for (const id of ['question', 'scope', 'verdict']) {
+      const t = screenText(at(id), {}, {}, nat)
+      expect(`${t.headline} ${t.context}`).not.toMatch(/\d/)
+      expect(t.empty || t.failed).toBe(false)
+    }
+    expect(screenText(at('question'), {}, {}, nat).headline).toBe('The question')
+  })
+  it('finds a screen by its id, and an old link by the screen that replaced it', () => {
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'question')).toBe(0)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'scope')).toBe(1)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'verdict')).toBe(DATA_CENTER_STORY.length - 1)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'turn')).toBe(DATA_CENTER_STORY.length - 1)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'nope')).toBe(-1)
+    expect(storyScreenIndex(DATA_CENTER_STORY, '')).toBe(-1)
+  })
+})
+
+/** The screens that state the record (the question, place and verdict screens carry no figure). */
+const RECORD = DATA_CENTER_STORY.filter((s) => s.kind === 'overview' || s.kind === 'chart')
+/** Sentences that describe how the page is built, which the reader does not need (#915). */
+const BUILT = /one screen at a time|each dot|scroll|whole-scope|is built from|open navigator records/i
+
 describe('screenText on a full fixture', () => {
   for (const sc of [nat, al, tus]) {
     it(`has no banned wording and no empty text for ${storyScopeLabel(sc)}`, () => {
-      for (const s of DATA_CENTER_STORY) {
+      for (const s of RECORD) {
         const t = screenText(s, full, ready, sc)
         expect(t.headline.length).toBeGreaterThan(10)
         expect(t.context.length).toBeGreaterThan(5)
         expect(t.headline).not.toMatch(BANNED)
         expect(t.context).not.toMatch(BANNED)
+        expect(`${t.headline} ${t.context}`).not.toMatch(BUILT)
         expect(t.headline).not.toMatch(/^\d/)
         expect(t.empty).toBe(false)
       }
@@ -127,7 +176,7 @@ describe('empty, loading and failed screens', () => {
     'community-events': { scope, unconfirmed: 0, items: [] } as never,
   }
   it('says no data is available for this place and offers to broaden', () => {
-    for (const s of DATA_CENTER_STORY.filter((x) => x.kind !== 'closing')) {
+    for (const s of RECORD) {
       const t = screenText(s, empty, ready, tus)
       expect(t.empty).toBe(true)
       expect(t.headline).toBe('No data available for this place.')
@@ -136,7 +185,7 @@ describe('empty, loading and failed screens', () => {
     expect(storyStats(empty)).toEqual([])
   })
   it('never invents a number while loading or after a failure', () => {
-    const sites = DATA_CENTER_STORY[1]!
+    const sites = DATA_CENTER_STORY.find((s) => s.id === 'sites')!
     const loading = screenText(sites, {}, {}, nat)
     expect(loading.headline).not.toMatch(/\d/)
     const failed = screenText(sites, {}, { sites: 'error' }, nat)
@@ -179,7 +228,7 @@ describe('stats and links', () => {
     expect(k.find((s) => s.key === 'sites')!.label).toContain('Epoch AI')
     expect(k.find((s) => s.key === 'projects')!.label).toContain('Epoch AI')
     // sites alone never lead the opener
-    const onlySites = screenText(DATA_CENTER_STORY[0]!, { sites: full.sites }, { sites: 'ready' }, al)
+    const onlySites = screenText(DATA_CENTER_STORY.find((s) => s.id === 'overview')!, { sites: full.sites }, { sites: 'ready' }, al)
     expect(onlySites.headline).toBe('No meeting records are available for this place.')
     expect(onlySites.headline).not.toMatch(/\d/)
     expect(storyStats({})).toEqual([])
@@ -187,7 +236,7 @@ describe('stats and links', () => {
   it('keeps a state-level count honest under a city scope', () => {
     const state = storyStats(full, al)
     expect(state.find((s) => s.key === 'sites')!.label).toBe('data center sites on record, from Epoch AI')
-    expect(statsScopeNote(state, al)).toBe('Whole-scope counts for Alabama, from Open Navigator records.')
+    expect(statsScopeNote(state, al)).toBe('Counts for Alabama.')
     const city = storyStats(full, tus)
     expect(city.find((s) => s.key === 'sites')!.label).toBe('data center sites on record in Alabama, from Epoch AI')
     expect(city.find((s) => s.key === 'meetings')!.label).toBe('meetings where a data center came up')

@@ -10,7 +10,7 @@ export default function SoundToggle({ on, onToggle }: Props) {
       <span aria-hidden="true" className="stance-sound-icon">
         {on ? '♪' : '×'}
       </span>
-      {on ? 'Sound on' : 'Sound off'}
+      <span className="stance-sound-label">{on ? 'Sound on' : 'Sound off'}</span>
     </button>
   )
 }

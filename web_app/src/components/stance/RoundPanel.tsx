@@ -18,6 +18,7 @@ import {
 import type { Cue } from '../../utils/stanceSound'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 import ChartPanel, { useChartData } from './ChartPanel'
+import KineticText from './KineticText'
 import ResultBars from './ResultBars'
 import ScreenNav from './ScreenNav'
 import SidesBlock, { type Sides } from './SidesBlock'
@@ -229,6 +230,7 @@ export default function RoundPanel(p: Props) {
       className={`stance-panel stance-act ${chartMode}`}
       data-panel={index}
       data-beat={beat}
+      data-live={p.active ? '' : undefined}
       aria-labelledby={`stance-q-${round}`}
       aria-roledescription="round"
     >
@@ -246,7 +248,7 @@ export default function RoundPanel(p: Props) {
           <div className="stance-head">
             {beat === 'finding' && <p className="stance-ask">What the record shows</p>}
             <h2 className="stance-headline" id={`stance-q-${round}`}>
-              {headline.text}
+              <KineticText text={headline.text} />
             </h2>
             {headline.isFinding && (
               <p className="stance-context">
@@ -260,7 +262,7 @@ export default function RoundPanel(p: Props) {
             <>
               <SidesBlock sides={p.sides} />
               <div className="stance-askrow">
-                <button type="button" className="folio-btn stance-ask-btn" onClick={p.onAsk}>
+                <button type="button" className="folio-btn stance-ask-btn" onClick={p.onAsk} data-primary>
                   Ask me <span aria-hidden="true">→</span>
                   <kbd aria-hidden="true">Space</kbd>
                 </button>
@@ -277,10 +279,12 @@ export default function RoundPanel(p: Props) {
           {beat !== 'finding' && (
             <div className="stance-qblock">
               <p className="stance-ask">Where do you stand?</p>
-              <p className="stance-statement">{statement.statement}</p>
+              <p className="stance-statement">
+                <KineticText text={statement.statement} />
+              </p>
 
               {showButtons && (
-                <div className="stance-answers" role="group" aria-label={`Your answer: ${statement.category}`}>
+                <div className="stance-answers" role="group" aria-label={`Your answer: ${statement.category}`} data-primary>
                   {ORDER.map((a) => (
                     <button
                       key={a}

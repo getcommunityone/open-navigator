@@ -22,6 +22,8 @@ interface Props {
   heading?: ReactNode
   /** Extra controls in the bar, before "Your place" (the challenge's sound switch). */
   extra?: ReactNode
+  /** The strip of progress pips along the bar's lower edge. */
+  progress?: ReactNode
   placeOpen: boolean
   onPlaceOpenChange: (open: boolean) => void
   onApply: (stateCode: string | null, city: string | null) => void
@@ -64,6 +66,7 @@ export default function ScopeBar(p: Props) {
         {p.current}
       </p>
       {p.extra}
+      {p.progress}
       {!p.heading && <PlaceControl stateCode={p.stateCode} city={p.city} open={p.placeOpen} onOpenChange={p.onPlaceOpenChange} onApply={p.onApply} />}
     </header>
   )

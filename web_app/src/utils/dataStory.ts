@@ -12,6 +12,8 @@ import type {
   JobClaimsResponse,
 } from '../api/dataCenters'
 import { communityEventKindLabel, concernLabel } from '../lib/dataCenterJobs'
+import type { StanceQuestion } from '../api/stance'
+import { questionText } from './storyQuestion'
 import {
   DOT_CAP,
   cap,
@@ -41,15 +43,21 @@ export interface StoryScreen {
   id: string
   /** The short word above the headline. Never a number. */
   eyebrow: string
-  /** The dataset behind the screen's chart, or null for the opener and the closing screen. */
+  /** The dataset behind the screen's chart, or null for a screen without one. */
   chart: ChartKey | null
-  kind: 'overview' | 'chart' | 'closing'
+  /**
+   * `question` asks the story's question before the record, `scope` sets the place, `verdict` asks it again at the end and
+   * shows how readers answered (#915). `overview` is the row of counts and `chart` one dataset.
+   */
+  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict'
   /** "For context": the screen is records about the topic that are not something said in a meeting (sites, projects). */
   kicker?: string
 }
 
-/** The Data Center Story, in order. */
+/** The Data Center Story, in order: the question, the place, the record, then the question again. */
 export const DATA_CENTER_STORY: StoryScreen[] = [
+  { id: 'question', eyebrow: 'The question', chart: null, kind: 'question' },
+  { id: 'scope', eyebrow: 'Where', chart: null, kind: 'scope' },
   { id: 'overview', eyebrow: 'Overview', chart: null, kind: 'overview' },
   { id: 'sites', eyebrow: 'Sites', chart: 'sites', kind: 'chart', kicker: 'For context' },
   { id: 'projects', eyebrow: 'Proposals', chart: 'projects', kind: 'chart', kicker: 'For context' },
@@ -58,8 +66,18 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'meetings', eyebrow: 'Meetings', chart: 'meeting-mentions', kind: 'chart' },
   { id: 'agendas', eyebrow: 'Agendas', chart: 'agenda-items', kind: 'chart' },
   { id: 'gatherings', eyebrow: 'Gatherings', chart: 'community-events', kind: 'chart' },
-  { id: 'turn', eyebrow: 'Your turn', chart: null, kind: 'closing' },
+  { id: 'verdict', eyebrow: 'Your answer', chart: null, kind: 'verdict' },
 ]
+
+/** Screen ids that were renamed: an old link still lands on the screen that replaced it. */
+const SCREEN_ALIASES: Record<string, string> = { turn: 'verdict' }
+
+/** The position of the screen a `?screen=` value names, or -1. */
+export function storyScreenIndex(screens: StoryScreen[], param: string | null | undefined): number {
+  if (!param) return -1
+  const id = SCREEN_ALIASES[param] ?? param
+  return screens.findIndex((s) => s.id === id)
+}
 
 /** Every dataset the story reads. */
 export const STORY_CHARTS: ChartKey[] = DATA_CENTER_STORY.flatMap((s) => (s.chart ? [s.chart] : []))
@@ -150,9 +168,9 @@ export function storyStats(data: StoryData, scope: StoryScope = { stateName: nul
 export function statsScopeNote(stats: StoryStat[], scope: StoryScope): string {
   const label = scope.stateName ? storyScopeLabel(scope) : 'the whole country'
   if (scope.city && scope.stateName && stats.some((s) => s.key === 'sites')) {
-    return `Whole-scope counts for ${label}, except sites: they are listed by state, so that count is for ${scope.stateName}.`
+    return `Counts for ${label}, except sites: those are listed by state, so that count is for ${scope.stateName}.`
   }
-  return `Whole-scope counts for ${label}, from Open Navigator records.`
+  return `Counts for ${label}.`
 }
 
 // --- headline and context per screen ------------------------------------------------------------------------------
@@ -170,8 +188,8 @@ export interface ScreenText {
 const noData = (scope: StoryScope): ScreenText => ({
   headline: scope.stateName ? 'No data available for this place.' : 'No data available.',
   context: scope.stateName
-    ? `Nothing is on record for ${storyScopeLabel(scope)} in this part of the data. Broaden the place to see more.`
-    : 'Nothing is on record yet in this part of the data.',
+    ? `Nothing is on record here for ${storyScopeLabel(scope)}. Try a wider place.`
+    : 'Nothing is on record here yet.',
   empty: true,
   failed: false,
 })
@@ -190,9 +208,9 @@ function sitesText(res: DataCenterSitesResponse, scope: StoryScope): ScreenText 
   const rest: string[] = []
   if (k.no_longer_listed > 0) rest.push(`${fmt(k.no_longer_listed)} no longer listed`)
   if (k.status_not_published > 0) rest.push(`${fmt(k.status_not_published)} with no published status`)
-  const lead = rest.length ? `Also on record: ${rest.join(' and ')}.` : 'Status as listed by Epoch AI.'
-  const byState = scope.city ? ` Sites are listed by state, so this is ${scope.stateName}.` : ''
-  return { headline, context: `${lead}${byState} What is proposed?`, empty: false, failed: false }
+  const lead = rest.length ? `Also on record: ${rest.join(' and ')}. ` : ''
+  const byState = scope.city ? `Sites are listed by state, so this is ${scope.stateName}. ` : ''
+  return { headline, context: `${lead}${byState}What is proposed?`, empty: false, failed: false }
 }
 
 function projectsText(res: DataCenterProjectsResponse, scope: StoryScope): ScreenText | null {
@@ -210,7 +228,7 @@ function projectsText(res: DataCenterProjectsResponse, scope: StoryScope): Scree
     : `Of ${plural(total, 'data center project')} on record ${where(place)}, ${fmt(items.length)} ${items.length === 1 ? 'is' : 'are'} listed here, and ${fmt(top.count)} of those ${top.count === 1 ? 'is' : 'are'} ${phrase(top.key)}.`
   return {
     headline,
-    context: `Status as listed in curated announcements and Epoch AI${complete ? '' : '; the bars count the projects listed'}. What do meetings promise?`,
+    context: `${complete ? '' : `The bars count the ${fmt(items.length)} listed. `}What gets promised in meetings?`,
     empty: false,
     failed: false,
   }
@@ -233,7 +251,7 @@ function jobsText(res: JobClaimsResponse, scope: StoryScope): ScreenText | null 
   const lead = c > 0 && o > 0 && gap > 0 ? `${c > o ? 'Construction' : 'Operations'} claims outnumber ${c > o ? 'operations' : 'construction'} claims by ${fmt(gap)}. ` : ''
   return {
     headline,
-    context: `${lead}Each is a claim quoted from a meeting transcript. What gets raised in those meetings?`,
+    context: `${lead}Each one was said in a public meeting. What concerns come up?`,
     empty: false,
     failed: false,
   }
@@ -259,7 +277,7 @@ function concernsText(res: AreaConcernsResponse, scope: StoryScope): ScreenText 
   }
   return {
     headline,
-    context: 'Mentions found in meeting transcripts. They count passages, not people. When does it come up?',
+    context: 'These count passages in meeting transcripts, not people. When does it come up?',
     empty: false,
     failed: false,
   }
@@ -325,7 +343,7 @@ function gatheringsText(res: CommunityEventsResponse, scope: StoryScope): Screen
   const headline = `Company-hosted data center meetings listed ${where(place)} number ${atLeast}${fmt(items.length)}: ${named}.`
   return {
     headline,
-    context: 'Found in news and company announcements; each dot opens its source. Ready to say where you stand?',
+    context: 'Listed in news and company announcements. That is the record. Where do you stand now?',
     empty: false,
     failed: false,
   }
@@ -335,7 +353,7 @@ function overviewText(data: StoryData, scope: StoryScope): ScreenText {
   const stats = storyStats(data)
   const place = scope.stateName ? storyScopeLabel(scope) : null
   const byKey = new Map(stats.map((s) => [s.key, s.value]))
-  const context = 'Where sites are, what is proposed, what is promised, what is raised and when it comes up, one screen at a time.'
+  const context = 'First, where are they?'
   const meetings = byKey.get('meetings')
   const passages = byKey.get('passages')
   const agendas = byKey.get('agendas')
@@ -346,18 +364,34 @@ function overviewText(data: StoryData, scope: StoryScope): ScreenText {
   if (stats.length === 0) return noData(scope)
   return {
     headline: scope.stateName ? 'No meeting records are available for this place.' : 'No meeting records are available.',
-    context: 'Counts from other sources are for context only. Broaden the place to see meeting records.',
+    context: 'These counts come from other sources. Try a wider place for meeting records.',
     empty: Boolean(scope.stateName),
     failed: false,
   }
 }
 
+/** What "Pause for now" means, in one line under the answers. */
+export const PAUSE_NOTE = 'A pause is a moratorium: no new approvals until the rules are settled.'
+
 /** Headline and context for one screen. Loading and failed screens get a neutral description, never a number. */
-export function screenText(screen: StoryScreen, data: StoryData, status: StoryStatus, scope: StoryScope): ScreenText {
-  if (screen.kind === 'closing') {
+export function screenText(
+  screen: StoryScreen,
+  data: StoryData,
+  status: StoryStatus,
+  scope: StoryScope,
+  question?: Pick<StanceQuestion, 'text' | 'place_text'> | null,
+): ScreenText {
+  // The three screens around the record carry the story's question, worded for the place in scope.
+  if (screen.kind === 'question') {
+    return { headline: question ? questionText(question, scope) : 'The question', context: PAUSE_NOTE, empty: false, failed: false }
+  }
+  if (screen.kind === 'scope') {
+    return { headline: 'Where?', context: 'Pick a city, a county or a state. Or stay with the whole country.', empty: false, failed: false }
+  }
+  if (screen.kind === 'verdict') {
     return {
-      headline: 'Now it is your turn: where do you stand?',
-      context: 'The Data Center Challenge shows the records, then asks you to agree, disagree or say you are not sure.',
+      headline: "You've seen the record. Where do you stand now?",
+      context: question ? questionText(question, scope) : '',
       empty: false,
       failed: false,
     }
