@@ -2398,3 +2398,8 @@ html.stance-snap {
     font-size: 30px;
   }
 }
+
+/* The heading's closing "?" stays with the last blank (#930): on a wide screen it used to wrap onto a line alone. */
+.stance-nowrap {
+  white-space: nowrap;
+}
