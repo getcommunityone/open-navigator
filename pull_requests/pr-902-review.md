@@ -4,19 +4,21 @@ branch: fix/901-consistent-page-background
 title: "fix(web_app): use one warm off-white page background on every page"
 author: jcbowyer
 reviewed_at: 2026-11-24
-reviewer: github-actions
+reviewer: github-actions, coordinator
 head_sha: 4952e8fc2b7506f693433b657f540b3f75ac1ca3
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: fix(web_app): use one warm off-white page background on every page
 
 ## Summary
 
-Automated review (#648) for PR #902 on `fix/901-consistent-page-background`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Every full-page shell now uses one class, `page-bg` (#fafaf9), matching the home page sections, in place of slate-300, slate-200, gray-50 and a mint tint. A class swap with no behaviour change.
+
+Read by the coordinator against the diff and screenshots; the heuristic scan ran first.
 
 ## Scope of Change
+
 
 - `web_app/src/components/AdminLayout.tsx`
 - `web_app/src/components/DataExplorerLayout.tsx`
@@ -46,16 +48,11 @@ Automated review (#648) for PR #902 on `fix/901-consistent-page-background`. Heu
 
 ## CI Status
 
-See the PR checks on `4952e8fc2b75`.
+Required checks are read on the head commit before merge. Locally: tsc clean, vitest passed, build ok.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
+- Secrets: clean. Fabricated data: none. Personal data: none. Destructive changes: none.
 
 ## Findings
 
@@ -65,12 +62,14 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+None.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- Detail pages (decision, meeting, bill, person, grant) got the same swap but were not screenshotted; they need real records.
+- Contrast was not measured; the text is the same dark slate on a lighter background than before.
+- The 404 page keeps its gradient and Data Stories keeps its paper colour, so two page colours remain by design.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**
