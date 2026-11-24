@@ -16,7 +16,7 @@ The challenge (earlier called the "Where Do You Stand?" game) puts one opinion s
 5. You can scroll ahead to look at a round before you answer it. An unanswered round shows its answers and no results. The end screen counts only the rounds you answered.
 6. Come back to an answered round and you see your stored answer and the reveal, with **Change my answer**.
 
-Pick your place with **Your place** in the bar at the top: a state and a community. The label next to it always says what the results are filtered to ("National only", "Alabama", "Tuscaloosa, Alabama"). The place is kept in the address (`?state=AL&city=Tuscaloosa`), so a refresh, a shared link and the back button keep it. Community suggestions come from a place lookup; results match the community name you enter exactly, ignoring capital letters.
+Pick your place with **Your place** in the bar at the top: it opens a dialog where one search box takes a city, county or ZIP code, with **National only**, **All of [state]** and a state list beside it. The label next to it always says what the results are filtered to ("National only", "Alabama", "Tuscaloosa, Alabama"). The place is kept in the address (`?state=AL&city=Tuscaloosa`), so a refresh, a shared link and the back button keep it. A county pick applies its state, since results are by city or state.
 
 ## Every statement sits beside meeting records
 
