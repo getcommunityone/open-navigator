@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { colorFromT, formatMetricValueDisplay, type CensusMetricFormatRow } from '../utils/censusMapTransforms'
@@ -12,7 +12,7 @@ type Metric = CensusMetricFormatRow & { label: string }
 type Manifest = { vintage?: string; vintages?: string[]; metrics?: Metric[] }
 type StatePayload = { values: Record<string, Record<string, number | null | undefined>> }
 
-type Layout = 'tiles' | 'pivot' | 'dumbbell'
+type Layout = 'tiles' | 'pivot' | 'dumbbell' | 'scatter' | 'diverging'
 type GroupBy = 'none' | 'region'
 
 const MAX_COLS = 8
@@ -39,7 +39,7 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 export default function DataExplorerMatrixPage() {
   const [sp, setSp] = useSearchParams()
   const layoutQ = sp.get('layout')
-  const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' ? layoutQ : 'tiles'
+  const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' || layoutQ === 'scatter' || layoutQ === 'diverging' ? layoutQ : 'tiles'
   const groupBy: GroupBy = sp.get('group') === 'region' ? 'region' : 'none'
   const sortKey = sp.get('sort') ?? ''
   const sortDir = sp.get('dir') === 'asc' ? 'asc' : 'desc'
@@ -188,6 +188,12 @@ export default function DataExplorerMatrixPage() {
           <button type="button" className={btn(layout === 'dumbbell')} onClick={() => setQP('layout', 'dumbbell')}>
             ◐ Compare
           </button>
+          <button type="button" className={btn(layout === 'scatter')} onClick={() => setQP('layout', 'scatter')}>
+            ⁘ Scatter
+          </button>
+          <button type="button" className={btn(layout === 'diverging')} onClick={() => setQP('layout', 'diverging')}>
+            ⇋ Diverging
+          </button>
         </div>
         <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Group by">
           <button type="button" className={btn(groupBy === 'none')} onClick={() => setQP('group', null)}>
@@ -227,10 +233,26 @@ export default function DataExplorerMatrixPage() {
             </div>
           </details>
         )}
+        {layout === 'scatter' && (
+          <label className="text-xs text-slate-700">
+            vs{' '}
+            <select
+              className="rounded border border-slate-300 px-1.5 py-1 text-xs"
+              value={sp.get('y') || metrics.find((m) => m.slug !== metricSlug)?.slug || ''}
+              onChange={(e) => setQP('y', e.target.value)}
+            >
+              {metrics.map((m) => (
+                <option key={m.slug} value={m.slug}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <p className="text-[11px] text-slate-500">Darker = better rank for the metric (neutral metrics: larger).</p>
       </div>
 
-      {layout !== 'dumbbell' && (
+      {(layout === 'tiles' || layout === 'pivot') && (
         <div className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-slate-600" aria-label="Scale">
           <span className="font-semibold uppercase tracking-wide">Scale</span>
           {['Lowest', '', '', '', '', 'Highest'].map((l, i) => (
@@ -246,7 +268,18 @@ export default function DataExplorerMatrixPage() {
         {groups.map((g) => (
           <section key={g.label ?? 'all'} className="mb-3">
             {g.label && <h3 className="mb-1 text-xs font-semibold text-slate-700">{g.label}</h3>}
-            {layout === 'dumbbell' ? (
+            {layout === 'scatter' ? (
+              <Scatter
+                items={g.items}
+                xSlug={metricSlug}
+                ySlug={sp.get('y') || metrics.find((m) => m.slug !== metricSlug)?.slug || ''}
+                label={metricLabel}
+                fmt={fmt}
+                href={mapHref}
+              />
+            ) : layout === 'diverging' ? (
+              <Diverging allItems={rows} items={g.items} slug={metricSlug} fmt={fmt} />
+            ) : layout === 'dumbbell' ? (
               <Dumbbell
                 items={g.items}
                 slug={metricSlug}
@@ -376,6 +409,152 @@ function Dumbbell({
             <span className="tabular-nums text-slate-700">
               {fmt(slug, a)} → {fmt(slug, c)}
             </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+const REGION_COLOR: Record<string, string> = { NE: '#354F52', MW: '#b45309', S: '#be123c', W: '#4338ca' }
+
+/** Scatter of two metrics across states, coloured by Census region, with a live OLS line, slope and r². */
+function Scatter({
+  items,
+  xSlug,
+  ySlug,
+  label,
+  fmt,
+  href,
+}: {
+  items: Row[]
+  xSlug: string
+  ySlug: string
+  label: (slug: string) => string
+  fmt: (slug: string, v: number | null) => string
+  href: (r: Row) => string
+}) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const [trend, setTrend] = useState(true)
+  const pts = items
+    .map((r) => ({ r, x: r.vals[xSlug] ?? null, y: r.vals[ySlug] ?? null }))
+    .filter((p): p is { r: Row; x: number; y: number } => p.x != null && p.y != null)
+  if (!ySlug || pts.length < 3) return <p className="p-2 text-xs text-slate-600">No data available — need at least 3 states with both metrics.</p>
+  const vis = pts.filter((p) => !hidden.has(p.r.region ?? ''))
+  const W = 640
+  const H = 360
+  const pad = { l: 56, r: 12, t: 12, b: 40 }
+  const xs = pts.map((p) => p.x)
+  const ys = pts.map((p) => p.y)
+  const [x0, x1] = [Math.min(...xs), Math.max(...xs)]
+  const [y0, y1] = [Math.min(...ys), Math.max(...ys)]
+  const sx = (v: number) => pad.l + (x1 === x0 ? 0.5 : (v - x0) / (x1 - x0)) * (W - pad.l - pad.r)
+  const sy = (v: number) => H - pad.b - (y1 === y0 ? 0.5 : (v - y0) / (y1 - y0)) * (H - pad.t - pad.b)
+  let slope = 0
+  let icpt = 0
+  let r2 = 0
+  if (vis.length >= 3) {
+    const n = vis.length
+    const mx = vis.reduce((a, p) => a + p.x, 0) / n
+    const my = vis.reduce((a, p) => a + p.y, 0) / n
+    const sxx = vis.reduce((a, p) => a + (p.x - mx) ** 2, 0)
+    const sxy = vis.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0)
+    const syy = vis.reduce((a, p) => a + (p.y - my) ** 2, 0)
+    slope = sxx ? sxy / sxx : 0
+    icpt = my - slope * mx
+    r2 = sxx && syy ? (sxy * sxy) / (sxx * syy) : 0
+  }
+  return (
+    <div>
+      <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px]">
+        {(Object.keys(CENSUS_REGION_LABEL) as CensusRegionId[]).map((id) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={!hidden.has(id)}
+            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${hidden.has(id) ? 'opacity-40' : ''}`}
+            onClick={() => {
+              const n = new Set(hidden)
+              if (n.has(id)) n.delete(id)
+              else n.add(id)
+              setHidden(n)
+            }}
+          >
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: REGION_COLOR[id] }} />
+            {CENSUS_REGION_LABEL[id]}
+          </button>
+        ))}
+        <label className="inline-flex items-center gap-1">
+          <input type="checkbox" checked={trend} onChange={(e) => setTrend(e.target.checked)} /> Trend line
+        </label>
+        {trend && vis.length >= 3 && (
+          <span className="text-slate-600">
+            slope {slope.toPrecision(3)} · r² {r2.toFixed(2)} · n={vis.length}
+          </span>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${label(ySlug)} versus ${label(xSlug)} by state`}>
+        <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="#94a3b8" />
+        <line x1={pad.l} x2={pad.l} y1={pad.t} y2={H - pad.b} stroke="#94a3b8" />
+        <text x={(W + pad.l) / 2} y={H - 6} textAnchor="middle" fontSize="11" fill="#475569">
+          {label(xSlug)} ({fmt(xSlug, x0)} – {fmt(xSlug, x1)})
+        </text>
+        <text transform={`translate(12 ${(H - pad.b) / 2}) rotate(-90)`} textAnchor="middle" fontSize="11" fill="#475569">
+          {label(ySlug)} ({fmt(ySlug, y0)} – {fmt(ySlug, y1)})
+        </text>
+        {trend && vis.length >= 3 && (
+          <line x1={sx(x0)} x2={sx(x1)} y1={sy(slope * x0 + icpt)} y2={sy(slope * x1 + icpt)} stroke="#0f172a" strokeDasharray="5 4" strokeWidth="1.5" />
+        )}
+        {vis.map((p) => (
+          <a key={p.r.fips} href={href(p.r)}>
+            <circle cx={sx(p.x)} cy={sy(p.y)} r="5" fill={REGION_COLOR[p.r.region ?? ''] ?? '#64748b'} fillOpacity="0.8">
+              <title>{`${p.r.name}: ${fmt(xSlug, p.x)} / ${fmt(ySlug, p.y)}`}</title>
+            </circle>
+          </a>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+/** Diverging bars: each state's distance from the median state for one metric (computed from the same bundle). */
+function Diverging({
+  allItems,
+  items,
+  slug,
+  fmt,
+}: {
+  allItems: Row[]
+  items: Row[]
+  slug: string
+  fmt: (slug: string, v: number | null) => string
+}) {
+  const vals = allItems.map((r) => r.vals[slug]).filter((x): x is number => x != null).sort((a, b) => a - b)
+  if (vals.length < 3) return <p className="p-2 text-xs text-slate-600">No data available for this metric.</p>
+  const med = vals[Math.floor(vals.length / 2)]!
+  const dev = items.map((r) => ({ r, d: r.vals[slug] != null ? r.vals[slug]! - med : null }))
+  const maxAbs = Math.max(...dev.map((x) => Math.abs(x.d ?? 0))) || 1
+  return (
+    <div>
+      <p className="mb-1 text-[11px] text-slate-600">Difference from the median state ({fmt(slug, med)}). Right = above median, left = below.</p>
+      <ul className="space-y-0.5">
+        {dev.map(({ r, d }) => (
+          <li key={r.fips} className="grid grid-cols-[7rem_1fr_6rem] items-center gap-2 text-[11px]">
+            <span className="truncate font-medium">{r.name}</span>
+            <span className="relative h-3.5 border-x border-slate-200">
+              <span className="absolute inset-y-0 left-1/2 w-px bg-slate-400" />
+              {d != null && (
+                <span
+                  className="absolute inset-y-0.5"
+                  style={{
+                    background: d >= 0 ? '#354F52' : '#be123c',
+                    left: d >= 0 ? '50%' : `${50 - (Math.abs(d) / maxAbs) * 50}%`,
+                    width: `${(Math.abs(d) / maxAbs) * 50}%`,
+                  }}
+                />
+              )}
+            </span>
+            <span className="tabular-nums text-slate-700">{fmt(slug, r.vals[slug] ?? null)}</span>
           </li>
         ))}
       </ul>
