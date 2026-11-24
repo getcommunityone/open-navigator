@@ -248,6 +248,24 @@ git push hf huggingface-deploy:main
 
 The Space will automatically rebuild.
 
+## Files stored in Git LFS (PDFs, logos, images)
+
+The deploy drops raw binary files and keeps Git LFS pointers, so a served binary (the strategic plan PDF, the logo
+images) has to be in LFS to reach the Space at all. The Space then builds its image from a context that still holds
+those files as pointers, so the web build would serve the 130-byte pointer text.
+
+At container start, `.huggingface/restore_lfs_static.sh` fixes that. For every served file that is still a pointer, it
+finds the repository file with the same object id, downloads it from the Space's own repository
+(`https://huggingface.co/spaces/$SPACE_ID/resolve/main/<path>`), and puts it in place only when its SHA-256 equals the
+pointer's `oid`. It runs beside the services, so it does not delay the start, and it never fails the start. Its output
+is in `/app/logs/restore_lfs_static.log`, ending with a line such as `restored 12 file(s), 0 not restored`.
+
+- `SPACE_ID` is set by Hugging Face. Without it the script does nothing.
+- A private Space needs an `HF_TOKEN` secret with read access, which the script sends as a bearer token.
+- A file that is still a pointer after a deploy is named in that log with the reason.
+
+To check after a deploy: `/pdf/c1_strategic_plan.pdf` should download a PDF, not a three-line text file.
+
 ## Troubleshooting
 
 ### Build Fails
