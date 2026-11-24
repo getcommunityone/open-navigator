@@ -95,11 +95,31 @@ skipped, and counted by reason, when:
 |---|---|
 | `policy_excluded` | the video's transcript was marked `excluded:<reason>` at analysis time (promos, news, non-meetings) |
 | `junk_channel` | the channel is classified junk (`bronze_youtube_channel_classification.is_junk`) |
-| `non_meeting_type` | `meeting_type` is OTHER, UNKNOWN or blank |
+| `non_meeting_type` | `meeting_type` is OTHER, UNKNOWN or blank **and nothing else says it is a meeting** (see below) |
 | `low_keep_score` | the Jev keep-score `P(government_meeting) + P(town_hall)` is below `--min-meeting-p` (default 0.6); human overrides to `government_meeting` or `town_hall` win, and unscreened videos are never skipped |
 | `no_event` | the video has no promoted `civic_event` row yet (run `ingestion.youtube.promote_to_c1_event`) |
 | `no_meta` | the file has no metadata file of its own |
 | `meta_mismatch` | its metadata was written for the other tier's analysis file (see below) |
+
+### "Other" is not "not a meeting" (#829)
+
+The scraper types a video from a few words in its title (city council, planning, zoning, school board, special,
+workshop) and calls everything else `Other`. Committee meetings, commissions, work sessions and briefings all arrive as
+`Other`, so that value alone says little. A video typed OTHER, UNKNOWN or blank is **loaded** when any of these says it
+is a meeting, checked in this order:
+
+1. a person marked it `government_meeting` or `town_hall` on the Meeting kinds tab;
+2. its Jev keep-score is at or above the floor (`--min-meeting-p`, default 0.6);
+3. its title names a public body or a meeting form: council, commission, committee, board, authority, work session,
+   briefing, public hearing, town hall, regular or special meeting, and similar.
+
+A person's verdict wins both ways: if someone marked the video as something other than a meeting, the title and the
+score are not consulted and it is skipped. A title match does not override the other rules, so a junk channel, an
+excluded transcript or a low Jev keep-score still skips it.
+
+The loader's summary line counts how many `Other` videos were kept by each kind of evidence. For one that is still
+skipped, the drill-down's detail column shows the stored type and the title, so a real meeting that slipped through
+can be spotted and marked on the Meeting kinds tab.
 
 The first matching reason in that order is the one counted. A video with no `bronze_event_youtube` row cannot be judged
 and is loaded, and counted as `unchecked_no_bronze_row`. `--no-gate` turns the skip rules off, `--tier light|full|both`

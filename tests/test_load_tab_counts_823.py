@@ -123,6 +123,30 @@ def test_gate_reasons_and_failed_writes_are_listed(cache, monkeypatch):
     assert loader.exit_code(stats) == 1
 
 
+def test_a_meeting_typed_other_is_loaded_and_a_real_non_meeting_shows_why(cache, monkeypatch):
+    """#829: 'Other' from the scraper is kept when the title names a public meeting."""
+    _put(cache, "committee", meta={"video_id": "vidCOMMIT01"})
+    _put(cache, "waterpark", meta={"video_id": "vidWATER001"})
+    monkeypatch.setattr(loader, "build_video_to_event_map",
+                        lambda _c: {"vidGOOD0001": 7, "vidCOMMIT01": 8, "vidWATER001": 9})
+    info = {
+        "vidGOOD0001": {"meeting_type": "City Council"},
+        "vidCOMMIT01": {"meeting_type": "Other", "title": "Tuscaloosa Finance Committee Meeting"},
+        "vidWATER001": {"meeting_type": "Other", "title": "Water Park Opens"},
+    }
+    monkeypatch.setattr(loader, "fetch_video_info", lambda _c, _ids: info)
+    screen = types.ModuleType("llm.typesafe.screen_transcripts")
+    screen.jev_skip_meeting_video_ids = lambda *_a, **_k: set()
+    monkeypatch.setitem(sys.modules, "llm.typesafe.screen_transcripts", screen)
+    items: list[dict] = []
+    stats = loader.run(cache_root=cache, database_url="x", dry_run=True, gate=True, items=items)
+    by_file = {Path(i["file"]).name: i for i in items}
+    assert "committee.json" not in by_file  # loaded
+    assert stats["kept_other_by_title"] == 1 and stats["loaded"] == 2
+    assert by_file["waterpark.json"]["reason"] == "non_meeting_type"
+    assert "Water Park Opens" in by_file["waterpark.json"]["detail"] and "Other" in by_file["waterpark.json"]["detail"]
+
+
 def test_a_missing_cache_is_an_error_not_an_empty_success(tmp_path):
     items: list[dict] = []
     stats = loader.run(cache_root=tmp_path / "nope", database_url="x", items=items)
