@@ -4,66 +4,48 @@ branch: feat/884-data-stories-and-challenge
 title: "feat(web_app): add data stories and rename the game the Data Center Challenge"
 author: jcbowyer
 reviewed_at: 2026-11-24
-reviewer: github-actions
+reviewer: github-actions, coordinator
 head_sha: ea1f46570ddea451f0b21823d142cd39a6b34fb7
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: feat(web_app): add data stories and rename the game the Data Center Challenge
 
 ## Summary
 
-Automated review (#648) for PR #892 on `feat/884-data-stories-and-challenge`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Adds the Data Stories hub (`/stories`), the Data Center Story (`/stories/data-centers`) and renames the game the Data
+Center Challenge (`/challenge/data-centers`), with `/play/...` redirecting. Read by the coordinator against the diff
+and the screenshots taken with fixture responses; the heuristic scan ran first.
 
 ## Scope of Change
 
-- `api/stance_packs/data_centers.json`
-- `tests/test_stance_api.py`
-- `web_app/src/App.tsx`
-- `web_app/src/api/stance.ts`
-- `web_app/src/components/SiteHeader.tsx`
-- `web_app/src/components/stance/ChartPanel.tsx`
-- `web_app/src/components/stance/Cover.tsx`
-- `web_app/src/components/stance/EndPanel.tsx`
-- `web_app/src/components/stance/PlaceControl.tsx`
-- `web_app/src/components/stance/ProgressRail.tsx`
-- `web_app/src/components/stance/RoundPanel.tsx`
-- `web_app/src/components/stance/ScopeBar.tsx`
-- `web_app/src/components/stance/ScreenNav.tsx`
-- `web_app/src/components/stance/SentenceHeading.tsx`
-- `web_app/src/components/stance/StatRow.tsx`
-- `web_app/src/components/stance/StoryScreenView.tsx`
-- `web_app/src/components/stance/useActs.ts`
-- `web_app/src/components/stance/useRecentWrites.ts`
-- `web_app/src/components/stance/useScreenKeys.ts`
-- `web_app/src/components/stance/useStoryData.ts`
-- `web_app/src/pages/Challenge.tsx`
-- `web_app/src/pages/DataCenters.tsx`
-- `web_app/src/pages/DataStories.tsx`
-- `web_app/src/pages/DataStory.tsx`
-- `web_app/src/styles/stance.css`
-- `web_app/src/utils/dataStory.test.ts`
-- `web_app/src/utils/dataStory.ts`
-- `web_app/src/utils/houseTheme.ts`
-- `web_app/src/utils/stanceGame.test.ts`
-- `web_app/src/utils/stanceGame.ts`
-- `web_docs/docs/development/where-you-stand-game-design.md`
-- `web_docs/docs/guides/data-center-challenge.md`
-- `web_docs/docs/guides/data-stories.md`
+- Pages: `DataStories.tsx`, `DataStory.tsx`, `Challenge.tsx` (was `WhereYouStand.tsx`); routes and redirect in `App.tsx`;
+  header item in `SiteHeader.tsx`.
+- Story logic: `web_app/src/utils/dataStory.ts` with 208 lines of tests; shared pinned-screen hook `useActs.ts`.
+- Pack: `api/stance_packs/data_centers.json` version 2, seven statements (the tax-breaks statement is removed, two
+  statements now sit beside the concerns chart); `tests/test_stance_api.py` updated.
+- Docs: `web_docs/docs/guides/data-stories.md`, `data-center-challenge.md`, and the design note.
 
 ## CI Status
 
-See the PR checks on `ea1f46570dde`.
+Required checks are read on the head commit before merge. Locally: tsc clean, vitest 271 passed, build ok,
+`tests/test_stance_api.py` 27 passed.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+- Secrets: clean.
+- Fabricated data: none found. Every count and chart comes from the existing data-center API calls in
+  `web_app/src/api/stance.ts`; a chart with no rows renders "No data available for this chart"; a results split below
+  the minimum sample shows the count and "Not enough answers yet".
+- Personal data: none added. Destructive changes: none. Answers already stored for the removed statement stay in
+  `public.stance_response`; nothing reads them under pack version 2.
 
 ## Strengths
 
-- Automated scans found no secret/credential patterns in added lines.
+- Scope label and data move together: the heading, the "Showing" row and the queries all read `?state=&city=`, and a
+  state-level count is labelled with the state even when a city is in view.
+- The results panel says "It is not a poll" and names the sample.
+- Screens have word titles, Continue and Back; no numbered headers.
 
 ## Findings
 
@@ -73,12 +55,17 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+None.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- The place and topic pickers sit inside the `h1`, so its accessible name includes picker text. Tracked with the
+  shared heading in #887.
+- `components/stance/SentenceHeading.tsx` duplicates the one coming in #893; merge them in #887.
+- `/play/data-centers` is still linked from `components/matrix/ActionBlock.tsx` and `DataExplorerMatrixPage.tsx`. The
+  redirect keeps them working and #893 removes them.
+- Not run against the owner's API or warehouse; screens were checked with fixture responses.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**
