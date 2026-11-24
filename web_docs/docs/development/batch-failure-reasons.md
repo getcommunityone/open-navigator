@@ -42,7 +42,10 @@ text that matches nothing is "Other", never reworded.
 ## API
 
 - `GET /api/batch-jobs/failure-reasons?stage=transcripts|videos&cohort=&state=` → `{total, groups[]}`
-- `GET /api/batch-jobs/failures?stage=&cohort=&state=&reason=&limit=&offset=` → `{total, rows[]}`
+- `GET /api/batch-jobs/failures?stage=&cohort=&state=&reason_id=&limit=&offset=` → `{total, rows[]}` (`reason_id` is the short md5 id each reason carries, so long messages never travel in the URL)
+- `POST /api/batch-jobs/failures/retry` (admin) `{stage, cohort, state, group | reason_id, dry_run}` → `{matched, made_due, already_due}`. Releases the matching videos from the 30-day cooldown in `bronze.bronze_transcript_fetch_attempts`; deletes nothing. The next Backfill on the Transcripts row fetches them. Only the retryable groups (bot check, rate limit, network, not yet available, unknown, other) accept it; "No captions" and "unavailable" return 400.
+
+Each reason line links to the YouTube video of an example failure ("Watch an example") and shows URLs in the message as links. Reasons are merged when they differ only by video id or number. Groups are chosen from the cause text (after "most likely caused by:"), so the shared opening sentence no longer puts every failure under "No captions".
 
 Only the Videos and Transcripts stages have a breakdown. The other stages record their failures elsewhere and do not
 link to this page.

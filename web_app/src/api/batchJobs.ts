@@ -348,8 +348,18 @@ export type FailureReasonGroup = {
   key: string
   label: string
   advice: string
+  /** True when trying again can work; false for no captions, private or removed videos. */
+  retryable: boolean
   count: number
-  reasons: Array<{ reason: string; count: number; example: string }>
+  reasons: Array<{
+    reason: string
+    /** Short id for this reason (md5 of the normalized text); the videos request uses it. */
+    reason_id: string
+    count: number
+    example: string
+    /** A video that failed with this reason, for a link to watch it. */
+    example_video_id: string | null
+  }>
 }
 
 export type FailureReasonsPayload = {
@@ -363,7 +373,7 @@ export type FailureReasonsPayload = {
 
 export type FailureRowsPayload = {
   stage: string
-  reason: string
+  reason_id: string
   total: number
   rows: Array<{
     video_id: string
@@ -407,19 +417,61 @@ export function fetchFailureRows(
   stage: FailureStage,
   cohort: string,
   state: string,
-  reason: string,
+  reasonId: string,
   offset: number,
   limit = 50,
 ): Promise<FailureRowsPayload> {
   const q = new URLSearchParams({
     stage,
     cohort,
-    reason,
+    reason_id: reasonId,
     offset: String(offset),
     limit: String(limit),
   })
   if (state) q.set('state', state)
   return getJson<FailureRowsPayload>('/api/batch-jobs/failures', q)
+}
+
+export type RetryFailuresResult = {
+  stage: string
+  group: string
+  reason_id: string
+  dry_run: boolean
+  /** Failed videos in the chosen group or reason. */
+  matched: number
+  /** Videos that were waiting out the 30-day cooldown and are now due. */
+  made_due: number
+  /** Videos with no cooldown: the next Backfill already picks them up. */
+  already_due: number
+}
+
+/** Make the failed videos of a retryable group (or one reason) due for the next caption Backfill.
+ *  Deletes nothing. ``dry_run`` only counts. */
+export async function retryFailures(body: {
+  stage: FailureStage
+  cohort: string
+  state: string
+  group?: string
+  reason_id?: string
+  dry_run: boolean
+}): Promise<RetryFailuresResult> {
+  const r = await tracedFetch('/api/batch-jobs/failures/retry', {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ ...body, state: body.state || null }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!r.ok) {
+    let detailMsg = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { detail?: string }
+      if (j?.detail) detailMsg = j.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detailMsg)
+  }
+  return (await r.json()) as RetryFailuresResult
 }
 
 export type FailedVideosListPayload = {
