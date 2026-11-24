@@ -1,342 +1,219 @@
 ---
-title: Meeting sentiment with Jev
-sidebar_label: Meeting sentiment (Jev)
-description: How to add public-comment stance ("sentiment") to the meeting data with Jev, what unit to measure, how to validate it, and how it feeds the Matrix map dot map.
+title: Meeting sentiment (public-comment stance)
+sidebar_label: Meeting sentiment
+description: How public-comment stance is extracted with the existing meeting analysis, stored per speaker and per decision, validated without human labelling, piloted on 40 meetings, and shown in three buckets.
 ---
 
-# Meeting sentiment with Jev
+# Meeting sentiment (public-comment stance)
 
-Status: **proposal** (not yet built). **Revised 2026-11-24: extend the existing extraction first** (next section); the Jev passage pass below becomes a later coverage extension. Decided 2026-11-24: **data centers first**; stance is scored on a **five-step gradient** and reported in **three buckets** (against, neutral, for). Builds on [Meeting metrics for the Matrix map](./meeting-metrics-matrix-map-design.md)
-and the existing Jev work ([transcript screening](./jev-transcript-screening.md),
-[Jev-light cascade](./jev-light-cascade-design.md)).
+Status on 2026-11-24: **phase 1 code is written and unit-tested; nothing has been run on real meetings and no
+stance appears on the site yet.** This page was rewritten after a full review the same day; the earlier drafts are in
+git history. Related: [Meeting metrics for the Matrix map](./meeting-metrics-matrix-map-design.md),
+[Jev-light cascade](./jev-light-cascade-design.md), [Batch analysis light vs full](./batch-analysis-light-full-design.md).
 
-## Revised approach: extend the existing extraction (owner, 2026-11-24)
+## In short
 
-The decision pages already hold most of what a sentiment measure needs, per person. `prompts/policy_analysis_part_1.md`
-(run by `llm.gemini.meeting_transcript_policy`) writes, for each contested decision:
+- "Sentiment" means **stance**: what a member of the public asked the body to do about the action being decided.
+  It is not emotional tone.
+- Stance is extracted **in the analysis call we already make**, for both the full and the light tier, as one row per
+  public speaker per item (`public_participation[]`). No separate pass is needed for analysed meetings.
+- It is reported in **three buckets: against, neutral, for**, because many comments take no side.
+- A **pilot of 40 meetings** (20 full, 20 light, from different counties and states) comes before any wider run.
+- Checks are automated. With nobody labelling by hand, the site says the stance is machine-estimated and shows the
+  speaker's own quoted words and a link to the moment in the recording.
 
-| Already extracted | Where | Gives us |
-| --- | --- | --- |
-| Named voices | `human_element.personal_stories[]` (`person_id`, `story_headline`, `story_detail`, `why_it_mattered_to_the_decision`) | one row per **person per decision**; about 2,001 of 8,886 decisions have at least one |
-| Group mood | `human_element.emotional_tone.supporters` / `.opponents` (`intensity` Low to Very high, `primary_emotions`, `plain_summary`) | the "How the room felt" panel: how strongly each side felt |
-| Who holds which view | `competing_views.dominant_view` and `counter_views[]` with `held_by` | person to view membership (a view is a position on the issue, not for or against the action) |
-| Floor time and timestamps | `speaker_segments[]`, `media_anchor` | a link to the moment, per person |
-| Vote | `vote_tally` | the body's own decision |
+## What the review changed
 
-**What is missing is one thing: an explicit stance for each named voice toward the decision.** Add it to the same Gemini
-call, not a new pass:
+The earlier draft proposed adding a `stance` to `human_element.personal_stories` and deriving a decision's stance from
+those voices, with Jev backfilling the stored story text. Reading the pipeline end to end showed four problems.
 
-```json
-"personal_stories": [{
-  "person_id": "...",
-  "stance": "one of: For, Against, Mixed or neutral, Not stated",
-  "stance_evidence": "string: the short phrase from the story that shows the stance, or null"
-}]
-```
+1. **The pipeline already has a slot for this, and nothing fills it.** `bronze_public_participation_from_ai` reads a
+   `public_participation[]` array (speaker, stance, summary, timestamps) and feeds the `engagement` part of the
+   interestingness score. Neither current prompt asks for that array, so only about 1 of 1,569 analyses carries it and
+   engagement is near zero. Asking for the array fixes sentiment and engagement together, with the loader already built.
+2. **`personal_stories` is the wrong population.** The prompt defines it as "specific anecdotes used to argue a point",
+   so it holds the storytellers, not everyone who spoke, and only on contested decisions. Counting stance over it
+   would over-weight memorable speakers and miss general public comment.
+3. **Deriving a decision's stance from a majority of voices throws information away** and made the full and light
+   tiers answer different questions. Both tiers now emit the same rows, and the per-decision numbers are plain counts.
+4. **Jev reading the stored story text is not an independent check.** That text is the first model's paraphrase, so
+   agreement would mostly measure whether Jev can read a summary. The check now rests on the verbatim quote
+   (`stance_evidence`), which code can verify against the transcript.
 
-Rules for the prompt: `For` and `Against` are toward the **action being decided** (for example, adopting the data
-center ordinance), not toward the topic in general; "supports data centers but wants a longer delay" is `Mixed or neutral`;
-a speaker who does not address the item is `Not stated`; never infer a stance from the speaker's role or name. These map
-to the three buckets (`Mixed or neutral` and `Not stated` both land in **Neutral**) and keep the four values underneath.
+Smaller corrections: a per-speaker five-step strength was dropped (the least reliable judgment to ask for; the gradient
+now comes from the share of speakers, and room intensity already exists in `emotional_tone`); "unknown" is never counted
+as neutral; and already-analysed meetings are not backfilled by guesswork.
 
-**Why this is better than a separate Jev pass:**
+## The data
 
-- **It is per person per decision**, which answers "by decision by person" directly, and the dot, bar and tile views can
-  count people instead of three-minute windows.
-- **It is nearly free:** a few extra output tokens in a call we already pay for. No new request, no new gate.
-- **It already has timestamps and a quote-like summary** for the evidence line on each tile.
-- **Reading it is already built:** `DecisionDetail.tsx` renders "Voices in the room" and "How the room felt"; the stance
-  becomes a chip on each voice and a three-bucket bar above them.
+### What the prompts ask (one row per public speaker per item)
 
-**Backfilling decisions already extracted.** Re-running Gemini over the existing decisions is the expensive path (about
-$0.012 per full analysis from logged usage, so about $100 for 8,886). Instead use **Jev as a cheap backfill reader over
-the stored text**: it classifies each voice's `story_headline + story_detail + why_it_mattered_to_the_decision`
-(about 450 tokens per voice with the question text). With about 6,000 voices (assuming about 3 per decision on the
-2,001 decisions that have any; confirm with the dry run) that is about 2.7M tokens, **about $0.11**. New extractions get
-Gemini's stance field going forward.
+Both `prompts/policy_analysis_part_1.md` (full) and `prompts/policy_analysis_lite.md` (light) now ask for:
 
-**Validation gets stronger for free.** Where a voice has both a Gemini stance (new extractions) and a Jev stance on the
-same stored text, the two are independent readings, so agreement and disagreement are measured automatically and
-disagreements are held out of headline counts. This is Layer 4 below, and it needs no human. The existing
-`vote_tally` gives the Layer 5 smoke test (decisions that failed should lean Against among public voices).
-
-**Counting rules.**
-
-- Count **members of the public and stakeholders**, not council members or staff (their position is already the vote
-  tally). Use the `people[]` role; confirm the exact field in the schema before building.
-- Each person counts once per decision, regardless of how long they spoke.
-- Show how many voices and decisions each share rests on, with the minimum-sample rule already decided.
-- This covers only decisions the extraction has analysed (about 8,886 so far), not all 200,000 meetings. The metric
-  carries `source = extraction` and coverage numbers. The Jev passage pass in the rest of this page extends coverage to
-  transcripts we have not analysed; its numbers are labelled `source = passage` and never silently merged.
-
-**Prompt change control.** The prompt is versioned in git and hashed (`llm.prompt_version.prompt_file_sha256`). Adding
-the field is a new prompt version; do not run it on a batch until the owner agrees, since Gemini batches are paid.
-
-## Coverage tiers: handle light and screen-only meetings too (owner, 2026-11-24)
-
-Not every meeting has the full detail. There are three tiers today
-([Jev-light cascade](./jev-light-cascade-design.md), [Batch analysis light vs full](./batch-analysis-light-full-design.md)):
-
-| Tier | Produced by | What a meeting has | Stance we can measure |
+| Field | Meaning | Full | Light |
 | --- | --- | --- | --- |
-| **Full** | `policy_analysis_part_1.md` (Gemini) | decisions, `people[]`, `human_element.personal_stories`, `competing_views`, `emotional_tone`, `speaker_segments` | per **voice** (person per decision), plus a decision-level roll-up |
-| **Light** | `policy_analysis_lite.md` (DeepSeek, `LIGHT_MODEL`) | `meeting_summary`; `decisions[]` (contested) and `uncontested_items[]` with headline, statement, `outcome`, `vote_tally`, theme, cause, `place_raw`. **The lite prompt in the repo has no `people`, no `human_element` and no timestamps** | per **decision** only |
-| **Screen only** | Jev screen (`screen_transcripts`) + optional blurb | meeting kind and probabilities for has-decisions, data center and four topics; a 1 to 2 sentence blurb for keepers; **no decisions** | per **passage** (phase 4), data centers only |
+| `speaker_id` | the speaker's slug (`people[].person_id` in full) | yes | yes |
+| `decision_id` | the decision or uncontested item the comment is about; null for general public comment | yes | yes |
+| `stance` | `For`, `Against`, `Mixed or neutral`, `Not stated`, toward **the action being decided** | yes | yes |
+| `stance_evidence` | the speaker's own words, verbatim, 25 words or fewer; null when no phrase shows it | yes | yes |
+| `summary`, timestamps | one sentence; seconds into the recording | yes | no |
 
-If a newer light prompt does carry a people list, the full-tier voice path applies to it unchanged; nothing below depends
-on light lacking people.
+Rules written into the prompts: only members of the public and outside stakeholders (the body and staff are covered by
+the vote and `competing_views.held_by`); "supports it but only with a bigger setback", a delay request, a question or
+information only is `Mixed or neutral`; a comment that does not address the action is `Not stated`; never infer a
+stance from a role, employer or name; never invent a speaker.
 
-**The common unit is the decision.** A decision exists in both Full and Light, so every analysed meeting can report on
-the same footing, and tiers are never silently mixed:
+A prompt change is a new prompt version (the file hash, `llm.prompt_version`), so every row can be traced to the
+wording that produced it.
 
-- **Decision-level stance** (`decision_public_stance`): For, Against, Mixed or neutral, or None, one value per decision.
-  - Full: computed from the voices (the larger side among public voices; equal or no side-taking voices is Mixed or neutral).
-  - Light: a new field asked in the same lite call (below).
-- **Voice-level stance** is an extra, richer metric available for Full only, and is labelled `unit = voice`.
-- **Passage-level stance** is the screen-only extension (`unit = passage`).
+### Three buckets
 
-The mart records `analysis_tier` (`full`, `light`) next to every row, taken from the stamp and the analysis metadata
-(`prompt_name` in `*.meta.json`, as `reclassify_policy_tier_stamps` does), not guessed. The Matrix map shows `unit` and
-`tier` in the caption, and a place with a mix of tiers reports the decision-level metric, which both tiers share.
-
-**Light needs a small addition to the lite prompt** (new prompt version, same single call, a few output tokens per decision):
-
-```json
-"decisions": [{
-  "public_comment": {
-    "stance": "one of: For, Against, Mixed or neutral, None",
-    "speakers_for": "number or null",
-    "speakers_against": "number or null"
-  }
-}]
-```
-
-Rules: `stance` is the direction of the public comment toward the action being decided; `None` when no member of the public
-spoke on the item; counts only when the transcript states or plainly shows them, else `null`; never guess. Light already
-splits contested from uncontested (`decisions[]` versus `uncontested_items[]`), which gives a free
-`contested_share` for every light meeting without any new field.
-
-**Decisions already analysed at the Light tier** have no public-comment text stored, only a statement and an outcome,
-so Jev cannot backfill stance from them. Options, in order: leave them `unknown` and say so; or re-run light on the
-subset that matters (cheap, DeepSeek) with the new prompt version, with the owner's yes. Never infer a stance from the
-outcome (a denied item says nothing about who spoke).
-
-**What the UI shows when detail is missing.** A decision with no stance data shows an explicit "No public-comment data
-for this meeting" state, not a neutral bar. Counts of how many decisions have each tier go in the caption so the reader
-sees the coverage.
-
-## Can Jev do it?
-
-Yes, for the classification part. Jev is TypeSafe's System One model (`packages/llm/src/llm/typesafe/client.py`).
-One call sends a block of text plus named questions and returns **one typed answer per question**: a Choice
-(one label), a Score (a rung on an ordered rubric), or a Noul (probability a statement is true). It returns labels
-and probabilities, never text. That fits stance well and does not fit extraction, which stays with Gemini.
-
-"Sentiment" here means **stance toward the item under discussion** (supports, opposes, mixed), not emotional tone.
-General tone ("angry", "polite") says little about whether a community backs a data center.
-
-## What the unit of measurement is
-
-The inspiration map (American Sentiment) draws one dot per public comment. **We cannot do that yet:** we have
-transcripts, not comment-level records, and caption files carry no speaker boundaries. What we do have:
-
-| Unit | Source | Good for |
+| Bucket | `stance` values | Counted in the balance? |
 | --- | --- | --- |
-| Passage (about 3 minutes of caption cues) | `data_center_meeting_mention` (`evidence`, `start_seconds`, `video_url`) | v1: stance on data centers, with a timestamped quote |
-| Decision | `event_decision` (`competing_views`, `human_element`, `vote_tally`) plus `decision_speakers.speaker_count` | stance by decision, only where views were extracted |
-| Whole transcript | `event_documents` | too coarse for stance |
+| **Against** | Against | yes |
+| **Neutral** | Mixed or neutral, Not stated | no, but always shown |
+| **For** | For | yes |
 
-**Recommendation: v1 measures passages, starting with data centers**, because that mention table already has
-verbatim evidence, a timestamp and a site link. Label it honestly as "public-comment passages", not "comments".
-Moving to true comment units needs speaker segmentation, a separate project.
+- The three shares add to 100% of speakers with a known stance: `Against 30% | Neutral 43% | For 27%`.
+- **The gradient** is the balance among speakers who took a side, `(for − against) / (for + against)`, from −1 to +1.
+  Neutral speakers are left out of it so a mostly procedural meeting does not read as "split", and the neutral share is
+  shown beside it.
+- A missing stance is **unknown**, not neutral, and is not counted.
 
-## How the calls are structured (not per person)
+### Tables (dbt)
 
-- **Captions carry no speaker labels**, so a meeting cannot be split by person. The person-level information that
-  exists (`decision_speakers`, `event_decision.human_element->'personal_stories'`) comes from the Gemini extraction, not from
-  the transcript.
-- **The unit is the passage, one Jev request per passage.** A passage is the same ~3-minute window
-  `data_center_meeting_mention` already cuts. All the stance questions go in that one request. A passage can hold
-  several speakers; the answer describes the public comment in that window as a whole, and a window with both
-  sides lands in the neutral/mixed bucket. Shorter windows (60 to 90 seconds) would separate speakers better at a
-  small extra cost; try that if validation shows many mixed passages.
-- **Not by decision.** Decisions are the unit of the Gemini extraction, but a decision's discussion is spread across
-  the meeting and has no stable text span, so passages are the cleaner unit. A passage can be linked to a decision
-  later by time overlap.
-- **Existing Jev screening is a gate, not the host.** `screen_transcripts` sends up to 4 evenly spaced chunks per
-  video and takes the highest `mentions_data_center` probability, which is right for "is this meeting relevant" but
-  would miss most data-center passages for stance. So the stance pass runs as its own module on the stored
-  mention passages, and only for videos the screen already marked as discussing data centers. That keeps the cost
-  down and reuses the same client, usage table and run pattern (`llm.typesafe.client.JevClient`).
-
-## Questions to ask Jev, per passage
-
-All in one request per passage (cheap, and the passage is read once):
-
-| Question | Type | Purpose |
-| --- | --- | --- |
-| `is_public_comment` | Noul: "A member of the public is addressing the body during this passage" | keeps staff presentations and board debate out of the public-opinion number |
-| `speaker_role` | Choice: public commenter, elected official, staff, applicant or developer, other | context for each passage |
-| `stance_on_project` | Score, five rungs, lowest first: strongly opposes, opposes, neutral or mixed, supports, strongly supports | the stance gradient (see below) |
-| `is_procedural` | Noul: "The passage is only about process (agenda order, time limits), not the project" | keeps procedural talk out of the gradient |
-
-Store the **probabilities**, not just the winning label, and derive labels with a documented threshold.
-Count a passage toward the stance share only when `is_public_comment` is high enough (start at 0.7, tune on the
-validation set).
-
-## The sentiment gradient and the three buckets
-
-Jev's Score question rates on an ordered rubric of 2 to 10 rungs, so stance is a gradient from the start rather than a
-yes/no label. Use five rungs: strongly opposes, opposes, neutral or mixed, supports, strongly supports (−2 … +2).
-
-Many passages are not for or against anything: a staff presentation, a question, a time limit, a procedural vote.
-Forcing those onto a side would invent an opinion. So the **headline is three buckets**, like a Left / Center / Right bar:
-
-| Bucket | Rungs | Also includes |
-| --- | --- | --- |
-| **Against** | strongly opposes, opposes | |
-| **Neutral** | neutral or mixed | any passage Jev flags `is_procedural`, and any passage with no clear stance |
-| **For** | supports, strongly supports | |
-
-The three shares always add to 100% of the counted passages, so the bar is complete. The five-step gradient is kept
-underneath for detail: it sets the shade within a bucket (strong is darker than weak) and drives the diverging view.
-
-- **Primary view, the three-segment bar:** one stacked bar per place, `Against 30% | Neutral 43% | For 27%`, each
-  segment labelled with its share and its passage count on hover. This is the same form as the Folio
-  100% stacked bar and the Share layout, and it needs no scale to learn.
-- **Colour:** against = vermilion, for = blue, neutral = white or light gray with dark text. A blue and orange-red pair
-  stays distinguishable for colour-blind viewers, which red and green does not. Always label the segments, never
-  rely on colour alone.
-- **One number for a map or tile:** the *balance* among passages that take a side,
-  `(for − against) / (for + against)`, from −100% to +100%. Neutral passages are left out of the balance (otherwise
-  a place where most talk is procedural would always look "neutral"), but the neutral share is shown beside it so
-  nothing is hidden. Show `—` when fewer than the minimum number of side-taking passages exist.
-- **Dot map and Tiles** colour by the balance on a diverging scale with a neutral midpoint, with lightness changing as
-  well as hue.
-- **Diverging bars (the template's Likert chart)** show all five rungs for one place, centred on neutral, for readers
-  who want the full gradient.
-- **Compare** shows how a place's balance moved between years, once there are two years.
-- Store the answer **probabilities per rung**, use the highest-probability rung as the label, and compute buckets
-  and shares from the labels so they are reproducible.
-
-## Pipeline (follow the repo rules)
-
-1. **Code:** a package CLI module, `python -m llm.typesafe.passage_stance` (argparse `main()`), next to
-   `light_blurb.py`. Nothing goes in `scripts/`.
-2. **Bronze:** a table of raw Jev answers keyed by passage, with the question-set version, Jev model id, run id and
-   call cost. The question text lives in git with a version number, and the version changes when it does.
-3. **dbt:** staging, then a `public` mart such as `meeting_passage_stance` (primary key = passage id, foreign keys to
-   the passage, jurisdiction and event). Carry the source forward: every row keeps `video_url`, `start_seconds` and the
-   verbatim `evidence`.
-4. **Metrics:** add to the meeting-metrics catalog: `public_comment_passages` (additive count),
-   `public_comment_against_share`, `public_comment_neutral_share`, `public_comment_for_share` (rates that add to 100%,
-   numerator and denominator stored) and `public_comment_balance` (for minus against among side-taking passages, −100% to +100%),
-   always with `coverage_n` and the minimum-sample rule already decided (10 decisions or passages, 3 jurisdictions).
-5. **UI:** the Dot map colours each state by the balance (a diverging scale centred on even) and a three-segment bar shows the three shares,
-   drills into counties, and every tile shows the quoted passage with the matched words highlighted, per the
-   "Show the Match Evidence" rule. Nothing is shown without a real quote behind it.
-
-## Validate before showing anything (fully automated, no human labeller)
-
-There is no person to label passages, so validation is a suite that runs from code (`python -m
-llm.typesafe.passage_stance_validate`, tests in `packages/llm/tests/`). `AGENTS.md` says prompts are checked
-"against known answers, not by asking another model whether the result looks right", so no layer below is "an LLM
-judges the output". Each layer proves something different, and the site says which layers a metric has passed.
-
-**What "agreement" means:** out of every 100 passages in a test set, how many did Jev place the same way as the known
-answer. "Within one step" allows a one-rung miss on the five-step scale; a **wrong-side flip** is "for" where the
-answer is "against", or the reverse.
-
-| Layer | Known answer comes from | What it proves | What it can't prove |
+| Model | Grain | Key | Notes |
 | --- | --- | --- | --- |
-| 1. Constructed cases | A fixed set of short passages written in the repo with the answer built in ("I strongly oppose this data center", "please approve the rezoning", a staff presentation, a time-limit reminder, negation, sarcasm, hedges, a question). Lives in the test folder only, never served | The question wording and rubric behave as intended; catches regressions when the question set or Jev model changes | Real-world accuracy: real passages are messier |
-| 2. Explicit-statement set | Real passages where a speaker states a side in plain words ("I am opposed", "vote no", "I support this project"), found by transparent phrase rules over our own transcripts. The rule gives the label | Accuracy on real caption text where the answer is unambiguous | Subtle or implied stance (the hard cases are excluded by construction) |
-| 3. Stability | The same passage re-run, cut at different window edges, and with filler words dropped | Answers don't flip on trivial changes | Whether the answer is right |
-| 4. Second reader | Gemini, which already analyses these meetings, asked the stance question independently on a sample | Where two different systems disagree, so those passages are flagged and excluded from headline counts | Ground truth: two models can share a blind spot, so this is reported as agreement, never as accuracy |
-| 5. Outcome sanity | Decisions the body itself denied or put on a moratorium (`question_outcome_family`) | Places with denied decisions should lean against on average; a strong contradiction is a bug signal | Cause and effect: boards vote for many reasons, so this is a smoke test only |
+| `bronze_public_participation_from_ai` (changed) | meeting × speaker × item | `source_event_id_speaker_id` | adds `decision_id`, `stance_evidence`; the key gains the item id when present |
+| `public_comment` (new, `public`) | meeting × speaker × item | `public_comment_id` | `stance`, `stance_bucket`, quote, timestamps, `state_code` and `state`, `video_id`; links to `event_meeting` and, when it is a contested decision, `event_decision` |
+| `decision_public_stance` (new, `public`) | decision | `event_decision_id` | `speakers_for`, `speakers_against`, `speakers_neutral`, `speakers_total`, `stance_balance`; each speaker counts once |
 
-**Bar to ship the metric** (best judgement; change it with a dated line):
+`public_stance_bucket()` is the one macro that maps stance text to a bucket. A decision with no public-comment data has
+**no row**, so the page shows "No public-comment data for this meeting", never a neutral bar. The foreign keys into
+`event_meeting` and `event_decision` are relationships tests because those tables are partitioned with composite keys
+(the same convention as `decision_speakers`).
 
-| Check | Needed |
-| --- | --- |
-| Layer 1, exact match | at least 95 of 100, and zero wrong-side flips |
-| Layer 2, within one step | at least 90 of 100, and at most 5 of 100 wrong-side flips |
-| Layer 3, unchanged label under a trivial edit | at least 90 of 100 |
-| Layer 4, Gemini and Jev on the same side | reported; passages where they disagree are held out of the counts |
-| Layer 5 | reported, not gating |
+### Coverage by tier
 
-If a layer fails, the metric does not ship: reword the question or rubric and re-run. The report is written to a table
-with the question-set version and Jev model id, so every published number can be traced to the test run that cleared it.
+| Tier | Has | Stance available |
+| --- | --- | --- |
+| **Full** | decisions, people, named voices, views, room mood, timestamps | per speaker per item, with summary and time |
+| **Light** | summary, decisions, uncontested items | per speaker per item, with quote; no summary or time |
+| **Screen only** (Jev screen, blurb) | meeting kind and topic probabilities | none until the passage pass below |
+| **Analysed before this prompt version** | whatever its tier had | none: shown as "no public-comment data". Never inferred from the outcome |
 
-**Be honest on the page.** With no human check, the caption says: "Stance is estimated automatically and checked
-against constructed and explicit-statement test cases, not by people." Every tile also shows the quoted passage
-with a link to the video at that time, so a reader can judge it themselves.
+The light prompt in the repository has no people list, so a light speaker is identified only by the slug built from the
+name as spoken. Speakers who are never named are skipped, which undercounts public comment in every tier; the page says
+"named speakers".
 
-**Humans can still help later, passively.** A "this label looks wrong" button on the quoted passage logs a flag
-(per `AGENTS.md`, feedback becomes issues). Flags feed Layer 2's set over time without anyone having to sit and
-label.
+Not built yet: an `analysis_tier` column on these marts. The tier is known from the analysis metadata
+(`prompt_name`), but it is not carried into `event_meeting` today; it needs its own issue before tiers are compared.
 
-## Cost and approvals
+## Pilot: 20 full and 20 light meetings (owner, 2026-11-24)
 
-Jev bills input tokens only: $0.042 per million, output free (see transcript screening). Stance runs **only on
-data-center passages**, not on whole meetings, so long or boring meetings with no data-center talk cost nothing extra.
+Purpose: see real output on real pages before spending on a wider run.
 
-Per request: a ~3-minute passage is about 600 tokens, plus about 300 tokens of question text, so about 900 tokens,
-which is about **$0.00004 per passage**. All figures below are my arithmetic from stated assumptions; the real
-counts come from the dry run (`--dry-run` counts passages and estimates tokens without sending anything).
+- **Selection, by rule, not by hand:** meetings with a transcript where the Jev screen says a data center is discussed
+  and decisions were made (both probabilities at least 0.5); at most one meeting per county and two per state; ordered
+  by a hash of the video id so the list is reproducible. Take the first 40.
+- **Runs:** light analysis on all 40 (the batch design already requires light before full), then full analysis on 20
+  of them. That gives 20 light-only meetings, 20 full meetings, and **20 meetings read by both tiers**, which is a free
+  agreement check between two different models on the same recording.
+- **Cost (estimate, to be replaced by the usage report):** full is about $0.012 per meeting from logged usage, so
+  about $0.25 for 20 plus a few cents for the added rows; light on 40 is cents. Under $1 in total. The owner approved
+  this pilot in the session on 2026-11-24; read `python -m llm.usage.report` before and after and put the figures in
+  the pilot's issue.
+- **Output:** a pilot report page under `web_docs/docs/development/` listing every meeting with its state, county,
+  tier, the number of speakers in each bucket, and a link to each decision page, plus the results of the checks below.
+- **What must exist first:** the stance has to be readable on the page. That is the API field and the
+  `DecisionDetail` bar and chips (phase 2 below). Publishing to the live site is a production deploy and stays the
+  owner's call.
+- **Where it runs:** on the machine that reaches the warehouse (`localhost:5433`). This cloud session cannot reach it.
 
-| Scenario (200,000 meetings) | Passages sent | Tokens | Estimated cost |
+## Checks (automated, no human labeller)
+
+`AGENTS.md` asks for checks "against known answers, not by asking another model whether the result looks right".
+
+| Check | How | Proves | Does not prove |
 | --- | --- | --- | --- |
-| **Gated (recommended):** only videos the screen marked as discussing data centers. Assume 2% to 5% of meetings, 3 to 5 passages each | 12,000 to 50,000 | 11M to 45M | **about $0.50 to $2** |
-| Every passage of every meeting (no gate), assuming 40 passages for a 2-hour meeting | 8,000,000 | 7.2B | about $300 (about $0.0015 per meeting) |
-| Re-run after a wording change, gated | same as gated | same | about $0.50 to $2 each time |
-| Gemini second-reader sample (validation Layer 4), about 500 passages | 500 | small | under about $1 (price from the usage tables; confirm with a dry run) |
+| 1. Quote is real | code confirms each `stance_evidence` appears in that meeting's transcript (case and whitespace normalised) | the evidence was not invented | that the stance label is right |
+| 2. Quote matches the label | transparent phrase rules on the quote ("vote no", "I oppose", "please approve", "I support") give a side; compare with `stance` | accuracy where the speaker was explicit | subtle or implied stance |
+| 3. Constructed cases | a fixed set of short transcripts with the answer built in (support, opposition, conditions, a question, a staff presentation, negation, sarcasm), kept in tests only | the prompt wording behaves; catches regressions | real-world accuracy |
+| 4. Two tiers, same meeting | the 20 pilot meetings read by both light and full: do they find the same speakers and the same side | where two different models disagree | ground truth (they can share a blind spot) |
+| 5. Outcome smoke test | decisions the body denied should lean against among public speakers on average | gross errors | cause and effect |
 
-What drives it: how many passages mention data centers, not how many meetings we have. Even the ungated worst case
-is a few hundred dollars, and the gated plan is a couple of dollars. A Jev run is still a paid LLM endpoint, so under
-`AGENTS.md` **it starts only with the owner's yes**, and the cost goes in the run's issue or PR. Read usage before
-and after with `python -m llm.usage.report`.
+Bar to show the numbers (best judgement; change with a dated line under Decisions): check 1 at least 98 of 100 quotes
+found; check 2 at most 5 of 100 wrong-side flips (a quote that says "oppose" on a row marked For, or the reverse);
+check 3 at least 95 of 100 with no wrong-side flip. Checks 4 and 5 are reported. A row failing check 1 is dropped
+from the counts. If a bar is missed, the wording is changed and the checks re-run; the metric does not ship.
 
-Why this stays cheap: the gate already exists (`mentions_data_center_p` from the screen), stance reuses stored
-passages, answers are cached in the bronze table so a passage is never re-sent unless the question-set version
-changes, and a hard `--max-passages` cap on the CLI stops a run that is bigger than expected.
+The page caption says: "Stance is estimated automatically from named public speakers and checked against their quoted
+words, not reviewed by people."
 
-## Constraints and risks
+## On the site
 
-- **Do not use American Sentiment's data.** `community_events.py` blocks `americansentiment.com` and
-  `prophecygov.com` because their terms forbid competitors' use. This design computes stance from our own
-  transcripts only.
-- **Coverage bias** applies even more here: shares from a few passages swing widely, so the minimum-sample rule and
-  the "low coverage" hatching are required, not optional.
-- **Association, not opinion polling.** Speakers at meetings are self-selected. The caption must say "passages from
-  public comment at meetings we have transcripts for", never "how residents feel".
-- **Mixed or sarcastic remarks** will be misclassified sometimes. The evidence quote lets a reader judge.
+- **Decision page:** a three-segment bar above "Voices in the room" (`Against n | Neutral n | For n`), a stance chip on
+  each speaker, the quoted words with the matched phrase highlighted, and the timestamp link where one exists.
+- **Colour:** against is vermilion, for is blue, neutral is white or light gray with dark text; segments are always
+  labelled, so colour is never the only signal. Confirm the pair with a colour-blind simulation.
+- **Matrix map:** `public_comment_for_share`, `_neutral_share`, `_against_share` and `public_comment_balance` join the
+  meeting-metrics catalog. The Dot map and Tiles colour by the balance; the Share bar shows the three shares; every
+  value shows how many speakers and meetings it rests on and obeys the minimum-sample rule.
+- **Wording:** "named speakers at meetings we have analysed", never "how residents feel". People who speak at meetings
+  are self-selected.
+
+## Later: reaching meetings that are not analysed
+
+Screen-only meetings have no decisions or speakers. For those, Jev can rate **passages** that mention a topic
+(`data_center_meeting_mention`, about three minutes each, with a verbatim excerpt and a timestamp):
+
+- one Jev request per passage, asking whether a member of the public is speaking and the stance on a five-step scale,
+  mapped to the same three buckets;
+- gated on the existing screen (`mentions_data_center_p`), so meetings with no data-center talk cost nothing;
+- about $0.00004 per passage (about 900 input tokens at $0.042 per million), so roughly $0.50 to $2 for 12,000 to
+  50,000 passages. These counts are assumptions until a dry run counts the real passages;
+- kept separate (`unit = passage`) and never merged with speaker counts, because a passage can hold several speakers.
+
+This waits until the pilot shows the speaker-level numbers are worth extending.
+
+## Constraints
+
+- **Do not use American Sentiment's data.** `community_events.py` blocks `americansentiment.com` and `prophecygov.com`
+  because their terms forbid competitors' use. Stance comes from our own transcripts only.
+- **Paid runs need the owner's yes for that run** (`AGENTS.md`). The pilot has it; a wider run does not.
+- **No fabricated data:** no stance without a row, no row without a named speaker, no quote that is not in the transcript.
+- **Auto-captions** have no speaker labels and often garble names, so some speakers will be missed or split in two.
 
 ## Phasing
 
-1. Add `stance` and `stance_evidence` to the extraction prompt (new version) and schema; add a dbt model with one row per
-   voice (`decision_voice`: decision, person, stance, bucket, source) with a primary key and foreign keys; run the
-   free validation layers.
-2. Jev backfill over stored voice text (about $0.11, owner's yes), with the automated validation report.
-3. Decision-level roll-up for Full, the `public_comment` field in the lite prompt (new version), `analysis_tier` on the mart; stance chips and the three-bucket bar on `DecisionDetail`; meeting-metrics catalog entries; the Matrix map Dot map,
-   Tiles and Diverging layers read them (`source = extraction`).
-4. Jev passage pass on data-center mention passages to cover transcripts the extraction has not reached
-   (`source = passage`), as designed below.
-5. Separate project: comment-level segmentation.
+1. **Done in code (2026-11-24), not yet run:** `public_participation[]` in both prompts; `PublicComment` in
+   `llm.gemini.part1_schema` with tests; the bronze change, `public_stance_bucket()`, `public_comment` and
+   `decision_public_stance`. The dbt models have not been parsed or built: the session could not install dbt packages
+   or reach the warehouse.
+2. Build the dbt models against the warehouse; add the stance fields to the decision API; bar and chips on
+   `DecisionDetail`; checks 1 to 3 as a package CLI with tests.
+3. Run the 40-meeting pilot, write the pilot report with links, and decide from it.
+4. Wider runs on new analyses (the prompt now emits stance on every new meeting), catalog entries, Matrix map layers.
+5. Passage pass for screen-only meetings; `analysis_tier` on the marts; comment-level segmentation as its own project.
 
 ## Decisions
 
-| Question | Decision |
-| --- | --- |
-| First topic | **Data centers** (owner, 2026-11-24): the mention table already has evidence, timestamps and site links. |
-| Where stance comes from first | **The existing extraction** (owner, 2026-11-24): add a per-voice `stance` to the Gemini call and backfill stored voices with Jev; the passage pass is a later coverage extension. |
-| Scale | **Five-step gradient** (owner asked for a gradient, 2026-11-24), not a yes/no label. |
-| Buckets | **Three: against, neutral, for** (owner, 2026-11-24): some passages are neither. Neutral includes procedural and no-clear-stance passages and is shown, not dropped. |
-| Wrong-side flip | A flip is now support vs against; a passage moving between neutral and a side is one step, not a flip. |
-| Agreement bar | The layered automated bar above (owner has no person to label, 2026-11-24). Best judgement; change it by adding a dated line here. |
+Change any of these by adding a dated line, not by rewriting.
+
+| Date | Decision | By |
+| --- | --- | --- |
+| 2026-11-24 | Data centers are the first topic. | owner |
+| 2026-11-24 | A gradient, reported in three buckets (against, neutral, for), because some comments are neither. | owner |
+| 2026-11-24 | No human labelling; checks must be automated. | owner |
+| 2026-11-24 | Extend the existing extraction rather than add a separate pass; handle light meetings too. | owner |
+| 2026-11-24 | Pilot 20 light and 20 full meetings from different counties and states, with linked pages, before anything wider. | owner |
+| 2026-11-24 | Carry stance in `public_participation[]` (one row per public speaker per item) instead of `personal_stories`; drop the per-speaker five-step strength; unknown is not neutral; no backfill by inference. | review, best judgement |
+| 2026-11-24 | Pilot runs light on all 40 and full on 20 of them, so 20 meetings are read by both tiers. | review, best judgement |
+| 2026-11-24 | Check bars: 98 of 100 quotes found, at most 5 of 100 wrong-side flips, 95 of 100 constructed cases. | review, best judgement |
 
 ## Open questions
 
-- Confirm the vermilion and blue pair with a colour-blind simulation before the design is final.
-- Where to draw the line between neutral and a weak side (rung 0 only, or also low-confidence sides); decide from the validation sample.
+- Should council members' and staff positions be shown beside the public bar, from `competing_views.held_by` and the
+  vote, or kept separate as now?
+- How to carry `analysis_tier` into `event_meeting` (needs an issue).
+- Whether unnamed speakers ("a resident on Oak Street") should be counted with a generated slug; today they are skipped.

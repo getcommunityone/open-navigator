@@ -36,6 +36,21 @@ Apply only to **`decisions[]`** (contested items). Do **not** add `human_element
     * **Very High:** Shouting, walkouts, gaveling down, personal attacks, explicit threats of legal action or electoral retaliation, crying.
     * **Not applicable:** Stakeholder group was **not present and did not speak at all** — no comments, no questions, nothing on the record.
     - **Floor rule:** If a group spoke *in any way* — even one polite question or a single neutral comment — the intensity is **at least Low**. Never pair "Not applicable" with a `plain_summary` that describes anything they said or asked. If you wrote a non-empty `plain_summary` for a group, its intensity cannot be "Not applicable".
+## Public Comment Stance (`public_participation[]`)
+Emit one row per **member of the public or outside stakeholder** (resident, business owner, advocate, applicant's representative, organization spokesperson) who addressed the body, whether or not they told a personal story. Do **not** add rows for members of the body or staff; their position is the vote and `competing_views.held_by`.
+- `speaker_id`: the speaker's `people[].person_id`. Add them to `people[]` first. Skip a speaker who cannot be identified at all; never invent a name.
+- `decision_id`: the `decisions[].decision_id` or `uncontested_items[].item_id` the comment is about; `null` for general public comment not tied to an item.
+- `stance`: the speaker's position **toward the action being decided** (not toward the topic in general), exactly one of:
+    * **For:** asks the body to take the action, or speaks in its favor.
+    * **Against:** asks the body not to take the action, or speaks against it.
+    * **Mixed or neutral:** supports with conditions that change the action ("pass it, but only with a 1,000-ft setback"), asks for a delay without taking a side, asks questions, or gives information only.
+    * **Not stated:** the comment does not address the action.
+  Decide from what the speaker said. Never infer a stance from their role, employer, or name.
+- `stance_evidence`: the speaker's own words that show the stance, quoted verbatim from the transcript, 25 words or fewer; `null` if no single phrase shows it. Never paraphrase here.
+- `summary`: one sentence (20 words or fewer) on what they said.
+- `timestamp_start_seconds` / `timestamp_end_seconds`: from the transcript cues, else `null`. Never invent times.
+If no member of the public spoke, emit `"public_participation": []`.
+
 ## Strict Entity & Cross-Query Linking
 - Person slug rule: `person_firstname_lastname_role_jurisdiction`
 - Organization slug rule: `org_shortname_jurisdiction`
@@ -221,6 +236,17 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
       "org_name": "string",
       "org_type": "string",
       "ntee_code": "string or null"
+    }
+  ],
+  "public_participation": [
+    {
+      "speaker_id": "string — people[].person_id of the public speaker",
+      "decision_id": "string or null — decisions[].decision_id or uncontested_items[].item_id the comment is about",
+      "stance": "one of: For, Against, Mixed or neutral, Not stated",
+      "stance_evidence": "string or null — verbatim quote, 25 words or fewer",
+      "summary": "string — one sentence, 20 words or fewer",
+      "timestamp_start_seconds": "number or null",
+      "timestamp_end_seconds": "number or null"
     }
   ],
   "legislation": [

@@ -14,9 +14,14 @@ Extract public-comment speakers from the Gemini AI analysis JSONB.
 Source: bronze.bronze_events_analysis_ai.structured_analysis -> 'public_participation'
 Target: bronze.bronze_public_participation_from_ai
 
-Each element is one speaker turn during public comment:
-  speaker_id, topic, stance, summary, primary_theme, place_refs,
-  timestamp_start_seconds, timestamp_end_seconds.
+Each element is one public speaker's comment:
+  speaker_id, decision_id, stance, stance_evidence, topic, summary, primary_theme,
+  place_refs, timestamp_start_seconds, timestamp_end_seconds.
+
+decision_id / stance_evidence were added with the prompt version that asks for
+public_participation[] in both the full and lite prompts (meeting-sentiment-design.md).
+A speaker can comment on more than one item, so the key gains '_' || decision_id
+when one is present; rows without a decision_id keep the original key.
 
 Powers the `engagement` interestingness component (speaker count + duration).
 
@@ -60,6 +65,8 @@ participation_extracted AS (
         source_event_id,
         source_ai_model,
         pp->>'speaker_id'    as speaker_id,
+        nullif(btrim(pp->>'decision_id'), '') as decision_id,
+        pp->>'stance_evidence' as stance_evidence,
         pp->>'topic'         as topic,
         pp->>'stance'        as stance,
         pp->>'summary'       as summary,
@@ -76,12 +83,14 @@ participation_extracted AS (
 )
 
 SELECT
-    source_event_id || '_' || speaker_id as source_event_id_speaker_id,
+    source_event_id || '_' || speaker_id || coalesce('_' || decision_id, '') as source_event_id_speaker_id,
     source_event_id,
     source_ai_model,
     speaker_id,
+    decision_id,
     topic,
     stance,
+    stance_evidence,
     summary,
     primary_theme,
     place_refs,
