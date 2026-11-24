@@ -19,8 +19,8 @@ sections put the figure full width under the text because they are wide.
 | # | Section | What it shows | Use it to |
 | --- | --- | --- | --- |
 | 01 | **Tiles** | One box per geography, shaded by rank. Flat, By region or By quarter regroups the boxes; each group is headed `name · count (share %)` | See every geography at once |
-| 02 | **Share** | A 100% stacked bar, a 10x10 waffle and a list, for states of the U.S. or counties of a state | See each part's share of the whole |
-| 03 | **Pivot** | Geographies as rows, up to 8 metrics as columns, each column shaded; click a header to sort | Compare several metrics side by side |
+| 02 | **Share** | A 100% stacked bar with labelled segments, a 10x10 waffle and a list, for states of the U.S. or counties of a state | See each part's share of the whole |
+| 03 | **Pivot** | Geographies as rows, up to 8 metrics as columns, each column shaded, a Share column and a Total row for count metrics; click a header to sort | Compare several metrics side by side |
 | 04 | **Compare** | A dumbbell per geography: hollow dot for the earliest vintage, filled dot for the selected one, the change on the right | See who moved, and by how much |
 | 05 | **Bars** | One horizontal bar per geography for the metric, with region chips | Rank geographies, one region at a time |
 | 06 | **Trend** | The metric across every vintage, one line per chosen geography plus the median across states | See change over time |
@@ -29,7 +29,7 @@ sections put the figure full width under the text because they are wide.
 | 09 | **Diverging** | Bars left or right of the median geography, sorted by value by default | See who is above or below the middle |
 | 10 | **Scatter** | One metric against another, coloured by Census region, with a trend line, slope and r-squared | See whether two metrics move together |
 | 11 | **Dot map** | The country as a grid of dots; click a state for its counties | Read the geography of a metric |
-| 12 | **Table** | Every geography with every metric; search, sort and **Download CSV** | Take the numbers away |
+| 12 | **Table** | Every geography with every metric, bars, change and trend; search, sort and **Download CSV** | Take the numbers away |
 
 ## The section band
 
@@ -63,11 +63,39 @@ states; while a state's counties are open it says no data table is available, be
 
 ## Table and CSV
 
-Section 12 lists every geography with every metric. The **search** box (`q`) filters by name, state code or region without
-regard to case. Column headers sort (they have `aria-sort`). **Download CSV** saves the rows exactly as filtered and sorted,
-named `matrix-map-<metric>-<vintage>.csv`. The file has a header row, CRLF line ends, quotes around any value that contains a
-comma, quote or line break, and an **empty cell** for a missing value. The columns are state, state code, FIPS, region, vintage
-(a string such as `2023`, never `2,023`) and one column of raw numbers per metric.
+Section 12 lists every geography with every metric. The header stays fixed while the body scrolls. The **search** box (`q`)
+filters by name, state code or region without regard to case. Column headers sort (they have `aria-sort`): State, Region, each
+metric and Change. `sort=change` orders by the change column, `sort=region` by Census region; the other values are `name` or a
+metric slug, and `dir` is `asc` or `desc`. Rows glide to their new places when the sort changes (not under reduced motion).
+
+- **Bars.** Each metric cell shows its formatted value and a thin bar. The bar's length is the value's position between that
+  metric's lowest and highest value among the rows currently shown, so searching rescales the bars. A missing value has no bar.
+- **Change.** The selected metric from the earliest vintage in the bundle to the selected vintage, in the metric's unit
+  (`+5.3 pp` for percentage metrics, a signed formatted number otherwise). It reads `—` when either value is missing, and is never
+  computed from a missing value. The colour follows Compare: good is violet, bad is vermilion, and for lower-is-better metrics a
+  fall is good.
+- **Trend.** A sparkline of the selected metric across every vintage in the bundle, ending in a dot at the selected vintage. The
+  line breaks where a vintage has no value instead of bridging it, and a geography with fewer than two values shows `—`. Every bar
+  and sparkline has a text equivalent (the cell text, and for the sparkline each vintage's value, read by screen readers).
+
+**Download CSV** saves the rows exactly as filtered and sorted, named `matrix-map-<metric>-<vintage>.csv`. The file has a header
+row, CRLF line ends, quotes around any value that contains a comma, quote or line break, and an **empty cell** for a missing
+value. The columns are state, state code, FIPS, region, vintage (a string such as `2023`, never `2,023`), one column of raw
+numbers per metric, then `Change` (the selected metric's difference, in its own unit) and one column per vintage for the selected
+metric, headed by the year (`2019`, `2021`, ...). The file holds values only.
+
+## Share and Pivot
+
+**Share** labels each segment of the 100% bar above it with a thin leader line to the segment's centre, on a second or third row
+when neighbours would collide. The whole-number percentage sits inside a segment that has room, in whichever of ink or white
+reads better on its colour; a segment too narrow for its number carries the percentage in its label instead (`Maine 2%`).
+Percentages are rounded by largest remainder, so they add up to 100. Hovering or focusing a segment highlights it and its row in
+the list; the legend chips still switch segments off.
+
+**Pivot** has heavy rules above and below the header, hairline row rules and sort arrows (`↕` unsorted, `↓` / `↑` sorted). When the
+selected metric is a count it adds a **Share** column: each row's share of that metric's total across all rows, with a thin bar.
+The **Total** row adds up count columns over the rows shown (per region when grouped); a metric that cannot be summed, such as a
+rate, reads `—`. Hovering or focusing a Pivot row picks out that geography's tile in Tiles (section 01) and dims the others.
 
 ## Themes
 
@@ -136,7 +164,7 @@ as an error, which is why the page checks for it explicitly.
   One component per section and the shared pieces are in `web_app/src/components/matrix/`: `SectionShell` (spread layout,
   animated title, data table toggle), `SectionBand`, `LegendChips`, `Tooltip`, `DivergingBars`, and `*Section.tsx` files.
   The dot map is `web_app/src/components/DotMatrixMap.tsx`.
-- Pure helpers with tests: `web_app/src/utils/matrixTable.ts` (`toCsv`, `filterRows`, `stackByRegion`, legend toggles and the
+- Pure helpers with tests: `web_app/src/utils/matrixTable.ts` (`toCsv`, `filterRows`, `stackByRegion`, `barFraction`, `signedChange`, `sparklinePath`, `layoutLabels`, legend toggles and the
   `off` parameter), `matrixMapMath.ts` (scales, median, quantiles, regression), `folioThemes.ts` and `folioRamp.ts`
   (themes and contrast).
 - Data: `/data/census-map/manifest.json`, `{vintage}/state_metrics.json`, `{vintage}/county_metrics.json`, written by

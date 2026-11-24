@@ -427,6 +427,22 @@
     transform: scaleX(1);
   }
 }
+@keyframes folio-fadein {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes folio-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 @keyframes folio-pop {
   from {
     opacity: 0;
@@ -863,15 +879,52 @@
   background: var(--violet-ink);
   transition: width var(--d-3) var(--ease-out), left var(--d-3) var(--ease-out);
 }
-.folio-stackbar {
-  display: flex;
-  height: 28px;
+.folio-sharefig {
+  position: relative;
   width: 100%;
+}
+.folio-stackbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  height: 38px;
   overflow: hidden;
   border: 1px solid var(--ink);
+  box-sizing: border-box;
+}
+.folio-stacktext {
+  display: block;
+  padding-left: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 36px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.folio-sharelabel {
+  position: absolute;
+  font-size: var(--t-micro);
+  line-height: 14px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  text-align: center;
+  z-index: 2;
+  background: var(--paper);
+}
+.folio-shareleader {
+  position: absolute;
+  z-index: 1;
+  width: 1px;
+  background: var(--ink-3);
+}
+.folio-fade {
+  animation: folio-fadein var(--d-3) var(--ease-out) var(--delay, 0ms) backwards;
 }
 .folio-stackseg {
   height: 100%;
+  cursor: pointer;
   transform-origin: left center;
   animation: folio-grow var(--d-3) var(--ease-out) var(--delay, 0ms) backwards;
   transition: width var(--d-3) var(--ease-out), opacity var(--d-2) var(--ease-std);
@@ -897,7 +950,7 @@
   min-width: 14rem;
 }
 .folio-share-list li {
-  padding: 2px 0;
+  padding: 2px 4px;
   border-bottom: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
 }
 .folio-diverge {
@@ -921,6 +974,9 @@
 .folio-prime .folio-in,
 .folio-prime .folio-grow,
 .folio-prime .folio-pop,
+.folio-prime .folio-fade,
+.folio-prime .folio-spark-line,
+.folio-prime .folio-spark-dot,
 .folio-prime .folio-stackseg {
   animation-play-state: paused;
 }
@@ -934,6 +990,9 @@
     transform: none !important;
   }
   .folio-stackseg,
+  .folio-fade,
+  .folio-spark-line,
+  .folio-spark-dot,
   .folio-in,
   .folio-grow,
   .folio-pop {
@@ -946,4 +1005,147 @@
     transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Share: the row in the list that matches the hovered segment */
+.folio-share-list li.is-hot {
+  background: var(--paper-raised);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+/* Tiles: a Pivot row that is hovered or focused picks out its tile and quiets the rest */
+.folio-tiles li {
+  transition: opacity var(--d-2) var(--ease-std);
+}
+.folio-tiles[data-hot] li:not(.is-hot):not(.folio-group-label) {
+  opacity: 0.3;
+}
+.folio-tiles li.is-hot .folio-tile {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+/* Tables in the reference style: heavy rule above and below the header, hairline row rules, sort arrows */
+.folio-sortbtn {
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+  white-space: nowrap;
+}
+.folio-sortbtn:hover {
+  color: var(--ink);
+}
+.folio-dtable {
+  border-collapse: collapse;
+  table-layout: auto;
+  color: var(--ink);
+}
+.folio-dtable td {
+  white-space: nowrap;
+}
+.folio-dtable thead th {
+  white-space: normal;
+  vertical-align: bottom;
+}
+.folio-dtable thead th .folio-sortbtn {
+  white-space: normal;
+}
+.folio-dtable thead th {
+  background: var(--paper-raised);
+  border-top: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  padding: 8px 10px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+.folio-dtable thead th .folio-sortbtn {
+  text-transform: none;
+}
+.folio-dtable tbody td,
+.folio-dtable tbody th[scope='row'],
+.folio-dtable tfoot td,
+.folio-dtable tfoot th[scope='row'] {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+.folio-dtable tfoot td,
+.folio-dtable tfoot th[scope='row'] {
+  border-top: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  font-weight: 500;
+  background: var(--paper);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.folio-dtable tbody tr:hover > th,
+.folio-dtable tbody tr:hover > td:not([style*='background']),
+.folio-dtable tbody tr:focus-within > td:not([style*='background']) {
+  background: var(--paper-raised);
+}
+.folio-ibar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.folio-ibar-track {
+  width: 56px;
+  height: 4px;
+  flex-shrink: 0;
+  background: var(--neutral-data);
+  position: relative;
+}
+.folio-ibar-fill {
+  display: block;
+  height: 4px;
+  background: var(--violet-ink);
+  transition: width var(--d-2) var(--ease-std);
+}
+
+/* Matrix table: fixed header, scrolling body */
+.folio-mtable-scroll {
+  max-height: 32rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.folio-mtable {
+  min-width: 960px;
+  table-layout: auto;
+}
+.folio-mtable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.folio-mtable thead th.folio-sticky {
+  z-index: 3;
+}
+.folio-mtable tbody th.folio-sticky {
+  background: var(--paper);
+  z-index: 1;
+  white-space: nowrap;
+}
+.folio-mtable td,
+.folio-mtable th {
+  white-space: nowrap;
+}
+.folio-mtable td.folio-muted-cell {
+  color: var(--ink-2);
+}
+.folio-spark-line {
+  stroke-dasharray: 1;
+  animation: folio-draw var(--d-4) var(--ease-out) 0ms backwards;
+}
+.folio-spark-dot {
+  animation: folio-fadein var(--d-2) var(--ease-out) var(--d-3) backwards;
 }

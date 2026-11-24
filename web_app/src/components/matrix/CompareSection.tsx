@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { censusMetricRankDirection } from '../../utils/censusDataDictionary'
 import { niceScale } from '../../utils/matrixMapMath'
+import { changeTone } from '../../utils/matrixTable'
 import { signedChange } from './data'
 import { useElementWidth, useSection } from './hooks'
 import { Empty, Seg } from './parts'
@@ -136,8 +137,8 @@ function Dumbbell({ ctx, pts, base, lowerBetter, title }: { ctx: MatrixCtx; pts:
   const h = TOP + pts.length * rH + 30
   const good = 'var(--violet)'
   const bad = 'var(--vermilion)'
-  const dirColor = (d: number) => (lowerBetter ? (d < 0 ? good : bad) : d >= 0 ? good : bad)
-  const dirInk = (d: number) => (lowerBetter ? (d < 0 ? 'var(--violet-ink)' : 'var(--vermilion-ink)') : d >= 0 ? 'var(--violet-ink)' : 'var(--vermilion-ink)')
+  const dirColor = (d: number) => (changeTone(d, lowerBetter) === 'good' ? good : bad)
+  const dirInk = (d: number) => (changeTone(d, lowerBetter) === 'good' ? 'var(--violet-ink)' : 'var(--vermilion-ink)')
   return (
     <div ref={host}>
       <p className="folio-chart-title">{title}</p>

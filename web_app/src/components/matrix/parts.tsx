@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { STEP_MID_T } from '../../utils/folioRamp'
 import { stepColor } from './data'
-import type { MatrixCtx } from './types'
+import { delayVar, type MatrixCtx } from './types'
 
 /** Segmented control: one pressed button. */
 export function Seg({
@@ -31,6 +31,51 @@ export function Empty({ children }: { children: ReactNode }) {
     <p className="folio-muted" role="status">
       {children}
     </p>
+  )
+}
+
+/**
+ * A sortable column header: a real button inside `<th scope="col" aria-sort>`, with the reference's arrows (↕ unsorted,
+ * ↓ descending, ↑ ascending). The arrow is decorative; `aria-sort` carries the state.
+ */
+export function SortTh({
+  label,
+  active,
+  dir,
+  onSort,
+  numeric,
+  className = '',
+}: {
+  label: ReactNode
+  active: boolean
+  dir: 'asc' | 'desc'
+  onSort: () => void
+  numeric?: boolean
+  className?: string
+}) {
+  return (
+    <th scope="col" className={`${numeric ? 'text-right' : 'text-left'} ${className}`.trim()} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className="folio-sortbtn" onClick={onSort}>
+        {label} <span aria-hidden="true">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+      </button>
+    </th>
+  )
+}
+
+/**
+ * A number with a thin bar beside it (the reference's inline bar). `fraction` is 0..1 or null (no bar for a missing value).
+ * The bar repeats the number's position and is hidden from assistive tech: the text is its equivalent.
+ */
+export function InlineBar({ fraction, children, delayMs = 0 }: { fraction: number | null; children: ReactNode; delayMs?: number }) {
+  return (
+    <span className="folio-ibar">
+      {fraction != null && (
+        <span className="folio-ibar-track" aria-hidden="true">
+          <span className="folio-ibar-fill folio-grow" style={{ width: `${Math.round(fraction * 1000) / 10}%`, ...delayVar(delayMs) }} />
+        </span>
+      )}
+      <span>{children}</span>
+    </span>
   )
 }
 

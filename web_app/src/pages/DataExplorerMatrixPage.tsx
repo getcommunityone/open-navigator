@@ -38,6 +38,7 @@ const isSection = (v: string | null): v is SectionId => SECTIONS.some((s) => s.i
 export default function DataExplorerMatrixPage() {
   const [sp, setSp] = useSearchParams()
   const reduced = usePrefersReducedMotion()
+  const [hotFips, setHotFips] = useState<string | null>(null)
 
   // The router applies URL changes after a render, so two quick changes could each start from the same old URL. Keep the
   // newest params in a ref: every change builds on the previous one, then replaces the URL (never adds history).
@@ -157,6 +158,8 @@ export default function DataExplorerMatrixPage() {
     sortRaw,
     sortDir: sp.get('dir') === 'asc' ? 'asc' : 'desc',
     geoNoun: geoNounFor(rows.length),
+    hotFips,
+    setHotFips,
   }
 
   // Section in view (band + `layout` param), and the deep link on load.

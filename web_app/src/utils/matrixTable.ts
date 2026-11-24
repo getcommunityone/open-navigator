@@ -96,3 +96,122 @@ export function writeOff(raw: string | null, section: string, off: ReadonlySet<s
   const next = [...keep, ...[...off].map((k) => `${section}:${k}`)]
   return next.length ? next.join(',') : null
 }
+
+const finite = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v)
+
+/** Where `value` sits between `min` and `max`, 0..1, for the thin bar beside a number. Null for a missing value; 1 when min === max. */
+export function barFraction(value: number | null | undefined, min: number, max: number): number | null {
+  if (!finite(value) || !Number.isFinite(min) || !Number.isFinite(max)) return null
+  if (min === max) return 1
+  return Math.min(1, Math.max(0, (value - min) / (max - min)))
+}
+
+/**
+ * Change between two readings in the metric's own unit: "+5.3 pp" for a percentage metric (`unit === 'pp'`), otherwise the
+ * signed `format`ted magnitude. Null when either reading is missing: a change is never computed from a missing value.
+ */
+export function signedChange(
+  latest: number | null | undefined,
+  base: number | null | undefined,
+  unit: 'pp' | 'number',
+  format: (magnitude: number) => string = (a) => String(a),
+): string | null {
+  if (!finite(latest) || !finite(base)) return null
+  const d = latest - base
+  const sign = d > 0 ? '+' : d < 0 ? '−' : ''
+  const a = Math.abs(d)
+  return unit === 'pp' ? `${sign}${a.toFixed(a >= 10 ? 0 : 1)} pp` : `${sign}${format(a)}`
+}
+
+/** Good or bad for a change `d` (the Compare section's rule: rising is good unless lower is better for the metric). */
+export function changeTone(d: number, lowerBetter: boolean): 'good' | 'bad' {
+  return lowerBetter ? (d < 0 ? 'good' : 'bad') : d >= 0 ? 'good' : 'bad'
+}
+
+const SPARK_PAD = 3
+/** The drawn position of every value (null for a missing one): evenly spaced across `width`, higher values higher up. */
+export function sparklinePoints(values: Array<number | null>, width: number, height: number): Array<{ x: number; y: number } | null> {
+  const xs = values.filter(finite)
+  const lo = xs.length ? Math.min(...xs) : 0
+  const hi = xs.length ? Math.max(...xs) : 0
+  const n = values.length
+  const x = (i: number) => (n < 2 ? width / 2 : SPARK_PAD + (i / (n - 1)) * (width - 2 * SPARK_PAD))
+  const y = (v: number) => (hi === lo ? height / 2 : height - SPARK_PAD - ((v - lo) / (hi - lo)) * (height - 2 * SPARK_PAD))
+  return values.map((v, i) => (finite(v) ? { x: x(i), y: y(v) } : null))
+}
+const r1 = (n: number) => String(Math.round(n * 10) / 10)
+
+/**
+ * SVG path for a sparkline over `values` (one per vintage). A missing value breaks the line: the next present value starts a
+ * new `M` sub-path, so the line is never drawn across a gap. `last` is the point of the final present value.
+ */
+export function sparklinePath(values: Array<number | null>, width: number, height: number): { d: string; last: { x: number; y: number } | null } {
+  const parts: string[] = []
+  let pen = false
+  let last: { x: number; y: number } | null = null
+  for (const p of sparklinePoints(values, width, height)) {
+    if (!p) {
+      pen = false
+      continue
+    }
+    parts.push(`${pen ? 'L' : 'M'}${r1(p.x)} ${r1(p.y)}`)
+    pen = true
+    last = p
+  }
+  return { d: parts.join(' '), last }
+}
+
+/** True when a value label fits inside its stacked-bar segment (13 px text) of `segWidth` px. */
+export function fitsInside(segWidth: number, text: string): boolean {
+  return segWidth >= text.length * 7.6 + 12
+}
+/** Rough width of an 11 px label, for placing share labels without measuring the DOM. */
+export const labelWidth = (text: string): number => Math.ceil(text.length * 6.4) + 2
+
+export interface LabelBox {
+  /** Centre of the segment the label points at, in px. */
+  cx: number
+  /** Width of the label text, in px. */
+  w: number
+}
+export interface LabelPlace {
+  left: number
+  /** 0 = the row nearest the bar; a label moves up a row when it, or its leader line, would collide. */
+  row: number
+}
+
+/**
+ * Places labels left to right in up to `maxRows` rows above a bar. A label takes the nearest row where neither it nor its
+ * leader line (the vertical tick down to the segment centre) crosses a label or leader already placed. In each row it tries
+ * centred on its segment, then ending at the segment, then starting at it, always keeping the leader under the text.
+ * If no row keeps its leader clear it accepts a leader that crosses another label; if no row is free at all it goes in the top row.
+ */
+export function layoutLabels(boxes: LabelBox[], width: number, maxRows = 5, gap = 6): LabelPlace[] {
+  const placed: Array<{ l: number; r: number; row: number; cx: number }> = []
+  const clamp = (left: number, w: number) => Math.min(Math.max(0, left), Math.max(0, width - w))
+  return boxes.map((b) => {
+    const options = [b.cx - b.w / 2, b.cx + 4 - b.w, b.cx - 4].map((l) => clamp(l, b.w)).filter((l) => b.cx >= l && b.cx <= l + b.w)
+    let pick: LabelPlace | null = null
+    // First pass keeps leaders clear of other labels too; the second only keeps labels from overlapping each other.
+    for (const strict of [true, false]) {
+      for (let k = 0; k < maxRows && !pick; k++) {
+        for (const left of options) {
+          const right = left + b.w
+          const clash = placed.some(
+            (p) =>
+              (p.row === k && left < p.r + gap && right > p.l - gap) ||
+              (strict && p.row < k && b.cx >= p.l - 2 && b.cx <= p.r + 2) ||
+              (strict && p.row > k && p.cx >= left - 2 && p.cx <= right + 2),
+          )
+          if (!clash) {
+            pick = { left, row: k }
+            break
+          }
+        }
+      }
+    }
+    pick ??= { left: options[0] ?? clamp(b.cx - b.w / 2, b.w), row: maxRows - 1 }
+    placed.push({ l: pick.left, r: pick.left + b.w, row: pick.row, cx: b.cx })
+    return pick
+  })
+}

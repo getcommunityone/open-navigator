@@ -78,6 +78,9 @@ export interface MatrixCtx {
   sortDir: 'asc' | 'desc'
   /** Count of geographies, as "N states and territories". */
   geoNoun: string
+  /** The geography (FIPS) a Pivot row is hovered or focused on; Tiles highlights the matching tile. Null when none. */
+  hotFips: string | null
+  setHotFips: (fips: string | null) => void
 }
 
 export const delayVar = (ms: number): CSSProperties => ({ '--delay': `${Math.round(ms)}ms` }) as CSSProperties
