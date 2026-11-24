@@ -91,7 +91,7 @@ def _steps_arg(argv: list[str]) -> list[str]:
 
 def test_list_load_group_shows_only_load_steps_and_is_enabled(client):
     body = client.get("/deployments/?group=load").json()
-    assert [s["key"] for s in body["available_steps"]] == ["load-analysis", "dbt-gold"]
+    assert [s["key"] for s in body["available_steps"]] == ["promote-events", "load-analysis", "dbt-gold"]
     assert all(s["group"] == "load" for s in body["available_steps"])
     assert body["enabled"] is True  # no prod flag needed: it only writes the local warehouse
 
@@ -112,7 +112,7 @@ def test_real_load_launch_needs_no_prod_flag(client, mod):
     r = client.post("/deployments/launch", json={"group": "load", "dry_run": False})
     assert r.status_code == 200, r.text
     assert r.json()["job_id"].startswith("load_")
-    assert _steps_arg(mod.launched[0]) == ["load-analysis", "dbt-gold"]  # the group's defaults
+    assert _steps_arg(mod.launched[0]) == ["promote-events", "load-analysis", "dbt-gold"]  # the group's defaults
 
 
 def test_real_deploy_launch_is_still_blocked_without_the_prod_flag(client, mod):

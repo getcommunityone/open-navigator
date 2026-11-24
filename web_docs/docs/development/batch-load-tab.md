@@ -20,12 +20,19 @@ Deep links: `?type=load` and `?type=deployment` (tab 1 has no parameter).
 
 ## Tab 2: Load
 
-Two steps run in order. A failing step stops the run, and **Stop** ends the running step.
+Three steps run in order. A failing step stops the run, and **Stop** ends the running step.
 
-1. **Load analyses - files → bronze** runs `python -m llm.enrichment.load_analysis_cache_to_bronze`. It reads the saved
+1. **Promote events - videos → civic_event** (#827) runs
+   `python -m ingestion.youtube.promote_to_c1_event --local-warehouse`. An analysis can only be stored against an event
+   row, so this step gives every analysed video one before the load looks for it. Without it those analyses are
+   skipped as `no_event`. It upserts on the video id, so running it again changes nothing. It promotes only videos
+   that have an analysis stamp and a date, never the raw scrape. `--local-warehouse` makes it write to the database
+   the loader uses (`NEON_DATABASE_URL_DEV`, else `localhost:5433`) and never to `NEON_DATABASE_URL`; without that
+   flag the command's own default can resolve to production. Untick the step to skip it.
+2. **Load analyses - files → bronze** runs `python -m llm.enrichment.load_analysis_cache_to_bronze`. It reads the saved
    `02_analysis/*.json` files and upserts them into `bronze.bronze_events_analysis_ai`. It only reads files; it never
    moves, renames or deletes one.
-2. **Rebuild gold - dbt** runs `dbt run --select int_preferred_event_analysis+ bronze_decisions_from_ai+`. That rebuilds
+3. **Rebuild gold - dbt** runs `dbt run --select int_preferred_event_analysis+ bronze_decisions_from_ai+`. That rebuilds
    `event_decision`, `event_meeting`, `event_topic`, `event_place` and the other marts that read the analysis, then the
    `on-run-end` hook refreshes the `public` views the website reads.
 
@@ -45,7 +52,7 @@ Each step of a Load run records what it did, and the tab shows it the way tab 1 
 | Where | What you see |
 |---|---|
 | A run's header | `N files read · N loaded · N skipped · N file errors`, then `N of N models built` once dbt has run |
-| A step's row | count chips: read, loaded, skipped, errors for the loader; models, built, skipped, failed for dbt |
+| A step's row | count chips: videos, events, recordings for promotion; read, loaded, skipped, errors for the loader; models, built, skipped, failed for dbt |
 | An opened step | every reason with its count and what to do about it, a search box, and a paged table of the items: outcome, reason, file (with a link to the video), and the error text |
 
 Click a reason to filter the table to it. Errors are listed before skips, in the reasons and in the table. The log tail stays below the table.
