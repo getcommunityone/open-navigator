@@ -1,3 +1,5 @@
 topic_id,name,query_id,keywords
 100001,Data centers,data-centers,data center|data centre|data centers|hyperscale|server farm
 100002,Water fluoridation,water-fluoridation,fluoridation|fluoride|water fluoridation
+100003,Short-term rentals,short-term-rentals,short-term rental|short term rental|short-term rentals|short term rentals|vacation rental|airbnb|vrbo
+100004,Flock and license plate readers,license-plate-readers,license plate reader|license plate readers|license plate camera|flock safety|flock camera|flock cameras|alpr

@@ -3339,10 +3339,10 @@ function UnifiedSearchInner() {
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Try searching for:</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                { query: 'dental health', icon: HeartIcon, description: 'Find organizations and meetings about dental health' },
-                { query: 'affordable housing', icon: BuildingOfficeIcon, description: 'Discover housing-related initiatives' },
-                { query: 'school board', icon: CalendarIcon, description: 'View school board meetings and decisions' },
-                { query: 'mental health', icon: HeartIcon, description: 'Explore mental health programs and services' },
+                { query: 'data centers', icon: BuildingOfficeIcon, description: 'Meetings and decisions about data centers' },
+                { query: 'short-term rentals', icon: BuildingOfficeIcon, description: 'Meetings and decisions about short-term rentals' },
+                { query: 'Flock cameras', icon: CalendarIcon, description: 'Meetings and decisions about Flock cameras' },
+                { query: 'license plate readers', icon: CalendarIcon, description: 'Meetings and decisions about license plate readers' },
               ].map((example, idx) => (
                 <button
                   key={idx}
