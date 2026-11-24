@@ -27,7 +27,11 @@ This page documents all data sources, standards, and research contributions used
  </a>
  <a href="#-comparative--deliberative-analysis" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #3F51B5'}}>
  <strong>🆚 Comparative & Deliberative Analysis</strong><br/>
- <span style={{fontSize: '0.9em', color: '#666'}}>AllSides, ProCon.org, iSideWith, OnTheIssues, Kialo, Ground News, American Sentiment, ProphecyGov</span>
+ <span style={{fontSize: '0.9em', color: '#666'}}>AllSides, ProCon.org, iSideWith, OnTheIssues, Kialo, Ground News</span>
+ </a>
+ <a href="#proprietary-competitors" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #E91E63'}}>
+ <strong> Proprietary competitors</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>American Sentiment, ProphecyGov, GroundVue, USLege, Hamlet</span>
  </a>
  <a href="#government-data" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #4CAF50'}}>
  <strong> Government Data</strong><br/>
@@ -502,10 +506,8 @@ This is separate from the word-finding API and has different pricing.
 - [OnTheIssues](#ontheissues)
 - [Kialo](#kialo)
 - [Ground News](#ground-news)
-- [American Sentiment (reference)](#american-sentiment-reference)
-- [ProphecyGov (reference)](#prophecygov-reference)
 
-These platforms present **multiple positions on the same issue side by side** — pro/con arguments, left/center/right framing, candidate stances, structured debate trees, and local meeting / public-comment pulse products. We cite them as **reference and design inspiration** for Open Navigator's "competing views" / "argued by" analysis and our own meeting-sentiment work. **We do not redistribute their data, ratings, or argument content**; if you use anything from these sites, cite the specific page and follow each site's terms. American Sentiment and ProphecyGov **forbid competitors' use** — we never fetch them (see those entries).
+These platforms present **multiple positions on the same issue side by side** — pro/con arguments, left/center/right framing, candidate stances, and structured debate trees. We cite them as **reference and design inspiration** for Open Navigator's "competing views" / "argued by" analysis. **We do not redistribute their data, ratings, or argument content**; if you use anything from these sites, cite the specific page and follow each site's terms. For local meeting / legislative intelligence products we treat as peers, see [Proprietary competitors](#proprietary-competitors).
 
 ### AllSides
 
@@ -623,14 +625,27 @@ These platforms present **multiple positions on the same issue side by side** �
 }
 ```
 
-### American Sentiment (reference)
+---
+
+## Proprietary competitors
+
+**In this section:**
+- [American Sentiment](#american-sentiment)
+- [ProphecyGov](#prophecygov)
+- [GroundVue](#groundvue)
+- [USLege](#uslege)
+- [Hamlet](#hamlet)
+
+These are **commercial peers** in local government data, meeting intelligence, legislative AI, and resident-facing civic tools. We name them here with respect for the work they do and as **friendly reference** for the product category Open Navigator also serves. We **do not scrape, mirror, or redistribute** their content or data. When a site's terms forbid competitors' use, we also **never fetch** that host (see American Sentiment and ProphecyGov). Our own meeting stance and summaries come only from sources we are allowed to use (our transcripts and analyses).
+
+### American Sentiment
 
 **Organization:** American Sentiment
-**What it does:** Commercial product that surfaces **sentiment and engagement around local government meetings** and related civic events — a category peer for Open Navigator's meeting-sentiment / public-comment stance work.
+**What they do:** Surfaces **sentiment and engagement around local government meetings** and related civic events — a clear peer for our [meeting-sentiment](../development/meeting-sentiment-design.md) work.
 
 - **Website:** https://americansentiment.com/
-- **Use as reference for:** The product category of local meeting pulse and public-comment stance (see [Meeting sentiment](../development/meeting-sentiment-design.md)).
-- **License / use:** Proprietary. Their terms **forbid competitors' use**. Open Navigator treats the site as **reference-only naming**: we **never fetch, scrape, or redistribute** their data. Ingestion blocks the host in `community_events.py` (`BLOCKED_HOSTS`). Stance and engagement in our product come only from our own transcripts and analyses.
+- **How we reference them:** As a product-category peer for local meeting pulse and public-comment stance.
+- **License / use:** Proprietary. Their terms **forbid competitors' use**. Reference-only naming; we **never fetch, scrape, or redistribute** their data. Host blocked in `community_events.py` (`BLOCKED_HOSTS`).
 
 **BibTeX:**
 ```bibtex
@@ -638,18 +653,18 @@ These platforms present **multiple positions on the same issue side by side** �
  author = {{American Sentiment}},
  title = {American Sentiment},
  url = {https://americansentiment.com/},
- note = {Local meeting sentiment product; reference-only. Terms forbid competitors' use; never fetched or redistributed by Open Navigator.}
+ note = {Local meeting sentiment peer; friendly reference-only. Terms forbid competitors' use; never fetched by Open Navigator.}
 }
 ```
 
-### ProphecyGov (reference)
+### ProphecyGov
 
 **Organization:** ProphecyGov
-**What it does:** Commercial civic / government-meeting intelligence product in the same **local meeting and public-engagement** space.
+**What they do:** Commercial **government-meeting and civic intelligence** product in the same local public-engagement space.
 
 - **Website:** https://prophecygov.com/
-- **Use as reference for:** Naming a peer product category for local meeting intelligence (alongside American Sentiment).
-- **License / use:** Proprietary. Their terms **forbid competitors' use**. Open Navigator treats the site as **reference-only naming**: we **never fetch, scrape, or redistribute** their data. The host is blocked in `community_events.py` (`BLOCKED_HOSTS`) with American Sentiment.
+- **How we reference them:** Alongside American Sentiment as a peer in local meeting intelligence.
+- **License / use:** Proprietary. Their terms **forbid competitors' use**. Reference-only naming; we **never fetch, scrape, or redistribute** their data. Host blocked in `community_events.py` (`BLOCKED_HOSTS`).
 
 **BibTeX:**
 ```bibtex
@@ -657,7 +672,64 @@ These platforms present **multiple positions on the same issue side by side** �
  author = {{ProphecyGov}},
  title = {ProphecyGov},
  url = {https://prophecygov.com/},
- note = {Local government-meeting intelligence product; reference-only. Terms forbid competitors' use; never fetched or redistributed by Open Navigator.}
+ note = {Local government-meeting intelligence peer; friendly reference-only. Terms forbid competitors' use; never fetched by Open Navigator.}
+}
+```
+
+### GroundVue
+
+**Organization:** GroundVue
+**What they do:** Positions itself as a **local government data platform for policy analysis** — structured civic data for jurisdictions and policy work.
+
+- **Website:** https://groundvue.org/ (canonical https://www.groundvue.org/)
+- **How we reference them:** As a peer in local-government data platforms and policy analysis tooling.
+- **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
+
+**BibTeX:**
+```bibtex
+@misc{groundvue,
+ author = {{GroundVue}},
+ title = {GroundVue: Local Government Data Platform for Policy Analysis},
+ url = {https://www.groundvue.org/},
+ note = {Local government data / policy analysis peer; friendly reference-only.}
+}
+```
+
+### USLege
+
+**Organization:** USLege
+**What they do:** App for **legislative / lege workflow** (sign-in product at `app.uslege.ai`) — a peer in AI-assisted legislative navigation.
+
+- **Website / app:** https://app.uslege.ai/
+- **How we reference them:** As a peer in legislative AI and bill/meeting navigation products.
+- **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
+
+**BibTeX:**
+```bibtex
+@misc{uslege,
+ author = {{USLege}},
+ title = {USLege},
+ url = {https://app.uslege.ai/},
+ note = {Legislative AI peer; friendly reference-only.}
+}
+```
+
+### Hamlet
+
+**Organization:** Hamlet
+**What they do:** Commercial **local-government / civic AI** product (hamlet.com) aimed at helping residents and staff work with city and local government information.
+
+- **Website:** https://hamlet.com/
+- **How we reference them:** As a peer in resident-facing local government AI and civic Q&A.
+- **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
+
+**BibTeX:**
+```bibtex
+@misc{hamlet_civic,
+ author = {{Hamlet}},
+ title = {Hamlet},
+ url = {https://hamlet.com/},
+ note = {Local government / civic AI peer; friendly reference-only.}
 }
 ```
 
