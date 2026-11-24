@@ -50,20 +50,57 @@ router = APIRouter(
 # separate, optional step — selectable in the panel but not run by default.
 _STEP_DEFS: List[Dict[str, str]] = [
     {
+        "key": "load-analysis",
+        "group": "load",
+        "label": "Load analyses — files → bronze",
+        "description": (
+            "Read the saved analysis files (data/cache/gemini_transcript_policy) and load them into "
+            "bronze.bronze_events_analysis_ai. Reads files only; never moves or deletes one."
+        ),
+        "target": "local-warehouse",
+    },
+    {
+        "key": "dbt-gold",
+        "group": "load",
+        "label": "Rebuild gold — dbt",
+        "description": (
+            "dbt run for the analysis models and everything downstream (decisions, meetings, topics, "
+            "places), then refresh the public serving views."
+        ),
+        "target": "local-warehouse",
+    },
+    {
         "key": "database",
+        "group": "deploy",
         "label": "Database — serving copy (Neon prod)",
         "description": "Copy local public serving objects → Neon prod public (excludes runtime/auth tables).",
         "target": "neon-prod",
     },
     {
         "key": "web",
+        "group": "deploy",
         "label": "Web (HuggingFace)",
         "description": "Build & deploy the web app + docs to HuggingFace Spaces.",
         "target": "huggingface",
     },
 ]
 _STEP_KEYS = [d["key"] for d in _STEP_DEFS]
+_STEP_GROUP = {d["key"]: d["group"] for d in _STEP_DEFS}
 _DEFAULT_STEPS = ["database"]
+# Default steps per group (keep in sync with hosting.deploy.run_deployment.DEFAULT_STEPS_BY_GROUP).
+_DEFAULT_STEPS_BY_GROUP: Dict[str, List[str]] = {
+    "load": ["load-analysis", "dbt-gold"],
+    "deploy": ["database"],
+}
+# Steps that publish outside this machine. Only these need DEPLOYMENTS_ALLOW_LAUNCH; the load
+# group writes the local warehouse only (dry run is still offered).
+_OUTWARD_TARGETS = {"neon-prod", "huggingface"}
+_STEP_TARGET = {d["key"]: d["target"] for d in _STEP_DEFS}
+
+
+def _group_of(steps: List[str]) -> str:
+    """``load`` when every step is a load step, else ``deploy``."""
+    return "load" if steps and all(_STEP_GROUP.get(k) == "load" for k in steps) else "deploy"
 
 
 def _repo_root() -> Path:
@@ -140,6 +177,8 @@ class DeploymentStepModel(BaseModel):
 class DeploymentJobModel(BaseModel):
     job_id: str
     job_type: str = "deployment"
+    # ``load`` or ``deploy``; older status files lack it, so it is derived from the steps.
+    group: str = "deploy"
     label: str = ""
     dry_run: bool = False
     pid: Optional[int] = None
@@ -157,6 +196,7 @@ class StepDefModel(BaseModel):
     label: str
     description: str
     target: str
+    group: str = "deploy"
 
 
 class DeploymentsListResponse(BaseModel):
@@ -166,7 +206,9 @@ class DeploymentsListResponse(BaseModel):
 
 
 class LaunchDeploymentRequest(BaseModel):
-    steps: List[str] = Field(default_factory=lambda: list(_DEFAULT_STEPS))
+    # With no steps, the group's defaults run (``deploy`` when no group is given).
+    steps: List[str] = Field(default_factory=list)
+    group: str = "deploy"
     # Default to a dry run — a real prod deploy must be opted into explicitly.
     dry_run: bool = True
 
@@ -215,6 +257,7 @@ def _read_job(path: Path) -> Optional[DeploymentJobModel]:
     except Exception:
         return None
     job.live = live
+    job.group = _group_of([st.key for st in job.steps])
     return job
 
 
@@ -281,12 +324,20 @@ def _write_initial_status(
 # Endpoints
 # --------------------------------------------------------------------------- #
 @router.get("/", response_model=DeploymentsListResponse)
-async def list_deployments(limit: int = Query(25, ge=1, le=200)) -> DeploymentsListResponse:
-    jobs = _list_jobs()[:limit]
+async def list_deployments(
+    limit: int = Query(25, ge=1, le=200),
+    group: Optional[str] = Query(None, description="load or deploy; omit for everything"),
+) -> DeploymentsListResponse:
+    g = (group or "").strip().lower() or None
+    if g is not None and g not in ("load", "deploy"):
+        raise HTTPException(status_code=400, detail="group must be 'load' or 'deploy'")
+    jobs = [j for j in _list_jobs() if g is None or j.group == g][:limit]
+    steps = [d for d in _STEP_DEFS if g is None or d["group"] == g]
     return DeploymentsListResponse(
         jobs=jobs,
-        available_steps=[StepDefModel(**d) for d in _STEP_DEFS],
-        enabled=_deploy_enabled(),
+        available_steps=[StepDefModel(**d) for d in steps],
+        # Real launches: deploy needs DEPLOYMENTS_ALLOW_LAUNCH; load writes the local warehouse only.
+        enabled=True if g == "load" else _deploy_enabled(),
     )
 
 
@@ -300,27 +351,37 @@ async def get_deployment(job_id: str) -> DeploymentJobModel:
 
 @router.post("/launch", response_model=LaunchDeploymentResponse)
 async def launch_deployment(req: LaunchDeploymentRequest) -> LaunchDeploymentResponse:
+    group_req = (req.group or "deploy").strip().lower()
+    if group_req not in _DEFAULT_STEPS_BY_GROUP:
+        raise HTTPException(status_code=400, detail="group must be 'load' or 'deploy'")
     steps = [s.strip().lower() for s in (req.steps or []) if s and s.strip()]
     if not steps:
-        steps = list(_DEFAULT_STEPS)
+        steps = list(_DEFAULT_STEPS_BY_GROUP[group_req])
     bad = [s for s in steps if s not in _STEP_KEYS]
     if bad:
         raise HTTPException(status_code=400, detail=f"unknown step(s): {bad}; known: {_STEP_KEYS}")
+    if len({_STEP_GROUP[s] for s in steps}) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="load steps and deploy steps cannot run in the same job",
+        )
+    group = _STEP_GROUP[steps[0]]
 
     dry_run = bool(req.dry_run)
-    if not dry_run and not _deploy_enabled():
+    outward = any(_STEP_TARGET.get(s) in _OUTWARD_TARGETS for s in steps)
+    if not dry_run and outward and not _deploy_enabled():
         raise HTTPException(
             status_code=403,
             detail="Real deploys are disabled. Set DEPLOYMENTS_ALLOW_LAUNCH=1 to enable, "
             "or run with dry_run=true.",
         )
 
-    # Refuse to start while another deployment is still live.
+    # Refuse to start while another job of the same kind is still live.
     for j in _list_jobs():
-        if j.live and j.status == "running":
+        if j.live and j.status == "running" and j.group == group:
             raise HTTPException(
                 status_code=409,
-                detail=f"A deployment is already running ({j.job_id}). Stop it first.",
+                detail=f"A {group} job is already running ({j.job_id}). Stop it first.",
             )
 
     script = _orchestrator_path()
@@ -328,7 +389,7 @@ async def launch_deployment(req: LaunchDeploymentRequest) -> LaunchDeploymentRes
         raise HTTPException(status_code=500, detail=f"orchestrator missing: {script}")
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    job_id = f"deploy_{stamp}"
+    job_id = f"{group}_{stamp}"  # load_… or deploy_…
     status_dir = _status_dir()
     status_dir.mkdir(parents=True, exist_ok=True)
 
@@ -370,10 +431,15 @@ async def launch_deployment(req: LaunchDeploymentRequest) -> LaunchDeploymentRes
     logger.info(
         f"launched deployment job_id={job_id} steps={steps} dry_run={dry_run} pid={proc.pid}"
     )
+    kind = "load" if group == "load" else "deployment"
     detail = (
-        f"Started dry-run deployment '{job_id}' (pid {proc.pid}). No commands were executed."
+        f"Started dry-run {kind} '{job_id}' (pid {proc.pid}). No commands were executed."
         if dry_run
-        else f"Started PROD deployment '{job_id}' (pid {proc.pid}). The dashboard updates as it runs."
+        else (
+            f"Started {kind} '{job_id}' (pid {proc.pid}). The dashboard updates as it runs."
+            if group == "load"
+            else f"Started PROD deployment '{job_id}' (pid {proc.pid}). The dashboard updates as it runs."
+        )
     )
     return LaunchDeploymentResponse(
         launched=True,

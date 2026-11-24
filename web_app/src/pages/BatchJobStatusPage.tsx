@@ -933,7 +933,7 @@ function batchJobsDashboardQueryKey(cohort: BatchCohort) {
   return ['batch-jobs-dashboard', cohort] as const
 }
 
-type JobType = 'youtube' | 'deployment'
+type JobType = 'youtube' | 'load' | 'deployment'
 
 function JobTypeTabs({
   active,
@@ -943,8 +943,9 @@ function JobTypeTabs({
   onChange: (t: JobType) => void
 }) {
   const tabs: { key: JobType; label: string }[] = [
-    { key: 'youtube', label: 'YouTube pipeline' },
-    { key: 'deployment', label: 'Prod deployment' },
+    { key: 'youtube', label: '1 Extract Transform' },
+    { key: 'load', label: '2 Load' },
+    { key: 'deployment', label: '3 Deploy' },
   ]
   return (
     <div className="flex gap-1 border-b border-slate-200">
@@ -969,11 +970,13 @@ function JobTypeTabs({
 export default function BatchJobStatusPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const jobType: JobType = searchParams.get('type') === 'deployment' ? 'deployment' : 'youtube'
+  const typeParam = searchParams.get('type')
+  const jobType: JobType =
+    typeParam === 'deployment' ? 'deployment' : typeParam === 'load' ? 'load' : 'youtube'
   const setJobType = useCallback(
     (t: JobType) => {
       const next = new URLSearchParams(searchParams)
-      if (t === 'deployment') next.set('type', 'deployment')
+      if (t === 'deployment' || t === 'load') next.set('type', t)
       else next.delete('type')
       setSearchParams(next, { replace: true })
     },
@@ -1595,11 +1598,11 @@ export default function BatchJobStatusPage() {
     (data?.totals.running ?? 0) > 0 && !!runningTiming.activeVideo,
   )
 
-  if (jobType === 'deployment') {
+  if (jobType === 'deployment' || jobType === 'load') {
     return (
       <div className="min-h-0 w-full space-y-4">
         <JobTypeTabs active={jobType} onChange={setJobType} />
-        <DeploymentPanel />
+        <DeploymentPanel group={jobType === 'load' ? 'load' : 'deploy'} />
       </div>
     )
   }

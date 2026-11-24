@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo, useState } from 'react'
 import {
+  type DeploymentGroup,
   fetchDeployments,
   fetchDeploymentLog,
   launchDeployment,
@@ -161,10 +162,37 @@ function JobCard({
   )
 }
 
-export default function DeploymentPanel() {
+const COPY: Record<
+  DeploymentGroup,
+  { heading: string; blurb: string; realLabel: string; confirm: (steps: string[]) => string; empty: string }
+> = {
+  load: {
+    heading: 'Load analyses into the database',
+    blurb:
+      'Runs the selected steps in order: saved analysis files → bronze, then dbt rebuilds the gold tables and ' +
+      'refreshes the public views the website reads. Local warehouse only; nothing is published. A failing step stops the run.',
+    realLabel: '▶ Run load',
+    confirm: (steps) =>
+      `Run the load (${steps.join(', ')}) against the local warehouse?\n\n` +
+      'This writes bronze rows and rebuilds gold tables. Nothing is published to production.',
+    empty: 'No loads yet. Run one above.',
+  },
+  deploy: {
+    heading: 'Launch a prod deployment',
+    blurb: 'Runs the selected steps in order. A failing step stops the run.',
+    realLabel: '▶ Deploy to PRODUCTION',
+    confirm: (steps) =>
+      `Run a REAL production deployment (${steps.join(', ')})?\n\n` +
+      'This pushes to the Neon prod database and/or HuggingFace. This cannot be undone.',
+    empty: 'No deployments yet. Launch one above.',
+  },
+}
+
+export default function DeploymentPanel({ group = 'deploy' }: { group?: DeploymentGroup }) {
+  const copy = COPY[group]
   const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
+    queryKey: ['deployments', group],
+    queryFn: () => fetchDeployments(group),
     refetchInterval: (q) => {
       const live = q.state.data?.jobs?.some((j) => j.live && j.status === 'running')
       return live ? 3_000 : 15_000
@@ -176,7 +204,8 @@ export default function DeploymentPanel() {
   const enabled = data?.enabled ?? false
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [dryRun, setDryRun] = useState(true)
+  // A deploy defaults to a dry run; a load only touches the local warehouse, so it runs for real.
+  const [dryRun, setDryRun] = useState(group === 'deploy')
   const [launching, setLaunching] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -208,16 +237,13 @@ export default function DeploymentPanel() {
       return
     }
     if (!dryRun) {
-      const ok = window.confirm(
-        `Run a REAL production deployment (${steps.join(', ')})?\n\n` +
-          'This pushes to the Neon prod database and/or HuggingFace. This cannot be undone.',
-      )
+      const ok = window.confirm(copy.confirm(steps))
       if (!ok) return
     }
     setLaunching(true)
     setMsg(null)
     try {
-      const res = await launchDeployment({ steps, dry_run: dryRun })
+      const res = await launchDeployment({ steps, dry_run: dryRun, group })
       setMsg(res.detail || 'Launched.')
       window.setTimeout(() => void refetch(), 1_000)
     } catch (e) {
@@ -225,7 +251,7 @@ export default function DeploymentPanel() {
     } finally {
       setLaunching(false)
     }
-  }, [availableSteps, effectiveSelected, dryRun, refetch])
+  }, [availableSteps, effectiveSelected, dryRun, refetch, group, copy])
 
   const onStop = useCallback(
     async (jobId: string) => {
@@ -253,10 +279,8 @@ export default function DeploymentPanel() {
     <div className="space-y-4">
       {/* Launch control */}
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">Launch a prod deployment</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
-          Runs the selected steps in order. A failing step stops the run.
-        </p>
+        <h2 className="text-sm font-semibold text-slate-900">{copy.heading}</h2>
+        <p className="mt-0.5 text-xs text-slate-500">{copy.blurb}</p>
 
         <div className="mt-3 flex flex-wrap gap-2">
           {availableSteps.map((s) => {
@@ -279,7 +303,7 @@ export default function DeploymentPanel() {
             )
           })}
           {availableSteps.length === 0 && (
-            <span className="text-xs text-slate-400">No deployment steps available.</span>
+            <span className="text-xs text-slate-400">No steps available.</span>
           )}
         </div>
 
@@ -298,23 +322,27 @@ export default function DeploymentPanel() {
             onClick={onLaunch}
             disabled={launching || (!dryRun && !enabled) || anyLive}
             className={`rounded-md px-4 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
-              dryRun ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-red-600 hover:bg-red-700'
+              dryRun
+                ? 'bg-indigo-600 hover:bg-indigo-700'
+                : group === 'load'
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : 'bg-red-600 hover:bg-red-700'
             }`}
           >
             {launching
               ? 'Launching…'
               : dryRun
                 ? '▶ Launch dry run'
-                : '▶ Deploy to PRODUCTION'}
+                : copy.realLabel}
           </button>
           {anyLive && (
             <span className="text-xs text-amber-600">
-              A deployment is already running — stop it before launching another.
+              A run is already in progress — stop it before starting another.
             </span>
           )}
         </div>
 
-        {!dryRun && !enabled && (
+        {!dryRun && !enabled && group === 'deploy' && (
           <p className="mt-2 text-xs text-amber-700">
             Real deploys are disabled. Set <code>DEPLOYMENTS_ALLOW_LAUNCH=1</code> on the API to
             enable, or keep Dry run on.
@@ -339,7 +367,7 @@ export default function DeploymentPanel() {
       )}
       {data && jobs.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-          No deployments yet. Launch one above.
+          {copy.empty}
         </div>
       )}
 

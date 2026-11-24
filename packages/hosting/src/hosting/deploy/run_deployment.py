@@ -51,23 +51,66 @@ from typing import Any, Dict, List, Optional
 # ``web`` (HuggingFace) is a SEPARATE concern, kept as an optional step in the
 # panel (deselect it for a DB-only deploy). It is not part of the default
 # pipeline below because it stands up the orphan-branch HF mirror, not the data.
+#
+# Steps belong to a ``group``: ``load`` (tab "2 Load": saved analysis files → bronze →
+# dbt gold tables, all in the LOCAL warehouse) and ``deploy`` (tab "3 Deploy": publish the
+# local serving objects to prod). The two groups never run in the same job (#796).
+# ``{dbt}`` is replaced with the dbt executable (see :func:`dbt_bin`).
 STEP_DEFS: Dict[str, Dict[str, Any]] = {
+    "load-analysis": {
+        "group": "load",
+        "label": "Load analyses — files → bronze",
+        "description": (
+            "Read the saved analysis files (data/cache/gemini_transcript_policy) and load them into "
+            "bronze.bronze_events_analysis_ai. Reads files only; never moves or deletes one."
+        ),
+        "target": "local-warehouse",
+        "argv": ["{python}", "-m", "llm.enrichment.load_analysis_cache_to_bronze"],
+    },
+    "dbt-gold": {
+        "group": "load",
+        "label": "Rebuild gold — dbt",
+        "description": (
+            "dbt run for the analysis models and everything downstream (decisions, meetings, topics, "
+            "places), then refresh the public serving views."
+        ),
+        "target": "local-warehouse",
+        "argv": [
+            "{dbt}", "run", "--project-dir", "dbt_project",
+            "--select", "int_preferred_event_analysis+", "bronze_decisions_from_ai+",
+        ],
+    },
     "database": {
+        "group": "deploy",
         "label": "Database — serving copy (Neon prod)",
         "description": "Copy local public serving objects → Neon prod public (excludes runtime/auth tables).",
         "target": "neon-prod",
         "argv": ["{python}", "-m", "hosting.neon.sync_public_to_neon", "--target", "prod"],
     },
     "web": {
+        "group": "deploy",
         "label": "Web (HuggingFace)",
         "description": "Build & deploy the web app + docs to HuggingFace Spaces.",
         "target": "huggingface",
         "argv": ["bash", "packages/hosting/scripts/huggingface/deploy-huggingface.sh", "--skip-test"],
     },
 }
-# Default pipeline: the database serving copy only. ``web`` is selectable in the
-# panel but not run by default (it's a separate, flakier concern).
-DEFAULT_STEPS: List[str] = ["database"]
+# Default pipeline per group. For ``deploy`` it is the database serving copy only; ``web`` is
+# selectable in the panel but not run by default (it's a separate, flakier concern).
+DEFAULT_STEPS_BY_GROUP: Dict[str, List[str]] = {
+    "load": ["load-analysis", "dbt-gold"],
+    "deploy": ["database"],
+}
+DEFAULT_STEPS: List[str] = DEFAULT_STEPS_BY_GROUP["deploy"]  # back-compat
+
+
+def step_group(key: str) -> str:
+    return str(STEP_DEFS[key].get("group", "deploy"))
+
+
+def job_group(steps: List[str]) -> str:
+    """``load`` when every step is a load step, else ``deploy``."""
+    return "load" if steps and all(step_group(k) == "load" for k in steps) else "deploy"
 
 
 def available_steps() -> List[Dict[str, str]]:
@@ -78,6 +121,7 @@ def available_steps() -> List[Dict[str, str]]:
             "label": str(defn["label"]),
             "description": str(defn["description"]),
             "target": str(defn["target"]),
+            "group": str(defn.get("group", "deploy")),
         }
         for key, defn in STEP_DEFS.items()
     ]
@@ -138,7 +182,11 @@ class DeploymentJob:
         return {
             "job_id": self.job_id,
             "job_type": "deployment",
-            "label": "Prod deployment" + (" (dry run)" if self.dry_run else ""),
+            "group": job_group([st["key"] for st in self.steps]),
+            "label": (
+                "Load analysis → gold" if job_group([st["key"] for st in self.steps]) == "load"
+                else "Prod deployment"
+            ) + (" (dry run)" if self.dry_run else ""),
             "dry_run": self.dry_run,
             "pid": os.getpid(),
             "status": self.status,
@@ -179,18 +227,46 @@ _EXIT_NOTES: Dict[int, str] = {
 }
 
 
+def dbt_bin() -> str:
+    """The dbt executable. dbt lives in its own environment (its pins conflict with the main
+    one), so look there first: ``DBT_BIN``, ``dbt_project/.venv_dbt``, ``.venv-dbt``, then PATH."""
+    explicit = os.environ.get("DBT_BIN", "").strip()
+    if explicit:
+        return explicit
+    root = _repo_root()
+    for cand in (
+        root / "dbt_project" / ".venv_dbt" / "bin" / "dbt",
+        root / ".venv-dbt" / "bin" / "dbt",
+        root / "dbt_project" / ".dbtenv" / "bin" / "dbt",
+    ):
+        if cand.is_file():
+            return str(cand)
+    return "dbt"
+
+
 def _step_argv(key: str) -> List[str]:
     raw = STEP_DEFS[key]["argv"]
-    return [sys.executable if tok == "{python}" else tok for tok in raw]
+    out: List[str] = []
+    for tok in raw:
+        if tok == "{python}":
+            out.append(sys.executable)
+        elif tok == "{dbt}":
+            out.append(dbt_bin())
+        else:
+            out.append(tok)
+    return out
 
 
 def _child_env() -> Dict[str, str]:
     """Child env with ``packages/hosting/src`` on PYTHONPATH so ``-m hosting.*``
     step commands resolve even when hosting isn't installed in this venv."""
     env = dict(os.environ)
-    hosting_src = str(_repo_root() / "packages" / "hosting" / "src")
+    srcs = [
+        str(_repo_root() / "packages" / "hosting" / "src"),
+        str(_repo_root() / "packages" / "llm" / "src"),
+    ]
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{hosting_src}{os.pathsep}{existing}" if existing else hosting_src
+    env["PYTHONPATH"] = os.pathsep.join(srcs + ([existing] if existing else []))
     return env
 
 
@@ -309,6 +385,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         parser.error(f"unknown step(s): {unknown}; known: {list(STEP_DEFS)}")
     if not steps:
         parser.error("no steps given")
+    if len({step_group(s) for s in steps}) > 1:
+        parser.error("load steps and deploy steps cannot run in the same job")
 
     status_dir = Path(args.status_dir)
     job = DeploymentJob(

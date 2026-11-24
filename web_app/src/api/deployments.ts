@@ -36,11 +36,15 @@ export type DeploymentJob = {
   live: boolean
 }
 
+/** ``load`` = tab "2 Load" (analysis files → bronze → dbt gold); ``deploy`` = tab "3 Deploy". */
+export type DeploymentGroup = 'load' | 'deploy'
+
 export type DeploymentStepDef = {
   key: string
   label: string
   description: string
   target: string
+  group?: DeploymentGroup
 }
 
 export type DeploymentsListPayload = {
@@ -77,8 +81,10 @@ async function readError(r: Response): Promise<string> {
   return detail
 }
 
-export async function fetchDeployments(): Promise<DeploymentsListPayload> {
-  const r = await tracedFetch('/api/deployments/', {
+export async function fetchDeployments(
+  group?: DeploymentGroup,
+): Promise<DeploymentsListPayload> {
+  const r = await tracedFetch(`/api/deployments/${group ? `?group=${group}` : ''}`, {
     headers: authHeaders(),
     signal: AbortSignal.timeout(15_000),
   })
@@ -89,6 +95,7 @@ export async function fetchDeployments(): Promise<DeploymentsListPayload> {
 export async function launchDeployment(body: {
   steps?: string[]
   dry_run: boolean
+  group?: DeploymentGroup
 }): Promise<LaunchDeploymentResult> {
   const r = await tracedFetch('/api/deployments/launch', {
     method: 'POST',
