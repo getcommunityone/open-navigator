@@ -5,15 +5,15 @@ description: How to play the Data Center Challenge, what the reveal means and do
 
 # Data Center Challenge
 
-The challenge (earlier called the "Where Do You Stand?" game) puts one opinion statement to you at a time. You answer **Agree**, **Disagree** or **Not sure**, then see how people who played answered. There is no answer key. The first topic is data centers, with seven statements. Open it at `/challenge/data-centers`, from the Data stories page (`/stories`), the end of the [Data Center Story](data-stories.md), the Data centers page or the Data explorer Matrix page. The old address `/play/data-centers` redirects to it and keeps the place in the address.
+The challenge (earlier called the "Where Do You Stand?" game) is about questions that people openly disagreed about in public meetings. Each round first shows what the record says, and, where a source supplies them, what was said on both sides. Then one opinion statement asks where you stand. You answer **Agree**, **Disagree** or **Not sure**, then see how people who played answered. It is not a quiz: there is no right answer, no answer key and no score. The first topic is data centers, with seven statements. Open it at `/challenge/data-centers`, from the Data stories page (`/stories`), the end of the [Data Center Story](data-stories.md), the Data centers page or the Data explorer Matrix page. The old address `/play/data-centers` redirects to it and keeps the place in the address.
 
 ## How to play
 
 1. The first screen says what the game is and shows large counts of what the public records cover. Each count comes straight from a national data-center endpoint. A count that is missing or zero is left out.
-2. Each round is one screen. The category word and a large faint copy of it arrive, then the chart builds as you scroll, then the headline, the statement and the three answers settle into place.
+2. Each round is one screen that plays in three beats (see [Pacing and sound](#pacing-and-sound)): the finding and chart, then the question, then the results.
 3. The headline is one sentence about the chart, computed from the chart's own data (for example a ranking, a count or a share). If the data cannot support a sentence, the headline describes the chart in neutral words.
-4. Choose an answer. It is saved when the server confirms it, and the page carries you to the reveal. If saving fails you see the error with a Retry button and the page does not move on.
-5. You can scroll ahead to look at a round before you answer it. An unanswered round shows its answers and no results. The end screen counts only the rounds you answered.
+4. Choose an answer. Your choice locks in, it is saved when the server confirms it, and the results land. The page carries you to the reveal. If saving fails you see the error with a Retry button and the page does not move on.
+5. You can scroll ahead past a round without answering it (**Skip this one**, or the wheel). A skipped round shows no results. The end screen counts only the rounds you answered.
 6. Come back to an answered round and you see your stored answer and the reveal, with **Change my answer**.
 
 Pick your place with **Your place** in the bar at the top: it opens a dialog where one search box takes a city, county or ZIP code, with **National only**, **All of [state]** and a state list beside it. The label next to it always says what the results are filtered to ("National only", "Alabama", "Tuscaloosa, Alabama"). The place is kept in the address (`?state=AL&city=Tuscaloosa`), so a refresh, a shared link and the back button keep it. A county pick applies its state, since results are by city or state.
@@ -26,19 +26,33 @@ A challenge statement must sit beside a chart built from meeting recordings or t
 
 | Key | Does |
 | --- | --- |
-| A | Agree |
-| D | Disagree |
-| N | Not sure |
-| Enter, PageDown, Space, down arrow or right arrow | Next round (or start the first round from the first screen) |
+| Space, Enter, PageDown, down arrow or right arrow | On a round's first beat: ask the question. After that: next round (or start the first round from the first screen) |
+| A | Agree (only once the question is showing) |
+| D | Disagree (only once the question is showing) |
+| N | Not sure (only once the question is showing) |
 | PageUp, Shift+Space, up arrow or left arrow | Previous round |
 | Home, End | The first screen, the end screen |
 | Arrow keys inside a unit chart | Move between dots |
 
-Focus moves to the answer buttons when a round settles, and to **Continue** after you answer. Keys that move between rounds do nothing while focus is in a field, a select, a table or a figure that scrolls on its own, and wheel and touch scrolling are never taken over. Each round ends with a **Continue to ...** button that names the next category in words, and, after the first, a quieter **Back**. Nothing in the headers or the progress rail is a number: the category is the header and each stop in the rail is named after its screen.
+Focus moves to **Ask me** when a round settles, then to the answer buttons once they show, and to **Continue** once the results have landed. Keys that move between rounds do nothing while focus is in a field, a select, a table or a figure that scrolls on its own, and wheel and touch scrolling are never taken over. Each round ends with a **Continue to ...** button that names the next category in words, and, after the first, a quieter **Back**. Nothing in the headers or the progress rail is a number: the category is the header and each stop in the rail is named after its screen.
+
+## Pacing and sound
+
+A round plays in three beats, in this order.
+
+1. **The finding.** The category and the finding sentence are the title, with the chart drawing in. Under it sits **Ask me** (key: Space) and **Skip this one**. If a source supplies verbatim quotes, a "What was said for" and a "What was said against" block sits here too, each quote linked to its recording at that moment; nothing is shown there unless both sides have real quotes. The answer buttons are not on the page yet. After the chart has finished drawing and a pause of about two and a half seconds, the question arrives by itself; a thin line under **Ask me** shows the time left. The timer waits while your pointer or keyboard focus is on the chart or its data table, while the data table is open, while a menu is open, and while the tab is hidden.
+2. **The question.** "Where do you stand?" and the statement arrive large, and the three answers follow one after another. The chart stays, quieter. A phone hides the chart here so the round fits one screen. **Skip this one** is offered; **Continue** is not, because nothing has been answered.
+3. **The results.** The answer you chose locks in and the other two step back. Then the national, state and place results land one after another. A group with too few answers still reads "Not enough answers yet (N so far, M needed)". Last, **Continue to ...** appears. A round you already answered goes straight to this beat, with no animation.
+
+Each round fits one screen at 1366 by 768 and at 390 by 844 at every beat.
+
+**Sound** is made in the browser (Web Audio), with no audio files: a short cue when a round opens, when the question arrives, when your answer locks in, as each result row lands (the pitch steps up for national, state and place, and a withheld split makes no sound), and on the end screen. The cues are neutral. None says right or wrong, and nothing is scored. Every cue has a visible counterpart, so nothing depends on sound. The **Sound on** / **Sound off** button is in the bar at the top of every screen of the challenge. Your choice is kept on this device (`stance.sound` in local storage; the default is on), and sound starts only after your first click or key press. Cues are quiet by design.
+
+For a screen reader, a polite live region reads the finding, then the question, then the results.
 
 ## Motion
 
-With **prefers-reduced-motion** on, or on a screen narrower than 768 pixels, the game is a plain stack of panels with native scrolling and everything already in its final state. There is no smooth scrolling, pinning or scroll-driven animation. All buttons and keys work the same.
+With **prefers-reduced-motion** on, or on a screen narrower than 768 pixels, the game is a plain stack of panels with native scrolling and no smooth scrolling, pinning or scroll-driven animation. The three beats still happen as steps, with no animation: the question appears when you press **Ask me** or Space, or after the pause. The sound button still decides whether cues play. All buttons and keys work the same.
 
 ## What the reveal means
 

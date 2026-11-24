@@ -528,3 +528,33 @@ export function placeLabel(stateName: string | null, city: string | null): strin
   if (!stateName) return 'National only'
   return city ? `${city}, ${stateName}` : stateName
 }
+
+// --- The beats of a round (#899) ------------------------------------------------------------------------------------------
+
+/** The three beats of a round: the finding and chart, then the question, then the results. */
+export type RoundBeat = 'finding' | 'question' | 'results'
+
+/**
+ * Which beat a round is in. An answer the player may still change goes back to the question; a confirmed answer shows the
+ * results (also when the player returns to the round); otherwise the question shows once it has been asked, else the finding.
+ */
+export function roundBeat(state: { answered: boolean; asked: boolean; changing?: boolean }): RoundBeat {
+  if (state.changing) return 'question'
+  if (state.answered) return 'results'
+  return state.asked ? 'question' : 'finding'
+}
+
+/** Milliseconds the chart waits before it starts to draw, and how long the draw takes (the CSS animation uses the same). */
+export const CHART_DRAW_DELAY_MS = 350
+export const CHART_DRAW_MS = 1100
+/** The pause after the chart has finished drawing before the question arrives on its own. */
+export const ASK_PAUSE_MS = 2500
+/** How long the chosen answer shows locked before the results start to land, and the gap between result rows. */
+export const LOCK_HOLD_MS = 450
+export const BAR_GAP_MS = 650
+export const BAR_FIRST_MS = 150
+
+/** Milliseconds of "chart ready" time before the question arrives by itself (no drawing with reduced motion). */
+export function askAfterMs(reducedMotion: boolean): number {
+  return reducedMotion ? ASK_PAUSE_MS : CHART_DRAW_DELAY_MS + CHART_DRAW_MS + ASK_PAUSE_MS
+}
