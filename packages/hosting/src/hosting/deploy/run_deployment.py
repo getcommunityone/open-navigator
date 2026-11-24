@@ -89,7 +89,17 @@ STEP_DEFS: Dict[str, Dict[str, Any]] = {
         "target": "local-warehouse",
         "argv": [
             "{dbt}", "run", "--project-dir", "dbt_project",
-            "--select", "int_preferred_event_analysis+", "bronze_decisions_from_ai+",
+            # Every bronze_*_from_ai model that reads the analysis table, with its descendants (#836). They all read the analyses the
+            # step before just loaded, and the marts read them: event_meeting needs bronze_meetings_from_ai
+            # (and event_decision drops a decision whose meeting row is missing), event_topic needs
+            # bronze_topics_from_ai, public_comment needs bronze_public_participation_from_ai, and so on.
+            # Selecting only some of them built marts from stale bronze tables, or failed outright when a
+            # bronze table lacked a new column. A test keeps this list equal to the files on disk.
+            "--select", "int_preferred_event_analysis+",
+            "bronze_meetings_from_ai+", "bronze_decisions_from_ai+", "bronze_topics_from_ai+",
+            "bronze_places_from_ai+", "bronze_persons_from_ai+", "bronze_bills_from_ai+",
+            "bronze_financial_items_from_ai+", "bronze_public_participation_from_ai+",
+            "bronze_organizations_from_ai+", "bronze_causes_from_ai+",
         ],
     },
     "database": {
