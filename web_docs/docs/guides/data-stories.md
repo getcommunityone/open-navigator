@@ -73,3 +73,7 @@ The charts are the challenge's (`ChartPanel`): dots for individual records (each
 3. Register the story in `STORIES` in `web_app/src/pages/DataStory.tsx` and add its card to the hub in `web_app/src/pages/DataStories.tsx`.
 4. If it has a challenge, add the pack as described in [Data Center Challenge](data-center-challenge.md).
 5. Update this page.
+
+## Moving to the next screen
+
+When you have been still for a couple of seconds on a screen that has another one after it, a small cue appears at the bottom of the window with a chevron that moves downward. It says "Scroll" with a mouse or trackpad and "Swipe up" on a touch screen. Pressing it goes to the next screen, the same as Continue. It hides while the page is moving and does not appear on the last screen. With reduced motion turned on in your device settings, the chevron is still.

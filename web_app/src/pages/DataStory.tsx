@@ -4,6 +4,7 @@ import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
 import '../styles/folio.css'
 import '../styles/stance.css'
+import ScrollCue from '../components/story/ScrollCue'
 import ProgressRail from '../components/stance/ProgressRail'
 import PlaceControl from '../components/stance/PlaceControl'
 import ScopeBar from '../components/stance/ScopeBar'
@@ -295,6 +296,7 @@ export default function DataStory() {
         </div>
         <ProgressRail labels={labels} active={active} onJump={goTo} navLabel="Story screens" />
       </div>
+      <ScrollCue show={active < n - 1} nextLabel={screens[active + 1]?.eyebrow ?? ''} onNext={() => goTo(active + 1)} />
       <p className="stance-keys">Keys: PageDown, Space or ↓ next · PageUp, Shift+Space or ↑ back · Home and End jump to the ends</p>
     </div>
   )

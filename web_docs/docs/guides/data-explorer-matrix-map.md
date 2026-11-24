@@ -157,8 +157,8 @@ phrase and the progress line.
 metric and scope ("Continue: what changed since 2019", "Continue: what goes with median age"), and from the second screen on a
 quieter **Back** button that names the previous screen. They scroll to that screen (smoothly; at once under reduced motion),
 move focus to its heading, and update the address bar without adding history entries. The last screen has the action buttons
-and a **Back to the start** link instead of Continue. A small hint ("Scroll or press the down arrow to continue") is fixed at the
-bottom of the first screen and disappears at the first move.
+and a **Back to the start** link instead of Continue. A cue at the bottom of the window invites you to the next
+screen (see "Moving to the next screen" below).
 
 **Keyboard.** When focus is not in a form field, a button, a link, a table, a slider or a figure that scrolls:
 
@@ -364,3 +364,7 @@ Rules that always hold:
 This tab's code and fonts load only when its tab is opened. If they fail to load, the tab shows "Analysis
 could not be loaded" with the error and a Reload button, and the rest of the site keeps working. On a developer
 machine the usual cause is a pull that added a package: run `npm install` in `web_app` and reload.
+
+## Moving to the next screen
+
+A small cue at the bottom of the window ("Scroll", or "Swipe up" on a touch screen) appears when you have been still for a couple of seconds and there is another screen below. Pressing it goes to the next screen. It replaces the one-time hint that used to show on the first screen only.
