@@ -51,7 +51,7 @@ skipped, and counted by reason, when:
 | `low_keep_score` | the Jev keep-score `P(government_meeting) + P(town_hall)` is below `--min-meeting-p` (default 0.6); human overrides to `government_meeting` or `town_hall` win, and unscreened videos are never skipped |
 | `no_event` | the video has no promoted `civic_event` row yet (run `ingestion.youtube.promote_to_c1_event`) |
 | `no_meta` | the file has no metadata file of its own |
-| `meta_mismatch` | its metadata was written for a different analysis file (see below) |
+| `meta_mismatch` | its metadata was written for the other tier's analysis file (see below) |
 
 The first matching reason in that order is the one counted. A video with no `bronze_event_youtube` row cannot be judged
 and is loaded, and counted as `unchecked_no_bronze_row`. `--no-gate` turns the skip rules off, `--tier light|full|both`
@@ -68,8 +68,12 @@ must use different models. Otherwise they would overwrite each other. The rule i
 
 The run metadata now carries the tier in its name too: `<stem>.meta.json` for light and `<stem>_full.meta.json` for full,
 and it records `analysis_tier`. Before this change a full run wrote over the light run's metadata. Files written that
-way are detected by the loader (the metadata lists the other analysis file) and skipped as `meta_mismatch`, never
-paired with the wrong analysis.
+way are detected by the loader (the metadata lists the other tier's analysis file) and skipped as `meta_mismatch`,
+never paired with the wrong analysis.
+
+Only the tier is compared, not the file name (#820). When a meeting's date or title is corrected, its analysis and
+metadata are renamed together and the path stored inside the metadata keeps the old name; that is still the file's
+own record, so it loads. Before #820 any name difference was skipped, which dropped 49 renamed analyses in one run.
 
 ## The cache repair tool no longer deletes
 

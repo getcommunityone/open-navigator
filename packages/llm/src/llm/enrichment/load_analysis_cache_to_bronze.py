@@ -274,7 +274,7 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
         if not meta_matches_file(meta, path):
             # A shared, pre-#796 metadata file written for the other tier's analysis.
             stats["skipped_meta_mismatch"] += 1
-            logger.warning("Metadata for {} belongs to a different analysis file; skipped", path.name)
+            logger.warning("Metadata for {} was written for the other tier's analysis file; skipped", path.name)
             continue
         recorded_tier = meta.get("analysis_tier")
         if recorded_tier and recorded_tier != file_tier:

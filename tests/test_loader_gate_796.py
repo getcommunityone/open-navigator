@@ -95,6 +95,17 @@ def test_a_shared_pre_796_meta_is_not_paired_with_the_light_file():
     assert gate.meta_matches_file(shared, Path("d/02_analysis/x_full.json")) is True
 
 
+def test_a_renamed_analysis_keeps_its_own_meta():
+    """#820: files renamed together (date and title corrected) leave the old name inside the metadata."""
+    renamed = {"files": {"analysis_json": "d/02_analysis/2026-04-29_Birmingham_City_Council_Meeting_4.28.26.json"}}
+    assert gate.meta_matches_file(renamed, Path("d/02_analysis/2026-04-28_Birmingham_City_Council_Meeting.json")) is True
+    renamed_full = {"files": {"analysis_json": "d/02_analysis/2026-04-29_Old_Title_full.json"}}
+    assert gate.meta_matches_file(renamed_full, Path("d/02_analysis/2026-04-28_New_Title_full.json")) is True
+    # a rename never hides the #796 case: the tiers still have to agree
+    assert gate.meta_matches_file(renamed_full, Path("d/02_analysis/2026-04-28_New_Title.json")) is False
+    assert gate.meta_matches_file(renamed, Path("d/02_analysis/2026-04-28_New_Title_full.json")) is False
+
+
 def test_meta_without_a_recorded_file_is_given_the_benefit_of_the_doubt():
     assert gate.meta_matches_file({"gemini_model": "m"}, Path("d/02_analysis/x.json")) is True
     assert gate.meta_matches_file(None, Path("d/02_analysis/x.json")) is True
