@@ -14,7 +14,8 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { lc } from '../utils/matrixStory'
 import { CENSUS_REGION_LABEL, type CensusRegionId } from '../utils/censusRegions'
 import { olsFit } from '../utils/matrixMapMath'
-import { CHAPTERS, SCREENS, adjacentScreens, chapterDomId, chapterTitle, isChapterId, screenIndexOf, type ChapterInput, type RegionRead } from '../utils/matrixStory'
+import ScrollCue from '../components/story/ScrollCue'
+import { CHAPTERS, SCREENS, screenLabel, chapterDomId, chapterTitle, isChapterId, screenIndexOf, type ChapterInput, type RegionRead } from '../utils/matrixStory'
 import { geoNounFor, itemsOf, rowsFromPayload, signedChange, statsOf } from '../components/matrix/data'
 import Kpi from '../components/matrix/Kpi'
 import ChapterCard from '../components/matrix/ChapterCard'
@@ -405,23 +406,9 @@ export default function DataExplorerMatrixPage() {
     return () => document.documentElement.classList.remove('folio-snap')
   }, [])
 
-  // The first-screen hint goes away at the first move.
-  const [moved, setMoved] = useState(false)
-  useEffect(() => {
-    if (!ready || moved) return
-    const done = () => setMoved(true)
-    const onScroll = () => window.scrollY > 40 && done()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('keydown', done, { once: true })
-    window.addEventListener('wheel', done, { once: true, passive: true })
-    window.addEventListener('touchstart', done, { once: true, passive: true })
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('keydown', done)
-      window.removeEventListener('wheel', done)
-      window.removeEventListener('touchstart', done)
-    }
-  }, [ready, moved])
+  // The cue to move on (#904): shown on every screen that has a next one.
+  const cueAt = SCREENS.findIndex((x) => x.domId === pos)
+  const cueNext = cueAt >= 0 ? SCREENS[cueAt + 1] : undefined
 
   if (mLoading || pLoading) {
     return (
@@ -479,7 +466,6 @@ export default function DataExplorerMatrixPage() {
     medians: { first: statsOf(rowsByVintage[vintages[0] ?? ''] ?? [], metricSlug).median, last: statsOf(rowsByVintage[vintages[vintages.length - 1] ?? ''] ?? [], metricSlug).median },
     regions: isCount ? { first: regionRead(vintages[0]), last: regionRead(vintages[vintages.length - 1]) } : null,
   }
-  const first = adjacentScreens(null).next!
   return (
     <div className="folio" data-theme={theme.id} style={theme.vars as CSSProperties}>
       <SectionBand
@@ -541,12 +527,11 @@ export default function DataExplorerMatrixPage() {
           )
         })}
       </div>
-      {!moved && ready && (
-        <button type="button" className="folio-hint" onClick={() => jump(first.domId, true)}>
-          Scroll or press <span aria-hidden="true">↓</span>
-          <span className="folio-sr-only">the down arrow key</span> to continue
-        </button>
-      )}
+      <ScrollCue
+        show={ready && !!cueNext}
+        nextLabel={cueNext ? screenLabel(cueNext.section, ctx.labelInput) : ''}
+        onNext={() => cueNext && jump(cueNext.domId, true)}
+      />
     </div>
   )
 }

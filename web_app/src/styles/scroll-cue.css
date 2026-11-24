@@ -1,0 +1,85 @@
+/* The "keep going" cue at the bottom of a paged screen (#904). Colours fall back when the Folio tokens are absent. */
+.scroll-cue {
+  position: fixed;
+  right: 24px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateY(8px);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid color-mix(in srgb, var(--ink, #1f2328) 25%, transparent);
+  background: var(--paper-raised, #fbfaf7);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--ink, #1f2328) 14%, transparent);
+  color: var(--ink, #1f2328);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+.scroll-cue.is-on {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+/* A phone has no free corner: the cue sits at the bottom centre, compact, and goes away the moment the page moves. */
+@media (max-width: 767px) {
+  .scroll-cue {
+    right: auto;
+    left: 50%;
+    transform: translate(-50%, 8px);
+  }
+  .scroll-cue.is-on {
+    transform: translate(-50%, 0);
+  }
+}
+.scroll-cue:hover {
+  background: var(--paper-raised, #fbfaf7);
+}
+.scroll-cue:focus-visible {
+  outline: 3px solid var(--accent, #0f766e);
+  outline-offset: 3px;
+}
+.scroll-cue-chevrons path {
+  fill: none;
+  stroke: var(--accent, #0f766e);
+  stroke-width: 2.5;
+  stroke-linecap: square;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .scroll-cue.is-on .scroll-cue-chevrons path {
+    animation: scroll-cue-fall 1.6s ease-in-out infinite;
+  }
+  .scroll-cue.is-on .scroll-cue-c2 {
+    animation-delay: 0.2s;
+  }
+}
+@keyframes scroll-cue-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-cue {
+    transition: none;
+  }
+}

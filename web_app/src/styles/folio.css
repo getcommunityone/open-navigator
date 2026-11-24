@@ -1429,30 +1429,6 @@
   margin-top: 28px;
 }
 
-/* The one-time hint on the first screen: static text, fixed to the bottom of the window until the reader moves. */
-.folio .folio-hint {
-  position: fixed;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  z-index: 40;
-  min-height: 44px;
-  padding: 8px 18px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  background: var(--ink);
-  color: var(--white);
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 30%, transparent);
-}
-.folio .folio-hint:focus-visible {
-  outline: 3px solid var(--violet-ink);
-  outline-offset: 3px;
-}
-
 /* A figure never makes its screen taller than the window: whatever does not fit scrolls inside it, with a shadow at the edge
    that still has more to show and a visible thin scrollbar. */
 .folio-figure {
