@@ -69,6 +69,8 @@ interface DecisionDetail {
   meeting_name?: string | null
   meeting_date?: string | null
   meeting_video_id?: string | null
+  /** Meeting type label; null/absent when blank or UNKNOWN (#797). */
+  meeting_type?: string | null
   source_ai_model?: string | null
   extracted_at?: string | null
   // Phase 3: agenda/minutes document links (served by GET /api/decision/{id}).
@@ -1487,6 +1489,11 @@ export default function DecisionDetail() {
               <span className="flex items-center gap-1.5">
                 <CalendarIcon className="h-4 w-4 text-[#9bb8b8]" />
                 {new Date(decision.meeting_date).toLocaleDateString()}
+              </span>
+            )}
+            {decision.meeting_type && (
+              <span className="flex items-center gap-1.5" data-testid="meeting-type">
+                {decision.meeting_type}
               </span>
             )}
             <WatchRecordingLink />
