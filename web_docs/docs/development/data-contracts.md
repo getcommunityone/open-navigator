@@ -69,6 +69,7 @@ one is left out but isn't listed here.
 | `canonical_argument.frame_id` | `policy_frame.frame_id` | seed `policy_frame` is published with a contract |
 | `policy_question.topic_code` | `cap_topic.code` | seed `cap_topic` is published with a contract |
 | `topic_money_and_talk.canonical_theme` | `policy_theme_cofog.primary_theme` | seed `policy_theme_cofog` is published with a contract |
+| `data_center_public_comment.public_comment_id` | `public_comment.public_comment_id` | `public_comment` (unserved) is published with a contract |
 
 ## What a contract holds
 
