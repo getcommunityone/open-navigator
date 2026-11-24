@@ -158,6 +158,7 @@ CIVIC_SERVING = frozenset(
         "event_topic",
         "event_meeting",
         "event_meeting_document",
+        "event_analysis_provenance",  # #798: how each analysis was made (one small row per analysis)
         # event_documents is intentionally absent — see DEDICATED_LOADER above
         # (slim cues-only, loaded by sync_event_documents_to_neon.py).
         "meeting_document",

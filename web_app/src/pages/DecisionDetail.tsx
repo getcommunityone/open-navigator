@@ -17,6 +17,7 @@ import {
   DocumentIcon,
   BuildingOffice2Icon,
 } from '@heroicons/react/24/outline'
+import AnalysisProvenance, { type Provenance } from '../components/AnalysisProvenance'
 import { withSpan } from '../instrumentation'
 import { expandStateName } from '../utils/formatters'
 import { type Speaker, parseSpeaker } from '../lib/speakers'
@@ -73,6 +74,8 @@ interface DecisionDetail {
   meeting_type?: string | null
   source_ai_model?: string | null
   extracted_at?: string | null
+  /** How this summary was made (#798); null when nothing was recorded. */
+  provenance?: Provenance | null
   // Phase 3: agenda/minutes document links (served by GET /api/decision/{id}).
   documents?: DecisionDocument[] | null
   has_agenda?: boolean | null
@@ -1582,6 +1585,7 @@ export default function DecisionDetail() {
               )}
             </div>
           </div>
+          <AnalysisProvenance provenance={decision.provenance} />
         </div>
       </div>
     </div>

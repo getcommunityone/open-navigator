@@ -35,6 +35,11 @@ outputPorts:
   contractId: open-navigator-public-event_meeting_document
   type: table
   description: Scraped meeting AGENDA / MINUTES PDFs linked to the meeting they belong to (public.event_meeting), so the API can show document links on a decision / meeting.
+- name: event_analysis_provenance
+  version: 1.0.0
+  contractId: open-navigator-public-event_analysis_provenance
+  type: table
+  description: 'How each AI analysis was made: model, when, light or full tier, prompt name and hash, transcript source, and whether it is the analysis shown for its meeting.'
 - name: event_decision
   version: 1.0.0
   contractId: open-navigator-public-event_decision
