@@ -1,10 +1,10 @@
 /**
- * The seven Folio reference themes, as the CSS custom properties the reference defines for each one (index.html, the
+ * The Open Navigator house theme (the default) and the seven Folio reference themes, as the CSS custom properties the reference defines for each one (index.html, the
  * "Curated Theme Blocks"). They are applied as inline custom properties on the `.folio` root only, so no other page changes.
  * Colours that charts need as plain hex (ramp steps, series) are derived from the same values, so the contrast test in
  * folioRamp.test.ts checks exactly what is drawn.
  */
-export type FolioThemeId = 'lavender-press' | 'newsprint' | 'night-edition' | 'gazette-mono' | 'swiss-poster' | 'forest-ochre' | 'riso-pastel'
+export type FolioThemeId = 'open-navigator' | 'lavender-press' | 'newsprint' | 'night-edition' | 'gazette-mono' | 'swiss-poster' | 'forest-ochre' | 'riso-pastel'
 
 export interface FolioTheme {
   id: FolioThemeId
@@ -46,9 +46,12 @@ type Vars = {
   vermilionTint: string
   violetTint: string
   neutral: string
+  /** "Worse" in better/worse colouring (a change the wrong way): the opposite pole unless a theme reserves a colour for it. */
+  bad?: string
+  badInk?: string
 }
 
-const make = (id: FolioThemeId, label: string, dark: boolean, v: Vars): FolioTheme => ({
+const make = (id: FolioThemeId, label: string, dark: boolean, v: Vars, own?: { series?: readonly string[]; seg?: readonly string[] }): FolioTheme => ({
   id,
   label,
   dark,
@@ -78,15 +81,37 @@ const make = (id: FolioThemeId, label: string, dark: boolean, v: Vars): FolioThe
     '--vermilion-tint': v.vermilionTint,
     '--violet-tint': v.violetTint,
     '--neutral-data': v.neutral,
+    '--bad': v.bad ?? v.vermilion,
+    '--bad-ink': v.badInk ?? v.vermilionInk,
     colorScheme: dark ? 'dark' : 'light',
   },
   ramp: [v.v100, v.v200, v.v300, v.v400, v.v500, v.v600],
   neutral: v.neutral,
-  series: [v.violet, v.vermilion, v.magenta, v.v600],
-  seg: [v.violet, v.vermilion, v.magenta, v.v400, v.vermilionInk, v.v300, v.v600, v.vermilionTint, v.neutral],
+  series: own?.series ?? [v.violet, v.vermilion, v.magenta, v.v600],
+  seg: own?.seg ?? [v.violet, v.vermilion, v.magenta, v.v400, v.vermilionInk, v.v300, v.v600, v.vermilionTint, v.neutral],
 })
 
 export const FOLIO_THEMES: readonly FolioTheme[] = [
+  // The product's own colours (tailwind.config.js primary, the teal of the logo and Data explorer tabs, the amber and red of
+  // index.css). The role names are the reference's: "violet" is the teal accent, "vermilion" its opposite pole (amber, used
+  // for below-median and alerts), "magenta" a muted red that stays reserved for "worse". The ramp runs light teal tint ->
+  // teal-700 -> primary-700. Series avoid red/green pairs and differ in lightness as well as hue (checked in folioRamp.test.ts).
+  make(
+    'open-navigator',
+    'Open Navigator',
+    false,
+    {
+      paper: '#F5F3EE', paperRaised: '#FCFBF8', ink: '#1F2328', ink2: '#454D52', ink3: '#5B666B', rule: '#C5CACE', band: '#354F52', white: '#FFFFFF',
+      violet: '#0F766E', violetInk: '#0F766E', vermilion: '#E0A526', vermilionInk: '#8A5A00', magenta: '#B4443F',
+      onViolet: '#FFFFFF', onVermilion: '#1F2328', onMagenta: '#FFFFFF',
+      v100: '#E3EFEE', v200: '#BFDCD9', v300: '#8CC0BB', v400: '#4F9C95', v500: '#0F766E', v600: '#27383A',
+      vermilionTint: '#F1D08A', violetTint: '#9ECFC9', neutral: '#D3D9DB', bad: '#B4443F', badInk: '#A40E26',
+    },
+    {
+      series: ['#0F766E', '#E0A526', '#B4443F', '#7FA6D6'],
+      seg: ['#0F766E', '#E0A526', '#7FA6D6', '#B4443F', '#354F52', '#9ECFC9', '#8E6C9E', '#F1D08A', '#D3D9DB'],
+    },
+  ),
   make('lavender-press', 'Lavender Press', false, {
     paper: '#E8E6EF', paperRaised: '#F4F3F8', ink: '#121116', ink2: '#4A4752', ink3: '#625F6B', rule: '#B8B4C4', band: '#6C50F6', white: '#FFFFFF',
     violet: '#7C63FF', violetInk: '#5A3BE6', vermilion: '#E2492C', vermilionInk: '#B5321A', magenta: '#C04BD9',
@@ -138,7 +163,7 @@ export const FOLIO_THEMES: readonly FolioTheme[] = [
   }),
 ]
 
-export const DEFAULT_THEME_ID: FolioThemeId = 'lavender-press'
+export const DEFAULT_THEME_ID: FolioThemeId = 'open-navigator'
 
 /** The theme named by `?theme=`; the default when it is absent or unknown. */
 export function themeById(id: string | null | undefined): FolioTheme {

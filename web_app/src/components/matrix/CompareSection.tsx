@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { censusMetricRankDirection } from '../../utils/censusDataDictionary'
 import { niceScale } from '../../utils/matrixMapMath'
 import { changeTone } from '../../utils/matrixTable'
+import { compareStory } from '../../utils/matrixStory'
 import { signedChange } from './data'
 import { useElementWidth, useSection } from './hooks'
 import { Empty, Seg } from './parts'
@@ -50,6 +51,17 @@ export default function CompareSection({ ctx }: { ctx: MatrixCtx }) {
   const ups = withBoth.filter((p) => p.d! > 0).length
   const downs = withBoth.filter((p) => p.d! < 0).length
   const name = `${ctx.metricLabel}, ${base} to ${vintage}`
+  const story =
+    hasPair && baseRows === undefined
+      ? { headline: `${ctx.metricLabel}, ${base} against ${vintage}.`, lead: null }
+      : compareStory({
+          metricLabel: ctx.metricLabel,
+          base: hasPair ? base : null,
+          vintage,
+          pairs: pts.map((p) => ({ name: p.r.name, from: p.a, to: p.c })),
+          fmt: (v) => fmt(slug, v),
+          fmtChange: (a, b) => signedChange(slug, a, b, ctx.metrics, fmt),
+        })
 
   let body: React.ReactNode
   if (!hasPair) {
@@ -67,7 +79,8 @@ export default function CompareSection({ ctx }: { ctx: MatrixCtx }) {
     <SectionShell
       ctx={ctx}
       id="dumbbell"
-      headline={[ctx.metricLabel, `${base} against ${vintage}`, `across ${ctx.geoNoun}`]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>
@@ -136,9 +149,9 @@ function Dumbbell({ ctx, pts, base, lowerBetter, title }: { ctx: MatrixCtx; pts:
   const x = (v: number) => plotL + ((v - sc.min) / (sc.max - sc.min || 1)) * (plotR - plotL)
   const h = TOP + pts.length * rH + 30
   const good = 'var(--violet)'
-  const bad = 'var(--vermilion)'
+  const bad = 'var(--bad)'
   const dirColor = (d: number) => (changeTone(d, lowerBetter) === 'good' ? good : bad)
-  const dirInk = (d: number) => (changeTone(d, lowerBetter) === 'good' ? 'var(--violet-ink)' : 'var(--vermilion-ink)')
+  const dirInk = (d: number) => (changeTone(d, lowerBetter) === 'good' ? 'var(--violet-ink)' : 'var(--bad-ink)')
   return (
     <div ref={host}>
       <p className="folio-chart-title">{title}</p>

@@ -4,6 +4,8 @@ import { CENSUS_REGION_LABEL } from '../../utils/censusRegions'
 import { rowDelayMs } from '../../utils/folioMotion'
 import { barFraction, changeTone, filterRows, signedChange, sparklinePath, sparklinePoints, toCsv, type CsvColumn } from '../../utils/matrixTable'
 import { useFlip } from '../../hooks/useFlip'
+import { tableStory } from '../../utils/matrixStory'
+import ActionBlock from './ActionBlock'
 import { metricOf, sortByKey } from './data'
 import { useSection } from './hooks'
 import { Empty, InlineBar, SortTh } from './parts'
@@ -154,12 +156,24 @@ export default function TableSection({ ctx }: { ctx: MatrixCtx }) {
     URL.revokeObjectURL(url)
   }
 
+  const story = tableStory({
+    vintage,
+    base: hasPair ? base : null,
+    total: ctx.rows.length,
+    shown: rows.length,
+    metricCount: ctx.metrics.length,
+    query: q,
+    withChange: rows.filter((x) => x.change != null).length,
+  })
+
   return (
+    <>
     <SectionShell
       ctx={ctx}
       id="table"
       wide
-      headline={[`${ctx.rows.length} geographies,`, `${ctx.metrics.length} metrics,`, vintage]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>
@@ -248,7 +262,7 @@ export default function TableSection({ ctx }: { ctx: MatrixCtx }) {
                     <td
                       className="text-right"
                       style={{
-                        color: tone == null ? 'var(--ink-2)' : tone === 'good' ? 'var(--violet-ink)' : 'var(--vermilion-ink)',
+                        color: tone == null ? 'var(--ink-2)' : tone === 'good' ? 'var(--violet-ink)' : 'var(--bad-ink)',
                         fontWeight: tone ? 500 : undefined,
                       }}
                     >
@@ -265,5 +279,7 @@ export default function TableSection({ ctx }: { ctx: MatrixCtx }) {
         </div>
       )}
     </SectionShell>
+    <ActionBlock ctx={ctx} onDownload={download} />
+    </>
   )
 }

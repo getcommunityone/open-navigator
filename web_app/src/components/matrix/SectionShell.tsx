@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { SectionContext, useInViewOnce } from './hooks'
+import TitleBlock from './TitleBlock'
 import { FIG_NO } from './data'
 import { SECTIONS, type MatrixCtx, type SectionId, type TableSpec } from './types'
 
@@ -44,8 +45,10 @@ export function DataTable({ id, caption, spec }: { id: string; caption: string; 
 interface Props {
   ctx: MatrixCtx
   id: SectionId
-  /** Headline lines; each slides up in turn (80 ms / 160 ms stagger) when the section first enters view. */
-  headline: string[]
+  /** The section's story sentence (matrixStory.ts). It rises line by line (80 ms / 160 ms stagger) the first time it enters view. */
+  headline: string
+  /** One supporting sentence under the rule, or null to leave it out. */
+  lead?: string | null
   /** Short text column: how to read the figure, with real numbers from the data in scope. */
   text: ReactNode
   /** Per-section controls (above the figure). */
@@ -63,7 +66,7 @@ interface Props {
  * One numbered section of the report, in the reference's spread layout: eyebrow, large headline and text on the left, the
  * figure with its FIG. caption on the right (about 45 / 55 with a hairline between), stacked text-first below 1024 px.
  */
-export default function SectionShell({ ctx, id, headline, text, controls, caption, table, wide, children }: Props) {
+export default function SectionShell({ ctx, id, headline, lead, text, controls, caption, table, wide, children }: Props) {
   const ref = useRef<HTMLElement>(null)
   const seen = useInViewOnce(ref)
   const [el, setEl] = useState<HTMLElement | null>(null)
@@ -86,17 +89,9 @@ export default function SectionShell({ ctx, id, headline, text, controls, captio
     >
       <div className="folio-spread">
         <div className="folio-spread-text">
-          <p className="folio-eyebrow folio-eyebrow-anim">
-            {num} — {name}
-          </p>
-          <h2 className="folio-headline" id={`${id}-h`} tabIndex={-1}>
-            {headline.map((line, i) => (
-              <span className="folio-line" key={i}>
-                <span className="folio-line-inner">{line}</span>
-              </span>
-            ))}
-          </h2>
+          <TitleBlock as="h3" id={`${id}-h`} eyebrow={`${num} — ${name}`} text={headline} variant="section" />
           <hr className="folio-rule" />
+          {lead && <p className="folio-lede">{lead}</p>}
           <div className="folio-body">{text}</div>
         </div>
         <div className="folio-spread-fig">

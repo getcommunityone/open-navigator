@@ -5,6 +5,7 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import type { FolioTheme } from '../../utils/folioThemes'
 import { labelOn } from '../../utils/folioRamp'
 import { signedChange as signedChange0 } from '../../utils/matrixTable'
+import type { Item } from '../../utils/matrixStory'
 import type { MatrixCtx, Metric, Row, StatePayload } from './types'
 
 export const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -81,7 +82,10 @@ export function signedChange(
 export const FIG_NO = (i: number): string => String(i + 1).padStart(2, '0')
 
 /** "52 states and territories" style count noun for the figures in scope. */
-export const geoNounFor = (n: number): string => `${n.toLocaleString('en-US')} states and territories`
+export const geoNounFor = (n: number): string => (n === 1 ? '1 state or territory' : `${n.toLocaleString('en-US')} states and territories`)
+
+/** The rows as name + value pairs for one metric, the input the story sentences (utils/matrixStory.ts) read. */
+export const itemsOf = (rows: Row[], slug: string): Item[] => rows.map((r) => ({ name: r.name, value: r.vals[slug] ?? null }))
 
 /** Row for the shared scope text. */
 export const scopeText = (ctx: Pick<MatrixCtx, 'vintage'>): string => `${ctx.vintage} ACS 5-year`

@@ -27,6 +27,8 @@
   --violet-tint: #b9abfb;
   --vermilion-tint: #f2a391;
   --neutral-data: #cfcbd9;
+  --bad: var(--vermilion);
+  --bad-ink: var(--vermilion-ink);
 
   --t-kpi: clamp(36px, 4vw, 64px);
   --t-h2: clamp(24px, 2.4vw, 36px);
@@ -505,11 +507,49 @@
 .folio-band-list {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 14px;
   list-style: none;
   margin: 0;
   padding: 0;
   overflow-x: auto;
+  scrollbar-width: none;
+}
+.folio-band-chapter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.folio-band-sub {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.folio-band .folio-band-chap {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 8px;
+  color: var(--white);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+  transition: border-color var(--d-2) var(--ease-std);
+}
+.folio-band .folio-band-chap:hover {
+  border-bottom-color: var(--band-progress);
+}
+.folio-band .folio-band-chap[aria-current='true'] {
+  border-bottom-color: var(--white);
+  font-weight: 600;
+}
+.folio-band .folio-band-chap:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: 2px;
 }
 .folio-band .folio-band-link {
   display: inline-flex;
@@ -554,7 +594,7 @@
   transform: scaleX(0);
   transform-origin: left center;
 }
-@media (max-width: 640px) {
+@media (max-width: 1180px) {
   .folio-band-label,
   .folio-band-name {
     display: none;
@@ -612,12 +652,13 @@
   transform: translateY(8px);
   transition: opacity var(--d-3) var(--ease-out), transform var(--d-3) var(--ease-out);
 }
-.is-in .folio-eyebrow-anim {
+.folio-title.is-shown .folio-eyebrow-anim {
   opacity: 1;
   transform: none;
 }
 .folio-headline {
-  font-size: clamp(28px, 3vw, 44px);
+  position: relative;
+  font-size: clamp(26px, 2.6vw, 40px);
   font-weight: 400;
   line-height: 1.06;
   letter-spacing: -0.028em;
@@ -628,9 +669,27 @@
 .folio-headline:focus {
   outline: none;
 }
+.folio-lines {
+  display: block;
+}
+/* The lines are measured from a hidden copy with the heading's own width and type; each one is exactly one line. */
+.folio-measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+.folio-measure > span {
+  white-space: nowrap;
+}
 .folio-line {
   display: block;
   overflow: hidden;
+  white-space: nowrap;
   padding-bottom: 0.09em;
   margin-bottom: -0.09em;
 }
@@ -639,14 +698,74 @@
   transform: translateY(105%);
   transition: transform var(--d-4) var(--ease-out);
 }
-.is-in .folio-line-inner {
+.folio-title.is-shown .folio-line-inner {
   transform: translateY(0);
 }
 .folio-line:nth-child(2) .folio-line-inner {
   transition-delay: 80ms;
 }
-.folio-line:nth-child(3) .folio-line-inner {
+.folio-line:nth-child(n + 3) .folio-line-inner {
   transition-delay: 160ms;
+}
+
+/* Chapter cards: a tall, full-width band opening each chapter (issue #859). */
+.folio-chapter {
+  margin: 0 -20px;
+  padding: 72px 20px 64px;
+  min-height: min(62vh, 600px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-top: 2px solid var(--ink);
+  background: var(--paper-raised);
+  scroll-margin-top: 4.5rem;
+}
+.folio-chapter-title {
+  position: relative;
+  font-size: clamp(48px, 8vw, 128px);
+  font-weight: 430;
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  margin: 18px 0 0;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.folio-chapter-title:focus {
+  outline: none;
+}
+.folio-chapter-lead {
+  font-size: clamp(18px, 1.5vw, 21px);
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--ink-2);
+  max-width: 46rem;
+  margin: 0;
+}
+.folio-chapter .folio-rule-draw {
+  width: 100%;
+  margin: 28px 0 24px;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--d-4) var(--ease-out) 240ms;
+}
+.folio-title.is-shown .folio-rule-draw {
+  transform: none;
+}
+.folio-lede {
+  font-size: clamp(17px, 1.3vw, 19px);
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  max-width: 40rem;
+  margin: 0 0 16px;
+}
+@media (max-width: 479px) {
+  .folio-chapter {
+    padding: 48px 20px 40px;
+  }
+  .folio-chapter-title {
+    font-size: clamp(40px, 13vw, 52px);
+  }
 }
 .folio-rule {
   border: 0;
@@ -984,6 +1103,11 @@
 @media (prefers-reduced-motion: reduce) {
   .folio-line-inner {
     transform: none !important;
+    transition: none !important;
+  }
+  .folio-rule-draw {
+    transform: none !important;
+    transition: none !important;
   }
   .folio-eyebrow-anim {
     opacity: 1 !important;
@@ -1148,4 +1272,62 @@
 }
 .folio-spark-dot {
   animation: folio-fadein var(--d-2) var(--ease-out) var(--d-3) backwards;
+}
+
+/* Call to action: large square buttons carrying the scope in view (issue #859). */
+.folio-action {
+  padding: 40px 0 56px;
+  border-top: 1px solid var(--ink);
+  scroll-margin-top: 7.5rem;
+}
+.folio-action-title {
+  font-size: clamp(26px, 2.6vw, 40px);
+  font-weight: 400;
+  line-height: 1.06;
+  letter-spacing: -0.028em;
+  margin: 14px 0 12px;
+  color: var(--ink);
+}
+.folio-action-grid {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+  max-width: 62rem;
+}
+.folio .folio-action-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 20px;
+  background: var(--band);
+  color: var(--white);
+  border: 1px solid var(--band);
+  font-family: var(--font-sans);
+  font-size: clamp(20px, 1.8vw, 26px);
+  font-weight: 450;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--d-2) var(--ease-std), color var(--d-2) var(--ease-std);
+}
+.folio .folio-action-btn:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.folio .folio-action-btn:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+.folio-action-arrow {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  line-height: 1;
 }

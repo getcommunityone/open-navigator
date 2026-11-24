@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { CENSUS_REGION_LABEL, type CensusRegionId } from '../../utils/censusRegions'
 import { rowDelayMs } from '../../utils/folioMotion'
+import { pivotStory } from '../../utils/matrixStory'
 import { barFraction } from '../../utils/matrixTable'
 import { useFlip, useIntro } from '../../hooks/useFlip'
-import { cellStyle, sortByKey } from './data'
+import { cellStyle, itemsOf, sortByKey } from './data'
 import { useSection } from './hooks'
 import { Empty, GROUP_OPTIONS, InlineBar, ScaleLegend, Seg, SortTh } from './parts'
 import SectionShell from './SectionShell'
@@ -59,6 +60,15 @@ export default function PivotSection({ ctx }: { ctx: MatrixCtx }) {
       if (t != null && t * 100 >= ctx.minPct) lit += 1
     }
   const noun = cols.length === 1 ? 'metric' : 'metrics'
+  const story = pivotStory({
+    vintage: ctx.vintage,
+    colCount: cols.length,
+    rowCount: ctx.rows.length,
+    sortLabel: activeSort === 'name' ? null : ctx.labelOf(activeSort),
+    sortDir: ctx.sortDir,
+    items: itemsOf(ctx.rows, activeSort),
+    fmt: (v) => ctx.fmt(activeSort, v),
+  })
   // The Share column belongs to the selected metric when it is a count; a rate has no total to take a share of.
   const shareSlug = ctx.countMetrics.some((m) => m.slug === ctx.metricSlug) ? ctx.metricSlug : null
   const isCount = (slug: string) => ctx.countMetrics.some((m) => m.slug === slug)
@@ -73,7 +83,8 @@ export default function PivotSection({ ctx }: { ctx: MatrixCtx }) {
     <SectionShell
       ctx={ctx}
       id="pivot"
-      headline={[`${cols.length} ${noun} by state,`, `${ctx.rows.length} rows,`, ctx.vintage]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>
