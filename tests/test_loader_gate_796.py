@@ -84,6 +84,27 @@ def test_light_and_full_meta_never_share_a_file():
 
 
 # --- the loader's pairing and skip rules ------------------------------------------------------
+def test_an_empty_or_broken_analysis_file_is_not_already_analysed(tmp_path):
+    """#825: an interrupted run leaves an empty file; it must be redone, not skipped forever."""
+    def usable(content: bytes | None) -> bool:
+        path = tmp_path / "a.json"
+        if content is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_bytes(content)
+        return names.analysis_file_usable(path)
+
+    assert usable(None) is False
+    assert usable(b"") is False
+    assert usable(b"  \n\t ") is False
+    assert usable(b"Internal Server Error") is False
+    assert usable(b"[1, 2]") is False  # an analysis is an object
+    assert usable(b'{"meeting": {}}') is True
+    assert usable(b'\n  {"meeting": {}}') is True
+    assert usable(b'\xef\xbb\xbf{"meeting": {}}') is True  # a byte-order mark is not damage
+    assert names.analysis_file_usable(tmp_path) is False  # a directory
+
+
 def test_tier_comes_from_the_file_name():
     assert gate.tier_from_path(Path("x/02_analysis/2026-04-13_Council.json")) == "light"
     assert gate.tier_from_path(Path("x/02_analysis/2026-04-13_Council_full.json")) == "full"

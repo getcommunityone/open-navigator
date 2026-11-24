@@ -69,6 +69,12 @@ A file that cannot be read, for example an empty analysis file, is counted and l
 the step, so one bad file no longer stops the dbt rebuild for every other analysis. Before #823 any unreadable file
 failed the step and dbt was skipped.
 
+**What to do about "File could not be read".** The file is the saved output of the analysis step, so there is
+nothing to download again. It is usually empty because a run was interrupted while writing it. The analysis stage
+treats an empty or non-JSON file as not analysed (#825), so the next analysis run for that jurisdiction redoes the
+meeting and overwrites the file; then run the load again. The redo is one more paid model call, made only by a run you
+start.
+
 The loader exits non-zero, which stops the run before dbt, when:
 
 - a **database write fails**;
