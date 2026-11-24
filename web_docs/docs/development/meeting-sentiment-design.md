@@ -17,7 +17,9 @@ git history. Related: the meeting-metrics proposal for the Matrix map (issue #80
   It is not emotional tone.
 - Stance is extracted **in the analysis call we already make**, for both the full and the light tier, as one row per
   public speaker per item (`public_participation[]`). No separate pass is needed for analysed meetings.
-- It is reported in **three buckets: against, neutral, for**, because many comments take no side.
+- It is reported as **against, for, asked questions, and neutral**, because many comments take no side.
+- Each comment also carries **how heated** it was (1 to 5) and the **speaker's role** (resident, advocacy group,
+  expert and so on), in both tiers.
 - A **pilot of 40 meetings** (20 full, 20 light, from different counties and states) comes before any wider run.
 - Checks are automated. With nobody labelling by hand, the site says the stance is machine-estimated and shows the
   speaker's own quoted words and a link to the moment in the recording.
@@ -40,9 +42,10 @@ those voices, with Jev backfilling the stored story text. Reading the pipeline e
    agreement would mostly measure whether Jev can read a summary. The check now rests on the verbatim quote
    (`stance_evidence`), which code can verify against the transcript.
 
-Smaller corrections: a per-speaker five-step strength was dropped (the least reliable judgment to ask for; the gradient
-now comes from the share of speakers, and room intensity already exists in `emotional_tone`); "unknown" is never counted
-as neutral; and already-analysed meetings are not backfilled by guesswork.
+Smaller corrections: "unknown" is never counted as neutral, and already-analysed meetings are not backfilled by
+guesswork. The review first dropped a per-speaker strength score as the least reliable judgment to ask for; the owner
+then asked for "how heated" per comment, so it is back as `heat`, with a rubric tied to what was said (below) and a
+check of its own.
 
 ## The data
 
@@ -54,27 +57,31 @@ Both `prompts/policy_analysis_part_1.md` (full) and `prompts/policy_analysis_lit
 | --- | --- | --- | --- |
 | `speaker_id` | the speaker's slug (`people[].person_id` in full) | yes | yes |
 | `decision_id` | the decision or uncontested item the comment is about; null for general public comment | yes | yes |
-| `stance` | `For`, `Against`, `Mixed or neutral`, `Not stated`, toward **the action being decided** | yes | yes |
+| `stance` | `For`, `Against`, `Asked questions`, `Mixed or neutral`, `Not stated`, toward **the action being decided** | yes | yes |
+| `heat` | how heated the comment was, 1 to 5 (rubric below); null when too little was said | yes | yes |
+| `speaker_role` | the capacity the speaker gave: Resident, Property owner, Business owner, Advocacy group, Expert, Union worker, Applicant or developer, Student, Other, Not stated | yes | yes |
 | `stance_evidence` | the speaker's own words, verbatim, 25 words or fewer; null when no phrase shows it | yes | yes |
 | `summary`, timestamps | one sentence; seconds into the recording | yes | no |
 
 Rules written into the prompts: only members of the public and outside stakeholders (the body and staff are covered by
-the vote and `competing_views.held_by`); "supports it but only with a bigger setback", a delay request, a question or
-information only is `Mixed or neutral`; a comment that does not address the action is `Not stated`; never infer a
+the vote and `competing_views.held_by`); a speaker who only asks questions is `Asked questions`; "supports it but only
+with a bigger setback", a delay request or information only is `Mixed or neutral`; a comment that does not address the action is `Not stated`; never infer a
 stance from a role, employer or name; never invent a speaker.
 
 A prompt change is a new prompt version (the file hash, `llm.prompt_version`), so every row can be traced to the
 wording that produced it.
 
-### Three buckets
+### Stance buckets
 
 | Bucket | `stance` values | Counted in the balance? |
 | --- | --- | --- |
-| **Against** | Against | yes |
+| **Against** (Opposed) | Against | yes |
+| **For** (In favor) | For | yes |
+| **Asked questions** | Asked questions | no, but always shown |
 | **Neutral** | Mixed or neutral, Not stated | no, but always shown |
-| **For** | For | yes |
 
-- The three shares add to 100% of speakers with a known stance: `Against 30% | Neutral 43% | For 27%`.
+- The shares add to 100% of speakers with a known stance: `Against 30% | Questions 8% | Neutral 35% | For 27%`.
+  A three-way view (Opposed, In favor, Asked questions) simply leaves the neutral segment out and says so.
 - **The gradient** is the balance among speakers who took a side, `(for − against) / (for + against)`, from −1 to +1.
   Neutral speakers are left out of it so a mostly procedural meeting does not read as "split", and the neutral share is
   shown beside it.
@@ -84,13 +91,36 @@ After this lands: run `bronze_public_participation_from_ai` once with `--full-re
 id). A speaker who comments on several items now has several rows, so the public-comment duration in
 `int_civic__item_signals` sums each row's span; the speaker count is unchanged.
 
+### How heated (1 to 5)
+
+Captions carry no tone of voice, so heat is judged from the words and from what the transcript records. The same
+rubric text is in both prompts (a test fails if they drift apart):
+
+| Heat | Marker |
+| --- | --- |
+| 1 | calm; information or a neutral question |
+| 2 | polite; a mild preference or concern |
+| 3 | firm or emphatic; urges the body to act |
+| 4 | states anger, frustration or alarm; accusations or warnings |
+| 5 | personal attacks, threats of legal or electoral retaliation, shouting noted in the transcript, or cut off or gaveled by the chair |
+
+Heat is the least reliable of the three facets, because loudness and sarcasm do not survive captioning. It is reported
+as a distribution and a per-decision mean and maximum, never as a single score for a place, and it has its own check
+(below). The prompt forbids raising it because of the topic or the speaker's side.
+
+### Speaker role
+
+The role is what the speaker said about themselves ("I live on Oak Street" is Resident; "I'm with the Rivers Alliance"
+is Advocacy group). It is never inferred from a name or a stance; a speaker who gave no capacity is `Not stated`. The
+list is fixed so counts can be filtered and compared across tiers; anything else is `Other`.
+
 ### Tables (dbt)
 
 | Model | Grain | Key | Notes |
 | --- | --- | --- | --- |
-| `bronze_public_participation_from_ai` (changed) | meeting × speaker × item | `source_event_id_speaker_id` | adds `decision_id`, `stance_evidence`; the key gains the item id when present |
-| `public_comment` (new) | meeting × speaker × item | `public_comment_id` | `stance`, `stance_bucket`, quote, timestamps, `state_code` and `state`, `video_id`; links to `event_meeting` and, when it is a contested decision, `event_decision` |
-| `decision_public_stance` (new) | decision | `event_decision_id` | `speakers_for`, `speakers_against`, `speakers_neutral`, `speakers_total`, `stance_balance`; each speaker counts once |
+| `bronze_public_participation_from_ai` (changed) | meeting × speaker × item | `source_event_id_speaker_id` | adds `decision_id`, `stance_evidence`, `speaker_role`, `heat`; the key gains the item id when present |
+| `public_comment` (new) | meeting × speaker × item | `public_comment_id` | `stance`, `stance_bucket`, `heat`, `speaker_role`, quote, timestamps, `state_code` and `state`, `video_id`; links to `event_meeting` and, when it is a contested decision, `event_decision` |
+| `decision_public_stance` (new) | decision | `event_decision_id` | `speakers_for`, `speakers_against`, `speakers_question`, `speakers_neutral`, `speakers_total`, `stance_balance`, `heat_mean`, `heat_max`; each speaker counts once |
 
 `public_stance_bucket()` is the one macro that maps stance text to a bucket; a value outside the vocabulary maps to
 null, not neutral. `public_comment.event_meeting_id` is an enforced foreign key. A decision with no public-comment data has
@@ -145,6 +175,7 @@ Purpose: see real output on real pages before spending on a wider run.
 | 2. Quote matches the label | transparent phrase rules on the quote ("vote no", "I oppose", "please approve", "I support") give a side; compare with `stance` | accuracy where the speaker was explicit | subtle or implied stance |
 | 3. Constructed cases | a fixed set of short transcripts with the answer built in (support, opposition, conditions, a question, a staff presentation, negation, sarcasm), kept in tests only | the prompt wording behaves; catches regressions | real-world accuracy |
 | 4. Two tiers, same meeting | the 20 pilot meetings read by both light and full: do they find the same speakers and the same side | where two different models disagree | ground truth (they can share a blind spot) |
+| 6. Heat matches the words | phrase rules on the quote and summary: explicit threats, insults or "I am furious" must not sit at 1 or 2; a bare question must not sit at 4 or 5; plus constructed cases at each level | gross heat errors and drift between prompt versions | fine distinctions between neighbouring levels |
 | 5. Outcome smoke test | decisions the body denied should lean against among public speakers on average | gross errors | cause and effect |
 
 Bar to show the numbers (best judgement; change with a dated line under Decisions): check 1 at least 98 of 100 quotes
@@ -157,8 +188,11 @@ words, not reviewed by people."
 
 ## On the site
 
-- **Decision page:** a three-segment bar above "Voices in the room" (`Against n | Neutral n | For n`), a stance chip on
-  each speaker, the quoted words with the matched phrase highlighted, and the timestamp link where one exists.
+- **Decision page:** a stance bar above "Voices in the room" (`Against n | Questions n | Neutral n | For n`), a stance
+  chip, a heat marker and the role on each speaker, the quoted words with the matched phrase highlighted, and the timestamp link where one exists.
+- **Filters** (browse and search surfaces): Stance (Opposed, In favor, Asked questions, Neutral), How heated (1 to 5)
+  and Speaker role, each with its count, read from `public_comment`. The active filter is named in the scope label and
+  carried in the URL, and every result shows the quoted words that put it there.
 - **Colour:** against is vermilion, for is blue, neutral is white or light gray with dark text; segments are always
   labelled, so colour is never the only signal. Confirm the pair with a colour-blind simulation.
 - **Matrix map:** `public_comment_for_share`, `_neutral_share`, `_against_share` and `public_comment_balance` join the
@@ -214,6 +248,8 @@ Change any of these by adding a dated line, not by rewriting.
 | 2026-11-24 | Pilot 20 light and 20 full meetings from different counties and states, with linked pages, before anything wider. | owner |
 | 2026-11-24 | Carry stance in `public_participation[]` (one row per public speaker per item) instead of `personal_stories`; drop the per-speaker five-step strength; unknown is not neutral; no backfill by inference. | review, best judgement |
 | 2026-11-24 | Pilot runs light on all 40 and full on 20 of them, so 20 meetings are read by both tiers. | review, best judgement |
+| 2026-11-24 | Track stance including "Asked questions", how heated (1 to 5) and speaker role per comment, in both the light and the full analysis. | owner |
+| 2026-11-24 | Heat is judged from words by a shared five-level rubric and reported as a distribution, mean and maximum per decision; roles come from a fixed list and are never inferred. | review, best judgement |
 | 2026-11-24 | Check bars: 98 of 100 quotes found, at most 5 of 100 wrong-side flips, 95 of 100 constructed cases. | review, best judgement |
 
 ## Open questions

@@ -14,7 +14,7 @@ models:
       public.public_comment — one row per (meeting, public speaker, item): the
       speaker's stance toward the action being decided, as extracted by the full or
       light analysis into public_participation[]. stance_bucket is for / against /
-      neutral; a missing stance stays null (unknown is not neutral). Carries the
+      question / neutral; a missing stance stays null (unknown is not neutral). Carries the
       verbatim stance_evidence quote and timestamps so every count links back to
       the recording.
     config:
@@ -63,16 +63,26 @@ models:
         constraints:
           - type: not_null
       - name: stance
-        description: "The extraction's value: For, Against, Mixed or neutral, Not stated."
+        description: "The extraction's value: For, Against, Asked questions, Mixed or neutral, Not stated."
         data_type: text
       - name: stance_bucket
-        description: for / against / neutral from public_stance_bucket(); null when stance is missing or not a recognised value.
+        description: for / against / question / neutral from public_stance_bucket(); null when stance is missing or not a recognised value.
         data_type: text
         tests:
           - accepted_values:
-              values: ['for', 'against', 'neutral']
+              values: ['for', 'against', 'question', 'neutral']
       - name: stance_evidence
         description: The speaker's own words showing the stance, verbatim from the transcript (25 words or fewer); null when none.
+        data_type: text
+      - name: heat
+        description: How heated the comment was, 1 (calm) to 5 (attacks, threats, gaveled), judged from the words by the prompt's rubric; null when unknown.
+        data_type: integer
+        tests:
+          - accepted_values:
+              values: [1, 2, 3, 4, 5]
+              quote: false
+      - name: speaker_role
+        description: "The capacity the speaker gave for themselves: Resident, Property owner, Business owner, Advocacy group, Expert, Union worker, Applicant or developer, Student, Other, Not stated."
         data_type: text
       - name: summary
         description: One-sentence summary of the comment (full tier); null in the light tier.
@@ -105,7 +115,7 @@ models:
   - name: decision_public_stance
     description: >
       public.decision_public_stance — one row per decision with at least one public
-      speaker of known stance: how many spoke for, against and neutral (each speaker
+      speaker of known stance: how many spoke for, against, asked questions or were neutral (each speaker
       once), and the balance among those who took a side. A decision with no
       public-comment data has no row.
     config:
@@ -139,16 +149,27 @@ models:
         data_type: integer
         constraints:
           - type: not_null
+      - name: speakers_question
+        description: Distinct public speakers who only asked questions or sought information.
+        data_type: integer
+        constraints:
+          - type: not_null
       - name: speakers_neutral
-        description: Distinct public speakers whose stance bucket is neutral (mixed, conditional, questions, not stated).
+        description: Distinct public speakers whose stance bucket is neutral (mixed, conditional, information only, not stated).
         data_type: integer
         constraints:
           - type: not_null
       - name: speakers_total
-        description: speakers_for + speakers_against + speakers_neutral.
+        description: speakers_for + speakers_against + speakers_question + speakers_neutral.
         data_type: integer
         constraints:
           - type: not_null
       - name: stance_balance
         description: (for - against) / (for + against), from -1 to +1; null when no speaker took a side.
         data_type: numeric
+      - name: heat_mean
+        description: Mean heat (1-5) of the speakers who have a heat value; null when none has one.
+        data_type: numeric
+      - name: heat_max
+        description: Highest heat (1-5) among the speakers; null when none has one.
+        data_type: integer

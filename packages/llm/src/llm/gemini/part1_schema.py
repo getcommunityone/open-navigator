@@ -191,6 +191,8 @@ class PublicComment(_Row):
     decision_id: Optional[str] = None
     stance: Optional[str] = None
     stance_evidence: Optional[str] = None
+    heat: Optional[Number] = None
+    speaker_role: Optional[str] = None
     summary: Optional[str] = None
     timestamp_start_seconds: Optional[Number] = None
     timestamp_end_seconds: Optional[Number] = None

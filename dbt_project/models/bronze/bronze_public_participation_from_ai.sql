@@ -15,7 +15,7 @@ Source: bronze.bronze_events_analysis_ai.structured_analysis -> 'public_particip
 Target: bronze.bronze_public_participation_from_ai
 
 Each element is one public speaker's comment:
-  speaker_id, decision_id, stance, stance_evidence, topic, summary, primary_theme,
+  speaker_id, decision_id, stance, stance_evidence, speaker_role, heat, topic, summary, primary_theme,
   place_refs, timestamp_start_seconds, timestamp_end_seconds.
 
 decision_id / stance_evidence were added with the prompt version that asks for
@@ -69,6 +69,9 @@ participation_extracted AS (
         pp->>'speaker_id'    as speaker_id,
         nullif(btrim(pp->>'decision_id'), '') as decision_id,
         pp->>'stance_evidence' as stance_evidence,
+        nullif(btrim(pp->>'speaker_role'), '') as speaker_role,
+        -- 1-5 only; anything else (free text, out of range) is unknown
+        CASE WHEN (pp->>'heat') ~ '^[1-5](\.0+)?$' THEN (pp->>'heat')::numeric::integer END as heat,
         pp->>'topic'         as topic,
         pp->>'stance'        as stance,
         pp->>'summary'       as summary,
@@ -93,6 +96,8 @@ SELECT
     topic,
     stance,
     stance_evidence,
+    speaker_role,
+    heat,
     summary,
     primary_theme,
     place_refs,

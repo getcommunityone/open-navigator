@@ -44,10 +44,19 @@ Emit one row per **member of the public or outside stakeholder** (resident, busi
 - `stance`: the speaker's position **toward the action being decided** (not toward the topic in general), exactly one of:
     * **For:** asks the body to take the action, or speaks in its favor.
     * **Against:** asks the body not to take the action, or speaks against it.
-    * **Mixed or neutral:** supports with conditions that change the action ("pass it, but only with a 1,000-ft setback"), asks for a delay without taking a side, asks questions, or gives information only.
+    * **Asked questions:** only asked questions or sought information, without taking a side.
+    * **Mixed or neutral:** supports with conditions that change the action ("pass it, but only with a 1,000-ft setback"), asks for a delay without taking a side, or gives information only.
     * **Not stated:** the comment does not address the action.
   Decide from what the speaker said. Never infer a stance from their role, employer, or name.
 - `stance_evidence`: the speaker's own words that show the stance, quoted verbatim from the transcript, 25 words or fewer; `null` if no single phrase shows it. Never paraphrase here.
+- `heat`: how heated this speaker's comment was, a whole number 1 to 5, judged only from their words and what the transcript records (captions carry no tone of voice):
+    * **1:** calm; information or a neutral question.
+    * **2:** polite, a mild preference or concern.
+    * **3:** firm or emphatic; urges the body to act.
+    * **4:** states anger, frustration or alarm; accusations or warnings.
+    * **5:** personal attacks, threats of legal or electoral retaliation, shouting noted in the transcript, or cut off or gaveled by the chair.
+  `null` when too little was said to judge. Never raise the number because of the topic or the speaker's side.
+- `speaker_role`: the capacity the speaker gave for themselves, exactly one of: Resident, Property owner, Business owner, Advocacy group, Expert, Union worker, Applicant or developer, Student, Other, Not stated. Use what they said ("I live on Oak Street" is `Resident`; "I own the lot next door" is `Property owner`; "I'm with the Rivers Alliance" is `Advocacy group`; an engineer, doctor or attorney speaking from that expertise is `Expert`). `Not stated` when they gave none. Never infer a role from a name or from their stance.
 - `summary`: one sentence (20 words or fewer) on what they said.
 - `timestamp_start_seconds` / `timestamp_end_seconds`: from the transcript cues, else `null`. Never invent times.
 Emit at most 40 rows. If more people spoke, keep the comments tied to a `decisions[]` item first, then those on uncontested items, then general comment; never drop a speaker to shorten another field.
@@ -244,8 +253,10 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
     {
       "speaker_id": "string — people[].person_id of the public speaker",
       "decision_id": "string or null — decisions[].decision_id or uncontested_items[].item_id the comment is about",
-      "stance": "one of: For, Against, Mixed or neutral, Not stated",
+      "stance": "one of: For, Against, Asked questions, Mixed or neutral, Not stated",
       "stance_evidence": "string or null — verbatim quote, 25 words or fewer",
+      "heat": "integer 1-5 or null",
+      "speaker_role": "one of: Resident, Property owner, Business owner, Advocacy group, Expert, Union worker, Applicant or developer, Student, Other, Not stated",
       "summary": "string — one sentence, 20 words or fewer",
       "timestamp_start_seconds": "number or null",
       "timestamp_end_seconds": "number or null"

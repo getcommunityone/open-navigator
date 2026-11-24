@@ -7,7 +7,8 @@ from pathlib import Path
 from llm.gemini.part1_schema import validate_part1
 
 PROMPTS = Path(__file__).resolve().parents[3] / "prompts"
-STANCES = "For, Against, Mixed or neutral, Not stated"
+STANCES = "For, Against, Asked questions, Mixed or neutral, Not stated"
+ROLES = "Resident, Property owner, Business owner, Advocacy group, Expert, Union worker, Applicant or developer, Student, Other, Not stated"
 
 
 def _analysis(**extra):
@@ -20,6 +21,8 @@ def test_rows_are_kept_as_written():
         "decision_id": "D001",
         "stance": "Against",
         "stance_evidence": "please vote no",
+        "heat": 4,
+        "speaker_role": "Resident",
         "timestamp_start_seconds": "125",
     }
     result = validate_part1(_analysis(public_participation=[row]))
@@ -43,3 +46,16 @@ def test_both_prompts_ask_the_same_stance_vocabulary():
         text = (PROMPTS / name).read_text(encoding="utf-8")
         assert '"public_participation": [' in text, name
         assert f'"stance": "one of: {STANCES}"' in text, name
+        assert f'"speaker_role": "one of: {ROLES}"' in text, name
+        assert '"heat": "integer 1-5 or null"' in text, name
+
+
+def test_both_prompts_share_the_heat_rubric():
+    """The 1-5 scale must mean the same thing in both tiers, or their counts cannot be compared."""
+    blocks = []
+    for name in ("policy_analysis_part_1.md", "policy_analysis_lite.md"):
+        text = (PROMPTS / name).read_text(encoding="utf-8")
+        start = text.index("- `heat`:")
+        blocks.append(text[start : text.index("- `speaker_role`:", start)])
+    assert blocks[0] == blocks[1]
+    assert all(f"* **{n}:**" in blocks[0] for n in range(1, 6))
