@@ -16,12 +16,12 @@ type Layout = 'tiles' | 'pivot' | 'dumbbell' | 'scatter' | 'diverging'
 type GroupBy = 'none' | 'region'
 
 const MAX_COLS = 8
-const STEPS = 6
 /** Discrete 6-step shade (like a printed heatmap legend) so cells compare at a glance. */
-const stepOf = (t: number | null): number | null => (t == null ? null : Math.min(STEPS - 1, Math.floor(t * STEPS)))
+const BIN_EDGES = [0.1, 0.25, 0.45, 0.65, 0.8] // same bins as the Folio reference heatmap
+const stepOf = (t: number | null): number | null => (t == null ? null : BIN_EDGES.filter((e) => t >= e).length)
 const stepColor = (t: number | null): string => {
   const k = stepOf(t)
-  return colorFromT(k == null ? null : (k + 0.5) / STEPS)
+  return colorFromT(k == null ? null : [0.05, 0.175, 0.35, 0.55, 0.725, 0.9][k]!)
 }
 const stepText = (t: number | null): string => ((stepOf(t) ?? 0) >= 3 ? '#fff' : '#0f172a')
 
@@ -42,6 +42,7 @@ export default function DataExplorerMatrixPage() {
   const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' || layoutQ === 'scatter' || layoutQ === 'diverging' ? layoutQ : 'tiles'
   const groupBy: GroupBy = sp.get('group') === 'region' ? 'region' : 'none'
   const sortKey = sp.get('sort') ?? ''
+  const minPct = Math.min(95, Math.max(0, Number(sp.get('min')) || 0))
   const sortDir = sp.get('dir') === 'asc' ? 'asc' : 'desc'
 
   const setQP = (k: string, v: string | null) => {
@@ -143,6 +144,7 @@ export default function DataExplorerMatrixPage() {
     }))
   }, [sorted, groupBy])
 
+  const dim = (t: number | null) => (minPct > 0 && (t == null || t * 100 < minPct) ? 0.25 : 1)
   const fmt = (slug: string, v: number | null) => formatMetricValueDisplay(slug, v, metrics)
   const metricLabel = (slug: string) => metrics.find((m) => m.slug === slug)?.label ?? slug
   const mapHref = (_r: Row) => mapPathUs(DATA_EXPLORER_MAP_BASE, vintage, layout === "tiles" ? metricSlug : cols[0] ?? metricSlug)
@@ -170,6 +172,16 @@ export default function DataExplorerMatrixPage() {
     )
   }
 
+  const cellMetrics = layout === 'tiles' ? [metricSlug] : cols
+  let litCount = 0
+  let totalCells = 0
+  for (const r of rows) {
+    for (const c of cellMetrics) {
+      const t = shade[c]?.(r.vals[c] ?? null) ?? null
+      if (r.vals[c] != null) totalCells += 1
+      if (t != null && t * 100 >= minPct) litCount += 1
+    }
+  }
   const scopeLabel = `All states · ${vintage} ACS 5-year`
 
   return (
@@ -257,11 +269,16 @@ export default function DataExplorerMatrixPage() {
           <span className="font-semibold uppercase tracking-wide">Scale</span>
           {['Lowest', '', '', '', '', 'Highest'].map((l, i) => (
             <span key={i} className="inline-flex items-center gap-1">
-              <span className="inline-block h-3 w-5 rounded-sm border border-slate-300" style={{ background: stepColor((i + 0.5) / STEPS) }} />
+              <span className="inline-block h-3 w-5 rounded-sm border border-slate-300" style={{ background: stepColor([0.05, 0.175, 0.35, 0.55, 0.725, 0.9][i]!) }} />
               {l}
             </span>
           ))}
           <span>(per column · darker = better rank)</span>
+          <label className="ml-2 inline-flex items-center gap-1">
+            Highlight ≥ {minPct}% of range
+            <input type="range" min={0} max={95} step={5} value={minPct} onChange={(e) => setQP('min', e.target.value === '0' ? null : e.target.value)} />
+          </label>
+          {minPct > 0 && <span aria-live="polite">{litCount} of {totalCells} cells highlighted</span>}
         </div>
       )}
       <div className="overflow-auto rounded-lg border border-slate-300 bg-white p-2">
@@ -299,7 +316,7 @@ export default function DataExplorerMatrixPage() {
                         to={mapHref(r)}
                         title={`${r.name}: ${fmt(metricSlug, v)} — ${metricLabel(metricSlug)}`}
                         className="flex h-16 flex-col justify-between rounded-md border border-slate-300 p-1.5 text-[11px] leading-tight hover:ring-2 hover:ring-teal-600"
-                        style={{ background: stepColor(t), color: stepText(t) }}
+                        style={{ background: stepColor(t), color: stepText(t), opacity: dim(t) }}
                       >
                         <span className="font-semibold">{r.code}</span>
                         <span className="tabular-nums">{fmt(metricSlug, v)}</span>
@@ -342,7 +359,7 @@ export default function DataExplorerMatrixPage() {
                           <td
                             key={c}
                             className="p-1 text-right tabular-nums"
-                            style={{ background: stepColor(t), color: stepText(t) }}
+                            style={{ background: stepColor(t), color: stepText(t), opacity: dim(t) }}
                           >
                             {fmt(c, v)}
                           </td>
