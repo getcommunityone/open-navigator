@@ -339,10 +339,12 @@ def test_a_sentence_widens_to_all_terms_only_after_the_typed_search_finds_nothin
     assert body["match"] == "all_terms"
     assert len(conn.calls) == 2
     wide_sql, wide_params = conn.calls[1]
-    # The terms travel as one array parameter; none of the question's text is in the SQL.
-    assert ["fluoride", "petitions"] in wide_params
+    # Each term travels as its own parameter; none of the question's text is in the SQL.
+    assert wide_params[:2] == ("fluoride", "petitions")
     assert "fluoride" not in wide_sql and "petitions" not in wide_sql
-    assert "cardinality(" in wide_sql
+    # One combined query, ANDed, used for the meeting text and for the decision lookup (#926).
+    assert "plainto_tsquery('english', $1) && plainto_tsquery('english', $2)" in wide_sql
+    assert "unnest(" not in wide_sql
 
 
 def test_it_widens_to_any_term_last_and_tells_the_model_the_match_was_loose(post):
@@ -356,6 +358,7 @@ def test_it_widens_to_any_term_last_and_tells_the_model_the_match_was_loose(post
     r = post(conn, {"question": "fluoride or data centers?"}, llm=llm)
     assert r.json()["match"] == "any_term"
     assert len(conn.calls) == 3
+    assert "plainto_tsquery('english', $1) || plainto_tsquery('english', $2)" in conn.calls[2][0]
     assert "no meeting matched every word" in seen["user"]
     assert "fluoride, data, centers" in seen["user"]
 
@@ -372,3 +375,10 @@ def test_a_question_with_no_content_words_keeps_the_single_typed_search(post):
     r = post(conn, {"question": "what happened?"})
     assert r.json()["found"] is False
     assert len(conn.calls) == 1
+
+
+def test_the_combined_text_query_uses_parameter_numbers_only():
+    assert chat._chat_terms_tsquery_sql(3, 2, every=True) == (
+        "(plainto_tsquery('english', $3) && plainto_tsquery('english', $4))"
+    )
+    assert chat._chat_terms_tsquery_sql(1, 1, every=False) == "(plainto_tsquery('english', $1))"
