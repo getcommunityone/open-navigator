@@ -103,6 +103,7 @@ def test_launch_operator_signals_warns_after_inactivity(monkeypatch, tmp_path: P
 def test_launch_operator_signals_vpn_down_from_log(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("BATCH_JOB_LAUNCH_WARN_SECONDS", "3600")
     monkeypatch.setattr(bj, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(bj, "_vpn_tunnel_up_for_resume", lambda: False)
     log_dir = tmp_path / "data" / "cache" / "batch_jobs"
     log_dir.mkdir(parents=True)
     now = datetime.now(timezone.utc)
@@ -119,9 +120,30 @@ def test_launch_operator_signals_vpn_down_from_log(monkeypatch, tmp_path: Path) 
     assert "Surfshark" in signals["warning"]
 
 
+def test_launch_operator_signals_clears_vpn_when_tunnel_up(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Stale Surfshark-off log must not banner when the live tunnel is back (#834)."""
+    monkeypatch.setenv("BATCH_JOB_LAUNCH_WARN_SECONDS", "3600")
+    monkeypatch.setattr(bj, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(bj, "_vpn_tunnel_up_for_resume", lambda: True)
+    log_dir = tmp_path / "data" / "cache" / "batch_jobs"
+    log_dir.mkdir(parents=True)
+    now = datetime.now(timezone.utc)
+    (log_dir / "launch_captions_vpn.log").write_text(
+        f"{now.strftime('%Y-%m-%d %H:%M:%S')} | ERROR | Surfshark is off: connect it, then re-run.\n",
+        encoding="utf-8",
+    )
+    running = [{"step": "captions", "started_at": now.isoformat(), "pid": 1}]
+    signals = bj._launch_operator_signals(freshest="", running=running, stalled=[])
+    assert signals["vpn_down"] is False
+    assert "Surfshark" not in signals["warning"]
+
+
 def test_launch_operator_signals_billing_from_log(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("BATCH_JOB_LAUNCH_WARN_SECONDS", "3600")
     monkeypatch.setattr(bj, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(bj, "_vpn_tunnel_up_for_resume", lambda: False)
     log_dir = tmp_path / "data" / "cache" / "batch_jobs"
     log_dir.mkdir(parents=True)
     now = datetime.now(timezone.utc)
@@ -142,6 +164,7 @@ def test_launch_operator_signals_billing_from_log(monkeypatch, tmp_path: Path) -
 def test_orphan_vpn_warning_after_process_exits(monkeypatch, tmp_path: Path) -> None:
     """After Discover aborts on VpnRequiredError, PID is gone but log still warns."""
     monkeypatch.setattr(bj, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(bj, "_vpn_tunnel_up_for_resume", lambda: False)
     log_dir = tmp_path / "data" / "cache" / "batch_jobs"
     log_dir.mkdir(parents=True)
     now = datetime.now(timezone.utc)
@@ -152,7 +175,6 @@ def test_orphan_vpn_warning_after_process_exits(monkeypatch, tmp_path: Path) -> 
     signals = bj._launch_operator_signals(freshest="", running=[], stalled=[])
     assert signals["vpn_down"] is True
     assert "Surfshark" in signals["warning"]
-
 
 def test_auto_resume_waits_for_vpn(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("BATCH_JOBS_ALLOW_LAUNCH", "1")
