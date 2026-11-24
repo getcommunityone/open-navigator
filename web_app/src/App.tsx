@@ -230,7 +230,7 @@ function App() {
         </Route>
         {/* Admin area — operational tools, reachable from the logged-in profile menu. */}
         <Route path="admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/admin/lighthouse-report" replace />} />
+          <Route index element={<Navigate to="/admin/batch-jobs" replace />} />
           <Route path="lighthouse-report" element={<LighthouseReportPage />} />
           <Route path="batch-jobs" element={<BatchJobStatusPage />} />
           <Route path="batch-jobs/failures" element={<BatchFailureReasonsPage />} />

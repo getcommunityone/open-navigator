@@ -476,7 +476,7 @@ export default function Settings() {
                   <p className="text-sm text-slate-500 mb-2">
                     Operational tooling for pipelines and site ops
                   </p>
-                  {linkCard('Admin home', 'Lighthouse, batch jobs, and more', ADMIN_BASE)}
+                  {linkCard('Admin home', 'Batch jobs, meeting kinds, and more', ADMIN_BASE)}
                   {linkCard(
                     'Lighthouse report',
                     'Website accessibility / performance scores',
