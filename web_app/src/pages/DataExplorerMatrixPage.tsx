@@ -6,13 +6,14 @@ import { censusMetricRankDirection } from '../utils/censusDataDictionary'
 import { CENSUS_REGION_LABEL, censusRegionForStateFips, type CensusRegionId } from '../utils/censusRegions'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { STATE_FIPS_TO_CODE } from '../utils/stateFips'
+import DotMatrixMap from '../components/DotMatrixMap'
 import { DATA_EXPLORER_MAP_BASE, mapPathUs } from '../utils/dataExplorerPaths'
 
 type Metric = CensusMetricFormatRow & { label: string }
 type Manifest = { vintage?: string; vintages?: string[]; metrics?: Metric[] }
 type StatePayload = { values: Record<string, Record<string, number | null | undefined>> }
 
-type Layout = 'tiles' | 'pivot' | 'dumbbell' | 'scatter' | 'diverging' | 'share'
+type Layout = 'tiles' | 'pivot' | 'dumbbell' | 'scatter' | 'diverging' | 'share' | 'dots'
 type GroupBy = 'none' | 'region'
 
 const MAX_COLS = 8
@@ -39,7 +40,7 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 export default function DataExplorerMatrixPage() {
   const [sp, setSp] = useSearchParams()
   const layoutQ = sp.get('layout')
-  const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' || layoutQ === 'scatter' || layoutQ === 'diverging' || layoutQ === 'share' ? layoutQ : 'tiles'
+  const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' || layoutQ === 'scatter' || layoutQ === 'diverging' || layoutQ === 'share' || layoutQ === 'dots' ? layoutQ : 'tiles'
   const groupBy: GroupBy = sp.get('group') === 'region' ? 'region' : 'none'
   const sortKey = sp.get('sort') ?? ''
   const minPct = Math.min(95, Math.max(0, Number(sp.get('min')) || 0))
@@ -152,7 +153,7 @@ export default function DataExplorerMatrixPage() {
   }, [rows, activeSort, sortDir])
 
   const groups = useMemo(() => {
-    if (groupBy === 'none' || layout === 'share') return [{ label: null as string | null, items: sorted }]
+    if (groupBy === 'none' || layout === 'share' || layout === 'dots') return [{ label: null as string | null, items: sorted }]
     return (Object.keys(CENSUS_REGION_LABEL) as CensusRegionId[]).map((id) => ({
       label: CENSUS_REGION_LABEL[id],
       items: sorted.filter((r) => r.region === id),
@@ -223,6 +224,9 @@ export default function DataExplorerMatrixPage() {
           </button>
           <button type="button" className={btn(layout === 'share')} onClick={() => setQP('layout', 'share')}>
             ◔ Share
+          </button>
+          <button type="button" className={btn(layout === 'dots')} onClick={() => setQP('layout', 'dots')}>
+            ⠿ Dot map
           </button>
         </div>
         <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Group by">
@@ -308,7 +312,7 @@ export default function DataExplorerMatrixPage() {
         <p className="text-[11px] text-slate-500">Darker = better rank for the metric (neutral metrics: larger).</p>
       </div>
 
-      {(layout === 'tiles' || layout === 'pivot') && (
+      {(layout === 'tiles' || layout === 'pivot' || layout === 'dots') && (
         <div className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-slate-600" aria-label="Scale">
           <span className="font-semibold uppercase tracking-wide">Scale</span>
           {['Lowest', '', '', '', '', 'Highest'].map((l, i) => (
@@ -329,7 +333,19 @@ export default function DataExplorerMatrixPage() {
         {groups.map((g) => (
           <section key={g.label ?? 'all'} className="mb-3">
             {g.label && <h3 className="mb-1 text-xs font-semibold text-slate-700">{g.label}</h3>}
-            {layout === 'share' ? (
+            {layout === 'dots' ? (
+              <DotMatrixMap
+                slug={metricSlug}
+                vintage={vintage}
+                stateValue={(f) => rows.find((r) => r.fips === f)?.vals[metricSlug] ?? null}
+                stateName={(f) => rows.find((r) => r.fips === f)?.name ?? f}
+                stateT={(f) => shade[metricSlug]?.(rows.find((r) => r.fips === f)?.vals[metricSlug] ?? null) ?? null}
+                color={stepColor}
+                fmt={fmt}
+                drill={sp.get('dot')}
+                onDrill={(f) => setQP('dot', f)}
+              />
+            ) : layout === 'share' ? (
               <Share
                 slug={metricSlug}
                 label={metricLabel(metricSlug)}

@@ -96,6 +96,7 @@ and say so in the layout caption. Scatter shows association at state or county l
 | Compare (dumbbell) | one metric across two years or two periods |
 | Scatter | meeting rate vs ACS context, with the r² readout |
 | Diverging | state vs median for a rate |
+| Dot map | any metric by state, then drill into that state's counties (one dot = a patch of the map, coloured by the area it sits in). The same drill-down will carry meeting metrics once county-level values exist |
 | Share | additive metrics only: decisions by theme within a state, or a state's share of all decisions |
 
 ## How to build it (data layer first)
