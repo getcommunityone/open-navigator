@@ -35,6 +35,25 @@ transcripts, not comment-level records, and caption files carry no speaker bound
 verbatim evidence, a timestamp and a site link. Label it honestly as "public-comment passages", not "comments".
 Moving to true comment units needs speaker segmentation, a separate project.
 
+## How the calls are structured (not per person)
+
+- **Captions carry no speaker labels**, so a meeting cannot be split by person. The person-level information that
+  exists (`decision_speakers`, `event_decision.human_element->'personal_stories'`) comes from the Gemini extraction, not from
+  the transcript.
+- **The unit is the passage, one Jev request per passage.** A passage is the same ~3-minute window
+  `data_center_meeting_mention` already cuts. All the stance questions go in that one request. A passage can hold
+  several speakers; the answer describes the public comment in that window as a whole, and a window with both
+  sides lands in the neutral/mixed bucket. Shorter windows (60 to 90 seconds) would separate speakers better at a
+  small extra cost; try that if validation shows many mixed passages.
+- **Not by decision.** Decisions are the unit of the Gemini extraction, but a decision's discussion is spread across
+  the meeting and has no stable text span, so passages are the cleaner unit. A passage can be linked to a decision
+  later by time overlap.
+- **Existing Jev screening is a gate, not the host.** `screen_transcripts` sends up to 4 evenly spaced chunks per
+  video and takes the highest `mentions_data_center` probability, which is right for "is this meeting relevant" but
+  would miss most data-center passages for stance. So the stance pass runs as its own module on the stored
+  mention passages, and only for videos the screen already marked as discussing data centers. That keeps the cost
+  down and reuses the same client, usage table and run pattern (`llm.typesafe.client.JevClient`).
+
 ## Questions to ask Jev, per passage
 
 All in one request per passage (cheap, and the passage is read once):
