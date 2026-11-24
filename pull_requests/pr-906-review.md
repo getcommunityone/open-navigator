@@ -5,7 +5,7 @@ title: "docs(citations): cite Granicus, CivicClerk, and Town Hall Streams"
 author: jcbowyer
 reviewed_at: 2026-11-24
 reviewer: github-actions
-head_sha: 8a04efce59c6bc6adea48f50b875bea6640d52c5
+head_sha: 33d1c280e7c970d9ce6473cdd0f9a8fa4d5ac80f
 verdict: approve
 ---
 
@@ -19,11 +19,12 @@ Automated review (#648) for PR #906 on `docs/905-meeting-video-platform-citation
 ## Scope of Change
 
 - `CITATIONS.md`
+- `pull_requests/pr-906-review.md`
 - `web_docs/docs/data-sources/citations.md`
 
 ## CI Status
 
-See the PR checks on `8a04efce59c6`.
+See the PR checks on `33d1c280e7c9`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
