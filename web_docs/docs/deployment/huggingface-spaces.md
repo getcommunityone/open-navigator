@@ -248,6 +248,16 @@ git push hf huggingface-deploy:main
 
 The Space will automatically rebuild.
 
+## Seeing a new deploy on a phone that visited before
+
+The web app installs a service worker, which serves the site from the device's cache and swaps in a new version when
+it finds a new `sw.js`. The Space's nginx sends the service worker files (`sw.js`, `registerSW.js`, `workbox-*.js`,
+`manifest.webmanifest`) with `Cache-Control: no-cache, no-store, must-revalidate`, so a device checks for a new
+version on every visit.
+
+The swap takes two visits: the first loads the old cached page and downloads the new version in the background, and
+the next load shows it. So after a deploy, open the site, close the tab, and open it again. If a device is still on
+an old version, clear the site's data in the browser's settings.
 ## Files stored in Git LFS (PDFs, logos, images)
 
 The deploy drops raw binary files and keeps Git LFS pointers, so a served binary (the strategic plan PDF, the logo
