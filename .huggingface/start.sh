@@ -56,6 +56,12 @@ nginx -t
 echo "💾 Initializing database..."
 python -c "from api.database import init_db; init_db()" || echo "⚠️  Database init skipped"
 
+# Served files that are still Git LFS pointers are swapped for the real files (#911). This runs
+# beside the services so it never delays or fails the start.
+if [ -x /app/restore_lfs_static.sh ]; then
+    /app/restore_lfs_static.sh /app /app/static/frontend /app/static/docs /app/api/static > /app/logs/restore_lfs_static.log 2>&1 &
+fi
+
 # Start all services with supervisor
 echo "🎬 Starting all services with supervisor..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
