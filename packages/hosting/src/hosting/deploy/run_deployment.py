@@ -30,6 +30,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -65,7 +66,7 @@ STEP_DEFS: Dict[str, Dict[str, Any]] = {
             "bronze.bronze_events_analysis_ai. Reads files only; never moves or deletes one."
         ),
         "target": "local-warehouse",
-        "argv": ["{python}", "-m", "llm.enrichment.load_analysis_cache_to_bronze"],
+        "argv": ["{python}", "-m", "llm.enrichment.load_analysis_cache_to_bronze", "--result-json", "{result}"],
     },
     "dbt-gold": {
         "group": "load",
@@ -175,6 +176,9 @@ class DeploymentJob:
                     "note": None,
                     "log": str((log_dir / f"{job_id}_{key}.log").relative_to(_repo_root())),
                     "cmd": "",
+                    # Counts for the Load tab (#823): filled when the step leaves a result file.
+                    "counts": None,
+                    "result": None,
                 }
             )
 
@@ -244,17 +248,96 @@ def dbt_bin() -> str:
     return "dbt"
 
 
-def _step_argv(key: str) -> List[str]:
-    raw = STEP_DEFS[key]["argv"]
+def result_path_for(status_dir: Path, job_id: str, key: str) -> Path:
+    """Where a step's counts and per-item results are written (next to its log)."""
+    return status_dir / f"{job_id}_{key}.result.json"
+
+
+def _step_argv(key: str, result_path: Optional[Path] = None) -> List[str]:
+    """The step's command. ``{result}`` becomes ``result_path``; without one the flag is left out."""
+    raw = list(STEP_DEFS[key]["argv"])
+    if result_path is None and "{result}" in raw:
+        at = raw.index("{result}")
+        del raw[at - 1 : at + 1]
     out: List[str] = []
     for tok in raw:
-        if tok == "{python}":
+        if tok == "{result}":
+            out.append(str(result_path))
+        elif tok == "{python}":
             out.append(sys.executable)
         elif tok == "{dbt}":
             out.append(dbt_bin())
         else:
             out.append(tok)
     return out
+
+
+def summarize_load_counts(counts: Dict[str, Any]) -> Dict[str, int]:
+    """The loader's many counters as the four numbers a step row shows."""
+    def n(key: str) -> int:
+        try:
+            return int(counts.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    skipped = sum(n(k) for k in counts if k.startswith("skipped_") and k != "skipped_other_tier")
+    return {"read": n("discovered"), "loaded": n("loaded"), "skipped": skipped, "errors": n("errors")}
+
+
+def dbt_result_from_run_results(run_results: Path, started_epoch: float) -> Optional[Dict[str, Any]]:
+    """Per-model outcome of the dbt step, from dbt's own ``run_results.json``.
+
+    ``None`` when the file is missing, unreadable, or older than this step (left by another dbt run):
+    stale numbers are worse than no numbers."""
+    try:
+        if run_results.stat().st_mtime < started_epoch - 1:
+            return None
+        data = json.loads(run_results.read_text())
+    except (OSError, ValueError):
+        return None
+    results = data.get("results") if isinstance(data, dict) else None
+    if not isinstance(results, list):
+        return None
+    counts = {"models": 0, "success": 0, "error": 0, "skipped": 0}
+    items: List[Dict[str, Any]] = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        status = str(r.get("status") or "").lower()
+        counts["models"] += 1
+        if status in ("success", "pass"):
+            counts["success"] += 1
+            continue
+        outcome = "skipped" if status == "skipped" else "error"
+        counts[outcome] += 1
+        message = r.get("message")
+        items.append({
+            "file": str(r.get("unique_id") or ""),
+            "video_id": None,
+            "tier": None,
+            "outcome": outcome,
+            "reason": status or "unknown",
+            "detail": str(message)[:1000] if message else None,
+        })
+    return {"schema": 1, "kind": "dbt", "dry_run": False, "generated_at": _now_iso(), "counts": counts, "items": items}
+
+
+def collect_step_result(key: str, result_path: Path, root: Path, started_epoch: float) -> Optional[Dict[str, int]]:
+    """Counts for a finished step, or ``None`` when it left nothing to count. Never raises."""
+    try:
+        if key == "dbt-gold":
+            result = dbt_result_from_run_results(root / "dbt_project" / "target" / "run_results.json", started_epoch)
+            if result is None:
+                return None
+            result_path.write_text(json.dumps(result))
+            return dict(result["counts"])
+        if not result_path.is_file():
+            return None
+        data = json.loads(result_path.read_text())
+        counts = data.get("counts") if isinstance(data, dict) else None
+        return summarize_load_counts(counts) if isinstance(counts, dict) else None
+    except (OSError, ValueError, TypeError):
+        return None
 
 
 def _child_env() -> Dict[str, str]:
@@ -300,7 +383,9 @@ class _Orchestrator:
                 self.job.flush()
                 continue
 
-            argv = _step_argv(step["key"])
+            result_path = result_path_for((root / step["log"]).parent, self.job.job_id, step["key"])
+            argv = _step_argv(step["key"], result_path)
+            started_epoch = time.time()
             step["cmd"] = " ".join(argv)
             step["status"] = "running"
             step["started_at"] = _now_iso()
@@ -339,6 +424,13 @@ class _Orchestrator:
                 rc = 127
 
             step["exit_code"] = rc
+            # Counts are recorded whatever the exit code: a failed step is when they matter most.
+            step["counts"] = collect_step_result(step["key"], result_path, root, started_epoch)
+            if step["counts"] is not None:
+                try:
+                    step["result"] = str(result_path.relative_to(root))
+                except ValueError:  # a status dir outside the repo (tests, custom --status-dir)
+                    step["result"] = str(result_path)
             if self._cancelled:
                 step["status"] = "cancelled"
                 self.job.flush()

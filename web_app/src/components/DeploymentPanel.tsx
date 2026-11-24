@@ -10,6 +10,8 @@ import {
   type DeploymentStep,
 } from '../api/deployments'
 import { formatAgoCompact, formatDateTimeAbsolute } from '../utils/dateTime'
+import { hasProblems } from '../utils/stepCounts'
+import StepResultPanel, { StepCounts } from './StepResultPanel'
 
 const STATUS_STYLE: Record<string, string> = {
   completed: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -57,6 +59,7 @@ function StepRow({ job, step }: { job: DeploymentJob; step: DeploymentStep }) {
           <span className="text-xs text-slate-500">{step.description}</span>
         </span>
         <span className="flex items-center gap-3">
+          <StepCounts counts={step.counts} />
           {step.exit_code != null && step.status !== 'completed' && (
             <span className="text-xs text-slate-500">exit {step.exit_code}</span>
           )}
@@ -70,6 +73,14 @@ function StepRow({ job, step }: { job: DeploymentJob; step: DeploymentStep }) {
       )}
       {open && (
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
+          {(job.group === 'load' || step.counts) && (
+            <div className="mb-3">
+              <p className="mb-1 text-xs font-semibold text-slate-700">
+                {hasProblems(step.counts) ? 'What was skipped or failed' : 'Counts'}
+              </p>
+              <StepResultPanel jobId={job.job_id} step={step.key} live={step.status === 'running'} />
+            </div>
+          )}
           {step.cmd && (
             <p className="mb-1 font-mono text-[11px] text-slate-500">$ {step.cmd}</p>
           )}
@@ -96,6 +107,18 @@ function stepSummary(job: DeploymentJob): string {
   const parts = [`${total} step${total === 1 ? '' : 's'}`]
   if (done) parts.push(`${done} done`)
   if (failed) parts.push(`${failed} failed`)
+  // The headline numbers of the run, when its steps recorded them (#823).
+  const load = job.steps.find((s) => s.counts && typeof s.counts.read === 'number')?.counts
+  if (load) {
+    parts.push(`${(load.read ?? 0).toLocaleString()} files read`, `${(load.loaded ?? 0).toLocaleString()} loaded`)
+    if (load.skipped) parts.push(`${load.skipped.toLocaleString()} skipped`)
+    if (load.errors) parts.push(`${load.errors.toLocaleString()} file errors`)
+  }
+  const dbt = job.steps.find((s) => s.counts && typeof s.counts.models === 'number')?.counts
+  if (dbt) {
+    parts.push(`${(dbt.success ?? 0).toLocaleString()} of ${(dbt.models ?? 0).toLocaleString()} models built`)
+    if (dbt.error) parts.push(`${dbt.error.toLocaleString()} models failed`)
+  }
   return parts.join(' · ')
 }
 
