@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { geoPath } from 'd3-geo'
 import { feature } from 'topojson-client'
 import { censusMetricRankDirection } from '../utils/censusDataDictionary'
+import { staggerDelayMs } from '../utils/folioMotion'
 
 const STATES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json'
 const COUNTIES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json'
@@ -155,13 +156,13 @@ export default function DotMatrixMap({ slug, vintage, stateValue, stateName, sta
   const scope = inCounty ? stateName(drill!) : 'United States'
   if (statesError || (inCounty && countiesError)) {
     return (
-      <p className="p-2 text-xs text-slate-700" role="status">
+      <p className="folio-muted" role="status">
         No data available — the map shapes could not be loaded. The Tiles and Pivot layouts show the same values without a map.
       </p>
     )
   }
   if (!model) {
-    return <p className="p-2 text-xs text-slate-600">{inCounty && countiesTopo ? 'No data available — no county shapes for this state.' : 'Loading map…'}</p>
+    return <p className="folio-muted">{inCounty && countiesTopo ? 'No data available — no county shapes for this state.' : 'Loading map…'}</p>
   }
   const bbox = inCounty ? (state as NonNullable<typeof state>).bbox : ([0, 0, 975, 610] as const)
   const pad = 6
@@ -174,8 +175,8 @@ export default function DotMatrixMap({ slug, vintage, stateValue, stateName, sta
 
   return (
     <div>
-      <nav className="mb-1 flex flex-wrap items-center gap-1 text-xs text-slate-700" aria-label="Map scope">
-        <button type="button" className={inCounty ? 'text-teal-800 hover:underline' : 'font-semibold'} onClick={() => onDrill(null)} disabled={!inCounty}>
+      <nav className="mb-2 flex flex-wrap items-center gap-1 text-xs" style={{ color: 'var(--ink)' }} aria-label="Map scope">
+        <button type="button" className={inCounty ? 'folio-link-btn' : 'folio-link-btn font-semibold'} onClick={() => onDrill(null)} disabled={!inCounty}>
           United States
         </button>
         {inCounty && (
@@ -184,13 +185,13 @@ export default function DotMatrixMap({ slug, vintage, stateValue, stateName, sta
             <span className="font-semibold">{scope} · counties</span>
           </>
         )}
-        <span className="ml-2 text-slate-500">
+        <span className="folio-note ml-2">
           {inCounty ? 'One dot ≈ a patch of the state, coloured by its county (scaled within this state).' : 'Click a state, or choose one:'}
         </span>
         {!inCounty && (
           <select
             aria-label="Drill into a state's counties"
-            className="rounded border border-slate-300 px-1.5 py-0.5 text-xs"
+            className="folio-select"
             value=""
             onChange={(e) => e.target.value && onDrill(e.target.value)}
           >
@@ -207,26 +208,32 @@ export default function DotMatrixMap({ slug, vintage, stateValue, stateName, sta
         )}
       </nav>
       {noCounty && (
-        <p className="mb-1 text-xs text-slate-600" role="status">
+        <p className="folio-note mb-1" role="status">
           No data available — county_metrics.json for this vintage is not published, so the dots are gray.
         </p>
       )}
       <svg viewBox={vb} className="w-full" role="img" aria-label={`Dot-matrix map of ${scope}`} onMouseLeave={() => setHover(null)}>
-        {model.dots.map((d, i) => (
-          <circle
-            key={i}
-            cx={d.x}
-            cy={d.y}
-            r={r}
-            fill={color(tOf(d.id))}
-            opacity={hover && hover !== d.id ? 0.35 : 1}
-            style={{ cursor: inCounty ? 'default' : 'pointer' }}
-            onMouseEnter={() => setHover(d.id)}
-            onClick={() => !inCounty && onDrill(d.id)}
-          />
-        ))}
+        <g key={inCounty ? `c:${drill}` : 'us'}>
+          {model.dots.map((d, i) => (
+            <circle
+              key={i}
+              className="folio-svg-dot folio-pop"
+              cx={d.x}
+              cy={d.y}
+              r={r}
+              style={{
+                fill: color(tOf(d.id)),
+                opacity: hover && hover !== d.id ? 0.35 : 1,
+                cursor: inCounty ? 'default' : 'pointer',
+                ...({ '--delay': `${Math.round(staggerDelayMs((d.x - bbox[0]) / model.step, (d.y - bbox[1]) / model.step, (bbox[2] - bbox[0] + bbox[3] - bbox[1]) / model.step, 800))}ms` } as CSSProperties),
+              }}
+              onMouseEnter={() => setHover(d.id)}
+              onClick={() => !inCounty && onDrill(d.id)}
+            />
+          ))}
+        </g>
       </svg>
-      <p className="mt-1 min-h-[1.25rem] text-xs text-slate-800" aria-live="polite">
+      <p className="folio-row-val mt-1 min-h-[1.25rem]" style={{ color: 'var(--ink)' }} aria-live="polite">
         {hover ? `${nameOf(hover)}: ${fmt(slug, valOf(hover))}` : ' '}
       </p>
     </div>

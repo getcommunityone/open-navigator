@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { colorFromT, formatMetricValueDisplay, type CensusMetricFormatRow } from '../utils/censusMapTransforms'
+import '@fontsource-variable/geist'
+import '@fontsource-variable/geist-mono'
+import '../styles/folio.css'
+import { formatMetricValueDisplay, type CensusMetricFormatRow } from '../utils/censusMapTransforms'
 import { censusMetricRankDirection } from '../utils/censusDataDictionary'
 import { CENSUS_REGION_LABEL, censusRegionForStateFips, type CensusRegionId } from '../utils/censusRegions'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
@@ -10,6 +13,11 @@ import DotMatrixMap from '../components/DotMatrixMap'
 import { fetchStaticJson } from '../utils/fetchStaticJson'
 import { activeSortKey, largestRemainder, medianOf, olsFit, shadeT } from '../utils/matrixMapMath'
 import { DATA_EXPLORER_MAP_BASE, mapPathUs } from '../utils/dataExplorerPaths'
+import { rowDelayMs, staggerDelayMs } from '../utils/folioMotion'
+import { FOLIO_NEUTRAL, FOLIO_RAMP, STEP_MID_T, labelOn } from '../utils/folioRamp'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { useCountUp } from '../hooks/useCountUp'
+import { useFlip, useIntro } from '../hooks/useFlip'
 
 type Metric = CensusMetricFormatRow & { label: string }
 type Manifest = { vintage?: string; vintages?: string[]; metrics?: Metric[] }
@@ -22,11 +30,25 @@ const MAX_COLS = 8
 /** Discrete 6-step shade (like a printed heatmap legend) so cells compare at a glance. */
 const BIN_EDGES = [0.1, 0.25, 0.45, 0.65, 0.8] // same bins as the Folio reference heatmap
 const stepOf = (t: number | null): number | null => (t == null ? null : BIN_EDGES.filter((e) => t >= e).length)
+/** Violet ramp (tint -> violet -> violet-ink) for ranked values; the neutral data colour for cells with no data. */
 const stepColor = (t: number | null): string => {
   const k = stepOf(t)
-  return colorFromT(k == null ? null : [0.05, 0.175, 0.35, 0.55, 0.725, 0.9][k]!)
+  return k == null ? FOLIO_NEUTRAL : FOLIO_RAMP[k]!
 }
-const stepText = (t: number | null): string => ((stepOf(t) ?? 0) >= 3 ? '#fff' : '#0f172a')
+/** Ink or white per step, whichever has the better contrast (checked in folioRamp.test.ts). */
+const stepText = (t: number | null): string => labelOn(stepColor(t))
+const delayVar = (ms: number): CSSProperties => ({ '--delay': `${Math.round(ms)}ms` }) as CSSProperties
+
+const LAYOUT_NAME: Record<string, string> = {
+  tiles: 'Tiles',
+  pivot: 'Pivot',
+  dumbbell: 'Compare',
+  scatter: 'Scatter',
+  diverging: 'Diverging',
+  share: 'Share',
+  dots: 'Dot map',
+}
+const LAYOUT_ORDER = ['tiles', 'pivot', 'dumbbell', 'scatter', 'diverging', 'share', 'dots']
 
 interface Row {
   fips: string
@@ -41,6 +63,7 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 /** "Matrix map": every state as a box. Tiles = one metric shaded; Pivot = states × chosen metrics. */
 export default function DataExplorerMatrixPage() {
   const [sp, setSp] = useSearchParams()
+  const reduced = usePrefersReducedMotion()
   const layoutQ = sp.get('layout')
   const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' || layoutQ === 'scatter' || layoutQ === 'diverging' || layoutQ === 'share' || layoutQ === 'dots' ? layoutQ : 'tiles'
   const groupBy: GroupBy = sp.get('group') === 'region' ? 'region' : 'none'
@@ -161,10 +184,10 @@ export default function DataExplorerMatrixPage() {
     }))
   }, [sorted, groupBy, layout])
 
-  /** Cells below the highlight threshold go flat gray, so the text stays readable. */
+  /** Cells below the highlight threshold go to the neutral data colour, so the text stays readable. */
   const cellStyle = (t: number | null) =>
     minPct > 0 && (t == null || t * 100 < minPct)
-      ? { background: '#f1f5f9', color: '#94a3b8' }
+      ? { background: FOLIO_NEUTRAL, color: '#4a4752' }
       : { background: stepColor(t), color: stepText(t) }
   const fmt = (slug: string, v: number | null) => formatMetricValueDisplay(slug, v, metrics)
   const metricLabel = (slug: string) => metrics.find((m) => m.slug === slug)?.label ?? slug
@@ -183,17 +206,22 @@ export default function DataExplorerMatrixPage() {
     setSp(next, { replace: true })
   }
 
-  const btn = (on: boolean) =>
-    `px-2.5 py-1 text-xs font-medium ${on ? 'bg-[#354F52] text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`
-
-  if (mLoading || pLoading) return <p className="p-4 text-sm text-slate-600">Loading matrix…</p>
+  if (mLoading || pLoading) {
+    return (
+      <div className="folio">
+        <p className="folio-muted">Loading matrix…</p>
+      </div>
+    )
+  }
   if (!manifest || !payload || rows.length === 0 || metrics.length === 0) {
     return (
-      <p className="rounded-lg bg-white p-4 text-sm text-slate-700" role="status">
-        No data available. The census data files are not on this server (<code className="text-xs">/data/census-map/</code>).
-        They are generated, not stored in the repository: run{' '}
-        <code className="text-xs">python -m ingestion.census.export_census_map_static --all-years</code>, then reload.
-      </p>
+      <div className="folio">
+        <p className="folio-status" role="status">
+          No data available. The census data files are not on this server (<code>/data/census-map/</code>).
+          They are generated, not stored in the repository: run{' '}
+          <code>python -m ingestion.census.export_census_map_static --all-years</code>, then reload.
+        </p>
+      </div>
     )
   }
 
@@ -210,57 +238,70 @@ export default function DataExplorerMatrixPage() {
   // The label names exactly what the layout below is showing (CLAUDE.md: scope label matches the filter).
   const drillFips = layout === 'share' && partScope === 'county' ? partState : layout === 'dots' ? sp.get('dot') : null
   const drillName = drillFips ? rows.find((r) => r.fips === drillFips)?.name ?? drillFips : null
-  const scopeLabel = `${drillName ? `${drillName} counties` : 'All states'} · ${
-    layout === 'dumbbell' && baseVintage && baseVintage !== vintage ? `${baseVintage} to ${vintage}` : vintage
-  } ACS 5-year`
+  const vintageText = layout === 'dumbbell' && baseVintage && baseVintage !== vintage ? `${baseVintage} to ${vintage}` : vintage
+  const scopeLabel = `${drillName ? `${drillName} counties` : 'All states'} · ${vintageText} ACS 5-year`
+  const scatterY = sp.get('y') || metrics.find((m) => m.slug !== metricSlug)?.slug || ''
+
+  // KPI row: every number is computed from the state values already loaded for the metric in view.
+  const kpiSlug = layout === 'pivot' ? cols[0] ?? metricSlug : metricSlug
+  const kpiVals = rows.flatMap((r) => (r.vals[kpiSlug] != null ? [{ r, v: r.vals[kpiSlug] as number }] : []))
+  const kpiMedian = medianOf(kpiVals.map((x) => x.v))
+  const kpiHigh = kpiVals.reduce<{ r: Row; v: number } | null>((a, x) => (a == null || x.v > a.v ? x : a), null)
+  const kpiLow = kpiVals.reduce<{ r: Row; v: number } | null>((a, x) => (a == null || x.v < a.v ? x : a), null)
+  const showKpis = !drillName
+
+  const figNo = String(LAYOUT_ORDER.indexOf(layout) + 1).padStart(2, '0')
+  const lbl = metricLabel(metricSlug)
+  const figWhat: Record<Layout, string> = {
+    tiles: `${lbl} by state, shaded by rank across states.`,
+    pivot: `${cols.length} ${cols.length === 1 ? 'metric' : 'metrics'} by state, each column shaded on its own scale.`,
+    dumbbell: `${lbl} by state, ${vintageText}.`,
+    scatter: `${metricLabel(scatterY)} against ${lbl}, one point per state, coloured by Census region.`,
+    diverging: `${lbl}: each state's distance from the median state.`,
+    share: `${lbl} as a share of ${partScope === 'county' ? `${drillName ?? 'the state'} counties` : 'U.S. states'}.`,
+    dots: `${lbl} as a dot-matrix map of ${drillName ? `${drillName} counties` : 'the United States'}.`,
+  }
+
+  const segBtn = (on: boolean, label: string, onClick: () => void) => (
+    <button type="button" aria-pressed={on} onClick={onClick}>
+      {label}
+    </button>
+  )
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-300 bg-white px-3 py-2">
-        <h2 className="text-sm font-semibold text-slate-900">
-          Matrix map <span className="font-normal text-slate-600">· {scopeLabel}</span>
-        </h2>
-        <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Layout">
-          <button type="button" className={btn(layout === 'tiles')} onClick={() => setQP('layout', null)}>
-            Tiles
-          </button>
-          <button type="button" className={btn(layout === 'pivot')} onClick={() => setQP('layout', 'pivot')}>
-            Pivot
-          </button>
-          <button type="button" className={btn(layout === 'dumbbell')} onClick={() => setQP('layout', 'dumbbell')}>
-            Compare
-          </button>
-          <button type="button" className={btn(layout === 'scatter')} onClick={() => setQP('layout', 'scatter')}>
-            Scatter
-          </button>
-          <button type="button" className={btn(layout === 'diverging')} onClick={() => setQP('layout', 'diverging')}>
-            Diverging
-          </button>
-          <button type="button" className={btn(layout === 'share')} onClick={() => setQP('layout', 'share')}>
-            Share
-          </button>
-          <button type="button" className={btn(layout === 'dots')} onClick={() => setQP('layout', 'dots')}>
-            Dot map
-          </button>
+    <div className="folio">
+      <p className="folio-eyebrow">Matrix map — {LAYOUT_NAME[layout]}</p>
+      <h2 className="folio-heading">{scopeLabel}</h2>
+
+      {showKpis && (
+        <dl className="folio-kpis" aria-label="Key figures for the metric in view">
+          <Kpi label="Geographies with data" value={kpiVals.length} format={(v) => Math.round(v).toLocaleString('en-US')} sub={metricLabel(kpiSlug)} reduced={reduced} />
+          <Kpi label="Median" value={kpiMedian} format={(v) => fmt(kpiSlug, v)} sub="the median state" reduced={reduced} />
+          <Kpi label="Highest" value={kpiHigh?.v ?? null} format={(v) => fmt(kpiSlug, v)} sub={kpiHigh?.r.name ?? 'No data available'} reduced={reduced} />
+          <Kpi label="Lowest" value={kpiLow?.v ?? null} format={(v) => fmt(kpiSlug, v)} sub={kpiLow?.r.name ?? 'No data available'} reduced={reduced} />
+        </dl>
+      )}
+
+      <div className="folio-toolbar">
+        <div className="folio-seg" role="group" aria-label="Layout">
+          {segBtn(layout === 'tiles', 'Tiles', () => setQP('layout', null))}
+          {segBtn(layout === 'pivot', 'Pivot', () => setQP('layout', 'pivot'))}
+          {segBtn(layout === 'dumbbell', 'Compare', () => setQP('layout', 'dumbbell'))}
+          {segBtn(layout === 'scatter', 'Scatter', () => setQP('layout', 'scatter'))}
+          {segBtn(layout === 'diverging', 'Diverging', () => setQP('layout', 'diverging'))}
+          {segBtn(layout === 'share', 'Share', () => setQP('layout', 'share'))}
+          {segBtn(layout === 'dots', 'Dot map', () => setQP('layout', 'dots'))}
         </div>
-{layout !== 'share' && layout !== 'dots' && layout !== 'scatter' && (
-        <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Group by">
-          <button type="button" className={btn(groupBy === 'none')} onClick={() => setQP('group', null)}>
-            Flat
-          </button>
-          <button type="button" className={btn(groupBy === 'region')} onClick={() => setQP('group', 'region')}>
-            By region
-          </button>
-        </div>
+        {layout !== 'share' && layout !== 'dots' && layout !== 'scatter' && (
+          <div className="folio-seg" role="group" aria-label="Group by">
+            {segBtn(groupBy === 'none', 'Flat', () => setQP('group', null))}
+            {segBtn(groupBy === 'region', 'By region', () => setQP('group', 'region'))}
+          </div>
         )}
         {layout !== 'pivot' ? (
-          <label className="text-xs text-slate-700">
-            Metric{' '}
-            <select
-              className="rounded border border-slate-300 px-1.5 py-1 text-xs"
-              value={metricSlug}
-              onChange={(e) => setQP('metric', e.target.value)}
-            >
+          <label className="folio-field">
+            Metric
+            <select className="folio-select" value={metricSlug} onChange={(e) => setQP('metric', e.target.value)}>
               {(layout === 'share' ? countMetrics : metrics).map((m) => (
                 <option key={m.slug} value={m.slug}>
                   {m.label}
@@ -269,18 +310,19 @@ export default function DataExplorerMatrixPage() {
             </select>
           </label>
         ) : (
-          <details className="relative text-xs text-slate-700">
+          <details className="folio-field relative">
             <summary className="cursor-pointer select-none">
               Columns ({cols.length}/{MAX_COLS})
             </summary>
-            <div className="absolute z-10 mt-1 max-h-64 w-72 overflow-y-auto rounded-md border border-slate-300 bg-white p-2 shadow-lg">
+            <div className="folio-panel absolute z-10 mt-1 max-h-64 w-72 overflow-y-auto">
               {metrics.map((m) => (
-                <label key={m.slug} className="flex items-center gap-1.5 py-0.5">
+                <label key={m.slug} className="flex items-center gap-1.5 py-0.5" style={{ fontFamily: 'var(--font-sans)', color: 'var(--ink)' }}>
                   <input
                     type="checkbox"
                     checked={cols.includes(m.slug)}
                     disabled={cols.length === 1 && cols[0] === m.slug}
                     onChange={() => toggleCol(m.slug)}
+                    style={{ accentColor: 'var(--violet-ink)' }}
                   />
                   {m.label}
                 </label>
@@ -290,21 +332,12 @@ export default function DataExplorerMatrixPage() {
         )}
         {layout === 'share' && (
           <>
-            <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Whole">
-              <button type="button" className={btn(partScope === 'state')} onClick={() => setQP('part', null)}>
-                States of U.S.
-              </button>
-              <button type="button" className={btn(partScope === 'county')} onClick={() => setQP('part', 'county')}>
-                Counties of a state
-              </button>
+            <div className="folio-seg" role="group" aria-label="Whole">
+              {segBtn(partScope === 'state', 'States of U.S.', () => setQP('part', null))}
+              {segBtn(partScope === 'county', 'Counties of a state', () => setQP('part', 'county'))}
             </div>
             {partScope === 'county' && (
-              <select
-                aria-label="State"
-                className="rounded border border-slate-300 px-1.5 py-1 text-xs"
-                value={partState}
-                onChange={(e) => setQP('st', e.target.value)}
-              >
+              <select aria-label="State" className="folio-select" value={partState} onChange={(e) => setQP('st', e.target.value)}>
                 {[...rows].sort((a, b) => a.name.localeCompare(b.name)).map((r) => (
                   <option key={r.fips} value={r.fips}>
                     {r.name}
@@ -315,13 +348,9 @@ export default function DataExplorerMatrixPage() {
           </>
         )}
         {layout === 'scatter' && (
-          <label className="text-xs text-slate-700">
-            vs{' '}
-            <select
-              className="rounded border border-slate-300 px-1.5 py-1 text-xs"
-              value={sp.get('y') || metrics.find((m) => m.slug !== metricSlug)?.slug || ''}
-              onChange={(e) => setQP('y', e.target.value)}
-            >
+          <label className="folio-field">
+            vs
+            <select className="folio-select" value={scatterY} onChange={(e) => setQP('y', e.target.value)}>
               {metrics.map((m) => (
                 <option key={m.slug} value={m.slug}>
                   {m.label}
@@ -331,158 +360,290 @@ export default function DataExplorerMatrixPage() {
           </label>
         )}
         {(layout === 'tiles' || layout === 'pivot' || layout === 'dots') && (
-          <p className="text-[11px] text-slate-500">Darker = better rank for the metric (neutral metrics: larger).</p>
+          <p className="folio-note">Darker = better rank for the metric (neutral metrics: larger).</p>
         )}
       </div>
 
       {(layout === 'tiles' || layout === 'pivot' || layout === 'dots') && (
-        <div className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-slate-600" aria-label="Scale">
-          <span className="font-semibold uppercase tracking-wide">Scale</span>
+        <div className="folio-legend" aria-label="Scale">
+          <span className="folio-legend-title">Scale</span>
           {['Lower rank', '', '', '', '', 'Higher rank'].map((l, i) => (
             <span key={i} className="inline-flex items-center gap-1">
-              <span className="inline-block h-3 w-5 rounded-sm border border-slate-300" style={{ background: stepColor([0.05, 0.175, 0.35, 0.55, 0.725, 0.9][i]!) }} />
+              <span className="folio-swatch" style={{ background: stepColor(STEP_MID_T[i]!) }} />
               {l}
             </span>
           ))}
+          <span className="inline-flex items-center gap-1">
+            <span className="folio-swatch" style={{ background: FOLIO_NEUTRAL }} />
+            No data
+          </span>
           <span>
             ({layout === 'pivot' ? 'each column has its own scale' : layout === 'dots' && sp.get('dot') ? 'scaled within this state' : 'scaled across states'}; for
             lower-is-better metrics a low value ranks higher)
           </span>
           {layout !== 'dots' && (
-          <label className="ml-2 inline-flex items-center gap-1">
-            Highlight the top of the scale, from {minPct}%
-            <input type="range" min={0} max={95} step={5} value={minPct} onChange={(e) => setQP('min', e.target.value === '0' ? null : e.target.value)} />
-          </label>
+            <label className="ml-2 inline-flex items-center gap-1">
+              Highlight the top of the scale, from {minPct}%
+              <input
+                type="range"
+                min={0}
+                max={95}
+                step={5}
+                value={minPct}
+                style={{ accentColor: 'var(--violet-ink)' }}
+                onChange={(e) => setQP('min', e.target.value === '0' ? null : e.target.value)}
+              />
+            </label>
           )}
           {layout !== 'dots' && minPct > 0 && <span aria-live="polite">{litCount} of {totalCells} cells highlighted</span>}
         </div>
       )}
-      <div className="overflow-auto rounded-lg border border-slate-300 bg-white p-2">
-        {groups.map((g) => (
-          <section key={g.label ?? 'all'} className="mb-3">
-            {g.label && <h3 className="mb-1 text-xs font-semibold text-slate-700">{g.label}</h3>}
-            {layout === 'dots' ? (
-              <DotMatrixMap
-                slug={metricSlug}
-                vintage={vintage}
-                stateValue={(f) => rows.find((r) => r.fips === f)?.vals[metricSlug] ?? null}
-                stateName={(f) => rows.find((r) => r.fips === f)?.name ?? f}
-                stateT={(f) => shade[metricSlug]?.(rows.find((r) => r.fips === f)?.vals[metricSlug] ?? null) ?? null}
-                color={stepColor}
-                fmt={fmt}
-                drill={sp.get('dot')}
-                onDrill={(f) => setQP('dot', f)}
-              />
-            ) : layout === 'share' ? (
-              <Share
-                slug={metricSlug}
-                label={metricLabel(metricSlug)}
-                fmt={fmt}
-                scope={partScope}
-                states={rows}
-                stateName={rows.find((r) => r.fips === partState)?.name ?? partState}
-                stateFips={partState}
-                counties={countyPayload?.values}
-                countsAvailable={countMetrics.length > 0}
-              />
-            ) : layout === 'scatter' ? (
-              <Scatter
-                items={g.items}
-                xSlug={metricSlug}
-                ySlug={sp.get('y') || metrics.find((m) => m.slug !== metricSlug)?.slug || ''}
-                label={metricLabel}
-                fmt={fmt}
-                href={mapHref}
-              />
-            ) : layout === 'diverging' ? (
-              <Diverging allItems={rows} items={g.items} slug={metricSlug} fmt={fmt} />
-            ) : layout === 'dumbbell' ? (
-              <Dumbbell
-                items={g.items}
-                slug={metricSlug}
-                base={basePayload?.values}
-                loading={baseLoading}
-                missing={basePayload === null}
-                baseLabel={baseVintage}
-                curLabel={vintage}
-                fmt={fmt}
-              />
-            ) : layout === 'tiles' ? (
-              <ul className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-1.5">
-                {g.items.map((r) => {
-                  const v = r.vals[metricSlug] ?? null
-                  const t = shade[metricSlug]?.(v) ?? null
-                  return (
-                    <li key={r.fips}>
-                      <Link
-                        to={mapHref}
-                        title={`${r.name}: ${fmt(metricSlug, v)} — ${metricLabel(metricSlug)}`}
-                        className="flex h-16 flex-col justify-between rounded-md border border-slate-300 p-1.5 text-[11px] leading-tight hover:ring-2 hover:ring-teal-600"
-                        style={cellStyle(t)}
-                      >
-                        <span className="font-semibold">{r.code}</span>
-                        <span className="tabular-nums">{fmt(metricSlug, v)}</span>
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : (
-              <table className="w-full table-fixed border-collapse text-xs">
-                <thead>
-                  <tr>
-                    <th
-                      className="sticky left-0 bg-white p-1 text-left"
-                      aria-sort={activeSort === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    >
-                      <button type="button" onClick={() => clickHeader('name')}>
-                        State{activeSort === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                      </button>
-                    </th>
-                    {cols.map((c) => (
-                      <th
-                        key={c}
-                        className="p-1 text-right align-bottom"
-                        aria-sort={activeSort === c ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        <button type="button" onClick={() => clickHeader(c)}>
-                          {metricLabel(c)}
-                          {activeSort === c ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {g.items.map((r) => (
-                    <tr key={r.fips} className="border-t border-slate-200">
-                      <td className="sticky left-0 bg-white p-1 font-medium">
-                        <Link className="text-teal-800 hover:underline" to={mapHref}>
-                          {r.name}
-                        </Link>
-                      </td>
-                      {cols.map((c) => {
-                        const v = r.vals[c] ?? null
-                        const t = shade[c]?.(v) ?? null
-                        return (
-                          <td
-                            key={c}
-                            className="p-1 text-right tabular-nums"
-                            style={cellStyle(t)}
-                          >
-                            {fmt(c, v)}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-        ))}
+
+      <div className="folio-chart">
+        {layout === 'tiles' ? (
+          <TileGrid
+            groups={groups}
+            slug={metricSlug}
+            shade={shade[metricSlug]}
+            cellStyle={cellStyle}
+            fmt={fmt}
+            label={lbl}
+            href={mapHref}
+            reduced={reduced}
+          />
+        ) : (
+          groups.map((g) => (
+            <section key={g.label ?? 'all'} className="mb-3">
+              {g.label && <h3 className="folio-group-label">{g.label}</h3>}
+              {layout === 'dots' ? (
+                <DotMatrixMap
+                  slug={metricSlug}
+                  vintage={vintage}
+                  stateValue={(f) => rows.find((r) => r.fips === f)?.vals[metricSlug] ?? null}
+                  stateName={(f) => rows.find((r) => r.fips === f)?.name ?? f}
+                  stateT={(f) => shade[metricSlug]?.(rows.find((r) => r.fips === f)?.vals[metricSlug] ?? null) ?? null}
+                  color={stepColor}
+                  fmt={fmt}
+                  drill={sp.get('dot')}
+                  onDrill={(f) => setQP('dot', f)}
+                />
+              ) : layout === 'share' ? (
+                <Share
+                  slug={metricSlug}
+                  label={lbl}
+                  fmt={fmt}
+                  scope={partScope}
+                  states={rows}
+                  stateName={rows.find((r) => r.fips === partState)?.name ?? partState}
+                  stateFips={partState}
+                  counties={countyPayload?.values}
+                  countsAvailable={countMetrics.length > 0}
+                />
+              ) : layout === 'scatter' ? (
+                <Scatter items={g.items} xSlug={metricSlug} ySlug={scatterY} label={metricLabel} fmt={fmt} href={mapHref} />
+              ) : layout === 'diverging' ? (
+                <Diverging allItems={rows} items={g.items} slug={metricSlug} fmt={fmt} />
+              ) : layout === 'dumbbell' ? (
+                <Dumbbell
+                  items={g.items}
+                  slug={metricSlug}
+                  base={basePayload?.values}
+                  loading={baseLoading}
+                  missing={basePayload === null}
+                  baseLabel={baseVintage}
+                  curLabel={vintage}
+                  fmt={fmt}
+                />
+              ) : (
+                <PivotTable
+                  items={g.items}
+                  cols={cols}
+                  shade={shade}
+                  cellStyle={cellStyle}
+                  fmt={fmt}
+                  metricLabel={metricLabel}
+                  href={mapHref}
+                  activeSort={activeSort}
+                  sortDir={sortDir}
+                  onSort={clickHeader}
+                  reduced={reduced}
+                />
+              )}
+            </section>
+          ))
+        )}
       </div>
+
+      <p className="folio-fig">
+        <b>FIG. {figNo}</b> — {figWhat[layout]} Source: ACS 5-year, {vintageText}.
+      </p>
     </div>
+  )
+}
+
+/** One big numeral with a mono label. The number counts up to the real value; a missing value stays "—". */
+function Kpi({
+  label,
+  value,
+  format,
+  sub,
+  reduced,
+}: {
+  label: string
+  value: number | null
+  format: (v: number) => string
+  sub: string
+  reduced: boolean
+}) {
+  const text = useCountUp(value, format, reduced)
+  return (
+    <div className="folio-kpi">
+      <dt className="folio-kpi-label">{label}</dt>
+      <dd className="m-0">
+        <div className="folio-kpi-num" aria-label={value == null ? 'No data available' : format(value)}>
+          <span aria-hidden="true">{text}</span>
+        </div>
+        <div className="folio-kpi-sub">{sub}</div>
+      </dd>
+    </div>
+  )
+}
+
+const INTRO_MS = 900 + 600 + 100
+
+/** Tiles: one flat grid (region headings are grid rows) so each geography keeps its DOM node and can glide on re-sort. */
+function TileGrid({
+  groups,
+  slug,
+  shade,
+  cellStyle,
+  fmt,
+  label,
+  href,
+  reduced,
+}: {
+  groups: { label: string | null; items: Row[] }[]
+  slug: string
+  shade: ((v: number | null) => number | null) | undefined
+  cellStyle: (t: number | null) => CSSProperties
+  fmt: (slug: string, v: number | null) => string
+  label: string
+  href: string
+  reduced: boolean
+}) {
+  const ref = useRef<HTMLUListElement>(null)
+  const intro = useIntro(INTRO_MS, reduced)
+  const [nCols, setNCols] = useState(1)
+  const ids = groups.map((g) => `${g.label ?? ''}:${g.items.map((r) => r.fips).join(',')}`).join('|')
+  useFlip(ref, ids, !reduced && !intro)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const count = getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length
+    setNCols(Math.max(1, count))
+  }, [])
+  const total = groups.reduce((a, g) => a + g.items.length, 0)
+  const maxDiag = nCols - 1 + Math.max(0, Math.ceil(total / nCols) - 1)
+  let i = 0
+  return (
+    <ul ref={ref} className="folio-tiles">
+      {groups.flatMap((g) => [
+        ...(g.label ? [<li key={`g:${g.label}`} className="folio-group-label">{g.label}</li>] : []),
+        ...g.items.map((r) => {
+          const idx = i++
+          const v = r.vals[slug] ?? null
+          const t = shade?.(v) ?? null
+          return (
+            <li
+              key={r.fips}
+              data-flip={r.fips}
+              className={intro ? 'folio-in' : undefined}
+              style={intro ? delayVar(staggerDelayMs(idx % nCols, Math.floor(idx / nCols), maxDiag, 900)) : undefined}
+            >
+              <Link to={href} title={`${r.name}: ${fmt(slug, v)} — ${label}`} className="folio-tile" style={cellStyle(t)}>
+                <b>{r.code}</b>
+                <span>{fmt(slug, v)}</span>
+              </Link>
+            </li>
+          )
+        }),
+      ])}
+    </ul>
+  )
+}
+
+/** Pivot table: rows glide to their new place when the sort or grouping changes. */
+function PivotTable({
+  items,
+  cols,
+  shade,
+  cellStyle,
+  fmt,
+  metricLabel,
+  href,
+  activeSort,
+  sortDir,
+  onSort,
+  reduced,
+}: {
+  items: Row[]
+  cols: string[]
+  shade: Record<string, (v: number | null) => number | null>
+  cellStyle: (t: number | null) => CSSProperties
+  fmt: (slug: string, v: number | null) => string
+  metricLabel: (slug: string) => string
+  href: string
+  activeSort: string
+  sortDir: 'asc' | 'desc'
+  onSort: (key: string) => void
+  reduced: boolean
+}) {
+  const ref = useRef<HTMLTableSectionElement>(null)
+  const intro = useIntro(INTRO_MS, reduced)
+  useFlip(ref, `${items.map((r) => r.fips).join(',')}|${cols.join(',')}`, !reduced && !intro)
+  return (
+    <table className="folio-table">
+      <thead>
+        <tr>
+          <th className="folio-sticky text-left" aria-sort={activeSort === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+            <button type="button" onClick={() => onSort('name')}>
+              State{activeSort === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+            </button>
+          </th>
+          {cols.map((c) => (
+            <th key={c} className="text-right align-bottom" aria-sort={activeSort === c ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+              <button type="button" onClick={() => onSort(c)}>
+                {metricLabel(c)}
+                {activeSort === c ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+              </button>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody ref={ref}>
+        {items.map((r, i) => (
+          <tr
+            key={r.fips}
+            data-flip={r.fips}
+            className={intro ? 'folio-in' : undefined}
+            style={intro ? delayVar(rowDelayMs(i, items.length, 30, 500)) : undefined}
+          >
+            <td className="folio-sticky">
+              <Link to={href}>{r.name}</Link>
+            </td>
+            {cols.map((c) => {
+              const v = r.vals[c] ?? null
+              const t = shade[c]?.(v) ?? null
+              return (
+                <td key={c} className="text-right" style={cellStyle(t)}>
+                  {fmt(c, v)}
+                </td>
+              )
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 
@@ -507,12 +668,12 @@ function Dumbbell({
   fmt: (slug: string, v: number | null) => string
 }) {
   if (!baseLabel || baseLabel === curLabel) {
-    return <p className="p-2 text-xs text-slate-600">No data available — only one vintage is published, so there is nothing to compare.</p>
+    return <p className="folio-muted">No data available — only one vintage is published, so there is nothing to compare.</p>
   }
-  if (loading) return <p className="p-2 text-xs text-slate-600">Loading {baseLabel}…</p>
+  if (loading) return <p className="folio-muted">Loading {baseLabel}…</p>
   if (missing || !base) {
     return (
-      <p className="p-2 text-xs text-slate-600" role="status">
+      <p className="folio-muted" role="status">
         No data available — the {baseLabel} state file could not be loaded, so there is nothing to compare with.
       </p>
     )
@@ -522,39 +683,46 @@ function Dumbbell({
     return { r, a: typeof b === 'number' && Number.isFinite(b) ? b : null, c: r.vals[slug] ?? null }
   })
   const all = pts.flatMap((p) => [p.a, p.c]).filter((x): x is number => x != null)
-  if (!all.length) return <p className="p-2 text-xs text-slate-600">No data available for this metric.</p>
+  if (!all.length) return <p className="folio-muted">No data available for this metric.</p>
   const lo = Math.min(...all)
   const hi = Math.max(...all)
   const x = (v: number) => (hi === lo ? 50 : ((v - lo) / (hi - lo)) * 100)
   return (
     <div>
-      <p className="mb-1 text-[11px] text-slate-600">
-        <span className="inline-block h-2 w-2 rounded-full bg-slate-400" /> {baseLabel}{' '}
-        <span className="ml-2 inline-block h-2 w-2 rounded-full bg-teal-700" /> {curLabel}
+      <p className="folio-note mb-1">
+        <span className="folio-swatch" style={{ background: 'var(--ink-3)', width: 10, height: 10, borderRadius: 999 }} /> {baseLabel}{' '}
+        <span className="folio-swatch ml-2" style={{ background: 'var(--violet-ink)', width: 10, height: 10, borderRadius: 999 }} /> {curLabel}
       </p>
-      <ul className="space-y-0.5">
-        {pts.map(({ r, a, c }) => (
-          <li key={r.fips} className="grid grid-cols-[7rem_1fr_9rem] items-center gap-2 text-[11px]">
-            <span className="truncate font-medium">{r.name}</span>
-            <span className="relative h-4">
-              <span className="absolute inset-x-0 top-1/2 h-px bg-slate-200" />
-              {a != null && c != null && (
-                <span className="absolute top-1/2 h-0.5 bg-slate-400" style={{ left: `${Math.min(x(a), x(c))}%`, width: `${Math.abs(x(c) - x(a))}%` }} />
-              )}
-              {a != null && <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400" style={{ left: `${x(a)}%` }} />}
-              {c != null && <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-teal-700" style={{ left: `${x(c)}%` }} />}
-            </span>
-            <span className="tabular-nums text-slate-700">
-              {fmt(slug, a)} → {fmt(slug, c)}
-            </span>
-          </li>
-        ))}
+      <ul className="folio-rows" key={`${slug}:${baseLabel}:${curLabel}`}>
+        {pts.map(({ r, a, c }, i) => {
+          const d = rowDelayMs(i, pts.length)
+          const rightward = a != null && c != null && x(c) < x(a)
+          return (
+            <li key={r.fips} className="folio-row" style={{ gridTemplateColumns: '7rem 1fr 9rem' }}>
+              <span className="folio-row-name">{r.name}</span>
+              <span className="folio-track">
+                <span className="absolute inset-x-0 top-1/2 h-px" style={{ background: 'var(--rule)' }} />
+                {a != null && c != null && (
+                  <span
+                    className={`folio-dumbbell-bar folio-grow${rightward ? ' folio-grow-r' : ''}`}
+                    style={{ ...delayVar(d), left: `${Math.min(x(a), x(c))}%`, width: `${Math.abs(x(c) - x(a))}%` }}
+                  />
+                )}
+                {a != null && <span className="folio-dot folio-pop" style={{ ...delayVar(d), left: `${x(a)}%`, background: 'var(--ink-3)' }} />}
+                {c != null && <span className="folio-dot folio-pop" style={{ ...delayVar(d + 200), left: `${x(c)}%`, background: 'var(--violet-ink)' }} />}
+              </span>
+              <span className="folio-row-val">
+                {fmt(slug, a)} → {fmt(slug, c)}
+              </span>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
 }
 
-const REGION_COLOR: Record<string, string> = { NE: '#354F52', MW: '#b45309', S: '#be123c', W: '#4338ca' }
+const REGION_COLOR: Record<string, string> = { NE: '#5A3BE6', MW: '#E2492C', S: '#C04BD9', W: '#121116' }
 
 /** Scatter of two metrics across states, coloured by Census region, with a live OLS line, slope and r². */
 function Scatter({
@@ -577,7 +745,7 @@ function Scatter({
   const pts = items
     .map((r) => ({ r, x: r.vals[xSlug] ?? null, y: r.vals[ySlug] ?? null }))
     .filter((p): p is { r: Row; x: number; y: number } => p.x != null && p.y != null)
-  if (!ySlug || pts.length < 3) return <p className="p-2 text-xs text-slate-600">No data available — need at least 3 states with both metrics.</p>
+  if (!ySlug || pts.length < 3) return <p className="folio-muted">No data available — need at least 3 states with both metrics.</p>
   const vis = pts.filter((p) => !hidden.has(p.r.region ?? ''))
   const W = 640
   const H = 360
@@ -592,6 +760,7 @@ function Scatter({
   const slope = fit?.slope ?? 0
   const icpt = fit?.intercept ?? 0
   const r2 = fit?.r2 ?? 0
+  const order = new Map(pts.map((p, i) => [p.r.fips, i]))
   return (
     <div>
       <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px]">
@@ -600,7 +769,7 @@ function Scatter({
             key={id}
             type="button"
             aria-pressed={!hidden.has(id)}
-            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${hidden.has(id) ? 'opacity-40' : ''}`}
+            className="folio-chip"
             onClick={() => {
               const n = new Set(hidden)
               if (n.has(id)) n.delete(id)
@@ -613,33 +782,43 @@ function Scatter({
           </button>
         ))}
         <label className="inline-flex items-center gap-1">
-          <input type="checkbox" checked={trend} onChange={(e) => setTrend(e.target.checked)} /> Trend line
+          <input type="checkbox" checked={trend} style={{ accentColor: 'var(--violet-ink)' }} onChange={(e) => setTrend(e.target.checked)} /> Trend line
         </label>
         {trend && fit && (
-          <span className="text-slate-600">
+          <span className="folio-row-val">
             slope {slope.toPrecision(3)} · r² {r2.toFixed(2)} · n={vis.length}
           </span>
         )}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-3xl" role="img" aria-label={`${label(ySlug)} versus ${label(xSlug)} by state`}>
-        <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="#94a3b8" />
-        <line x1={pad.l} x2={pad.l} y1={pad.t} y2={H - pad.b} stroke="#94a3b8" />
-        <text x={(W + pad.l) / 2} y={H - 6} textAnchor="middle" fontSize="11" fill="#475569">
+        <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} style={{ stroke: 'var(--ink)' }} />
+        <line x1={pad.l} x2={pad.l} y1={pad.t} y2={H - pad.b} style={{ stroke: 'var(--ink)' }} />
+        <text x={(W + pad.l) / 2} y={H - 6} textAnchor="middle" fontSize="11" style={{ fill: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
           {label(xSlug)} ({fmt(xSlug, x0)} – {fmt(xSlug, x1)})
         </text>
-        <text transform={`translate(12 ${(H - pad.b) / 2}) rotate(-90)`} textAnchor="middle" fontSize="11" fill="#475569">
+        <text transform={`translate(12 ${(H - pad.b) / 2}) rotate(-90)`} textAnchor="middle" fontSize="11" style={{ fill: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
           {label(ySlug)} ({fmt(ySlug, y0)} – {fmt(ySlug, y1)})
         </text>
         {trend && fit && (
-          <line x1={sx(x0)} x2={sx(x1)} y1={sy(slope * x0 + icpt)} y2={sy(slope * x1 + icpt)} stroke="#0f172a" strokeDasharray="5 4" strokeWidth="1.5" />
+          <line x1={sx(x0)} x2={sx(x1)} y1={sy(slope * x0 + icpt)} y2={sy(slope * x1 + icpt)} style={{ stroke: 'var(--ink)' }} strokeDasharray="5 4" strokeWidth="1.5" />
         )}
-        {vis.map((p) => (
-          <Link key={p.r.fips} to={href}>
-            <circle cx={sx(p.x)} cy={sy(p.y)} r="5" fill={REGION_COLOR[p.r.region ?? ''] ?? '#64748b'} fillOpacity="0.8">
-              <title>{`${p.r.name}: ${fmt(xSlug, p.x)} / ${fmt(ySlug, p.y)}`}</title>
-            </circle>
-          </Link>
-        ))}
+        <g key={`${xSlug}:${ySlug}`}>
+          {vis.map((p) => (
+            <Link key={p.r.fips} to={href}>
+              <circle
+                className="folio-pop"
+                style={delayVar(rowDelayMs(order.get(p.r.fips) ?? 0, pts.length, 12, 500))}
+                cx={sx(p.x)}
+                cy={sy(p.y)}
+                r="5"
+                fill={REGION_COLOR[p.r.region ?? ''] ?? '#625F6B'}
+                fillOpacity="0.85"
+              >
+                <title>{`${p.r.name}: ${fmt(xSlug, p.x)} / ${fmt(ySlug, p.y)}`}</title>
+              </circle>
+            </Link>
+          ))}
+        </g>
       </svg>
     </div>
   )
@@ -659,31 +838,32 @@ function Diverging({
 }) {
   const med = medianOf(allItems.map((r) => r.vals[slug]))
   if (med == null || allItems.filter((r) => r.vals[slug] != null).length < 3) {
-    return <p className="p-2 text-xs text-slate-600">No data available for this metric.</p>
+    return <p className="folio-muted">No data available for this metric.</p>
   }
   const dev = items.map((r) => ({ r, d: r.vals[slug] != null ? r.vals[slug]! - med : null }))
   const maxAbs = Math.max(...dev.map((x) => Math.abs(x.d ?? 0))) || 1
   return (
     <div>
-      <p className="mb-1 text-[11px] text-slate-600">Difference from the median state ({fmt(slug, med)}). Right = above median, left = below.</p>
-      <ul className="space-y-0.5">
-        {dev.map(({ r, d }) => (
-          <li key={r.fips} className="grid grid-cols-[7rem_1fr_6rem] items-center gap-2 text-[11px]">
-            <span className="truncate font-medium">{r.name}</span>
-            <span className="relative h-3.5 border-x border-slate-200">
-              <span className="absolute inset-y-0 left-1/2 w-px bg-slate-400" />
+      <p className="folio-note mb-1">Difference from the median state ({fmt(slug, med)}). Right = above median, left = below.</p>
+      <ul className="folio-rows" key={slug}>
+        {dev.map(({ r, d }, i) => (
+          <li key={r.fips} className="folio-row" style={{ gridTemplateColumns: '7rem 1fr 6rem' }}>
+            <span className="folio-row-name">{r.name}</span>
+            <span className="folio-track" style={{ borderLeft: '1px solid var(--rule)', borderRight: '1px solid var(--rule)' }}>
+              <span className="absolute inset-y-0 left-1/2 w-px" style={{ background: 'var(--ink)' }} />
               {d != null && (
                 <span
-                  className="absolute inset-y-0.5"
+                  className={`absolute inset-y-0.5 folio-grow${d < 0 ? ' folio-grow-r' : ''}`}
                   style={{
-                    background: d >= 0 ? '#354F52' : '#be123c',
+                    ...delayVar(rowDelayMs(i, dev.length)),
+                    background: d >= 0 ? 'var(--violet-ink)' : 'var(--vermilion)',
                     left: d >= 0 ? '50%' : `${50 - (Math.abs(d) / maxAbs) * 50}%`,
                     width: `${(Math.abs(d) / maxAbs) * 50}%`,
                   }}
                 />
               )}
             </span>
-            <span className="tabular-nums text-slate-700">{fmt(slug, r.vals[slug] ?? null)}</span>
+            <span className="folio-row-val">{fmt(slug, r.vals[slug] ?? null)}</span>
           </li>
         ))}
       </ul>
@@ -691,7 +871,7 @@ function Diverging({
   )
 }
 
-const SEG_COLORS = ['#354F52', '#4338ca', '#b45309', '#be123c', '#0f766e', '#7c3aed', '#a16207', '#0369a1', '#94a3b8']
+const SEG_COLORS = ['#5A3BE6', '#E2492C', '#C04BD9', '#7C63FF', '#B5321A', '#A797FC', '#3A22A8', '#F2A391', '#CFCBD9']
 
 interface Part {
   id: string
@@ -721,7 +901,7 @@ function Share({
   counties: Record<string, Record<string, number | string | null | undefined>> | undefined
   countsAvailable: boolean
 }) {
-  if (!countsAvailable) return <p className="p-2 text-xs text-slate-600">No data available — no additive (count) metrics are published.</p>
+  if (!countsAvailable) return <p className="folio-muted">No data available — no additive (count) metrics are published.</p>
   let parts: Part[] = []
   if (scope === 'state') {
     // ACS "United States" excludes Puerto Rico, so it is left out of the whole.
@@ -734,11 +914,11 @@ function Share({
       .filter(([gid, v]) => gid.startsWith(pre) && typeof v[slug] === 'number')
       .map(([gid, v]) => ({ id: gid, name: typeof v.NAME === 'string' ? v.NAME.replace(/,.*$/, '') : gid, value: v[slug] as number }))
   } else {
-    return <p className="p-2 text-xs text-slate-600" role="status">No data available — county_metrics.json for this vintage is not published.</p>
+    return <p className="folio-muted" role="status">No data available — county_metrics.json for this vintage is not published.</p>
   }
   parts = parts.filter((p) => p.value > 0).sort((a, b) => b.value - a.value)
   const total = parts.reduce((a, p) => a + p.value, 0)
-  if (!parts.length || total <= 0) return <p className="p-2 text-xs text-slate-600">No data available for this metric.</p>
+  if (!parts.length || total <= 0) return <p className="folio-muted">No data available for this metric.</p>
   const whole = scope === 'state' ? 'U.S. total (50 states + DC)' : stateName
   const TOP = 8
   const head = parts.slice(0, TOP)
@@ -749,40 +929,49 @@ function Share({
   const waffle = cells.flatMap((n, i) => Array<number>(n).fill(i))
   const pct = (v: number) => `${((v / total) * 100).toFixed(1)}%`
   return (
-    <div>
-      <p className="mb-1 text-xs text-slate-700">
+    <div key={`${scope}:${stateFips}:${slug}`}>
+      <p className="mb-1 text-xs">
         <strong>{label}</strong> · share of {whole} · whole = {fmt(slug, total)} ({parts.length} {scope === 'state' ? 'states' : 'counties'} with data)
       </p>
-      <div className="flex h-7 w-full overflow-hidden rounded border border-slate-300" role="img" aria-label={`Share of ${whole}`}>
+      <div className="flex h-7 w-full overflow-hidden" style={{ border: '1px solid var(--ink)' }} role="img" aria-label={`Share of ${whole}`}>
         {segs.map((g, i) => (
-          <div key={g.id} style={{ width: `${(g.value / total) * 100}%`, background: SEG_COLORS[i] }} title={`${g.name}: ${pct(g.value)}`} />
+          <div
+            key={g.id}
+            className="folio-grow"
+            style={{ ...delayVar(i * 60), width: `${(g.value / total) * 100}%`, background: SEG_COLORS[i] }}
+            title={`${g.name}: ${pct(g.value)}`}
+          />
         ))}
       </div>
       <div className="mt-3 flex flex-wrap gap-4">
         <div className="grid shrink-0 grid-cols-10 gap-0.5 self-start" role="img" aria-label="Waffle: each square is 1% of the whole" style={{ width: '9rem' }}>
           {waffle.map((si, k) => (
-            <span key={k} className="aspect-square rounded-[2px]" style={{ background: SEG_COLORS[si] }} />
+            <span
+              key={k}
+              className="folio-pop aspect-square"
+              style={{ ...delayVar(staggerDelayMs(k % 10, Math.floor(k / 10), 18, 700)), background: SEG_COLORS[si] }}
+            />
           ))}
         </div>
-        <table className="min-w-[16rem] flex-1 border-collapse text-xs">
+        <table className="folio-table min-w-[16rem] flex-1" style={{ tableLayout: 'auto' }}>
           <thead>
-            <tr className="text-left text-slate-600">
-              <th className="p-1">{scope === 'state' ? 'State' : 'County'}</th>
-              <th className="p-1 text-right">{label}</th>
-              <th className="p-1 text-right">Share</th>
+            <tr className="text-left">
+              <th className="text-left">{scope === 'state' ? 'State' : 'County'}</th>
+              <th className="text-right">{label}</th>
+              <th className="text-right">Share</th>
             </tr>
           </thead>
           <tbody>
             {parts.map((p) => {
               const si = segs.findIndex((g) => g.id === p.id)
               return (
-                <tr key={p.id} className="border-t border-slate-200">
-                  <td className="p-1 font-medium">
-                    <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: SEG_COLORS[si >= 0 ? si : SEG_COLORS.length - 1] }} />
+                <tr key={p.id}>
+                  <td className="font-medium">
+                    <span className="mr-1.5 inline-block h-2.5 w-2.5 align-middle" style={{ background: SEG_COLORS[si >= 0 ? si : SEG_COLORS.length - 1] }} />
                     {p.name}
                   </td>
-                  <td className="p-1 text-right tabular-nums">{fmt(slug, p.value)}</td>
-                  <td className="p-1 text-right tabular-nums">{pct(p.value)}</td>
+                  <td className="text-right">{fmt(slug, p.value)}</td>
+                  <td className="text-right">{pct(p.value)}</td>
                 </tr>
               )
             })}

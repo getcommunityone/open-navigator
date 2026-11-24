@@ -64,3 +64,42 @@ missing file comes back from the dev server as the app's own page with a success
 - URL parameters: `layout`, `metric`, `cols`, `sort`, `dir`, `group`, `vintage`, `min`, `y`, `part`, `st`, `dot`.
 - Plan for showing meeting and decision metrics in the same layouts:
   [Meeting metrics for the Matrix map](../development/meeting-metrics-matrix-map-design.md).
+
+## Look and motion
+
+The Matrix map uses the "Folio" look: flat paper background, hairline rules, square corners, no shadows, large light
+numerals and small monospaced captions. Under each chart a caption reads "FIG. nn", says what the chart shows, and
+names its source ("Source: ACS 5-year" plus the vintage in scope).
+
+- **Where the look lives.** The design tokens (paper, ink, violet, vermilion, neutral data colour, type, durations and
+  easings) are CSS custom properties in `web_app/src/styles/folio.css`, scoped to the `.folio` wrapper class. Only the
+  Matrix page imports that file, and the whole workspace sits inside one `.folio` element, so no other tab or page
+  changes. Fonts are Geist and Geist Mono, self-hosted from the `@fontsource-variable` packages and loaded only with
+  this page.
+- **Colour.** Ranked values use a violet ramp from tint to violet to deep violet. Vermilion marks the below-median
+  side in the Diverging layout. Cells with no data, or dimmed by the Highlight slider, use the neutral data colour.
+  Label text on every step is ink or white, whichever has the better contrast (at least 4.5:1, checked by a test).
+- **Headline row.** A small eyebrow names the layout, the scope label is the large heading, and four figures follow:
+  geographies with data, median, highest and lowest (with the state named). All four are computed from the state
+  values the page already loaded. They are hidden when a county drill-down is showing, because they describe states.
+
+### Motion rule
+
+What moves, and when:
+
+- **Tiles** appear on a diagonal wave on first load. When the sort, grouping or metric changes, each tile glides to its
+  new place and its colour fades to the new shade.
+- **Pivot rows** appear in a short stagger and glide when the sort or grouping changes.
+- **Bars** (Compare, Diverging, Share) grow from their origin, one row after another. The stagger is capped so a
+  52-row chart finishes in about 1.2 seconds.
+- **Scatter points, waffle squares and dot-map dots** fade and scale in with a short stagger.
+- **Key figures** count up to their value over about 0.9 seconds whenever the value changes.
+
+Rules that always hold:
+
+- **Reduced motion.** When the visitor's system asks for reduced motion, nothing animates. Content shows in its final
+  state at once.
+- **Numbers never animate to anything but the real value.** A count-up always ends on the exact formatted value from the
+  data. If a value is missing, the figure shows a dash and does not count at all.
+- Motion never changes what is shown: the scope label, the URL parameters and the data are the same with or without it.
+
