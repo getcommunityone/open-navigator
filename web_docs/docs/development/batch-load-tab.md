@@ -38,6 +38,48 @@ The dbt executable is found in this order: `DBT_BIN`, `dbt_project/.venv_dbt/bin
 Load and Deploy are separate job kinds: one of each can run at the same time, but two of the same kind cannot, and a
 job never mixes the two kinds.
 
+## Counts and the drill-down (#823)
+
+Each step of a Load run records what it did, and the tab shows it the way tab 1 shows its stages.
+
+| Where | What you see |
+|---|---|
+| A run's header | `N files read · N loaded · N skipped · N file errors`, then `N of N models built` once dbt has run |
+| A step's row | count chips: read, loaded, skipped, errors for the loader; models, built, skipped, failed for dbt |
+| An opened step | every reason with its count and what to do about it, a search box, and a paged table of the items: outcome, reason, file (with a link to the video), and the error text |
+
+Click a reason to filter the table to it. Errors are listed before skips, in the reasons and in the table. The log tail stays below the table.
+
+A step shows **No counts recorded for this run** when it left no result: runs from before #823, dry runs (no command
+is executed), and a step that crashed before it could write. It never shows zeros it did not measure.
+
+How it works:
+
+- The loader takes `--result-json PATH` and writes its counts plus one entry for every file it did **not** load. The
+  job runner passes the path, `data/cache/batch_jobs/deployments/<job_id>_load-analysis.result.json`, next to the log.
+- After the dbt step, the runner reads dbt's own `dbt_project/target/run_results.json` and writes
+  `<job_id>_dbt-gold.result.json` with each model that failed or was skipped and dbt's message. If that file is older
+  than the step (left by another dbt run), nothing is recorded.
+- `GET /api/deployments/{job_id}/result?step=&outcome=&reason=&q=&limit=&offset=` serves a step's counts, its reasons
+  with counts, and the filtered, paged items.
+
+### When the loader fails the run
+
+A file that cannot be read, for example an empty analysis file, is counted and listed as an error but does not fail
+the step, so one bad file no longer stops the dbt rebuild for every other analysis. Before #823 any unreadable file
+failed the step and dbt was skipped.
+
+The loader exits non-zero, which stops the run before dbt, when:
+
+- a **database write fails**;
+- the **cache folder is missing**;
+- files were unreadable **and nothing loaded at all** (a broken mount or permissions, not one bad file);
+- the run itself raises.
+
+Two cases still finish as "completed" and are worth a look when the counts seem wrong: every file skipped as
+`no_event` (no events have been promoted), and a `--tier` run, where files of the other tier are not counted as read.
+The counts are written even when the run raises partway, so the tab shows how far it got.
+
 ## What the load skips
 
 The load only reads files. It never moves, renames or deletes one, and a skipped file stays where it is. A file is

@@ -32,7 +32,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -221,19 +221,52 @@ def _empty_stats() -> dict[str, int]:
         "discovered": 0, "loaded": 0, "loaded_light": 0, "loaded_full": 0,
         "skipped_no_meta": 0, "skipped_meta_mismatch": 0, "skipped_tier_mismatch": 0,
         "skipped_no_video": 0, "skipped_no_event": 0, "skipped_other_tier": 0,
-        "unchecked_no_bronze_row": 0, "errors": 0,
+        "unchecked_no_bronze_row": 0, "errors": 0, "errors_unreadable": 0, "errors_upsert": 0,
+        "errors_cache_missing": 0,
     }
     for reason in SKIP_REASONS:
         stats[f"skipped_{reason}"] = 0
     return stats
 
 
+def write_result_json(path: Path, stats: dict[str, int], items: list[dict[str, Any]], *, dry_run: bool) -> None:
+    """Write the run's counts and every file that was not loaded, for the Load tab's drill-down (#823)."""
+    payload = {
+        "schema": 1,
+        "kind": "load-analysis",
+        "dry_run": dry_run,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "counts": stats,
+        "items": items,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload), encoding="utf-8")
+    tmp.replace(path)
+
+
 def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
         states: Optional[list[str]] = None, dry_run: bool = False,
         limit: Optional[int] = None, tier: str = "both",
-        min_meeting_p: float = DEFAULT_MIN_MEETING_P, gate: bool = True) -> dict[str, int]:
+        min_meeting_p: float = DEFAULT_MIN_MEETING_P, gate: bool = True,
+        items: Optional[list[dict[str, Any]]] = None) -> dict[str, int]:
     """Load saved analyses into ``bronze_events_analysis_ai``. Reads files only: never moves,
-    renames or deletes one. ``gate=False`` turns the non-government skip rules off."""
+    renames or deletes one. ``gate=False`` turns the non-government skip rules off.
+
+    ``items`` (when given) receives one entry per file that was not loaded: its path under the
+    cache root, video id, tier, ``outcome`` (skipped / error), ``reason`` and ``detail``."""
+
+    def note(path: Path, outcome: str, reason: str, *, video_id: Optional[str] = None,
+             detail: Optional[str] = None) -> None:
+        if items is None:
+            return
+        try:
+            shown = str(path.relative_to(cache_root))
+        except ValueError:
+            shown = path.name
+        items.append({"file": shown, "video_id": video_id, "tier": tier_from_path(path),
+                      "outcome": outcome, "reason": reason, "detail": detail})
+
     logger.info("=" * 70)
     logger.info("CACHE → bronze_events_analysis_ai backfill")
     logger.info("  cache root : {}", cache_root)
@@ -246,6 +279,11 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
     stats = _empty_stats()
     if not cache_root.exists():
         logger.error("Cache root not found: {}", cache_root)
+        stats["errors"] += 1
+        stats["errors_cache_missing"] = 1
+        if items is not None:
+            items.append({"file": str(cache_root), "video_id": None, "tier": None, "outcome": "error",
+                          "reason": "cache_missing", "detail": "the analysis cache folder does not exist"})
         return stats
 
     files = discover_analysis_files(cache_root, states)
@@ -266,23 +304,30 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Unreadable analysis {}: {}", path.name, exc)
             stats["errors"] += 1
+            stats["errors_unreadable"] += 1
+            note(path, "error", "unreadable", detail=str(exc))
             continue
         meta = load_meta(path)
         if meta is None:
             stats["skipped_no_meta"] += 1
+            note(path, "skipped", "no_meta")
             continue
         if not meta_matches_file(meta, path):
             # A shared, pre-#796 metadata file written for the other tier's analysis.
             stats["skipped_meta_mismatch"] += 1
             logger.warning("Metadata for {} was written for the other tier's analysis file; skipped", path.name)
+            note(path, "skipped", "meta_mismatch",
+                 detail=str((meta.get("files") or {}).get("analysis_json") or "") or None)
             continue
         recorded_tier = meta.get("analysis_tier")
         if recorded_tier and recorded_tier != file_tier:
             stats["skipped_tier_mismatch"] += 1
+            note(path, "skipped", "tier_mismatch", detail=f"metadata says {recorded_tier}, file is {file_tier}")
             continue
         video_id = meta.get("video_id") or extract_video_id(meta.get("video_url"))
         if not video_id:
             stats["skipped_no_video"] += 1
+            note(path, "skipped", "no_video")
             continue
         entries.append({"path": path, "tier": file_tier, "analysis": analysis, "meta": meta, "video_id": video_id})
 
@@ -312,12 +357,14 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
                 if reason:
                     stats[f"skipped_{reason}"] += 1
                     logger.debug("Skip {} ({})", path.name, reason)
+                    note(path, "skipped", reason, video_id=video_id)
                     continue
 
             event_id = video_to_event.get(video_id)
             if event_id is None:
                 stats["skipped_no_event"] += 1
                 logger.debug("No civic_event for video_id={} ({})", video_id, path.name)
+                note(path, "skipped", "no_event", video_id=video_id)
                 continue
 
             ai_model = meta.get("gemini_model") or DEFAULT_AI_MODEL
@@ -360,6 +407,8 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
                 conn.rollback()
                 logger.error("Upsert failed for {} (event_id={}): {}", path.name, event_id, exc)
                 stats["errors"] += 1
+                stats["errors_upsert"] += 1
+                note(path, "error", "upsert_failed", video_id=video_id, detail=str(exc).strip()[:500])
     finally:
         conn.close()
 
@@ -368,7 +417,9 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
         "Backfill done: loaded={loaded:,} of {discovered:,} (light {loaded_light:,}, full {loaded_full:,}); "
         "skipped by gate={g:,} (excluded={ex:,}, junk={ju:,}, non-meeting={nm:,}, low keep-score={lk:,}); "
         "no_event={skipped_no_event:,}, no_meta={skipped_no_meta:,}, meta_mismatch={skipped_meta_mismatch:,}, "
-        "no_video={skipped_no_video:,}, errors={errors:,}",
+        "tier_mismatch={skipped_tier_mismatch:,}, no_video={skipped_no_video:,}, "
+        "not judged (no bronze row)={unchecked_no_bronze_row:,}; "
+        "errors={errors:,} (unreadable files={errors_unreadable:,}, failed writes={errors_upsert:,})",
         g=skipped_gate, ex=stats["skipped_policy_excluded"], ju=stats["skipped_junk_channel"],
         nm=stats["skipped_non_meeting_type"], lk=stats["skipped_low_keep_score"], **stats,
     )
@@ -394,17 +445,44 @@ def main() -> int:
                         help="Skip videos whose Jev keep-score P(government_meeting)+P(town_hall) is below this")
     parser.add_argument("--no-gate", action="store_true",
                         help="Load everything: turn off the non-government skip rules")
+    parser.add_argument("--result-json", type=Path, default=None,
+                        help="Write the counts and every file that was not loaded to this JSON file")
     args = parser.parse_args()
 
     states = [s.strip().upper() for s in args.states.split(",")] if args.states else None
 
-    stats = run(
-        cache_root=args.cache_root, database_url=args.database_url,
-        states=states, dry_run=args.dry_run, limit=args.limit,
-        tier=args.tier, min_meeting_p=args.min_meeting_p, gate=not args.no_gate,
-    )
-    # Non-zero exit only on hard errors; unmatched events are expected/benign.
-    return 1 if stats["errors"] else 0
+    items: list[dict[str, Any]] = []
+    stats = _empty_stats()
+    try:
+        stats = run(
+            cache_root=args.cache_root, database_url=args.database_url,
+            states=states, dry_run=args.dry_run, limit=args.limit,
+            tier=args.tier, min_meeting_p=args.min_meeting_p, gate=not args.no_gate,
+            items=items,
+        )
+    finally:
+        # Written even when the run raises, so the Load tab can show what was reached. A failure to
+        # write the report must not turn a good load into a failed one.
+        if args.result_json:
+            try:
+                write_result_json(args.result_json, stats, items, dry_run=args.dry_run)
+            except OSError as exc:
+                logger.warning("Could not write the result file {}: {}", args.result_json, exc)
+    return exit_code(stats)
+
+
+def exit_code(stats: dict[str, int]) -> int:
+    """0 unless the run as a whole failed (#823).
+
+    One unreadable file is a bad input: counted and listed, but it must not stop the dbt rebuild for
+    every other analysis. The run fails when a database write failed, when the cache folder is
+    missing, or when files were unreadable and nothing at all loaded (a broken mount or permissions,
+    not one bad file)."""
+    if stats.get("errors_upsert") or stats.get("errors_cache_missing"):
+        return 1
+    if stats.get("errors_unreadable") and not stats.get("loaded"):
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -172,6 +173,9 @@ class DeploymentStepModel(BaseModel):
     note: Optional[str] = None
     log: str = ""
     cmd: str = ""
+    # Counts for the Load tab (#823); None when the step left no result file (older runs, dry runs).
+    counts: Optional[Dict[str, int]] = None
+    result: Optional[str] = None
 
 
 class DeploymentJobModel(BaseModel):
@@ -232,6 +236,79 @@ class DeploymentLogResponse(BaseModel):
     step: str
     path: str = ""
     lines: List[str] = Field(default_factory=list)
+
+
+class StepResultReason(BaseModel):
+    reason: str
+    outcome: str
+    label: str
+    advice: str = ""
+    count: int
+
+
+class StepResultItem(BaseModel):
+    file: str = ""
+    video_id: Optional[str] = None
+    tier: Optional[str] = None
+    outcome: str = ""
+    reason: str = ""
+    detail: Optional[str] = None
+
+
+class StepResultResponse(BaseModel):
+    job_id: str
+    step: str
+    # False when the step left no result file: the UI says so instead of showing zeros.
+    available: bool = False
+    kind: str = ""
+    dry_run: bool = False
+    counts: Dict[str, int] = Field(default_factory=dict)
+    reasons: List[StepResultReason] = Field(default_factory=list)
+    total: int = 0
+    rows: List[StepResultItem] = Field(default_factory=list)
+
+
+# What each reason means and what to do about it. Unknown reasons are shown under their own name.
+_REASON_INFO: Dict[str, tuple] = {
+    "unreadable": ("File could not be read", "The analysis file is empty or not valid JSON. Re-run the analysis for that meeting."),
+    "upsert_failed": ("Database write failed", "Read the error text; a foreign-key error usually means the meeting's event row is missing."),
+    "no_event": ("No event row yet", "Run ingestion.youtube.promote_to_c1_event so the video has a civic_event row, then load again."),
+    "no_meta": ("No run metadata", "The file has no metadata file of its own in 04_runs, so its model and video are unknown."),
+    "meta_mismatch": ("Metadata is for the other tier", "A full run overwrote the light run's metadata before #796. Re-run the light analysis to get its own record."),
+    "tier_mismatch": ("Tier does not match", "The metadata's analysis_tier disagrees with the file name."),
+    "no_video": ("No video id", "The metadata names no video, so the analysis cannot be tied to a meeting."),
+    "policy_excluded": ("Excluded at analysis time", "The transcript was marked as a promo, news item or non-meeting. Expected."),
+    "junk_channel": ("Junk channel", "The channel is classified as not a government channel. Expected."),
+    "non_meeting_type": ("Not a meeting", "meeting_type is OTHER, UNKNOWN or blank. Review it on the Meeting kinds tab if that is wrong."),
+    "low_keep_score": ("Low meeting score", "The Jev keep-score is below the floor. Override the meeting kind if it is a real meeting."),
+    "cache_missing": ("Analysis cache not found", "The cache folder the loader reads does not exist on this machine. Check the path and the mount."),
+    "error": ("dbt model failed", "Read the dbt message; fix the model or its upstream data and run the step again."),
+    "fail": ("dbt test failed", "Read the dbt message."),
+    "skipped": ("dbt model skipped", "An upstream model failed, so this one did not run."),
+}
+
+
+# Job ids are "<group>_<YYYYMMDD>_<HHMMSS>"; the id becomes part of a file name.
+_JOB_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,80}")
+
+
+def _load_step_result(job_id: str, step: str) -> Optional[Dict[str, Any]]:
+    path = _status_dir() / f"{job_id}_{step}.result.json"
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _int_counts(raw: Any) -> Dict[str, int]:
+    out: Dict[str, int] = {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                continue
+            out[str(k)] = int(v)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -500,4 +577,76 @@ async def deployment_log(
         step=step,
         path=str(path.relative_to(_repo_root())),
         lines=tail,
+    )
+
+
+@router.get("/{job_id}/result", response_model=StepResultResponse)
+async def deployment_step_result(
+    job_id: str,
+    step: str = Query(..., description="Step key whose counts and items to read."),
+    outcome: Optional[str] = Query(None, description="Only items with this outcome: skipped or error."),
+    reason: Optional[str] = Query(None, description="Only items with this reason."),
+    q: Optional[str] = Query(None, description="Case-insensitive text found in the file, video id or detail."),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> StepResultResponse:
+    """Counts and the items that were not loaded for one step of a run (#823).
+
+    Reads the step's ``<job_id>_<step>.result.json``. ``reasons`` and their counts always cover the
+    whole run; ``total`` and ``rows`` reflect the filters."""
+    step = (step or "").strip().lower()
+    if step not in _STEP_KEYS:
+        raise HTTPException(status_code=400, detail=f"step must be one of {_STEP_KEYS}")
+    if not _JOB_ID_RE.fullmatch(job_id or ""):
+        raise HTTPException(status_code=400, detail="invalid job id")
+    data = _load_step_result(job_id, step)
+    if data is None:
+        return StepResultResponse(job_id=job_id, step=step, available=False)
+
+    items = [i for i in (data.get("items") or []) if isinstance(i, dict)]
+    by_reason: Dict[tuple, int] = {}
+    for item in items:
+        key = (str(item.get("reason") or "unknown"), str(item.get("outcome") or ""))
+        by_reason[key] = by_reason.get(key, 0) + 1
+    reasons = [
+        StepResultReason(
+            reason=r, outcome=o, count=n,
+            label=_REASON_INFO.get(r, (r.replace("_", " "), ""))[0],
+            advice=_REASON_INFO.get(r, (r, ""))[1],
+        )
+        # errors first, then the biggest groups
+        for (r, o), n in sorted(by_reason.items(), key=lambda kv: (kv[0][1] != "error", -kv[1], kv[0][0]))
+    ]
+
+    needle = (q or "").strip().lower()
+    want_outcome = (outcome or "").strip().lower()
+    want_reason = (reason or "").strip().lower()
+
+    def keep(item: Dict[str, Any]) -> bool:
+        if want_outcome and str(item.get("outcome") or "").lower() != want_outcome:
+            return False
+        if want_reason and str(item.get("reason") or "").lower() != want_reason:
+            return False
+        if needle:
+            hay = " ".join(str(item.get(k) or "") for k in ("file", "video_id", "detail")).lower()
+            return needle in hay
+        return True
+
+    # Errors first, otherwise the order the step wrote them (sorted() is stable).
+    matched = sorted((i for i in items if keep(i)), key=lambda i: str(i.get("outcome") or "") != "error")
+    rows = [
+        StepResultItem(
+            file=str(i.get("file") or ""),
+            video_id=str(i["video_id"]) if i.get("video_id") else None,
+            tier=str(i["tier"]) if i.get("tier") else None,
+            outcome=str(i.get("outcome") or ""),
+            reason=str(i.get("reason") or "unknown"),
+            detail=str(i["detail"]) if i.get("detail") else None,
+        )
+        for i in matched[offset : offset + limit]
+    ]
+    return StepResultResponse(
+        job_id=job_id, step=step, available=True,
+        kind=str(data.get("kind") or ""), dry_run=bool(data.get("dry_run")),
+        counts=_int_counts(data.get("counts")), reasons=reasons, total=len(matched), rows=rows,
     )
