@@ -63,6 +63,7 @@ class TestClient:
 GATED_ROUTES = [
     ("post", "/api/batch-jobs/launch"),
     ("post", "/api/batch-jobs/launch/stop"),
+    ("post", "/api/batch-jobs/failures/retry"),
     ("get", "/api/batch-jobs/launch/log?step=ingest"),
     ("post", "/api/deployments/launch"),
     ("post", "/api/deployments/some-job/stop"),

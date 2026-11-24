@@ -1599,14 +1599,17 @@ async def list_failed_videos(
 
 class FailureReasonItem(BaseModel):
     reason: str
+    reason_id: str = ""
     count: int
     example: str = ""
+    example_video_id: Optional[str] = None
 
 
 class FailureReasonGroup(BaseModel):
     key: str
     label: str
     advice: str
+    retryable: bool = False
     count: int
     reasons: List[FailureReasonItem] = Field(default_factory=list)
 
@@ -1631,7 +1634,7 @@ class FailureRow(BaseModel):
 
 class FailureRowsResponse(BaseModel):
     stage: str
-    reason: str
+    reason_id: str = ""
     total: int = 0
     rows: List[FailureRow] = Field(default_factory=list)
 
@@ -1678,7 +1681,9 @@ async def list_failure_reasons(
 
 @router.get("/failures", response_model=FailureRowsResponse)
 async def list_failures(
-    reason: str = Query(..., description="A normalized reason, as returned by /failure-reasons"),
+    reason_id: str = Query(
+        ..., pattern=r"^[0-9a-f]{32}$", description="A reason_id, as returned by /failure-reasons"
+    ),
     stage: str = Query("transcripts"),
     cohort: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
@@ -1694,7 +1699,7 @@ async def list_failures(
 
         with get_db_connection() as conn:
             return failure_rows(
-                conn, stage=st, cohort=cohort, state=state, reason=reason, limit=limit, offset=offset
+                conn, stage=st, cohort=cohort, state=state, reason_id=reason_id, limit=limit, offset=offset
             )
 
     try:
@@ -1703,6 +1708,62 @@ async def list_failures(
         logger.exception("failure rows failed")
         raise HTTPException(status_code=500, detail=f"Failure rows failed: {exc}") from exc
     return FailureRowsResponse(**payload)
+
+
+class RetryFailuresRequest(BaseModel):
+    stage: str = "transcripts"
+    cohort: Optional[str] = None
+    state: Optional[str] = None
+    group: Optional[str] = None
+    reason_id: Optional[str] = Field(None, pattern=r"^[0-9a-f]{32}$")
+    dry_run: bool = False
+
+
+class RetryFailuresResponse(BaseModel):
+    stage: str
+    group: str = ""
+    reason_id: str = ""
+    dry_run: bool = False
+    matched: int = 0
+    made_due: int = 0
+    already_due: int = 0
+
+
+@router.post(
+    "/failures/retry",
+    response_model=RetryFailuresResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def retry_failures_route(req: RetryFailuresRequest) -> RetryFailuresResponse:
+    """Make the failed videos of one retryable group or reason due for the next caption fetch (#802).
+
+    Deletes nothing. The next Backfill (Transcripts row) fetches them. ``dry_run`` only counts.
+    """
+    st = _failure_stage(req.stage)
+    from api.batch_jobs.failure_reasons import retry_failures
+
+    def _run() -> Dict[str, Any]:
+        from api.batch_jobs.batch_job_db import get_db_connection
+
+        with get_db_connection() as conn:
+            return retry_failures(
+                conn,
+                stage=st,
+                cohort=req.cohort,
+                state=req.state,
+                group=req.group,
+                reason_id=req.reason_id,
+                dry_run=req.dry_run,
+            )
+
+    try:
+        payload = await asyncio.to_thread(_run)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("retry failures failed")
+        raise HTTPException(status_code=500, detail=f"Retry failed: {exc}") from exc
+    return RetryFailuresResponse(**payload)
 
 
 @router.get("/{batch_id}/jurisdictions", response_model=BatchJurisdictionsResponse)
