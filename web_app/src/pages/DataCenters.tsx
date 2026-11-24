@@ -73,7 +73,7 @@ export default function DataCenters() {
   const operations = items.filter((c) => c.phase === 'operations')
 
   return (
-    <div className="min-h-screen bg-gray-50 py-5">
+    <div className="min-h-screen page-bg py-5">
       <div className="mx-auto max-w-7xl px-4">
         <h1 className="mb-3 text-3xl font-bold text-gray-900">
           Data centers <span className="font-normal text-gray-400">· {scope.label}</span>

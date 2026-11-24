@@ -137,7 +137,7 @@ function MeetingDetailBody() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="h-40 animate-pulse rounded-lg bg-white shadow-sm" />
         </div>
@@ -148,7 +148,7 @@ function MeetingDetailBody() {
   if (isError || !data) {
     const msg = (error as { message?: string } | undefined)?.message || 'This meeting could not be loaded.'
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
             <div className="text-red-600 text-5xl mb-4">⚠️</div>
@@ -178,7 +178,7 @@ function MeetingDetailBody() {
   const playerTargetText = highlightFinancial?.event_description || undefined
 
   const content = (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen page-bg py-8">
       <div className="max-w-4xl mx-auto px-4">
         <button
           type="button"

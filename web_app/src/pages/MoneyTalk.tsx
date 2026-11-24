@@ -453,7 +453,7 @@ export default function MoneyTalk() {
   const themes = data?.themes ?? []
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen page-bg py-8">
       <div className="max-w-7xl mx-auto px-4">
         <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold">
           Spending vs discussion
