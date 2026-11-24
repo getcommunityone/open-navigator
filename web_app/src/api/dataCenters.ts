@@ -49,9 +49,10 @@ export async function fetchJobClaims(params: {
 }
 
 /** Data center sites (DC-4.1, #249): Epoch AI, CC BY 4.0. Narrows by state only. */
-export async function fetchDataCenterSites(params: { state?: string }): Promise<DataCenterSitesResponse> {
+export async function fetchDataCenterSites(params: { state?: string; limit?: number }): Promise<DataCenterSitesResponse> {
   const q: Record<string, string> = {}
   if (params.state) q.state = params.state
+  if (params.limit) q.limit = String(params.limit)
   return withSpan(
     'data-centers.sites.load',
     async (span) => {
@@ -67,8 +68,10 @@ export async function fetchDataCenterSites(params: { state?: string }): Promise<
 export async function fetchDataCenterAgendaItems(params: {
   state?: string
   city?: string
+  limit?: number
 }): Promise<DataCenterAgendaItemsResponse> {
   const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
@@ -96,8 +99,10 @@ export async function fetchAreaConcerns(params: { state?: string; city?: string 
 export async function fetchDataCenterMeetingMentions(params: {
   state?: string
   city?: string
+  limit?: number
 }): Promise<DataCenterMeetingMentionsResponse> {
   const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
@@ -117,8 +122,10 @@ export async function fetchCommunityEvents(params: {
   state?: string
   city?: string
   projectId?: string
+  limit?: number
 }): Promise<CommunityEventsResponse> {
   const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   if (params.projectId) q.project_id = params.projectId

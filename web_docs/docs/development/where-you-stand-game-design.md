@@ -88,3 +88,9 @@ Unique on `(player_id, pack_id, statement_id)`. Index on `(pack_id, statement_id
 - The game screens. Issue #847 gives the chart sections; a follow-up issue builds the rounds.
 - More topic packs.
 - Answers linked to a login.
+
+## Update, November 24, 2026
+
+The game screens were built in #852 (`/play/data-centers`; guide: [Where Do You Stand? game](../guides/where-you-stand-game.md)).
+Still not done: more topic packs, login-linked answers, and the charts of stance by speaker, which wait for the
+public comment data to be loaded.

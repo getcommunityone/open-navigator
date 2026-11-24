@@ -78,6 +78,16 @@ export default function DataCenters() {
           Data centers <span className="font-normal text-gray-400">· {scope.label}</span>
         </h1>
 
+        <p className="mb-3 text-sm">
+          <Link
+            to={`/play/data-centers${stateCode ? `?state=${encodeURIComponent(stateCode)}${cityName ? `&city=${encodeURIComponent(cityName)}` : ''}` : ''}`}
+            className="font-medium text-primary-700 underline hover:text-primary-900"
+          >
+            Play: Where Do You Stand?
+          </Link>{' '}
+          <span className="text-gray-600">Eight statements about data centers, and how people who played answered.</span>
+        </p>
+
         <ScopeControl
           stateCode={stateCode}
           cityName={cityName}
