@@ -187,7 +187,7 @@ obvious next step should always be on screen, and the quiz-show energy belongs t
 
 Pack file: `question` is `{ question_id, version, text, place_text, options: [{ id, label }] }`. `place_text` must contain
 `{place}`; there are at least two options with distinct ids. For data centers: `allow-new`, version 1, "Should we allow new data
-centers?", "Should {place} allow new data centers?", options `yes` (Yes), `no` (No), `moratorium` (Pause for now).
+centers?", `Should {place} allow new data centers?`, options `yes` (Yes), `no` (No), `moratorium` (Pause for now).
 
 Table `public.stance_choice_response` (runtime-owned, created by the API on first use like `stance_response`; grain: one row
 per reader, pack, question, question version and moment):

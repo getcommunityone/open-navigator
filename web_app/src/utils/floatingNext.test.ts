@@ -1,12 +1,23 @@
-// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { floatingLabel, toGoLabel } from './floatingNext'
 
-const el = (html: string) => {
-  const d = document.createElement('div')
-  d.innerHTML = html
-  return d.firstElementChild!
+// Minimal stand-ins for DOM nodes, so the test needs no browser environment: floatingLabel only reads nodeType,
+// textContent, tagName, getAttribute and childNodes.
+type Child = string | FakeEl
+interface FakeEl {
+  nodeType: 1
+  tagName: string
+  childNodes: unknown[]
+  getAttribute(name: string): string | null
 }
+const text = (s: string) => ({ nodeType: 3, textContent: s })
+const el = (tag: string, attrs: Record<string, string>, ...children: Child[]): FakeEl => ({
+  nodeType: 1,
+  tagName: tag.toUpperCase(),
+  childNodes: children.map((c) => (typeof c === 'string' ? text(c) : c)),
+  getAttribute: (name) => attrs[name] ?? null,
+})
+const label = (e: FakeEl) => floatingLabel(e as unknown as Element)
 
 describe('toGoLabel', () => {
   it('says what is left in words', () => {
@@ -20,9 +31,11 @@ describe('toGoLabel', () => {
 
 describe('floatingLabel', () => {
   it('is the visible text of the control, without arrows or key hints', () => {
-    expect(floatingLabel(el('<button>Next: Sites <span aria-hidden="true">→</span></button>'))).toBe('Next: Sites')
-    expect(floatingLabel(el('<button>Ask me <span aria-hidden="true">→</span>\n<kbd aria-hidden="true">Space</kbd></button>'))).toBe('Ask me')
-    expect(floatingLabel(el('<button><span>Pause for now</span><kbd>N</kbd></button>'))).toBe('Pause for now')
-    expect(floatingLabel(el('<a href="/x">  Take the\n  Data Center Challenge </a>'))).toBe('Take the Data Center Challenge')
+    expect(label(el('button', {}, 'Next: Sites ', el('span', { 'aria-hidden': 'true' }, '→')))).toBe('Next: Sites')
+    expect(
+      label(el('button', {}, 'Ask me ', el('span', { 'aria-hidden': 'true' }, '→'), '\n', el('kbd', { 'aria-hidden': 'true' }, 'Space'))),
+    ).toBe('Ask me')
+    expect(label(el('button', {}, el('span', {}, 'Pause for now'), el('kbd', {}, 'N')))).toBe('Pause for now')
+    expect(label(el('a', { href: '/x' }, '  Take the\n  Data Center Challenge '))).toBe('Take the Data Center Challenge')
   })
 })
