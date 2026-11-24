@@ -234,8 +234,9 @@ This waits until the pilot shows the speaker-level numbers are worth extending.
 
 - **Do not use American Sentiment's (or ProphecyGov's) data.** `community_events.py` blocks `americansentiment.com`
   and `prophecygov.com` because their terms forbid competitors' use. Stance comes from our own transcripts only.
-  Cited as reference-only on [Data and Citations](../data-sources/citations.md#american-sentiment-reference)
-  ([ProphecyGov](../data-sources/citations.md#prophecygov-reference)).
+  Peers are listed under [Proprietary competitors](../data-sources/citations.md#proprietary-competitors)
+  ([American Sentiment](../data-sources/citations.md#american-sentiment),
+  [ProphecyGov](../data-sources/citations.md#prophecygov)).
 - **Paid runs need the owner's yes for that run** (`AGENTS.md`). The pilot has it; a wider run does not.
 - **No fabricated data:** no stance without a row, no row without a named speaker, no quote that is not in the transcript.
 - **Auto-captions** have no speaker labels and often garble names, so some speakers will be missed or split in two.
