@@ -7,6 +7,7 @@ import { CENSUS_REGION_LABEL, censusRegionForStateFips, type CensusRegionId } fr
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { STATE_FIPS_TO_CODE } from '../utils/stateFips'
 import DotMatrixMap from '../components/DotMatrixMap'
+import { fetchStaticJson } from '../utils/fetchStaticJson'
 import { activeSortKey, largestRemainder, medianOf, olsFit, shadeT } from '../utils/matrixMapMath'
 import { DATA_EXPLORER_MAP_BASE, mapPathUs } from '../utils/dataExplorerPaths'
 
@@ -56,11 +57,7 @@ export default function DataExplorerMatrixPage() {
 
   const { data: manifest, isLoading: mLoading } = useQuery({
     queryKey: ['census-map-manifest'],
-    queryFn: async (): Promise<Manifest> => {
-      const r = await fetch('/data/census-map/manifest.json')
-      if (!r.ok) throw new Error('manifest')
-      return r.json()
-    },
+    queryFn: () => fetchStaticJson<Manifest>('/data/census-map/manifest.json'),
     retry: false,
   })
   const vintage = sp.get('vintage') || manifest?.vintage || ''
@@ -193,7 +190,9 @@ export default function DataExplorerMatrixPage() {
   if (!manifest || !payload || rows.length === 0 || metrics.length === 0) {
     return (
       <p className="rounded-lg bg-white p-4 text-sm text-slate-700" role="status">
-        No data available — the ACS state bundle for this vintage hasn’t been published yet.
+        No data available. The census data files are not on this server (<code className="text-xs">/data/census-map/</code>).
+        They are generated, not stored in the repository: run{' '}
+        <code className="text-xs">python -m ingestion.census.export_census_map_static --all-years</code>, then reload.
       </p>
     )
   }
