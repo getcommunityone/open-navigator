@@ -5,7 +5,7 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import type { FolioTheme } from '../../utils/folioThemes'
 import { labelOn } from '../../utils/folioRamp'
 import { signedChange as signedChange0 } from '../../utils/matrixTable'
-import type { Item } from '../../utils/matrixStory'
+import { nameList, type Item } from '../../utils/matrixStory'
 import type { MatrixCtx, Metric, Row, StatePayload } from './types'
 
 export const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -79,8 +79,6 @@ export function signedChange(
   return signedChange0(latest, base, metricOf(metrics, slug)?.format === 'percent' ? 'pp' : 'number', (a) => fmt(slug, a)) ?? '—'
 }
 
-export const FIG_NO = (i: number): string => String(i + 1).padStart(2, '0')
-
 /** "52 states and territories" style count noun for the figures in scope. */
 export const geoNounFor = (n: number): string => (n === 1 ? '1 state or territory' : `${n.toLocaleString('en-US')} states and territories`)
 
@@ -114,6 +112,9 @@ export interface MetricStats {
   median: number | null
   high: { r: Row; v: number } | null
   low: { r: Row; v: number } | null
+  /** Every geography that shares the highest / lowest value (ties), by name. */
+  highNames: string[]
+  lowNames: string[]
 }
 /** Count, median, highest and lowest of one metric over `rows` (missing values skipped). */
 export function statsOf(rows: Row[], slug: string): MetricStats {
@@ -121,11 +122,14 @@ export function statsOf(rows: Row[], slug: string): MetricStats {
   const sorted = [...xs].sort((a, b) => a.v - b.v)
   const mid = Math.floor(sorted.length / 2)
   const median = !sorted.length ? null : sorted.length % 2 ? sorted[mid]!.v : (sorted[mid - 1]!.v + sorted[mid]!.v) / 2
-  return { n: xs.length, median, high: sorted[sorted.length - 1] ?? null, low: sorted[0] ?? null }
+  const high = sorted[sorted.length - 1] ?? null
+  const low = sorted[0] ?? null
+  const named = (v: number | undefined) => (v == null ? [] : xs.filter((x) => x.v === v).map((x) => x.r.name).sort((a, b) => a.localeCompare(b)))
+  return { n: xs.length, median, high, low, highNames: named(high?.v), lowNames: named(low?.v) }
 }
 
 /** "Highest / lowest / median" sentence for the text column, all from the rows in scope. */
 export function statsSentence(st: MetricStats, slug: string, fmt: (slug: string, v: number | null) => string): string {
   if (!st.n || !st.high || !st.low) return 'No data available for this metric in the scope shown.'
-  return `Highest: ${st.high.r.name} (${fmt(slug, st.high.v)}). Lowest: ${st.low.r.name} (${fmt(slug, st.low.v)}). Median: ${fmt(slug, st.median)}. ${st.n} ${st.n === 1 ? 'geography has' : 'geographies have'} a value.`
+  return `Highest: ${nameList(st.highNames)} (${fmt(slug, st.high.v)}). Lowest: ${nameList(st.lowNames)} (${fmt(slug, st.low.v)}). Median: ${fmt(slug, st.median)}. ${st.n} ${st.n === 1 ? 'geography has' : 'geographies have'} a value.`
 }

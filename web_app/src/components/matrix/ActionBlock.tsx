@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { adjacentScreens, screenLabel } from '../../utils/matrixStory'
 import type { MatrixCtx } from './types'
 
 /** The app's decisions browse page (App.tsx `browse-topics`); it reads `?state=<2-letter code>` and is national without it. */
@@ -9,22 +10,17 @@ export function decisionsHref(stateCode: string | null): string {
   return stateCode ? `${DECISIONS_PATH}?${new URLSearchParams({ state: stateCode }).toString()}` : DECISIONS_PATH
 }
 
-/** The data centers game (App.tsx `play/:packId`, #852); it reads `?state=` as the player's place. Exported for the tests. */
-export function playHref(stateCode: string | null): string {
-  const base = '/play/data-centers'
-  return stateCode ? `${base}?${new URLSearchParams({ state: stateCode }).toString()}` : base
-}
-
 /**
- * The last chapter's call to action: large square buttons that carry the scope in view. Every destination is a route that
+ * The last screen: large square buttons that carry the scope in view. Every destination is a route that
  * exists in App.tsx. The Table section's own CSV download is the third button.
  */
 export default function ActionBlock({ ctx, onDownload }: { ctx: MatrixCtx; onDownload: () => void }) {
   const state = ctx.stateScope
+  const { prev } = adjacentScreens('action')
   return (
     <section className="folio-action" id="action" aria-labelledby="action-h">
-      <p className="folio-eyebrow">Action</p>
-      <h3 className="folio-action-title" id="action-h">
+      <p className="folio-eyebrow">Go further</p>
+      <h3 className="folio-action-title" id="action-h" tabIndex={-1}>
         Take it further
       </h3>
       <p className="folio-lede">
@@ -34,14 +30,6 @@ export default function ActionBlock({ ctx, onDownload }: { ctx: MatrixCtx; onDow
         <li>
           <Link className="folio-action-btn" to={decisionsHref(state?.code ?? null)}>
             <span className="folio-action-label">{state ? `See decisions in ${state.name}` : 'See decisions nationwide'}</span>
-            <span aria-hidden="true" className="folio-action-arrow">
-              →
-            </span>
-          </Link>
-        </li>
-        <li>
-          <Link className="folio-action-btn" to={playHref(state?.code ?? null)}>
-            <span className="folio-action-label">Play: Where Do You Stand?</span>
             <span aria-hidden="true" className="folio-action-arrow">
               →
             </span>
@@ -64,6 +52,16 @@ export default function ActionBlock({ ctx, onDownload }: { ctx: MatrixCtx; onDow
           </Link>
         </li>
       </ul>
+      <div className="folio-pager folio-pager-end">
+        {prev && (
+          <button type="button" className="folio-pager-back" onClick={() => ctx.goTo(prev.domId)}>
+            <span aria-hidden="true">↑</span> Back: {screenLabel(prev.section, ctx.labelInput)}
+          </button>
+        )}
+        <button type="button" className="folio-pager-back" onClick={() => ctx.goTo('top')}>
+          <span aria-hidden="true">↑</span> Back to the start
+        </button>
+      </div>
     </section>
   )
 }

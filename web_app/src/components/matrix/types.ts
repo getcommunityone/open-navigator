@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import type { CensusMetricFormatRow } from '../../utils/censusMapTransforms'
 import type { CensusRegionId } from '../../utils/censusRegions'
 import type { FolioTheme } from '../../utils/folioThemes'
+import type { LabelInput } from '../../utils/matrixStory'
 
 export type Metric = CensusMetricFormatRow & { label: string }
 export type Manifest = { vintage?: string; vintages?: string[]; metrics?: Metric[] }
@@ -29,7 +30,7 @@ export type SectionId =
   | 'dots'
   | 'table'
 
-/** In reading order, chapter by chapter (see CHAPTERS in utils/matrixStory.ts); the position here is the section's number. */
+/** In reading order, chapter by chapter (see CHAPTERS in utils/matrixStory.ts). `name` is the plain name for table captions and assistive text. */
 export const SECTIONS: ReadonlyArray<{ id: SectionId; name: string }> = [
   { id: 'tiles', name: 'Tiles' },
   { id: 'dots', name: 'Dot map' },
@@ -84,6 +85,10 @@ export interface MatrixCtx {
   /** The geography (FIPS) a Pivot row is hovered or focused on; Tiles highlights the matching tile. Null when none. */
   hotFips: string | null
   setHotFips: (fips: string | null) => void
+  /** What the Continue / Back controls and the band's ticks name each screen with (metric, earliest vintage, second metric, state). */
+  labelInput: LabelInput
+  /** Page to a screen: scroll there (smooth unless reduced motion), move focus to its heading and replace the URL. `domId` is a screen's DOM id. */
+  goTo: (domId: string) => void
 }
 
 export const delayVar = (ms: number): CSSProperties => ({ '--delay': `${Math.round(ms)}ms` }) as CSSProperties

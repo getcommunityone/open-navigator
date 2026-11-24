@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { medianOf, niceScale } from '../../utils/matrixMapMath'
 import { trendStory } from '../../utils/matrixStory'
 import { sortByMetric } from './data'
-import { useElementWidth, useSection, useSeries } from './hooks'
+import { useElementWidth, useFitHeight, useSection, useSeries } from './hooks'
 import LegendChips from './LegendChips'
 import { Empty } from './parts'
 import SectionShell from './SectionShell'
@@ -195,7 +195,7 @@ function TrendChart({ ctx, series, sv }: { ctx: MatrixCtx; series: Series[]; sv:
   const padR = w < 460 ? 40 : 64
   const padT = 20
   const padB = 30
-  const h = 300
+  const h = useFitHeight(300, 530)
   const nums = shown.flatMap((s) => s.values).filter((v): v is number => v != null)
   if (!nums.length) return <Empty>No data available for {ctx.metricLabel} in the lines shown.</Empty>
   const sc = niceScale(Math.min(...nums), Math.max(...nums), 4)

@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { SectionContext, useInViewOnce } from './hooks'
 import TitleBlock from './TitleBlock'
-import { FIG_NO } from './data'
+import ScreenPager from './ScreenPager'
+import { CHAPTERS, SECTION_EYEBROW } from '../../utils/matrixStory'
 import { SECTIONS, type MatrixCtx, type SectionId, type TableSpec } from './types'
 
 /** A real <table> of the rows and values a chart draws (same scope, same formatting). The first column is the row header. */
@@ -53,7 +54,7 @@ interface Props {
   text: ReactNode
   /** Per-section controls (above the figure). */
   controls?: ReactNode
-  /** The caption after "FIG. NN —", including the scope. */
+  /** The figure's caption, including the scope. */
   caption: ReactNode
   /** The rows the chart draws, for "Show data table". Evaluated only while the table is open. */
   table?: () => TableSpec | null
@@ -63,16 +64,16 @@ interface Props {
 }
 
 /**
- * One numbered section of the report, in the reference's spread layout: eyebrow, large headline and text on the left, the
- * figure with its FIG. caption on the right (about 45 / 55 with a hairline between), stacked text-first below 1024 px.
+ * One screen of the report: a plain eyebrow, the headline and one supporting sentence on the left (the longer explanation sits
+ * under "More about this chart"), the figure with its caption on the right (about 45 / 55 with a hairline between), and the
+ * Continue / Back controls under the text. Stacked text-first below 1024 px. Each screen is sized to the viewport (folio.css).
  */
 export default function SectionShell({ ctx, id, headline, lead, text, controls, caption, table, wide, children }: Props) {
   const ref = useRef<HTMLElement>(null)
   const seen = useInViewOnce(ref)
   const [el, setEl] = useState<HTMLElement | null>(null)
-  const index = SECTIONS.findIndex((s) => s.id === id)
-  const name = SECTIONS[index]?.name ?? id
-  const num = FIG_NO(index)
+  const name = SECTIONS.find((s) => s.id === id)?.name ?? id
+  const opens = CHAPTERS.some((c) => c.sections[0] === id)
   const open = ctx.sp.get('table') === id
   const spec = useMemo(() => (open && table ? table() : null), [open, table])
   return (
@@ -83,25 +84,26 @@ export default function SectionShell({ ctx, id, headline, lead, text, controls, 
         holder.current = n
         if (n !== el) setEl(n)
       }}
-      className={`folio-section${seen ? ' is-in' : ''}${wide ? ' folio-section-wide' : ''}`}
+      className={`folio-section${seen ? ' is-in' : ''}${wide ? ' folio-section-wide' : ''}${opens ? ' has-opener' : ''}`}
       aria-labelledby={`${id}-h`}
       data-section={id}
     >
       <div className="folio-spread">
         <div className="folio-spread-text">
-          <TitleBlock as="h3" id={`${id}-h`} eyebrow={`${num} — ${name}`} text={headline} variant="section" />
+          <TitleBlock as="h3" id={`${id}-h`} eyebrow={SECTION_EYEBROW[id]} text={headline} variant="section" />
           <hr className="folio-rule" />
           {lead && <p className="folio-lede">{lead}</p>}
-          <div className="folio-body">{text}</div>
+          <details className="folio-more">
+            <summary>More about this chart</summary>
+            <div className="folio-body">{text}</div>
+          </details>
         </div>
         <div className="folio-spread-fig">
           {controls && <div className="folio-controls">{controls}</div>}
           <SectionContext.Provider value={{ seen, el }}>
             <div className={`folio-figure${seen ? '' : ' folio-prime'}`}>{children}</div>
           </SectionContext.Provider>
-          <p className="folio-fig">
-            <b>FIG. {num}</b> — {caption}
-          </p>
+          <p className="folio-fig">{caption}</p>
           {table && (
             <>
               <button
@@ -118,6 +120,7 @@ export default function SectionShell({ ctx, id, headline, lead, text, controls, 
             </>
           )}
         </div>
+        <ScreenPager ctx={ctx} section={id} />
       </div>
     </section>
   )

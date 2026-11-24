@@ -73,7 +73,7 @@ export default function DivergingSection({ ctx }: { ctx: MatrixCtx }) {
   const above = vals.filter((x) => med != null && x.v > med).length
   const high = vals.reduce<{ r: (typeof vals)[number]['r']; v: number } | null>((a, x) => (a == null || x.v > a.v ? x : a), null)
   const low = vals.reduce<{ r: (typeof vals)[number]['r']; v: number } | null>((a, x) => (a == null || x.v < a.v ? x : a), null)
-  const story = divergingStory({ metricLabel: ctx.metricLabel, vintage: ctx.vintage, items: itemsOf(ctx.rows, slug), median: ok ? med : null, fmt: (v) => ctx.fmt(slug, v) })
+  const story = divergingStory({ metricLabel: ctx.metricLabel, vintage: ctx.vintage, items: itemsOf(ctx.rows, slug), median: ok ? med : null, fmt: (v) => ctx.fmt(slug, v), fmtDiff: (hi, lo) => { const t = signedChange(slug, lo, hi, ctx.metrics, ctx.fmt); return t === '—' ? null : t.replace(/^\+/, '') } })
   const shownNote = sv.off.size ? ` Only ${sv.on('below') ? 'below' : 'above'}-median rows are shown.` : ''
   return (
     <SectionShell

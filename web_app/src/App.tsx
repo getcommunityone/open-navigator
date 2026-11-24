@@ -207,7 +207,7 @@ function App() {
           <Route
             path="matrix"
             element={
-              <LazyRouteBoundary name="Matrix map">
+              <LazyRouteBoundary name="How states compare">
                 <DataExplorerMatrixPage />
               </LazyRouteBoundary>
             }

@@ -1,3 +1,4 @@
+import { MATRIX_TAB_LABEL } from '../utils/matrixSuggest'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   DATA_EXPLORER_JURISDICTION_QUALITY,
@@ -46,7 +47,7 @@ export default function DataExplorerLayout() {
               to={DATA_EXPLORER_MATRIX}
               className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
             >
-              Matrix map
+              {MATRIX_TAB_LABEL}
             </NavLink>
             <NavLink
               to={DATA_EXPLORER_SCORECARD}
