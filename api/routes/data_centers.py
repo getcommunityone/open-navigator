@@ -1288,3 +1288,177 @@ async def list_data_center_projects(
         total = int(count_rows[0]["n"]) if count_rows else len(items)
         span.set_attribute("projects.count", len(items))
         return DataCenterProjectsResponse(scope=applied, total=total, items=items)
+
+
+# --- who spoke for and against, and the recorded votes (#930) ------------------------------
+
+POSITION_QUOTES_DEFAULT = 3
+POSITION_QUOTES_MAX = 10
+
+
+class PositionTotals(BaseModel):
+    """Whole-scope sums from ``data_center_meeting_position``. Every field is null when the
+    mart isn't loaded; ``votes_*`` are also null (never 0) when no decision recorded a tally."""
+
+    meetings: int | None = Field(
+        None, description="Meetings the counts come from: at least one counted speaker or one recorded tally."
+    )
+    meetings_reviewed: int | None = Field(
+        None, description="Analysed meetings in scope where a data center came up (the mart's rows)."
+    )
+    speakers_for: int | None = None
+    speakers_against: int | None = None
+    speakers_question: int | None = None
+    speakers_neutral: int | None = None
+    decisions_with_tally: int | None = Field(
+        None, description="Data center decisions whose vote tally records both a yes and a no count."
+    )
+    votes_for: int | None = None
+    votes_against: int | None = None
+
+
+class PositionQuote(BaseModel):
+    """One public speaker's own words on a data center item, with the moment in the recording."""
+
+    public_comment_id: str
+    quote: str = Field(..., description="Verbatim from the transcript; rows without one are not returned.")
+    speaker_role: str | None = None
+    jurisdiction_name: str | None = None
+    state_code: str | None = None
+    meeting_date: date | None = None
+    video_url: str | None = None
+    start_seconds: float | None = None
+    jump_url: str | None = Field(None, description="video_url at start_seconds; null when untimed.")
+    decision_headline: str | None = Field(
+        None, description="The data center decision the comment is linked to, when that is why it counts."
+    )
+    match_basis: Literal["data_center_decision", "own_words"] | None = None
+
+
+class PositionQuotes(BaseModel):
+    for_: list[PositionQuote] = Field(default_factory=list, alias="for")
+    against: list[PositionQuote] = Field(default_factory=list)
+    question: list[PositionQuote] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
+class DataCenterPositionsResponse(BaseModel):
+    scope: JobClaimScope
+    available: bool = Field(
+        True, description="False when the mart isn't in the database yet: totals are null, not zero."
+    )
+    totals: PositionTotals = Field(default_factory=PositionTotals)
+    quotes: PositionQuotes = Field(default_factory=PositionQuotes)
+
+
+def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[Any], str, list[Any]]:
+    """(totals SQL, params, quotes SQL, params). The rule for which comments and votes count
+    lives in dbt (int_data_center__public_comment, data_center_meeting_position); this only
+    sums and lists what the marts hold."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"p.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"p.jurisdiction_name ILIKE ${len(params)}")
+    where_sql = " AND ".join(where) or "TRUE"
+    totals_sql = (
+        "SELECT count(*)::int AS meetings_reviewed, "
+        "count(*) FILTER (WHERE p.speakers_for + p.speakers_against + p.speakers_question "
+        "+ p.speakers_neutral > 0 OR p.decisions_with_tally > 0)::int AS meetings, "
+        "coalesce(sum(p.speakers_for), 0)::int AS speakers_for, "
+        "coalesce(sum(p.speakers_against), 0)::int AS speakers_against, "
+        "coalesce(sum(p.speakers_question), 0)::int AS speakers_question, "
+        "coalesce(sum(p.speakers_neutral), 0)::int AS speakers_neutral, "
+        "coalesce(sum(p.decisions_with_tally), 0)::int AS decisions_with_tally, "
+        "sum(p.votes_for)::int AS votes_for, sum(p.votes_against)::int AS votes_against "
+        f"FROM data_center_meeting_position p WHERE {where_sql}"
+    )
+    quote_params = [*params, limit]
+    # One quote per meeting first, so a single long meeting doesn't fill a side.
+    quotes_sql = (
+        "SELECT * FROM ("
+        "SELECT p.public_comment_id, p.stance_bucket, p.quote, p.speaker_role, p.jurisdiction_name, "
+        "p.state_code, p.meeting_date, p.video_url, p.start_seconds::float8 AS start_seconds, "
+        "p.decision_headline, p.match_basis, "
+        "row_number() OVER (PARTITION BY p.stance_bucket ORDER BY p.meeting_rank, "
+        "p.meeting_date DESC NULLS LAST, p.start_seconds NULLS LAST, p.public_comment_id) AS side_rank "
+        "FROM (SELECT p.*, row_number() OVER (PARTITION BY p.stance_bucket, p.event_meeting_id "
+        "ORDER BY p.start_seconds NULLS LAST, p.public_comment_id) AS meeting_rank "
+        "FROM data_center_public_comment p "
+        f"WHERE {where_sql} AND p.is_counted AND p.quote IS NOT NULL "
+        "AND p.stance_bucket IN ('for', 'against', 'question')) p"
+        f") q WHERE q.side_rank <= ${len(quote_params)} "
+        "ORDER BY q.stance_bucket, q.side_rank"
+    )
+    return totals_sql, params, quotes_sql, quote_params
+
+
+@router.get("/positions", response_model=DataCenterPositionsResponse)
+async def data_center_positions(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the jurisdiction name."),
+    limit: int = Query(
+        POSITION_QUOTES_DEFAULT, ge=1, le=POSITION_QUOTES_MAX, description="Quotes per side."
+    ),
+) -> DataCenterPositionsResponse:
+    """
+    Who spoke for and against a data center item at local meetings, who asked a question,
+    and the votes where a tally was recorded, for the scope; plus a few of the speakers'
+    own words on each side, each linked to the moment in the recording.
+
+    Only comments about the data center item count (a comment on another item of the same
+    meeting never does). ``available`` is false and every total null when the mart isn't
+    loaded; ``votes_for`` / ``votes_against`` are null when ``decisions_with_tally`` is 0.
+
+    Example:
+        GET /api/data-centers/positions?state=AL&city=Tuscaloosa
+    """
+    scope = build_scope(state, city, None)
+    applied = JobClaimScope(
+        level="city" if scope.city else ("state" if scope.state_code else "national"),
+        state_code=scope.state_code,
+        state=scope.state,
+        city=scope.city,
+    )
+    totals_sql, params, quotes_sql, quote_params = build_position_queries(applied, limit)
+    with tracer.start_as_current_span("data-centers.positions") as span:
+        span.set_attribute("positions.scope_level", applied.level)
+        span.set_attribute("positions.state_code", applied.state_code or "")
+        span.set_attribute("positions.city", applied.city or "")
+        span.set_attribute("positions.limit", limit)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                with tracer.start_as_current_span("data-centers.positions.query"):
+                    total_rows = await conn.fetch(totals_sql, *params)
+                    quote_rows = await conn.fetch(quotes_sql, *quote_params)
+        except asyncpg.exceptions.UndefinedTableError as e:
+            span.set_attribute("positions.relation_missing", True)
+            logger.warning("data-centers: 'data_center_meeting_position' isn't here yet ({}); unavailable", e)
+            return DataCenterPositionsResponse(scope=applied, available=False)
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers positions error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load data center positions")
+        totals = PositionTotals(**dict(total_rows[0])) if total_rows else PositionTotals()
+        if not totals.decisions_with_tally:
+            totals.votes_for = totals.votes_against = None
+        sides: dict[str, list[PositionQuote]] = {"for": [], "against": [], "question": []}
+        for r in quote_rows:
+            row = dict(r)
+            side = row.pop("stance_bucket")
+            row.pop("side_rank", None)
+            if side not in sides:
+                continue
+            row["jump_url"] = jump_url(row["video_url"], row.get("start_seconds")) if row.get("video_url") else None
+            sides[side].append(PositionQuote(**row))
+        span.set_attribute("positions.meetings", totals.meetings or 0)
+        return DataCenterPositionsResponse(
+            scope=applied,
+            totals=totals,
+            quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
+        )
