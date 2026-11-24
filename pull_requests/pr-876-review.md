@@ -4,17 +4,21 @@ branch: fix/875-load-dbt-profiles-dir
 title: "fix(batch-jobs): run the Load tab's dbt steps with the project's profiles directory"
 author: jcbowyer
 reviewed_at: 2026-11-24
-reviewer: github-actions
+reviewer: github-actions, coordinator
 head_sha: 03917a1404ef6a04080f4f1d8bbdfaa144a8bbab
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: fix(batch-jobs): run the Load tab's dbt steps with the project's profiles directory
 
 ## Summary
 
-Automated review (#648) for PR #876 on `fix/875-load-dbt-profiles-dir`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+The Load tab started dbt from the repository root with no profiles directory, so dbt looked in `~/.dbt` and not in
+`dbt_project/`, where `scripts/dbt.sh` points it. The PR sets `DBT_PROFILES_DIR` for the steps when the project has
+a `profiles.yml`, keeps an explicit setting, and writes the directory used into each dbt step's log. Small and
+unit-tested. Whether it explains the owner's failing Load runs is not confirmed.
+
+The automated scan (#648) wrote the first version of this file; the agent that opened the PR refined it.
 
 ## Scope of Change
 
@@ -29,11 +33,12 @@ See the PR checks on `03917a1404ef`.
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
 - Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+- Fabricated data / personal / destructive: clean. It narrows which database a Load run can write to, towards the local one the owner already uses by hand.
 
 ## Strengths
 
-- Automated scans found no secret/credential patterns in added lines.
+- It mirrors `scripts/dbt.sh` exactly, so the tab and the terminal now agree.
+- The log line makes the next failure diagnosable from the tab.
 
 ## Findings
 
@@ -43,12 +48,14 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+- Not run against a real dbt project. The owner's next Load is the test; its dbt step logs should start with
+  the `dbt_project` path.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- If `~/.dbt/profiles.yml` was what made earlier Load runs work on some machine, this changes which profile they
+  use there. That is the intended direction, but worth knowing.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**
