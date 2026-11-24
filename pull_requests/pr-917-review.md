@@ -4,19 +4,21 @@ branch: fix/916-chat-failure-reporting
 title: "fix(chat): say why the chat cannot answer, on the page and in the log"
 author: jcbowyer
 reviewed_at: 2026-11-24
-reviewer: github-actions
+reviewer: github-actions, coordinator
 head_sha: e509d6766a46d11dcea254b89f2c3ec69ec8e208
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: fix(chat): say why the chat cannot answer, on the page and in the log
 
 ## Summary
 
-Automated review (#648) for PR #917 on `fix/916-chat-failure-reporting`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Makes the cause of a failed chat visible. A missing provider key answers 503 'Chat is not set up on this site yet.' before any model call and logs the provider and the missing variable name; a failed model call logs provider, model, exception type and status; GET /api/chat/status reports provider, model and whether the key is set. The page shows the server's own reason, with separate wording for a timeout and for no connection.
+
+Read by the coordinator against the diff and screenshots at desktop and phone sizes; the heuristic scan ran first.
 
 ## Scope of Change
+
 
 - `api/routes/chat_meetings.py`
 - `tests/test_chat_meetings.py`
@@ -28,16 +30,11 @@ Automated review (#648) for PR #917 on `fix/916-chat-failure-reporting`. Heurist
 
 ## CI Status
 
-See the PR checks on `e509d6766a46`.
+Required checks are read on the head commit before merge. Locally: tsc clean, vitest passed, build ok.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
+- Secrets: clean. Fabricated data: none. Personal data: none. Destructive changes: none.
 
 ## Findings
 
@@ -47,12 +44,15 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+None.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- The live cause is not confirmed; the status endpoint settles it after the next deploy.
+- The status endpoint is public. It exposes the provider and model name and a boolean, no secret; acceptable, but worth knowing.
+- Error wording was not viewed in a browser at phone size; it is text inside the existing bubble.
+- npm run gen:api could not run in the review container; CI runs it.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**
