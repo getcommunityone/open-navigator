@@ -108,7 +108,7 @@ export function contextSourceFor(key: string | null | undefined): string | null 
   return null
 }
 
-/** The place as it reads in "What did ___ say about ...?": "the United States", "Alabama" or "Tuscaloosa, Alabama". */
+/** The place as it reads in "What did local meetings in ___ say about ...?": "the United States", "Alabama" or "Tuscaloosa, Alabama". */
 export function storyPlaceDisplay(scope: StoryScope): string {
   return scope.stateName ? storyScopeLabel(scope) : 'the United States'
 }
@@ -156,7 +156,7 @@ export function storyStats(data: StoryData, scope: StoryScope = { stateName: nul
   const all: StoryStat[] = [
     { key: 'meetings', value: mentions?.counts?.meetings ?? 0, label: 'meetings where a data center came up' },
     { key: 'passages', value: mentions?.counts?.passages ?? 0, label: 'meeting passages quoted' },
-    { key: 'agendas', value: agendas?.counts ? agendas.counts.upcoming + agendas.counts.past : 0, label: 'meeting agendas that name one' },
+    { key: 'agendas', value: agendas?.counts ? agendas.counts.upcoming + agendas.counts.past : 0, label: 'meeting agendas that name a data center' },
     { key: 'claims', value: (claims?.totals?.construction ?? 0) + (claims?.totals?.operations ?? 0), label: 'jobs claims made in meetings' },
     { key: 'sites', value: siteTotal, label: `data center sites on record${scope.city && scope.stateName ? ` in ${scope.stateName}` : ''}, from Epoch AI` },
     { key: 'projects', value: projects?.total ?? 0, label: 'data center projects on record, from announcements and Epoch AI' },

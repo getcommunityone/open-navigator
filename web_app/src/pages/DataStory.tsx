@@ -366,7 +366,7 @@ export default function DataStory() {
         label={label}
         heading={
           <SentenceHeading
-            template={['What did ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?']}
+            template={['What did local meetings in ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?']}
             blanks={[
               {
                 id: 'place',

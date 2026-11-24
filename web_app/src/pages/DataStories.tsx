@@ -68,7 +68,7 @@ export default function DataStories() {
         <p className="folio-eyebrow">Data stories</p>
         <SentenceHeading
           className="stories-title"
-          template={['What did ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?']}
+          template={['What did local meetings in ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?']}
           blanks={[
             {
               id: 'place',
