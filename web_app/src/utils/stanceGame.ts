@@ -268,7 +268,7 @@ export const DOT_CAP = 500
 
 /** What each chart is, in neutral words: the headline when the data cannot support a sentence. */
 export const CHART_TITLES: Record<ChartKey, string> = {
-  'job-claims': 'Jobs claims made in public meetings, by phase',
+  'job-claims': 'Jobs claims made in local meetings, by phase',
   sites: 'Data center sites on record, by status',
   concerns: 'What people raise about data centers in their meetings',
   'meeting-mentions': 'Meeting passages that mention a data center, by year',

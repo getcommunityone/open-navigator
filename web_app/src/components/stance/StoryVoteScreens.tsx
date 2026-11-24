@@ -289,7 +289,7 @@ export function VerdictScreen(p: VerdictProps) {
         </div>
         {answered && (
           <p className="stance-note stance-after-links">
-            {p.statementCount ? `${cap(roundWord(p.statementCount))} statements people argued over in public meetings. ` : ''}
+            {p.statementCount ? `${cap(roundWord(p.statementCount))} statements people argued over in local meetings. ` : ''}
             Or see <Link to={p.links.dataCenters}>every data center record</Link> or <Link to={p.links.decisions}>local decisions</Link> for{' '}
             {label === 'National' ? 'the country' : label}.
           </p>

@@ -5,7 +5,7 @@ description: How to play the Data Center Challenge, what the reveal means and do
 
 # Data Center Challenge
 
-The challenge (earlier called the "Where Do You Stand?" game) is about questions that people openly disagreed about in public meetings. Each round first shows what the record says, and, where a source supplies them, what was said on both sides. Then one opinion statement asks where you stand. You answer **Agree**, **Disagree** or **Not sure**, then see how people who played answered. It is not a quiz: there is no right answer, no answer key and no score. The first topic is data centers, with seven statements. Open it at `/challenge/data-centers`, from the Data stories page (`/stories`), the end of the [Data Center Story](data-stories.md), the Data centers page or the Data explorer Matrix page. The old address `/play/data-centers` redirects to it and keeps the place in the address.
+The challenge (earlier called the "Where Do You Stand?" game) is about questions that people openly disagreed about in local meetings. Each round first shows what the record says, and, where a source supplies them, what was said on both sides. Then one opinion statement asks where you stand. You answer **Agree**, **Disagree** or **Not sure**, then see how people who played answered. It is not a quiz: there is no right answer, no answer key and no score. The first topic is data centers, with seven statements. Open it at `/challenge/data-centers`, from the Data stories page (`/stories`), the end of the [Data Center Story](data-stories.md), the Data centers page or the Data explorer Matrix page. The old address `/play/data-centers` redirects to it and keeps the place in the address.
 
 ## How to play
 
@@ -83,7 +83,7 @@ Your browser makes a random id and keeps it in local storage under `on_stance_pl
 
 Every chart has a caption that names its source and what it counts. The numbers are real counts from the Open Navigator warehouse through the `/api/data-centers/*` endpoints. If a chart has no data, the round says "No data available for this chart" and you can still answer.
 
-- **Meeting records are not a survey.** The charts count what appears in public meeting records (transcripts, agendas) and in news and company announcements. They do not measure what the public thinks.
+- **Meeting records are not a survey.** The charts count what appears in local meeting records (transcripts, agendas) and in news and company announcements. They do not measure what the public thinks.
 - **Charts follow your place as far as their source allows.** With a state they are for that state; with a community they are for that community wherever the source can narrow to one. Data center sites have no community in their source, so that chart stays at the state and its sentence and caption say so. With no state they are national, and the caption says which.
 - **Dot charts draw one dot per record,** up to 500. When there are more records than dots, the caption says "Showing the most recent 500 of N" and the group percentages are shares of the dots drawn. A dot with a link opens the source record (a meeting video at the moment, an agenda document, an article, a site's source page).
 - **Ranked bars show a count and a share of the counted total.**
