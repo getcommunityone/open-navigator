@@ -9,7 +9,7 @@ description: Which meaningful metrics to derive from meeting and decision data, 
 Status: **proposal** (not yet built); the open questions are now decided, see "Decisions" below. Context: the Data explorer **Matrix map** tab
 (`web_app/src/pages/DataExplorerMatrixPage.tsx`) renders ACS state and county values in seven layouts
 (Tiles, Pivot, Compare, Scatter, Diverging, Share, Dot map). The goal is to let the same layouts show our
-meeting and decision data. Reference for the chart forms: <https://github.com/jcbowyer/vizjb12>.
+meeting and decision data. Reference for the chart forms: [the Folio template](https://github.com/jcbowyer/vizjb12).
 
 ## What we have to work with
 
