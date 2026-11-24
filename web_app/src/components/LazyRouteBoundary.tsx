@@ -2,7 +2,7 @@ import { Component, Suspense, type ReactNode } from 'react'
 import { lazyRouteFailureMessage } from '../utils/lazyRouteMessage'
 
 interface Props {
-  /** The page's name as the reader knows it, e.g. "Matrix map". */
+  /** The page's name as the reader knows it, e.g. "How states compare". */
   name: string
   children: ReactNode
 }

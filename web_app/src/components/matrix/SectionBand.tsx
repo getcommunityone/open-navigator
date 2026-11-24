@@ -1,25 +1,34 @@
 import { useEffect, useRef } from 'react'
-import { FIG_NO } from './data'
-import { CHAPTERS, chapterDomId, chapterOfSection } from '../../utils/matrixStory'
-import { SECTIONS } from './types'
-
+import { CHAPTERS, SCREENS, adjacentScreens, chapterDomId, screenLabel, type LabelInput } from '../../utils/matrixStory'
 
 /**
- * Sticky band under the Data explorer tabs: the five chapters (short labels) with the section numbers under each, the chapter
- * and the section in view marked with aria-current, a scroll progress line along its bottom edge, and click / keyboard jumps.
- * It is a `nav` of real links. `pos` is the DOM id in view: a chapter card (`chapter-<id>`) or a section id.
+ * The slim story bar under the site header: the five chapter phrases as links, the one in view marked with `aria-current`,
+ * and a thin progress line along its bottom edge. Under the current chapter, one small dot per screen (no numbers; each
+ * has the screen's plain name as its accessible name). On a phone only the current phrase and the progress line show; the
+ * Continue and Back controls do the paging there. It is a `nav` of real links. `pos` is the DOM id in view.
  */
 export default function SectionBand({
   pos,
   onJump,
   rootRef,
   reduced,
+  labels,
+  selection,
+  onTop,
+  onChange,
 }: {
   pos: string
   onJump: (domId: string) => void
   /** The element whose height the progress line measures (the sections wrapper). */
   rootRef: React.RefObject<HTMLElement>
   reduced: boolean
+  labels: LabelInput
+  /** The measure and the place in view, in words, for the "change" link. */
+  selection: { measure: string; place: string }
+  /** Back to the very top of the page and the main menu. */
+  onTop: () => void
+  /** Back to the heading's blanks so the reader can change the measure. */
+  onChange: () => void
 }) {
   const bar = useRef<HTMLSpanElement>(null)
   useEffect(() => {
@@ -45,57 +54,60 @@ export default function SectionBand({
       if (raf) cancelAnimationFrame(raf)
     }
   }, [rootRef, reduced])
-  const atChapter = CHAPTERS.find((c) => chapterDomId(c.id) === pos) ?? null
-  const section = SECTIONS.find((s) => s.id === pos) ?? null
-  const chapter = atChapter ?? (section ? chapterOfSection(section.id) : CHAPTERS[0]!)
+  const here = adjacentScreens(pos)
+  const screen = SCREENS[Math.max(0, here.index)]!
+  const chapter = CHAPTERS.find((c) => c.id === screen.chapter) ?? CHAPTERS[0]!
   return (
-    <nav className="folio-band" aria-label="Matrix map chapters and sections">
-      <span className="folio-band-label">Chapter</span>
+    <nav className="folio-band" aria-label="Parts of this analysis">
+      <button type="button" className="folio-band-top" aria-label="Back to the top and the main menu" onClick={onTop}>
+        <span aria-hidden="true">↑</span> Top
+      </button>
       <ol className="folio-band-list">
-        {CHAPTERS.map((c, ci) => (
+        {CHAPTERS.map((c) => (
           <li key={c.id} className="folio-band-chapter">
             <a
               href={`#${chapterDomId(c.id)}`}
               className="folio-band-chap"
               aria-current={chapter.id === c.id ? 'true' : undefined}
-              aria-label={`Chapter ${ci + 1}: ${c.meeting}, ${c.title}`}
-              title={`${c.meeting}: ${c.blurb}`}
               onClick={(e) => {
                 e.preventDefault()
                 onJump(chapterDomId(c.id))
               }}
             >
-              {c.short}
+              {c.bandLabel}
             </a>
-            <ol className="folio-band-sub">
-              {c.sections.map((id) => {
-                const i = SECTIONS.findIndex((s) => s.id === id)
-                return (
-                  <li key={id}>
+            {chapter.id === c.id && (
+              <ol className="folio-band-sub" aria-label={`Screens in ${c.bandLabel}`}>
+                {SCREENS.filter((s) => s.chapter === c.id).map((s) => (
+                  <li key={s.domId}>
                     <a
-                      href={`#${id}`}
-                      className="folio-band-link"
-                      aria-current={pos === id ? 'true' : undefined}
-                      aria-label={`Section ${i + 1}: ${SECTIONS[i]!.name}`}
-                      title={SECTIONS[i]!.name}
+                      href={`#${s.domId}`}
+                      className="folio-band-dot"
+                      aria-current={screen.domId === s.domId ? 'true' : undefined}
+                      aria-label={screenLabel(s.section, labels)}
+                      title={screenLabel(s.section, labels)}
                       onClick={(e) => {
                         e.preventDefault()
-                        onJump(id)
+                        onJump(s.domId)
                       }}
                     >
-                      {FIG_NO(i)}
+                      <span aria-hidden="true" />
                     </a>
                   </li>
-                )
-              })}
-            </ol>
+                ))}
+              </ol>
+            )}
           </li>
         ))}
       </ol>
       <span className="folio-band-name" aria-hidden="true">
-        {chapter.meeting}
-        {section ? ` · ${section.name}` : ''}
+        {chapter.bandLabel}
       </span>
+      <button type="button" className="folio-band-select" onClick={onChange} aria-label={`Showing ${selection.measure} in ${selection.place}. Change`}>
+        <span className="folio-band-measure">{selection.measure}</span>
+        <span className="folio-band-place"> · {selection.place}</span>
+        <span className="folio-band-change">change</span>
+      </button>
       <span className="folio-band-progress" aria-hidden="true">
         <span ref={bar} />
       </span>

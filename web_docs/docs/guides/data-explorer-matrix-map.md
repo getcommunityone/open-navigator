@@ -1,84 +1,183 @@
 ---
-title: Data explorer Matrix map
-sidebar_label: Matrix map
-description: The Matrix map tab in Data explorer is one scrolling report over the ACS bundle, told as a public meeting in five chapters and twelve numbered sections, each with a story sentence computed from the data in view, a chapter and section band, data tables under every figure, the Open Navigator house theme plus seven reference themes, and a URL for every view.
+title: Explore census figures
+sidebar_label: Explore census figures
+description: The Analysis tab in Data explorer (Explore census figures) is one scrolling report over the ACS bundle, in five groups and twelve screens, each headed by a sentence computed from the data in view, paged with Continue and Back or the keyboard, every screen sized to fit the window, with data tables under every figure, the Open Navigator house theme, and a URL for every view.
 ---
 
-# Data explorer: Matrix map
+# Data explorer: Explore census figures
 
-The **Matrix map** tab (`/data-explorer/matrix`) sits next to Map view and Scorecard. It reads the same published
-American Community Survey (ACS) 5-year bundle as the map and presents it as **one scrolling report of twelve numbered
-sections**, one chart type per section, grouped into **five chapters**. Under the page heading are the controls that apply
-to every section: **Metric**, **Vintage** and **Theme**.
+The **Analysis** tab (`/data-explorer/matrix`; the address keeps its old name) sits next to Map view and Scorecard. It reads the
+same published American Community Survey (ACS) 5-year bundle as the map: Census Bureau figures for every state. It is **analysis,
+not a story**: census figures have no video or transcripts, so nothing on this page is framed as a story, a chapter or a game.
+It is **one report of twelve screens**, one chart type per screen, in **five groups**, with a closing screen of action links.
 
-## Five chapters, told as a public meeting
+## The page heading is a sentence you complete
 
-This product is about local government meetings, so the report follows the order of one. Each chapter opens with a full-width
-**chapter card**: a small monospaced eyebrow (`Chapter 1 of 5 · Call to order`), a very large title, one sentence computed from
-the metric, vintage and geographies in view, and a thin rule that draws under the title.
+The page heading is **"Explore [measure] in [place]"**, built with the reusable `SentenceHeading` component
+(`web_app/src/components/story/SentenceHeading.tsx`; wording in one constant, `EXPLORE_SENTENCE` in
+`components/matrix/QuestionHeading.tsx`). Each blank is a button, styled as words of the sentence (accent colour, dotted
+underline), that opens an inline picker anchored to it:
 
-| Chapter | Meeting item | Story | Sections |
+- a **combobox with type-to-filter** (arrow keys move, Enter chooses, Escape closes and returns focus to the blank, typing
+  filters), options grouped under small headings when the bundle gives categories, each with a one-line hint (here the real median
+  across the states for that measure), and the current choice marked;
+- on a phone the picker is a **bottom sheet** with a large search field and 44 px rows.
+
+Choosing sets `metric` in the address and every screen, headline and label follows. The **place** has one option, "the United
+States": single-state views exist only in some screens (the Dot map and Share), so no choice is offered that would work for
+only part of the page; a blank with one option shows as plain words. The **year** is a small control in the line under the
+heading ("Census Bureau figures for 52 states and territories, 2023."), plain text when the bundle has one vintage.
+
+Under the heading a **Try** row offers the other real metrics in the bundle that have data (up to eight, in bundle order; the rest
+are in the picker), and **Surprise me** picks a random metric that has data and announces it through a polite live region. The
+ordering lives in `web_app/src/utils/matrixSuggest.ts` and the picker helpers in `web_app/src/utils/sentenceHeading.ts`, both
+unit tested. There is **no theme control**: the page always renders in the Open Navigator house theme (`?theme=<id>` still works
+as a silent deep link, and the other themes and their contrast tests stay in the code). The old name of this tab no longer
+appears anywhere the reader can see.
+
+## Five groups of screens
+
+The page never shows its own structure: no group or section numbers, and none of the words "problem", "decision", "challenge",
+"implementation" or "call to action" as a title or label. Each group has a short plain phrase (its **band label**) and a title that
+**states its main finding as a sentence**, computed from the measure, year and states in view.
+
+| Group id (URL `chapter=`) | Band label | The title says | Screens |
 | --- | --- | --- | --- |
-| 1 `problem` | Call to order | The problem: where things stand | 01 Tiles, 02 Dot map, 03 Share |
-| 2 `decision` | The motion | The decision: what changed and who sits above or below | 04 Compare, 05 Diverging, 06 Bars |
-| 3 `challenge` | Public comment | The challenge: what complicates the picture | 07 Scatter, 08 Heatmap |
-| 4 `implementation` | The vote and the work | Implementation: how it played out across the years | 09 Trend, 10 Columns, 11 Pivot |
-| 5 `action` | New business | The call to action | 12 Table, then the action block |
+| `problem` | Where things stand | The spread: highest against lowest, with both names and values, and the gap ("That is 6.4 times as much." or "A gap of 19 pp.") | Tiles, Dot map, Share |
+| `decision` | What changed | How many geographies rose or fell since the earliest year and the size of the biggest change; with one year, who sits above and below the median | Compare, Diverging, Bars |
+| `challenge` | What goes with it | "Do poverty rate and median age move together?" and the answer: strength, direction and r-squared, or plainly "Not in a straight line" | Scatter, Heatmap |
+| `implementation` | Over time | The median's path from the first to the last year (for a count: which region holds the largest share, and whether that changed); with one year, a single-year statement | Trend, Columns, Pivot |
+| `action` | Go further | An invitation that names the scope: "See what Alabama decided." or "See the decisions behind these numbers." | Table, then the action links |
 
-The last chapter ends with an **action block** of large square buttons that carry the scope in view: **See decisions in
-(state)** (the decisions browse page with `?state=`) when one state is in scope, **See decisions nationwide** otherwise,
-**Download this table (CSV)** (the same file as the Table section) and **Open the map view**. One state is in scope when the
-Dot map is drilled into it (`dot`) or the Share section shows its counties (`part=county`, `st`). A "Play" button will be added
-when its route exists (issue 852); no button points at a page that does not exist.
+The group ids stay in the URL (`?chapter=`); they are never shown.
+
+A group opens with a **compact opener** (the band label as a small line, the title in at most two lines, a rule) directly above
+the group's first screen, sharing that screen with it.
+
+The last screen has the **action links**, large square buttons that carry the scope in view: **See decisions in (state)** (the
+decisions browse page with `?state=`) when one state is in scope or **See decisions nationwide** otherwise, **Download this table
+(CSV)** (the same file as the Table section) and **Open the map view**, then **Back** and **Back to the start** links. One state is
+in scope when the Dot map is drilled into it (`dot`) or the Share section shows its counties (`part=county`, `st`). No link points
+at a page that does not exist, and there is no game link on this page.
 
 ### How the sentences are written
 
-Every section's headline and its one supporting sentence, and every chapter card's sentence, are produced by pure functions in
-`web_app/src/utils/matrixStory.ts` from the data the section already computed, and they change with the metric, vintage and
+Every group title, every screen headline and its one supporting sentence are produced by pure functions in
+`web_app/src/utils/matrixStory.ts` from the data the screen already computed, and they change with the metric, vintage and
 filters (the entrance animation does not replay). The rules, which the unit tests check:
 
-- **Only what the data shows:** rankings, counts, shares, changes, and a correlation's direction and strength with its r-squared
-  ("rises with ... moderately; r² is 0.32"). Never a cause, a forecast, a judgment ("should", "worrying", "good") or a claim
-  about people.
-- **Lower-is-better metrics** still read "highest" and "lowest"; the copy never says "best" or "worst".
-- **Nothing is filled in.** When a needed figure is missing, the headline names the chart and its scope ("Poverty rate, 2023: no
+- **Engaging, but only the facts.** Short sentences. Contrast ("22.5% in Washington. 3.5% in Alabama and Puerto Rico."), concrete
+  gaps ("almost twice as much", "6.4 times as much"), counts ("17 of 52 rose") and a question that leads into the chart that
+  answers it ("Which moved most?", "Who sits furthest from the middle?"). A ratio is written only when both values are
+  positive and the smaller is not near zero; otherwise the difference in the metric's unit.
+- **Only what the data shows:** rankings, counts, shares, changes, and a correlation's direction and strength with its r-squared.
+  Never a cause ("because", "due to", "driven by"), a forecast, a judgment ("should", "worrying", "good", "best", "worst",
+  "problem", "crisis") or a claim about people or motives.
+- **Lower-is-better metrics** still read "highest" and "lowest".
+- **Nothing is filled in.** When a needed figure is missing, the sentence names the metric and its scope ("Poverty rate, 2023: no
   tile values are available.") and there is no supporting sentence.
-- **Ties are named** ("Alabama and Puerto Rico share the lowest ..."), a single geography is said plainly, and numbers come from
-  the same formatters as the charts, so a sentence matches the chart beside it. Years are plain strings.
+- **Ties name every tied geography up to three, then "and N others"**, the same way in every sentence of a screen. When a tie
+  would make a headline too long (Bars, Diverging), the numbers stay in the headline and the names move to the line below. A
+  single geography is said plainly. Numbers come from the same formatters as the charts, so a sentence matches the chart
+  beside it. Years are plain strings.
+- **One vintage.** With one vintage loaded, or the earliest selected, nothing reads "2022 against 2022": the second group
+  says who sits above and below the median, and the Over time group makes a single-year statement ("Only 2023 is loaded, so
+  there is no run of years yet.").
+- **Length.** A screen headline must fit in three lines in the left column at 1366 px wide, a group title in two lines.
 
-Each section has the same layout. On a wide screen the left column holds the eyebrow (`06 — Trend`), a large headline and a
-short text, and the right column holds the figure with its controls, its `FIG. 06` caption and a **Show data table**
-button, with a hairline between the two. Below about 1024 pixels the columns stack, text first. The Heatmap and Table
-sections put the figure full width under the text because they are wide.
+Each screen has the same layout. On a wide screen the left column holds a plain eyebrow (the screen's name in words: "At a
+glance", "Then and now", "Year by year"), a headline, one supporting sentence, a **More about this chart** disclosure
+(the longer explanation), and the **Continue** and **Back** controls; the right column holds the figure with its controls, its
+caption and a **Show data table** button, with a hairline between the two. Below about 1024 pixels the columns stack, text first,
+and the Continue and Back controls follow the figure. The Heatmap and Table screens give the figure more of the width.
 
-| # | Section | What it shows | Use it to |
+| Screen | Eyebrow | What it shows | Use it to |
 | --- | --- | --- | --- |
-| 01 | **Tiles** | One box per geography, shaded by rank. Flat, By region or By quarter regroups the boxes; each group is headed `name · count (share %)` | See every geography at once |
-| 02 | **Dot map** | The country as a grid of dots; click a state for its counties | Read the geography of a metric |
-| 03 | **Share** | A 100% stacked bar with labelled segments, a 10x10 waffle and a list, for states of the U.S. or counties of a state | See each part's share of the whole |
-| 04 | **Compare** | A dumbbell per geography: hollow dot for the earliest vintage, filled dot for the selected one, the change on the right | See who moved, and by how much |
-| 05 | **Diverging** | Bars left or right of the median geography, sorted by value by default | See who is above or below the middle |
-| 06 | **Bars** | One horizontal bar per geography for the metric, with region chips | Rank geographies, one region at a time |
-| 07 | **Scatter** | One metric against another, coloured by Census region, with a trend line, slope and r-squared | See whether two metrics move together |
-| 08 | **Heatmap** | Geographies by metrics, each cell shaded by that metric's rank; click a header to sort | Scan every metric at once |
-| 09 | **Trend** | The metric across every vintage, one line per chosen geography plus the median across states | See change over time |
-| 10 | **Columns** | One stacked column per vintage, stacked by Census region (counts only) | See how regions add up over time |
-| 11 | **Pivot** | Geographies as rows, up to 8 metrics as columns, each column shaded, a Share column and a Total row for count metrics; click a header to sort | Compare several metrics side by side |
-| 12 | **Table** | Every geography with every metric, bars, change and trend; search, sort and **Download CSV** | Take the numbers away |
+| Tiles | At a glance | One box per geography, shaded by rank. Flat, By region or By quarter regroups the boxes; each group is headed `name · count (share %)` | See every geography at once |
+| Dot map | On the map | The country as a grid of dots; click a state for its counties | Read the geography of a metric |
+| Share | Shares of the whole | A 100% stacked bar with labelled segments, a 10x10 waffle and a list, for states of the U.S. or counties of a state | See each part's share of the whole |
+| Compare | Then and now | A dumbbell per geography: hollow dot for the earliest vintage, filled dot for the selected one, the change on the right | See who moved, and by how much |
+| Diverging | Above and below the median | Bars left or right of the median geography, sorted by value by default | See who is above or below the middle |
+| Bars | Side by side | One horizontal bar per geography for the metric, with region chips | Rank geographies, one region at a time |
+| Scatter | Two metrics together | One metric against another, coloured by Census region, with a trend line, slope and r-squared | See whether two metrics move together |
+| Heatmap | Every metric at once | Geographies by metrics, each cell shaded by that metric's rank; click a header to sort | Scan every metric at once |
+| Trend | Year by year | The metric across every vintage, one line per chosen geography plus the median across states | See change over time |
+| Columns | By region | One stacked column per vintage, stacked by Census region (counts only) | See how regions add up over time |
+| Pivot | One grid | Geographies as rows, up to 8 metrics as columns, each column shaded, a Share column and a Total row for count metrics; click a header to sort | Compare several metrics side by side |
+| Table | The full table | Every geography with every metric, bars, change and trend; search, sort and **Download CSV** | Take the numbers away |
 
-## The chapter and section band
+## Every screen fits the window
 
-A bar under the Data explorer tabs stays at the top of the screen (just below the site header) while you scroll. It lists
-the five chapters by short name (Problem, Decision, Challenge, Implementation, Action) with the section numbers `01` to `12`
-under each, marks the chapter and the section in view (both links have `aria-current`), shows the meeting item and section
-name on the right, and draws a thin progress line along its bottom edge. Click a name or a number, or tab to it and press
-Enter, to jump there. It is a `nav` of real links.
+Under the site header and the section bar, each screen shows its headline and its whole figure panel without scrolling the page,
+at 1366 by 768 and larger (checked at 1366x768, 1440x900 and 1920x1080). The room a screen has is `100svh` minus the header and
+the bar (CSS variables `--screen-h`, `--opener-size`, `--fig-chrome` in `folio.css`). How each figure fits:
+
+| Screen | How it fits at 1366x768 |
+| --- | --- |
+| Tiles | By density: the 52 boxes are sized from the room the screen has (38 px high, about ten across) |
+| Dot map | By density: the map keeps its proportions and shrinks to the room left |
+| Share | By density: nothing to scroll |
+| Scatter, Trend, Columns | By density: the chart height is computed from the window height (`useFitHeight`), never below 230 px |
+| Compare, Diverging, Bars | Scrolls inside the figure: 52 rows; a shadow shows where there is more, with a thin visible scrollbar |
+| Heatmap, Pivot | Scrolls inside the figure with the column headings kept at the top (sticky) |
+| Table | Scrolls inside the table (rows and columns), headings sticky |
+
+The long explanation sits under **More about this chart** so it never pushes a screen past the window. Opening the data table
+makes a screen taller than the window on purpose; the page then scrolls normally until that screen's end is in view.
+
+On a **phone** (under 768 px) the layout is one column and nothing is clamped to the window: the headline comes first, then the
+chart starts under it in the first screen, tables scroll sideways inside themselves, and the page never scrolls sideways. The
+section bar shows only the current phrase and a progress line; the buttons and controls are at least 44 px tall, the group
+title is smaller, and the action buttons stack. A tablet (768 to 1023 px) stacks the columns and caps the figure height.
+
+## Getting back to the top
+
+The site header stays pinned while you scroll, but the Data explorer title and its tabs (Map view, Analysis, Scorecard, Data
+quality) and the page heading scroll away. The section bar therefore carries two controls:
+
+- **Top** (an up arrow and the word, at the left end; accessible name "Back to the top and the main menu"; at least 44 px on a
+  phone): scrolls to the very top (smoothly, at once under reduced motion) and moves focus to the first link in the site header.
+- **The current selection in words** at the right end ("poverty rate · United States — change"): one line, the place drops out
+  first when room is tight, and on a phone only "change" remains. It scrolls back to the page heading and focuses the Measure blank
+  so the reader can change it without hunting.
+
+Keyboard: **Home** goes to the first screen; pressed again within a moment, or when you are already on the first screen, it goes to
+the very top of the page. A scroll-up reveal of the site header was not added: the header is already always visible, and the
+Data explorer tabs belong to `DataExplorerLayout`, which this page does not change.
+
+## The section bar and paging
+
+A slim bar under the Data explorer tabs stays at the top of the screen (just below the site header) while you scroll. It lists
+the five band labels (Where things stand, What changed, What goes with it, Over time, Go further) as links, marks the group in
+view with `aria-current`, shows one small dot per screen under it (no numbers; each dot's accessible name is the screen's plain
+name), and draws a thin progress line along its bottom edge. It is a `nav` of real links. On a phone it shows only the current
+phrase and the progress line.
+
+**Continue and Back.** Every screen ends with a **Continue** button that names what comes next in words, computed from the
+metric and scope ("Continue: what changed since 2019", "Continue: what goes with median age"), and from the second screen on a
+quieter **Back** button that names the previous screen. They scroll to that screen (smoothly; at once under reduced motion),
+move focus to its heading, and update the address bar without adding history entries. The last screen has the action buttons
+and a **Back to the start** link instead of Continue. A small hint ("Scroll or press the down arrow to continue") is fixed at the
+bottom of the first screen and disappears at the first move.
+
+**Keyboard.** When focus is not in a form field, a button, a link, a table, a slider or a figure that scrolls:
+
+| Keys | Action |
+| --- | --- |
+| Page Down, Space, Down arrow | Next screen |
+| Page Up, Shift+Space, Up arrow | Top of this screen if you have scrolled into it, otherwise the previous screen |
+| Home, End | First screen, last screen |
+
+Typing in the Table search, using a select or slider, or reading inside a scrolling figure is never interrupted, and a screen
+taller than the window (a long open table) scrolls natively until its end is in view. The mouse wheel and touch scroll the
+page as usual. Gentle `scroll-snap-type: y proximity` helps a scroll settle on a screen; it is off below 768 px and under reduced
+motion. The key handler is `keepsKey` and `onKey` in `DataExplorerMatrixPage.tsx`.
 
 ## Titles and figures animate in once
 
-Chapter titles and section headlines use the Folio reference's masked line rise: each line of the title sits behind its own
+Group titles and section headlines use the Folio reference's masked line rise: each line of the title sits behind its own
 overflow-hidden mask and rises into place over 900 ms (the `--d-4` duration, `--ease-out` curve), the second line 80 ms after
-the first and the third and later lines 160 ms after, with the eyebrow fading in first and a rule drawing under chapter titles.
+the first and the third and later lines 160 ms after, with the eyebrow fading in first and a rule drawing under group titles.
 It plays once, when the title block first has 20% of itself in view above the bottom 10% of the viewport (the reference's
 trigger numbers). The lines are the lines the browser really sets the text in (measured from a hidden copy, and re-measured
 when the width or the web font changes), so the stagger reads line by line at any width. A filter change swaps the words in
@@ -142,11 +241,11 @@ rate, reads `—`. Hovering or focusing a Pivot row picks out that geography's t
 
 ## Themes
 
-The **Theme** control offers eight themes. **Open Navigator** is the default (it is used whenever `theme` is absent): it is
+Eight themes exist (there is no on-page control; `?theme=` selects one). **Open Navigator** is the default (it is used whenever `theme` is absent): it is
 built from the product's own colours, a warm off-white page, near-black ink, the slate of the site's primary colour for the
 band, and a ramp that runs from a light teal tint through the teal of the logo to dark slate. The opposite pole (below the
 median, alerts) is amber, and a muted red is kept for "worse" in better and worse colouring. Series are teal, amber, red and
-a light blue, never red against green. The seven themes of the Folio reference stay selectable: Lavender Press, Newsprint,
+a light blue, never red against green. The seven themes of the Folio reference stay available by address: Lavender Press, Newsprint,
 Night Edition, Gazette Mono, Swiss Poster, Forest Ochre and Riso Pastel.
 
 A theme is a set of CSS custom properties applied only inside the Matrix workspace, so no other tab or page changes. It is kept
@@ -182,21 +281,22 @@ comparable with the national view. The Heatmap ranks each column on its own.
 - **Missing data is shown as missing.** A geography with no value is gray and reads `—`. A section with nothing to draw says "No
   data available" instead of drawing a chart.
 - **The view is in the address bar.** Everything that shapes the data is a URL parameter, so a link or a refresh returns the same
-  view. `layout=<section>` is a deep link: the page scrolls to that section on load, and as you scroll the address updates to the
-  section in view without adding history entries. `chapter=<id>` does the same for a chapter card; while a chapter card is in
-  view the address carries `chapter` (and no `layout`), and while a section is in view it carries `layout` (and no `chapter`).
+  view. `layout=<section>` is a deep link: the page scrolls to that screen on load, and as you scroll or page the address updates to the
+  screen in view without adding history entries. `chapter=<id>` does the same for a chapter opener; while a chapter's first screen is in
+  view the address carries `chapter` (and no `layout`), on any other screen it carries `layout` (and no `chapter`), and the closing action block is `layout=action`.
+  A `layout` for a chapter's first section (for example `tiles`) lands on its chapter opener.
 - Opening a tile or a state name goes to the national map for that metric. The map does not yet open on that state.
 
 ## URL parameters
 
 `chapter` (chapter id: `problem`, `decision`, `challenge`, `implementation`, `action`), `layout` (section id: `tiles`, `dots`,
-`share`, `dumbbell`, `diverging`, `bars`, `scatter`, `heatmap`, `trend`, `columns`, `pivot`, `table`), `metric`, `vintage`, `theme`, `cols` (pivot columns), `sort`, `dir`, `group` (`region` or `quartile`), `min`, `y`
+`share`, `dumbbell`, `diverging`, `bars`, `scatter`, `heatmap`, `trend`, `columns`, `pivot`, `table`, `action`), `metric`, `vintage`, `theme`, `cols` (pivot columns), `sort`, `dir`, `group` (`region` or `quartile`), `min`, `y`
 (scatter), `part` and `st` (share), `dot` (dot map drill), `region` (bars), `geo` (trend), `q` (table search), `table` (open data
 table), `off` (hidden legend series). The Columns Absolute / Share toggle is not in the address bar.
 
 ## When the Data explorer shows no data
 
-Map view and Matrix map both read the census bundle from `/data/census-map/` (in the repository,
+Map view and the Analysis tab both read the census bundle from `/data/census-map/` (in the repository,
 `web_app/public/data/census-map/`). The bundle is generated and git-ignored, so a fresh checkout, or a machine where
 that folder was cleaned, does not have it. Both tabs then say **No map data available** and name the command that
 creates the files:
@@ -212,9 +312,9 @@ as an error, which is why the page checks for it explicitly.
 
 - Page: `web_app/src/pages/DataExplorerMatrixPage.tsx` (data loading, shared controls, URL, band and position tracking).
   One component per section and the shared pieces are in `web_app/src/components/matrix/`: `SectionShell` (spread layout,
-  data table toggle), `TitleBlock` (the measured, masked title entrance), `ChapterCard`, `ActionBlock`, `SectionBand`, `LegendChips`, `Tooltip`, `DivergingBars`, and `*Section.tsx` files.
+  data table toggle, More about this chart), `ScreenPager` (Continue and Back), `TitleBlock` (the measured, masked title entrance), `ChapterCard` (the compact opener), `ActionBlock`, `SectionBand` (the story bar), `LegendChips`, `Tooltip`, `DivergingBars`, and `*Section.tsx` files.
   The dot map is `web_app/src/components/DotMatrixMap.tsx`.
-- Story copy: `web_app/src/utils/matrixStory.ts` (`CHAPTERS` and one pure function per section, tested in `matrixStory.test.ts`).
+- Headline copy and paging: `web_app/src/utils/matrixStory.ts` (`CHAPTERS` with their band labels, `chapterTitle`, one pure function per screen headline, `SCREENS`, `adjacentScreens` and `screenLabel` for Continue and Back; tested in `matrixStory.test.ts`, which also scans every visible title, label and eyebrow for the structure words, judgments and leading numbers).
 - Pure helpers with tests: `web_app/src/utils/matrixTable.ts` (`toCsv`, `filterRows`, `stackByRegion`, `barFraction`, `signedChange`, `sparklinePath`, `layoutLabels`, legend toggles and the
   `off` parameter), `matrixMapMath.ts` (scales, median, quantiles, regression), `folioThemes.ts` and `folioRamp.ts`
   (themes and contrast).
@@ -226,11 +326,11 @@ as an error, which is why the page checks for it explicitly.
   **a follow-up**, to build on the same component once that data is loaded. The census data is not survey data, so no
   categories are invented here.
 - Plan for showing meeting and decision metrics in the same sections:
-  [Meeting metrics for the Matrix map](../development/meeting-metrics-matrix-map-design.md).
+  [Meeting metrics for the census analysis page](../development/meeting-metrics-matrix-map-design.md).
 
 ## Look and motion
 
-The Matrix map uses the "Folio" look: flat paper background, hairline rules, square corners, no shadows, large light
+This page uses the "Folio" look: flat paper background, hairline rules, square corners, no shadows, large light
 numerals and small monospaced captions. The design tokens (paper, ink, violet, vermilion, neutral data colour, type,
 durations and easings) are CSS custom properties in `web_app/src/styles/folio.css`, scoped to the `.folio` wrapper class and
 set per theme from `folioThemes.ts`. Fonts are Geist and Geist Mono, self-hosted from the `@fontsource-variable` packages and
@@ -241,7 +341,7 @@ from the state values already loaded for the selected metric.
 
 What moves, and when:
 
-- **Chapter and section titles** slide up line by line (behind a mask) when the title first enters view; the eyebrow fades up and a chapter rule draws.
+- **Group and section titles** slide up line by line (behind a mask) when the title first enters view; the eyebrow fades up and a group rule draws.
 - **Tiles** appear on a diagonal wave the first time the section is seen. When the sort or grouping changes, each tile glides
   to its new place and its colour fades to the new shade.
 - **Rows** (Pivot, Bars, Compare, Diverging) appear in a short stagger and glide when the sort, filter or grouping changes. The
@@ -261,6 +361,6 @@ Rules that always hold:
 
 ## If the page does not load (#856)
 
-The Matrix map's code and fonts load only when its tab is opened. If they fail to load, the tab shows "Matrix map
+This tab's code and fonts load only when its tab is opened. If they fail to load, the tab shows "Analysis
 could not be loaded" with the error and a Reload button, and the rest of the site keeps working. On a developer
 machine the usual cause is a pull that added a package: run `npm install` in `web_app` and reload.

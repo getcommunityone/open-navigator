@@ -3,7 +3,7 @@ import { CENSUS_REGION_LABEL, type CensusRegionId } from '../../utils/censusRegi
 import { niceScale } from '../../utils/matrixMapMath'
 import { columnsStory } from '../../utils/matrixStory'
 import { stackByRegion } from '../../utils/matrixTable'
-import { useElementWidth, useSection, useSeries } from './hooks'
+import { useElementWidth, useFitHeight, useSection, useSeries } from './hooks'
 import LegendChips from './LegendChips'
 import { Empty, Seg } from './parts'
 import SectionShell from './SectionShell'
@@ -174,7 +174,7 @@ function ColumnChart({
   const padR = 12
   const padT = 34
   const padB = 44
-  const h = 360
+  const h = useFitHeight(360, 400)
   const plotW = w - padL - padR
   const plotH = h - padT - padB
   const maxSum = Math.max(0, ...cols.map((c) => c.sum ?? 0))

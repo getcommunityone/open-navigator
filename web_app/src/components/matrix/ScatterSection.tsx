@@ -4,7 +4,7 @@ import { CENSUS_REGION_LABEL, type CensusRegionId } from '../../utils/censusRegi
 import { rowDelayMs } from '../../utils/folioMotion'
 import { scatterStory } from '../../utils/matrixStory'
 import { niceScale, olsFit } from '../../utils/matrixMapMath'
-import { useElementWidth, useSeries } from './hooks'
+import { useElementWidth, useFitHeight, useSeries } from './hooks'
 import LegendChips from './LegendChips'
 import { Empty } from './parts'
 import SectionShell from './SectionShell'
@@ -32,7 +32,7 @@ export default function ScatterSection({ ctx }: { ctx: MatrixCtx }) {
   const usable = !!ySlug && pts.length >= 3
   const story = scatterStory({ xLabel: xl, yLabel: yl, n: fit?.n ?? vis.length, total: ctx.rows.length, fit: fit ? { slope: fit.slope, r2: fit.r2 } : null })
 
-  const H = 360
+  const H = useFitHeight(360, 505)
   const pad = { l: 64, r: 14, t: 12, b: 46 }
   const hot = sv.hot
   const xs = pts.map((p) => p.x)

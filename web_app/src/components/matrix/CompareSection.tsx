@@ -50,7 +50,7 @@ export default function CompareSection({ ctx }: { ctx: MatrixCtx }) {
   const withBoth = pts.filter((p) => p.d != null)
   const ups = withBoth.filter((p) => p.d! > 0).length
   const downs = withBoth.filter((p) => p.d! < 0).length
-  const name = `${ctx.metricLabel}, ${base} to ${vintage}`
+  const name = hasPair ? `${ctx.metricLabel}, ${base} to ${vintage}` : `${ctx.metricLabel}, ${vintage}`
   const story =
     hasPair && baseRows === undefined
       ? { headline: `${ctx.metricLabel}, ${base} against ${vintage}.`, lead: null }
@@ -84,8 +84,10 @@ export default function CompareSection({ ctx }: { ctx: MatrixCtx }) {
       text={
         <>
           <p>
-            Each row is one geography: a hollow dot for {base} and a filled dot for {vintage}, joined by a line that grows from the first to
-            the second. The right-hand column is the change, in the metric's own unit; it reads “—” when either vintage is missing.
+            {hasPair
+              ? `Each row is one geography: a hollow dot for ${base} and a filled dot for ${vintage}, joined by a line that grows from the first to the second. `
+              : 'Each row would be one geography, with a hollow dot for the earlier year and a filled dot for the selected one. '}
+            The right-hand column is the change, in the metric's own unit; it reads “—” when either vintage is missing.
           </p>
           {hasPair && baseRows && (
             <p>
@@ -111,7 +113,7 @@ export default function CompareSection({ ctx }: { ctx: MatrixCtx }) {
       }
       caption={
         <>
-          {name}, one row per geography. Source: ACS 5-year, {base} and {vintage}.
+          {name}, one row per geography. Source: ACS 5-year, {hasPair ? `${base} and ${vintage}` : vintage}.
         </>
       }
       table={() =>

@@ -480,12 +480,17 @@
   --band-progress: color-mix(in srgb, var(--white) 60%, transparent);
   --band-rule: color-mix(in srgb, var(--white) 25%, transparent);
   --folio-sticky-top: 4.25rem; /* just below the site header */
+  --band-h: 40px;
+  --folio-top: calc(var(--folio-sticky-top) + var(--band-h)); /* header + story bar: what a screen starts under */
+  --screen-h: calc(100svh - var(--folio-top)); /* the room one screen has */
+  --opener-size: 140px; /* a chapter opener: small line, a two-line title, a rule */
+  --fig-chrome: 178px; /* controls, caption and the table button around a figure */
 }
 .folio-page-eyebrow {
   margin-top: 4px;
 }
 
-/* Sticky section band */
+/* Story bar (issues #847, #883): five chapter phrases, dots for the screens of the current one, a progress line. */
 .folio-band {
   position: sticky;
   top: var(--folio-sticky-top);
@@ -493,7 +498,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  height: 40px;
+  height: var(--band-h);
   margin: -20px -20px 16px;
   padding: 0 20px;
   background: var(--band);
@@ -501,13 +506,10 @@
   font-family: var(--font-mono);
   font-size: var(--t-micro);
 }
-.folio-band-label {
-  letter-spacing: 0.04em;
-}
 .folio-band-list {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -517,26 +519,26 @@
 .folio-band-chapter {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex: none;
 }
 .folio-band-sub {
   display: flex;
   align-items: center;
-  gap: 2px;
   list-style: none;
-  margin: 0;
+  margin: 0 4px 0 0;
   padding: 0;
 }
 .folio-band .folio-band-chap {
   display: inline-flex;
   align-items: center;
-  height: 26px;
+  height: 28px;
   padding: 0 8px;
   color: var(--white);
   text-decoration: none;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  white-space: nowrap;
   border-bottom: 2px solid transparent;
   transition: border-color var(--d-2) var(--ease-std);
 }
@@ -547,37 +549,37 @@
   border-bottom-color: var(--white);
   font-weight: 600;
 }
-.folio-band .folio-band-chap:focus-visible {
+.folio-band .folio-band-chap:focus-visible,
+.folio-band .folio-band-dot:focus-visible {
   outline: 2px solid var(--white);
   outline-offset: 2px;
 }
-.folio-band .folio-band-link {
+.folio-band .folio-band-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  height: 26px;
-  border-radius: 999px !important;
-  color: var(--white);
+  width: 20px;
+  height: 28px;
   text-decoration: none;
-  font-variant-numeric: tabular-nums;
-  transition: background-color var(--d-2) var(--ease-std), color var(--d-2) var(--ease-std);
 }
-.folio-band .folio-band-link:hover {
-  background: var(--band-rule);
+.folio-band .folio-band-dot > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px !important;
+  border: 1.5px solid var(--white);
+  transition: background-color var(--d-2) var(--ease-std);
 }
-.folio-band .folio-band-link[aria-current='true'] {
+.folio-band .folio-band-dot:hover > span {
+  background: var(--band-progress);
+}
+.folio-band .folio-band-dot[aria-current='true'] > span {
   background: var(--white);
-  color: var(--band);
-}
-.folio-band .folio-band-link:focus-visible {
-  outline: 2px solid var(--white);
-  outline-offset: 2px;
 }
 .folio-band-name {
-  margin-left: auto;
-  letter-spacing: 0.06em;
+  display: none;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  font-weight: 600;
 }
 .folio-band-progress {
   position: absolute;
@@ -594,23 +596,37 @@
   transform: scaleX(0);
   transform-origin: left center;
 }
-@media (max-width: 1180px) {
-  .folio-band-label,
-  .folio-band-name {
+/* Narrow screens: only the phrase in view and the progress line; the Continue and Back controls do the paging. */
+@media (max-width: 899px) {
+  .folio-band-list {
     display: none;
+  }
+  .folio-band-name {
+    display: block;
+    font-size: 12px;
   }
 }
 
-/* Section spread: text left, figure right, hairline between (reference section 05) */
+/* One screen per section: each fits the window under the site header and the story bar (issue #883). */
 .folio-section {
-  padding: 40px 0 48px;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0 24px;
   border-top: 1px solid var(--ink);
-  scroll-margin-top: 7.5rem;
+  scroll-margin-top: var(--folio-top);
+  min-height: var(--screen-h);
+  --fig-max: calc(var(--screen-h) - var(--fig-chrome));
+}
+.folio-section.has-opener {
+  border-top: 0;
+  min-height: calc(var(--screen-h) - var(--opener-size));
+  --fig-max: calc(var(--screen-h) - var(--opener-size) - var(--fig-chrome));
 }
 .folio-spread {
+  flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
+  gap: 20px;
 }
 .folio-spread-text,
 .folio-spread-fig {
@@ -619,32 +635,28 @@
 @media (min-width: 1024px) {
   .folio-spread {
     grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+    grid-template-areas:
+      'text fig'
+      'pager fig';
+    grid-template-rows: auto 1fr;
     gap: 0;
   }
   .folio-spread-text {
+    grid-area: text;
     padding-right: 28px;
-    position: sticky;
-    top: 8rem;
-    align-self: start;
   }
   .folio-spread-fig {
+    grid-area: fig;
     padding-left: 28px;
     border-left: 1px solid var(--rule);
   }
+  .folio-spread > .folio-pager {
+    grid-area: pager;
+    align-self: end;
+    padding-right: 28px;
+  }
   .folio-section-wide .folio-spread {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
-  }
-  .folio-section-wide .folio-spread-text {
-    position: static;
-    padding-right: 0;
-    max-width: 64rem;
-  }
-  .folio-section-wide .folio-spread-fig {
-    padding-left: 0;
-    border-left: 0;
-    border-top: 1px solid var(--rule);
-    padding-top: 20px;
+    grid-template-columns: minmax(0, 30fr) minmax(0, 70fr);
   }
 }
 .folio-eyebrow-anim {
@@ -658,11 +670,11 @@
 }
 .folio-headline {
   position: relative;
-  font-size: clamp(26px, 2.6vw, 40px);
+  font-size: clamp(22px, 2.1vw, 32px);
   font-weight: 400;
-  line-height: 1.06;
-  letter-spacing: -0.028em;
-  margin: 14px 0 0;
+  line-height: 1.08;
+  letter-spacing: -0.026em;
+  margin: 10px 0 0;
   color: var(--ink);
   text-wrap: balance;
 }
@@ -708,42 +720,41 @@
   transition-delay: 160ms;
 }
 
-/* Chapter cards: a tall, full-width band opening each chapter (issue #859). */
+/* Chapter opener: compact, shares its screen with the chapter's first section (issue #883). */
 .folio-chapter {
   margin: 0 -20px;
-  padding: 72px 20px 64px;
-  min-height: min(62vh, 600px);
+  padding: 18px 20px 10px;
+  min-height: var(--opener-size);
   display: flex;
   flex-direction: column;
   justify-content: center;
   border-top: 2px solid var(--ink);
   background: var(--paper-raised);
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: var(--folio-top);
+}
+.folio-chapter .folio-title {
+  max-width: 78rem;
 }
 .folio-chapter-title {
   position: relative;
-  font-size: clamp(48px, 8vw, 128px);
+  font-size: clamp(19px, 2.5vw, 36px);
   font-weight: 430;
-  line-height: 0.98;
-  letter-spacing: -0.035em;
-  margin: 18px 0 0;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  margin: 6px 0 0;
   color: var(--ink);
   text-wrap: balance;
 }
 .folio-chapter-title:focus {
   outline: none;
 }
-.folio-chapter-lead {
-  font-size: clamp(18px, 1.5vw, 21px);
-  line-height: 1.4;
-  letter-spacing: -0.01em;
-  color: var(--ink-2);
-  max-width: 46rem;
-  margin: 0;
+.folio-chapter-title:focus-visible {
+  outline: 2px solid var(--violet-ink);
+  outline-offset: 4px;
 }
 .folio-chapter .folio-rule-draw {
   width: 100%;
-  margin: 28px 0 24px;
+  margin: 12px 0 0;
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform var(--d-4) var(--ease-out) 240ms;
@@ -758,14 +769,6 @@
   color: var(--ink);
   max-width: 40rem;
   margin: 0 0 16px;
-}
-@media (max-width: 479px) {
-  .folio-chapter {
-    padding: 48px 20px 40px;
-  }
-  .folio-chapter-title {
-    font-size: clamp(40px, 13vw, 52px);
-  }
 }
 .folio-rule {
   border: 0;
@@ -851,6 +854,7 @@
   top: 0;
 }
 .folio-heat-scroll {
+  position: relative;
   width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -1238,6 +1242,7 @@
 
 /* Matrix table: fixed header, scrolling body */
 .folio-mtable-scroll {
+  position: relative; /* clips the table's absolutely placed bars and sparklines inside the scroller */
   max-height: 32rem;
   overflow: auto;
   overscroll-behavior: contain;
@@ -1276,12 +1281,13 @@
 
 /* Call to action: large square buttons carrying the scope in view (issue #859). */
 .folio-action {
-  padding: 40px 0 56px;
+  padding: 24px 0 24px;
   border-top: 1px solid var(--ink);
-  scroll-margin-top: 7.5rem;
+  scroll-margin-top: var(--folio-top);
+  min-height: var(--screen-h);
 }
 .folio-action-title {
-  font-size: clamp(26px, 2.6vw, 40px);
+  font-size: clamp(24px, 2.4vw, 36px);
   font-weight: 400;
   line-height: 1.06;
   letter-spacing: -0.028em;
@@ -1303,7 +1309,7 @@
   justify-content: space-between;
   align-items: flex-start;
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   padding: 20px;
   background: var(--band);
   color: var(--white);
@@ -1330,4 +1336,344 @@
   font-family: var(--font-mono);
   font-size: 28px;
   line-height: 1;
+}
+
+/* ---- Paging, fitting and the first-screen hint (issue #883) ---- */
+
+/* "More about this chart": the long explanation stays one click away so it never pushes a screen past the window. */
+.folio-more {
+  margin: 0 0 12px;
+}
+.folio-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.folio-more > summary:hover {
+  color: var(--ink);
+}
+.folio-more > summary:focus-visible {
+  outline: 2px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+.folio-more[open] > summary {
+  margin-bottom: 4px;
+}
+
+/* Continue / Back */
+.folio-pager {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.folio .folio-pager-next,
+.folio .folio-pager-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 8px 16px;
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0;
+}
+.folio .folio-pager-next {
+  justify-content: space-between;
+  font-size: 15px;
+  font-weight: 500;
+  background: var(--band);
+  color: var(--white);
+  border: 1px solid var(--band);
+  transition: background-color var(--d-2) var(--ease-std);
+}
+.folio .folio-pager-next:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.folio .folio-pager-back {
+  font-size: 13px;
+  padding: 6px 4px;
+  background: transparent;
+  color: var(--ink-2);
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.folio .folio-pager-back:hover {
+  color: var(--ink);
+}
+.folio .folio-pager-next:focus-visible,
+.folio .folio-pager-back:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+.folio-pager-arrow {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  line-height: 1;
+}
+.folio-pager-end {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 28px;
+}
+
+/* The one-time hint on the first screen: static text, fixed to the bottom of the window until the reader moves. */
+.folio .folio-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 40;
+  min-height: 44px;
+  padding: 8px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  background: var(--ink);
+  color: var(--white);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 30%, transparent);
+}
+.folio .folio-hint:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 3px;
+}
+
+/* A figure never makes its screen taller than the window: whatever does not fit scrolls inside it, with a shadow at the edge
+   that still has more to show and a visible thin scrollbar. */
+.folio-figure {
+  max-height: var(--fig-max);
+  overflow: auto;
+  overscroll-behavior: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-3) transparent;
+  background:
+    linear-gradient(var(--paper) 30%, transparent) 0 0 / 100% 24px no-repeat local,
+    linear-gradient(transparent, var(--paper) 70%) 0 100% / 100% 24px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--ink) 22%, transparent), transparent) 0 0 / 100% 8px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--ink) 22%, transparent), transparent) 0 100% / 100% 8px no-repeat scroll;
+}
+
+/* Gentle snapping: proximity only, so a scroll settles on a screen without fighting the reader. */
+html.folio-snap {
+  scroll-snap-type: y proximity;
+}
+.folio-chapter,
+.folio-section:not(.has-opener),
+.folio-action {
+  scroll-snap-align: start;
+}
+
+@media (max-width: 767px) {
+  html.folio-snap {
+    scroll-snap-type: none;
+  }
+  .folio {
+    --band-h: 44px;
+  }
+  .folio-figure {
+    max-height: none;
+    overflow: visible;
+    background: none;
+  }
+  .folio .folio-pager-next {
+    width: 100%;
+  }
+  .folio-section {
+    min-height: 0;
+    padding: 16px 0 24px;
+  }
+  .folio-section.has-opener {
+    min-height: 0;
+  }
+  .folio-chapter {
+    min-height: 0;
+  }
+  .folio-action-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .folio .folio-action-btn {
+    aspect-ratio: auto;
+    min-height: 72px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.folio-snap {
+    scroll-snap-type: none;
+  }
+}
+
+/* Tiles: on a desktop window the 52 boxes are sized from the room the screen has, so they all fit (issue #883). */
+@media (min-width: 1024px) {
+  .folio-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr));
+  }
+  .folio-tile {
+    height: clamp(38px, calc((var(--fig-max) - 90px) / 6 - 4px), 64px);
+    padding: 4px 5px;
+    font-size: 10px;
+  }
+}
+
+/* Stacked layout (tablet): the text sits above the figure, so the figure gets what is left. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .folio-section {
+    --fig-max: max(280px, calc(var(--screen-h) - 460px));
+  }
+  .folio-section.has-opener {
+    --fig-max: max(280px, calc(var(--screen-h) - 460px - var(--opener-size)));
+  }
+}
+
+/* The dot map keeps its proportions and shrinks to the room the screen has. */
+@media (min-width: 1024px) {
+  .folio-figure svg[aria-label^='Dot-matrix map'] {
+    max-height: max(220px, calc(var(--fig-max) - 150px));
+    margin: 0 auto;
+  }
+}
+
+/* A table that scrolls inside its figure keeps its column headers in view. */
+.folio-figure .folio-heat thead th,
+.folio-figure .folio-dtable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--paper);
+}
+
+.folio-orient {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.folio-year-select {
+  min-height: 44px;
+  padding: 0 4px;
+  font: inherit;
+  color: var(--violet-ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted currentColor;
+  border-radius: 0;
+  cursor: pointer;
+}
+.folio-year-select:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+
+/* Back to the top, and the current selection in the story bar (issue #883). */
+.folio .folio-band-top {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  min-height: 40px;
+  padding: 0 12px 0 0;
+  background: none;
+  border: 0;
+  border-right: 1px solid var(--band-rule);
+  border-radius: 0;
+  color: var(--white);
+  font: inherit;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.folio .folio-band-top:hover {
+  text-decoration: underline;
+}
+.folio .folio-band-top:focus-visible,
+.folio .folio-band-select:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: -3px;
+}
+.folio .folio-band-select {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  height: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--white);
+  font: inherit;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.folio-band-measure {
+  font-weight: 600;
+}
+.folio-band-change {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.folio-band-change::before {
+  content: ' — ';
+  text-decoration: none;
+  display: inline-block;
+  white-space: pre;
+}
+/* Tight room: the place goes first, then the measure's words give way to "change". */
+@media (max-width: 1180px) {
+  .folio-band-place {
+    display: none;
+  }
+}
+@media (max-width: 899px) {
+  .folio-band-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .folio-band-select {
+    flex: none;
+    margin-left: 0;
+  }
+  .folio-band-measure,
+  .folio-band-place {
+    display: none;
+  }
+  .folio-band-change::before {
+    content: none;
+  }
+  .folio .folio-band-top {
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+    padding: 0 10px 0 0;
+  }
+  .folio .folio-band-select {
+    min-height: 44px;
+    padding: 0 0 0 8px;
+  }
+}
+.sh-title {
+  scroll-margin-top: calc(var(--folio-top, 108px) + 12px);
 }

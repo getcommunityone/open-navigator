@@ -34,6 +34,23 @@ export function useInViewOnce(ref: RefObject<Element>, threshold = 0.12, rootMar
  */
 export const useTitleShown = (ref: RefObject<Element>): boolean => useInViewOnce(ref, 0.2, '0px 0px -10% 0px')
 
+/**
+ * A chart height that fits the window: `preferred`, or what is left of the viewport after `reserve` px of header, story bar,
+ * controls and caption (never under `min`). Only on a desktop-width window, where a section is one screen; elsewhere `preferred`.
+ */
+export function useFitHeight(preferred: number, reserve: number, min = 230): number {
+  const calc = () => (typeof window === 'undefined' || window.innerWidth < 1024 ? preferred : Math.round(Math.max(min, Math.min(preferred, window.innerHeight - reserve))))
+  const [h, setH] = useState(calc)
+  useEffect(() => {
+    const on = () => setH(calc())
+    on()
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferred, reserve, min])
+  return h
+}
+
 /** Width in px of an element, kept current with a ResizeObserver. */
 export function useElementWidth(ref: RefObject<HTMLElement>, fallback = 560): number {
   const [w, setW] = useState(fallback)
