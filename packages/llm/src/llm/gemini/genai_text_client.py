@@ -970,6 +970,27 @@ def _stream_enabled() -> bool:
     )
 
 
+#: Allowed values of ``DEEPSEEK_THINKING``. ``off`` is the default (#866).
+DEEPSEEK_THINKING_LEVELS = ("off", "low", "high", "max")
+
+
+def deepseek_thinking_kwargs(setting: str | None) -> dict[str, Any]:
+    """Extra request arguments that set DeepSeek's thinking mode (#866).
+
+    DeepSeek turns thinking on by default, at effort ``high``, and bills the thinking tokens with the
+    output. On the light analysis and its reports that was 82% of the output-rate tokens (22.8M
+    thinking against 5.0M output over two days), for extraction the Gemini path runs with thinking
+    off. So the default here is ``off``; ``low``, ``high`` or ``max`` turn it on at that effort for a
+    quality comparison. The OpenAI SDK has no ``thinking`` argument, so it goes in ``extra_body``.
+    """
+    level = (setting or "off").strip().lower() or "off"
+    if level not in DEEPSEEK_THINKING_LEVELS:
+        raise ValueError(f"DEEPSEEK_THINKING must be one of {DEEPSEEK_THINKING_LEVELS}, not {setting!r}")
+    if level == "off":
+        return {"extra_body": {"thinking": {"type": "disabled"}}}
+    return {"extra_body": {"thinking": {"type": "enabled"}}, "reasoning_effort": level}
+
+
 def _call_deepseek_text(
     *,
     model: str,
@@ -1013,6 +1034,9 @@ def _call_deepseek_text(
 
     from llm.usage.calls import usage_from_openai_response
 
+    # Read once per call, before any request, so a bad value fails here and is not retried (#866).
+    thinking_kwargs = deepseek_thinking_kwargs(os.getenv("DEEPSEEK_THINKING"))
+
     max_attempts = 4
     last_exc: Optional[Exception] = None
     started = time.monotonic()
@@ -1030,6 +1054,7 @@ def _call_deepseek_text(
                 messages=msgs,
                 temperature=temperature,
                 max_tokens=max_output_tokens,
+                **thinking_kwargs,
             )
             content = (resp.choices[0].message.content or "").strip()
             if not content:
