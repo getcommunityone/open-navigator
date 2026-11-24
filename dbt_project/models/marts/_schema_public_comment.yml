@@ -1,0 +1,154 @@
+version: 2
+
+# Public-comment stance ("sentiment") marts. Design and decisions:
+# web_docs/docs/development/meeting-sentiment-design.md
+#
+# NOTE on keys: event_meeting and event_decision are partitioned with composite
+# primary keys, so (as in decision_speakers) the FKs into them are asserted with
+# relationships tests (warn); each mart's own single-column PK is contract-enforced.
+
+models:
+  - name: public_comment
+    description: >
+      public.public_comment — one row per (meeting, public speaker, item): the
+      speaker's stance toward the action being decided, as extracted by the full or
+      light analysis into public_participation[]. stance_bucket is for / against /
+      neutral; a missing stance stays null (unknown is not neutral). Carries the
+      verbatim stance_evidence quote and timestamps so every count links back to
+      the recording.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'decision', 'ai', 'sentiment']
+      contract:
+        enforced: true
+    columns:
+      - name: public_comment_id
+        description: Primary key. md5 of the bronze key (source_event_id, speaker_id, item id when present).
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_meeting_id
+        description: FK -> event_meeting.event_meeting_id (the meeting the comment was made in); relationships test.
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('event_meeting')
+              field: event_meeting_id
+              config:
+                severity: warn
+      - name: event_decision_id
+        description: >
+          FK -> event_decision.event_decision_id when the comment is about a contested
+          decision; null for uncontested items and general public comment. Relationships test.
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: item_id
+        description: The extraction's own item id (D001 / U001), or null for general public comment.
+        data_type: text
+      - name: speaker_id
+        description: The speaker's slug from the extraction (people[].person_id in the full tier).
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: stance
+        description: "The extraction's value: For, Against, Mixed or neutral, Not stated."
+        data_type: text
+      - name: stance_bucket
+        description: for / against / neutral from public_stance_bucket(); null when stance is missing.
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['for', 'against', 'neutral']
+      - name: stance_evidence
+        description: The speaker's own words showing the stance, verbatim from the transcript (25 words or fewer); null when none.
+        data_type: text
+      - name: summary
+        description: One-sentence summary of the comment (full tier); null in the light tier.
+        data_type: text
+      - name: timestamp_start_seconds
+        description: Seconds into the recording where the comment starts; null when the transcript is untimed.
+        data_type: numeric
+      - name: timestamp_end_seconds
+        description: Seconds into the recording where the comment ends; null when unknown.
+        data_type: numeric
+      - name: state_code
+        description: 2-letter state code of the meeting.
+        data_type: varchar(2)
+      - name: state
+        description: Full state name of the meeting.
+        data_type: text
+      - name: jurisdiction_name
+        description: Jurisdiction of the meeting, from event_meeting.
+        data_type: varchar(200)
+      - name: video_id
+        description: YouTube video id of the recording, for the link to the moment.
+        data_type: varchar(64)
+      - name: source_ai_model
+        description: The model that produced the extraction.
+        data_type: text
+      - name: extracted_at
+        description: When the extraction was produced.
+        data_type: timestamp
+
+  - name: decision_public_stance
+    description: >
+      public.decision_public_stance — one row per decision with at least one public
+      speaker of known stance: how many spoke for, against and neutral (each speaker
+      once), and the balance among those who took a side. A decision with no
+      public-comment data has no row.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'civic', 'decision', 'ai', 'sentiment']
+      contract:
+        enforced: true
+    columns:
+      - name: event_decision_id
+        description: Primary key. FK -> event_decision.event_decision_id (relationships test).
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: speakers_for
+        description: Distinct public speakers whose stance bucket is for.
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: speakers_against
+        description: Distinct public speakers whose stance bucket is against.
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: speakers_neutral
+        description: Distinct public speakers whose stance bucket is neutral (mixed, conditional, questions, not stated).
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: speakers_total
+        description: speakers_for + speakers_against + speakers_neutral.
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: stance_balance
+        description: (for - against) / (for + against), from -1 to +1; null when no speaker took a side.
+        data_type: numeric

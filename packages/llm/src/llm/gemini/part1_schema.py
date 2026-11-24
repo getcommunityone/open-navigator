@@ -182,6 +182,20 @@ class Decision(_Item):
         return [] if value is None else value
 
 
+class PublicComment(_Row):
+    """One public speaker's comment and their stance toward the action being decided.
+
+    ``stance`` is kept as the model wrote it; dbt maps it to a bucket (``public_stance_bucket``)."""
+
+    speaker_id: Optional[str] = None
+    decision_id: Optional[str] = None
+    stance: Optional[str] = None
+    stance_evidence: Optional[str] = None
+    summary: Optional[str] = None
+    timestamp_start_seconds: Optional[Number] = None
+    timestamp_end_seconds: Optional[Number] = None
+
+
 class Part1Analysis(_Row):
     """The whole answer. ``meeting``, ``decisions`` and ``uncontested_items`` are what every consumer reads."""
 
@@ -193,11 +207,13 @@ class Part1Analysis(_Row):
     job_claims: list[JobClaim] = []
     places: list[Place] = []
     subjects: list[Subject] = []
+    public_participation: list[PublicComment] = []
     uncontested_items: list[UncontestedItem] = []
     decisions: list[Decision]
 
     @field_validator(
         "people", "organizations", "legislation", "financial_items", "job_claims", "places", "subjects",
+        "public_participation",
         "uncontested_items", mode="before",
     )
     @classmethod
