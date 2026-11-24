@@ -200,6 +200,36 @@ that will read them (per-speaker floor time, the figures cited as evidence; see 
 their share of the output now. If this is revisited, measure on real meetings with `part1_field_sizes` first: the
 helper-line test showed that removing a field does not by itself shorten the output.
 
+## The light analysis on Claude Haiku 5.5 (November 24, 2026, #871)
+
+The light tier ("Analysis light" and "Reports light" on the batch tab) now defaults to `claude-haiku-5-5`, called
+through the official Anthropic SDK (`llm.claude.text_client.call_claude_analysis`, reached from `call_gemini_text`
+by the `claude-` model id). The full tier's defaults are unchanged.
+
+- **Rates** (`llm/usage/prices.yaml`, read November 24, 2026): input 0.10, cached input 0.01, output 0.50 USD per 1M
+  tokens. Thinking tokens are billed as output and are inside the API's `output_tokens`; the API does not split them
+  out, so the usage log records `thinking_token_count` as empty rather than a guess.
+- **Effort.** `CLAUDE_EFFORT` (default `low`; also `medium`, `high`, `xhigh`, `max`). A bad value fails before any
+  request. Haiku 5.5 thinks adaptively and the effort setting is the only control over how much.
+- **Long-prompt guard.** A prompt over 100,000 tokens is billed at five times these rates. Before sending, the call
+  counts the prompt (`count_tokens`, free) and, if it is over `CLAUDE_MAX_PROMPT_TOKENS` (default 100000, `0` turns the
+  guard off), sends nothing and raises `ClaudePromptTooLongError`. The pipeline skips that meeting and records the
+  reason "prompt is N tokens, over the 100,000-token price tier" in the policy event and the log. The transcript is
+  never truncated. If the count itself fails, the call fails rather than sending unchecked.
+- **Prompt caching.** Every call asks for the prefix to be cached, and the usage log records the cache reads at the
+  cached rate. The report stage re-sends one transcript several times, so it should benefit; prefixes under the
+  model's minimum silently do not cache. How much is saved is not measured yet.
+- **Output.** Streamed, with `max_tokens` taken from `--max-output-tokens` (cap 128,000). An answer that stops at
+  `max_tokens` is a failure, not a partial analysis. A refusal is a failure.
+- **Key.** `ANTHROPIC_API_KEY`, from the environment or the repo-root `.env`.
+
+**Quality and cost on Haiku are unmeasured until the first run.** No Claude call has been made for this tier; compare
+a run's `python -m llm.usage.report` rows against the DeepSeek and Gemini ones (#267) before relying on any figure.
+
+**Switching back.** Set `LIGHT_MODEL=deepseek-flash` (or a Gemini model id) in the environment of the run, or pass
+`--model` and `--part-2-model` to `llm.gemini.meeting_transcript_policy`. An empty `LIGHT_MODEL=` means the Gemini
+default. A light run on a Claude or DeepSeek model needs no Gemini key.
+
 ## Not done
 
 - Gemma 4 has no paid price: Google offers it on the free tier only. DeepSeek's prices are filled in, by peak and off-peak hours (#328), but no DeepSeek run has been measured.

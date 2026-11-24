@@ -5,7 +5,7 @@ Two runs on one model would overwrite each other's rows, silently losing the lig
 The owner's rule is that the two tiers never share a model; this makes it fail loudly instead of
 relying on everyone remembering it.
 
-The light tier's model is ``LIGHT_MODEL`` (default ``deepseek-flash``); an empty ``LIGHT_MODEL``
+The light tier's model is ``LIGHT_MODEL`` (default ``claude-haiku-5-5``, #871; ``deepseek-flash`` and any Gemini id still work); an empty ``LIGHT_MODEL``
 means the Gemini default. A light run is also checked against ``FULL_MODEL`` when that is set.
 """
 
@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 from typing import Mapping, Optional
 
-DEFAULT_LIGHT_MODEL = "deepseek-flash"
+DEFAULT_LIGHT_MODEL = "claude-haiku-5-5"  # was deepseek-flash until #871
 
 
 def light_model(env: Mapping[str, str], gemini_default: str) -> str:

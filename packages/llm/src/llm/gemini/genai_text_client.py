@@ -1100,6 +1100,105 @@ def _call_deepseek_text(
     raise RuntimeError(f"DeepSeek call failed for {model}: {last_exc}") from last_exc
 
 
+def _anthropic_api_key() -> str:
+    """``ANTHROPIC_API_KEY`` from the environment, else from the repo-root ``.env``."""
+    key = _strip_api_key(os.getenv("ANTHROPIC_API_KEY", ""))
+    if not key:
+        from dotenv import load_dotenv
+
+        env_file = Path(__file__).resolve().parents[5] / ".env"
+        if env_file.is_file():
+            load_dotenv(env_file, override=False)
+            key = _strip_api_key(os.getenv("ANTHROPIC_API_KEY", ""))
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
+    return key
+
+
+def _claude_retry_delay(exc: BaseException, attempt: int) -> float:
+    """Seconds to wait before retry ``attempt + 1``: the server's ``retry-after`` if it sent one,
+    else 2s doubling; never more than 60s."""
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    try:
+        hinted = float(headers.get("retry-after")) if headers is not None else None
+    except (TypeError, ValueError):
+        hinted = None
+    return min(hinted if hinted is not None and hinted >= 0 else 2.0 * (2**attempt), 60.0)
+
+
+def _call_claude_text(
+    *,
+    model: str,
+    user_text: str,
+    system_instruction: str = "",
+    max_output_tokens: int = 32000,
+) -> TextGenAIResult:
+    """Single-turn generation on a Claude model through the official Anthropic SDK (#871).
+
+    Builds on :func:`llm.claude.text_client.call_claude_analysis` (streaming, prompt caching,
+    effort, the long-prompt guard). ``temperature`` is not taken: current Claude models reject it.
+    At most 3 attempts; the SDK's own retries are turned off so the waits are not multiplied.
+    Rate limits (honouring ``retry-after``), 5xx and connection errors are retried; 4xx, a refusal,
+    a truncated answer and a too-long prompt are not.
+    """
+    import anthropic
+
+    from llm.claude.text_client import call_claude_analysis, claude_effort, claude_max_prompt_tokens
+
+    # Read once, before any request, so a bad value or a missing key fails here and is not retried.
+    effort = claude_effort()
+    max_prompt_tokens = claude_max_prompt_tokens()
+    client = anthropic.Anthropic(api_key=_anthropic_api_key(), max_retries=0)
+
+    max_attempts = 3
+    started = time.monotonic()
+    last_exc: Optional[BaseException] = None
+
+    def _failed(exc: BaseException, attempts: int) -> None:
+        _record_usage(
+            provider="anthropic", model=model, usage=getattr(exc, "usage", None),
+            started=started, attempts=attempts, error=exc,
+        )  # fmt: skip
+
+    for attempt in range(max_attempts):
+        try:
+            result = call_claude_analysis(
+                model=model,
+                system=system_instruction.strip(),
+                user_text=user_text,
+                max_tokens=max_output_tokens,
+                effort=effort,
+                max_prompt_tokens=max_prompt_tokens,
+                client=client,
+            )
+            usage = _record_usage(
+                provider="anthropic", model=model, usage=result.usage,
+                started=started, attempts=attempt + 1,
+            )  # fmt: skip
+            return TextGenAIResult(
+                text=result.text, model=model, raw_response=result.raw_response, usage=usage
+            )
+        except (anthropic.RateLimitError, anthropic.APIConnectionError) as exc:
+            last_exc = exc
+        except anthropic.APIStatusError as exc:
+            if exc.status_code < 500:
+                _failed(exc, attempt + 1)
+                raise RuntimeError(f"Claude call failed for {model}: {exc}") from exc
+            last_exc = exc
+        except BaseException as exc:  # too long, refusal, truncated, empty, count failure
+            _failed(exc, attempt + 1)
+            raise
+        if attempt < max_attempts - 1:
+            delay = _claude_retry_delay(last_exc, attempt)
+            logger.warning(
+                "Claude {} error ({}): sleeping {:.0f}s, retry {}/{}",
+                model, type(last_exc).__name__, delay, attempt + 1, max_attempts,
+            )  # fmt: skip
+            time.sleep(delay)
+    _failed(last_exc, max_attempts)  # type: ignore[arg-type]
+    raise RuntimeError(f"Claude call failed for {model}: {last_exc}") from last_exc
+
+
 def supports_thinking_budget(model: str) -> bool:
     """Whether ``thinking_budget`` (including ``0`` = off) may be sent to ``model``.
 
@@ -1228,6 +1327,8 @@ def call_gemini_text(
 
     A ``deepseek-*`` model name routes to DeepSeek's OpenAI-compatible Chat
     Completions endpoint instead of Gemini (text-only; no ``pdf_bytes`` support).
+    A ``claude-*`` model routes to the Anthropic SDK (:func:`_call_claude_text`, same limits;
+    ``temperature`` is not sent).
 
     ``thinking_budget`` caps the model's thinking tokens (``0`` turns thinking
     off); they are billed as output and add latency. It is sent only to models
@@ -1250,6 +1351,19 @@ def call_gemini_text(
             user_text=user_text,
             system_instruction=system_instruction,
             temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+
+    if model.startswith("claude-"):
+        if pdf_bytes:
+            raise ValueError(
+                "Claude calls here are text-only and cannot read pdf_bytes; "
+                "extract text first or use a Gemini model for scanned PDFs."
+            )
+        return _call_claude_text(
+            model=model,
+            user_text=user_text,
+            system_instruction=system_instruction,
             max_output_tokens=max_output_tokens,
         )
 

@@ -339,9 +339,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         logger.success("Dry run: nothing sent.")
         return summary
 
-    # DeepSeek keys are resolved inside call_gemini_text; Gemini needs a pool key.
-    if model.startswith("deepseek"):
-        api_key = resolve_gemini_api_key() or "deepseek"
+    # DeepSeek and Anthropic keys are resolved inside call_gemini_text; Gemini needs a pool key.
+    if model.startswith(("deepseek", "claude-")):
+        api_key = resolve_gemini_api_key() or "no-gemini-key"
     else:
         repo = Path(__file__).resolve().parents[5]
         api_key = ensure_valid_gemini_api_key(

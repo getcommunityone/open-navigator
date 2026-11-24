@@ -53,12 +53,13 @@ def test_uses_only_deepseek_skips_gemini_key_probe(model, part_2, expected):
     assert mtp.uses_only_deepseek(model, part_2) is expected
 
 
-def test_light_launch_script_defaults_to_deepseek():
-    """The light tier passes DeepSeek model flags; full tier does not (#774)."""
+def test_light_launch_script_defaults_to_claude_haiku():
+    """The light tier passes Claude Haiku model flags (#871); full tier does not."""
     from pathlib import Path
 
     script = Path(__file__).resolve().parents[3] / "packages/scrapers/scripts/youtube_run_priority_states_last_n.sh"
     text = script.read_text(encoding="utf-8")
-    assert 'LIGHT_MODEL-deepseek-flash' in text
+    assert 'LIGHT_MODEL-claude-haiku-5-5' in text
+    assert 'LIGHT_MODEL-deepseek-flash' not in text
     assert '[[ "$tier" == "light" ]]' in text
     assert '--model "$light_model" --part-2-model "$light_model"' in text

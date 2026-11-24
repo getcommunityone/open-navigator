@@ -126,6 +126,19 @@ def uses_only_deepseek(model: str = "", part_2_model: str = "") -> bool:
     return part_1.startswith("deepseek") and part_2.startswith("deepseek")
 
 
+def uses_no_gemini_key(model: str = "", part_2_model: str = "") -> bool:
+    """True when no model this run will call is a Gemini model.
+
+    Each of Part 1 and Part 2 is a ``deepseek-*`` or a ``claude-*`` model (#871). Those resolve their
+    own keys inside ``call_gemini_text``, so no Gemini key is needed or probed. An empty ``--model``
+    means the Gemini default.
+    """
+    part_1 = (model or "").strip()
+    part_2 = (part_2_model or "").strip() or part_1
+    own_key = ("deepseek", "claude-")
+    return part_1.startswith(own_key) and part_2.startswith(own_key)
+
+
 def _analysis_tier(args: Any) -> str:
     raw = str(getattr(args, "analysis_tier", None) or "light").strip().lower()
     return "full" if raw == "full" else "light"
@@ -178,6 +191,7 @@ from llm.gemini.genai_text_client import (  # noqa: E402
     ensure_valid_gemini_api_key,
     extract_json_from_model_text,
 )
+from llm.claude.text_client import ClaudePromptTooLongError  # noqa: E402
 from llm.gemini.speaker_hints import (  # noqa: E402
     format_speaker_hints_block,
     known_speaker_names,
@@ -944,6 +958,18 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
                     tier=tier,
                 )
             continue
+        except ClaudePromptTooLongError as exc:
+            # Not sent: the transcript is over the long-prompt price tier (#871). Never fatal.
+            logger.warning("Skip {} — {}", path.name, exc)
+            if _db_events_enabled(args):
+                _record_policy_event_safe(
+                    _video_id_from_analysis_path(path),
+                    stage="report",
+                    ok=False,
+                    error=str(exc),
+                    tier=tier,
+                )
+            continue
         except Exception as exc:
             logger.exception("Part 2 failed for {}: {}", path.name, exc)
             if _db_events_enabled(args):
@@ -1633,10 +1659,10 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
     needs_api = not args.transcript_only
     api_key = ""
-    if needs_api and uses_only_deepseek(args.model, args.part_2_model):
-        # DeepSeek keys are resolved inside call_gemini_text; probing a Gemini key
+    if needs_api and uses_no_gemini_key(args.model, args.part_2_model):
+        # DeepSeek and Anthropic keys are resolved inside call_gemini_text; probing a Gemini key
         # here would fail on Gemini billing (402) for a run that never calls Gemini.
-        api_key = "deepseek"
+        api_key = "no-gemini-key"
     elif needs_api:
         api_key = ensure_valid_gemini_api_key(
             env_path=_REPO_ROOT / ".env",
@@ -1736,6 +1762,14 @@ def run_pipeline(args: argparse.Namespace) -> None:
             except GenAITransientGiveUp as exc:
                 # Google-side network flake — never fatal, even with --stop-on-error.
                 logger.warning("Skip {} — transient infra give-up: {}", video.video_id, exc)
+                if _db_events_enabled(args):
+                    _record_policy_event_safe(
+                        video.video_id, stage="analysis", ok=False, error=str(exc)
+                    )
+                continue
+            except ClaudePromptTooLongError as exc:
+                # Not sent: the transcript is over the long-prompt price tier (#871). Never fatal.
+                logger.warning("Skip {} — {}", video.video_id, exc)
                 if _db_events_enabled(args):
                     _record_policy_event_safe(
                         video.video_id, stage="analysis", ok=False, error=str(exc)
