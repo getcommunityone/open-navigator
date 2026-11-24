@@ -6,7 +6,7 @@ description: How to add public-comment stance ("sentiment") to the meeting data 
 
 # Meeting sentiment with Jev
 
-Status: **proposal** (not yet built). Decided 2026-11-24: **data centers first**, and stance is a **five-step gradient**, not a yes/no label. Builds on [Meeting metrics for the Matrix map](./meeting-metrics-matrix-map-design.md)
+Status: **proposal** (not yet built). Decided 2026-11-24: **data centers first**; stance is scored on a **five-step gradient** and reported in **three buckets** (against, neutral, for). Builds on [Meeting metrics for the Matrix map](./meeting-metrics-matrix-map-design.md)
 and the existing Jev work ([transcript screening](./jev-transcript-screening.md),
 [Jev-light cascade](./jev-light-cascade-design.md)).
 
@@ -50,22 +50,40 @@ Store the **probabilities**, not just the winning label, and derive labels with 
 Count a passage toward the stance share only when `is_public_comment` is high enough (start at 0.7, tune on the
 validation set).
 
-## The sentiment gradient
+## The sentiment gradient and the three buckets
 
 Jev's Score question rates on an ordered rubric of 2 to 10 rungs, so stance is a gradient from the start rather than a
-yes/no label. Use five rungs and map them to numbers: strongly opposes −2, opposes −1, neutral or mixed 0,
-supports +1, strongly supports +2.
+yes/no label. Use five rungs: strongly opposes, opposes, neutral or mixed, supports, strongly supports (−2 … +2).
 
-- **One area's value** is the mean of its public-comment passages (−2 to +2), shown with `n` (passages) and
-  `coverage_n`. A mean of −1.2 reads as "mostly opposed"; near 0 means split or neutral.
-- **Dot map and Tiles** colour by that mean on a diverging scale with a neutral midpoint. Do not rely on red versus
-  green alone: pick two hues that also differ in lightness (for example an orange-red and a teal) so the map reads for
-  colour-blind viewers, and label both ends in the legend.
-- **Diverging bars (the template's Likert chart)** show the mix at each rung for one place: how many passages were at
-  each of the five steps, centred on neutral. This is the best view for "split" areas that a mean hides.
-- **Compare** shows how an area's mean moved between years, once there are two years of data.
-- Store the answer **probabilities per rung**, and use the rung with the highest probability for the label;
-  compute the mean from the label so it is reproducible.
+Many passages are not for or against anything: a staff presentation, a question, a time limit, a procedural vote.
+Forcing those onto a side would invent an opinion. So the **headline is three buckets**, like a Left / Center / Right bar:
+
+| Bucket | Rungs | Also includes |
+| --- | --- | --- |
+| **Against** | strongly opposes, opposes | |
+| **Neutral** | neutral or mixed | any passage Jev flags `is_procedural`, and any passage with no clear stance |
+| **For** | supports, strongly supports | |
+
+The three shares always add to 100% of the counted passages, so the bar is complete. The five-step gradient is kept
+underneath for detail: it sets the shade within a bucket (strong is darker than weak) and drives the diverging view.
+
+- **Primary view, the three-segment bar:** one stacked bar per place, `Against 30% | Neutral 43% | For 27%`, each
+  segment labelled with its share and its passage count on hover. This is the same form as the Folio
+  100% stacked bar and the Share layout, and it needs no scale to learn.
+- **Colour:** against = vermilion, for = blue, neutral = white or light gray with dark text. A blue and orange-red pair
+  stays distinguishable for colour-blind viewers, which red and green does not. Always label the segments, never
+  rely on colour alone.
+- **One number for a map or tile:** the *balance* among passages that take a side,
+  `(for − against) / (for + against)`, from −100% to +100%. Neutral passages are left out of the balance (otherwise
+  a place where most talk is procedural would always look "neutral"), but the neutral share is shown beside it so
+  nothing is hidden. Show `—` when fewer than the minimum number of side-taking passages exist.
+- **Dot map and Tiles** colour by the balance on a diverging scale with a neutral midpoint, with lightness changing as
+  well as hue.
+- **Diverging bars (the template's Likert chart)** show all five rungs for one place, centred on neutral, for readers
+  who want the full gradient.
+- **Compare** shows how a place's balance moved between years, once there are two years.
+- Store the answer **probabilities per rung**, use the highest-probability rung as the label, and compute buckets
+  and shares from the labels so they are reproducible.
 
 ## Pipeline (follow the repo rules)
 
@@ -77,10 +95,10 @@ supports +1, strongly supports +2.
    the passage, jurisdiction and event). Carry the source forward: every row keeps `video_url`, `start_seconds` and the
    verbatim `evidence`.
 4. **Metrics:** add to the meeting-metrics catalog: `public_comment_passages` (additive count),
-   `public_comment_stance_mean` (mean of −2…+2 with `n`), plus `public_comment_oppose_share` and
-   `public_comment_support_share` (rates, numerator and denominator stored),
+   `public_comment_against_share`, `public_comment_neutral_share`, `public_comment_for_share` (rates that add to 100%,
+   numerator and denominator stored) and `public_comment_balance` (for minus against among side-taking passages, −100% to +100%),
    always with `coverage_n` and the minimum-sample rule already decided (10 decisions or passages, 3 jurisdictions).
-5. **UI:** the Dot map colours each state by the gradient mean (a diverging scale centred on neutral),
+5. **UI:** the Dot map colours each state by the balance (a diverging scale centred on even) and a three-segment bar shows the three shares,
    drills into counties, and every tile shows the quoted passage with the matched words highlighted, per the
    "Show the Match Evidence" rule. Nothing is shown without a real quote behind it.
 
@@ -143,8 +161,11 @@ endpoint, so under `AGENTS.md` **it starts only with the owner's yes**, and the 
 | --- | --- |
 | First topic | **Data centers** (owner, 2026-11-24): the mention table already has evidence, timestamps and site links. |
 | Scale | **Five-step gradient** (owner asked for a gradient, 2026-11-24), not a yes/no label. |
+| Buckets | **Three: against, neutral, for** (owner, 2026-11-24): some passages are neither. Neutral includes procedural and no-clear-stance passages and is shown, not dropped. |
+| Wrong-side flip | A flip is now support vs against; a passage moving between neutral and a side is one step, not a flip. |
 | Agreement bar | At least 90 of 100 within one step, at most 5 of 100 wrong-side flips (best judgement, owner had no preference; the plain-language explanation is above). Change it by adding a dated line here. |
 
 ## Open questions
 
-- Which two hues for the diverging scale (colour-blind check needed before the design is final).
+- Confirm the vermilion and blue pair with a colour-blind simulation before the design is final.
+- Where to draw the line between neutral and a weak side (rung 0 only, or also low-confidence sides); decide from the validation sample.
