@@ -178,6 +178,14 @@ https://www.datamuse.com/api/
 - Commercial platform for U.S. community mapping, analytics, and licensed socio-economic data ([https://www.policymap.com/](https://www.policymap.com/))
 - **Use:** Follow PolicyMap’s **Citing Us** / terms when you use their data or maps; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#policymap)
 
+### **American Sentiment** (reference — never fetched)
+- Commercial local meeting / public-comment sentiment product ([https://americansentiment.com/](https://americansentiment.com/))
+- **Use:** Reference-only naming. Their terms forbid competitors' use; Open Navigator never fetches or redistributes their data (`BLOCKED_HOSTS` in community events ingestion). Full write-up: [web_docs/docs/data-sources/citations.md](web_docs/docs/data-sources/citations.md#american-sentiment-reference)
+
+### **ProphecyGov** (reference — never fetched)
+- Commercial local government-meeting intelligence product ([https://prophecygov.com/](https://prophecygov.com/))
+- **Use:** Same as American Sentiment — reference-only; terms forbid competitors' use; never fetched. Full write-up: [web_docs/docs/data-sources/citations.md](web_docs/docs/data-sources/citations.md#prophecygov-reference)
+
 ### **Reason Foundation** (reference)
 - Nonprofit policy research organization ([https://reason.org/](https://reason.org/)); transportation, infrastructure, and governance are among its topic areas (for example the Annual Highway Report and related publications).
 - **Use:** Cite specific Reason reports or pages when you use their materials; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#reason-foundation)
