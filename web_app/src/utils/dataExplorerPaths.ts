@@ -4,6 +4,9 @@ export const DATA_EXPLORER_MAP_BASE = '/data-explorer/map'
 /** Scorecard tab (trends + benchmarks). */
 export const DATA_EXPLORER_SCORECARD = '/data-explorer/scorecard'
 
+/** Matrix map tab (state tiles + pivot table). */
+export const DATA_EXPLORER_MATRIX = '/data-explorer/matrix'
+
 /** Jurisdiction website mapping coverage (NACo / USCM / NCES / GSA + exports). */
 export const DATA_EXPLORER_JURISDICTION_QUALITY = '/data-explorer/jurisdiction-quality'
 

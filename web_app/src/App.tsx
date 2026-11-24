@@ -51,6 +51,7 @@ import CensusDrilldownMapPage from './pages/CensusDrilldownMapPage'
 import DataExplorerLayout from './components/DataExplorerLayout'
 import AdminLayout from './components/AdminLayout'
 import DataExplorerScorecardPage from './pages/DataExplorerScorecardPage'
+import DataExplorerMatrixPage from './pages/DataExplorerMatrixPage'
 import BillDetail from './pages/BillDetail'
 import GrantDetail from './pages/GrantDetail'
 import DecisionDetail from './pages/DecisionDetail'
@@ -181,6 +182,7 @@ function App() {
         <Route path="data-explorer" element={<DataExplorerLayout />}>
           <Route index element={<DataExplorerMapDefaultRedirect />} />
           <Route path="scorecard" element={<DataExplorerScorecardPage />} />
+          <Route path="matrix" element={<DataExplorerMatrixPage />} />
           <Route path="jurisdiction-quality" element={<JurisdictionMappingQualityPage />} />
           {/* Lighthouse report + batch jobs moved to the Admin area; keep old URLs working. */}
           <Route path="lighthouse-report" element={<Navigate to="/admin/lighthouse-report" replace />} />
