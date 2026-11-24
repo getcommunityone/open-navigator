@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from llm.gemini import public_comment_checks as pc
 
 TRANSCRIPT = (

@@ -29,7 +29,7 @@ import re
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -64,19 +64,19 @@ _HOT = re.compile(
 )
 
 
-def _norm(text: Optional[str]) -> str:
+def _norm(text: str | None) -> str:
     """Lowercase, straighten quotes, and reduce everything but letters, digits and apostrophes to spaces."""
     t = (text or "").lower().replace("’", "'").replace("‘", "'")
     return " ".join(re.sub(r"[^a-z0-9']+", " ", t).split())
 
 
-def quote_found(quote: Optional[str], transcript: Optional[str]) -> bool:
+def quote_found(quote: str | None, transcript: str | None) -> bool:
     """True when the quote's words appear, in order and adjacent, in the transcript."""
     q = _norm(quote)
     return bool(q) and q in _norm(transcript)
 
 
-def side_from_quote(quote: Optional[str]) -> Optional[str]:
+def side_from_quote(quote: str | None) -> str | None:
     """The side a quote states in plain words: 'for', 'against', 'question', or None when it states none."""
     q = _norm(quote)
     if not q:
@@ -89,12 +89,12 @@ def side_from_quote(quote: Optional[str]) -> Optional[str]:
     return None
 
 
-def stance_bucket(stance: Optional[str]) -> Optional[str]:
+def stance_bucket(stance: str | None) -> str | None:
     """Bucket for one of the prompt's stance values; None for a missing or unrecognised value."""
     return _BUCKETS.get((stance or "").strip().rstrip(".!").strip().lower())
 
 
-def _heat(value: Any) -> Optional[int]:
+def _heat(value: Any) -> int | None:
     try:
         n = float(value)
     except (TypeError, ValueError):
@@ -102,7 +102,7 @@ def _heat(value: Any) -> Optional[int]:
     return int(n) if n in (1, 2, 3, 4, 5) else None
 
 
-def heat_flag(row: dict[str, Any]) -> Optional[str]:
+def heat_flag(row: dict[str, Any]) -> str | None:
     """Why a row's heat contradicts its words, or None."""
     heat = _heat(row.get("heat"))
     if heat is None:
@@ -127,11 +127,11 @@ class Report:
     findings: list[dict[str, Any]] = field(default_factory=list)
 
     @property
-    def quote_found_rate(self) -> Optional[float]:
+    def quote_found_rate(self) -> float | None:
         return self.quotes_found / self.quotes if self.quotes else None
 
     @property
-    def flip_rate(self) -> Optional[float]:
+    def flip_rate(self) -> float | None:
         return self.flips / self.sided_quotes if self.sided_quotes else None
 
     @property
@@ -178,7 +178,7 @@ def check_analysis(analysis: dict[str, Any], transcript: str) -> Report:
     return report
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--analysis", type=Path, required=True, help="Analysis JSON (the model's answer)")
     parser.add_argument("--transcript", type=Path, required=True, help="Transcript text of the same meeting")
