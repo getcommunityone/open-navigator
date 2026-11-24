@@ -1,0 +1,471 @@
+/*
+ * "Folio" look for the Data explorer Matrix map (issue #845).
+ * Tokens are copied from the Folio reference (default paper theme) and scoped to .folio so nothing leaks to other pages.
+ * Imported only by DataExplorerMatrixPage.
+ */
+.folio {
+  --font-sans: 'Geist Variable', 'Geist', 'Inter', 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --paper: #e8e6ef;
+  --paper-raised: #f4f3f8;
+  --ink: #121116;
+  --ink-2: #4a4752;
+  --ink-3: #625f6b;
+  --rule: #b8b4c4;
+  --white: #ffffff;
+  --violet: #7c63ff;
+  --violet-ink: #5a3be6;
+  --vermilion: #e2492c;
+  --vermilion-ink: #b5321a;
+  --magenta: #c04bd9;
+  --violet-100: #e4dffc;
+  --violet-200: #c9befb;
+  --violet-300: #a797fc;
+  --violet-500: #5a3be6;
+  --violet-600: #3a22a8;
+  --violet-tint: #b9abfb;
+  --vermilion-tint: #f2a391;
+  --neutral-data: #cfcbd9;
+
+  --t-kpi: clamp(36px, 4vw, 64px);
+  --t-h2: clamp(24px, 2.4vw, 36px);
+  --t-label: 13px;
+  --t-micro: 11px;
+
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.7, 0, 0.2, 1);
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --d-1: 120ms;
+  --d-2: 240ms;
+  --d-3: 600ms;
+  --d-4: 900ms;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 20px 20px 24px;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.folio *,
+.folio *::before,
+.folio *::after {
+  border-radius: 0 !important;
+}
+.folio code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.folio a {
+  color: var(--violet-ink);
+}
+
+/* Headline row */
+.folio-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin: 0;
+}
+.folio-heading {
+  font-size: var(--t-h2);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 6px 0 0;
+  color: var(--ink);
+}
+.folio-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  border-top: 1px solid var(--rule);
+  margin: 18px 0 0;
+}
+.folio-kpi {
+  padding: 12px 16px 12px 0;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+.folio-kpi-label {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.folio-kpi-num {
+  font-size: var(--t-kpi);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  margin: 4px 0 2px;
+  overflow-wrap: anywhere;
+}
+.folio-kpi-sub {
+  font-size: var(--t-label);
+  color: var(--ink-2);
+}
+
+/* Controls */
+.folio-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.folio-seg {
+  display: inline-flex;
+  border: 1px solid var(--ink);
+}
+.folio-seg button {
+  font-family: var(--font-sans);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+  border-right: 1px solid var(--ink);
+  cursor: pointer;
+  transition: background-color var(--d-1) var(--ease-std), color var(--d-1) var(--ease-std);
+}
+.folio-seg button:last-child {
+  border-right: 0;
+}
+.folio-seg button:hover {
+  background: var(--violet-100);
+}
+.folio-seg button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.folio-field {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.folio-select {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 6px 8px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+}
+.folio-note {
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+  margin: 0;
+}
+.folio-panel {
+  background: var(--paper-raised);
+  border: 1px solid var(--ink);
+  padding: 8px;
+}
+.folio-chip {
+  font-family: var(--font-sans);
+  font-size: var(--t-micro);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.folio-chip[aria-pressed='false'] {
+  opacity: 0.55;
+}
+.folio-link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--violet-ink);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.folio-link-btn:disabled {
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: default;
+}
+
+/* Visible keyboard focus on every control */
+.folio a:focus-visible,
+.folio button:focus-visible,
+.folio select:focus-visible,
+.folio input:focus-visible,
+.folio summary:focus-visible,
+.folio [tabindex]:focus-visible {
+  outline: 2px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+
+/* Scale legend */
+.folio-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+  padding: 12px 0 0;
+}
+.folio-legend-title {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.folio-swatch {
+  display: inline-block;
+  width: 20px;
+  height: 12px;
+  border: 1px solid var(--rule);
+}
+
+/* Chart area and figure caption */
+.folio-chart {
+  padding: 16px 0 4px;
+  overflow: auto;
+}
+.folio-group-label {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 0 4px;
+  margin: 0;
+}
+.folio-fig {
+  margin: 12px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.folio-fig b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.folio-status {
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  padding: 12px;
+  margin: 0;
+}
+.folio-muted {
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 8px 0;
+  margin: 0;
+}
+
+/* Tiles */
+.folio-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.folio-tile {
+  display: flex;
+  height: 64px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.15;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color var(--d-2) var(--ease-std), color var(--d-2) var(--ease-std);
+}
+.folio .folio-tile {
+  color: inherit;
+}
+.folio-tile:hover {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.folio-tile b {
+  font-weight: 600;
+}
+.folio-tile span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pivot */
+.folio-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.folio-table th {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--ink);
+  background: var(--paper);
+}
+.folio-table th button {
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+  text-transform: uppercase;
+}
+.folio-table td {
+  padding: 4px;
+  border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--d-2) var(--ease-std), color var(--d-2) var(--ease-std);
+}
+.folio-table td.folio-sticky,
+.folio-table th.folio-sticky {
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+  font-weight: 500;
+}
+
+/* Rows of bars (compare, diverging) */
+.folio-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.folio-row {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 2px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+}
+.folio-row-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.folio-row-val {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+}
+.folio-track {
+  position: relative;
+  height: 16px;
+}
+.folio-dot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50% !important;
+}
+.folio-dot-ring {
+  border-radius: 50% !important;
+}
+.folio-dumbbell-bar {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--ink-3);
+}
+
+/* Motion: everything below is switched off under prefers-reduced-motion */
+@keyframes folio-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes folio-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes folio-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* "backwards" (not "both") so the end state is the element's own style and FLIP transforms still apply afterwards. */
+.folio-in {
+  animation: folio-reveal var(--d-3) var(--ease-out) var(--delay, 0ms) backwards;
+}
+.folio-grow {
+  transform-origin: left center;
+  animation: folio-grow var(--d-3) var(--ease-out) var(--delay, 0ms) backwards;
+}
+.folio-grow-r {
+  transform-origin: right center;
+}
+.folio-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: folio-pop var(--d-2) var(--ease-out) var(--delay, 0ms) backwards;
+}
+.folio-svg-dot {
+  transition: fill var(--d-3) var(--ease-std), opacity var(--d-1) var(--ease-std);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folio-in,
+  .folio-grow,
+  .folio-pop {
+    animation: none !important;
+  }
+  .folio *,
+  .folio *::before,
+  .folio *::after {
+    transition-duration: 1ms !important;
+  }
+}
