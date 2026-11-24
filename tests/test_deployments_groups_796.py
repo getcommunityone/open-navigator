@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import os
@@ -12,9 +13,37 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("fastapi")
-pytest.importorskip("httpx")
+httpx = pytest.importorskip("httpx")
 from fastapi import FastAPI  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+
+
+class TestClient:
+    """Minimal sync client over httpx.ASGITransport (same shim as tests/test_route_gating.py).
+
+    starlette's TestClient passes ``app=`` to httpx.Client, which httpx 0.28 removed, so it fails
+    in CI with "unexpected keyword argument 'app'".
+    """
+
+    __test__ = False  # not a pytest test class
+
+    def __init__(self, asgi_app):
+        self._app = asgi_app
+
+    def request(self, method: str, url: str, **kwargs):
+        async def go():
+            transport = httpx.ASGITransport(app=self._app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver", follow_redirects=True
+            ) as client:
+                return await client.request(method.upper(), url, **kwargs)
+
+        return asyncio.run(go())
+
+    def get(self, url: str, **kwargs):
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs):
+        return self.request("POST", url, **kwargs)
 
 ROOT = Path(__file__).resolve().parents[1]
 
