@@ -90,6 +90,8 @@ RUNTIME_OWNED = frozenset(
         "job_application_link",
         # contact-form senders' names/emails, kept privately for follow-up (#448)
         "contact_submission",
+        # "Where Do You Stand?" answers, written by the running prod app; a deploy must never overwrite them (#851)
+        "stance_response",
     }
 )
 

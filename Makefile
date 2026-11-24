@@ -253,7 +253,7 @@ NEON_RESTORE_DB ?= open_navigator_serving
 # Mirrors RUNTIME_OWNED in packages/hosting/src/hosting/neon/sync_public_to_neon.py — the
 # same set the Neon serving DB already excludes (user accounts, OAuth state, social graph,
 # feed prefs). backup-public strips these so no personal user data leaves the machine.
-PII_EXCLUDE_TABLES ?= user contact_oauth_state social_follows user_lens_prefs user_locations user_signal_prefs meeting_document_gap_cache job_application_link contact_submission
+PII_EXCLUDE_TABLES ?= user contact_oauth_state social_follows user_lens_prefs user_locations user_signal_prefs meeting_document_gap_cache job_application_link contact_submission stance_response
 # Postgres client tools. `pg_dump` must be >= the server it dumps (Neon is PG 17), and
 # `pg_restore` >= the dump's archive format — a mismatched major aborts the dump. We
 # AUTO-SELECT the newest client installed under /usr/lib/postgresql/*/bin, so PG 17 is used

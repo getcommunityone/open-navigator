@@ -340,6 +340,7 @@ from api.routes import meeting_comparison as meeting_comparison_routes
 from api.routes import stats_neon as stats_routes  # Was: stats
 from api.routes import contact as contact_routes
 from api.routes import chat_meetings as chat_meetings_routes
+from api.routes import stance as stance_routes
 # Use hybrid approach for bills: Neon for map, parquet for drill-down (saves space)
 from api.routes import bills_neon as bills_routes  # Was: bills
 from api.routes import data_deletion as data_deletion_routes
@@ -383,6 +384,7 @@ app.include_router(meeting_comparison_routes.router, prefix="/api")
 app.include_router(stats_routes.router, prefix="/api", tags=["stats"])
 app.include_router(contact_routes.router, prefix="/api")
 app.include_router(chat_meetings_routes.router, prefix="/api")
+app.include_router(stance_routes.router, prefix="/api")
 app.include_router(bills_routes.router, prefix="/api")
 app.include_router(data_deletion_routes.router, prefix="/api", tags=["privacy"])
 app.include_router(trending_routes.router)
