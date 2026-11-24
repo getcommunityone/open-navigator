@@ -2309,7 +2309,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-4">
                       <a
-                        href="/pdf/c1_strategic_plan.PDF"
+                        href="/pdf/c1_strategic_plan.pdf"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm font-medium text-[#52796F] hover:underline"
@@ -2326,7 +2326,7 @@ export default function Home() {
                     </div>
                   </div>
                   <iframe
-                    src="/pdf/c1_strategic_plan.PDF"
+                    src="/pdf/c1_strategic_plan.pdf"
                     title="CommunityOne Strategic Plan"
                     className="flex-1 w-full"
                   />
