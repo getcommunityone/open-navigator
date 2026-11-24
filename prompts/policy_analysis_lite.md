@@ -32,6 +32,23 @@ An item appears in **exactly one** bucket, never both. Omit pure housekeeping (a
 2. **`primary_cause_ntee`** — the single best-fit NTEE major-group letter for the substantive cause area (e.g. `E` Health Care, `O` Youth Development, `L` Housing, `S` Community Improvement, `C` Environment, `B` Education, `W` Public/Societal Benefit). Prefer a substantive area over `W` unless the item is strictly administrative. `null` if unclear.
 3. **`primary_cause_label`** — a short (≤4 word) plain-language cause area (e.g. "Affordable housing", "Road safety"). `null` if unclear.
 
+## Public comment stance (`public_participation[]`)
+One row per **member of the public or outside stakeholder** who addressed the body (not members of the body, not staff).
+- `speaker_id`: a slug `firstname_lastname_role` from the name as spoken (e.g. `david_craig_resident`). Skip a speaker who is not named; never invent a name.
+- `decision_id`: the `decisions[].decision_id` or `uncontested_items[].item_id` the comment is about; `null` for general public comment.
+- `stance` toward **the action being decided**, exactly one of: `For`, `Against`, `Asked questions` (only asked questions or sought information), `Mixed or neutral` (conditions, delay requests, information only), `Not stated` (does not address the action). Never infer a stance from a role or name.
+- `stance_evidence`: the speaker's own words showing the stance, verbatim, 25 words or fewer; else `null`.
+- `heat`: how heated this speaker's comment was, a whole number 1 to 5, judged only from their words and what the transcript records (captions carry no tone of voice):
+    * **1:** calm; information or a neutral question.
+    * **2:** polite, a mild preference or concern.
+    * **3:** firm or emphatic; urges the body to act.
+    * **4:** states anger, frustration or alarm; accusations or warnings.
+    * **5:** personal attacks, threats of legal or electoral retaliation, shouting noted in the transcript, or cut off or gaveled by the chair.
+  `null` when too little was said to judge. Never raise the number because of the topic or the speaker's side.
+- `speaker_role`: the capacity the speaker gave for themselves, exactly one of: Resident, Property owner, Business owner, Advocacy group, Expert, Union worker, Applicant or developer, Student, Other, Not stated. Use what they said ("I live on Oak Street" is `Resident`; "I own the lot next door" is `Property owner`; "I'm with the Rivers Alliance" is `Advocacy group`; an engineer, doctor or attorney speaking from that expertise is `Expert`). `Not stated` when they gave none. Never infer a role from a name or from their stance.
+Emit at most 40 rows. If more people spoke, keep the comments tied to a `decisions[]` item first, then those on uncontested items, then general comment; never drop a speaker to shorten another field.
+If no member of the public spoke, emit `"public_participation": []`.
+
 ## Rules
 - Never invent. Use only what the transcript states. Leave fields `null` rather than guessing.
 - `place_raw`: the single most relevant verbatim location cue for the item (street/site/neighborhood), or `null`. Do not geocode or normalize.
@@ -61,6 +78,16 @@ An item appears in **exactly one** bucket, never both. Omit pure housekeeping (a
       "place_refs": [],
       "legislation_refs": [],
       "financial_item_refs": []
+    }
+  ],
+  "public_participation": [
+    {
+      "speaker_id": "string — firstname_lastname_role slug",
+      "decision_id": "string or null — D00x or U00x the comment is about",
+      "stance": "one of: For, Against, Asked questions, Mixed or neutral, Not stated",
+      "stance_evidence": "string or null — verbatim quote, 25 words or fewer",
+      "heat": "integer 1-5 or null",
+      "speaker_role": "one of: Resident, Property owner, Business owner, Advocacy group, Expert, Union worker, Applicant or developer, Student, Other, Not stated"
     }
   ],
   "uncontested_items": [

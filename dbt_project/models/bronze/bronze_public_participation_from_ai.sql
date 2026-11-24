@@ -14,13 +14,20 @@ Extract public-comment speakers from the Gemini AI analysis JSONB.
 Source: bronze.bronze_events_analysis_ai.structured_analysis -> 'public_participation'
 Target: bronze.bronze_public_participation_from_ai
 
-Each element is one speaker turn during public comment:
-  speaker_id, topic, stance, summary, primary_theme, place_refs,
-  timestamp_start_seconds, timestamp_end_seconds.
+Each element is one public speaker's comment:
+  speaker_id, decision_id, stance, stance_evidence, speaker_role, heat, topic, summary, primary_theme,
+  place_refs, timestamp_start_seconds, timestamp_end_seconds.
+
+decision_id / stance_evidence were added with the prompt version that asks for
+public_participation[] in both the full and lite prompts (meeting-sentiment-design.md).
+A speaker can comment on more than one item, so the key gains '_' || decision_id
+when one is present; rows without a decision_id keep the original key.
+Run this model once with --full-refresh after the change lands, so a re-loaded
+analysis cannot leave an old-format row beside its new-format rows.
 
 Powers the `engagement` interestingness component (speaker count + duration).
 
-COVERAGE CAVEAT: as of 2026-06 only ~1 of ~1,569 analyses carries a
+COVERAGE CAVEAT (before the prompts asked for the array, #807): as of 2026-06 only ~1 of ~1,569 analyses carries a
 public_participation array (the analyzer rarely emits it yet), so engagement is
 near-empty in practice today. This model mirrors the bronze_*_from_ai family so
 the signal lights up automatically as the analyzer backfills the array — no
@@ -60,6 +67,11 @@ participation_extracted AS (
         source_event_id,
         source_ai_model,
         pp->>'speaker_id'    as speaker_id,
+        nullif(btrim(pp->>'decision_id'), '') as decision_id,
+        pp->>'stance_evidence' as stance_evidence,
+        nullif(btrim(pp->>'speaker_role'), '') as speaker_role,
+        -- 1-5 only; anything else (free text, out of range) is unknown
+        CASE WHEN (pp->>'heat') ~ '^[1-5](\.0+)?$' THEN (pp->>'heat')::numeric::integer END as heat,
         pp->>'topic'         as topic,
         pp->>'stance'        as stance,
         pp->>'summary'       as summary,
@@ -76,12 +88,16 @@ participation_extracted AS (
 )
 
 SELECT
-    source_event_id || '_' || speaker_id as source_event_id_speaker_id,
+    source_event_id || '_' || speaker_id || coalesce('_' || decision_id, '') as source_event_id_speaker_id,
     source_event_id,
     source_ai_model,
     speaker_id,
+    decision_id,
     topic,
     stance,
+    stance_evidence,
+    speaker_role,
+    heat,
     summary,
     primary_theme,
     place_refs,
