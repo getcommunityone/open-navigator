@@ -42,6 +42,20 @@ comparable with the national view.
   parameters, so a link or a refresh returns the same view.
 - Opening a tile or a state name goes to the national map for that metric. The map does not yet open on that state.
 
+## When the Data explorer shows no data
+
+Map view and Matrix map both read the census bundle from `/data/census-map/` (in the repository,
+`web_app/public/data/census-map/`). The bundle is generated and git-ignored, so a fresh checkout, or a machine where
+that folder was cleaned, does not have it. Both tabs then say **No map data available** and name the command that
+creates the files:
+
+```bash
+python -m ingestion.census.export_census_map_static --all-years
+```
+
+Reload the page afterwards. Before #838 the map showed gray states and an empty metric list with no message, because a
+missing file comes back from the dev server as the app's own page with a success status, not as an error.
+
 ## For developers
 
 - Page: `web_app/src/pages/DataExplorerMatrixPage.tsx`; dot map: `web_app/src/components/DotMatrixMap.tsx`.

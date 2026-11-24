@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { fetchStaticJson } from '../utils/fetchStaticJson'
 import { feature as topoFeature } from 'topojson-client'
 import { geoCentroid, geoContains } from 'd3-geo'
 import {
@@ -282,13 +283,12 @@ export default function CensusDrilldownMapPage() {
   const cpi = useCpiAnnual()
 
   // ── data: manifest + state metrics + state trends + albers topology ───────
-  const { data: manifest } = useQuery({
+  // The manifest lists the metrics and years. Without it nothing on this page has data, so say so
+  // instead of drawing a gray map with an empty metric list.
+  const { data: manifest, isError: bundleMissing } = useQuery({
     queryKey: ['census-map-manifest'],
-    queryFn: async (): Promise<CensusManifest> => {
-      const r = await fetch('/data/census-map/manifest.json')
-      if (!r.ok) throw new Error('manifest')
-      return r.json()
-    },
+    queryFn: () => fetchStaticJson<CensusManifest>('/data/census-map/manifest.json'),
+    retry: false,
   })
 
   const { data: statePayload } = useQuery({
@@ -1172,6 +1172,18 @@ export default function CensusDrilldownMapPage() {
 
   return (
     <div className="mx-auto w-full min-w-0 space-y-2.5">
+      {bundleMissing && (
+        <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">No map data available.</p>
+          <p className="mt-1">
+            The census data files for this map are not on this server
+            (<code className="text-xs">/data/census-map/manifest.json</code> could not be read), so the map is
+            gray and there are no metrics to choose. The files are generated, not stored in the repository: run{' '}
+            <code className="text-xs">python -m ingestion.census.export_census_map_static --all-years</code> to
+            create them, then reload.
+          </p>
+        </div>
+      )}
       {/* display controls — full-height drawer docked on the right */}
       <CensusMapOptionsFlyout
         open={advancedMapOptionsOpen}
