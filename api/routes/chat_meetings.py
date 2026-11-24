@@ -89,6 +89,8 @@ class ChatMeetingsResponse(BaseModel):
     found: bool
     mode: str
     usage: Optional[ChatUsage] = None
+    # How the meetings were matched (#922): the question as typed, all of its content words, or any of them.
+    match: Optional[str] = None
 
 
 @dataclass
@@ -199,6 +201,91 @@ def _estimate_cost_usd(
         return None
 
 
+# Words that carry no topic in a question to this chat (#922): question words, glue, and the civic words that
+# appear in nearly every meeting record. What is left is what the search looks for.
+_CHAT_STOP_WORDS = frozenset(
+    """a about after all also am an and any are as at be been before but by can could did do does for from had
+    has have how i if in into is it its just me my of on or our over should so some than that the their them
+    then there these they this to under up us was we were what when where which who whom why will with would
+    you your tell show give find know say says said saying talk talks talked talking discuss discusses discussed
+    discussing discussion mention mentions mentioned happen happens happened happening think thinks thought
+    going get got go please recent recently latest lately today now anything something everything nothing
+    council councils board boards commission commissions committee committees meeting meetings city cities
+    county counties town towns local government governments official officials member members people public
+    resident residents""".split()
+)
+_MAX_CHAT_TERMS = 8
+
+
+def chat_search_terms(question: str) -> List[str]:
+    """The content words of a question, lowercase, with quoted phrases kept whole; at most eight (#922).
+
+    "What did councils say about data centers?" -> ["data", "centers"]. A question with nothing left
+    ("what happened?") gives an empty list, and the caller keeps the typed-question search only.
+    """
+    text = (question or "").lower()
+    terms: List[str] = [p.strip() for p in re.findall(r'"([^"]{2,60})"', text) if p.strip()]
+    rest = re.sub(r'"[^"]*"', " ", text)
+    for word in re.findall(r"[a-z0-9][a-z0-9'-]*", rest):
+        word = word.strip("'-")
+        if len(word) > 1 and word not in _CHAT_STOP_WORDS:
+            terms.append(word)
+    seen: List[str] = []
+    for term in terms:
+        if term not in seen:
+            seen.append(term)
+    return seen[:_MAX_CHAT_TERMS]
+
+
+# One search document per meeting, and whether one term ($n is the term) is in it or in one of its decisions.
+_CHAT_DOC_SQL = (
+    "to_tsvector('english', coalesce(em.body_name, '') || ' ' || coalesce(em.jurisdiction_name, '') || ' ' || "
+    "coalesce(em.city, '') || ' ' || coalesce(em.meeting_summary, '') || ' ' || coalesce(em.agenda_summary, ''))"
+)
+
+
+def _chat_term_hits_sql(terms_idx: int) -> str:
+    """How many of the terms ($terms_idx::text[]) a meeting matches, in its own text or a decision's."""
+    return (
+        f"(SELECT count(*) FROM unnest(${terms_idx}::text[]) AS t(term) "
+        f"WHERE x.doc @@ plainto_tsquery('english', t.term) "
+        f"OR EXISTS (SELECT 1 FROM event_decision d WHERE d.c1_event_id = em.c1_event_id "
+        f"AND d.search_tsv @@ plainto_tsquery('english', t.term)))"
+    )
+
+
+async def search_meetings_with_match(
+    *,
+    query: str,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    county_fips: Optional[str] = None,
+    limit: int = 5,
+) -> Tuple[List[MeetingContext], Optional[str]]:
+    """Meetings for a chat question, and how they matched (#922).
+
+    Strict first, widening only when nothing is found: the question as typed ("exact"), then every content
+    word ("all_terms"), then any content word ranked by how many it matches ("any_term").
+    """
+    found = await search_analyzed_meetings_for_chat(
+        query=query, state=state, city=city, county_fips=county_fips, limit=limit
+    )
+    if found:
+        return found, "exact"
+    terms = chat_search_terms(query)
+    if not terms:
+        return [], None
+    for mode in ("all_terms", "any_term"):
+        if mode == "any_term" and len(terms) == 1:
+            break  # one term: "any" is the same search as "all"
+        found = await search_analyzed_meetings_for_chat(
+            query=query, state=state, city=city, county_fips=county_fips, limit=limit, terms=terms, match=mode
+        )
+        if found:
+            return found, mode
+    return [], None
+
+
 async def search_analyzed_meetings_for_chat(
     *,
     query: str,
@@ -206,26 +293,38 @@ async def search_analyzed_meetings_for_chat(
     city: Optional[str] = None,
     county_fips: Optional[str] = None,
     limit: int = 5,
+    terms: Optional[List[str]] = None,
+    match: str = "exact",
 ) -> List[MeetingContext]:
-    """Top matching analyzed meetings with full meeting_summary for the LLM prompt."""
+    """Top matching analyzed meetings with full meeting_summary for the LLM prompt.
+
+    ``match="exact"`` matches the question as typed. ``"all_terms"`` and ``"any_term"`` match ``terms``
+    (from ``chat_search_terms``) and rank by how many a meeting matches. Terms are always parameters.
+    """
     state = normalize_state_input(state)
     q = (query or "").strip()
     if not q:
         return []
 
     params: List[Any] = []
-    params.append(f"%{q}%")
-    q_like_idx = len(params)
-    params.append(q)
-    q_fts_idx = len(params)
-
-    where: List[str] = [
-        f"(em.body_name ILIKE ${q_like_idx} OR em.jurisdiction_name ILIKE ${q_like_idx} "
-        f"OR em.meeting_summary ILIKE ${q_like_idx} OR em.city ILIKE ${q_like_idx} "
-        f"OR EXISTS (SELECT 1 FROM event_decision d "
-        f"WHERE d.c1_event_id = em.c1_event_id "
-        f"AND d.search_tsv @@ plainto_tsquery('english', ${q_fts_idx})))"
-    ]
+    hits_sql = ""
+    if match == "exact" or not terms:
+        params.append(f"%{q}%")
+        q_like_idx = len(params)
+        params.append(q)
+        q_fts_idx = len(params)
+        where: List[str] = [
+            f"(em.body_name ILIKE ${q_like_idx} OR em.jurisdiction_name ILIKE ${q_like_idx} "
+            f"OR em.meeting_summary ILIKE ${q_like_idx} OR em.city ILIKE ${q_like_idx} "
+            f"OR EXISTS (SELECT 1 FROM event_decision d "
+            f"WHERE d.c1_event_id = em.c1_event_id "
+            f"AND d.search_tsv @@ plainto_tsquery('english', ${q_fts_idx})))"
+        ]
+    else:
+        params.append(list(terms))
+        hits_sql = _chat_term_hits_sql(len(params))
+        need = "cardinality($%d::text[])" % len(params) if match == "all_terms" else "1"
+        where = [f"{hits_sql} >= {need}"]
 
     if state:
         params.append(state.upper())
@@ -255,6 +354,8 @@ async def search_analyzed_meetings_for_chat(
         "(CASE WHEN em.meeting_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' "
         "THEN em.meeting_date END)"
     )
+    # Wider matches are ranked by how many terms a meeting has, then by date.
+    rank_order = f"{hits_sql} DESC, " if hits_sql else ""
     sql = f"""
         SELECT
             em.event_meeting_id,
@@ -268,8 +369,9 @@ async def search_analyzed_meetings_for_chat(
             em.agenda_summary,
             em.video_id
         FROM event_meeting em
+        CROSS JOIN LATERAL (SELECT {_CHAT_DOC_SQL} AS doc) x
         WHERE {" AND ".join(where)}
-        ORDER BY {em_iso} DESC NULLS LAST, em.event_meeting_id DESC
+        ORDER BY {rank_order}{em_iso} DESC NULLS LAST, em.event_meeting_id DESC
         LIMIT ${limit_idx}
     """
 
@@ -563,7 +665,7 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
                 span=span,
             )
 
-        meetings = await search_analyzed_meetings_for_chat(
+        meetings, match = await search_meetings_with_match(
             query=question,
             state=body.state,
             city=body.city,
@@ -571,6 +673,7 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
             limit=5,
         )
         span.set_attribute("chat.meeting_hits", len(meetings))
+        span.set_attribute("chat.match", match or "none")
 
         citations = [
             ChatCitation(
@@ -597,9 +700,17 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
             )
 
         _require_chat_configured()
+        prompt = _meetings_to_prompt(question, meetings)
+        if match == "any_term":
+            # Tell the model the match was loose, so it says so and does not stretch a weak meeting into an answer.
+            prompt += (
+                "\n\nNote: no meeting matched every word of the question. These meetings mention at least one of: "
+                + ", ".join(chat_search_terms(question))
+                + ". Say which of these terms each meeting you use is about, and say plainly if none answers the question."
+            )
         try:
             text, model, in_tok, out_tok, usd = await run_in_threadpool(
-                _call_chat_model, _SYSTEM_SUMMARIES, _meetings_to_prompt(question, meetings)
+                _call_chat_model, _SYSTEM_SUMMARIES, prompt
             )
         except Exception as exc:  # noqa: BLE001
             span.record_exception(exc)
@@ -622,6 +733,7 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
             usage=ChatUsage(
                 model=model, input_tokens=in_tok, output_tokens=out_tok, estimated_usd=usd
             ),
+            match=match,
         )
 
 
