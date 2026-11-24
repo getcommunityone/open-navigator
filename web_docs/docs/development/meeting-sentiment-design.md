@@ -185,8 +185,12 @@ database or model call:
 python -m llm.gemini.public_comment_checks --analysis analysis.json --transcript transcript.txt
 ```
 
-It exits non-zero when a bar is missed and lists each row that failed a check. Check 2 only counts quotes that state a
-side in plain words, with negations handled ("do not support" reads against, "not opposed" reads for). Checks 3
+It exits non-zero when a bar is missed and lists each row that failed a check. Several analysis and transcript pairs
+can be given at once and are added into one report, which is how the pilot is judged. Check 2 only counts quotes that
+state a side in plain words, with negations handled ("do not support" reads against, "not opposed" reads for). A quote
+that hedges, sets a condition, states both sides or asks a question is counted neither way, because a wrong reading is
+worse than a missed one. Quotes under three words are not counted as evidence, and the flip-rate bar is applied only
+once there are 20 side-stating quotes; a quote that is not in the transcript fails at any sample size. Checks 3
 (constructed transcripts run through the model), 4 and 5 need a model run or the warehouse and are not built.
 
 Bar to show the numbers (best judgement; change with a dated line under Decisions): check 1 at least 98 of 100 quotes
