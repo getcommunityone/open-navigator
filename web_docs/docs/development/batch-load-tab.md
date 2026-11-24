@@ -18,6 +18,9 @@ Issue [#796](https://github.com/getcommunityone/open-navigator/issues/796).
 
 Deep links: `?type=load` and `?type=deployment` (tab 1 has no parameter).
 
+The Admin area opens on Batch jobs (#888). Its tabs run Batch jobs, Meeting kinds, Application links, Lighthouse
+report. When a site has no stored audit, the Lighthouse report tab says so plainly; it is an empty state, not an error.
+
 ## Tab 2: Load
 
 Four steps run in order. A failing step stops the run, and **Stop** ends the running step.

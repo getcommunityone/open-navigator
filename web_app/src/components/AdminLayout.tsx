@@ -63,21 +63,14 @@ export default function AdminLayout() {
             ) : null}
           </div>
           <p className="mt-0.5 max-w-[52rem] text-[11px] leading-snug text-slate-600 sm:text-xs">
-            Operational tooling — data-quality Lighthouse scores, meeting-kind review, and live
-            batch-job progress for the caption / analyze pipelines.
+            Operational tooling — live batch-job progress for the caption / analyze pipelines, meeting-kind
+            review, application links, and data-quality Lighthouse scores.
           </p>
           <nav
             className="mt-1.5 -mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
             aria-label="Admin views"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
-            <NavLink
-              to={ADMIN_LIGHTHOUSE_REPORT}
-              end
-              className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
-            >
-              Lighthouse report
-            </NavLink>
             <NavLink
               to={ADMIN_BATCH_JOBS}
               end
@@ -98,6 +91,13 @@ export default function AdminLayout() {
               className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
             >
               Application links
+            </NavLink>
+            <NavLink
+              to={ADMIN_LIGHTHOUSE_REPORT}
+              end
+              className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
+            >
+              Lighthouse report
             </NavLink>
           </nav>
           {onApplicationLinks && (
