@@ -27,7 +27,7 @@ This page documents all data sources, standards, and research contributions used
  </a>
  <a href="#-comparative--deliberative-analysis" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #3F51B5'}}>
  <strong>🆚 Comparative & Deliberative Analysis</strong><br/>
- <span style={{fontSize: '0.9em', color: '#666'}}>AllSides, ProCon.org, iSideWith, OnTheIssues, Kialo, Ground News</span>
+ <span style={{fontSize: '0.9em', color: '#666'}}>AllSides, ProCon.org, iSideWith, OnTheIssues, Kialo, Ground News, American Sentiment, ProphecyGov</span>
  </a>
  <a href="#government-data" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #4CAF50'}}>
  <strong> Government Data</strong><br/>
@@ -502,8 +502,10 @@ This is separate from the word-finding API and has different pricing.
 - [OnTheIssues](#ontheissues)
 - [Kialo](#kialo)
 - [Ground News](#ground-news)
+- [American Sentiment (reference)](#american-sentiment-reference)
+- [ProphecyGov (reference)](#prophecygov-reference)
 
-These platforms present **multiple positions on the same issue side by side** — pro/con arguments, left/center/right framing, candidate stances, and structured debate trees. We cite them as **reference and design inspiration** for Open Navigator's "competing views" / "argued by" analysis, which surfaces the different sides of a local decision. **We do not redistribute their data, ratings, or argument content**; if you use anything from these sites, cite the specific page and follow each site's terms.
+These platforms present **multiple positions on the same issue side by side** — pro/con arguments, left/center/right framing, candidate stances, structured debate trees, and local meeting / public-comment pulse products. We cite them as **reference and design inspiration** for Open Navigator's "competing views" / "argued by" analysis and our own meeting-sentiment work. **We do not redistribute their data, ratings, or argument content**; if you use anything from these sites, cite the specific page and follow each site's terms. American Sentiment and ProphecyGov **forbid competitors' use** — we never fetch them (see those entries).
 
 ### AllSides
 
@@ -618,6 +620,44 @@ These platforms present **multiple positions on the same issue side by side** �
  title = {Ground News: Compare News Coverage and Media Bias},
  url = {https://ground.news/},
  note = {Cross-outlet coverage and bias comparison; reference-only.}
+}
+```
+
+### American Sentiment (reference)
+
+**Organization:** American Sentiment
+**What it does:** Commercial product that surfaces **sentiment and engagement around local government meetings** and related civic events — a category peer for Open Navigator's meeting-sentiment / public-comment stance work.
+
+- **Website:** https://americansentiment.com/
+- **Use as reference for:** The product category of local meeting pulse and public-comment stance (see [Meeting sentiment](../development/meeting-sentiment-design.md)).
+- **License / use:** Proprietary. Their terms **forbid competitors' use**. Open Navigator treats the site as **reference-only naming**: we **never fetch, scrape, or redistribute** their data. Ingestion blocks the host in `community_events.py` (`BLOCKED_HOSTS`). Stance and engagement in our product come only from our own transcripts and analyses.
+
+**BibTeX:**
+```bibtex
+@misc{american_sentiment,
+ author = {{American Sentiment}},
+ title = {American Sentiment},
+ url = {https://americansentiment.com/},
+ note = {Local meeting sentiment product; reference-only. Terms forbid competitors' use; never fetched or redistributed by Open Navigator.}
+}
+```
+
+### ProphecyGov (reference)
+
+**Organization:** ProphecyGov
+**What it does:** Commercial civic / government-meeting intelligence product in the same **local meeting and public-engagement** space.
+
+- **Website:** https://prophecygov.com/
+- **Use as reference for:** Naming a peer product category for local meeting intelligence (alongside American Sentiment).
+- **License / use:** Proprietary. Their terms **forbid competitors' use**. Open Navigator treats the site as **reference-only naming**: we **never fetch, scrape, or redistribute** their data. The host is blocked in `community_events.py` (`BLOCKED_HOSTS`) with American Sentiment.
+
+**BibTeX:**
+```bibtex
+@misc{prophecygov,
+ author = {{ProphecyGov}},
+ title = {ProphecyGov},
+ url = {https://prophecygov.com/},
+ note = {Local government-meeting intelligence product; reference-only. Terms forbid competitors' use; never fetched or redistributed by Open Navigator.}
 }
 ```
 

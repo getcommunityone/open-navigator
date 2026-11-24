@@ -66,7 +66,8 @@ so no meeting crawl finds them; local news and the companies' own press releases
   'stated_month_day'`). A press release's dateline or an earlier date is never the meeting date, and an impossible
   date ("February 30") is dropped.
 - **Polite fetching.** A descriptive User-Agent with no personal details, robots.txt checked per host, per-host
-  spacing. americansentiment.com and prophecygov.com forbid competitors' use and are never fetched.
+  spacing. americansentiment.com and prophecygov.com forbid competitors' use and are never fetched
+  ([Citations](../data-sources/citations.md#american-sentiment-reference)).
 - **Timeline stages are read, not guessed.** On a project's timeline a decision is "Planning" or "Council vote"
   only when its own text says so (zoning, rezoning, site plan; voted, approved, ordinance); otherwise it is a
   "Government meeting". An undated item is never given a date.
