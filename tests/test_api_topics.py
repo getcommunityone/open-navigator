@@ -185,6 +185,18 @@ def test_curated_topic_tsquery_matches_phrases_not_loose_words():
     )
 
 
+def test_default_curated_topics_match_phrases_and_never_a_bare_flock():
+    """The #808 seed rows: hyphens split into adjacent words, brand words stay phrases."""
+    assert search._curated_topic_tsquery("Short-term rentals", ["short-term rental", "airbnb"]) == (
+        "(short <-> term <-> rental) | airbnb"
+    )
+    tq = search._curated_topic_tsquery(
+        "Flock and license plate readers", ["license plate reader", "flock safety", "flock camera", "alpr"]
+    )
+    assert tq == "(license <-> plate <-> reader) | (flock <-> safety) | (flock <-> camera) | alpr"
+    assert "flock |" not in tq and not tq.endswith("flock")
+
+
 def test_curated_topic_tsquery_is_injection_safe_and_handles_empty():
     assert search._curated_topic_tsquery("x", ["data' | !center & (farm"]) == (
         "(data <-> center <-> farm)"

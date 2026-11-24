@@ -196,7 +196,8 @@ export default function BrowseTopics() {
           {isError ? (
             <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             Couldn&apos;t load topics.{' '}
-            {(error as { message?: string } | undefined)?.message ?? 'Please try again.'}
+            {(error as { response?: { data?: { detail?: string } } } | undefined)?.response?.data?.detail ??
+              'Please try again.'}
           </div>
           ) : (
             <div className="mt-3 flex flex-wrap items-center gap-2">
