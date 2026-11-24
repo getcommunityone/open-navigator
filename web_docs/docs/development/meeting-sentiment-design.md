@@ -163,10 +163,28 @@ label.
 
 ## Cost and approvals
 
-Jev costs $0.042 per million input tokens and output is free (see transcript screening). A 3-minute passage is
-roughly 600 tokens, so about $0.000025 per passage, or roughly $2.50 per 100,000 passages (an estimate; read the
-real number from `python -m llm.usage.report` after a small run). That is small, but a Jev run is a paid LLM
-endpoint, so under `AGENTS.md` **it starts only with the owner's yes**, and the cost goes in the run's issue or PR.
+Jev bills input tokens only: $0.042 per million, output free (see transcript screening). Stance runs **only on
+data-center passages**, not on whole meetings, so long or boring meetings with no data-center talk cost nothing extra.
+
+Per request: a ~3-minute passage is about 600 tokens, plus about 300 tokens of question text, so about 900 tokens,
+which is about **$0.00004 per passage**. All figures below are my arithmetic from stated assumptions; the real
+counts come from the dry run (`--dry-run` counts passages and estimates tokens without sending anything).
+
+| Scenario (200,000 meetings) | Passages sent | Tokens | Estimated cost |
+| --- | --- | --- | --- |
+| **Gated (recommended):** only videos the screen marked as discussing data centers. Assume 2% to 5% of meetings, 3 to 5 passages each | 12,000 to 50,000 | 11M to 45M | **about $0.50 to $2** |
+| Every passage of every meeting (no gate), assuming 40 passages for a 2-hour meeting | 8,000,000 | 7.2B | about $300 (about $0.0015 per meeting) |
+| Re-run after a wording change, gated | same as gated | same | about $0.50 to $2 each time |
+| Gemini second-reader sample (validation Layer 4), about 500 passages | 500 | small | under about $1 (price from the usage tables; confirm with a dry run) |
+
+What drives it: how many passages mention data centers, not how many meetings we have. Even the ungated worst case
+is a few hundred dollars, and the gated plan is a couple of dollars. A Jev run is still a paid LLM endpoint, so under
+`AGENTS.md` **it starts only with the owner's yes**, and the cost goes in the run's issue or PR. Read usage before
+and after with `python -m llm.usage.report`.
+
+Why this stays cheap: the gate already exists (`mentions_data_center_p` from the screen), stance reuses stored
+passages, answers are cached in the bronze table so a passage is never re-sent unless the question-set version
+changes, and a hard `--max-passages` cap on the CLI stops a run that is bigger than expected.
 
 ## Constraints and risks
 
