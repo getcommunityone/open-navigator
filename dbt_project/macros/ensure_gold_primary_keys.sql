@@ -7,6 +7,7 @@
   before this macro can attach a PK — Postgres PRIMARY KEY columns are NOT NULL.
 #}
 {% macro ensure_gold_primary_keys(dry_run=true) %}
+  {#- #783: ballot_measures was the one gold table with no PK; ballot_measure_uid is unconfirmed unique, so this stops on NULLs and Postgres rejects duplicates. -#}
   {% set specs = [
     {'table': 'events_text_search', 'cols': ['video_id']},
     {'table': 'events_channels_search', 'cols': ['channel_id']},
@@ -24,7 +25,7 @@
     {'table': 'dq_jurisdiction_mapping_summary_by_acs_income_level', 'cols': ['jurisdiction_type', 'acs_income_level']},
     {'table': 'dq_jurisdiction_mapping_summary_by_acs_population_tier', 'cols': ['jurisdiction_type', 'acs_population_tier']},
     {'table': 'dq_jurisdiction_mapping_summary_municipality_places', 'cols': ['municipality_place_kind']},
-    {'table': 'ballot_measures', 'cols': ['ballot_measure_uid']},  {# #783: was the one gold table with no PK #}
+    {'table': 'ballot_measures', 'cols': ['ballot_measure_uid']},
   ] %}
 
   {% for s in specs %}
