@@ -40,7 +40,7 @@ export default function Cover({ packTitle, statementCount, onStart }: Props) {
         {stats.length > 0 && <p className="stance-note">Counts for the whole country, from Open Navigator records.</p>}
         <div className="stance-nav">
           <button type="button" className="folio-btn stance-next" onClick={onStart} data-primary>
-            Start the challenge →
+            Start the challenge <span aria-hidden="true">→</span>
           </button>
         </div>
       </div>

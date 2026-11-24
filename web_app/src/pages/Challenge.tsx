@@ -22,6 +22,8 @@ import ProgressRail from '../components/stance/ProgressRail'
 import RoundPanel from '../components/stance/RoundPanel'
 import ScopeBar from '../components/stance/ScopeBar'
 import { actsMode, useActs, type Hold } from '../components/stance/useActs'
+import { useIdleNudge } from '../hooks/useIdleNudge'
+import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { useRecentWrites } from '../components/stance/useRecentWrites'
 import { useScreenKeys } from '../components/stance/useScreenKeys'
 import { useMediaQuery } from '../hooks/useMediaQuery'
@@ -122,6 +124,14 @@ export default function Challenge() {
   const animated = mode === 'pinned'
   const gameRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
+  // A player who has stopped gets a livelier cue on the next step, with one soft sound on the first cue when sound is on.
+  useIdleNudge({
+    rootRef: gameRef,
+    screen: coverGone ? `[data-panel="${active}"]` : '[data-cover]',
+    resetKey: `${coverGone}-${active}`,
+    entranceMs: NUDGE_ENTRANCE_MS,
+    onNudge: (first) => first && cue('open'),
+  })
   // Offsets under the sticky site header and this page's own HUD bar, as CSS variables for the act height and anchors.
   useLayoutEffect(() => {
     const game = gameRef.current

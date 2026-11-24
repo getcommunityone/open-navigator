@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { GroupResult } from '../api/stance'
 import {
+  COUNT_DOT_CAP,
   chartSpec,
+  countDots,
+  dotMeaning,
+  dotRatio,
+  speakerCounts,
   dotGroupHeading,
   findingAgendaItems,
   findingCommunityEvents,
@@ -211,11 +216,91 @@ describe('chartSpec', () => {
     expect(spec.groups.map((g) => [g.label, g.shown])).toEqual([['Operating', 2], ['Planned', 1]])
     expect(spec.groups[0]!.dots[1]!.url).toBeNull()
   })
-  it('bars carry count and share that sum to 100, sorted by mentions', () => {
+  it('concerns: one dot per mention, sorted by mentions, with real counts and shares', () => {
     const spec = chartSpec('concerns', { items: [], national: [{ concern: 'noise', mention_count: 2 }, { concern: 'water', mention_count: 9 }] } as never)!
-    if (spec.kind !== 'bars') throw new Error('bars')
-    expect(spec.rows.map((r) => r.value)).toEqual([9, 2])
-    expect(spec.rows.reduce((a, r) => a + r.percent, 0)).toBe(100)
+    expect(spec.groups.map((g) => [g.total, g.shown, g.share])).toEqual([[9, 9, 82], [2, 2, 18]])
+    expect(spec.perDot).toBe(1)
+    expect(spec.dotMeans).toBe('Every dot is one mention.')
+    expect(spec.groups[0]!.heading).toMatch(/· 9 mentions · 82%$/)
+  })
+  it('job claims: one dot per listed claim, shares only from the whole-scope totals', () => {
+    const claim = (id: string, phase: string, extra = {}) => ({ job_claim_id: id, phase, quote: 'q', event_meeting_id: 1, ...extra })
+    const spec = chartSpec('job-claims', {
+      totals: { construction: 3, operations: 1 },
+      items: [claim('a', 'construction', { video_id: 'vid', start_seconds: 61.9 }), claim('b', 'operations')],
+    } as never)!
+    expect(spec.groups.map((g) => g.heading)).toEqual(['Construction jobs · 3 records · 75% · showing 1', 'Operations jobs · 1 record · 25%'])
+    expect(spec.groups[0]!.dots[0]!.url).toBe('https://www.youtube.com/watch?v=vid&t=61s')
+    expect(spec.groups[1]!.dots[0]!.url).toBeNull()
+    expect(spec.note).toBe('Showing the most recent 2 of 4.')
+    expect(chartSpec('job-claims', { totals: { construction: 0, operations: 0 }, items: [] } as never)).toBeNull()
+  })
+  it('projects: one dot per listed project; no share, because the endpoint has no count per status', () => {
+    const spec = chartSpec('projects', {
+      total: 5,
+      items: [
+        { project_id: 'p1', project_name: 'One', status: 'planned', source_url: 'https://s/1' },
+        { project_id: 'p2', project_name: 'Two', status: 'planned', source_url: 'https://s/2' },
+        { project_id: 'p3', project_name: 'Three', status: null, source_url: '' },
+      ],
+    } as never)!
+    expect(spec.groups.map((g) => g.heading)).toEqual(['Planned · 2 shown', 'Status not published · 1 shown'])
+    expect(spec.grandTotal).toBeNull()
+    expect(spec.note).toBe('Showing 3 of 5 projects.')
+  })
+})
+
+describe('dots drawn from a count', () => {
+  const pos = (t: Record<string, number | null>, available = true) =>
+    ({ available, totals: { meetings: 1, meetings_reviewed: 1, decisions_with_tally: 0, votes_for: null, votes_against: null, speakers_neutral: 0, ...t }, quotes: { for: [], against: [], question: [] } }) as never
+  it('picks the smallest round ratio that fits, and 1 when the count fits', () => {
+    expect(dotRatio(0)).toBe(1)
+    expect(dotRatio(240)).toBe(1)
+    expect(dotRatio(241)).toBe(2)
+    expect(dotRatio(1859)).toBe(10)
+    expect(dotRatio(6323)).toBe(50)
+    expect(dotRatio(100000)).toBe(500)
+  })
+  it('weights always add up to the real count; only the last dot is the remainder', () => {
+    for (const [n, per] of [[1859, 10], [7, 1], [20, 10], [9, 10]] as const) {
+      const d = countDots('k', n, per, ['meeting', 'meetings'])
+      expect(d.reduce((a, x) => a + (x.weight ?? 1), 0)).toBe(n)
+      expect(d.slice(0, -1).every((x) => (x.weight ?? 1) === per)).toBe(true)
+    }
+    expect(countDots('k', 1859, 10, ['meeting', 'meetings'])).toHaveLength(186)
+    expect(countDots('k', 1859, 10, ['meeting', 'meetings'])[185]!.title).toBe('9 meetings')
+    expect(countDots('k', 0, 1, ['meeting', 'meetings'])).toEqual([])
+  })
+  it('says what a dot stands for', () => {
+    expect(dotMeaning(1, ['speaker', 'speakers'])).toBe('Every dot is one speaker.')
+    expect(dotMeaning(10, ['meeting', 'meetings'])).toBe('Each dot is 10 meetings; the last dot of a group is what is left over.')
+  })
+  it('positions: one dot per speaker, a tone per stance, shares from the real totals', () => {
+    const spec = chartSpec('positions', pos({ speakers_for: 6, speakers_against: 14, speakers_question: 4, speakers_neutral: 0 }))!
+    expect(spec.groups.map((g) => [g.tone, g.label, g.shown, g.share])).toEqual([
+      ['for', 'Spoke for', 6, 25],
+      ['against', 'Spoke against', 14, 58],
+      ['question', 'Asked a question', 4, 17],
+    ])
+    expect(spec.drawn).toBe(24)
+    expect(spec.groups[1]!.heading).toBe('Spoke against · 14 speakers · 58%')
+    expect(spec.dotMeans).toBe('Every dot is one speaker.')
+  })
+  it('positions: nothing to draw when no speaker is on record, or the table is not loaded', () => {
+    expect(chartSpec('positions', pos({ speakers_for: 0, speakers_against: 0, speakers_question: 0 }))).toBeNull()
+    expect(chartSpec('positions', pos({ speakers_for: 6, speakers_against: 1, speakers_question: 0 }, false))).toBeNull()
+    expect(speakerCounts(pos({ speakers_for: null, speakers_against: null, speakers_question: null }))).toBeNull()
+  })
+  it('a count too large to draw one for one is drawn at an exact ratio and never says "showing"', () => {
+    const spec = chartSpec('meeting-mentions', { counts: { passages: 6323, meetings: 1859, site_specific: 0 }, items: [] } as never, null, 'meetings')!
+    expect(spec.perDot).toBe(10)
+    expect(spec.drawn).toBe(186)
+    expect(spec.groups[0]!.heading).toBe('Meetings where a data center came up · 1,859 meetings')
+    expect(spec.groups[0]!.dots.reduce((a, d) => a + (d.weight ?? 1), 0)).toBe(1859)
+    expect(spec.drawn).toBeLessThanOrEqual(COUNT_DOT_CAP)
+    const big = chartSpec('concerns', { items: [], national: [{ concern: 'noise', mention_count: 700 }, { concern: 'water', mention_count: 501 }] } as never)!
+    expect(big.drawn).toBeLessThanOrEqual(COUNT_DOT_CAP)
+    expect(big.groups.map((g) => g.dots.reduce((a, d) => a + (d.weight ?? 1), 0))).toEqual([700, 501])
   })
 })
 

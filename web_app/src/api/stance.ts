@@ -6,6 +6,7 @@ import {
   fetchCommunityEvents,
   fetchDataCenterAgendaItems,
   fetchDataCenterMeetingMentions,
+  fetchDataCenterPositions,
   fetchDataCenterProjects,
   fetchDataCenterSites,
   fetchJobClaims,
@@ -192,8 +193,10 @@ export async function fetchChartData(key: string, stateCode?: string, city?: str
   // The record charts draw one dot per record, up to this many.
   const many = { state: stateCode, city: c, limit: DOT_CAP }
   switch (key as ChartKey) {
+    case 'positions':
+      return fetchDataCenterPositions(p)
     case 'job-claims':
-      return fetchJobClaims(p)
+      return fetchJobClaims(many)
     case 'sites':
       return fetchDataCenterSites({ state: stateCode, limit: DOT_CAP })
     case 'concerns':

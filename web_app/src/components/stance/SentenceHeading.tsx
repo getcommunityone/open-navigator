@@ -39,6 +39,11 @@ interface Props {
   suggestions?: Suggestion[]
 }
 
+/** A template part that is only closing punctuation ("?", "."), which must stay on the line of the word before it. */
+export function isClosingMark(part: string): boolean {
+  return /^\s*[?!.,;:]+\s*$/.test(part)
+}
+
 function BlankSelect({ b }: { b: Blank }) {
   const groups = [...new Set(b.options.map((o) => o.group ?? ''))]
   return (
@@ -73,10 +78,21 @@ export default function SentenceHeading({ template, blanks, as: Tag = 'h1', clas
     <>
       <Tag className={`stance-sentence${className ? ` ${className}` : ''}`}>
         {template.map((part, i) => {
-          if (typeof part === 'string') return <span key={i}>{part}</span>
+          if (typeof part === 'string') {
+            // Closing punctuation is drawn with the blank before it (below), so "?" never wraps onto a line alone.
+            if (isClosingMark(part) && i > 0 && typeof template[i - 1] !== 'string') return null
+            return <span key={i}>{part}</span>
+          }
           const b = blanks.find((x) => x.id === part.blank)
           if (!b) return null
-          return <span key={i}>{b.control ?? <BlankSelect b={b} />}</span>
+          const next = template[i + 1]
+          const mark = typeof next === 'string' && isClosingMark(next) ? next.trim() : ''
+          return (
+            <span key={i} className={mark ? 'stance-nowrap' : undefined}>
+              {b.control ?? <BlankSelect b={b} />}
+              {mark}
+            </span>
+          )
         })}
       </Tag>
       {suggestions && suggestions.length > 0 && (

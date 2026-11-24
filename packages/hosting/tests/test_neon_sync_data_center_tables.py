@@ -13,6 +13,9 @@ DATA_CENTER_SERVING = {
     "data_center_agenda_item",
     "area_concern",
     "data_center_meeting_mention",
+    # #930: who spoke for and against, and the recorded votes
+    "data_center_meeting_position",
+    "data_center_public_comment",
     "decision_place_label",
     "decision_company_mention",
     "decision_nearby_data_center_site",

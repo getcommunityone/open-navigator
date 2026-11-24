@@ -1689,28 +1689,6 @@ select.stance-blank {
     transform: none;
   }
 }
-@keyframes stance-nudge {
-  0%,
-  78%,
-  100% {
-    transform: none;
-  }
-  86% {
-    transform: translateX(7px);
-  }
-  93% {
-    transform: translateX(-2px);
-  }
-}
-@keyframes stance-sweep {
-  0%,
-  70% {
-    transform: translateX(-130%);
-  }
-  100% {
-    transform: translateX(130%);
-  }
-}
 @keyframes stance-burst {
   from {
     opacity: 0.9;
@@ -2051,9 +2029,9 @@ html.stance-snap {
     animation: stance-rise 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  /* The challenge only (data-beats): quiz-show energy. The primary button springs in when its screen is the one in view,
-     then nudges its arrow and catches the light; the chosen answer throws a ring; the pips pop. The hub and the story keep
-     the calm versions above. */
+  /* The challenge only (data-beats): quiz-show energy. The primary button springs in when its screen is the one in view;
+     the chosen answer throws a ring; the pips pop. Its arrow hops and catches the light only as the idle cue (#930, at the
+     end of this file). The hub and the story keep the calm versions above. */
   .stance-game[data-beats] [data-live] .stance-next,
   .stance-game[data-beats] [data-live] .stance-ask-btn,
   .stance-game[data-beats] [data-cover] .stance-next,
@@ -2063,22 +2041,6 @@ html.stance-snap {
   }
   .stance-game[data-beats] .stance-float-btn {
     animation-delay: 120ms;
-  }
-  .stance-game[data-beats] .stance-next > span[aria-hidden='true'],
-  .stance-game[data-beats] .stance-ask-btn > span[aria-hidden='true'] {
-    display: inline-block;
-    animation: stance-nudge 2.6s ease-in-out 2.4s infinite;
-  }
-  .stance-game[data-beats] .stance-next::after,
-  .stance-game[data-beats] .stance-ask-btn::after,
-  .stance-game[data-beats] .stance-float:not(.is-many) .stance-float-btn::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(105deg, transparent 36%, color-mix(in srgb, var(--paper) 32%, transparent) 50%, transparent 64%);
-    transform: translateX(-130%);
-    animation: stance-sweep 3.4s ease-in-out 2s infinite;
   }
   .stance-game[data-beats] .stance-answer.is-locked::after {
     content: '';
@@ -2143,4 +2105,301 @@ html.stance-snap {
     align-items: center;
     min-height: 44px;
   }
+}
+
+/* ===================================================================================================================
+ * #930: who spoke up (five figures and a dot per speaker), dots on every story screen, a cross-fade under reduced motion, and
+ * the cue that draws attention to the next step when the reader has stopped. Kept in one block at the end of the file.
+ * =================================================================================================================== */
+
+/* --- Who spoke up ---------------------------------------------------------------------------------------------------- */
+.stance-voices {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.stance-voices-figures {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0 14px;
+  margin: 0;
+  border-top: 1px solid var(--ink);
+}
+.stance-voices-figures > div {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.stance-voices-figures > div:nth-child(n + 4) {
+  grid-column: span 3;
+}
+.stance-voices-figures dt {
+  order: 2;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stance-voices-figures dd {
+  margin: 0;
+  font-size: clamp(28px, 3.4vw, 46px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.stance-voices-figures .is-missing dd {
+  padding: 6px 0 4px;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.2;
+  color: var(--ink-2);
+}
+.stance-voices-fig {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.stance-voices-caption {
+  color: var(--ink-2);
+}
+.stance-voices-off {
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-2);
+}
+.stance-voices-quotes {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+.stance-side-about {
+  color: var(--ink);
+}
+.stories-voices {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+.stories-voices-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+/* The screen with quotes to read leaves out the large background word: it would sit under the text. */
+.stance-act[data-screen='voices'] .stance-word {
+  display: none;
+}
+.stance-right > .stance-figure + .stance-stats {
+  margin-top: 14px;
+}
+
+/* A stance has its own colour AND its own shape, and every group is headed by its name and count. (Folio draws no round
+   corners, so the shapes are a square, a diamond, an open square and a bar.) */
+.stance-dot--for {
+  background: var(--violet);
+}
+.stance-dot--against {
+  background: var(--vermilion);
+  box-shadow: inset 0 0 0 1.5px var(--vermilion-ink);
+  rotate: 45deg;
+}
+.stance-dot.stance-dot--against {
+  width: 8px;
+  height: 8px;
+  margin: 1px 2px;
+}
+.stance-dot--question {
+  background: transparent;
+  box-shadow: inset 0 0 0 2.5px var(--ink-2);
+}
+.stance-dot--neutral {
+  background: var(--ink-3);
+}
+.stance-dot.stance-dot--neutral {
+  height: 4px;
+  margin: 3px 0;
+}
+.stance-swatch.stance-dot--against {
+  width: 8px;
+  height: 8px;
+  margin: 1px 7px 1px 1px;
+}
+.stance-swatch.stance-dot--neutral {
+  height: 4px;
+  margin-bottom: 3px;
+}
+/* The last dot of a group drawn at a ratio stands for fewer records than the others: it is drawn smaller. */
+.stance-dot.is-part {
+  width: 6px;
+  height: 6px;
+  margin: 2px;
+}
+
+/* --- Dots arrive one after another -------------------------------------------------------------------------------------- */
+@keyframes stance-dot-in {
+  from {
+    opacity: 0;
+    scale: 0.3;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+@keyframes stance-dot-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* On a screen whose chart is drawn by --draw (the story and the challenge), a dot grows as it appears. */
+  .stance-game .stance-dot {
+    scale: clamp(0.3, calc((var(--draw, 1) * 1.25 - var(--f, 0)) * 10), 1);
+  }
+  /* The hub has no screens: its dots play once when the figures arrive. */
+  .stories-hub .stance-dot {
+    animation: stance-dot-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(150ms + var(--f, 0) * 700ms);
+  }
+}
+
+/* --- Reduced motion: one screen at a time, cross-faded. Opacity only: nothing slides, scales or loops. -------------------- */
+@media (min-width: 768px) {
+  .stance-story[data-fade] .stance-grid {
+    grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+    gap: 36px;
+  }
+  .stance-story[data-fade] .stance-act {
+    padding: 16px 48px 0 28px;
+  }
+}
+.stance-story[data-fade] .stance-word {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* A keyframe fade, not a transition: folio.css cuts every transition to 1 ms under reduced motion. */
+  .stance-story[data-fade] .stance-act[data-state='in'] > * {
+    animation: stance-dot-fade 380ms linear both;
+  }
+  .stance-story[data-fade] .stance-act[data-state]:not([data-state='in']) > * {
+    opacity: 0;
+  }
+  .stance-story[data-fade] .stance-act:not([data-state='in']) {
+    --draw: 0;
+  }
+  .stance-story[data-fade] .stance-act[data-state='in'] {
+    animation: stance-draw 700ms linear 200ms both;
+  }
+  .stories-hub .stance-dot {
+    animation: stance-dot-fade 300ms linear both;
+    animation-delay: calc(100ms + var(--f, 0) * 500ms);
+  }
+}
+
+/* --- The cue on the next step when the reader has stopped (hooks/useIdleNudge.ts adds .is-nudging for one cycle) -------------
+ * Visual only. It moves the arrow and passes a light across the button; it never moves the button, so nothing shifts. */
+.stance-float-arrow {
+  display: inline-block;
+  margin-left: 8px;
+}
+@keyframes stance-cue-arrow {
+  0%,
+  100% {
+    transform: none;
+  }
+  45% {
+    transform: translateX(5px);
+  }
+}
+@keyframes stance-cue-sweep {
+  from {
+    transform: translateX(-130%);
+  }
+  to {
+    transform: translateX(130%);
+  }
+}
+@keyframes stance-cue-hop {
+  0%,
+  50%,
+  100% {
+    transform: none;
+  }
+  22%,
+  72% {
+    transform: translateX(8px);
+  }
+  36%,
+  86% {
+    transform: translateX(-2px);
+  }
+}
+@keyframes stance-cue-fade {
+  0%,
+  100% {
+    outline-color: transparent;
+  }
+  35%,
+  65% {
+    outline-color: currentColor;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* The hub and the story: one soft cycle. */
+  :is(.stance-next, .stance-ask-btn).is-nudging > span[aria-hidden='true'],
+  .stance-float.is-nudging .stance-float-arrow {
+    display: inline-block;
+    animation: stance-cue-arrow 900ms ease-in-out 1;
+  }
+  :is(.stance-next, .stance-ask-btn).is-nudging::after,
+  .stance-float.is-nudging .stance-float-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 36%, color-mix(in srgb, var(--paper) 30%, transparent) 50%, transparent 64%);
+    animation: stance-cue-sweep 1100ms ease-in-out 1 both;
+  }
+  /* The challenge: the arrow hops twice and the light is brighter and quicker. */
+  .stance-game[data-beats] :is(.stance-next, .stance-ask-btn).is-nudging > span[aria-hidden='true'],
+  .stance-game[data-beats] .stance-float.is-nudging .stance-float-arrow {
+    animation: stance-cue-hop 1200ms ease-in-out 1;
+  }
+  .stance-game[data-beats] :is(.stance-next, .stance-ask-btn).is-nudging::after,
+  .stance-game[data-beats] .stance-float.is-nudging .stance-float-btn::after {
+    background: linear-gradient(105deg, transparent 30%, color-mix(in srgb, var(--paper) 48%, transparent) 50%, transparent 70%);
+    animation: stance-cue-sweep 800ms ease-in-out 1 both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No movement: the button's inner outline shows and goes, once. */
+  :is(.stance-next, .stance-ask-btn).is-nudging,
+  .stance-float.is-nudging .stance-float-btn {
+    outline: 3px solid transparent;
+    outline-offset: -6px;
+    animation: stance-cue-fade 1300ms linear 1;
+  }
+}
+@media (max-width: 767px) {
+  .stance-voices-figures {
+    gap: 0 10px;
+  }
+  .stance-voices-figures dd {
+    font-size: 30px;
+  }
+}
+
+/* The heading's closing "?" stays with the last blank (#930): on a wide screen it used to wrap onto a line alone. */
+.stance-nowrap {
+  white-space: nowrap;
 }

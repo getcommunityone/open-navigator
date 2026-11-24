@@ -7,6 +7,7 @@ import type {
   CommunityEventsResponse,
   DataCenterAgendaItemsResponse,
   DataCenterMeetingMentionsResponse,
+  DataCenterPositionsResponse,
   DataCenterProjectsResponse,
   DataCenterSitesResponse,
   JobClaimsResponse,
@@ -20,6 +21,7 @@ import {
   chartTitle,
   concernList,
   fmt,
+  speakerCounts,
   statusLabel,
   tally,
   where,
@@ -58,6 +60,7 @@ export interface StoryScreen {
 export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'question', eyebrow: 'The question', chart: null, kind: 'question' },
   { id: 'scope', eyebrow: 'Where', chart: null, kind: 'scope' },
+  { id: 'voices', eyebrow: 'Who spoke up', chart: 'positions', kind: 'chart' },
   { id: 'overview', eyebrow: 'Overview', chart: null, kind: 'overview' },
   { id: 'sites', eyebrow: 'Sites', chart: 'sites', kind: 'chart', kicker: 'For context' },
   { id: 'projects', eyebrow: 'Proposals', chart: 'projects', kind: 'chart', kicker: 'For context' },
@@ -194,6 +197,84 @@ const noData = (scope: StoryScope): ScreenText => ({
   failed: false,
 })
 
+// --- who spoke up (#930) ---------------------------------------------------------------------------------------------
+
+/** One of the five figures that lead the hub and the "Who spoke up" screen. `value` null reads "not recorded", with `reason`. */
+export interface PositionFigure {
+  key: 'for' | 'against' | 'question' | 'votes_for' | 'votes_against'
+  label: string
+  value: number | null
+  reason: string | null
+}
+
+export const VOTES_NOT_RECORDED = 'Votes were not recorded for these decisions.'
+export const SPEAKERS_NOT_RECORDED = 'No public comment on a data center item is on record for these meetings.'
+/** The one quiet line the hub and the story show while the table behind these figures is not in the database. */
+export const POSITIONS_NOT_LOADED = 'Who spoke for and against is not loaded yet.'
+
+/** The table is in the database and answered (it may still hold nothing for the place). */
+export function positionsLoaded(res: DataCenterPositionsResponse | null | undefined): res is DataCenterPositionsResponse {
+  return Boolean(res && res.available === true && res.totals)
+}
+
+/**
+ * The five figures, or null when the table is not loaded. A figure with no data behind it is null, never 0: speakers when no
+ * public comment on a data center item is on record at all, votes when no decision recorded a tally. A real 0 beside real
+ * counts (nobody spoke for, eleven spoke against) stays 0.
+ */
+export function positionFigures(res: DataCenterPositionsResponse | null | undefined): PositionFigure[] | null {
+  if (!positionsLoaded(res)) return null
+  const t = res.totals
+  const c = speakerCounts(res)
+  const tallies = t.decisions_with_tally ?? 0
+  const vote = (v: number | null) => (tallies > 0 && v != null ? v : null)
+  const sp = (v: number | undefined) => (c ? (v ?? 0) : null)
+  const spReason = c ? null : SPEAKERS_NOT_RECORDED
+  const voReason = tallies > 0 ? null : VOTES_NOT_RECORDED
+  return [
+    { key: 'for', label: 'spoke for', value: sp(c?.for), reason: spReason },
+    { key: 'against', label: 'spoke against', value: sp(c?.against), reason: spReason },
+    { key: 'question', label: 'asked a question', value: sp(c?.question), reason: spReason },
+    { key: 'votes_for', label: 'votes for', value: vote(t.votes_for), reason: voReason },
+    { key: 'votes_against', label: 'votes against', value: vote(t.votes_against), reason: voReason },
+  ]
+}
+
+/** The line under the figures: what they count, where, and how many meetings and decisions they come from. */
+export function positionsCaption(res: DataCenterPositionsResponse | null | undefined, scope: StoryScope): string | null {
+  if (!positionsLoaded(res)) return null
+  const t = res.totals
+  const place = scope.stateName ? `in ${storyScopeLabel(scope)}` : 'across the country'
+  const from: string[] = []
+  if ((t.meetings ?? 0) > 0) from.push(plural(t.meetings!, 'meeting'))
+  if ((t.decisions_with_tally ?? 0) > 0) from.push(`${plural(t.decisions_with_tally!, 'decision')} with a recorded vote`)
+  return `Speakers at local meetings ${place} where a data center item was discussed.${from.length ? ` From ${from.join(' and ')}.` : ''}`
+}
+
+function positionsText(res: DataCenterPositionsResponse, scope: StoryScope): ScreenText {
+  const title = 'Who spoke up about data centers'
+  if (!positionsLoaded(res)) return { headline: title, context: POSITIONS_NOT_LOADED, empty: false, failed: false }
+  const c = speakerCounts(res)
+  const t = res.totals
+  const place = placeFor('positions', scope)
+  const tallies = t.decisions_with_tally ?? 0
+  const votes =
+    tallies > 0 && t.votes_for != null && t.votes_against != null
+      ? `Recorded votes: ${fmt(t.votes_for)} for and ${fmt(t.votes_against)} against, in ${plural(tallies, 'decision')}.`
+      : null
+  if (!c) {
+    if (!votes) {
+      return noData(scope)
+    }
+    // Votes only: the figures beside the headline say why the speaker counts are not recorded.
+    return { headline: `${votes.replace(/\.$/, '')} ${where(place)}.`, context: 'How often does it come up?', empty: false, failed: false }
+  }
+  const headline = `Of ${plural(c.total, 'person', 'people')} who spoke on a data center item at local meetings ${where(place)}, ${fmt(c.for)} spoke for it, ${fmt(c.against)} against, and ${fmt(c.question)} asked a question.`
+  const rest = c.neutral > 0 ? `${fmt(c.neutral)} more took no side. ` : ''
+  // With no recorded tally the figures say so once ("not recorded", with the reason); the line here does not repeat it.
+  return { headline, context: `${rest}${votes ? `${votes} ` : ''}How often does it come up?`, empty: false, failed: false }
+}
+
 function sitesText(res: DataCenterSitesResponse, scope: StoryScope): ScreenText | null {
   const k = res.counts
   if (!k) return null
@@ -228,7 +309,7 @@ function projectsText(res: DataCenterProjectsResponse, scope: StoryScope): Scree
     : `Of ${plural(total, 'data center project')} on record ${where(place)}, ${fmt(items.length)} ${items.length === 1 ? 'is' : 'are'} listed here, and ${fmt(top.count)} of those ${top.count === 1 ? 'is' : 'are'} ${phrase(top.key)}.`
   return {
     headline,
-    context: `${complete ? '' : `The bars count the ${fmt(items.length)} listed. `}What gets promised in meetings?`,
+    context: `${complete ? '' : `The figure shows the ${fmt(items.length)} listed. `}What gets promised in meetings?`,
     empty: false,
     failed: false,
   }
@@ -410,11 +491,17 @@ export function screenText(
   const st = status[key] ?? 'loading'
   const neutral = chartTitle(key)
   if (st === 'loading') return { headline: neutral, context: 'Loading…', empty: false, failed: false }
+  // The table behind "Who spoke up" may not be in the database yet: that is a quiet line, not an error.
+  if (key === 'positions' && (st === 'error' || !positionsLoaded(data[key] as DataCenterPositionsResponse | null | undefined))) {
+    return { headline: 'Who spoke up about data centers', context: POSITIONS_NOT_LOADED, empty: false, failed: false }
+  }
   if (st === 'error') return { headline: neutral, context: 'This part of the data could not be loaded right now.', empty: false, failed: true }
   const d = data[key]
   if (!d) return noData(scope)
   let out: ScreenText | null = null
   switch (key) {
+    case 'positions':
+      return positionsText(d as DataCenterPositionsResponse, scope)
     case 'sites':
       out = sitesText(d as DataCenterSitesResponse, scope)
       break

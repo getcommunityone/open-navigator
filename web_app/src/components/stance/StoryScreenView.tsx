@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
-import { chartScopeLabel, contextSourceFor, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
+import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
+import type { DataCenterPositionsResponse } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
+import PositionsBlock from './PositionsBlock'
 import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
@@ -97,9 +99,32 @@ export default function StoryScreenView(p: Props) {
           <ScreenNav ref={nextRef} nextLabel={p.nextLabel} onNext={p.onNext} onPrev={p.onPrev} />
         </div>
         <div className="stance-right" ref={rightRef}>
-          {screen.kind === 'overview' ? (
+          {screen.chart === 'positions' ? (
+            // While the table is not loaded the screen's own line says so; the figure is left out, not repeated.
+            (p.status.positions ?? 'loading') !== 'loading' && !positionsLoaded(p.data.positions as DataCenterPositionsResponse | null | undefined) ? null : (
+            <PositionsBlock
+              data={p.data.positions as DataCenterPositionsResponse | null | undefined}
+              status={p.status.positions ?? 'loading'}
+              scope={scope}
+              labelledBy={`story-h-${screen.id}`}
+              quotes
+            />
+            )
+          ) : screen.kind === 'overview' ? (
             stats.length > 0 ? (
               <>
+                {stats.some((s) => s.key === 'meetings') && (
+                  <ChartPanel
+                    chartKey="meeting-mentions"
+                    view="meetings"
+                    round={p.index}
+                    enabled
+                    stateCode={scope.stateCode}
+                    stateName={scope.stateName}
+                    city={scope.city}
+                    scopeLabel={storyScopeLabel(scope)}
+                  />
+                )}
                 <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
                 <p className="stance-note">{statsScopeNote(stats, scope)}</p>
               </>

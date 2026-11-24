@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   DATA_CENTER_STORY,
+  POSITIONS_NOT_LOADED,
+  SPEAKERS_NOT_RECORDED,
   STORY_CHARTS,
+  VOTES_NOT_RECORDED,
   challengePath,
   chartScopeLabel,
   contextSourceFor,
   landConcernNote,
+  positionFigures,
+  positionsCaption,
   scopeQuery,
   screenText,
   statsScopeNote,
@@ -25,7 +30,20 @@ const tus: StoryScope = { stateCode: 'AL', stateName: 'Alabama', city: 'Tuscaloo
 const scope = { level: 'national', state_code: null, state: null, city: null } as never
 
 // Test data only: this fixture never leaves the test.
+/** A positions response (test stand-in). */
+const positions = (t: Partial<Record<string, number | null>> = {}, available = true) =>
+  ({
+    scope,
+    available,
+    totals: {
+      meetings: 4, meetings_reviewed: 9, speakers_for: 6, speakers_against: 14, speakers_question: 4, speakers_neutral: 2,
+      decisions_with_tally: 2, votes_for: 9, votes_against: 3, ...t,
+    },
+    quotes: { for: [], against: [], question: [] },
+  }) as never
+
 const full: StoryData = {
+  positions: positions(),
   sites: { scope, city_applied: false, counts: { planned: 4, under_construction: 2, operating: 10, no_longer_listed: 1, status_not_published: 3 }, items: [] } as never,
   projects: {
     scope,
@@ -65,6 +83,7 @@ describe('story structure', () => {
     expect(DATA_CENTER_STORY.map((s) => s.id)).toEqual([
       'question',
       'scope',
+      'voices',
       'overview',
       'sites',
       'projects',
@@ -167,6 +186,7 @@ describe('screenText on a full fixture', () => {
 
 describe('empty, loading and failed screens', () => {
   const empty: StoryData = {
+    positions: positions({ meetings: 0, meetings_reviewed: 0, speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0, decisions_with_tally: 0, votes_for: null, votes_against: null }),
     sites: { scope, city_applied: false, counts: { planned: 0, under_construction: 0, operating: 0, no_longer_listed: 0, status_not_published: 0 }, items: [] } as never,
     'job-claims': { scope, totals: { construction: 0, operations: 0 }, items: [] } as never,
     projects: { scope, total: 0, items: [] } as never,
@@ -192,6 +212,70 @@ describe('empty, loading and failed screens', () => {
     expect(failed.failed).toBe(true)
     expect(failed.empty).toBe(false)
     expect(failed.headline).not.toMatch(/\d/)
+  })
+})
+
+describe('who spoke up', () => {
+  const voices = DATA_CENTER_STORY.find((s) => s.id === 'voices')!
+  const value = (res: never, key: string) => positionFigures(res)!.find((f) => f.key === key)!
+  it('comes right after the question and the place, and reads the positions data', () => {
+    expect(DATA_CENTER_STORY.indexOf(voices)).toBe(2)
+    expect(voices.chart).toBe('positions')
+    expect(voices.eyebrow).toBe('Who spoke up')
+    expect(STORY_CHARTS).toContain('positions')
+  })
+  it('states the five figures the response gives, in plain labels', () => {
+    const f = positionFigures(positions())!
+    expect(f.map((x) => [x.label, x.value])).toEqual([
+      ['spoke for', 6],
+      ['spoke against', 14],
+      ['asked a question', 4],
+      ['votes for', 9],
+      ['votes against', 3],
+    ])
+    expect(f.every((x) => x.reason == null)).toBe(true)
+    const t = screenText(voices, full, ready, al)
+    expect(t.headline).toBe('Of 26 people who spoke on a data center item at local meetings in Alabama, 6 spoke for it, 14 against, and 4 asked a question.')
+    expect(t.context).toBe('2 more took no side. Recorded votes: 9 for and 3 against, in 2 decisions. How often does it come up?')
+  })
+  it('a vote with no recorded tally is not recorded, never zero', () => {
+    const res = positions({ decisions_with_tally: 0, votes_for: null, votes_against: null })
+    expect(value(res, 'votes_for')).toMatchObject({ value: null, reason: VOTES_NOT_RECORDED })
+    expect(value(res, 'votes_against')).toMatchObject({ value: null, reason: VOTES_NOT_RECORDED })
+    expect(value(res, 'against').value).toBe(14)
+    // a stray 0 from the API is still not a vote count when no tally was recorded
+    expect(value(positions({ decisions_with_tally: 0, votes_for: 0, votes_against: 0 }), 'votes_for').value).toBeNull()
+    // the screen's line states no vote count; the figures carry "not recorded" and the reason
+    expect(screenText(voices, { positions: res }, ready, al).context).toBe('2 more took no side. How often does it come up?')
+  })
+  it('speakers with no public comment on record are not recorded; a real zero beside real counts stays zero', () => {
+    const none = positions({ speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0 })
+    for (const k of ['for', 'against', 'question']) expect(value(none, k)).toMatchObject({ value: null, reason: SPEAKERS_NOT_RECORDED })
+    expect(value(none, 'votes_for').value).toBe(9)
+    expect(value(positions({ speakers_for: 0 }), 'for')).toMatchObject({ value: 0, reason: null })
+  })
+  it('gives no figures, and one quiet line, while the table is not loaded', () => {
+    expect(positionFigures(null)).toBeNull()
+    expect(positionFigures(positions({}, false))).toBeNull()
+    expect(positionsCaption(positions({}, false), al)).toBeNull()
+    for (const [d, st] of [
+      [{ positions: positions({}, false) }, ready],
+      [{}, { ...ready, positions: 'error' }],
+    ] as Array<[StoryData, StoryStatus]>) {
+      const t = screenText(voices, d, st, al)
+      expect(t.context).toBe(POSITIONS_NOT_LOADED)
+      expect(`${t.headline} ${t.context}`).not.toMatch(/\d/)
+      expect(t.failed).toBe(false)
+    }
+  })
+  it('names what is counted, the place, and where the counts come from', () => {
+    expect(positionsCaption(positions(), al)).toBe(
+      'Speakers at local meetings in Alabama where a data center item was discussed. From 4 meetings and 2 decisions with a recorded vote.',
+    )
+    expect(positionsCaption(positions(), tus)).toContain('in Tuscaloosa, Alabama')
+    expect(positionsCaption(positions({ meetings: 0, decisions_with_tally: 0 }), nat)).toBe(
+      'Speakers at local meetings across the country where a data center item was discussed.',
+    )
   })
 })
 

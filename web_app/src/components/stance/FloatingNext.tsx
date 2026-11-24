@@ -6,7 +6,7 @@ interface Props {
   rootRef: RefObject<HTMLElement>
   /** CSS selector of the screen in view inside the root; omitted, the whole root is one screen. */
   screen?: string
-  /** Told when the bar appears or goes, so nothing else is drawn over it (the scroll cue). */
+  /** Told when the bar appears or goes, so nothing else is drawn over it. */
   onShownChange?: (shown: boolean) => void
 }
 
@@ -151,6 +151,11 @@ export default function FloatingNext({ rootRef, screen, onShownChange }: Props) 
           onClick={() => it.el.click()}
         >
           {it.label}
+          {!many && (
+            <span className="stance-float-arrow" aria-hidden="true">
+              →
+            </span>
+          )}
         </button>
       ))}
     </div>

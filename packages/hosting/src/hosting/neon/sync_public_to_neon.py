@@ -230,6 +230,10 @@ CIVIC_SERVING = frozenset(
         # transcript passages that discuss data centers (#445); meeting docs trimmed in
         # publish_public_serving (#556) so Legistar agenda/minutes stay under the Neon budget
         "data_center_meeting_mention",
+        # who spoke for and against a data center item, and the recorded votes (#930):
+        # one row per meeting, and one per counted public comment (a short quote each)
+        "data_center_meeting_position",
+        "data_center_public_comment",
         # question dashboard: place label, company named, nearby tracked site (#508), ~0.5 MB (#528)
         "decision_place_label",
         "decision_company_mention",
