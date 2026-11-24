@@ -559,3 +559,67 @@ export function batchJobsStreamUrl(cohort?: BatchCohort): string {
   const q = cohort ? `?cohort=${encodeURIComponent(cohort)}` : ''
   return `${prefix}/batch-jobs/stream${q}`
 }
+
+// #800: the grid of failed items for every stage.
+export type FailureGridStage =
+  | 'videos'
+  | 'transcripts'
+  | 'analyses_light'
+  | 'reports_light'
+  | 'analyses_full'
+  | 'reports_full'
+
+export type FailureGridRow = {
+  video_id: string
+  title: string
+  jurisdiction_id: string
+  jurisdiction_name: string
+  state_code: string
+  channel_id: string
+  channel_url: string
+  event_date: string
+  meeting_type: string
+  error: string
+  group: string
+  group_label: string
+  advice: string
+  retryable: boolean
+  last_updated: string
+  event_id: string
+}
+
+export type FailureGridPayload = {
+  stage: string
+  cohort: string
+  state: string
+  error_column: string
+  where_to_look: string
+  total: number
+  columns: { key: string; label: string; sortable: boolean }[]
+  rows: FailureGridRow[]
+}
+
+export function fetchFailureGrid(opts: {
+  stage: FailureGridStage
+  cohort: string
+  state: string
+  q: string
+  group: string
+  sort: string
+  dir: 'asc' | 'desc'
+  limit: number
+  offset: number
+}): Promise<FailureGridPayload> {
+  const q = new URLSearchParams({
+    stage: opts.stage,
+    cohort: opts.cohort,
+    sort: opts.sort,
+    dir: opts.dir,
+    limit: String(opts.limit),
+    offset: String(opts.offset),
+  })
+  if (opts.state) q.set('state', opts.state)
+  if (opts.q) q.set('q', opts.q)
+  if (opts.group) q.set('group', opts.group)
+  return getJson<FailureGridPayload>('/api/batch-jobs/failure-grid', q)
+}

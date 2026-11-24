@@ -49,3 +49,32 @@ Each reason line links to the YouTube video of an example failure ("Watch an exa
 
 Only the Videos and Transcripts stages have a breakdown. The other stages record their failures elsewhere and do not
 link to this page.
+
+## The grid of failed items (#800)
+
+Every stage row with a red failed count (Videos, Transcripts, Analysis light, Reports light, Analysis full, Reports full)
+opens `/admin/batch-jobs/failures?stage=&cohort=&state=`. The title names the stage, Filter and state in effect.
+Under the reason cards (Videos and Transcripts only, because they read `transcript_file_error`) sits **All failed items**,
+a grid with one row per failed video:
+
+- Columns: video (id), title, jurisdiction, state, channel, meeting date, meeting type, error, reason group, last changed.
+  Click a header to sort ascending, then descending. Only the allow-listed columns sort.
+- Search (title, video id, jurisdiction, error text), reason group and state filters; page size 25, 50 or 100 with
+  first, previous, next and last. Sort, page, size and filters stay in the URL (`q`, `group`, `sort`, `dir`, `page`, `size`),
+  so a refresh or shared link shows the same rows.
+- Click a row for the full error, every id with copy buttons, links to the video and channel, what to try for its reason
+  group, and where to look (the step's log on Batch Job Status).
+- The count above the grid equals the failed count on the stage row for the same scope when no search or group filter is set.
+
+| Stage | Error column on `bronze.bronze_event_youtube` |
+|---|---|
+| videos, transcripts | `transcript_file_error` |
+| analyses_light | `policy_analysis_error` |
+| reports_light | `policy_report_error` |
+| analyses_full | `policy_analysis_full_error` |
+| reports_full | `policy_report_full_error` |
+
+`GET /api/batch-jobs/failure-grid?stage=&cohort=&state=&q=&group=&sort=&dir=&limit=&offset=` returns
+`{stage, cohort, state, error_column, where_to_look, total, columns[], rows[]}`. `sort` must be one of `video_id`, `title`,
+`state_code`, `jurisdiction_name`, `error`, `last_updated`, `event_date`, `meeting_type`; any other value is a 422 and no request
+text reaches SQL. Tests: `tests/test_failure_grid_800.py` (the SQL checks run when `TEST_PG_DSN` points at a Postgres).
