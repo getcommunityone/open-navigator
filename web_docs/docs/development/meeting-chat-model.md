@@ -51,3 +51,10 @@ The API log line `chat model call failed (<error type>): …` names the cause:
 | `RateLimitError` | the account's rate limit | wait, or raise the limit |
 | `NotFoundError` | `CHAT_MODEL` is not a model the key can use | correct the id |
 | `ClaudeRefusalError` | the model declined the question | nothing to fix |
+
+## Chat and Contact are one header item (#860)
+
+The site header has a single "Chat & Contact" item that opens `/chat`. The top of the chat panel says the chat
+answers from meeting records and offers a "Contact us" email link for reaching a person. The link's address is
+`CONTACT_EMAIL` in `web_app/src/utils/contact.ts`, which the older `/support` page also uses; that page stays for
+existing links.

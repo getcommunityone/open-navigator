@@ -121,10 +121,14 @@ export default function SiteHeader() {
 
   const navItems: { label: string; onClick: () => void; active: boolean }[] = [
     { label: 'Search', onClick: () => navigate('/search'), active: location.pathname === '/search' },
-    { label: 'Chat', onClick: () => navigate('/chat'), active: location.pathname === '/chat' },
+    // Chat and Contact are one item (#860): the chat panel carries the contact link at its top.
+    {
+      label: 'Chat & Contact',
+      onClick: () => navigate('/chat'),
+      active: location.pathname === '/chat' || location.pathname === '/support',
+    },
     { label: 'How It Works', onClick: () => goSection('how-it-works'), active: location.pathname === '/' && activeSection === 'how-it-works' },
     { label: 'Impact', onClick: () => goSection('impact'), active: location.pathname === '/' && activeSection === 'impact' },
-    { label: 'Contact', onClick: () => navigate('/support'), active: location.pathname === '/support' },
   ]
 
   const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
