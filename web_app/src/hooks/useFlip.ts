@@ -62,13 +62,16 @@ export function useFlip(ref: RefObject<HTMLElement>, signature: string, enabled:
   }, [])
 }
 
-/** True for `ms` after mount (the first-reveal window), false afterwards or when motion is reduced. */
-export function useIntro(ms: number, reduced: boolean): boolean {
+/**
+ * True for `ms` after `start` first becomes true (default: after mount) - the first-reveal window - and false afterwards or
+ * when motion is reduced. Before `start` it stays true, so a chart below the fold keeps its "not yet revealed" state.
+ */
+export function useIntro(ms: number, reduced: boolean, start = true): boolean {
   const [on, setOn] = useState(!reduced)
   useEffect(() => {
-    if (reduced) return
+    if (reduced || !start) return
     const id = window.setTimeout(() => setOn(false), ms)
     return () => window.clearTimeout(id)
-  }, [ms, reduced, setOn])
+  }, [ms, reduced, start, setOn])
   return on && !reduced
 }

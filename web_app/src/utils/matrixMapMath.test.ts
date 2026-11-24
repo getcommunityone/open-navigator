@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { activeSortKey, largestRemainder, medianOf, olsFit, shadeT } from './matrixMapMath'
+import { activeSortKey, largestRemainder, medianOf, niceScale, olsFit, quantileOf, shadeT } from './matrixMapMath'
+
+describe('quantileOf', () => {
+  it('interpolates between ranks and ignores missing values', () => {
+    expect(quantileOf([1, 2, 3, 4, 5], 0.5)).toBe(3)
+    expect(quantileOf([1, 2, 3, 4], 0.25)).toBeCloseTo(1.75)
+    expect(quantileOf([null, 10, undefined, 20], 0.5)).toBe(15)
+    expect(quantileOf([], 0.5)).toBeNull()
+  })
+})
+
+describe('niceScale', () => {
+  it('covers the data with 1/2/5 steps', () => {
+    const s = niceScale(3, 47, 5)
+    expect(s.min).toBeLessThanOrEqual(3)
+    expect(s.max).toBeGreaterThanOrEqual(47)
+    expect(s.ticks).toEqual([0, 10, 20, 30, 40, 50])
+  })
+  it('can pin zero and survives a flat range', () => {
+    expect(niceScale(120, 480, 4, true).min).toBe(0)
+    const flat = niceScale(5, 5)
+    expect(flat.min).toBeLessThan(5)
+    expect(flat.max).toBeGreaterThan(5)
+  })
+})
 
 describe('shadeT', () => {
   it('places a value in the range and flips for lower-is-better metrics', () => {

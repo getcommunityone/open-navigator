@@ -15,6 +15,16 @@ export function medianOf(values: Array<number | null | undefined>): number | nul
   return xs.length % 2 ? xs[mid]! : (xs[mid - 1]! + xs[mid]!) / 2
 }
 
+/** The q-quantile (0..1) of the finite values, linear between ranks (the "type 7" rule). Null when empty. */
+export function quantileOf(values: Array<number | null | undefined>, q: number): number | null {
+  const xs = values.filter((x): x is number => x != null && Number.isFinite(x)).sort((a, b) => a - b)
+  if (!xs.length) return null
+  const pos = Math.min(1, Math.max(0, q)) * (xs.length - 1)
+  const lo = Math.floor(pos)
+  const hi = Math.ceil(pos)
+  return xs[lo]! + (xs[hi]! - xs[lo]!) * (pos - lo)
+}
+
 /** Whole-number cells per part that always sum to `cells` (largest-remainder method). Empty for a zero total. */
 export function largestRemainder(values: number[], cells = 100): number[] {
   const total = values.reduce((a, v) => a + v, 0)
@@ -53,6 +63,29 @@ export function olsFit(points: Array<{ x: number; y: number }>): OlsFit | null {
   if (!sxx) return null
   const slope = sxy / sxx
   return { slope, intercept: my - slope * mx, r2: syy ? (sxy * sxy) / (sxx * syy) : 0, n }
+}
+
+/**
+ * A tidy axis for [lo, hi]: ticks at a 1/2/5 x 10^k step that cover the data. `includeZero` pins the axis to zero (for bars
+ * and columns). A flat range gets a one-step axis around the value.
+ */
+export function niceScale(lo: number, hi: number, count = 5, includeZero = false): { min: number; max: number; ticks: number[] } {
+  let a = includeZero ? Math.min(0, lo) : lo
+  let b = includeZero ? Math.max(0, hi) : hi
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return { min: 0, max: 1, ticks: [0, 1] }
+  if (a === b) {
+    const pad = a === 0 ? 1 : Math.abs(a) * 0.1
+    a -= pad
+    b += pad
+  }
+  const raw = (b - a) / Math.max(1, count)
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)))
+  const step = ([1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? 10 * mag) as number
+  const min = Math.floor(a / step + 1e-9) * step
+  const max = Math.ceil(b / step - 1e-9) * step
+  const ticks: number[] = []
+  for (let v = min; v <= max + step / 2; v += step) ticks.push(Math.abs(v) < step * 1e-9 ? 0 : +v.toPrecision(12))
+  return { min, max, ticks }
 }
 
 /** Which key the rows are ordered by: the pivot's chosen header, otherwise the metric on screen. */
