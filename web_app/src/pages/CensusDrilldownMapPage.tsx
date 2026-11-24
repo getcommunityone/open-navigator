@@ -1197,7 +1197,7 @@ export default function CensusDrilldownMapPage() {
       />
 
       {/* header: breadcrumb + metric selector + address search */}
-      <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">{breadcrumb}</div>
         {/* Desktop (xl+) selects metrics in the persistent sidebar browser; the
             dropdown is the small-screen affordance where the rail is hidden. */}
