@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
 import type { StanceAnswer, StanceStatement, StatementResults } from '../../api/stance'
-import { ANSWER_LABEL, chartTitle, findingFor, placeLabel, roundHeadline, roundWord } from '../../utils/stanceGame'
+import { chartScopeLabel, contextSourceFor, landConcernNote } from '../../utils/dataStory'
+import type { AreaConcernsResponse } from '../../api/dataCenters'
+import { ANSWER_LABEL, chartTitle, findingFor, placeLabel, roundHeadline } from '../../utils/stanceGame'
 import ChartPanel, { useChartData } from './ChartPanel'
 import ResultBars from './ResultBars'
+import ScreenNav from './ScreenNav'
 
 export interface RoundScope {
   stateCode: string | undefined
@@ -32,7 +35,10 @@ interface Props {
   onAnswer: (a: StanceAnswer) => void
   onRetry: () => void
   onChange: () => void
-  onPrev: () => void
+  /** The category of the screen after this one, in words ("Concerns"). */
+  nextLabel: string
+  /** Absent on the first round. */
+  onPrev?: () => void
   onNext: () => void
 }
 
@@ -43,8 +49,15 @@ const KEY: Record<StanceAnswer, string> = { agree: 'A', disagree: 'D', unsure: '
 export default function RoundPanel(p: Props) {
   const { statement, index, scope } = p
   const round = index + 1
-  const chart = useChartData(String(statement.chart), p.near, scope.stateCode)
-  const finding = findingFor(String(statement.chart), chart.data, scope.stateName)
+  const chart = useChartData(String(statement.chart), p.near, scope.stateCode, scope.city)
+  // The place the chart really shows: the city where the source can narrow to one, otherwise the state, otherwise national.
+  const chartScope = chartScopeLabel(String(statement.chart), { stateName: scope.stateName, city: scope.city })
+  const finding = findingFor(String(statement.chart), chart.data, chartScope === 'National' ? null : chartScope)
+  // The round about homes and land use also notes how often land and property concerns appear (only when the data has them).
+  const landNote =
+    statement.statement_id === 'near-homes-ok' && String(statement.chart) === 'concerns'
+      ? landConcernNote(chart.data as AreaConcernsResponse | undefined, chartScope === 'National' ? null : chartScope)
+      : null
   const headline = roundHeadline(String(statement.chart), finding)
   const nextRef = useRef<HTMLButtonElement>(null)
   const leftRef = useRef<HTMLDivElement>(null)
@@ -68,14 +81,13 @@ export default function RoundPanel(p: Props) {
   const revealed = p.answer != null && !p.changing
   const showButtons = p.answer == null || p.changing
 
-  // After a confirmed answer, move focus to "Next round" so Enter carries on (only for the round in view).
+  // After a confirmed answer, move focus to "Continue" so Enter carries on (only for the round in view).
   const was = useRef<StanceAnswer | null>(p.answer)
   useEffect(() => {
     if (p.active && was.current == null && p.answer != null) nextRef.current?.focus({ preventScroll: true })
     was.current = p.answer
   }, [p.answer, p.active])
 
-  const last = index === p.total - 1
   const label = placeLabel(scope.stateName, scope.city)
 
   return (
@@ -86,14 +98,11 @@ export default function RoundPanel(p: Props) {
       aria-roledescription="round"
     >
       <span className="stance-word" aria-hidden="true">
-        {roundWord(round)}
+        {statement.category}
       </span>
       <div className="stance-grid">
         <div className="stance-left" ref={leftRef}>
           <div className="stance-card">
-            <p className="stance-card-eyebrow">
-              Round {round} of {p.total}
-            </p>
             <p className="stance-card-title">{statement.category}</p>
           </div>
           <div className="stance-head">
@@ -102,7 +111,8 @@ export default function RoundPanel(p: Props) {
             </h2>
             {headline.isFinding && (
               <p className="stance-context">
-                {chartTitle(String(statement.chart))} · {scope.stateName ?? 'National'}
+                {chartTitle(String(statement.chart))} · {chartScope}
+                {landNote ? ` · ${landNote}` : ''}
               </p>
             )}
           </div>
@@ -111,7 +121,7 @@ export default function RoundPanel(p: Props) {
           <p className="stance-statement">{statement.statement}</p>
 
           {showButtons && (
-            <div className="stance-answers" role="group" aria-label={`Your answer to round ${round}`}>
+            <div className="stance-answers" role="group" aria-label={`Your answer: ${statement.category}`}>
               {ORDER.map((a) => (
                 <button
                   key={a}
@@ -186,24 +196,20 @@ export default function RoundPanel(p: Props) {
             )}
           </div>
 
-          <div className="stance-nav">
-            {index > 0 && (
-              <button type="button" className="folio-btn" onClick={p.onPrev}>
-                ← Back
-              </button>
-            )}
-            <button type="button" className="folio-btn stance-next" ref={nextRef} onClick={p.onNext}>
-              {last ? 'Finish →' : 'Next round →'}
-            </button>
-          </div>
+          <ScreenNav ref={nextRef} nextLabel={p.nextLabel} onNext={p.onNext} onPrev={p.onPrev} />
         </div>
         <div className="stance-right" ref={rightRef}>
+          {contextSourceFor(String(statement.chart)) && (
+            <p className="stance-kicker">For context · source: {contextSourceFor(String(statement.chart))} (not from meeting recordings)</p>
+          )}
           <ChartPanel
             chartKey={String(statement.chart)}
             round={round}
             enabled={p.near}
             stateCode={scope.stateCode}
             stateName={scope.stateName}
+            city={scope.city}
+            scopeLabel={chartScope}
           />
         </div>
       </div>

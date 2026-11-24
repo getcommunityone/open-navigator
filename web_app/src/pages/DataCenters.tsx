@@ -67,6 +67,7 @@ export default function DataCenters() {
     setSearchParams(params)
   }
 
+  const placeQuery = stateCode ? `?state=${encodeURIComponent(stateCode)}${cityName ? `&city=${encodeURIComponent(cityName)}` : ''}` : ''
   const items = data?.items ?? []
   const construction = items.filter((c) => c.phase === 'construction')
   const operations = items.filter((c) => c.phase === 'operations')
@@ -80,12 +81,19 @@ export default function DataCenters() {
 
         <p className="mb-3 text-sm">
           <Link
-            to={`/play/data-centers${stateCode ? `?state=${encodeURIComponent(stateCode)}${cityName ? `&city=${encodeURIComponent(cityName)}` : ''}` : ''}`}
+            to={`/stories/data-centers${placeQuery}`}
             className="font-medium text-primary-700 underline hover:text-primary-900"
           >
-            Play: Where Do You Stand?
+            Read the Data Center Story
           </Link>{' '}
-          <span className="text-gray-600">Eight statements about data centers, and how people who played answered.</span>
+          <span className="text-gray-600">The records on this page as a scrolling story.</span>{' '}
+          <Link
+            to={`/challenge/data-centers${placeQuery}`}
+            className="font-medium text-primary-700 underline hover:text-primary-900"
+          >
+            Take the Data Center Challenge
+          </Link>{' '}
+          <span className="text-gray-600">Seven statements, and how people who played answered.</span>
         </p>
 
         <ScopeControl

@@ -1,4 +1,4 @@
-// Client for the "Where Do You Stand?" game (#851 API, #852 screens). Types are written by hand
+// Client for the Data Center Challenge (#851 API, #852 screens, renamed in #884). Types are written by hand
 // to match the Pydantic models in api/routes/stance.py.
 import api from '../lib/api'
 import {
@@ -107,16 +107,20 @@ export async function fetchStanceResults(
   return res.data
 }
 
-/** The dataset behind one round's chart, scoped to the player's state when one is chosen (never to a city). */
-export async function fetchChartData(key: string, stateCode?: string): Promise<ChartData> {
-  const p = { state: stateCode }
+/**
+ * The dataset behind one chart, scoped to a state when one is chosen. The challenge never passes a city; the data stories
+ * do, and every endpoint that can narrow to a city does (sites cannot: the source has no city field).
+ */
+export async function fetchChartData(key: string, stateCode?: string, city?: string): Promise<ChartData> {
+  const c = stateCode && city ? city : undefined
+  const p = { state: stateCode, city: c }
   // The record charts draw one dot per record, up to this many.
-  const many = { state: stateCode, limit: DOT_CAP }
+  const many = { state: stateCode, city: c, limit: DOT_CAP }
   switch (key as ChartKey) {
     case 'job-claims':
       return fetchJobClaims(p)
     case 'sites':
-      return fetchDataCenterSites(many)
+      return fetchDataCenterSites({ state: stateCode, limit: DOT_CAP })
     case 'concerns':
       return fetchAreaConcerns(p)
     case 'meeting-mentions':
