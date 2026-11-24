@@ -61,9 +61,9 @@ export default function MeetingChat() {
 
   return (
     <MeetingChatRuntimeProvider scope={scope}>
-      <div className="flex min-h-[calc(100dvh-5rem)] flex-1 justify-end page-bg p-3 sm:p-4">
+      <div className="flex min-h-[calc(100dvh-5rem)] flex-1 justify-end page-bg p-0 sm:p-4">
         <div
-          className="flex h-[min(38rem,calc(100dvh-6.5rem))] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+          className="flex h-[calc(100dvh-5rem)] w-full flex-col overflow-hidden border-slate-200 bg-white sm:h-[min(38rem,calc(100dvh-6.5rem))] sm:max-w-xl sm:rounded-xl sm:border sm:shadow-lg"
           role="region"
           aria-label="Chat and contact"
         >
@@ -75,7 +75,7 @@ export default function MeetingChat() {
             <div className="flex items-center gap-2">
             <a
               href={contactMailto('Question about Open Navigator')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-primary-600 shadow-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-600"
+              className="inline-flex items-center gap-1.5 min-h-[44px] rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold sm:min-h-0 sm:px-2.5 text-primary-600 shadow-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-600"
             >
               <EnvelopeIcon className="h-4 w-4" aria-hidden="true" />
               Contact us
@@ -85,13 +85,13 @@ export default function MeetingChat() {
               onClick={close}
               aria-label="Close chat"
               title="Close chat (Esc)"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-600"
+              className="inline-flex h-11 w-11 items-center sm:h-7 sm:w-7 justify-center rounded-lg border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-600"
             >
               <XMarkIcon className="h-4 w-4" aria-hidden="true" />
             </button>
             </div>
           </div>
-          <div className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1 flex-col-reverse sm:flex-row">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <MeetingChatThread />
             </div>
