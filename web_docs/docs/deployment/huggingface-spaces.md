@@ -257,7 +257,8 @@ The Space will automatically rebuild.
 The web app installs a service worker, which serves the site from the device's cache and swaps in a new version when
 it finds a new `sw.js`. The Space's nginx sends the service worker files (`sw.js`, `registerSW.js`, `workbox-*.js`,
 `manifest.webmanifest`) with `Cache-Control: no-cache, no-store, must-revalidate`, so a device checks for a new
-version on every visit.
+version on every visit. That rule sits inside `location /` in `.huggingface/nginx.conf`, ahead of the rule
+for other static files; nginx tries a location's nested rules first, so placed anywhere else it never applies to `sw.js`.
 
 The swap takes two visits: the first loads the old cached page and downloads the new version in the background, and
 the next load shows it. So after a deploy, open the site, close the tab, and open it again. If a device is still on
