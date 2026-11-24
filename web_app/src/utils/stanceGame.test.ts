@@ -1,0 +1,284 @@
+import { describe, expect, it } from 'vitest'
+import type { GroupResult } from '../api/stance'
+import {
+  chartSpec,
+  dotGroupHeading,
+  findingAgendaItems,
+  findingCommunityEvents,
+  findingConcerns,
+  findingFor,
+  findingJobClaims,
+  findingMeetingMentions,
+  findingProjects,
+  findingSites,
+  placeLabel,
+  resultBars,
+  roundHeadline,
+  roundWord,
+  sidedWith,
+  tallySided,
+} from './stanceGame'
+
+const grp = (agree: number, disagree: number, unsure: number): GroupResult => ({
+  available: true,
+  n: agree + disagree + unsure,
+  agree,
+  disagree,
+  unsure,
+})
+const none = (n: number): GroupResult => ({ available: false, n, agree: null, disagree: null, unsure: null })
+
+describe('resultBars', () => {
+  it('returns null for unavailable or missing groups', () => {
+    expect(resultBars(none(12))).toBeNull()
+    expect(resultBars(none(0))).toBeNull()
+    expect(resultBars(null)).toBeNull()
+    expect(resultBars(undefined)).toBeNull()
+  })
+  it('widths sum to 100 by largest remainder', () => {
+    const bars = resultBars(grp(1, 1, 1))!
+    expect(bars.map((b) => b.percent).reduce((a, b) => a + b, 0)).toBe(100)
+    expect(bars.map((b) => b.count)).toEqual([1, 1, 1])
+    const b2 = resultBars(grp(50, 30, 20))!
+    expect(b2.map((b) => b.percent)).toEqual([50, 30, 20])
+    const b3 = resultBars(grp(17, 11, 5))!
+    expect(b3.map((b) => b.percent).reduce((a, b) => a + b, 0)).toBe(100)
+  })
+  it('keeps the answer order agree, disagree, not sure', () => {
+    expect(resultBars(grp(3, 2, 1))!.map((b) => b.label)).toEqual(['Agree', 'Disagree', 'Not sure'])
+  })
+  it('handles a group where all answers are one choice', () => {
+    expect(resultBars(grp(40, 0, 0))!.map((b) => b.percent)).toEqual([100, 0, 0])
+  })
+})
+
+describe('sidedWith', () => {
+  it('majority, minority and tie', () => {
+    expect(sidedWith('agree', grp(20, 10, 5))).toBe('majority')
+    expect(sidedWith('disagree', grp(20, 10, 5))).toBe('minority')
+    expect(sidedWith('agree', grp(15, 15, 5))).toBe('tie')
+    expect(sidedWith('disagree', grp(15, 15, 5))).toBe('tie')
+  })
+  it('null for not sure, no answer and unavailable groups', () => {
+    expect(sidedWith('unsure', grp(20, 10, 5))).toBeNull()
+    expect(sidedWith(null, grp(20, 10, 5))).toBeNull()
+    expect(sidedWith('agree', none(29))).toBeNull()
+    expect(sidedWith('agree', null)).toBeNull()
+  })
+  it('compares not sure as a group too', () => {
+    expect(sidedWith('agree', grp(10, 5, 20))).toBe('minority')
+  })
+})
+
+describe('tallySided', () => {
+  it('counts only available groups and skips ties', () => {
+    const t = tallySided([
+      { answer: 'agree', group: grp(20, 10, 5) },
+      { answer: 'disagree', group: grp(20, 10, 5) },
+      { answer: 'agree', group: none(3) },
+      { answer: 'agree', group: grp(5, 5, 0) },
+      { answer: 'unsure', group: grp(20, 10, 5) },
+    ])
+    expect(t).toEqual({ compared: 2, withLarger: 1 })
+  })
+})
+
+describe('roundWord', () => {
+  it('words up to twenty then numerals', () => {
+    expect(roundWord(1)).toBe('one')
+    expect(roundWord(8)).toBe('eight')
+    expect(roundWord(20)).toBe('twenty')
+    expect(roundWord(21)).toBe('21')
+  })
+})
+
+describe('placeLabel', () => {
+  it('states exactly the scope', () => {
+    expect(placeLabel(null, null)).toBe('National only')
+    expect(placeLabel('Alabama', null)).toBe('Alabama')
+    expect(placeLabel('Alabama', 'Tuscaloosa')).toBe('Tuscaloosa, Alabama')
+  })
+})
+
+describe('findings', () => {
+  it('job claims', () => {
+    const res = { totals: { construction: 12, operations: 1300 }, items: [] } as never
+    expect(findingJobClaims(res)).toBe('Meetings nationally include 12 jobs claims for construction and 1,300 for operations.')
+    expect(findingJobClaims({ totals: { construction: 0, operations: 0 }, items: [] } as never)).toBeNull()
+    expect(findingJobClaims(null)).toBeNull()
+  })
+  it('sites', () => {
+    const res = { counts: { planned: 2, under_construction: 3, operating: 5, no_longer_listed: 1, status_not_published: 0 }, items: [] } as never
+    expect(findingSites(res, 'Virginia')).toContain('11 data center sites are on record in Virginia: 5 operating, 3 under construction, 2 planned.')
+    expect(findingSites({ counts: { planned: 0, under_construction: 0, operating: 0, no_longer_listed: 0, status_not_published: 0 }, items: [] } as never)).toBeNull()
+  })
+  it('concerns uses the area list for a state and the national list otherwise', () => {
+    const res = {
+      items: [{ concern: 'noise', mention_count: 4 }],
+      national: [
+        { concern: 'water', mention_count: 30 },
+        { concern: 'noise', mention_count: 10 },
+      ],
+    } as never
+    expect(findingConcerns(res)).toBe('Water was the #1 concern in meetings nationally: 30 of 40 mentions.')
+    expect(findingConcerns(res, 'Alabama')).toBe('Noise was the #1 concern in meetings in Alabama: 4 of 4 mentions.')
+    expect(findingConcerns({ items: [], national: [] } as never, 'Alabama')).toBeNull()
+    expect(findingConcerns({ items: [], national: [{ concern: 'water', mention_count: 5 }, { concern: 'noise', mention_count: 5 }] } as never)).toBe(
+      'Noise and water tied as the most raised concerns in meetings nationally: 5 mentions each of 10.',
+    )
+  })
+  it('meeting mentions', () => {
+    const res = {
+      counts: { passages: 40 },
+      items: [{ meeting_date: '2025-03-01' }, { meeting_date: '2025-04-01' }, { meeting_date: '2024-01-01' }, { meeting_date: null }],
+    } as never
+    expect(findingMeetingMentions(res)).toBe(
+      '2025 has the most meeting passages about data centers nationally: 2 of the 3 most recent (40 passages on record nationally).',
+    )
+    expect(findingMeetingMentions({ counts: { passages: 0 }, items: [] } as never)).toBeNull()
+  })
+  it('agenda items', () => {
+    expect(findingAgendaItems({ counts: { upcoming: 2, past: 5 }, items: [] } as never)).toBe(
+      '7 meeting agendas mention a data center nationally: 2 upcoming and 5 past.',
+    )
+    expect(findingAgendaItems({ counts: { upcoming: 0, past: 0 }, items: [] } as never)).toBeNull()
+  })
+  it('community events', () => {
+    const res = { items: [{ event_kind: 'town_hall' }, { event_kind: 'town_hall' }, { event_kind: 'open_house' }] } as never
+    expect(findingCommunityEvents(res)).toBe('Town hall is the most common company-hosted meeting nationally: 2 of 3 events.')
+    expect(findingCommunityEvents({ items: [] } as never)).toBeNull()
+  })
+  it('projects', () => {
+    const res = { total: 5, items: [{ status: 'planned' }, { status: 'planned' }, { status: null }] } as never
+    expect(findingProjects(res)).toBe('Most data center projects nationally are listed as "Planned": 2 of 3 shown (5 on record).')
+    expect(findingProjects({ total: 0, items: [] } as never)).toBeNull()
+  })
+  it('findingFor dispatches and tolerates unknown keys', () => {
+    expect(findingFor('nope', {} as never)).toBeNull()
+    expect(findingFor('sites', null)).toBeNull()
+  })
+})
+
+describe('chartSpec', () => {
+  it('null when empty', () => {
+    expect(chartSpec('sites', { counts: { planned: 0, under_construction: 0, operating: 0, no_longer_listed: 0, status_not_published: 0 }, items: [] } as never)).toBeNull()
+    expect(chartSpec('community-events', { items: [] } as never)).toBeNull()
+    expect(chartSpec('projects', { total: 0, items: [] } as never)).toBeNull()
+    expect(chartSpec('x', {} as never)).toBeNull()
+  })
+  it('meeting mentions are dots grouped by year, newest first, one dot per record, with a cap note and a source link', () => {
+    const spec = chartSpec('meeting-mentions', {
+      counts: { passages: 9 },
+      items: [
+        { data_center_meeting_mention_id: 'a', meeting_date: '2025-03-01', video_url: 'https://v/1', jump_url: 'https://v/1?t=5', jurisdiction_name: 'Tuscaloosa', state_code: 'AL' },
+        { data_center_meeting_mention_id: 'b', meeting_date: '2024-01-01', video_url: 'https://v/2' },
+        { data_center_meeting_mention_id: 'c', meeting_date: '2025-05-05', video_url: 'https://v/3' },
+      ],
+    } as never)!
+    expect(spec.kind).toBe('dots')
+    if (spec.kind !== 'dots') return
+    expect(spec.groups.map((g) => [g.label, g.shown])).toEqual([['2025', 2], ['2024', 1]])
+    // the endpoint has no per-year counts: no totals and no shares, only what is shown
+    expect(spec.groups.map((g) => [g.total, g.share, g.heading])).toEqual([[null, null, '2025 · 2 shown'], [null, null, '2024 · 1 shown']])
+    expect(spec.grandTotal).toBeNull()
+    expect(spec.groups[0]!.dots[0]).toMatchObject({ id: 'a', place: 'Tuscaloosa, AL', url: 'https://v/1?t=5' })
+    expect(spec.note).toBe('Showing the most recent 3 of 9.')
+    expect(spec.drawn).toBe(3)
+  })
+  it('agenda items split upcoming and past; a dot without a document has no link', () => {
+    const spec = chartSpec('agenda-items', {
+      counts: { upcoming: 1, past: 1 },
+      items: [
+        { data_center_agenda_item_id: 'u', is_upcoming: true, document_url: 'https://d/1' },
+        { data_center_agenda_item_id: 'p', is_upcoming: false, document_url: null },
+      ],
+    } as never)!
+    if (spec.kind !== 'dots') throw new Error('dots')
+    expect(spec.groups.map((g) => g.label)).toEqual(['Upcoming meetings', 'Past meetings'])
+    expect(spec.groups[1]!.dots[0]!.url).toBeNull()
+    expect(spec.note).toBeNull()
+  })
+  it('sites are grouped by status in a fixed order', () => {
+    const spec = chartSpec('sites', {
+      counts: { planned: 1, under_construction: 0, operating: 2, no_longer_listed: 0, status_not_published: 0 },
+      items: [
+        { data_center_site_id: '1', site_name: 'A', status: 'planned', source_url: 'https://s/1' },
+        { data_center_site_id: '2', site_name: 'B', status: 'operating', source_url: 'https://s/2' },
+        { data_center_site_id: '3', site_name: 'C', status: 'operating', source_url: '' },
+      ],
+    } as never)!
+    if (spec.kind !== 'dots') throw new Error('dots')
+    expect(spec.groups.map((g) => [g.label, g.shown])).toEqual([['Operating', 2], ['Planned', 1]])
+    expect(spec.groups[0]!.dots[1]!.url).toBeNull()
+  })
+  it('bars carry count and share that sum to 100, sorted by mentions', () => {
+    const spec = chartSpec('concerns', { items: [], national: [{ concern: 'noise', mention_count: 2 }, { concern: 'water', mention_count: 9 }] } as never)!
+    if (spec.kind !== 'bars') throw new Error('bars')
+    expect(spec.rows.map((r) => r.value)).toEqual([9, 2])
+    expect(spec.rows.reduce((a, r) => a + r.percent, 0)).toBe(100)
+  })
+})
+
+describe('dotGroupHeading', () => {
+  it('full data: real count and real share, nothing about drawing', () => {
+    expect(dotGroupHeading({ label: 'Operating', shown: 6, total: 6, grandTotal: 10 })).toBe('Operating · 6 records · 60%')
+    expect(dotGroupHeading({ label: 'Planned', shown: 1, total: 1, grandTotal: 10 })).toBe('Planned · 1 record · 10%')
+  })
+  it('capped with real counts: the real count and share, plus how many are drawn', () => {
+    expect(dotGroupHeading({ label: 'Operating', shown: 24, total: 118, grandTotal: 197 })).toBe('Operating · 118 records · 60% · showing 24')
+  })
+  it('capped without counts: only what is shown, never a share or total', () => {
+    expect(dotGroupHeading({ label: '2025', shown: 24, total: null, grandTotal: null })).toBe('2025 · 24 shown')
+    expect(dotGroupHeading({ label: '2025', shown: 24, total: null, grandTotal: 197 })).toBe('2025 · 24 shown')
+  })
+  it('zero', () => {
+    expect(dotGroupHeading({ label: 'Past', shown: 0, total: 0, grandTotal: 10 })).toBe('Past · 0 records · 0%')
+    expect(dotGroupHeading({ label: 'Past', shown: 0, total: null, grandTotal: null })).toBe('Past · 0 shown')
+    expect(dotGroupHeading({ label: 'Past', shown: 0, total: 0, grandTotal: 0 })).toBe('Past · 0 records')
+  })
+})
+
+describe('headline and chart agree on a capped list', () => {
+  const sites = {
+    counts: { planned: 41, under_construction: 23, operating: 118, no_longer_listed: 6, status_not_published: 9 },
+    items: [
+      ...Array.from({ length: 5 }, (_, i) => ({ data_center_site_id: 'o' + i, site_name: 'O', status: 'operating', source_url: '' })),
+      ...Array.from({ length: 2 }, (_, i) => ({ data_center_site_id: 'p' + i, site_name: 'P', status: 'planned', source_url: '' })),
+    ],
+  } as never
+  it('sites: heading counts are the whole-scope counts, not the drawn ones, and match the headline', () => {
+    const spec = chartSpec('sites', sites)!
+    if (spec.kind !== 'dots') throw new Error('dots')
+    const heads = spec.groups.map((g) => g.heading)
+    expect(heads).toContain('Operating · 118 records · 60% · showing 5')
+    expect(heads).toContain('Under construction · 23 records · 12% · showing 0')
+    expect(spec.grandTotal).toBe(197)
+    expect(spec.note).toBe('Showing the most recent 7 of 197.')
+    const sentence = findingSites(sites)!
+    for (const n of ['197', '118', '23', '41']) expect(sentence).toContain(n)
+    expect(spec.groups.find((g) => g.key === 'operating')!.total).toBe(118)
+    expect(spec.groups.find((g) => g.key === 'planned')!.total).toBe(41)
+  })
+  it('agenda items: headings carry the real upcoming and past counts', () => {
+    const agenda = {
+      counts: { upcoming: 7, past: 52 },
+      items: [{ data_center_agenda_item_id: 'u', is_upcoming: true }, { data_center_agenda_item_id: 'p', is_upcoming: false }],
+    } as never
+    const spec = chartSpec('agenda-items', agenda)!
+    if (spec.kind !== 'dots') throw new Error('dots')
+    expect(spec.groups.map((g) => g.heading)).toEqual(['Upcoming meetings · 7 records · 12% · showing 1', 'Past meetings · 52 records · 88% · showing 1'])
+    expect(findingAgendaItems(agenda)).toBe('59 meeting agendas mention a data center nationally: 7 upcoming and 52 past.')
+  })
+  it('a group with a real count but no drawn dots still gets its heading', () => {
+    const spec = chartSpec('sites', { counts: { planned: 0, under_construction: 0, operating: 10, no_longer_listed: 5, status_not_published: 0 }, items: [{ data_center_site_id: 'o', site_name: 'O', status: 'operating', source_url: '' }] } as never)!
+    if (spec.kind !== 'dots') throw new Error('dots')
+    expect(spec.groups.map((g) => g.heading)).toEqual(['Operating · 10 records · 67% · showing 1', 'No longer listed · 5 records · 33% · showing 0'])
+  })
+})
+
+describe('roundHeadline', () => {
+  it('uses the finding, or a neutral description of the chart', () => {
+    expect(roundHeadline('sites', 'X.')).toEqual({ text: 'X.', isFinding: true })
+    expect(roundHeadline('sites', null)).toEqual({ text: 'Data center sites on record, by status', isFinding: false })
+  })
+})

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
@@ -282,6 +282,9 @@ export default function DataExplorerMatrixPage() {
       <h2 className="folio-heading">
         {ctx.geoNoun} · {vintage} ACS 5-year
       </h2>
+      <p className="folio-note">
+        <Link to="/play/data-centers">Play: Where Do You Stand?</Link>
+      </p>
 
       <dl className="folio-kpis" aria-label="Key figures for the metric in view">
         <Kpi label="Geographies with data" value={st.n} format={(v) => Math.round(v).toLocaleString('en-US')} sub={ctx.metricLabel} reduced={reduced} />

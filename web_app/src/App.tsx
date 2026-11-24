@@ -151,6 +151,15 @@ function RouteChangeTracer() {
   return null
 }
 
+// The game pulls in gsap and lenis, so it loads on its own route chunk and no other page pays for them.
+const WhereYouStand = lazy(() => import('./pages/WhereYouStand'))
+
+/** `/play` goes to the first topic pack and keeps any place already in the URL. */
+function PlayRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/play/data-centers${search}`} replace />
+}
+
 function App() {
   return (
     <>
@@ -180,6 +189,15 @@ function App() {
         <Route path="browse-topics" element={<BrowseTopics />} />
         <Route path="browse-causes" element={<BrowseCauses />} />
         <Route path="data-centers" element={<DataCenters />} />
+        <Route path="play" element={<PlayRedirect />} />
+        <Route
+          path="play/:packId"
+          element={
+            <LazyRouteBoundary name="Where Do You Stand?">
+              <WhereYouStand />
+            </LazyRouteBoundary>
+          }
+        />
         <Route path="money-and-talk" element={<MoneyTalk />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
         <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />
