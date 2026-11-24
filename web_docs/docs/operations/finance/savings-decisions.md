@@ -9,6 +9,21 @@ description: Each decision taken to spend less on running Open Navigator, with i
 Newest first. Each entry says what was decided, why, what was expected, and what has been measured since. An effect
 that has not been measured says so.
 
+## 2026-11-24: the light analysis moves from DeepSeek to Claude Haiku
+
+- **Decided:** the owner chose Claude Haiku 5.5 for the light analysis and its reports, in place of DeepSeek.
+  Issue #871. Being built when this was written; no run has been made on it.
+- **Why:** the owner judged a Chinese provider politically sensitive for American public meetings, and wanted the
+  cheapest American alternative. Published rates per million tokens on the day: Haiku 0.10 input and 0.50 output
+  (0.05 and 0.25 through the Batch API); DeepSeek Flash 0.15 and 0.60 off-peak, double at peak.
+- **Expected:** from the token counts in the [expense log](./expense-log.md), about 93,000 input and 9,000 output
+  tokens per analysed meeting, which at Haiku's live rates is a little over one cent a meeting. This is arithmetic,
+  and Claude counts tokens differently from DeepSeek, so the real figure could be about a third higher.
+- **Guards built in:** thinking held to low effort; a prompt over 100,000 tokens is skipped, not sent, because Haiku
+  charges five times as much above that size.
+- **Measured:** not yet. The first small run should be read in the usage report before a large one.
+- **Not yet done:** the Batch API path, which would halve the rate.
+
 ## 2026-11-24: DeepSeek calls run with thinking off
 
 - **Decided:** every DeepSeek call sends thinking off. `DEEPSEEK_THINKING` (`off`, `low`, `high`, `max`) turns it back
@@ -61,6 +76,6 @@ Options that would lower cost further. None is in effect.
 | Option | What it would save | What is not known |
 |---|---|---|
 | Run DeepSeek analysis only in off-peak hours | Half the rate. DeepSeek's peak hours are 01:00 to 04:00 and 06:00 to 10:00 UTC, Monday to Friday | How much of the past spend fell in peak hours |
-| Move the light analysis to Claude Haiku through the Batch API | Published batch rates are 0.05 input and 0.25 output per million tokens, against DeepSeek's 0.15 and 0.60 off-peak | Quality on our prompts; results arrive within a day, not at once; a prompt over 100,000 tokens costs five times as much |
+| Run the Haiku light analysis through the Batch API | Half the live rate: 0.05 input and 0.25 output per million tokens | Results arrive within a day, not at once; the pipeline would need to wait for them |
 | Send less text per transcript | Input tokens are the larger share once thinking is off | Whether transcripts carry avoidable padding has not been measured |
 | Fewer report calls per meeting | The report stage made between five and six successful calls for each successful analysis call and was about three quarters of the DeepSeek estimate | Why it makes that many, and whether they can be combined |
