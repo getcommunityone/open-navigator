@@ -52,6 +52,21 @@ The API log line `chat model call failed (<error type>): …` names the cause:
 | `NotFoundError` | `CHAT_MODEL` is not a model the key can use | correct the id |
 | `ClaudeRefusalError` | the model declined the question | nothing to fix |
 
+### Telling "not set up" from "the model failed" (#916)
+
+After a deploy on November 24, 2026 the live chat failed for every question that found meetings, and the page said only
+"Something went wrong". Three things now make the cause visible:
+
+- **`GET /api/chat/status`** returns `{ "provider", "model", "configured" }`. `configured` is false when the provider's
+  key variable is not set. It holds no secret.
+- **Before any model call**, a missing key answers **503** with "Chat is not set up on this site yet." and logs one error
+  line naming the provider and the missing variable (`ANTHROPIC_API_KEY` or `GEMINI_API_KEY`), never a value. A question
+  that finds no meetings still answers normally, because it needs no model.
+- **A model call that fails** still answers 502, and the log line gives the provider, model, exception type and status code.
+
+The page shows the server's own reason for a failed request (`web_app/src/utils/chatError.ts`), with separate wording
+for a request that timed out after a minute and for no connection, and points to "Contact us" at the top of the panel.
+
 ## Chat and Contact are one header item (#860)
 
 The site header has a single "Chat & Contact" item that opens `/chat`. The top of the chat panel says the chat

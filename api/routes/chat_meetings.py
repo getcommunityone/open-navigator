@@ -443,6 +443,77 @@ def _call_chat_model(
     return _call_claude(system, user)
 
 
+CHAT_NOT_SET_UP = "Chat is not set up on this site yet."
+
+
+def chat_model_name() -> str:
+    """The model the chat would call, without calling it."""
+    override = (os.environ.get("CHAT_MODEL") or "").strip()
+    if override:
+        return override
+    if chat_provider() == "gemini":
+        from llm.gemini.genai_text_client import default_flash_lite_model
+
+        return default_flash_lite_model()
+    from llm.claude.text_client import DEFAULT_CHAT_MODEL
+
+    return DEFAULT_CHAT_MODEL
+
+
+def chat_missing_setting() -> Optional[str]:
+    """The name of the key variable the chat's provider needs and does not have, or None (#916).
+
+    Only names are returned and logged; a key's value is never read into a message.
+    """
+    if chat_provider() == "gemini":
+        from llm.gemini.genai_text_client import resolve_gemini_api_key
+
+        try:
+            return None if (resolve_gemini_api_key() or "").strip() else "GEMINI_API_KEY"
+        except Exception:  # noqa: BLE001 - the resolver raises when no key is configured
+            return "GEMINI_API_KEY"
+    return None if (os.environ.get("ANTHROPIC_API_KEY") or "").strip() else "ANTHROPIC_API_KEY"
+
+
+def _require_chat_configured() -> None:
+    """Answer 503 before any model call when the provider's key is not set (#916)."""
+    missing = chat_missing_setting()
+    if missing:
+        logger.error("chat is not set up: provider={} needs {} and it is not set", chat_provider(), missing)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=CHAT_NOT_SET_UP)
+
+
+def _log_model_failure(where: str, exc: Exception) -> None:
+    """One error line that says what was called and how it failed, for the operator (#916)."""
+    try:
+        provider, model = chat_provider(), chat_model_name()
+    except Exception:  # noqa: BLE001
+        provider, model = "unknown", "unknown"
+    logger.error(
+        "{} model call failed: provider={} model={} error={} status={} detail={}",
+        where,
+        provider,
+        model,
+        type(exc).__name__,
+        getattr(exc, "status_code", None),
+        exc,
+    )
+
+
+class ChatStatus(BaseModel):
+    provider: str
+    model: str
+    configured: bool
+
+
+@router.get("/status", response_model=ChatStatus)
+async def chat_status() -> ChatStatus:
+    """Whether the chat can answer on this site: provider, model and whether its key is set. No secrets."""
+    return ChatStatus(
+        provider=chat_provider(), model=chat_model_name(), configured=chat_missing_setting() is None
+    )
+
+
 def _answer_looks_empty(text: str) -> bool:
     low = (text or "").lower()
     if not text.strip():
@@ -525,13 +596,14 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
                 mode="summaries",
             )
 
+        _require_chat_configured()
         try:
             text, model, in_tok, out_tok, usd = await run_in_threadpool(
                 _call_chat_model, _SYSTEM_SUMMARIES, _meetings_to_prompt(question, meetings)
             )
         except Exception as exc:  # noqa: BLE001
             span.record_exception(exc)
-            logger.error("chat model call failed ({}): {}", type(exc).__name__, exc)
+            _log_model_failure("chat", exc)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="The answer service is temporarily unavailable.",
@@ -579,6 +651,7 @@ async def _chat_passages(
             mode="passages",
         )
 
+    _require_chat_configured()
     try:
         text, model, in_tok, out_tok, usd = await run_in_threadpool(
             _call_chat_model,
@@ -587,7 +660,7 @@ async def _chat_passages(
         )
     except Exception as exc:  # noqa: BLE001
         span.record_exception(exc)
-        logger.error("chat passages model call failed ({}): {}", type(exc).__name__, exc)
+        _log_model_failure("chat passages", exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The answer service is temporarily unavailable.",
