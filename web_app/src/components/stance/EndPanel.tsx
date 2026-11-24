@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { PackSummary, StanceAnswer, StatementResults } from '../../api/stance'
 import { placeLabel, tallySided } from '../../utils/stanceGame'
+import KineticText from './KineticText'
 
 interface Props {
   index: number
@@ -34,7 +35,7 @@ export default function EndPanel({ index, rounds, stateName, city, otherPacks, p
         <div className="stance-card">
           <p className="stance-card-eyebrow">Your results</p>
           <p className="stance-card-title" id="stance-end-h">
-            Where you stood
+            <KineticText text="Where you stood" />
           </p>
         </div>
         <p className="stance-finding">
@@ -79,7 +80,7 @@ export default function EndPanel({ index, rounds, stateName, city, otherPacks, p
           This is how people who played answered. It is not a poll.
         </p>
         <div className="stance-nav">
-          <button type="button" className="folio-btn stance-next" onClick={() => onJump(0)}>
+          <button type="button" className="folio-btn stance-next" onClick={() => onJump(0)} data-primary>
             Play again
           </button>
           <Link className="folio-btn" to={storyLink}>

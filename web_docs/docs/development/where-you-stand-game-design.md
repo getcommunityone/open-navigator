@@ -141,3 +141,89 @@ the design.
 - **Scroll.** The pinned, scroll-scrubbed acts (`useActs.ts`) stay. With the `beats` option the timeline no longer scrubs the
   chart draw, the question block or the reveal; the round plays those on a clock. Scrolling past an unanswered round still counts
   as skipping it.
+
+## Update, November 24, 2026 (#915): the story opens on a question, and phones get kinetic screens
+
+The owner's feedback on the live `/stories` page was that the two introductory paragraphs were awful, that the story should start
+with a question ("should we allow new data center", with yes, no or a moratorium), then the scope, that the last screen should
+challenge the reader on their opinion and record their votes, and that the story and the challenge should have kinetic scrolling.
+Later feedback from a phone added: scrolling should stop on the next screen, screens and titles should animate in and out, one
+obvious next step should always be on screen, and the quiz-show energy belongs to the challenge only.
+
+### Decisions and reasons
+
+- **One question per pack, in the pack file.** The question, its place wording and its options live beside the statements in
+  `api/stance_packs/`, so the hub, the story's three vote screens and the API all read one source. The pack `version` is 3.
+- **A second table, not more rows in `stance_response`.** `stance_response.answer` is checked against agree / disagree / unsure
+  and is unique per reader and statement. The question has its own options and two answers per reader (before and after), so it
+  gets `public.stance_choice_response`, unique per reader, question version and moment.
+- **The answer follows the place the reader names.** The owner's order is question first, place second, so a first answer is
+  usually given with no place. When the reader then names a state or community, the story stores the answers they have already
+  given again with that place (same row, updated). Without that the "before" split for a state or community could only ever
+  count readers who arrived with a place already in the link. Broadening to the country never removes a place from a stored
+  answer.
+- **Same withholding as the challenge.** A group below `STANCE_MIN_SAMPLE` returns `available: false`, its real `n` and
+  `counts: null`. Counts for an option id that is no longer in the pack are left out. Nothing is seeded.
+- **Phones use CSS scroll snap, not the pinned engine.** Pinning with GSAP ScrollTrigger and Lenis on touch fights the phone's
+  momentum scrolling and the address bar resizing the window. Scroll snap with `scroll-snap-stop: always` on full-height screens
+  (`svh`) is the browser's own mechanism and lands one screen per swipe. `useActs` marks each screen `data-state="in"`, `above`
+  or `below` (and `data-leaving` while it is going), and `stance.css` plays the entrance, the exit and the word-by-word titles from
+  those states with transitions, so re-entering a screen replays them. Modes: `pinned` (wide), `snap` (phone), `stacked` (reduced
+  motion).
+- **One wheel gesture, one screen.** In `snap` mode a wheel or trackpad gesture is turned into exactly one screen, because scroll
+  snap alone lets one hard flick pass several. In `pinned` mode the scroll is held at the hold next to the one the reader was
+  on. A block that still scrolls inside a screen keeps the wheel.
+- **Scrubbed values are written from the timeline.** `--draw`, `--reveal` and the new `--title` are written from the timeline's
+  own update and refresh, not from each tween: a timeline that starts part-way through (a deep link) renders without firing its
+  tweens' callbacks, which left charts undrawn.
+- **Always one primary action in view.** A screen marks its primary control with `data-primary`. `FloatingNext` watches it with
+  an IntersectionObserver and, only while it is out of view, shows the same action in a bar at the bottom of the window. The bar
+  presses the real control and is hidden from assistive technology, so there is one focus stop and one name.
+- **Two energies, one family.** The story and the hub are calm (rises, fades, a steady button). The challenge (`data-beats`) adds
+  the spring, the arrow nudge, the light sweep, the ring on the chosen answer and popping progress segments. All of it is off
+  under `prefers-reduced-motion`. Every motif is our own; nothing is taken from any existing game or show.
+
+### Contract
+
+Pack file: `question` is `{ question_id, version, text, place_text, options: [{ id, label }] }`. `place_text` must contain
+`{place}`; there are at least two options with distinct ids. For data centers: `allow-new`, version 1, "Should we allow new data
+centers?", `Should {place} allow new data centers?`, options `yes` (Yes), `no` (No), `moratorium` (Pause for now).
+
+Table `public.stance_choice_response` (runtime-owned, created by the API on first use like `stance_response`; grain: one row
+per reader, pack, question, question version and moment):
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `stance_choice_response_id` | bigserial | Primary key |
+| `player_id` | uuid | The anonymous browser id |
+| `pack_id` | text | |
+| `question_id` | text | |
+| `question_version` | integer | The question's version when answered |
+| `moment` | text | `before` or `after` |
+| `choice` | text | One of the pack's option ids (checked by the API against the pack) |
+| `state_code` | char(2) | Nullable |
+| `state` | text | Full name, nullable |
+| `place_name` | text | Nullable; only with a state |
+| `created_at`, `updated_at` | timestamptz | |
+
+Unique on (`player_id`, `pack_id`, `question_id`, `question_version`, `moment`). No foreign keys, for the reason in decision 6.
+
+Endpoints:
+
+- `GET /api/stance/packs/{pack_id}` returns the pack with its `question`.
+- `POST /api/stance/choices` with `{ player_id, pack_id, question_id, moment, choice, state_code?, place_name? }` stores or
+  replaces the answer and returns `{ stance_choice_response, results }`. It shares the rate limit of `/api/stance/responses`.
+  404 for an unknown pack or question, 422 for a choice that is not one of the pack's options or a moment that is not `before`
+  or `after`, 400 for an unknown state or a place without a state.
+- `GET /api/stance/packs/{pack_id}/choice-results?player_id=&state_code=&place_name=` returns
+  `{ min_sample, question_id, question_version, your: { before, after }, before: { national, state, place }, after: { national, state, place } }`.
+  Each group is `{ available, n, counts }`, with `counts` an object of option id to count, or null below the minimum sample.
+  `state` and `place` are null when no state or community is asked for.
+
+Front end: the story's `?screen=` takes `question` (first), `scope` (second) and `verdict` (last). `turn` still opens the last
+screen.
+
+### Not done
+
+- The Analysis page (`DataExplorerMatrixPage`) does not use this engine and was not changed.
+- The motion was checked in headless Chromium with touch emulation at 390 by 844 and 360 by 640, not on a physical phone.

@@ -17,10 +17,14 @@ PID = str(uuid.uuid4())
 
 
 class _Conn:
-    def __init__(self, results=None, yours=None, saved=None):
+    def __init__(
+        self, results=None, yours=None, saved=None, choices=None, your_choices=None
+    ):
         self.results = results or []
         self.yours = yours or []
         self.saved = saved
+        self.choices = choices or []
+        self.your_choices = your_choices or []
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
 
     async def execute(self, sql: str, *params: Any):
@@ -28,12 +32,25 @@ class _Conn:
 
     async def fetch(self, sql: str, *params: Any):
         self.calls.append((sql, params))
+        if "stance_choice_response" in sql:
+            return self.your_choices if "player_id = $1" in sql else self.choices
         return self.yours if "player_id = $1" in sql else self.results
 
     async def fetchrow(self, sql: str, *params: Any):
         self.calls.append((sql, params))
         if self.saved is not None:
             return self.saved
+        if "stance_choice_response" in sql:
+            return {
+                "pack_id": params[1],
+                "question_id": params[2],
+                "question_version": params[3],
+                "moment": params[4],
+                "choice": params[5],
+                "state_code": params[6],
+                "state": params[7],
+                "place_name": params[8],
+            }
         return {
             "pack_id": params[1],
             "statement_id": params[2],
@@ -122,7 +139,7 @@ def test_pack_listing(call):
         {
             "pack_id": "data-centers",
             "title": "Data Center Challenge",
-            "version": 2,
+            "version": 3,
             "statement_count": 7,
         }
     ]
@@ -132,6 +149,17 @@ def test_pack_content_and_404(call):
     ok = call(_Conn(), "GET", "/api/stance/packs/data-centers")
     assert ok.status_code == 200
     assert [s["order"] for s in ok.json()["statements"]] == list(range(1, 8))
+    assert ok.json()["question"] == {
+        "question_id": "allow-new",
+        "version": 1,
+        "text": "Should we allow new data centers?",
+        "place_text": "Should {place} allow new data centers?",
+        "options": [
+            {"id": "yes", "label": "Yes"},
+            {"id": "no", "label": "No"},
+            {"id": "moratorium", "label": "Pause for now"},
+        ],
+    }
     assert call(_Conn(), "GET", "/api/stance/packs/nope").status_code == 404
     assert call(_Conn(), "GET", "/api/stance/packs/nope/results").status_code == 404
 
@@ -339,6 +367,213 @@ def test_results_place_without_state_400_and_bad_uuid_422(call):
             "GET",
             "/api/stance/packs/data-centers/results",
             params={"player_id": "bad"},
+        ).status_code
+        == 422
+    )
+
+
+# --- the before/after question (#915) ----------------------------------------
+
+CHOICES_URL = "/api/stance/choices"
+CHOICE_RESULTS_URL = "/api/stance/packs/data-centers/choice-results"
+_QUESTION = {
+    "question_id": "q",
+    "version": 1,
+    "text": "Should we?",
+    "place_text": "Should {place}?",
+    "options": [{"id": "yes", "label": "Yes"}, {"id": "no", "label": "No"}],
+}
+
+
+def _choice(**over):
+    b = {
+        "player_id": PID,
+        "pack_id": "data-centers",
+        "question_id": "allow-new",
+        "moment": "before",
+        "choice": "moratorium",
+    }
+    b.update(over)
+    return b
+
+
+def _crow(moment, choice, nat=0, st=0, pl=0):
+    return {"moment": moment, "choice": choice, "nat_n": nat, "st_n": st, "pl_n": pl}
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"options": [{"id": "yes", "label": "Yes"}]},
+        {"options": [{"id": "yes", "label": "Yes"}, {"id": "yes", "label": "Yes"}]},
+        {"options": [{"id": "yes", "label": "Yes"}, {"id": "no"}]},
+        {"place_text": "Should we?"},
+        {"version": "1"},
+        {"text": ""},
+    ],
+)
+def test_validate_pack_rejects_bad_question(change):
+    st = {
+        "statement_id": "a",
+        "version": 1,
+        "order": 1,
+        "category": "c",
+        "statement": "s",
+        "chart": "sites",
+    }
+    pack = {"pack_id": "p", "title": "t", "version": 1, "statements": [st]}
+    assert stance.validate_pack({**pack, "question": dict(_QUESTION)})
+    with pytest.raises(stance.PackError):
+        stance.validate_pack({**pack, "question": {**_QUESTION, **change}})
+
+
+@pytest.mark.parametrize(
+    "over,code",
+    [
+        ({"choice": "maybe"}, 422),
+        ({"choice": "agree"}, 422),
+        ({"moment": "during"}, 422),
+        ({"player_id": "not-a-uuid"}, 422),
+        ({"question_id": "nope"}, 404),
+        ({"pack_id": "nope"}, 404),
+        ({"state_code": "ZZ"}, 400),
+        ({"place_name": "Tuscaloosa"}, 400),
+        ({"state_code": "AL", "place_name": "x" * 121}, 400),
+    ],
+)
+def test_choice_validation_stores_nothing(call, over, code):
+    conn = _Conn()
+    assert call(conn, "POST", CHOICES_URL, json=_choice(**over)).status_code == code
+    assert conn.calls == []
+
+
+def test_choice_upserts_once_per_reader_question_and_moment(call):
+    conn = _Conn()
+    r = call(
+        conn,
+        "POST",
+        CHOICES_URL,
+        json=_choice(moment="after", state_code="al", place_name=" Tuscaloosa "),
+        headers={"x-forwarded-for": "203.0.113.9"},
+    )
+    assert r.status_code == 200
+    upserts = [c for c in conn.calls if "ON CONFLICT" in c[0]]
+    assert len(upserts) == 1
+    sql, params = upserts[0]
+    assert (
+        "ON CONFLICT (player_id, pack_id, question_id, question_version, moment)" in sql
+    )
+    assert params == (
+        uuid.UUID(PID),
+        "data-centers",
+        "allow-new",
+        1,
+        "after",
+        "moratorium",
+        "AL",
+        "Alabama",
+        "Tuscaloosa",
+    )
+    create = next(c[0] for c in conn.calls if "CREATE TABLE" in c[0])
+    assert "public.stance_choice_response" in create
+    assert "stance_choice_response_id bigserial PRIMARY KEY" in create
+    assert (
+        "UNIQUE (player_id, pack_id, question_id, question_version, moment)" in create
+    )
+    assert "203.0.113.9" not in repr(conn.calls)
+    body = r.json()
+    assert body["stance_choice_response"] == {
+        "pack_id": "data-centers",
+        "question_id": "allow-new",
+        "question_version": 1,
+        "moment": "after",
+        "choice": "moratorium",
+        "state_code": "AL",
+        "state": "Alabama",
+        "place_name": "Tuscaloosa",
+    }
+    assert body["results"]["after"]["national"] == {
+        "available": False,
+        "n": 0,
+        "counts": None,
+    }
+
+
+def test_choice_shares_the_rate_limit(call, monkeypatch):
+    monkeypatch.setattr(stance, "_RATE_PER_HOUR", 2)
+    conn = _Conn()
+    assert call(conn, "POST", "/api/stance/responses", json=_body()).status_code == 200
+    assert call(conn, "POST", CHOICES_URL, json=_choice()).status_code == 200
+    assert call(conn, "POST", CHOICES_URL, json=_choice()).status_code == 429
+
+
+def test_choice_results_empty_table_seeds_nothing(call):
+    data = call(_Conn(), "GET", CHOICE_RESULTS_URL).json()
+    none = {"available": False, "n": 0, "counts": None}
+    assert data == {
+        "min_sample": 30,
+        "question_id": "allow-new",
+        "question_version": 1,
+        "your": {"before": None, "after": None},
+        "before": {"national": none, "state": None, "place": None},
+        "after": {"national": none, "state": None, "place": None},
+    }
+
+
+def test_choice_results_withhold_below_min_sample_per_group(call):
+    rows = [
+        _crow("before", "yes", nat=20, st=10, pl=1),
+        _crow("before", "no", nat=10, st=19, pl=0),
+        _crow("after", "yes", nat=12, st=30),
+        _crow("after", "moratorium", nat=17),
+        _crow("after", "retired-option", nat=500, st=500, pl=500),
+    ]
+    conn = _Conn(
+        choices=rows,
+        your_choices=[
+            {"moment": "before", "choice": "yes"},
+            {"moment": "after", "choice": "no"},
+        ],
+    )
+    r = call(
+        conn,
+        "GET",
+        CHOICE_RESULTS_URL,
+        params={"state_code": "al", "place_name": " TuscaLoosa ", "player_id": PID},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["your"] == {"before": "yes", "after": "no"}
+    assert data["before"]["national"] == {
+        "available": True,
+        "n": 30,
+        "counts": {"yes": 20, "no": 10, "moratorium": 0},
+    }
+    assert data["before"]["state"] == {"available": False, "n": 29, "counts": None}
+    assert data["before"]["place"] == {"available": False, "n": 1, "counts": None}
+    assert data["after"]["national"] == {"available": False, "n": 29, "counts": None}
+    assert data["after"]["state"] == {
+        "available": True,
+        "n": 30,
+        "counts": {"yes": 30, "no": 0, "moratorium": 0},
+    }
+    assert data["after"]["place"] == {"available": False, "n": 0, "counts": None}
+    grouped = [c for c in conn.calls if "GROUP BY c.moment, c.choice" in c[0]]
+    assert len(grouped) == 1
+    assert grouped[0][1] == ("data-centers", "allow-new", 1, "AL", "tuscaloosa")
+
+
+def test_choice_results_errors(call):
+    assert (
+        call(_Conn(), "GET", "/api/stance/packs/nope/choice-results").status_code == 404
+    )
+    assert (
+        call(_Conn(), "GET", CHOICE_RESULTS_URL, params={"place_name": "X"}).status_code
+        == 400
+    )
+    assert (
+        call(
+            _Conn(), "GET", CHOICE_RESULTS_URL, params={"player_id": "bad"}
         ).status_code
         == 422
     )

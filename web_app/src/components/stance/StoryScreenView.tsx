@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
 import ChartPanel from './ChartPanel'
+import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
 
@@ -20,11 +20,9 @@ interface Props {
   /** Broaden the place: to the state (null when none is chosen) or to the whole country. */
   onBroaden: (stateCode: string | null, city: string | null) => void
   onRetry: () => void
-  /** Closing screen links, with the scope already in them. */
-  links: { challenge: string; dataCenters: string; decisions: string }
 }
 
-/** One screen of a story: the short word, the headline, one line of context and the chart (or counts, or links) beside it. */
+/** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
 export default function StoryScreenView(p: Props) {
   const { screen, text, scope } = p
   const leftRef = useRef<HTMLDivElement>(null)
@@ -63,13 +61,13 @@ export default function StoryScreenView(p: Props) {
   )
 
   const stats = screen.kind === 'overview' ? storyStats(p.data, scope) : []
-  const closing = screen.kind === 'closing'
 
   return (
     <section
       className="stance-panel stance-act"
       data-panel={p.index}
       data-screen={screen.id}
+      data-live={p.active ? '' : undefined}
       aria-labelledby={`story-h-${screen.id}`}
       aria-roledescription="screen"
       tabIndex={-1}
@@ -89,7 +87,7 @@ export default function StoryScreenView(p: Props) {
           </div>
           <div className="stance-head">
             <h2 className="stance-headline" id={`story-h-${screen.id}`}>
-              {text.headline}
+              <KineticText text={text.headline} />
             </h2>
             <p className="stance-lede">
               {text.context}
@@ -110,27 +108,6 @@ export default function StoryScreenView(p: Props) {
                 {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}
               </p>
             )
-          ) : closing ? (
-            <ul className="stance-links">
-              <li>
-                <Link className="stance-link-card is-primary" to={p.links.challenge}>
-                  <b>Take the Data Center Challenge</b>
-                  <span>Agree, disagree or not sure, then see how people who played answered.</span>
-                </Link>
-              </li>
-              <li>
-                <Link className="stance-link-card" to={p.links.dataCenters}>
-                  <b>Open the Data centers page</b>
-                  <span>Every site, claim and meeting passage behind this story, for {storyScopeLabel(scope)}.</span>
-                </Link>
-              </li>
-              <li>
-                <Link className="stance-link-card" to={p.links.decisions}>
-                  <b>See decisions {scope.stateName ? `in ${storyScopeLabel(scope)}` : 'nationwide'}</b>
-                  <span>Decisions local governments made, filtered to the same place.</span>
-                </Link>
-              </li>
-            </ul>
           ) : (
             <ChartPanel
               chartKey={String(screen.chart)}

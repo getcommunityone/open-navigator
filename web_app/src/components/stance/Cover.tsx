@@ -1,4 +1,5 @@
 import { useChartData } from './ChartPanel'
+import KineticText from './KineticText'
 import StatRow from './StatRow'
 import { storyStats } from '../../utils/dataStory'
 import type { StoryData } from '../../utils/dataStory'
@@ -29,7 +30,7 @@ export default function Cover({ packTitle, statementCount, onStart }: Props) {
       <div className="stance-cover-body">
         <p className="folio-eyebrow">The challenge · {statementCount} statements</p>
         <h1 className="stance-cover-title" id="stance-cover-h">
-          {packTitle}
+          <KineticText text={packTitle} />
         </h1>
         <p className="stance-cover-lead">
           Each round shows what the public record says, then puts one statement to you. Answer agree, disagree or not sure. There is no answer
@@ -38,7 +39,7 @@ export default function Cover({ packTitle, statementCount, onStart }: Props) {
         {stats.length > 0 && <StatRow stats={stats} label="What the records cover, nationally" />}
         {stats.length > 0 && <p className="stance-note">Counts for the whole country, from Open Navigator records.</p>}
         <div className="stance-nav">
-          <button type="button" className="folio-btn stance-next" onClick={onStart}>
+          <button type="button" className="folio-btn stance-next" onClick={onStart} data-primary>
             Start the challenge →
           </button>
         </div>

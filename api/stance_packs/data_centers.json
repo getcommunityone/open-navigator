@@ -1,7 +1,18 @@
 {
   "pack_id": "data-centers",
   "title": "Data Center Challenge",
-  "version": 2,
+  "version": 3,
+  "question": {
+    "question_id": "allow-new",
+    "version": 1,
+    "text": "Should we allow new data centers?",
+    "place_text": "Should {place} allow new data centers?",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "moratorium", "label": "Pause for now" }
+    ]
+  },
   "statements": [
     {
       "statement_id": "jobs-worth-it",

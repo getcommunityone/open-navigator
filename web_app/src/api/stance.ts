@@ -23,11 +23,86 @@ export interface StanceStatement {
   chart: ChartKey | string
 }
 
+/** The one question a story asks before and after the record (#915). Absent on a pack without one. */
+export interface StanceQuestion {
+  question_id: string
+  version: number
+  /** The question for the whole country. */
+  text: string
+  /** The question for a place, with `{place}` where its name goes. */
+  place_text: string
+  options: Array<{ id: string; label: string }>
+}
+
 export interface StancePack {
   pack_id: string
   title: string
   version: number
+  question?: StanceQuestion | null
   statements: StanceStatement[]
+}
+
+export type ChoiceMoment = 'before' | 'after'
+
+/** `available` is true only at the minimum sample; otherwise `counts` is null and only `n` is real. */
+export interface ChoiceGroup {
+  available: boolean
+  n: number
+  counts: Record<string, number> | null
+}
+
+export interface ChoiceScopes {
+  national: ChoiceGroup
+  state: ChoiceGroup | null
+  place: ChoiceGroup | null
+}
+
+export interface ChoiceResults {
+  min_sample: number
+  question_id: string
+  question_version: number
+  your: { before: string | null; after: string | null }
+  before: ChoiceScopes
+  after: ChoiceScopes
+}
+
+export interface StanceChoiceBody {
+  player_id: string
+  pack_id: string
+  question_id: string
+  moment: ChoiceMoment
+  choice: string
+  state_code?: string
+  place_name?: string
+}
+
+export interface PostChoiceOut {
+  stance_choice_response: {
+    pack_id: string
+    question_id: string
+    question_version: number
+    moment: ChoiceMoment
+    choice: string
+    state_code: string | null
+    state: string | null
+    place_name: string | null
+  }
+  results: ChoiceResults
+}
+
+export async function postStanceChoice(body: StanceChoiceBody): Promise<PostChoiceOut> {
+  const res = await api.post<PostChoiceOut>('/stance/choices', body)
+  return res.data
+}
+
+export async function fetchChoiceResults(
+  packId: string,
+  params: { stateCode?: string; placeName?: string; playerId?: string },
+): Promise<ChoiceResults> {
+  const res = await api.get<ChoiceResults>(`/stance/packs/${encodeURIComponent(packId)}/choice-results`, {
+    params: { state_code: params.stateCode, place_name: params.placeName, player_id: params.playerId },
+  })
+  return res.data
 }
 
 export interface PackSummary {

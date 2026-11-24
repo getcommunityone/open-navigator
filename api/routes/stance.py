@@ -4,6 +4,12 @@
     GET  /api/stance/packs/{pack_id}
     POST /api/stance/responses
     GET  /api/stance/packs/{pack_id}/results
+    POST /api/stance/choices                          (#915)
+    GET  /api/stance/packs/{pack_id}/choice-results   (#915)
+
+A pack may also carry one ``question`` with a short list of options (#915): the
+story asks it before and after the reader has seen the record, and each answer is
+stored once per reader, question and moment in ``public.stance_choice_response``.
 
 Anonymous play: a random browser UUID, no login. No IP, name or other personal
 data is stored; the rate-limit key is a hash kept only in memory. Group splits
@@ -106,7 +112,38 @@ def validate_pack(pack: dict[str, Any], source: str = "pack") -> dict[str, Any]:
         seen_ids.add(st["statement_id"])
         seen_orders.add(st["order"])
     pack["statements"] = sorted(statements, key=lambda s: s["order"])
+    if pack.get("question") is not None:
+        _validate_question(pack["question"], source)
     return pack
+
+
+def _validate_question(question: Any, source: str) -> None:
+    """The optional before/after question of a pack (#915)."""
+    if not isinstance(question, dict):
+        raise PackError(f"{source}: 'question' must be an object")
+    for key in ("question_id", "version", "text", "place_text", "options"):
+        if question.get(key) in (None, ""):
+            raise PackError(f"{source}: question missing '{key}'")
+    if not isinstance(question["version"], int) or isinstance(
+        question["version"], bool
+    ):
+        raise PackError(f"{source}: question 'version' must be an integer")
+    if "{place}" not in question["place_text"]:
+        raise PackError(f"{source}: question 'place_text' needs '{{place}}'")
+    options = question["options"]
+    if not isinstance(options, list) or len(options) < 2:
+        raise PackError(f"{source}: question needs at least two options")
+    ids: list[str] = []
+    for opt in options:
+        if (
+            not isinstance(opt, dict)
+            or opt.get("id") in (None, "")
+            or opt.get("label") in (None, "")
+        ):
+            raise PackError(f"{source}: question option needs 'id' and 'label'")
+        ids.append(opt["id"])
+    if len(ids) != len(set(ids)):
+        raise PackError(f"{source}: duplicate question option id")
 
 
 def load_packs(directory: Path | None = None) -> dict[str, dict[str, Any]]:
@@ -188,6 +225,60 @@ class PostResponseOut(BaseModel):
     results: StatementResults
 
 
+class StanceChoiceIn(BaseModel):
+    player_id: uuid.UUID
+    pack_id: str
+    question_id: str
+    moment: Literal["before", "after"]
+    choice: str
+    state_code: str | None = None
+    place_name: str | None = None
+
+
+class StanceChoiceOut(BaseModel):
+    pack_id: str
+    question_id: str
+    question_version: int
+    moment: str
+    choice: str
+    state_code: str | None = None
+    state: str | None = None
+    place_name: str | None = None
+
+
+class ChoiceGroup(BaseModel):
+    """One group's answers. ``counts`` is null below the minimum sample; ``n`` is always real."""
+
+    available: bool
+    n: int
+    counts: dict[str, int] | None = None
+
+
+class ChoiceScopes(BaseModel):
+    national: ChoiceGroup
+    state: ChoiceGroup | None = None
+    place: ChoiceGroup | None = None
+
+
+class YourChoices(BaseModel):
+    before: str | None = None
+    after: str | None = None
+
+
+class ChoiceResults(BaseModel):
+    min_sample: int
+    question_id: str
+    question_version: int
+    your: YourChoices
+    before: ChoiceScopes
+    after: ChoiceScopes
+
+
+class PostChoiceOut(BaseModel):
+    stance_choice_response: StanceChoiceOut
+    results: ChoiceResults
+
+
 # --------------------------------------------------------------------------
 # Storage
 # --------------------------------------------------------------------------
@@ -265,7 +356,65 @@ SELECT statement_id, answer FROM public.stance_response
 WHERE player_id = $1 AND pack_id = $2
 """
 
+# The before/after question (#915). One row per reader, question version and moment; a
+# changed answer updates the row. The choice is checked against the pack before it is stored.
+CREATE_CHOICE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS public.stance_choice_response (
+    stance_choice_response_id bigserial PRIMARY KEY,
+    player_id          uuid        NOT NULL,
+    pack_id            text        NOT NULL,
+    question_id        text        NOT NULL,
+    question_version   integer     NOT NULL,
+    moment             text        NOT NULL CHECK (moment IN ('before','after')),
+    choice             text        NOT NULL,
+    state_code         char(2),
+    state              text,
+    place_name         text,
+    created_at         timestamptz NOT NULL DEFAULT now(),
+    updated_at         timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (player_id, pack_id, question_id, question_version, moment)
+)
+"""
+CREATE_CHOICE_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS stance_choice_response_question_state_idx "
+    "ON public.stance_choice_response (pack_id, question_id, question_version, state_code)"
+)
+
+UPSERT_CHOICE_SQL = """
+INSERT INTO public.stance_choice_response
+    (player_id, pack_id, question_id, question_version, moment, choice, state_code, state, place_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (player_id, pack_id, question_id, question_version, moment) DO UPDATE SET
+    choice     = EXCLUDED.choice,
+    state_code = EXCLUDED.state_code,
+    state      = EXCLUDED.state,
+    place_name = EXCLUDED.place_name,
+    updated_at = now()
+RETURNING pack_id, question_id, question_version, moment, choice, state_code, state, place_name
+"""
+
+# One grouped query for the question. $1 pack, $2 question id, $3 its current version,
+# $4 state_code (or NULL), $5 lowercase trimmed place (or NULL). One row per moment and choice.
+CHOICE_RESULTS_SQL = """
+SELECT
+    c.moment,
+    c.choice,
+    count(*)                                                      AS nat_n,
+    count(*) FILTER (WHERE c.state_code = $4::text)               AS st_n,
+    count(*) FILTER (WHERE c.state_code = $4::text
+                       AND lower(btrim(c.place_name)) = $5::text) AS pl_n
+FROM public.stance_choice_response c
+WHERE c.pack_id = $1 AND c.question_id = $2 AND c.question_version = $3
+GROUP BY c.moment, c.choice
+"""
+
+CHOICE_YOURS_SQL = """
+SELECT moment, choice FROM public.stance_choice_response
+WHERE player_id = $1 AND pack_id = $2 AND question_id = $3 AND question_version = $4
+"""
+
 _table_ready = False
+_choice_table_ready = False
 
 
 async def _ensure_table(conn: Any) -> None:
@@ -277,9 +426,19 @@ async def _ensure_table(conn: Any) -> None:
     _table_ready = True
 
 
+async def _ensure_choice_table(conn: Any) -> None:
+    global _choice_table_ready
+    if _choice_table_ready:
+        return
+    await conn.execute(CREATE_CHOICE_TABLE_SQL)
+    await conn.execute(CREATE_CHOICE_INDEX_SQL)
+    _choice_table_ready = True
+
+
 def reset_table_ready() -> None:
-    global _table_ready
+    global _table_ready, _choice_table_ready
     _table_ready = False
+    _choice_table_ready = False
 
 
 # --------------------------------------------------------------------------
@@ -419,6 +578,80 @@ async def _fetch_results(
     )
 
 
+def get_question(pack: dict[str, Any]) -> dict[str, Any]:
+    question = pack.get("question")
+    if question is None:
+        raise HTTPException(status_code=404, detail="This pack has no question")
+    return question
+
+
+def _choice_group(
+    rows: list[Any], moment: str, prefix: str, option_ids: list[str]
+) -> ChoiceGroup:
+    """Counts for one moment and scope. Only the pack's current options are counted."""
+    counts = dict.fromkeys(option_ids, 0)
+    for r in rows:
+        if r["moment"] == moment and r["choice"] in counts:
+            counts[r["choice"]] += int(r[f"{prefix}_n"])
+    n = sum(counts.values())
+    if n < MIN_SAMPLE:
+        return ChoiceGroup(available=False, n=n)
+    return ChoiceGroup(available=True, n=n, counts=counts)
+
+
+async def _fetch_choice_results(
+    conn: Any,
+    pack: dict[str, Any],
+    question: dict[str, Any],
+    state_code: str | None,
+    place: str | None,
+    player_id: uuid.UUID | None,
+) -> ChoiceResults:
+    option_ids = [o["id"] for o in question["options"]]
+    place_key = place.lower() if (place and state_code) else None
+    rows = list(
+        await conn.fetch(
+            CHOICE_RESULTS_SQL,
+            pack["pack_id"],
+            question["question_id"],
+            question["version"],
+            state_code,
+            place_key,
+        )
+    )
+    yours: dict[str, str] = {}
+    if player_id is not None:
+        for r in await conn.fetch(
+            CHOICE_YOURS_SQL,
+            player_id,
+            pack["pack_id"],
+            question["question_id"],
+            question["version"],
+        ):
+            if r["choice"] in option_ids:
+                yours[r["moment"]] = r["choice"]
+
+    def scopes(moment: str) -> ChoiceScopes:
+        return ChoiceScopes(
+            national=_choice_group(rows, moment, "nat", option_ids),
+            state=_choice_group(rows, moment, "st", option_ids)
+            if state_code is not None
+            else None,
+            place=_choice_group(rows, moment, "pl", option_ids)
+            if place_key is not None
+            else None,
+        )
+
+    return ChoiceResults(
+        min_sample=MIN_SAMPLE,
+        question_id=question["question_id"],
+        question_version=question["version"],
+        your=YourChoices(before=yours.get("before"), after=yours.get("after")),
+        before=scopes("before"),
+        after=scopes("after"),
+    )
+
+
 # --------------------------------------------------------------------------
 # Endpoints
 # --------------------------------------------------------------------------
@@ -515,3 +748,90 @@ async def pack_results(
             statements = await _fetch_results(conn, pack, code, place, player_id)
         logger.info("stance results pack={} statements={}", pack_id, len(statements))
         return PackResults(min_sample=MIN_SAMPLE, statements=statements)
+
+
+@router.post("/choices", response_model=PostChoiceOut)
+async def post_choice(body: StanceChoiceIn, request: Request) -> PostChoiceOut:
+    """Store (or change) the reader's answer to the pack's question, before or after the story."""
+    with tracer.start_as_current_span("stance.post_choice") as span:
+        pack = get_pack(body.pack_id)
+        question = get_question(pack)
+        if question["question_id"] != body.question_id:
+            raise HTTPException(status_code=404, detail="Unknown question")
+        if body.choice not in {o["id"] for o in question["options"]}:
+            raise HTTPException(
+                status_code=422,
+                detail="Unknown choice for this question",
+            )
+        state_code, state = _normalize_state(body.state_code)
+        place = _normalize_place(body.place_name)
+        if place is not None and state_code is None:
+            raise HTTPException(status_code=400, detail="place_name needs a state_code")
+        span.set_attribute("stance.pack_id", body.pack_id)
+        span.set_attribute("stance.question_id", body.question_id)
+        span.set_attribute("stance.moment", body.moment)
+        _check_rate_limit(_visitor_key(request, body.player_id))
+
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            await _ensure_choice_table(conn)
+            row = await conn.fetchrow(
+                UPSERT_CHOICE_SQL,
+                body.player_id,
+                body.pack_id,
+                body.question_id,
+                question["version"],
+                body.moment,
+                body.choice,
+                state_code,
+                state,
+                place,
+            )
+            results = await _fetch_choice_results(
+                conn, pack, question, state_code, place, body.player_id
+            )
+        logger.info(
+            "stance choice stored pack={} question={} moment={}",
+            body.pack_id,
+            body.question_id,
+            body.moment,
+        )
+        saved = StanceChoiceOut(
+            pack_id=row["pack_id"],
+            question_id=row["question_id"],
+            question_version=row["question_version"],
+            moment=row["moment"],
+            choice=row["choice"],
+            state_code=row["state_code"],
+            state=row["state"],
+            place_name=row["place_name"],
+        )
+        return PostChoiceOut(stance_choice_response=saved, results=results)
+
+
+@router.get("/packs/{pack_id}/choice-results", response_model=ChoiceResults)
+async def pack_choice_results(
+    pack_id: str,
+    state_code: Annotated[str | None, Query()] = None,
+    place_name: Annotated[str | None, Query()] = None,
+    player_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> ChoiceResults:
+    """How readers answered the pack's question before and after, by scope."""
+    with tracer.start_as_current_span("stance.pack_choice_results") as span:
+        pack = get_pack(pack_id)
+        question = get_question(pack)
+        code, _ = _normalize_state(state_code)
+        place = _normalize_place(place_name)
+        if place is not None and code is None:
+            raise HTTPException(status_code=400, detail="place_name needs a state_code")
+        span.set_attribute("stance.pack_id", pack_id)
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            await _ensure_choice_table(conn)
+            out = await _fetch_choice_results(
+                conn, pack, question, code, place, player_id
+            )
+        logger.info(
+            "stance choice results pack={} question={}", pack_id, out.question_id
+        )
+        return out
