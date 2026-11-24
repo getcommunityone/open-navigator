@@ -214,7 +214,7 @@ function MeetingDocumentsInner({ jurisdictionId }: { jurisdictionId: string }) {
   }, [data])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen page-bg">
       <div className="mx-auto max-w-5xl px-6 py-8">
         {/* Header */}
         <div className="mb-6">
@@ -300,7 +300,7 @@ export default function MeetingDocuments() {
 
   if (!jurisdictionId) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen page-bg">
         <div className="mx-auto max-w-5xl px-6 py-12">
           <div className="rounded-lg border border-gray-200 bg-white p-12 text-center text-gray-600">
             No jurisdiction specified.

@@ -9,7 +9,7 @@
   /* App shell is light (see Layout). Dark scheme + white inherited color broke native controls (e.g. <select>). */
   color-scheme: light;
   color: #0f172a;
-  background-color: #cbd5e1;
+  background-color: #fafaf9;
 }
 
 html {
@@ -839,3 +839,9 @@ input.range-x::-moz-range-thumb {
 }
 input.range-x:disabled::-webkit-slider-thumb { border-color: #d6d3d1; cursor: default; }
 input.range-x:disabled::-moz-range-thumb { border-color: #d6d3d1; cursor: default; }
+
+/* The page background for every page inside the shared layout (#901). It matches the home page's warm off-white,
+   so moving between header items does not change the page colour. Change it here, in one place. */
+.page-bg {
+  background-color: #fafaf9;
+}
