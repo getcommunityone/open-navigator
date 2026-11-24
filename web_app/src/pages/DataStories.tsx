@@ -5,12 +5,15 @@ import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
 import '../styles/folio.css'
 import '../styles/stance.css'
+import type { DataCenterPositionsResponse } from '../api/dataCenters'
 import { fetchStancePack } from '../api/stance'
 import FloatingNext from '../components/stance/FloatingNext'
 import PlaceControl from '../components/stance/PlaceControl'
+import PositionsBlock from '../components/stance/PositionsBlock'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import StatRow from '../components/stance/StatRow'
 import { useStoryData } from '../components/stance/useStoryData'
+import { useIdleNudge } from '../hooks/useIdleNudge'
 import { STATE_CODES } from '../lib/usStates'
 import { challengePath, scopeQuery, statsScopeNote, storyPlaceDisplay, storyScopeLabel, storyStats } from '../utils/dataStory'
 import { HOUSE_STYLE } from '../utils/houseTheme'
@@ -19,8 +22,10 @@ import type { ChartKey } from '../utils/stanceGame'
 import { questionText } from '../utils/storyQuestion'
 
 // Only topics built from meeting recordings or transcripts are listed here (figure-only data such as census measures is under Explore).
-/** The datasets behind the hub's counts. */
-const HUB_CHARTS: ChartKey[] = ['meeting-mentions', 'agenda-items', 'sites', 'job-claims', 'projects']
+/** The datasets behind the hub's volume counts. */
+const COUNT_CHARTS: ChartKey[] = ['meeting-mentions', 'agenda-items', 'sites', 'job-claims', 'projects']
+/** Everything the hub reads: who spoke up leads, the volume counts follow. */
+const HUB_CHARTS: ChartKey[] = ['positions', ...COUNT_CHARTS]
 
 /** `/stories`: one card per topic. The card leads with the topic's question, worded for the place in scope, then real counts. */
 export default function DataStories() {
@@ -35,6 +40,8 @@ export default function DataStories() {
   const [topic, setTopic] = useState('data-centers')
   const { data, status, refetch } = useStoryData(stateCode, city, HUB_CHARTS)
   const rootRef = useRef<HTMLDivElement>(null)
+  // A reader who has stopped gets a calm cue on Start (or on the floating bar when Start has scrolled away).
+  useIdleNudge({ rootRef })
   // The topic's question comes from its pack; until it loads (or if it cannot), the card is titled by the topic alone.
   const packQ = useQuery({ queryKey: ['stance', 'pack', 'data-centers'], queryFn: () => fetchStancePack('data-centers'), retry: 1 })
   const question = packQ.data?.question ? questionText(packQ.data.question, scope) : null
@@ -56,7 +63,7 @@ export default function DataStories() {
     [setSp],
   )
 
-  const states = HUB_CHARTS.map((k) => status[k] ?? 'loading')
+  const states = COUNT_CHARTS.map((k) => status[k] ?? 'loading')
   const loading = states.some((s) => s === 'loading')
   const allFailed = states.every((s) => s === 'error')
   const stats = storyStats(data, scope)
@@ -125,6 +132,17 @@ export default function DataStories() {
                 Take the challenge
               </Link>
             </div>
+            <section className="stories-voices" aria-labelledby="story-voices-h">
+              <h3 className="stories-voices-title" id="story-voices-h">
+                Who spoke up
+              </h3>
+              <PositionsBlock
+                data={data.positions as DataCenterPositionsResponse | null | undefined}
+                status={status.positions ?? 'loading'}
+                scope={scope}
+                labelledBy="story-voices-h"
+              />
+            </section>
             {loading ? (
               <p className="folio-muted" role="status">
                 Loading counts…
@@ -132,7 +150,7 @@ export default function DataStories() {
             ) : allFailed ? (
               <div className="stance-nodata" role="status">
                 <p>The counts could not be loaded right now.</p>
-                <button type="button" className="folio-btn" onClick={() => HUB_CHARTS.forEach((k) => refetch(k))}>
+                <button type="button" className="folio-btn" onClick={() => COUNT_CHARTS.forEach((k) => refetch(k))}>
                   Try again
                 </button>
               </div>

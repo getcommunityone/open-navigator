@@ -10,6 +10,71 @@ import { withSpan } from '../instrumentation'
 // Generated from the FastAPI schema (`npm run gen:api`), so the page and the API
 // can't drift apart.
 type Schemas = components['schemas']
+
+// --- who spoke for and against, and the recorded votes (#930) ------------------------------------------------------
+// Written by hand to match `DataCenterPositionsResponse` in api/routes/data_centers.py; `npm run gen:api` adds the same
+// shapes to api.types.ts.
+
+export interface PositionTotals {
+  /** Meetings the counts come from. */
+  meetings: number | null
+  /** Analysed meetings in scope where a data center came up. */
+  meetings_reviewed: number | null
+  speakers_for: number | null
+  speakers_against: number | null
+  speakers_question: number | null
+  speakers_neutral: number | null
+  decisions_with_tally: number | null
+  /** Null (never 0) when no decision recorded a tally. */
+  votes_for: number | null
+  votes_against: number | null
+}
+
+export interface PositionQuote {
+  public_comment_id: string
+  /** The speaker's own words, verbatim from the transcript. */
+  quote: string
+  speaker_role?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  meeting_date?: string | null
+  video_url?: string | null
+  start_seconds?: number | null
+  jump_url?: string | null
+  /** The data center decision the comment is linked to, when that is why it counts. */
+  decision_headline?: string | null
+  match_basis?: 'data_center_decision' | 'own_words' | null
+}
+
+export interface DataCenterPositionsResponse {
+  scope: Schemas['JobClaimScope']
+  /** False when the table is not in the database yet: every total is null, not zero. */
+  available: boolean
+  totals: PositionTotals
+  quotes: { for: PositionQuote[]; against: PositionQuote[]; question: PositionQuote[] }
+}
+
+/** Public speakers for and against a data center item, questions asked and recorded votes, for the scope (#930). */
+export async function fetchDataCenterPositions(params: {
+  state?: string
+  city?: string
+  limit?: number
+}): Promise<DataCenterPositionsResponse> {
+  const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.positions.load',
+    async (span) => {
+      const res = await api.get<DataCenterPositionsResponse>('/data-centers/positions', { params: q })
+      span.setAttribute('data_centers.positions.available', res.data?.available === true)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
+}
 export type JobClaim = Schemas['JobClaim']
 export type JobClaimPhase = JobClaim['phase']
 export type JobClaimsScope = Schemas['JobClaimScope']
@@ -31,8 +96,10 @@ export type DataCenterProjectsResponse = Schemas['DataCenterProjectsResponse']
 export async function fetchJobClaims(params: {
   state?: string
   city?: string
+  limit?: number
 }): Promise<JobClaimsResponse> {
   const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'

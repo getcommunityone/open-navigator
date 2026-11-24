@@ -1,6 +1,6 @@
 ---
 title: Data stories
-description: What the data stories hub and the Data Center Story are, the question a story opens and closes on, how a story screen is built, how screens move on a phone and on a wide screen, the voice rules for its sentences, how the place in scope is carried, and how to add a story.
+description: What the data stories hub and the Data Center Story are, who spoke for and against, the question a story opens and closes on, how a story screen is built, how screens move on a phone, on a wide screen and with reduced motion, the cue on the next step, the voice rules for its sentences, how the place in scope is carried, and how to add a story.
 ---
 
 # Data stories
@@ -19,21 +19,47 @@ The hub and the story are headed by one sentence, "What did local meetings in [p
 
 ## The hub
 
-The hub is one card per topic. Today there is one, Data centers. The card leads with the topic's question, worded for the place in scope ("Should we allow new data centers?", "Should Tuscaloosa allow new data centers?"), and one short line. Its main button is **Start: [the question]**, which opens the story on its question screen; **Take the challenge** is the quieter link beside it. The question comes from the topic's pack; until it has loaded the card is titled "Data centers". Below the buttons the card shows a row of large counts for the place in scope: meetings where a data center came up, meeting passages quoted, agendas that name a data center, sites on record, projects on record and jobs claims. Every count is the endpoint's own whole-scope total. A count that is missing or zero is left out. Under a city, a count the source cannot narrow to a city (sites) is labelled with its own, wider place ("data center sites on record in Alabama") and the note under the row says which counts are city-level and which are state-level; the story's opener does the same. If the data cannot be loaded the card says so and offers **Try again**; the two links still work. On a phone the question and the main button are on the first screen (checked at 390 by 844 and 360 by 640). If nothing is on record for the place it says "No data available for this place."
+The hub is one card per topic. Today there is one, Data centers. The card leads with the topic's question, worded for the place in scope ("Should we allow new data centers?", "Should Tuscaloosa allow new data centers?"), and one short line. Its main button is **Start: [the question]**, which opens the story on its question screen; **Take the challenge** is the quieter link beside it. The question comes from the topic's pack; until it has loaded the card is titled "Data centers". Below the buttons the card leads with **Who spoke up** (see below), and under that it shows a row of large counts for the place in scope: meetings where a data center came up, meeting passages quoted, agendas that name a data center, sites on record, projects on record and jobs claims. Every count is the endpoint's own whole-scope total. A count that is missing or zero is left out. Under a city, a count the source cannot narrow to a city (sites) is labelled with its own, wider place ("data center sites on record in Alabama") and the note under the row says which counts are city-level and which are state-level; the story's opener does the same. If the data cannot be loaded the card says so and offers **Try again**; the two links still work. On a phone the question and the main button are on the first screen (checked at 390 by 844 and 360 by 640). If nothing is on record for the place it says "No data available for this place."
+
+### Who spoke up
+
+Above the counts, the card shows what people said about data centers at local meetings in the place in scope, as five figures and one chart:
+
+| Figure | What it counts |
+| --- | --- |
+| spoke for | Public speakers who asked the body to approve a data center item |
+| spoke against | Public speakers who asked the body not to |
+| asked a question | Public speakers who only asked questions |
+| votes for | Yes votes on data center decisions that recorded a tally |
+| votes against | No votes on those decisions |
+
+The chart has one mark per speaker, grouped and headed by what they did ("Spoke against · 23 speakers · 56%"). Each group has its own colour and its own shape, so colour is never the only cue: teal squares for, amber diamonds against, open squares for a question, and short grey bars for speakers who took no side. When there are more than 240 speakers one mark stands for several, and the line under the chart says how many ("Each dot is 10 speakers; the last dot of a group is what is left over."). One line under it says what is counted and where: "Speakers at local meetings in Alabama where a data center item was discussed. From 6 meetings and 3 decisions with a recorded vote."
+
+Only comments about the data center item count. A comment on another item of the same meeting never does. The rule, and what it misses, is in [Who spoke up about data centers](../development/data-center-who-spoke-up.md).
+
+A figure with no data behind it is never shown as zero:
+
+- When no decision in scope recorded a tally, both vote figures read **not recorded**, with "Votes were not recorded for these decisions."
+- When no public comment on a data center item is on record for the place, the three speaker figures read **not recorded**, with "No public comment on a data center item is on record for these meetings."
+- A real zero beside real counts stays zero (nobody spoke for, eleven spoke against).
+- Until the table behind these figures has been built in the database, the block is one quiet line, "Who spoke for and against is not loaded yet.", and the counts below show as before.
+
+The figures come from `GET /api/data-centers/positions?state=&city=&limit=`, which sums the dbt mart `data_center_meeting_position` for the place and returns a few of the speakers' own words on each side from `data_center_public_comment`. The block is `web_app/src/components/stance/PositionsBlock.tsx`; its figures, caption and "not recorded" rules are `positionFigures` and `positionsCaption` in `web_app/src/utils/dataStory.ts`, with tests.
 
 ## The Data Center Story
 
-Eleven screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries.
+Twelve screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries.
 
 | Screen | Word | Id | What it shows |
 | --- | --- | --- | --- |
 | The question | The question | `question` | "Should we allow new data centers?" with **Yes**, **No** and **Pause for now** |
 | The place | Where | `scope` | The place picker, with the United States chosen, and the question worded for the place |
-| Opener | Overview | `overview` | A row of large real counts |
+| Who spoke up | Who spoke up | `voices` | The five figures, one dot per speaker, and up to three of the speakers' own words on each side, each linked to the moment in the recording |
+| Opener | Overview | `overview` | One dot per meeting where a data center came up (or per stated number of meetings), then the row of large real counts |
 | Where they are | Sites | `sites` | Data center sites by status (one dot per site) |
-| What is proposed | Proposals | `projects` | Projects by status |
-| What is promised | Promises | `jobs` | Jobs claims by phase |
-| What is raised | Concerns | `concerns` | Concerns ranked, with count and share |
+| What is proposed | Proposals | `projects` | Projects by status (one dot per project) |
+| What is promised | Promises | `jobs` | Jobs claims by phase (one dot per claim) |
+| What is raised | Concerns | `concerns` | Concerns ranked, with count and share (one dot per mention) |
 | When it comes up | Meetings | `meetings` | Meeting passages by year (one dot per passage) |
 | What is on the agenda | Agendas | `agendas` | Agendas for upcoming and past meetings |
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
@@ -60,13 +86,15 @@ The question and its answers come from the topic's pack (`question` in `api/stan
 
 ### How the screens move
 
-The engine is the one the challenge uses (`web_app/src/components/stance/useActs.ts`), in one of three modes (`data-mode` on the page):
+The engine is the one the challenge uses (`web_app/src/components/stance/useActs.ts`). The story uses two of its modes (`data-mode` on the page), and a third way of showing them under reduced motion:
 
 | Mode | When | What happens |
 | --- | --- | --- |
 | `pinned` | 768 pixels or wider, motion allowed | Each screen is pinned and scrubbed by the scroll: its word card slides in, the chart builds, the headline's words rise out of their masks one after another, and the screen dims and lifts as it leaves. The scroll glides to the next screen and one gesture never passes more than one. |
 | `snap` | Narrower than 768 pixels, motion allowed | Each screen is exactly one frame tall (`100svh` less the two bars) and the page uses the browser's own scroll snap with `scroll-snap-stop: always`, so a swipe lands on the next screen and stops there. As a screen arrives its headline's words rise out of their masks, its blocks rise in one after another and its chart draws; as it leaves they fade and lift; coming back plays the entrance again. |
-| `stacked` | **prefers-reduced-motion** on, at any width | A plain stack with native scrolling. Nothing moves and everything is in its final state. |
+| `snap` with `data-fade` | **prefers-reduced-motion** on, at any width | One screen at a time, as on a phone. A screen cross-fades in when it arrives and its dots appear one after another. Only opacity changes: nothing slides, scales or drifts, and nothing loops. Moving on is a jump, not a glide. |
+
+Reduced motion is not only a setting people choose. On Android, battery saver and "Remove animations" both turn it on, so a phone in battery saver gets this version. Before #930 that version was a plain stacked page with nothing animated, which read as a page that was not working. The challenge still uses the plain `stacked` mode under reduced motion.
 
 A phone gets scroll snap, not the pinned engine. Pinning with ScrollTrigger and Lenis depends on the page's own scroll position being rewritten every frame, which fights a phone's touch momentum and the address bar changing the window height. Scroll snap is the browser's own mechanism, so momentum and the address bar are its business, and the screens are sized in `svh` so they do not jump when the bar hides. A screen whose content cannot fit scrolls inside its own block, never the page inside a screen: you scroll to the bottom of that block first, and the next swipe goes on. With a mouse wheel or trackpad on a narrow window, one wheel gesture moves exactly one screen.
 
@@ -76,7 +104,7 @@ The story's motion is calm: rises, fades and a steady filled button, with no bou
 
 A strip of segments along the lower edge of the top bar has one segment per screen. The one in view fills, the ones behind it stay filled, and the words beside it say what is left ("Seven to go", "One to go", "Last one").
 
-Every screen has one primary action: the three answers on the question and the last screen (then **Take the Data Center Challenge** once you have answered), and **Next: ...** naming the next screen everywhere else. When that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, full width on a phone, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. While the bar shows, the scroll cue (below) stays hidden.
+Every screen has one primary action: the three answers on the question and the last screen (then **Take the Data Center Challenge** once you have answered), and **Next: ...** naming the next screen everywhere else. When that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, full width on a phone, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
 
 ### Moving between screens
 
@@ -104,7 +132,12 @@ The hub, the story and the challenge use the Open Navigator house theme from `we
 
 ## What a chart shows
 
-The charts are the challenge's (`ChartPanel`): dots for individual records (each dot focusable, opening its source, with arrow-key movement), ranked bars with count and share, an honest note when the list is capped, a FIG. caption with source and scope, and **Show data table**. A long figure scrolls inside its own frame so the headline stays in view.
+The charts are the challenge's (`ChartPanel`). Every figure is a dot chart, and one dot is one real record: a speaker, a meeting, an agenda, a site, a project, a jobs claim, a mention of a concern. Dots are grouped under a heading with the group's real count and share. They appear one after another when their screen arrives. Each chart has a FIG. caption with source and scope, an honest note when the list is capped, and **Show data table**. A long figure scrolls inside its own frame so the headline stays in view.
+
+There are two kinds of dot chart, and the caption says which:
+
+- **Listed records** (sites, projects, jobs claims, meeting passages, agendas, company-hosted meetings). The endpoint returns the records, up to 500, and each dot opens its source. When the endpoint also counts the whole scope, the heading states that count and its share and says how many are drawn ("Operating · 118 records · 60% · showing 24"). When it does not count per group (projects by status), the heading says only how many are drawn ("Planned · 5 shown") and gives no share. A share is never worked out from a capped list.
+- **Counts** (who spoke up, concerns, meetings in the opener). The endpoint returns totals, not records. Up to 240 the chart draws one dot per record. Above that one dot stands for 2, 5, 10, 20, 50... records, the smallest that fits, and the caption says so ("Each dot is 10 meetings; the last dot of a group is what is left over."). The last dot of a group stands for the remainder and is drawn smaller, so the dots always add up to the real count. The arithmetic is `dotRatio` and `countDots` in `web_app/src/utils/stanceGame.ts`, with tests.
 
 ## Add a story
 
@@ -116,4 +149,22 @@ The charts are the challenge's (`ChartPanel`): dots for individual records (each
 
 ## Moving to the next screen
 
-When you have been still for a couple of seconds on a screen that has another one after it, a small cue appears at the bottom of the window with a chevron that moves downward. It says "Scroll" with a mouse or trackpad and "Swipe up" on a touch screen. Pressing it goes to the next screen, the same as **Next**. It hides while the page is moving, does not appear on the last screen, and stays hidden while the floating bar is showing. With reduced motion turned on in your device settings, the chevron is still.
+When you stop on a screen that has a next step, the page draws your eye to it. After about six seconds with no scroll, tap or key, the main button gets a small cue: its arrow slides a few pixels and back and a light passes across it. If the button is not on screen, the bar at the bottom of the window is showing it, and the cue plays there. This is the same on the hub (**Start**), in the story (**Next: ...**) and in the challenge.
+
+- The cue repeats about every eight seconds, at most three times, then it rests.
+- Anything you do (scroll, tap, type) starts the wait and the count again. So does arriving on a new screen, and there the wait begins only after the screen has finished arriving.
+- It never plays while the place picker is open, while a data table is open, while you are typing in a field or selecting text, or while the tab is in the background.
+- It is never shown on a group of answers: no answer is pushed.
+- It is visual only. Focus does not move, nothing is announced to a screen reader, no control is added and nothing shifts.
+- With reduced motion nothing moves: an outline inside the button shows and goes, once per cue.
+- The story and the hub are calm. In the challenge the arrow hops twice and the light is brighter, and the first cue plays one soft sound if sound is on.
+
+| Timing | Value | Constant |
+| --- | --- | --- |
+| Stillness before the first cue | 6 seconds | `NUDGE_IDLE_MS` |
+| Between cues | 8 seconds | `NUDGE_REPEAT_MS` |
+| Cues before it rests | 3 | `NUDGE_MAX` |
+| One cue | 1.4 seconds | `NUDGE_CYCLE_MS` |
+| A screen's arrival, before the wait starts | 1.2 seconds | `NUDGE_ENTRANCE_MS` |
+
+The timing is a pure function, `shouldNudge` in `web_app/src/utils/idleNudge.ts`, with tests. The hook that runs it is `web_app/src/hooks/useIdleNudge.ts`: it adds the class `is-nudging` to the button or the bar for one cue, and `stance.css` draws it. This replaced the story's separate "Scroll" / "Swipe up" cue, so there is one cue at a time. (The Data explorer's Matrix page still uses that older cue, `ScrollCue.tsx`; it has no floating bar.)

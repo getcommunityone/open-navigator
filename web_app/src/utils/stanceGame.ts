@@ -7,6 +7,7 @@ import type {
   DataCenterMeetingMentionsResponse,
   DataCenterProjectsResponse,
   DataCenterSitesResponse,
+  DataCenterPositionsResponse,
   JobClaimsResponse,
 } from '../api/dataCenters'
 import type { GroupResult, StanceAnswer } from '../api/stance'
@@ -14,6 +15,7 @@ import { communityEventKindLabel, concernLabel } from '../lib/dataCenterJobs'
 import { largestRemainder } from './matrixMapMath'
 
 export type ChartKey =
+  | 'positions'
   | 'job-claims'
   | 'sites'
   | 'concerns'
@@ -30,6 +32,7 @@ export type ChartData =
   | DataCenterAgendaItemsResponse
   | CommunityEventsResponse
   | DataCenterProjectsResponse
+  | DataCenterPositionsResponse
 
 export const ANSWER_LABEL: Record<StanceAnswer, string> = { agree: 'Agree', disagree: 'Disagree', unsure: 'Not sure' }
 const ANSWER_ORDER: StanceAnswer[] = ['agree', 'disagree', 'unsure']
@@ -209,13 +212,6 @@ export function findingFor(key: string, data: ChartData | null | undefined, plac
 
 // --- the chart for each key ---------------------------------------------------------------------------------------
 
-export interface ChartRow {
-  label: string
-  value: number
-  /** Whole-number share of all rows (largest remainder, so shares sum to 100). */
-  percent: number
-}
-
 export interface Dot {
   id: string
   title: string
@@ -223,11 +219,17 @@ export interface Dot {
   date: string | null
   /** The source record to open (meeting video, agenda document, article, site source). Null when the record has none. */
   url: string | null
+  /** How many records the dot stands for. Absent means one. Only a chart drawn from a count (no listed records) sets it. */
+  weight?: number
 }
+
+/** A stance a dot group stands for: it picks the group's colour and its shape, so colour is never the only signal. */
+export type DotTone = 'for' | 'against' | 'question' | 'neutral'
 
 export interface DotGroup {
   key: string
   label: string
+  tone?: DotTone
   /** Dots drawn for this group. */
   shown: number
   /** Real whole-scope count for this group when the endpoint returns one for this grouping, otherwise null. */
@@ -247,10 +249,6 @@ interface ChartBase {
   /** Extra honesty about what was counted (for example "Showing the most recent 500 of 1,204."). Null when complete. */
   note: string | null
 }
-export interface BarsSpec extends ChartBase {
-  kind: 'bars'
-  rows: ChartRow[]
-}
 export interface DotsSpec extends ChartBase {
   kind: 'dots'
   /** "agenda item": one dot is one of these. */
@@ -260,14 +258,60 @@ export interface DotsSpec extends ChartBase {
   drawn: number
   /** Real whole-scope total across all groups, or null when the endpoint returns no count for this grouping. */
   grandTotal: number | null
+  /** How many records one dot stands for: 1 unless the chart is drawn from a count too large to draw one for one. */
+  perDot: number
+  /** What a dot is, in words, from `dotMeaning`. */
+  dotMeans: string
 }
-export type ChartSpec = BarsSpec | DotsSpec
+/** Every chart is a dot chart: one dot is one real record, or a stated number of them. */
+export type ChartSpec = DotsSpec
 
 /** Most dots drawn in one chart. The data-center endpoints are asked for at most this many records. */
 export const DOT_CAP = 500
+/** Most dots drawn for a chart that has only counts behind it (no listed records). Beyond it, one dot stands for several. */
+export const COUNT_DOT_CAP = 240
+
+/**
+ * How many records one dot stands for so that `total` records fit in `cap` dots: 1, 2, 5, 10, 20, 50, 100... (the smallest
+ * that fits). Always a whole number, so "each dot is 10 meetings" is exact.
+ */
+export function dotRatio(total: number, cap = COUNT_DOT_CAP): number {
+  if (!(total > cap)) return 1
+  for (let pow = 1; ; pow *= 10) {
+    for (const m of [1, 2, 5]) {
+      if (m * pow > 1 && Math.ceil(total / (m * pow)) <= cap) return m * pow
+    }
+  }
+}
+
+/**
+ * Dots for a real count with no listed records: `count` records at `perDot` each. Every dot but the last stands for exactly
+ * `perDot`; the last stands for what is left over, so the weights always add up to `count`. Zero gives no dots.
+ */
+export function countDots(key: string, count: number, perDot: number, unit: [string, string]): Dot[] {
+  if (!Number.isFinite(count) || count <= 0) return []
+  const full = Math.floor(count / perDot)
+  const rest = count - full * perDot
+  const weights = [...Array.from({ length: full }, () => perDot), ...(rest > 0 ? [rest] : [])]
+  return weights.map((w, i) => ({
+    id: `${key}-${i}`,
+    title: `${fmt(w)} ${w === 1 ? unit[0] : unit[1]}`,
+    place: null,
+    date: null,
+    url: null,
+    ...(perDot > 1 ? { weight: w } : {}),
+  }))
+}
+
+/** "Every dot is one speaker." or, for a count drawn at a ratio, "Each dot is 10 meetings; the last dot of a group is what is left over." */
+export function dotMeaning(perDot: number, unit: [string, string]): string {
+  if (perDot <= 1) return `Every dot is one ${unit[0]}.`
+  return `Each dot is ${fmt(perDot)} ${unit[1]}; the last dot of a group is what is left over.`
+}
 
 /** What each chart is, in neutral words: the headline when the data cannot support a sentence. */
 export const CHART_TITLES: Record<ChartKey, string> = {
+  positions: 'People who spoke on a data center item at local meetings',
   'job-claims': 'Jobs claims made in local meetings, by phase',
   sites: 'Data center sites on record, by status',
   concerns: 'What people raise about data centers in their meetings',
@@ -277,16 +321,11 @@ export const CHART_TITLES: Record<ChartKey, string> = {
   projects: 'Data center projects, by status',
 }
 
+/** The overview's figure: the meetings count, drawn as dots. */
+export const MEETINGS_TITLE = 'Local meetings where a data center came up'
+
 export function chartTitle(key: string): string {
   return CHART_TITLES[key as ChartKey] ?? 'Chart'
-}
-
-function barRows(rows: Array<{ label: string; value: number }>): ChartRow[] {
-  const pct = largestRemainder(
-    rows.map((r) => r.value),
-    100,
-  )
-  return rows.map((r, i) => ({ ...r, percent: pct[i] ?? 0 }))
 }
 
 /** Whole percent of `total` in `grandTotal`; null unless both are real counts. */
@@ -300,16 +339,24 @@ export function groupShare(total: number | null, grandTotal: number | null): num
  * are drawn when that is fewer ("Operating · 118 records · 60% · showing 24"). Without one it states only what is drawn
  * ("Operating · 24 shown") and never a share or a total: a share is never computed from a capped list.
  */
-export function dotGroupHeading(g: { label: string; shown: number; total: number | null; grandTotal: number | null }): string {
+export function dotGroupHeading(g: {
+  label: string
+  shown: number
+  total: number | null
+  grandTotal: number | null
+  /** What is counted, singular and plural ("speaker", "speakers"); "record(s)" when not given. */
+  unit?: [string, string]
+}): string {
   if (g.total == null) return `${g.label} · ${fmt(g.shown)} shown`
   const pct = groupShare(g.total, g.grandTotal)
-  const head = `${g.label} · ${fmt(g.total)} ${g.total === 1 ? 'record' : 'records'}${pct == null ? '' : ` · ${pct}%`}`
+  const [one, many] = g.unit ?? ['record', 'records']
+  const head = `${g.label} · ${fmt(g.total)} ${g.total === 1 ? one : many}${pct == null ? '' : ` · ${pct}%`}`
   return g.shown < g.total ? `${head} · showing ${fmt(g.shown)}` : head
 }
 
-function dotGroups(
-  groups: Array<{ key: string; label: string; dots: Dot[]; total?: number | null }>,
-): { groups: DotGroup[]; grandTotal: number | null } {
+type GroupIn = { key: string; label: string; dots: Dot[]; total?: number | null; tone?: DotTone }
+
+function dotGroups(groups: GroupIn[], unit?: [string, string], ratio = false): { groups: DotGroup[]; grandTotal: number | null } {
   const live = groups.filter((g) => g.dots.length > 0 || (g.total ?? 0) > 0)
   const allKnown = live.length > 0 && live.every((g) => g.total != null)
   const grandTotal = allKnown ? live.reduce((a, g) => a + (g.total ?? 0), 0) : null
@@ -321,14 +368,60 @@ function dotGroups(
       return {
         key: g.key,
         label: g.label,
+        ...(g.tone ? { tone: g.tone } : {}),
         dots: g.dots,
         shown,
         total,
         share: groupShare(total, grandTotal),
-        heading: dotGroupHeading({ label: g.label, shown, total, grandTotal }),
+        // Dots drawn at a ratio stand for the whole count, so the heading never says "showing". A chart with one group
+        // states no share: it would always be 100%.
+        heading: dotGroupHeading({ label: g.label, shown: ratio && total != null ? total : shown, total, grandTotal: live.length > 1 ? grandTotal : null, unit }),
       }
     }),
   }
+}
+
+/**
+ * A dot chart drawn from real counts alone (the endpoint lists no records for them): one dot per record while the whole fits in
+ * `COUNT_DOT_CAP`, otherwise one dot per `dotRatio` records, stated in `dotMeans`. Null when every count is zero or missing.
+ */
+function countChart(
+  title: string,
+  source: string,
+  unit: [string, string],
+  groups: Array<{ key: string; label: string; count: number | null | undefined; tone?: DotTone }>,
+): DotsSpec | null {
+  const live = groups.filter((g) => (g.count ?? 0) > 0)
+  const sum = live.reduce((a, g) => a + (g.count ?? 0), 0)
+  if (sum <= 0) return null
+  // Each group's left-over dot can take one more place than the division alone, so that room is kept free.
+  const perDot = sum <= COUNT_DOT_CAP ? 1 : dotRatio(sum, COUNT_DOT_CAP - live.length)
+  const { groups: g, grandTotal } = dotGroups(
+    live.map((x) => ({ key: x.key, label: x.label, tone: x.tone, total: x.count ?? 0, dots: countDots(x.key, x.count ?? 0, perDot, unit) })),
+    unit,
+    true,
+  )
+  return {
+    kind: 'dots',
+    title,
+    source,
+    note: null,
+    unit: unit[0],
+    groups: g,
+    drawn: g.reduce((a, x) => a + x.shown, 0),
+    grandTotal,
+    perDot,
+    dotMeans: dotMeaning(perDot, unit),
+  }
+}
+
+/** The four counts of public speakers on a data center item, or null when the table is not loaded or holds none for the scope. */
+export function speakerCounts(res: DataCenterPositionsResponse | null | undefined): { for: number; against: number; question: number; neutral: number; total: number } | null {
+  const t = res?.available ? res.totals : null
+  if (!t || t.speakers_for == null || t.speakers_against == null || t.speakers_question == null) return null
+  const neutral = t.speakers_neutral ?? 0
+  const total = t.speakers_for + t.speakers_against + t.speakers_question + neutral
+  return total > 0 ? { for: t.speakers_for, against: t.speakers_against, question: t.speakers_question, neutral, total } : null
 }
 
 const joinPlace = (name?: string | null, state?: string | null) => [name, state].filter(Boolean).join(', ') || null
@@ -339,29 +432,59 @@ function capNote(drawn: number, onRecord: number | null): string | null {
   return null
 }
 
-/** Rows or dots for the key's chart, or null when there is nothing to draw (the round shows "No data available for this chart"). */
-export function chartSpec(key: string, data: ChartData | null | undefined, place?: string | null): ChartSpec | null {
+/** The dots for the key's chart, or null when there is nothing to draw (the round shows "No data available for this chart"). */
+export function chartSpec(
+  key: string,
+  data: ChartData | null | undefined,
+  place?: string | null,
+  /** `meetings`: the meeting-mentions data drawn as meetings (one dot per meeting, or per several), not as passages. */
+  view?: 'meetings',
+): ChartSpec | null {
   if (!data) return null
-  const bars = (title: string, source: string, rows: Array<{ label: string; value: number }>, note: string | null = null): BarsSpec | null =>
-    rows.some((r) => r.value > 0) ? { kind: 'bars', title, source, note, rows: barRows(rows) } : null
-  const dots = (
-    title: string,
-    source: string,
-    unit: string,
-    groups: Array<{ key: string; label: string; dots: Dot[]; total?: number | null }>,
-    onRecord: number | null,
-  ): DotsSpec | null => {
+  const dots = (title: string, source: string, unit: string, groups: GroupIn[], onRecord: number | null): DotsSpec | null => {
     const { groups: g, grandTotal } = dotGroups(groups)
     const drawn = g.reduce((a, x) => a + x.shown, 0)
-    return drawn > 0 ? { kind: 'dots', title, source, note: capNote(drawn, onRecord), unit, groups: g, drawn, grandTotal } : null
+    if (drawn <= 0) return null
+    return { kind: 'dots', title, source, note: capNote(drawn, onRecord), unit, groups: g, drawn, grandTotal, perDot: 1, dotMeans: dotMeaning(1, [unit, `${unit}s`]) }
+  }
+  if (view === 'meetings') {
+    return countChart(MEETINGS_TITLE, 'Open Navigator, local meeting recordings and transcripts', ['meeting', 'meetings'], [
+      { key: 'meetings', label: 'Meetings where a data center came up', count: (data as DataCenterMeetingMentionsResponse).counts?.meetings },
+    ])
   }
   switch (key as ChartKey) {
-    case 'job-claims': {
-      const t = (data as JobClaimsResponse).totals
-      return bars(CHART_TITLES['job-claims'], 'Open Navigator, claims quoted from meeting transcripts', [
-        { label: 'Construction', value: t?.construction ?? 0 },
-        { label: 'Operations', value: t?.operations ?? 0 },
+    case 'positions': {
+      const c = speakerCounts(data as DataCenterPositionsResponse)
+      if (!c) return null
+      return countChart(CHART_TITLES.positions, 'Open Navigator, public comment in local meeting recordings', ['speaker', 'speakers'], [
+        { key: 'for', label: 'Spoke for', count: c.for, tone: 'for' },
+        { key: 'against', label: 'Spoke against', count: c.against, tone: 'against' },
+        { key: 'question', label: 'Asked a question', count: c.question, tone: 'question' },
+        { key: 'neutral', label: 'Took no side', count: c.neutral, tone: 'neutral' },
       ])
+    }
+    case 'job-claims': {
+      const res = data as JobClaimsResponse
+      const items = res.items ?? []
+      const t = res.totals
+      const on = t ? t.construction + t.operations : null
+      const toDot = (c: (typeof items)[number]): Dot => ({
+        id: c.job_claim_id,
+        title: c.project_name ?? (c.speaker_role ? `Jobs claim, ${c.speaker_role}` : 'Jobs claim'),
+        place: c.body_name ?? null,
+        date: c.meeting_date ?? null,
+        url: c.video_id ? `https://www.youtube.com/watch?v=${c.video_id}${c.start_seconds != null ? `&t=${Math.max(0, Math.floor(c.start_seconds))}s` : ''}` : null,
+      })
+      return dots(
+        CHART_TITLES['job-claims'],
+        'Open Navigator, claims quoted from meeting transcripts',
+        'jobs claim',
+        [
+          { key: 'construction', label: 'Construction jobs', total: t?.construction ?? null, dots: items.filter((c) => c.phase === 'construction').map(toDot) },
+          { key: 'operations', label: 'Operations jobs', total: t?.operations ?? null, dots: items.filter((c) => c.phase === 'operations').map(toDot) },
+        ],
+        on,
+      )
     }
     case 'sites': {
       const res = data as DataCenterSitesResponse
@@ -399,12 +522,13 @@ export function chartSpec(key: string, data: ChartData | null | undefined, place
     }
     case 'concerns': {
       const list = concernList(data as AreaConcernsResponse, place) ?? []
-      return bars(
+      return countChart(
         CHART_TITLES.concerns,
         'Open Navigator, concerns found in meeting transcripts',
+        ['mention', 'mentions'],
         [...list]
           .sort((a, b) => b.mention_count - a.mention_count || a.concern.localeCompare(b.concern))
-          .map((c) => ({ label: cap(concernLabel(c.concern)), value: c.mention_count })),
+          .map((c) => ({ key: c.concern, label: cap(concernLabel(c.concern)), count: c.mention_count })),
       )
     }
     case 'meeting-mentions': {
@@ -482,12 +606,21 @@ export function chartSpec(key: string, data: ChartData | null | undefined, place
       const res = data as DataCenterProjectsResponse
       const items = res.items ?? []
       const total = Math.max(res.total ?? 0, items.length)
-      return bars(
+      // The endpoint counts projects for the whole scope but not per status, so a group states only what is drawn.
+      const spec = dots(
         CHART_TITLES.projects,
         'Open Navigator, curated announcements and Epoch AI',
-        tally(items, (p) => statusLabel(p.status)).map((t) => ({ label: t.key, value: t.count })),
-        total > items.length ? `Counted from ${fmt(items.length)} of ${fmt(total)} projects.` : null,
+        'data center project',
+        tally(items, (p) => statusLabel(p.status)).map((t) => ({
+          key: t.key,
+          label: t.key,
+          dots: items
+            .filter((p) => statusLabel(p.status) === t.key)
+            .map((p) => ({ id: p.project_id, title: p.project_name, place: p.state_code ?? null, date: p.announced_on ?? null, url: p.source_url || null })),
+        })),
+        total,
       )
+      return spec && total > items.length ? { ...spec, note: `Showing ${fmt(items.length)} of ${fmt(total)} projects.` } : spec
     }
     default:
       return null

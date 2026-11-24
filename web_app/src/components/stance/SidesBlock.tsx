@@ -8,6 +8,8 @@ export interface Passage {
   meetingDate?: string | null
   videoUrl?: string | null
   startSeconds?: number | null
+  /** The item the words were about (a decision's headline), shown when the quote alone does not say. */
+  about?: string | null
 }
 
 export interface Sides {
@@ -30,7 +32,8 @@ export function passageLink(p: Passage): string | null {
   }
 }
 
-function Column({ title, items }: { title: string; items: Passage[] }) {
+/** One side's quotes: each with who said it, where, when, and a link to the moment in the recording. */
+export function SideColumn({ title, items }: { title: string; items: Passage[] }) {
   const [all, setAll] = useState(false)
   const shown = all ? items : items.slice(0, SHOWN)
   return (
@@ -44,6 +47,7 @@ function Column({ title, items }: { title: string; items: Passage[] }) {
             <li key={`${p.jurisdictionName}-${p.meetingDate ?? ''}-${i}`}>
               <blockquote>“{p.quote}”</blockquote>
               <p className="stance-side-who">
+                {p.about && <span className="stance-side-about">On: {p.about} · </span>}
                 {who}
                 {href && (
                   <>
@@ -75,8 +79,8 @@ export default function SidesBlock({ sides }: { sides: Sides | undefined }) {
   if (!sides || sides.for.length === 0 || sides.against.length === 0) return null
   return (
     <div className="stance-sides" data-testid="stance-sides" data-lenis-prevent>
-      <Column title="What was said for" items={sides.for} />
-      <Column title="What was said against" items={sides.against} />
+      <SideColumn title="What was said for" items={sides.for} />
+      <SideColumn title="What was said against" items={sides.against} />
     </div>
   )
 }

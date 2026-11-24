@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'r
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchChartData } from '../../api/stance'
-import { chartSpec, type BarsSpec, type DotsSpec } from '../../utils/stanceGame'
+import { chartSpec, type DotGroup, type DotsSpec } from '../../utils/stanceGame'
 import { docsUrl } from '../../utils/docsLinks'
 import { GROUP_COLORS, HOUSE_STYLE } from '../../utils/houseTheme'
 import { DataTable } from '../matrix/SectionShell'
@@ -22,6 +22,8 @@ interface Props {
   scopeLabel?: string
   /** Shown under "No data available" (for example buttons that broaden the place). */
   emptyExtra?: ReactNode
+  /** Draw the dataset another way (`meetings`: the meeting passages' data as one dot per meeting). */
+  view?: 'meetings'
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -38,27 +40,16 @@ export function useChartData(chartKey: string, enabled: boolean, stateCode: stri
   })
 }
 
-function Bars({ spec }: { spec: BarsSpec }) {
-  const max = Math.max(...spec.rows.map((r) => r.value), 1)
-  return (
-    <ul className="stance-hbars" role="list">
-      {spec.rows.slice(0, 10).map((r) => (
-        <li key={r.label}>
-          <span className="stance-hbar-label">{r.label}</span>
-          <span className="stance-hbar-track">
-            <span className="stance-hbar-fill" style={{ width: `${(r.value / max) * 100}%` }} />
-          </span>
-          <span className="stance-hbar-value">
-            {fmt(r.value)} · {r.percent}%
-          </span>
-        </li>
-      ))}
-    </ul>
-  )
+/** A group's colour: its stance tone (set in stance.css, with a shape of its own) or the next colour of the house theme. */
+function dotLook(g: DotGroup, gi: number): { className: string; background: string | undefined } {
+  return g.tone ? { className: ` stance-dot--${g.tone}`, background: undefined } : { className: '', background: GROUP_COLORS[gi % GROUP_COLORS.length] }
 }
 
-/** One mark per real record, grouped under "Group · N records · P%". Roving focus: arrow keys move between the dots. */
-function Dots({ spec }: { spec: DotsSpec }) {
+/**
+ * One mark per real record (or per stated number of records), grouped under "Group · N records · P%". Roving focus: arrow
+ * keys move between the dots. The dots appear one after another when the chart arrives (stance.css reads `--f`).
+ */
+export function Dots({ spec }: { spec: DotsSpec }) {
   const { bind, tip } = useTooltip()
   const [rove, setRove] = useState(0)
   const root = useRef<HTMLDivElement>(null)
@@ -76,10 +67,12 @@ function Dots({ spec }: { spec: DotsSpec }) {
   const total = flat.length
   return (
     <div className="stance-dots" ref={root} data-keys-own onKeyDown={onKey}>
-      {spec.groups.map((g, gi) => (
-        <div className="stance-dotgroup" key={g.key}>
+      {spec.groups.map((g, gi) => {
+        const look = dotLook(g, gi)
+        return (
+        <div className="stance-dotgroup" key={g.key} data-group={g.key}>
           <p className="stance-dotgroup-head">
-            <span className="stance-swatch" style={{ background: GROUP_COLORS[gi % GROUP_COLORS.length] }} aria-hidden="true" />
+            <span className={`stance-swatch${look.className}`} style={{ background: look.background }} aria-hidden="true" />
             {g.heading}
           </p>
           <div className="stance-dotrow" role="list" aria-label={g.heading}>
@@ -90,11 +83,11 @@ function Dots({ spec }: { spec: DotsSpec }) {
               const label = `${d.title}${d.place ? `, ${d.place}` : ''}${d.date ? `, ${d.date}` : ''}${d.url ? ' (opens the source)' : ''}`
               const b = bind(info)
               const common = {
-                className: 'stance-dot',
+                className: `stance-dot${look.className}${d.weight != null && d.weight < spec.perDot ? ' is-part' : ''}`,
                 'data-dot': i,
                 'aria-label': label,
                 tabIndex: i === rove ? 0 : -1,
-                style: { background: GROUP_COLORS[gi % GROUP_COLORS.length], ['--f' as string]: total > 1 ? i / total : 0 },
+                style: { background: look.background, ['--f' as string]: total > 1 ? i / total : 0 },
                 ...b,
                 onFocus: (e: { currentTarget: Element }) => {
                   setRove(i)
@@ -109,7 +102,8 @@ function Dots({ spec }: { spec: DotsSpec }) {
             })}
           </div>
         </div>
-      ))}
+        )
+      })}
       {typeof document !== 'undefined' && createPortal(<div className="folio" style={HOUSE_STYLE}><Tooltip tip={tip} /></div>, document.body)}
       <p className="stance-note stance-hint-keys">Use the arrow keys to move between dots.</p>
       {flat.some((x) => x.d.url) && <p className="stance-note stance-hint-touch">Tap a dot to open it.</p>}
@@ -118,13 +112,13 @@ function Dots({ spec }: { spec: DotsSpec }) {
 }
 
 /** The chart for one round: one simple figure from the dataset the statement names, its FIG. caption and data table. */
-export default function ChartPanel({ chartKey, round, enabled, stateCode, stateName, city, scopeLabel, emptyExtra }: Props) {
+export default function ChartPanel({ chartKey, round, enabled, stateCode, stateName, city, scopeLabel, emptyExtra, view }: Props) {
   const q = useChartData(chartKey, enabled, stateCode, city)
-  const spec = useMemo(() => chartSpec(chartKey, q.data, stateName), [chartKey, q.data, stateName])
+  const spec = useMemo(() => chartSpec(chartKey, q.data, stateName, view), [chartKey, q.data, stateName, view])
   const [open, setOpen] = useState(false)
   const fig = String(round).padStart(2, '0')
   const scope = scopeLabel ?? stateName ?? 'National'
-  const hasLinks = spec?.kind === 'dots' && spec.groups.some((g) => g.dots.some((d) => d.url))
+  const hasLinks = Boolean(spec?.groups.some((g) => g.dots.some((d) => d.url)))
 
   return (
     <figure className="stance-figure" aria-label={spec?.title ?? 'Chart'}>
@@ -137,14 +131,12 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
           <p>{q.isError ? 'This chart could not be loaded right now.' : 'No data available for this chart'}</p>
           {emptyExtra}
         </div>
-      ) : spec.kind === 'bars' ? (
-        <Bars spec={spec} />
       ) : (
         <Dots spec={spec} />
       )}
       <figcaption className="folio-fig">
         <b>FIG. {fig}</b> — {spec ? `${spec.title}, ${scope}.` : `${scope}.`}
-        {spec?.kind === 'dots' && ` Every dot is one ${spec.unit}. ${hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`}
+        {spec && ` ${spec.dotMeans} ${hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`}
         {spec && ` Source: ${spec.source}.`}
         {spec?.note && ` ${spec.note}`}
         {spec && chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'}
@@ -168,22 +160,15 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
             <DataTable
               id={`stance-data-${round}`}
               caption={`Data table: ${spec.title}, ${scope}`}
-              spec={
-                spec.kind === 'bars'
-                  ? {
-                      columns: [{ label: 'Group' }, { label: 'Count', numeric: true }, { label: 'Share', numeric: true }],
-                      rows: spec.rows.map((r) => [r.label, fmt(r.value), `${r.percent}%`]),
-                    }
-                  : {
-                      columns: [
-                        { label: 'Group' },
-                        { label: spec.grandTotal != null ? 'Records' : 'Records shown', numeric: true },
-                        { label: spec.grandTotal != null ? 'Share' : 'Share (not known)', numeric: true },
-                        { label: 'Dots drawn', numeric: true },
-                      ],
-                      rows: spec.groups.map((g) => [g.label, fmt(g.total ?? g.shown), g.share != null ? `${g.share}%` : '—', fmt(g.shown)]),
-                    }
-              }
+              spec={{
+                columns: [
+                  { label: 'Group' },
+                  { label: spec.grandTotal != null ? 'Records' : 'Records shown', numeric: true },
+                  { label: spec.grandTotal != null ? 'Share' : 'Share (not known)', numeric: true },
+                  { label: 'Dots drawn', numeric: true },
+                ],
+                rows: spec.groups.map((g) => [g.label, fmt(g.total ?? g.shown), g.share != null ? `${g.share}%` : '—', fmt(g.shown)]),
+              }}
             />
           )}
         </>

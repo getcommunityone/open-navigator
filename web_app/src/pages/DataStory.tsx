@@ -6,7 +6,6 @@ import '@fontsource-variable/geist-mono'
 import '../styles/folio.css'
 import '../styles/stance.css'
 import { errorStatus, fetchChoiceResults, fetchStancePack, postStanceChoice, type ChoiceMoment, type ChoiceResults } from '../api/stance'
-import ScrollCue from '../components/story/ScrollCue'
 import FloatingNext from '../components/stance/FloatingNext'
 import ProgressPips from '../components/stance/ProgressPips'
 import ProgressRail from '../components/stance/ProgressRail'
@@ -20,6 +19,7 @@ import { actsMode, useActs, type Hold } from '../components/stance/useActs'
 import { useRecentWrites } from '../components/stance/useRecentWrites'
 import { useScreenKeys } from '../components/stance/useScreenKeys'
 import { useStoryData } from '../components/stance/useStoryData'
+import { useIdleNudge } from '../hooks/useIdleNudge'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { STATE_CODES } from '../lib/usStates'
@@ -35,6 +35,7 @@ import {
   type StoryScope,
 } from '../utils/dataStory'
 import { HOUSE_STYLE } from '../utils/houseTheme'
+import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { createSoundBoard } from '../utils/stanceSound'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
@@ -53,8 +54,9 @@ const ANSWER_HOLD_MS = 700
 
 /**
  * The data story at `/stories/:storyId`. It opens on one question, asks where, shows the record one screen at a time, and
- * closes on the same question (#915). Screens are pinned and driven by the scroll on a wide screen, snap one per swipe on a
- * phone, and are plain stacked panels under reduced motion (see `useActs`).
+ * closes on the same question (#915). Screens are pinned and driven by the scroll on a wide screen and snap one per swipe on a
+ * phone (see `useActs`). Under reduced motion (which a phone's battery saver also turns on) the story keeps one screen at a
+ * time on every width and each screen cross-fades in: opacity only, nothing slides, scales or loops (#930).
  */
 export default function DataStory() {
   const { storyId = 'data-centers' } = useParams()
@@ -114,15 +116,15 @@ export default function DataStory() {
   const texts = useMemo(() => screens.map((s) => screenText(s, data, status, scope, question)), [screens, data, status, scope, question])
 
   const wide = useMediaQuery('(min-width: 768px)')
-  const mode = actsMode(reduced, wide)
+  const mode = reduced ? 'snap' : actsMode(false, wide)
   const rootRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
   const [placeOpen, setPlaceOpen] = useState(false)
   const [whereOpen, setWhereOpen] = useState(false)
   const dialogOpen = placeOpen || whereOpen
-  // The floating "next" bar is showing: the scroll cue stays out of its way.
-  const [barShown, setBarShown] = useState(false)
+  // A reader who has stopped gets a calm cue on the screen's next step (or on the floating bar standing in for it).
+  useIdleNudge({ rootRef, screen: `[data-panel="${active}"]`, resetKey: active, entranceMs: NUDGE_ENTRANCE_MS })
 
   useLayoutEffect(() => {
     const root = rootRef.current
@@ -215,13 +217,30 @@ export default function DataStory() {
     ready.current = false
     // The story opens on its first screen's hold, with the question in place, not on the empty start of its timeline.
     const at = Math.max(0, storyScreenIndex(screens, screenParam))
-    const h = acts.holds().find((x) => x.round === at && x.kind !== 'r')
-    if (h && (at > 0 || mode === 'pinned')) window.scrollTo({ top: h.pos, behavior: 'auto' })
+    const land = (behavior: ScrollBehavior) => {
+      const h = acts.holds().find((x) => x.round === at && x.kind !== 'r')
+      if (h && (at > 0 || mode === 'pinned') && Math.abs(h.pos - window.scrollY) > 2) window.scrollTo({ top: h.pos, behavior })
+    }
+    land('auto')
     activeRef.current = at
     setActive(at)
     lastWritten.current = screens[at]?.id ?? null
     const id = requestAnimationFrame(() => requestAnimationFrame(() => (ready.current = true)))
-    return () => cancelAnimationFrame(id)
+    // Under reduced motion the page is put on the screen at once, before the top bar has its final height (which sets every
+    // screen's height). While the reader has not moved, a change in that height puts the page back on the screen it opened on.
+    const top = rootRef.current?.querySelector('.stance-top')
+    const ro = reduced && at > 0 && top && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => land('instant' as ScrollBehavior)) : null
+    if (top) ro?.observe(top)
+    const stop = () => ro?.disconnect()
+    const moves = ['pointerdown', 'wheel', 'keydown', 'touchstart'] as const
+    moves.forEach((e) => window.addEventListener(e, stop, { once: true, passive: true }))
+    const timer = window.setTimeout(stop, 4000)
+    return () => {
+      cancelAnimationFrame(id)
+      window.clearTimeout(timer)
+      moves.forEach((e) => window.removeEventListener(e, stop))
+      stop()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [n, mode])
 
@@ -358,7 +377,7 @@ export default function DataStory() {
   )
 
   return (
-    <div className="folio stance-game stance-story" style={HOUSE_STYLE} ref={rootRef} data-mode={mode}>
+    <div className="folio stance-game stance-story" style={HOUSE_STYLE} ref={rootRef} data-mode={mode} data-fade={reduced ? '' : undefined}>
       <ScopeBar
         backTo={`/stories${scopeQuery(scope)}`}
         backLabel="← Data stories"
@@ -444,8 +463,7 @@ export default function DataStory() {
         </div>
         <ProgressRail labels={labels} active={active} onJump={goTo} navLabel="Story screens" />
       </div>
-      <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} onShownChange={setBarShown} />
-      <ScrollCue show={active < n - 1 && !barShown} nextLabel={screens[active + 1]?.eyebrow ?? ''} onNext={() => goTo(active + 1)} />
+      <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
       <p className="stance-keys">Keys: PageDown, Space or ↓ next · PageUp, Shift+Space or ↑ back · Home and End jump to the ends</p>
     </div>
   )

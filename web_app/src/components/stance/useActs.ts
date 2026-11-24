@@ -233,7 +233,7 @@ export function useActs(opts: Options): ActsApi {
         wheelArmed = false
         wheelAt = now
         programmatic = true
-        window.scrollTo({ top: next.pos, behavior: 'smooth' })
+        window.scrollTo({ top: next.pos, behavior: o.current.smooth ? 'smooth' : 'auto' })
       }
       if (snap) window.addEventListener('wheel', onWheel, { passive: false })
       const io = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver(check, { threshold: [0, 0.25, 0.5, 0.75, 1] }) : null
