@@ -44,6 +44,8 @@ from llm.enrichment.analysis_load_gate import (
     SKIP_REASONS,
     decide_skip,
     fetch_video_info,
+    is_untyped,
+    meeting_evidence,
     meta_matches_file,
     tier_from_path,
 )
@@ -223,6 +225,7 @@ def _empty_stats() -> dict[str, int]:
         "skipped_no_video": 0, "skipped_no_event": 0, "skipped_other_tier": 0,
         "unchecked_no_bronze_row": 0, "errors": 0, "errors_unreadable": 0, "errors_upsert": 0,
         "errors_cache_missing": 0,
+        "kept_other_by_override": 0, "kept_other_by_keep_score": 0, "kept_other_by_title": 0,
     }
     for reason in SKIP_REASONS:
         stats[f"skipped_{reason}"] = 0
@@ -353,12 +356,19 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
                 row = info.get(video_id)
                 if row is None:
                     stats["unchecked_no_bronze_row"] += 1
-                reason = decide_skip(row, video_id in low_keep)
+                reason = decide_skip(row, video_id in low_keep, min_meeting_p)
                 if reason:
                     stats[f"skipped_{reason}"] += 1
                     logger.debug("Skip {} ({})", path.name, reason)
-                    note(path, "skipped", reason, video_id=video_id)
+                    detail = None
+                    if reason == "non_meeting_type" and row is not None:
+                        # Show what the rule saw, so a wrongly skipped meeting can be spotted and overridden.
+                        detail = f"typed {row.get('meeting_type') or 'blank'!r}; title: {row.get('title') or '(none)'}"
+                    note(path, "skipped", reason, video_id=video_id, detail=detail)
                     continue
+                if row is not None and is_untyped(row):
+                    # Typed "Other" by the scraper but kept: count what vouched for it (#829).
+                    stats[f"kept_other_by_{meeting_evidence(row, min_meeting_p)}"] += 1
 
             event_id = video_to_event.get(video_id)
             if event_id is None:
@@ -419,7 +429,9 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
         "no_event={skipped_no_event:,}, no_meta={skipped_no_meta:,}, meta_mismatch={skipped_meta_mismatch:,}, "
         "tier_mismatch={skipped_tier_mismatch:,}, no_video={skipped_no_video:,}, "
         "not judged (no bronze row)={unchecked_no_bronze_row:,}; "
-        "errors={errors:,} (unreadable files={errors_unreadable:,}, failed writes={errors_upsert:,})",
+        "errors={errors:,} (unreadable files={errors_unreadable:,}, failed writes={errors_upsert:,}); "
+        "typed Other but kept: by a person={kept_other_by_override:,}, by Jev score={kept_other_by_keep_score:,}, "
+        "by title={kept_other_by_title:,}",
         g=skipped_gate, ex=stats["skipped_policy_excluded"], ju=stats["skipped_junk_channel"],
         nm=stats["skipped_non_meeting_type"], lk=stats["skipped_low_keep_score"], **stats,
     )

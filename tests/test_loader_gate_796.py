@@ -194,26 +194,130 @@ class _Conn:
 
 
 def test_fetch_video_info_builds_flags_per_video():
-    cur = _Cur(rows=[("v1", "CITY_COUNCIL", False, False), ("v2", "", True, True)])
+    cur = _Cur(rows=[("v1", "CITY_COUNCIL", False, False, "Council Meeting", 0.9, None),
+                     ("v2", "", True, True, None, None, "government_meeting")])
     out = gate.fetch_video_info(_Conn(cur), ["v1", "v2", "v1", ""])
     assert out == {
-        "v1": {"meeting_type": "CITY_COUNCIL", "junk": False, "excluded": False},
-        "v2": {"meeting_type": "", "junk": True, "excluded": True},
+        "v1": {"meeting_type": "CITY_COUNCIL", "junk": False, "excluded": False, "title": "Council Meeting",
+               "keep_p": 0.9, "override_kind": None},
+        "v2": {"meeting_type": "", "junk": True, "excluded": True, "title": "", "keep_p": None,
+               "override_kind": "government_meeting"},
     }
 
 
 def test_fetch_video_info_skips_tables_the_warehouse_lacks():
-    cur = _Cur(has_class=False, has_tx=False, rows=[("v1", "CITY_COUNCIL", False, False)])
+    cur = _Cur(has_class=False, has_tx=False, rows=[("v1", "CITY_COUNCIL", False, False, "t", None, None)])
     gate.fetch_video_info(_Conn(cur), ["v1"])
     query = cur.sql[-1]
     assert "bronze_youtube_channel_classification" not in query
     assert "bronze_event_youtube_transcript" not in query
+    # the fake reports only two tables, so the screen and override tables count as absent too
+    assert "bronze_transcript_screen_jev" not in query and "bronze_video_meeting_kind_override" not in query
+
+
+def test_fetch_video_info_reads_the_screen_and_override_tables_when_present():
+    cur = _Cur(rows=[])
+    cur._has = (True, True, True, True)
+    gate.fetch_video_info(_Conn(cur), ["v1"])
+    query = cur.sql[-1]
+    assert "bronze_transcript_screen_jev" in query and "bronze_video_meeting_kind_override" in query
+    assert "??" not in query  # psycopg2 takes the jsonb ? operator as written
 
 
 def test_fetch_video_info_with_no_videos_runs_no_query():
     cur = _Cur()
     assert gate.fetch_video_info(_Conn(cur), []) == {}
     assert cur.sql == []
+
+
+# --- "Other" is not "not a meeting" (#829) ----------------------------------------------------
+@pytest.mark.parametrize(
+    "title",
+    [
+        # the five the owner's load skipped as "Not a meeting"
+        "Tuscaloosa Capital Projects Work Session",
+        "Tuscaloosa Finance Committee Meeting",
+        "Tuscaloosa Projects Committee Meeting",
+        "Tuscaloosa Historic Preservation Commission Meeting",
+        "Tuscaloosa Pre-Council Briefing",
+        "Board of Education Regular Meeting",
+        "Zoning Board of Adjustment",
+        "Public Hearing on the FY27 Budget",
+        "District 1 Town Hall",
+        "Housing Authority monthly meeting",
+        "County Commissioners Special Session",
+        "WORKSESSION 5/12/26",
+    ],
+)
+def test_titles_that_name_a_public_meeting(title):
+    assert gate.title_names_public_meeting(title) is True
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Clayton County Celebrating 5 Splash-tastic Years Spivey Splash Water Park Opens",
+        "Red Lines and Deadlines: The Tit-For-Tat Tactics & Rising Economic Stakes",
+        "Skateboard park ribbon cutting",
+        "Family board game night at the library",
+        "Onboarding video for new hires",
+        "Mayor's holiday message",
+        "",
+        None,
+    ],
+)
+def test_titles_that_do_not(title):
+    assert gate.title_names_public_meeting(title) is False
+
+
+def _other(**kw):
+    return {"meeting_type": "Other", "junk": False, "excluded": False, "title": "", "keep_p": None,
+            "override_kind": None, **kw}
+
+
+def test_other_with_no_evidence_is_still_skipped():
+    assert gate.decide_skip(_other(title="Water park opens"), False) == "non_meeting_type"
+    assert gate.decide_skip(_other(meeting_type="", title=""), False) == "non_meeting_type"
+    assert gate.decide_skip(_other(keep_p=0.59), False) == "non_meeting_type"  # just under the floor
+
+
+@pytest.mark.parametrize(
+    ("info", "evidence"),
+    [
+        ({"title": "Tuscaloosa Finance Committee Meeting"}, "title"),
+        ({"keep_p": 0.6}, "keep_score"),
+        ({"keep_p": 0.95, "title": "untitled stream"}, "keep_score"),
+        ({"override_kind": "government_meeting"}, "override"),
+        ({"override_kind": "town_hall", "keep_p": 0.1}, "override"),
+    ],
+)
+def test_other_with_evidence_is_loaded(info, evidence):
+    row = _other(**info)
+    assert gate.meeting_evidence(row) == evidence
+    assert gate.decide_skip(row, False) is None
+
+
+def test_a_person_saying_it_is_not_a_meeting_beats_the_title_and_the_score():
+    row = _other(override_kind="not_government", title="City Council Meeting", keep_p=0.99)
+    assert gate.meeting_evidence(row) is None
+    assert gate.decide_skip(row, False) == "non_meeting_type"
+
+
+def test_title_evidence_does_not_override_the_other_rules():
+    row = _other(title="Finance Committee Meeting")
+    assert gate.decide_skip(row, True) == "low_keep_score"  # Jev read the transcript and disagreed
+    assert gate.decide_skip({**row, "junk": True}, False) == "junk_channel"
+    assert gate.decide_skip({**row, "excluded": True}, False) == "policy_excluded"
+
+
+def test_the_floor_is_the_callers():
+    row = _other(keep_p=0.7)
+    assert gate.decide_skip(row, False, 0.8) == "non_meeting_type"
+    assert gate.decide_skip(row, False, 0.6) is None
+
+
+def test_a_typed_meeting_never_needed_evidence():
+    assert gate.decide_skip({"meeting_type": "City Council", "junk": False, "excluded": False}, False) is None
 
 
 def test_gate_module_never_writes():
