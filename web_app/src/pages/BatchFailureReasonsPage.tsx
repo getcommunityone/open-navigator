@@ -1,0 +1,255 @@
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import {
+  fetchFailureReasons,
+  fetchFailureRows,
+  type FailureReasonGroup,
+  type FailureStage,
+} from '../api/batchJobs'
+
+// #792: the page behind the red failed count on the Videos and Transcripts rows of Batch Job Status.
+// The scope (stage, cohort, state) lives in the URL and the title states it exactly, so the label
+// and the numbers always describe the same filter (CLAUDE.md "Scope Label Must Match the Active Filter").
+
+const STAGE_LABEL: Record<FailureStage, string> = {
+  videos: 'Videos',
+  transcripts: 'Transcripts',
+}
+
+const COHORT_LABEL: Record<string, string> = {
+  data_centers: 'Data centers',
+  priority: 'Priority states',
+  all: 'All 50 states + DC',
+}
+
+const PAGE_SIZE = 50
+
+function asStage(raw: string | null): FailureStage {
+  return raw === 'videos' ? 'videos' : 'transcripts'
+}
+
+function ReasonVideos({
+  stage,
+  cohort,
+  state,
+  reason,
+}: {
+  stage: FailureStage
+  cohort: string
+  state: string
+  reason: string
+}) {
+  const [offset, setOffset] = useState(0)
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['batch-failure-rows', stage, cohort, state, reason, offset],
+    queryFn: () => fetchFailureRows(stage, cohort, state, reason, offset, PAGE_SIZE),
+  })
+  if (isLoading) return <p className="px-3 py-2 text-xs text-slate-500">Loading videos…</p>
+  if (error)
+    return (
+      <p className="px-3 py-2 text-xs text-red-700">
+        Could not load these videos: {(error as Error).message}
+      </p>
+    )
+  const rows = data?.rows ?? []
+  const total = data?.total ?? 0
+  if (rows.length === 0)
+    return <p className="px-3 py-2 text-xs text-slate-500">No videos for this reason.</p>
+  return (
+    <div className="border-t border-slate-100 bg-slate-50/60">
+      <table className="min-w-full text-xs">
+        <thead className="text-left uppercase text-slate-500">
+          <tr>
+            <th className="px-3 py-1.5 font-medium">Video</th>
+            <th className="px-3 py-1.5 font-medium">Title</th>
+            <th className="px-3 py-1.5 font-medium">Jurisdiction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.video_id} className="border-t border-slate-100 align-top">
+              <td className="whitespace-nowrap px-3 py-1.5 font-mono">
+                <a
+                  href={`https://www.youtube.com/watch?v=${r.video_id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-teal-700 hover:underline"
+                >
+                  {r.video_id}
+                </a>
+              </td>
+              <td className="px-3 py-1.5 text-slate-800">{r.title || '—'}</td>
+              <td className="px-3 py-1.5">
+                <div className="text-slate-800">{r.jurisdiction_name || r.jurisdiction_id || '—'}</div>
+                <div className="font-mono text-[10px] text-slate-500">
+                  {r.state_code || '—'} · {r.jurisdiction_id || '—'}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex items-center justify-between px-3 py-2 text-xs text-slate-600">
+        <span>
+          {offset + 1}–{offset + rows.length} of {total.toLocaleString()}
+        </span>
+        <span className="flex gap-2">
+          <button
+            type="button"
+            disabled={offset === 0}
+            onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+            className="rounded border border-slate-300 bg-white px-2 py-0.5 disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            disabled={offset + rows.length >= total}
+            onClick={() => setOffset(offset + PAGE_SIZE)}
+            className="rounded border border-slate-300 bg-white px-2 py-0.5 disabled:opacity-40"
+          >
+            Next
+          </button>
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function GroupCard({
+  group,
+  total,
+  stage,
+  cohort,
+  state,
+}: {
+  group: FailureReasonGroup
+  total: number
+  stage: FailureStage
+  cohort: string
+  state: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [openReason, setOpenReason] = useState<string | null>(null)
+  const pct = total > 0 ? (group.count / total) * 100 : 0
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left"
+        aria-expanded={open}
+      >
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-slate-900">
+            <span className="mr-1 text-slate-400">{open ? '▾' : '▸'}</span>
+            {group.label}
+          </div>
+          <p className="mt-0.5 text-xs text-slate-600">{group.advice}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-lg font-semibold tabular-nums text-red-700">
+            {group.count.toLocaleString()}
+          </div>
+          <div className="text-[11px] tabular-nums text-slate-500">{pct.toFixed(1)}%</div>
+        </div>
+      </button>
+      {open ? (
+        <div className="border-t border-slate-100">
+          {group.reasons.map((r) => (
+            <div key={r.reason} className="border-b border-slate-100 last:border-b-0">
+              <button
+                type="button"
+                onClick={() => setOpenReason(openReason === r.reason ? null : r.reason)}
+                className="flex w-full items-start justify-between gap-3 px-4 py-2 text-left hover:bg-slate-50"
+                aria-expanded={openReason === r.reason}
+              >
+                <code className="min-w-0 break-words rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-800">
+                  {r.example || r.reason}
+                </code>
+                <span className="shrink-0 text-sm font-medium tabular-nums text-slate-800">
+                  {r.count.toLocaleString()}
+                </span>
+              </button>
+              {openReason === r.reason ? (
+                <ReasonVideos stage={stage} cohort={cohort} state={state} reason={r.reason} />
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export default function BatchFailureReasonsPage() {
+  const [params] = useSearchParams()
+  const stage = asStage(params.get('stage'))
+  const cohort = params.get('cohort') || 'all'
+  const state = (params.get('state') || '').toUpperCase()
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['batch-failure-reasons', stage, cohort, state],
+    queryFn: () => fetchFailureReasons(stage, cohort, state),
+  })
+
+  const cohortLabel = COHORT_LABEL[cohort] ?? cohort
+  const stateLabel = state ? state : 'All states'
+  const back = `/admin/batch-jobs?cohort=${encodeURIComponent(cohort)}${state ? `&state=${state}` : ''}`
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
+      <div>
+        <Link to={back} className="text-xs font-medium text-teal-700 hover:underline">
+          ← Back to Batch Job Status
+        </Link>
+        <h1 className="mt-1 text-xl font-semibold text-slate-900">
+          {STAGE_LABEL[stage]} failures
+          <span className="ml-2 text-base font-normal text-slate-500">
+            · {cohortLabel} · {stateLabel}
+          </span>
+        </h1>
+        <p className="text-xs text-slate-500">
+          Why videos in this scope failed, from the error saved on each video. The reasons add up to the
+          failed count on the stage row.
+        </p>
+      </div>
+
+      {isLoading ? <p className="text-sm text-slate-500">Loading reasons…</p> : null}
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          Failure reasons are unavailable: {(error as Error).message}
+        </div>
+      ) : null}
+
+      {data && data.total === 0 ? (
+        <div className="rounded-md border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-600">
+          No failed videos recorded for this scope.
+        </div>
+      ) : null}
+
+      {data && data.total > 0 ? (
+        <>
+          <div className="text-sm text-slate-700">
+            <span className="font-semibold tabular-nums text-red-700">{data.total.toLocaleString()}</span>{' '}
+            failed video{data.total === 1 ? '' : 's'}
+            {data.truncated ? ' (very rare messages are combined in the last group)' : ''}
+          </div>
+          <div className="space-y-3">
+            {data.groups.map((g) => (
+              <GroupCard
+                key={g.key}
+                group={g}
+                total={data.total}
+                stage={stage}
+                cohort={cohort}
+                state={state}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  )
+}

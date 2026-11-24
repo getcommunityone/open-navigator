@@ -1597,6 +1597,114 @@ async def list_failed_videos(
     )
 
 
+class FailureReasonItem(BaseModel):
+    reason: str
+    count: int
+    example: str = ""
+
+
+class FailureReasonGroup(BaseModel):
+    key: str
+    label: str
+    advice: str
+    count: int
+    reasons: List[FailureReasonItem] = Field(default_factory=list)
+
+
+class FailureReasonsResponse(BaseModel):
+    stage: str
+    cohort: str
+    state: str = ""
+    total: int = 0
+    truncated: bool = False
+    groups: List[FailureReasonGroup] = Field(default_factory=list)
+
+
+class FailureRow(BaseModel):
+    video_id: str
+    title: str = ""
+    jurisdiction_id: str = ""
+    jurisdiction_name: str = ""
+    state_code: str = ""
+    error: str = ""
+
+
+class FailureRowsResponse(BaseModel):
+    stage: str
+    reason: str
+    total: int = 0
+    rows: List[FailureRow] = Field(default_factory=list)
+
+
+def _failure_stage(stage: str) -> str:
+    from api.batch_jobs.failure_reasons import STAGES
+
+    st = (stage or "").strip().lower()
+    if st not in STAGES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No failure breakdown for stage {stage!r}; supported: {', '.join(STAGES)}",
+        )
+    return st
+
+
+@router.get("/failure-reasons", response_model=FailureReasonsResponse)
+async def list_failure_reasons(
+    stage: str = Query("transcripts", description="videos or transcripts (both count the same rows)"),
+    cohort: Optional[str] = Query(None, description="all | priority | data_centers"),
+    state: Optional[str] = Query(None, description="2-letter state code; omit for the whole cohort"),
+) -> FailureReasonsResponse:
+    """Failed videos for a stage, grouped by the reason stored in ``transcript_file_error`` (#792).
+
+    The group counts sum to ``total``, which is the number on the stage row's failed badge for the
+    same cohort and state.
+    """
+    st = _failure_stage(stage)
+    from api.batch_jobs.failure_reasons import failure_reasons
+
+    def _run() -> Dict[str, Any]:
+        from api.batch_jobs.batch_job_db import get_db_connection
+
+        with get_db_connection() as conn:
+            return failure_reasons(conn, stage=st, cohort=cohort, state=state)
+
+    try:
+        payload = await asyncio.to_thread(_run)
+    except Exception as exc:
+        logger.exception("failure reasons failed")
+        raise HTTPException(status_code=500, detail=f"Failure reasons failed: {exc}") from exc
+    return FailureReasonsResponse(**payload)
+
+
+@router.get("/failures", response_model=FailureRowsResponse)
+async def list_failures(
+    reason: str = Query(..., description="A normalized reason, as returned by /failure-reasons"),
+    stage: str = Query("transcripts"),
+    cohort: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> FailureRowsResponse:
+    """The failed videos behind one reason (paged)."""
+    st = _failure_stage(stage)
+    from api.batch_jobs.failure_reasons import failure_rows
+
+    def _run() -> Dict[str, Any]:
+        from api.batch_jobs.batch_job_db import get_db_connection
+
+        with get_db_connection() as conn:
+            return failure_rows(
+                conn, stage=st, cohort=cohort, state=state, reason=reason, limit=limit, offset=offset
+            )
+
+    try:
+        payload = await asyncio.to_thread(_run)
+    except Exception as exc:
+        logger.exception("failure rows failed")
+        raise HTTPException(status_code=500, detail=f"Failure rows failed: {exc}") from exc
+    return FailureRowsResponse(**payload)
+
+
 @router.get("/{batch_id}/jurisdictions", response_model=BatchJurisdictionsResponse)
 async def list_batch_jurisdictions(
     batch_id: str,

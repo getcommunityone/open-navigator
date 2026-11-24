@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   batchJobsStreamUrl,
   batchJobsFetchErrorMessage,
@@ -968,6 +968,7 @@ function JobTypeTabs({
 
 export default function BatchJobStatusPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const jobType: JobType = searchParams.get('type') === 'deployment' ? 'deployment' : 'youtube'
   const setJobType = useCallback(
     (t: JobType) => {
@@ -1687,7 +1688,13 @@ export default function BatchJobStatusPage() {
             }
             const agoFromIso = (iso?: string) =>
               iso ? formatAgoCompact(iso, agoClockMs) : null
-            const openFailed = () => setShowFailedVideos(true, { allBatches: true })
+            // #792: the failed count on Videos / Transcripts opens the reason breakdown for the
+            // same Filter and Scope (both ride in the URL so the page's title matches the numbers).
+            const openReasons = (stage: 'videos' | 'transcripts') => () => {
+              const q = new URLSearchParams({ stage, cohort: allScope })
+              if (scope !== 'ALL') q.set('state', scope)
+              navigate(`/admin/batch-jobs/failures?${q}`)
+            }
             const setScope = (sc: string) => {
               const next = new URLSearchParams(searchParams)
               if (sc) next.set('state', sc)
@@ -1767,8 +1774,8 @@ export default function BatchJobStatusPage() {
                 stage: 'videos',
                 unit: 'attempted',
                 pill: false,
-                drill: openFailed,
-                failTitle: 'Videos whose caption fetch failed — tap to list',
+                drill: openReasons('videos'),
+                failTitle: 'Videos whose caption fetch failed — tap to see why',
                 inRunAll: true,
               },
               {
@@ -1777,8 +1784,8 @@ export default function BatchJobStatusPage() {
                 unit: 'videos',
                 sub: 'YouTube caption attempts in this Filter (not LocalView/CivicSearch)',
                 pill: true,
-                drill: openFailed,
-                failTitle: 'Videos with no usable transcript — tap to list',
+                drill: openReasons('transcripts'),
+                failTitle: 'Videos with no usable transcript — tap to see why',
                 inRunAll: true,
               },
               {

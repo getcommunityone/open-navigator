@@ -340,6 +340,88 @@ export async function fetchBatchJobsDashboard(
   return data
 }
 
+// ---- Why did videos fail? (#792) -------------------------------------------------
+
+export type FailureStage = 'videos' | 'transcripts'
+
+export type FailureReasonGroup = {
+  key: string
+  label: string
+  advice: string
+  count: number
+  reasons: Array<{ reason: string; count: number; example: string }>
+}
+
+export type FailureReasonsPayload = {
+  stage: string
+  cohort: string
+  state: string
+  total: number
+  truncated: boolean
+  groups: FailureReasonGroup[]
+}
+
+export type FailureRowsPayload = {
+  stage: string
+  reason: string
+  total: number
+  rows: Array<{
+    video_id: string
+    title: string
+    jurisdiction_id: string
+    jurisdiction_name: string
+    state_code: string
+    error: string
+  }>
+}
+
+async function getJson<T>(path: string, query: URLSearchParams): Promise<T> {
+  const r = await tracedFetch(`${path}?${query}`, {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!r.ok) {
+    let detailMsg = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { detail?: string }
+      if (j?.detail) detailMsg = j.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detailMsg)
+  }
+  return (await r.json()) as T
+}
+
+export function fetchFailureReasons(
+  stage: FailureStage,
+  cohort: string,
+  state: string,
+): Promise<FailureReasonsPayload> {
+  const q = new URLSearchParams({ stage, cohort })
+  if (state) q.set('state', state)
+  return getJson<FailureReasonsPayload>('/api/batch-jobs/failure-reasons', q)
+}
+
+export function fetchFailureRows(
+  stage: FailureStage,
+  cohort: string,
+  state: string,
+  reason: string,
+  offset: number,
+  limit = 50,
+): Promise<FailureRowsPayload> {
+  const q = new URLSearchParams({
+    stage,
+    cohort,
+    reason,
+    offset: String(offset),
+    limit: String(limit),
+  })
+  if (state) q.set('state', state)
+  return getJson<FailureRowsPayload>('/api/batch-jobs/failures', q)
+}
+
 export type FailedVideosListPayload = {
   rows: Array<{
     batch_id: string
