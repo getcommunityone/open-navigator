@@ -4,19 +4,21 @@ branch: fix/898-data-stories-place-picker
 title: "fix(web_app): Data Stories place picker is a dialog with one search box and a close button"
 author: jcbowyer
 reviewed_at: 2026-11-24
-reviewer: github-actions
+reviewer: github-actions, coordinator
 head_sha: 2050acb79b0f458a22a463e806598ecc1066afcd
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: fix(web_app): Data Stories place picker is a dialog with one search box and a close button
 
 ## Summary
 
-Automated review (#648) for PR #903 on `fix/898-data-stories-place-picker`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Replaces the Data Stories place panel with a dialog: close button, one search box for city, county or ZIP, pick-to-apply, one-click national, state and my-location choices, bottom sheet on phones. It calls the home page's resolver functions in `utils/resolvePlace.ts` and leaves `AddressLookup` and the home page untouched. `PlaceControl` props are unchanged.
+
+Read by the coordinator against the diff and screenshots; the heuristic scan ran first.
 
 ## Scope of Change
+
 
 - `web_app/src/components/stance/PlaceControl.tsx`
 - `web_app/src/styles/stance.css`
@@ -27,16 +29,11 @@ Automated review (#648) for PR #903 on `fix/898-data-stories-place-picker`. Heur
 
 ## CI Status
 
-See the PR checks on `2050acb79b0f`.
+Required checks are read on the head commit before merge. Locally: tsc clean, vitest passed, build ok.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
+- Secrets: clean. Fabricated data: none. Personal data: none. Destructive changes: none.
 
 ## Findings
 
@@ -46,12 +43,14 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+None.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- The shared resolver does not filter business or street results for free text the way AddressLookup's city mode does; untested against the real lookup. If noisy, filter in the shared resolver.
+- Use my location and the challenge page's Your place button were not exercised in the browser.
+- A county pick applies the state and says so, which is honest but may surprise; revisit if county-grain stories arrive.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**
