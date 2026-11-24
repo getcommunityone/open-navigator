@@ -35,7 +35,7 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
-from api.meeting_type import meeting_type_subquery
+from api.meeting_type import meeting_type_available, meeting_type_subquery
 from api.routes.lenses import (
     LensCard,
     build_card,
@@ -332,8 +332,11 @@ async def list_decisions(
 
                     limit_idx = len(params) + 1
                     offset_idx = len(params) + 2
+                    # NULL for every row when the type's relation is not published here (#840).
+                    has_type = await meeting_type_available(conn)
+                    qspan.set_attribute("decisions.meeting_type_available", has_type)
                     list_sql = f"""
-                        SELECT {_CARD_COLS}, {video_id_subquery('ii')}, {meeting_type_subquery('ii')}, {speaker_ids_subquery('ii')}, {snippet_sql} AS snippet
+                        SELECT {_CARD_COLS}, {video_id_subquery('ii')}, {meeting_type_subquery('ii', has_type)}, {speaker_ids_subquery('ii')}, {snippet_sql} AS snippet
                         FROM {from_sql}
                         WHERE {where_sql}
                         ORDER BY {_ORDER_BY[sort_key]}, ii.event_decision_id DESC

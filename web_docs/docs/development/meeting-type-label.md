@@ -8,8 +8,14 @@ sidebar_label: Meeting type label
 The decision card, the decision detail page and the meeting page show the meeting type (for example "City Council")
 next to the date.
 
-- **Source:** `event_youtube_with_jurisdiction.meeting_type`, read by `video_id` through `event_meeting`. No new dbt model:
-  the column already reaches the `public` view.
+- **Source:** `event_youtube_with_jurisdiction.meeting_type`, read by `video_id` through `event_meeting`. No new dbt
+  model.
+- **Where it is available (#840):** the relation is built in `gold` and is not in the public serving list
+  (`publish_public_serving`, `sync_public_to_neon`). An API that reads `gold` (`API_DB_SCHEMA=gold`) shows the type. An
+  API that reads `public`, which is the default and what production uses, cannot resolve the relation, so
+  `meeting_type` is `null` and the pages omit the label. `api/meeting_type.py` `meeting_type_available()` checks once
+  whether the relation resolves and selects `NULL` when it doesn't; a missing relation is checked again after five
+  minutes. Publishing the type to `public` is #841.
 - **Label:** `api/meeting_type.py` `meeting_type_label()` only fixes capitalization and spacing (`CITY_COUNCIL` becomes
   `City Council`). A blank or `UNKNOWN` value gives no label, so the page omits it. A type is never guessed.
 - **API:** `meeting_type` (string or null) on each `GET /api/decisions` item, on `GET /api/decisions/{id}` and on

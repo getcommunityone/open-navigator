@@ -22,7 +22,11 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
-from api.meeting_type import meeting_type_label
+from api.meeting_type import (
+    meeting_type_available,
+    meeting_type_by_video_sql,
+    meeting_type_label,
+)
 from api.provenance import Provenance, build_provenance
 from api.routes.search_postgres import get_db_pool
 
@@ -133,8 +137,7 @@ _DECISION_SQL = """
         CASE WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
              THEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) END AS meeting_date,
         m.video_id AS meeting_video_id,
-        (SELECT y.meeting_type FROM event_youtube_with_jurisdiction y
-          WHERE y.video_id = m.video_id LIMIT 1) AS meeting_type
+        __MEETING_TYPE__
     FROM event_decision d
     LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
     WHERE d.event_decision_id = $1
@@ -440,7 +443,11 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
             lag_row = None  # jurisdiction_minutes_publish_lag row (fetched within conn)
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("decision-detail.query"):
-                    row = await conn.fetchrow(_DECISION_SQL, event_decision_id)
+                    has_type = await meeting_type_available(conn)
+                    row = await conn.fetchrow(
+                        _DECISION_SQL.replace("__MEETING_TYPE__", meeting_type_by_video_sql("m.video_id", has_type)),
+                        event_decision_id,
+                    )
 
                 if row is None:
                     span.set_attribute("decision.found", False)
