@@ -112,7 +112,7 @@ function stepSummary(job: DeploymentJob): string {
   if (load) {
     parts.push(`${(load.read ?? 0).toLocaleString()} files read`, `${(load.loaded ?? 0).toLocaleString()} loaded`)
     if (load.skipped) parts.push(`${load.skipped.toLocaleString()} skipped`)
-    if (load.errors) parts.push(`${load.errors.toLocaleString()} file errors`)
+    if (load.errors) parts.push(`${load.errors.toLocaleString()} file ${load.errors === 1 ? 'error' : 'errors'}`)
   }
   const dbt = job.steps.find((s) => s.counts && typeof s.counts.models === 'number')?.counts
   if (dbt) {

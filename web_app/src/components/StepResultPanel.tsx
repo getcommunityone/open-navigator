@@ -35,7 +35,7 @@ export function StepCounts({ counts }: { counts?: Record<string, number> | null 
         const cls = n === 0 && (tone === 'warn' || tone === 'bad') ? TONE.plain : TONE[tone]
         return (
           <span key={key} className={`rounded-full border px-2 py-0.5 text-[11px] font-medium tabular-nums ${cls}`}>
-            {n.toLocaleString()} {label}
+            {n.toLocaleString()} {n === 1 && label.endsWith('s') && label !== 'success' ? label.slice(0, -1) : label}
           </span>
         )
       })}
