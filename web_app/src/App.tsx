@@ -34,6 +34,7 @@ import Support from './pages/Support'
 import JurisdictionMappingQualityPage from './pages/JurisdictionMappingQualityPage'
 import LighthouseReportPage from './pages/LighthouseReportPage'
 import BatchJobStatusPage from './pages/BatchJobStatusPage'
+import BatchFailureReasonsPage from './pages/BatchFailureReasonsPage'
 import ApplicationLinksAdminPage from './pages/ApplicationLinksAdminPage'
 import MeetingKindsAdminPage from './pages/MeetingKindsAdminPage'
 import Hackathons from './pages/Hackathons'
@@ -201,6 +202,7 @@ function App() {
           <Route index element={<Navigate to="/admin/lighthouse-report" replace />} />
           <Route path="lighthouse-report" element={<LighthouseReportPage />} />
           <Route path="batch-jobs" element={<BatchJobStatusPage />} />
+          <Route path="batch-jobs/failures" element={<BatchFailureReasonsPage />} />
           <Route path="application-links" element={<ApplicationLinksAdminPage />} />
           <Route path="meeting-kinds" element={<MeetingKindsAdminPage />} />
         </Route>
