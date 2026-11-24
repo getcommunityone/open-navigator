@@ -33,13 +33,13 @@ Three steps run in order. A failing step stops the run, and **Stop** ends the ru
    `02_analysis/*.json` files and upserts them into `bronze.bronze_events_analysis_ai`. It only reads files; it never
    moves, renames or deletes one.
 3. **Rebuild gold - dbt** runs
-   `dbt run --select int_preferred_event_analysis+` plus every `bronze_*_from_ai` model that reads the analysis table,
-   with its descendants
-   (meetings, decisions, topics, places, persons, organizations, bills, financial items, causes, public
-   participation). Each of those bronze
-   models reads the analyses the load step just wrote, and the marts read them, so all of them have to be in the
-   selection (#836). Before, only `bronze_decisions_from_ai+` was: `event_meeting`, `event_topic` and the rest were
-   rebuilt from bronze tables the step had not refreshed, and `public_comment` failed outright. A new
+   `dbt run --select int_preferred_event_analysis+ bronze_decisions_from_ai+` plus every other `bronze_*_from_ai`
+   model that reads the analysis table (meetings, topics, places, persons, organizations, bills, financial items,
+   causes, public participation). Those bronze models read the analyses the load step just wrote, and the marts read
+   them, so they have to be refreshed in the same run (#836). Before, they were not: `event_meeting`, `event_topic`
+   and the rest were rebuilt from bronze tables the step had not refreshed, and `public_comment` failed outright.
+   They are selected **without** their descendants, because the descendants of the persons, places and organizations
+   models include the whole MDM clustering (about 50 more models), which a load should not rebuild. A new
    `bronze_*_from_ai` model must be added to the step; a test fails until it is. That rebuilds
    `event_decision`, `event_meeting`, `event_topic`, `event_place` and the other marts that read the analysis, then the
    `on-run-end` hook refreshes the `public` views the website reads.

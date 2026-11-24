@@ -76,9 +76,11 @@ def test_load_step_argv_uses_the_loader_and_dbt_run(orch, monkeypatch):
         for p in (ROOT / "dbt_project" / "models" / "bronze").glob("bronze_*_from_ai.sql")
         if "bronze_events_analysis_ai" in p.read_text(encoding="utf-8")  # not the empty ballot-measures placeholder
     }
-    selected = {tok[:-1] for tok in gold[gold.index("--select") + 1 :] if tok.startswith("bronze_")}
+    selectors = gold[gold.index("--select") + 1 :]
+    selected = {tok.rstrip("+") for tok in selectors if tok.startswith("bronze_")}
     assert on_disk and selected == on_disk
-    assert all(tok.endswith("+") for tok in gold[gold.index("--select") + 1 :])
+    # only the two mart roots take their descendants; the others would drag in the MDM clustering
+    assert [tok for tok in selectors if tok.endswith("+")] == ["int_preferred_event_analysis+", "bronze_decisions_from_ai+"]
     assert "{dbt}" not in " ".join(gold)
 
 
