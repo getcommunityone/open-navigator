@@ -244,14 +244,15 @@ _CHAT_DOC_SQL = (
 )
 
 
-def _chat_term_hits_sql(terms_idx: int) -> str:
-    """How many of the terms ($terms_idx::text[]) a meeting matches, in its own text or a decision's."""
-    return (
-        f"(SELECT count(*) FROM unnest(${terms_idx}::text[]) AS t(term) "
-        f"WHERE x.doc @@ plainto_tsquery('english', t.term) "
-        f"OR EXISTS (SELECT 1 FROM event_decision d WHERE d.c1_event_id = em.c1_event_id "
-        f"AND d.search_tsv @@ plainto_tsquery('english', t.term)))"
-    )
+def _chat_terms_tsquery_sql(first_idx: int, count: int, *, every: bool) -> str:
+    """One tsquery for the terms held in parameters $first_idx .. $first_idx+count-1 (#926).
+
+    ``every`` joins them with AND, otherwise OR. Only parameter numbers go into the SQL text. One combined
+    query lets Postgres plan the decision lookup as a join and use its text index; a per-term subquery per
+    meeting took about a minute on 15,000 meetings.
+    """
+    joiner = " && " if every else " || "
+    return "(" + joiner.join(f"plainto_tsquery('english', ${first_idx + i})" for i in range(count)) + ")"
 
 
 async def search_meetings_with_match(
@@ -321,10 +322,15 @@ async def search_analyzed_meetings_for_chat(
             f"AND d.search_tsv @@ plainto_tsquery('english', ${q_fts_idx})))"
         ]
     else:
-        params.append(list(terms))
-        hits_sql = _chat_term_hits_sql(len(params))
-        need = "cardinality($%d::text[])" % len(params) if match == "all_terms" else "1"
-        where = [f"{hits_sql} >= {need}"]
+        first = len(params) + 1
+        params.extend(terms)
+        tsq = _chat_terms_tsquery_sql(first, len(terms), every=(match == "all_terms"))
+        # The terms are all in the meeting's own text, or all in one of its decisions ("any": at least one).
+        where = [
+            f"(x.doc @@ {tsq} OR EXISTS (SELECT 1 FROM event_decision d "
+            f"WHERE d.c1_event_id = em.c1_event_id AND d.search_tsv @@ {tsq}))"
+        ]
+        hits_sql = f"ts_rank(x.doc, {tsq})"
 
     if state:
         params.append(state.upper())

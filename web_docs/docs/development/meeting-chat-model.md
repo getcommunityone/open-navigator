@@ -76,7 +76,7 @@ meetings:
 | Step | `match` in the response | What must be in the meeting |
 |---|---|---|
 | 1 | `exact` | the question as typed (in the body name, place, summary, or as all its words in one decision) |
-| 2 | `all_terms` | every content word, each in the meeting's text or in one of its decisions |
+| 2 | `all_terms` | every content word, all in the meeting's own text or all in one of its decisions |
 | 3 | `any_term` | at least one content word; meetings matching more of them come first |
 
 Content words are what is left after dropping question words ("what", "did", "about") and the civic words that appear in
@@ -84,13 +84,16 @@ nearly every record ("council", "meeting", "city", "board"). A phrase in double 
 used. A question with none left ("what happened?") runs step 1 only. With one content word, step 3 is skipped, since it
 would repeat step 2.
 
-Within a step, meetings are ordered by how many terms they match, then newest first. The terms go to the database as one
-array parameter; nothing from the question is put into the SQL text. When step 3 was needed, the prompt tells the model
+Within a wider step, meetings are ordered by text-search rank against the meeting's own text, then newest first. Each term
+goes to the database as its own parameter; nothing from the question is put into the SQL text. When step 3 was needed, the prompt tells the model
 the match was loose and which words were searched, so it says so rather than stretching a weak meeting into an answer.
 
-The wider steps build a text-search document per meeting when they run, without an index. That was checked against a
-local Postgres 16 with a handful of rows for correctness, not for speed on the production table; if it is slow there, a
-stored `tsvector` column with a GIN index is the follow-up.
+The wider steps use one combined text query (terms joined with AND, then OR), in the same shape as the typed search, so
+Postgres can plan the decision lookup as a join and use its index (#926). The first version counted terms with a subquery
+per meeting per term and took about a minute on the live site, longer than the page waits. On a local Postgres 16 with
+15,000 meetings and 80,000 decisions the same question went from 59 seconds to about 3. The meeting's own text still has
+no stored search column, so each wider step builds one per meeting when it runs; a stored `tsvector` column with a GIN
+index is the next step if a few seconds is still too slow.
 
 ## Chat and Contact are one header item (#860)
 
