@@ -1998,7 +1998,7 @@ export default function HomeV9() {
                 📄 CommunityOne Strategic Plan
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <a href="/pdf/c1_strategic_plan.PDF" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: TEAL_DARK }}>
+                <a href="/pdf/c1_strategic_plan.pdf" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: TEAL_DARK }}>
                   Open in new tab
                 </a>
                 <button onClick={() => setShowStrategicPlan(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#78716c', lineHeight: 1 }}>
@@ -2006,7 +2006,7 @@ export default function HomeV9() {
                 </button>
               </div>
             </div>
-            <iframe src="/pdf/c1_strategic_plan.PDF" title="CommunityOne Strategic Plan" style={{ flex: 1, width: '100%', border: 'none' }} />
+            <iframe src="/pdf/c1_strategic_plan.pdf" title="CommunityOne Strategic Plan" style={{ flex: 1, width: '100%', border: 'none' }} />
           </div>
         </div>
       )}
