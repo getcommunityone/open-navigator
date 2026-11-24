@@ -102,32 +102,45 @@ underneath for detail: it sets the shade within a bucket (strong is darker than 
    drills into counties, and every tile shows the quoted passage with the matched words highlighted, per the
    "Show the Match Evidence" rule. Nothing is shown without a real quote behind it.
 
-## Validate before showing anything
+## Validate before showing anything (fully automated, no human labeller)
 
-Do this before the number appears on the site (same approach as [meta-gate validation](./jev-meta-gate-validation-design.md)).
+There is no person to label passages, so validation is a suite that runs from code (`python -m
+llm.typesafe.passage_stance_validate`, tests in `packages/llm/tests/`). `AGENTS.md` says prompts are checked
+"against known answers, not by asking another model whether the result looks right", so no layer below is "an LLM
+judges the output". Each layer proves something different, and the site says which layers a metric has passed.
 
-**The test, in plain terms.** Take about 200 passages. A person reads each one and picks a rung on the five-step
-scale, without seeing what Jev said. Then compare. "Agreement" just means: *out of every 100 passages, how many did
-Jev and the person place the same way?* Two ways to count it:
+**What "agreement" means:** out of every 100 passages in a test set, how many did Jev place the same way as the known
+answer. "Within one step" allows a one-rung miss on the five-step scale; a **wrong-side flip** is "for" where the
+answer is "against", or the reverse.
 
-- **Exact match:** both picked the same rung. This is strict. On a five-step scale even two careful people often
-  differ by one step ("opposes" vs "strongly opposes"), so do not expect near 100%.
-- **Within one step:** Jev is at most one rung away. This is the fair test for a gradient.
+| Layer | Known answer comes from | What it proves | What it can't prove |
+| --- | --- | --- | --- |
+| 1. Constructed cases | A fixed set of short passages written in the repo with the answer built in ("I strongly oppose this data center", "please approve the rezoning", a staff presentation, a time-limit reminder, negation, sarcasm, hedges, a question). Lives in the test folder only, never served | The question wording and rubric behave as intended; catches regressions when the question set or Jev model changes | Real-world accuracy: real passages are messier |
+| 2. Explicit-statement set | Real passages where a speaker states a side in plain words ("I am opposed", "vote no", "I support this project"), found by transparent phrase rules over our own transcripts. The rule gives the label | Accuracy on real caption text where the answer is unambiguous | Subtle or implied stance (the hard cases are excluded by construction) |
+| 3. Stability | The same passage re-run, cut at different window edges, and with filler words dropped | Answers don't flip on trivial changes | Whether the answer is right |
+| 4. Second reader | Gemini, which already analyses these meetings, asked the stance question independently on a sample | Where two different systems disagree, so those passages are flagged and excluded from headline counts | Ground truth: two models can share a blind spot, so this is reported as agreement, never as accuracy |
+| 5. Outcome sanity | Decisions the body itself denied or put on a moratorium (`question_outcome_family`) | Places with denied decisions should lean against on average; a strong contradiction is a bug signal | Cause and effect: boards vote for many reasons, so this is a smoke test only |
 
-The number that matters most is the **flip rate**: how often Jev says "supports" when the person says "opposes",
-or the reverse. A wrong-side error is what would mislead a reader.
-
-**Proposed bar to ship** (replaces the earlier 80% placeholder, which only made sense for a yes/no label):
+**Bar to ship the metric** (best judgement; change it with a dated line):
 
 | Check | Needed |
 | --- | --- |
-| Within one step of the person | at least 90 of 100 |
-| Wrong-side flips (support vs oppose) | at most 5 of 100 |
-| Exact match | report it, no minimum; compare with how often two people agree with each other, using a second labeller on 50 passages |
+| Layer 1, exact match | at least 95 of 100, and zero wrong-side flips |
+| Layer 2, within one step | at least 90 of 100, and at most 5 of 100 wrong-side flips |
+| Layer 3, unchanged label under a trivial edit | at least 90 of 100 |
+| Layer 4, Gemini and Jev on the same side | reported; passages where they disagree are held out of the counts |
+| Layer 5 | reported, not gating |
 
-If Jev does not clear the bar, we do not ship the metric; we change the question wording or the rubric and
-re-test. Re-run this whenever the question set or the Jev model changes. Auto-captions have no punctuation or
-speakers, so expect `is_public_comment` to be the weakest question; test it the same way.
+If a layer fails, the metric does not ship: reword the question or rubric and re-run. The report is written to a table
+with the question-set version and Jev model id, so every published number can be traced to the test run that cleared it.
+
+**Be honest on the page.** With no human check, the caption says: "Stance is estimated automatically and checked
+against constructed and explicit-statement test cases, not by people." Every tile also shows the quoted passage
+with a link to the video at that time, so a reader can judge it themselves.
+
+**Humans can still help later, passively.** A "this label looks wrong" button on the quoted passage logs a flag
+(per `AGENTS.md`, feedback becomes issues). Flags feed Layer 2's set over time without anyone having to sit and
+label.
 
 ## Cost and approvals
 
@@ -149,8 +162,8 @@ endpoint, so under `AGENTS.md` **it starts only with the owner's yes**, and the 
 
 ## Phasing
 
-1. Build the question set and `passage_stance` CLI; dry-run on a small sample (no cost) and hand-label it.
-2. Owner approves a small paid run; measure agreement and cost.
+1. Build the question set, the `passage_stance` CLI and the validation suite; Layer 1 and the Layer 2 phrase rules run with no spend.
+2. Owner approves a small paid run (Jev, plus a small Gemini sample for Layer 4); measure agreement and cost.
 3. Mart, metric catalog entries, and the Dot map layer.
 4. Extend beyond data centers by topic, one validated question set at a time.
 5. Separate project: comment-level segmentation so one dot can mean one comment.
@@ -163,7 +176,7 @@ endpoint, so under `AGENTS.md` **it starts only with the owner's yes**, and the 
 | Scale | **Five-step gradient** (owner asked for a gradient, 2026-11-24), not a yes/no label. |
 | Buckets | **Three: against, neutral, for** (owner, 2026-11-24): some passages are neither. Neutral includes procedural and no-clear-stance passages and is shown, not dropped. |
 | Wrong-side flip | A flip is now support vs against; a passage moving between neutral and a side is one step, not a flip. |
-| Agreement bar | At least 90 of 100 within one step, at most 5 of 100 wrong-side flips (best judgement, owner had no preference; the plain-language explanation is above). Change it by adding a dated line here. |
+| Agreement bar | The layered automated bar above (owner has no person to label, 2026-11-24). Best judgement; change it by adding a dated line here. |
 
 ## Open questions
 
