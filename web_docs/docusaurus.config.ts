@@ -191,6 +191,12 @@ const config: Config = {
           label: 'Developers',
         },
         {
+          type: 'docSidebar',
+          sidebarId: 'operationsSidebar',
+          position: 'left',
+          label: 'Operations',
+        },
+        {
           type: 'doc',
           docId: 'data-sources/citations',
           label: 'Data',
