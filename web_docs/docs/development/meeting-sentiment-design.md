@@ -73,6 +73,59 @@ disagreements are held out of headline counts. This is Layer 4 below, and it nee
 **Prompt change control.** The prompt is versioned in git and hashed (`llm.prompt_version.prompt_file_sha256`). Adding
 the field is a new prompt version; do not run it on a batch until the owner agrees, since Gemini batches are paid.
 
+## Coverage tiers: handle light and screen-only meetings too (owner, 2026-11-24)
+
+Not every meeting has the full detail. There are three tiers today
+([Jev-light cascade](./jev-light-cascade-design.md), [Batch analysis light vs full](./batch-analysis-light-full-design.md)):
+
+| Tier | Produced by | What a meeting has | Stance we can measure |
+| --- | --- | --- | --- |
+| **Full** | `policy_analysis_part_1.md` (Gemini) | decisions, `people[]`, `human_element.personal_stories`, `competing_views`, `emotional_tone`, `speaker_segments` | per **voice** (person per decision), plus a decision-level roll-up |
+| **Light** | `policy_analysis_lite.md` (DeepSeek, `LIGHT_MODEL`) | `meeting_summary`; `decisions[]` (contested) and `uncontested_items[]` with headline, statement, `outcome`, `vote_tally`, theme, cause, `place_raw`. **The lite prompt in the repo has no `people`, no `human_element` and no timestamps** | per **decision** only |
+| **Screen only** | Jev screen (`screen_transcripts`) + optional blurb | meeting kind and probabilities for has-decisions, data center and four topics; a 1 to 2 sentence blurb for keepers; **no decisions** | per **passage** (phase 4), data centers only |
+
+If a newer light prompt does carry a people list, the full-tier voice path applies to it unchanged; nothing below depends
+on light lacking people.
+
+**The common unit is the decision.** A decision exists in both Full and Light, so every analysed meeting can report on
+the same footing, and tiers are never silently mixed:
+
+- **Decision-level stance** (`decision_public_stance`): For, Against, Mixed or neutral, or None, one value per decision.
+  - Full: computed from the voices (the larger side among public voices; equal or no side-taking voices is Mixed or neutral).
+  - Light: a new field asked in the same lite call (below).
+- **Voice-level stance** is an extra, richer metric available for Full only, and is labelled `unit = voice`.
+- **Passage-level stance** is the screen-only extension (`unit = passage`).
+
+The mart records `analysis_tier` (`full`, `light`) next to every row, taken from the stamp and the analysis metadata
+(`prompt_name` in `*.meta.json`, as `reclassify_policy_tier_stamps` does), not guessed. The Matrix map shows `unit` and
+`tier` in the caption, and a place with a mix of tiers reports the decision-level metric, which both tiers share.
+
+**Light needs a small addition to the lite prompt** (new prompt version, same single call, a few output tokens per decision):
+
+```json
+"decisions": [{
+  "public_comment": {
+    "stance": "one of: For, Against, Mixed or neutral, None",
+    "speakers_for": "number or null",
+    "speakers_against": "number or null"
+  }
+}]
+```
+
+Rules: `stance` is the direction of the public comment toward the action being decided; `None` when no member of the public
+spoke on the item; counts only when the transcript states or plainly shows them, else `null`; never guess. Light already
+splits contested from uncontested (`decisions[]` versus `uncontested_items[]`), which gives a free
+`contested_share` for every light meeting without any new field.
+
+**Decisions already analysed at the Light tier** have no public-comment text stored, only a statement and an outcome,
+so Jev cannot backfill stance from them. Options, in order: leave them `unknown` and say so; or re-run light on the
+subset that matters (cheap, DeepSeek) with the new prompt version, with the owner's yes. Never infer a stance from the
+outcome (a denied item says nothing about who spoke).
+
+**What the UI shows when detail is missing.** A decision with no stance data shows an explicit "No public-comment data
+for this meeting" state, not a neutral bar. Counts of how many decisions have each tier go in the caption so the reader
+sees the coverage.
+
 ## Can Jev do it?
 
 Yes, for the classification part. Jev is TypeSafe's System One model (`packages/llm/src/llm/typesafe/client.py`).
@@ -266,7 +319,7 @@ changes, and a hard `--max-passages` cap on the CLI stops a run that is bigger t
    voice (`decision_voice`: decision, person, stance, bucket, source) with a primary key and foreign keys; run the
    free validation layers.
 2. Jev backfill over stored voice text (about $0.11, owner's yes), with the automated validation report.
-3. Stance chips and the three-bucket bar on `DecisionDetail`; meeting-metrics catalog entries; the Matrix map Dot map,
+3. Decision-level roll-up for Full, the `public_comment` field in the lite prompt (new version), `analysis_tier` on the mart; stance chips and the three-bucket bar on `DecisionDetail`; meeting-metrics catalog entries; the Matrix map Dot map,
    Tiles and Diverging layers read them (`source = extraction`).
 4. Jev passage pass on data-center mention passages to cover transcripts the extraction has not reached
    (`source = passage`), as designed below.
