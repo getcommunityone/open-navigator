@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useMemo, useState } from 'react'
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Dialog, Transition } from '@headlessui/react'
 import {
@@ -220,6 +220,19 @@ export default function BrowseTopics() {
                 )
               })
             )}
+            {!isLoading && topics.length === 0 && (
+              <span className="px-2 py-1.5 text-sm text-gray-600" role="status">
+                No topics available{placeLabel ? ` for ${placeLabel}` : ''} yet.
+                {placeLabel && (
+                  <>
+                    {' '}
+                    <Link to="/browse-topics" className="font-medium text-primary-700 underline">
+                      See all topics nationally
+                    </Link>
+                  </>
+                )}
+              </span>
+            )}
             {!isLoading && topics.length > 0 && (
               <button
                 type="button"
@@ -276,7 +289,9 @@ export default function BrowseTopics() {
                 disabled={isLoading || topics.length === 0}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-400"
               >
-                <option value="">All topics</option>
+                <option value="">
+                  {isError ? 'Topics unavailable' : isLoading ? 'Loading topics…' : topics.length === 0 ? 'No topics available' : 'All topics'}
+                </option>
                 {topics.map((t) => (
                   <option key={t.topic_id} value={t.topic_id}>
                     {t.name}

@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from typing import List, Optional
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
@@ -143,8 +143,9 @@ async def list_topics(
         except Exception as exc:  # noqa: BLE001
             logger.exception("topics list failed")
             span.record_exception(exc)
-            # Empty list over a 500 — the frontend renders an empty state.
-            return []
+            # A failed query is not "no topics": say so, so Browse Topics shows
+            # "Couldn't load topics" instead of a blank row and a dead dropdown.
+            raise HTTPException(status_code=503, detail="Topics are unavailable right now.") from exc
 
         span.set_attribute("topics.count", len(rows))
         return [
