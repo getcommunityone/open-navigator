@@ -6,9 +6,72 @@ description: How to add public-comment stance ("sentiment") to the meeting data 
 
 # Meeting sentiment with Jev
 
-Status: **proposal** (not yet built). Decided 2026-11-24: **data centers first**; stance is scored on a **five-step gradient** and reported in **three buckets** (against, neutral, for). Builds on [Meeting metrics for the Matrix map](./meeting-metrics-matrix-map-design.md)
+Status: **proposal** (not yet built). **Revised 2026-11-24: extend the existing extraction first** (next section); the Jev passage pass below becomes a later coverage extension. Decided 2026-11-24: **data centers first**; stance is scored on a **five-step gradient** and reported in **three buckets** (against, neutral, for). Builds on [Meeting metrics for the Matrix map](./meeting-metrics-matrix-map-design.md)
 and the existing Jev work ([transcript screening](./jev-transcript-screening.md),
 [Jev-light cascade](./jev-light-cascade-design.md)).
+
+## Revised approach: extend the existing extraction (owner, 2026-11-24)
+
+The decision pages already hold most of what a sentiment measure needs, per person. `prompts/policy_analysis_part_1.md`
+(run by `llm.gemini.meeting_transcript_policy`) writes, for each contested decision:
+
+| Already extracted | Where | Gives us |
+| --- | --- | --- |
+| Named voices | `human_element.personal_stories[]` (`person_id`, `story_headline`, `story_detail`, `why_it_mattered_to_the_decision`) | one row per **person per decision**; about 2,001 of 8,886 decisions have at least one |
+| Group mood | `human_element.emotional_tone.supporters` / `.opponents` (`intensity` Low to Very high, `primary_emotions`, `plain_summary`) | the "How the room felt" panel: how strongly each side felt |
+| Who holds which view | `competing_views.dominant_view` and `counter_views[]` with `held_by` | person to view membership (a view is a position on the issue, not for or against the action) |
+| Floor time and timestamps | `speaker_segments[]`, `media_anchor` | a link to the moment, per person |
+| Vote | `vote_tally` | the body's own decision |
+
+**What is missing is one thing: an explicit stance for each named voice toward the decision.** Add it to the same Gemini
+call, not a new pass:
+
+```json
+"personal_stories": [{
+  "person_id": "...",
+  "stance": "one of: For, Against, Mixed or neutral, Not stated",
+  "stance_evidence": "string: the short phrase from the story that shows the stance, or null"
+}]
+```
+
+Rules for the prompt: `For` and `Against` are toward the **action being decided** (for example, adopting the data
+center ordinance), not toward the topic in general; "supports data centers but wants a longer delay" is `Mixed or neutral`;
+a speaker who does not address the item is `Not stated`; never infer a stance from the speaker's role or name. These map
+to the three buckets (`Mixed or neutral` and `Not stated` both land in **Neutral**) and keep the four values underneath.
+
+**Why this is better than a separate Jev pass:**
+
+- **It is per person per decision**, which answers "by decision by person" directly, and the dot, bar and tile views can
+  count people instead of three-minute windows.
+- **It is nearly free:** a few extra output tokens in a call we already pay for. No new request, no new gate.
+- **It already has timestamps and a quote-like summary** for the evidence line on each tile.
+- **Reading it is already built:** `DecisionDetail.tsx` renders "Voices in the room" and "How the room felt"; the stance
+  becomes a chip on each voice and a three-bucket bar above them.
+
+**Backfilling decisions already extracted.** Re-running Gemini over the existing decisions is the expensive path (about
+$0.012 per full analysis from logged usage, so about $100 for 8,886). Instead use **Jev as a cheap backfill reader over
+the stored text**: it classifies each voice's `story_headline + story_detail + why_it_mattered_to_the_decision`
+(about 450 tokens per voice with the question text). With about 6,000 voices (assuming about 3 per decision on the
+2,001 decisions that have any; confirm with the dry run) that is about 2.7M tokens, **about $0.11**. New extractions get
+Gemini's stance field going forward.
+
+**Validation gets stronger for free.** Where a voice has both a Gemini stance (new extractions) and a Jev stance on the
+same stored text, the two are independent readings, so agreement and disagreement are measured automatically and
+disagreements are held out of headline counts. This is Layer 4 below, and it needs no human. The existing
+`vote_tally` gives the Layer 5 smoke test (decisions that failed should lean Against among public voices).
+
+**Counting rules.**
+
+- Count **members of the public and stakeholders**, not council members or staff (their position is already the vote
+  tally). Use the `people[]` role; confirm the exact field in the schema before building.
+- Each person counts once per decision, regardless of how long they spoke.
+- Show how many voices and decisions each share rests on, with the minimum-sample rule already decided.
+- This covers only decisions the extraction has analysed (about 8,886 so far), not all 200,000 meetings. The metric
+  carries `source = extraction` and coverage numbers. The Jev passage pass in the rest of this page extends coverage to
+  transcripts we have not analysed; its numbers are labelled `source = passage` and never silently merged.
+
+**Prompt change control.** The prompt is versioned in git and hashed (`llm.prompt_version.prompt_file_sha256`). Adding
+the field is a new prompt version; do not run it on a batch until the owner agrees, since Gemini batches are paid.
 
 ## Can Jev do it?
 
@@ -199,17 +262,22 @@ changes, and a hard `--max-passages` cap on the CLI stops a run that is bigger t
 
 ## Phasing
 
-1. Build the question set, the `passage_stance` CLI and the validation suite; Layer 1 and the Layer 2 phrase rules run with no spend.
-2. Owner approves a small paid run (Jev, plus a small Gemini sample for Layer 4); measure agreement and cost.
-3. Mart, metric catalog entries, and the Dot map layer.
-4. Extend beyond data centers by topic, one validated question set at a time.
-5. Separate project: comment-level segmentation so one dot can mean one comment.
+1. Add `stance` and `stance_evidence` to the extraction prompt (new version) and schema; add a dbt model with one row per
+   voice (`decision_voice`: decision, person, stance, bucket, source) with a primary key and foreign keys; run the
+   free validation layers.
+2. Jev backfill over stored voice text (about $0.11, owner's yes), with the automated validation report.
+3. Stance chips and the three-bucket bar on `DecisionDetail`; meeting-metrics catalog entries; the Matrix map Dot map,
+   Tiles and Diverging layers read them (`source = extraction`).
+4. Jev passage pass on data-center mention passages to cover transcripts the extraction has not reached
+   (`source = passage`), as designed below.
+5. Separate project: comment-level segmentation.
 
 ## Decisions
 
 | Question | Decision |
 | --- | --- |
 | First topic | **Data centers** (owner, 2026-11-24): the mention table already has evidence, timestamps and site links. |
+| Where stance comes from first | **The existing extraction** (owner, 2026-11-24): add a per-voice `stance` to the Gemini call and backfill stored voices with Jev; the passage pass is a later coverage extension. |
 | Scale | **Five-step gradient** (owner asked for a gradient, 2026-11-24), not a yes/no label. |
 | Buckets | **Three: against, neutral, for** (owner, 2026-11-24): some passages are neither. Neutral includes procedural and no-clear-stance passages and is shown, not dropped. |
 | Wrong-side flip | A flip is now support vs against; a passage moving between neutral and a side is one step, not a flip. |
