@@ -4,19 +4,21 @@ branch: feat/904-scroll-cue
 title: "feat(web_app): animated cue that invites the reader to the next screen"
 author: jcbowyer
 reviewed_at: 2026-11-24
-reviewer: github-actions
+reviewer: github-actions, coordinator
 head_sha: 9163e5a90c4e12f59c1c4a96dd7dcba78a334b31
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: feat(web_app): animated cue that invites the reader to the next screen
 
 ## Summary
 
-Automated review (#648) for PR #908 on `feat/904-scroll-cue`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Adds one ScrollCue component: a button with a falling chevron that appears after two seconds of stillness on a story or Analysis screen that has a next one, named for where it goes, hidden while the page moves, still under reduced motion. Replaces the static first-screen hint on Analysis.
+
+Read by the coordinator against the diff and screenshots at desktop and phone sizes; the heuristic scan ran first.
 
 ## Scope of Change
+
 
 - `web_app/src/components/story/ScrollCue.tsx`
 - `web_app/src/pages/DataExplorerMatrixPage.tsx`
@@ -30,16 +32,11 @@ Automated review (#648) for PR #908 on `feat/904-scroll-cue`. Heuristic rubric s
 
 ## CI Status
 
-See the PR checks on `9163e5a90c4e`.
+Required checks are read on the head commit before merge. Locally: tsc clean, vitest passed, build ok.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
+- Secrets: clean. Fabricated data: none. Personal data: none. Destructive changes: none.
 
 ## Findings
 
@@ -49,12 +46,14 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+None.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- On a phone the cue sits over the last line of body text until the page moves.
+- Checked on the first two screens of each page and the story's last screen, not all of them.
+- The challenge cover gets the cue after #899 merges.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**
