@@ -91,6 +91,32 @@ Not required until the marts are served: the publish list, ODCS contracts and `d
 fails the same way on `main` here). `python -m models.odcs --check` passes. Not run: `dbt parse`, `dbt build`, any
 analysis with the new prompts.
 
+## Addendum, 2026-11-24: the SQL was run, and the owner gave the go-ahead
+
+After the review, the commit `3a8fa46e` added `heat`, `speaker_role` and the `Asked questions` stance to both prompts,
+the bronze model, the macro and both marts (owner's request), with a test that keeps the two prompts' vocabularies and
+heat rubric identical.
+
+The three models were then rendered with their real macros and run on a scratch PostgreSQL 16 against stub
+`bronze_events_analysis_ai`, `event_meeting` and `event_decision` tables built from the DDL in
+`macros/event_extractions.sql` (event_decision partitioned), with test-only rows:
+
+- The bronze model runs in both its full and incremental forms; keys are unique; a speaker on two items gets two rows;
+  an analysis with `_error`, a row with no `speaker_id` and an analysis with no array are left out.
+- Both marts' SELECTs match their yml contracts by column name and type, and load into tables created with the declared
+  primary keys and the enforced foreign key to `event_meeting`.
+- Buckets: `Against` → against, `For.` → for, `Asked questions` → question, `Mixed or neutral` and `Not stated` →
+  neutral, `Unknown` → null. Heat: 4, "2" and 1.0 are kept; "hot" and 6 become null. A null or uncontested item id gives
+  no decision link.
+- The per-decision roll-up for the test decision: 1 for, 1 against, 1 question, 1 neutral, balance 0, heat mean 2.5,
+  max 4; the speaker with an unknown stance is not counted.
+
+This was the rendered SQL on PostgreSQL, not `dbt build`: dbt's own contract check, its tests and the real warehouse
+data have still not been exercised. Run `dbt build --select bronze_public_participation_from_ai+` (with
+`--full-refresh` on the bronze model once) on the warehouse machine after merge.
+
+The owner gave the go-ahead to merge in the session on 2026-11-24.
+
 ## Verdict
-approve-with-nits on the reading. Before merge: build the models against the warehouse, get the owner's go-ahead, and
-plan the one-time full refresh.
+approve-with-nits. The SQL ran on a scratch PostgreSQL and the owner approved the merge (addendum above). After merge:
+build the models with dbt against the warehouse and run the one-time full refresh.

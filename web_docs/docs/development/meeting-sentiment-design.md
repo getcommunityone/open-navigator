@@ -227,8 +227,8 @@ This waits until the pilot shows the speaker-level numbers are worth extending.
 
 1. **Done in code (2026-11-24), not yet run:** `public_participation[]` in both prompts; `PublicComment` in
    `llm.gemini.part1_schema` with tests; the bronze change, `public_stance_bucket()`, `public_comment` and
-   `decision_public_stance`. The dbt models have not been parsed or built: the session could not install dbt packages
-   or reach the warehouse.
+   `decision_public_stance`. The rendered SQL of the three models ran on a scratch PostgreSQL 16 with test-only rows
+   (contract columns and types, keys, buckets and heat all as designed). `dbt build` against the warehouse has not run.
 2. Build the dbt models against the warehouse; add the stance fields to the decision API; bar and chips on
    `DecisionDetail`; checks 1 to 3 as a package CLI with tests.
 3. Run the 40-meeting pilot, write the pilot report with links, and decide from it.
