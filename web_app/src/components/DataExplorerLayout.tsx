@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   DATA_EXPLORER_JURISDICTION_QUALITY,
   DATA_EXPLORER_MAP_BASE,
+  DATA_EXPLORER_MATRIX,
   DATA_EXPLORER_SCORECARD,
 } from '../utils/dataExplorerPaths'
 
@@ -40,6 +41,12 @@ export default function DataExplorerLayout() {
               className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
             >
               Map view
+            </NavLink>
+            <NavLink
+              to={DATA_EXPLORER_MATRIX}
+              className={({ isActive }) => `${tabCls({ isActive })} shrink-0 whitespace-nowrap`}
+            >
+              Matrix map
             </NavLink>
             <NavLink
               to={DATA_EXPLORER_SCORECARD}
