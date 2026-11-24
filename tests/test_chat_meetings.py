@@ -297,3 +297,78 @@ def test_the_missing_setting_names_the_variable_and_never_a_value(monkeypatch):
     assert chat.chat_missing_setting() == "ANTHROPIC_API_KEY"
     monkeypatch.setenv("ANTHROPIC_API_KEY", "placeholder-for-tests")
     assert chat.chat_missing_setting() is None
+
+
+# --- #922: a question asked as a sentence found no meetings ---------------------------------------
+
+
+class _SeqConn(_Conn):
+    """A connection whose successive fetches return the given result sets in order."""
+
+    def __init__(self, results):
+        super().__init__(rows=[])
+        self.results = [[_Row(r) for r in rows] for rows in results]
+
+    async def fetch(self, sql: str, *params: Any):
+        self.calls.append((sql, params))
+        return self.results.pop(0) if self.results else []
+
+
+def test_search_terms_keep_the_topic_and_drop_question_and_civic_words():
+    assert chat.chat_search_terms("What did councils say about data centers?") == ["data", "centers"]
+    assert chat.chat_search_terms("data centers in Tuscaloosa") == ["data", "centers", "tuscaloosa"]
+    assert chat.chat_search_terms('Anything on "tax abatement" lately?') == ["tax abatement"]
+    assert chat.chat_search_terms("what happened?") == []
+    assert chat.chat_search_terms("") == []
+    assert len(chat.chat_search_terms("a1 b2 c3 d4 e5 f6 g7 h8 i9 j10")) == 8
+    assert chat.chat_search_terms("water water WATER rates") == ["water", "rates"]
+
+
+def test_a_question_that_matches_as_typed_runs_one_search(post):
+    conn = _Conn(rows=[_meeting_row()])
+    r = post(conn, {"question": "fluoride"})
+    assert r.json()["match"] == "exact"
+    assert len(conn.calls) == 1
+
+
+def test_a_sentence_widens_to_all_terms_only_after_the_typed_search_finds_nothing(post):
+    conn = _SeqConn([[], [_meeting_row()]])
+    r = post(conn, {"question": "What did councils say about fluoride petitions?"})
+    body = r.json()
+    assert r.status_code == 200 and body["found"] is True
+    assert body["match"] == "all_terms"
+    assert len(conn.calls) == 2
+    wide_sql, wide_params = conn.calls[1]
+    # The terms travel as one array parameter; none of the question's text is in the SQL.
+    assert ["fluoride", "petitions"] in wide_params
+    assert "fluoride" not in wide_sql and "petitions" not in wide_sql
+    assert "cardinality(" in wide_sql
+
+
+def test_it_widens_to_any_term_last_and_tells_the_model_the_match_was_loose(post):
+    seen = {}
+
+    def llm(system, user):
+        seen["user"] = user
+        return ("Only the Madison meeting mentions fluoride.", "claude-haiku-5-5", 10, 10, 0.0)
+
+    conn = _SeqConn([[], [], [_meeting_row()]])
+    r = post(conn, {"question": "fluoride or data centers?"}, llm=llm)
+    assert r.json()["match"] == "any_term"
+    assert len(conn.calls) == 3
+    assert "no meeting matched every word" in seen["user"]
+    assert "fluoride, data, centers" in seen["user"]
+
+
+def test_one_content_word_does_not_run_the_any_term_search(post):
+    conn = _SeqConn([[], []])
+    r = post(conn, {"question": "What about fluoridation?"})
+    assert r.json()["found"] is False and r.json()["match"] is None
+    assert len(conn.calls) == 2
+
+
+def test_a_question_with_no_content_words_keeps_the_single_typed_search(post):
+    conn = _SeqConn([[]])
+    r = post(conn, {"question": "what happened?"})
+    assert r.json()["found"] is False
+    assert len(conn.calls) == 1

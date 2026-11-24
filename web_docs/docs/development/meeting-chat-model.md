@@ -67,6 +67,31 @@ After a deploy on November 24, 2026 the live chat failed for every question that
 The page shows the server's own reason for a failed request (`web_app/src/utils/chatError.ts`), with separate wording
 for a request that timed out after a minute and for no connection, and points to "Contact us" at the top of the panel.
 
+## How the chat finds meetings (#922)
+
+A question is rarely typed as a keyword. "What did councils say about data centers?" used to find nothing, because the
+whole sentence was matched as one string. The search now runs in up to three steps and stops at the first that finds
+meetings:
+
+| Step | `match` in the response | What must be in the meeting |
+|---|---|---|
+| 1 | `exact` | the question as typed (in the body name, place, summary, or as all its words in one decision) |
+| 2 | `all_terms` | every content word, each in the meeting's text or in one of its decisions |
+| 3 | `any_term` | at least one content word; meetings matching more of them come first |
+
+Content words are what is left after dropping question words ("what", "did", "about") and the civic words that appear in
+nearly every record ("council", "meeting", "city", "board"). A phrase in double quotes is kept whole. At most eight are
+used. A question with none left ("what happened?") runs step 1 only. With one content word, step 3 is skipped, since it
+would repeat step 2.
+
+Within a step, meetings are ordered by how many terms they match, then newest first. The terms go to the database as one
+array parameter; nothing from the question is put into the SQL text. When step 3 was needed, the prompt tells the model
+the match was loose and which words were searched, so it says so rather than stretching a weak meeting into an answer.
+
+The wider steps build a text-search document per meeting when they run, without an index. That was checked against a
+local Postgres 16 with a handful of rows for correctness, not for speed on the production table; if it is slow there, a
+stored `tsvector` column with a GIN index is the follow-up.
+
 ## Chat and Contact are one header item (#860)
 
 The site header has a single "Chat & Contact" item that opens `/chat`. The top of the chat panel says the chat
