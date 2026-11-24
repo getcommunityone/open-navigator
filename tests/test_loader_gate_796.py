@@ -40,8 +40,11 @@ def test_full_on_gemini_is_fine_while_light_is_deepseek():
 
 
 def test_full_on_the_light_model_is_refused():
-    msg = _conflict("full", "deepseek-flash")
+    msg = _conflict("full", "claude-haiku-5-5")  # the light default since #871
     assert msg and "never share a model" in msg and "LIGHT_MODEL" in msg
+    # DeepSeek is still selectable for light, and then it is the one full must avoid.
+    assert _conflict("full", "deepseek-flash", env={"LIGHT_MODEL": "deepseek-flash"}) is not None
+    assert _conflict("full", "deepseek-flash") is None
 
 
 def test_light_put_back_on_gemini_then_full_on_gemini_is_refused():
@@ -55,13 +58,13 @@ def test_a_different_light_model_leaves_full_free():
 
 
 def test_part_2_model_is_checked_too():
-    assert _conflict("full", GEMINI, part_2="deepseek-flash") is not None
+    assert _conflict("full", GEMINI, part_2="claude-haiku-5-5") is not None
 
 
 def test_light_is_checked_against_full_model_only_when_set():
     assert _conflict("light", GEMINI) is None  # nothing says what full uses
     assert _conflict("light", GEMINI, env={"FULL_MODEL": GEMINI}) is not None
-    assert _conflict("light", "deepseek-flash", env={"FULL_MODEL": GEMINI}) is None
+    assert _conflict("light", "claude-haiku-5-5", env={"FULL_MODEL": GEMINI}) is None
 
 
 # --- per-tier metadata names ------------------------------------------------------------------
