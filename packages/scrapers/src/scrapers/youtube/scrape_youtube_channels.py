@@ -463,22 +463,11 @@ class MunicipalYouTubeScraper:
         return hours * 60 + minutes + (1 if seconds > 30 else 0)
     
     def detect_meeting_type(self, title: str) -> str:
-        """Detect meeting type from video title"""
-        title_lower = title.lower()
-        
-        if any(word in title_lower for word in ['city council', 'council meeting']):
-            return 'City Council'
-        elif any(word in title_lower for word in ['planning', 'zoning']):
-            return 'Planning Commission'
-        elif any(word in title_lower for word in ['school board', 'board of education']):
-            return 'School Board'
-        elif 'special' in title_lower:
-            return 'Special Meeting'
-        elif 'workshop' in title_lower:
-            return 'Workshop'
-        else:
-            return 'Other'
-    
+        """The meeting type the video title names, or ``Other`` (see ``scrapers.youtube.meeting_type``)."""
+        from scrapers.youtube.meeting_type import meeting_type_from_title
+
+        return meeting_type_from_title(title)
+
     def _ytdlp_base_opts(self, max_results: int) -> Dict[str, Any]:
         opts: Dict[str, Any] = {
             'quiet': True,
