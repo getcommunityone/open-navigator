@@ -6,7 +6,7 @@ description: Which meaningful metrics to derive from meeting and decision data, 
 
 # Meeting and decision metrics for the Matrix map
 
-Status: **proposal** (not yet built). Context: the Data explorer **Matrix map** tab
+Status: **proposal** (not yet built); the open questions are now decided, see "Decisions" below. Context: the Data explorer **Matrix map** tab
 (`web_app/src/pages/DataExplorerMatrixPage.tsx`) renders ACS state and county values in six layouts
 (Tiles, Pivot, Compare, Scatter, Diverging, Share). The goal is to let the same layouts show our
 meeting and decision data. Reference for the chart forms: <https://github.com/jcbowyer/vizjb12>.
@@ -69,8 +69,11 @@ Store numerator and denominator next to the value so any roll-up recomputes rath
 | `median_minutes_lag_days` | median of jurisdiction medians, weighted by `sample_n` | transparency |
 | `mean_interestingness` | mean of `interestingness_score` | optional, explain the score |
 
-`outcome` values must be confirmed against the extraction vocabulary before a `pass_rate` is defined;
-do not ship one on a guessed mapping.
+`outcome` is free text from the extraction. Do not invent a mapping: reuse the repo's existing
+`question_outcome_family()` macro (`approved`, `denied`, `deferred`, `moratorium`, `other`) so these rates
+cannot drift from the policy-question counts. That gives `approval_rate` (approved / decisions with a
+decided family) and `denial_rate`; `deferred` and `other` stay out of the denominator and are reported
+as their own share.
 
 ### Joined with ACS: the most useful comparisons
 
@@ -119,9 +122,20 @@ and say so in the layout caption. Scatter shows association at state or county l
 4. ACS-joined per-capita metrics.
 5. County level.
 
-## Open questions
+## Decisions
 
-- Which period grain first: calendar year or quarter?
-- Minimum sample size before a rate is shown (suggest 10 decisions, 3 jurisdictions).
-- Confirm the `outcome` vocabulary so a pass or fail rate can be defined.
-- Should coverage-gated per-capita metrics be hidden by default or shown with a warning?
+Made on 2026-11-24 on a best-judgement basis because the owner had no preference. Change any of them by
+adding a dated line here, not by rewriting this section.
+
+| Question | Decision | Reason |
+| --- | --- | --- |
+| Period grain | **Calendar year first**; add quarters in phase 3 | Matches the ACS vintage axis the Matrix map already uses, so Compare and Scatter work across both sources. Meeting volume per quarter is too thin for most jurisdictions. |
+| Minimum sample before showing a rate | **At least 10 decisions and 3 jurisdictions** (for a state value); at least 10 decisions for a single jurisdiction. Below that, show `—` and the reason | A rate on a handful of decisions swings on one item; two or fewer jurisdictions is one town's behaviour, not a state's. |
+| Outcome vocabulary | Reuse `question_outcome_family()`; `approval_rate` = approved / (approved + denied + moratorium) | One shared definition, already used by the API counts. Deferred and other are excluded from the denominator, never counted as denials. |
+| Per-capita and coverage-gated metrics | **Shown, with a visible warning, never hidden**: tiles below the coverage threshold are hatched and labelled "low coverage"; they are excluded from the scale so they cannot set the colour range | Hiding them reads as "no activity". The warning keeps the gap visible without letting thin data distort the comparison. |
+| Where the metrics are computed | dbt mart plus API route, not in the browser | Transformations belong in dbt (`CLAUDE.md`, Data Pipeline Standards). |
+| Year type | `integer` in storage, string on the wire | `CLAUDE.md`, "Calendar Years". |
+
+Still open and worth a follow-up issue once the mart exists: whether to publish a decision-level
+`interestingness` roll-up at all. It is a tuned ranking score, not a measurement, and may mislead as a
+state-level metric.
