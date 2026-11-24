@@ -45,9 +45,9 @@ export function MeetingChatThread() {
           <ComposerPrimitive.Input
             placeholder="Ask about budgets, zoning, fluoride…"
             rows={1}
-            className="max-h-32 flex-1 resize-none bg-transparent text-[15px] text-slate-800 outline-none placeholder:text-slate-400"
+            className="max-h-32 min-w-0 flex-1 resize-none bg-transparent text-[15px] text-slate-800 outline-none placeholder:text-slate-400"
           />
-          <ComposerPrimitive.Send className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-40">
+          <ComposerPrimitive.Send className="min-h-[44px] shrink-0 rounded-lg bg-primary-600 px-3 py-1.5 sm:min-h-0 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-40">
             Send
           </ComposerPrimitive.Send>
         </div>
