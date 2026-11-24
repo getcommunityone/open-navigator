@@ -58,3 +58,9 @@ The site header has a single "Chat & Contact" item that opens `/chat`. The top o
 answers from meeting records and offers a "Contact us" email link for reaching a person. The link's address is
 `CONTACT_EMAIL` in `web_app/src/utils/contact.ts`, which the older `/support` page also uses; that page stays for
 existing links.
+
+## Closing the chat (#879)
+
+The panel's top strip has a close button, and Escape closes it too unless a message is being typed. Closing goes back
+to the page the visitor came from, or to the home page when the chat was the first page opened
+(`closeChatTarget` in `web_app/src/utils/contact.ts`).
