@@ -1,0 +1,225 @@
+version: 2
+
+# #930: who spoke for and against a data center item, and how the vote went. Two small marts,
+# built into gold and published to public (publish_public_serving's served list).
+# The rule for which comments and votes count: web_docs/docs/development/data-center-who-spoke-up.md
+#
+# NOTE on keys: event_meeting has a single-column primary key, so the FK into it is an
+# enforced constraint. event_decision is partitioned with a composite primary key and cannot
+# be a single-column FK target, so that FK is a relationships test (warn), as in public_comment.
+
+models:
+  - name: data_center_meeting_position
+    description: >
+      One row per meeting where a data center came up: an analysed meeting whose recording
+      has a passage in data_center_meeting_mention, or that has a decision or a public comment
+      saying a data center word. speakers_* count public speakers on a data center item only,
+      each speaker once per meeting: a comment counts when it is linked to a decision whose
+      headline or statement says a data center word, or when the speaker's own quoted words
+      or the comment's summary do (data_center_regex). A comment on any other item of the
+      meeting is never counted. Known misses: a comment that never says the words and is
+      not linked to such a decision; comments on uncontested items; meetings not analysed.
+      A speaker of unknown stance is in none of the four counts. votes_for / votes_against
+      sum event_decision.vote_tally (yes / no) over the meeting's data center decisions that
+      recorded both; they are null, not 0, when decisions_with_tally is 0.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'data_centers', 'serving', 'sentiment']
+      post_hook:
+        - "create index if not exists data_center_meeting_position_state_idx on {{ this }} (state_code, jurisdiction_name)"
+    constraints:
+      - type: foreign_key
+        columns: [event_meeting_id]
+        to: ref('event_meeting')
+        to_columns: [event_meeting_id]
+    columns:
+      - name: data_center_meeting_position_id
+        description: "Primary key: md5('data_center_meeting_position|' || event_meeting_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_meeting_id
+        description: "FK -> event_meeting.event_meeting_id (the analysed meeting); enforced constraint. One row per meeting."
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+      - name: video_id
+        description: "YouTube video id of the meeting recording; null when the meeting has none."
+        data_type: text
+      - name: meeting_date
+        description: "The meeting date: data_center_meeting_mention's when the recording is there, else event_meeting's. Null when unknown or later than the load date (a wrong source date, #472)."
+        data_type: date
+      - name: jurisdiction_name
+        description: "Jurisdiction of the meeting, from event_meeting."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code of the meeting."
+        data_type: text
+      - name: state
+        description: "Full state name of the meeting."
+        data_type: text
+      - name: speakers_for
+        description: "Public speakers on a data center item whose stance bucket is for. 0 means none was found."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: speakers_against
+        description: "Public speakers on a data center item whose stance bucket is against."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: speakers_question
+        description: "Public speakers on a data center item who only asked questions."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: speakers_neutral
+        description: "Public speakers on a data center item whose stance bucket is neutral (mixed, conditional, not stated)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: decisions_with_tally
+        description: "The meeting's data center decisions whose vote_tally records both a yes and a no count."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: votes_for
+        description: "Sum of vote_tally.yes over those decisions; null when decisions_with_tally is 0."
+        data_type: integer
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "is null"
+              config:
+                where: "decisions_with_tally = 0"
+      - name: votes_against
+        description: "Sum of vote_tally.no over those decisions; null when decisions_with_tally is 0."
+        data_type: integer
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "is null"
+              config:
+                where: "decisions_with_tally = 0"
+
+  - name: data_center_public_comment
+    description: >
+      One row per public comment counted as about a data center item (the comments behind
+      data_center_meeting_position): linked to a decision whose headline or statement says a
+      data center word (match_basis data_center_decision), or saying one in the speaker's own
+      quoted words or the comment's summary (own_words). quote is the speaker's own words,
+      verbatim from the transcript; start_seconds and video_url link to the moment in the
+      recording. is_counted marks the one row counted for a speaker in a meeting.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'data_centers', 'serving', 'sentiment']
+      post_hook:
+        - "create index if not exists data_center_public_comment_state_idx on {{ this }} (state_code, stance_bucket)"
+    constraints:
+      - type: foreign_key
+        columns: [public_comment_id]
+        to: ref('public_comment')
+        to_columns: [public_comment_id]
+      - type: foreign_key
+        columns: [data_center_meeting_position_id]
+        to: ref('data_center_meeting_position')
+        to_columns: [data_center_meeting_position_id]
+      - type: foreign_key
+        columns: [event_meeting_id]
+        to: ref('event_meeting')
+        to_columns: [event_meeting_id]
+    columns:
+      - name: public_comment_id
+        description: "Primary key, and FK -> public_comment.public_comment_id (the comment this row is)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: data_center_meeting_position_id
+        description: "FK -> data_center_meeting_position (the meeting's row)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: event_meeting_id
+        description: "FK -> event_meeting.event_meeting_id; enforced constraint."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: event_decision_id
+        description: "FK -> event_decision.event_decision_id when the comment is linked to a decision; relationships test."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: decision_headline
+        description: "Headline of the linked data center decision; null when match_basis is own_words."
+        data_type: text
+      - name: match_basis
+        description: "Why the comment counts: data_center_decision (linked to a decision that says a data center word) or own_words (the speaker's quote or the summary says one)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['data_center_decision', 'own_words']
+      - name: speaker_id
+        description: "The speaker's slug from the extraction."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: speaker_role
+        description: "The capacity the speaker gave (Resident, Business owner, ...), as extracted; null when not said."
+        data_type: text
+      - name: stance_bucket
+        description: "for / against / question / neutral; null when the stance is unknown (never counted as neutral)."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['for', 'against', 'question', 'neutral']
+      - name: quote
+        description: "The speaker's own words showing the stance, verbatim from the transcript (public_comment.stance_evidence); null when none was kept."
+        data_type: text
+      - name: is_counted
+        description: "True for the one row counted for this speaker in this meeting (known stance first, then earliest in the recording)."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: start_seconds
+        description: "Seconds into the recording where the comment starts; null when the transcript is untimed."
+        data_type: numeric(12, 3)
+      - name: video_id
+        description: "YouTube video id of the recording; null when the meeting has none."
+        data_type: text
+      - name: video_url
+        description: "Link to the recording; null when video_id is null."
+        data_type: text
+      - name: meeting_date
+        description: "The meeting date, from data_center_meeting_position."
+        data_type: date
+      - name: jurisdiction_name
+        description: "Jurisdiction of the meeting."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code of the meeting."
+        data_type: text
+      - name: state
+        description: "Full state name of the meeting."
+        data_type: text

@@ -320,6 +320,16 @@ outputPorts:
   contractId: open-navigator-public-data_center_meeting_mention
   type: table
   description: One row per (transcript video, passage) where the meeting's own words say "data center" (or data centre / datacenter / hyperscale).
+- name: data_center_meeting_position
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_meeting_position
+  type: table
+  description: 'One row per meeting where a data center came up: an analysed meeting whose recording has a passage in data_center_meeting_mention, or that has a decision or a public comment saying a data center word.'
+- name: data_center_public_comment
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_public_comment
+  type: table
+  description: 'One row per public comment counted as about a data center item (the comments behind data_center_meeting_position): linked to a decision whose headline or statement says a data center word (match_basis data_center_decision), or saying one in the speaker''s own quoted words or the comment''s summary (own_words).'
 - name: decision_place_label
   version: 1.0.0
   contractId: open-navigator-public-decision_place_label
