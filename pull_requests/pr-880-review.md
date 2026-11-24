@@ -4,17 +4,20 @@ branch: feat/879-chat-close-button
 title: "feat(web_app): add a close button to the chat panel"
 author: jcbowyer
 reviewed_at: 2026-11-24
-reviewer: github-actions
+reviewer: github-actions, coordinator
 head_sha: 3ed9fed58dd1ba10fc2b0a462c25e302dc6f67f4
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: feat(web_app): add a close button to the chat panel
 
 ## Summary
 
-Automated review (#648) for PR #880 on `feat/879-chat-close-button`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Adds a close button to the chat panel. Closing goes back to the page the visitor came from, or home when the chat
+was the first page opened; Escape does the same unless a message is being typed. Small, unit-tested for the
+destination rule, and checked in a browser.
+
+The automated scan (#648) wrote the first version of this file; the agent that opened the PR refined it.
 
 ## Scope of Change
 
@@ -30,11 +33,12 @@ See the PR checks on `3ed9fed58dd1`.
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
 - Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+- Fabricated data / personal / destructive: clean.
 
 ## Strengths
 
-- Automated scans found no secret/credential patterns in added lines.
+- Escape does not discard a draft message.
+- The destination rule is a pure function with a test, and matches the back rule other pages use.
 
 ## Findings
 
@@ -44,12 +48,13 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+None.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- The button's look at phone width was not checked.
+- Escape is handled on the window, so a dialog opened over the chat in future would need to stop the event first.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**
