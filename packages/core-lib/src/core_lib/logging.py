@@ -6,6 +6,8 @@ import sys
 
 from loguru import logger
 
+from core_lib.redact import install_log_redaction
+
 
 def _json_sink(message) -> None:
     record = message.record
@@ -25,4 +27,5 @@ def _json_sink(message) -> None:
 def setup_logging(level: str = "INFO") -> None:
     """Configure loguru to emit one JSON object per line on stdout."""
     logger.remove()
+    install_log_redaction()  # credentials never reach the sink (#878)
     logger.add(_json_sink, level=level)

@@ -15,6 +15,8 @@ from pathlib import Path
 
 from loguru import logger
 
+from core_lib.redact import install_log_redaction
+
 from core_lib.paths import repo_root
 _REPO_ROOT = repo_root(__file__)
 _DEFAULT_LOG_DIR = _REPO_ROOT / "data" / "bronze" / "youtube_loader_logs"
@@ -77,6 +79,7 @@ def configure_youtube_loader_logging(
     Configure process-wide logging once. Returns the log file path used.
     """
     logger.remove()
+    install_log_redaction()  # API keys quoted in error text never reach a sink (#878)
 
     if workers > 1:
         os.environ["YOUTUBE_LOADER_PARALLEL"] = "1"

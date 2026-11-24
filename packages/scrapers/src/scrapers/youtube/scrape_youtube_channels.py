@@ -36,6 +36,8 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from loguru import logger
+
+from core_lib.redact import install_log_redaction, redact_secrets
 import polars as pl
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -269,7 +271,8 @@ class MunicipalYouTubeScraper:
                 # Try yt-dlp fallback
                 return self.get_channel_videos_ytdlp(channel_id, max_results, published_after)
             else:
-                logger.error(f"YouTube API error for channel {channel_id}: {e}")
+                # The error text quotes the request URL, which carries the API key (#878).
+                logger.error(f"YouTube API error for channel {channel_id}: {redact_secrets(str(e))}")
         
         return dedupe_videos_by_id(videos, max_results)
 
@@ -717,6 +720,7 @@ class MunicipalYouTubeScraper:
 
 @exit_if_vpn_off
 def main():
+    install_log_redaction()  # no API key in any log line of this run (#878)
     parser = argparse.ArgumentParser(
         description="Scrape municipal YouTube channels for meeting videos"
     )
