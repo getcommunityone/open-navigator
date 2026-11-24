@@ -793,6 +793,10 @@ def _launch_operator_signals(
     # Process already exited after VpnRequiredError — still show the error for a while.
     if not vpn_down and _recent_log_vpn_down():
         vpn_down = True
+    # Live tunnel wins over a stale Surfshark-off line: after reconnect the same
+    # launch log still matches for up to two hours (#834).
+    if vpn_down and _vpn_tunnel_up_for_resume():
+        vpn_down = False
     if not billing_exhausted:
         recent_billing, recent_steps = _recent_log_flag("billing_exhausted")
         if recent_billing:
