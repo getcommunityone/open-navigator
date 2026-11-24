@@ -19,7 +19,13 @@ export function contrastRatio(a: string, b: string): number {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number]
   return (hi + 0.05) / (lo + 0.05)
 }
-/** Whichever of ink or white has the higher contrast on `bg` (decided by luminance, not by guesswork). */
-export function labelOn(bg: string): string {
-  return contrastRatio(bg, FOLIO_INK) >= contrastRatio(bg, '#FFFFFF') ? FOLIO_INK : '#FFFFFF'
+/**
+ * Whichever candidate has the highest contrast on `bg` (decided by luminance, not by guesswork). Defaults to the default
+ * theme's ink; themed charts pass their own ink as well. White and black are always candidates, and one of the two always
+ * reaches 4.5:1 on any colour, so a label is never below AA.
+ */
+export function labelOn(bg: string, extra: readonly string[] = [FOLIO_INK]): string {
+  const best = (cands: readonly string[]) => cands.reduce((b, c) => (contrastRatio(bg, c) > contrastRatio(bg, b) ? c : b), cands[0]!)
+  const pick = best([...extra, '#FFFFFF'])
+  return contrastRatio(bg, pick) >= 4.5 ? pick : best([pick, '#000000'])
 }
