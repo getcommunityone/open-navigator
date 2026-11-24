@@ -31,7 +31,11 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
-from api.meeting_type import meeting_type_label
+from api.meeting_type import (
+    meeting_type_available,
+    meeting_type_by_video_sql,
+    meeting_type_label,
+)
 from api.routes.search_postgres import get_db_pool
 
 router = APIRouter(prefix="/meeting", tags=["meeting"])
@@ -213,8 +217,7 @@ _MEETING_SQL = """
         CASE WHEN COALESCE(NULLIF(event_date, ''), NULLIF(meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
              THEN COALESCE(NULLIF(event_date, ''), NULLIF(meeting_date, '')) END AS meeting_date,
         video_id,
-        (SELECT y.meeting_type FROM event_youtube_with_jurisdiction y
-          WHERE y.video_id = event_meeting.video_id LIMIT 1) AS meeting_type
+        __MEETING_TYPE__
     FROM event_meeting
     WHERE event_meeting_id = $1
 """
@@ -254,7 +257,13 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
-                row = await conn.fetchrow(_MEETING_SQL, event_meeting_id)
+                has_type = await meeting_type_available(conn)
+                row = await conn.fetchrow(
+                    _MEETING_SQL.replace(
+                        "__MEETING_TYPE__", meeting_type_by_video_sql("event_meeting.video_id", has_type)
+                    ),
+                    event_meeting_id,
+                )
                 if row is None:
                     raise HTTPException(
                         status_code=404,
