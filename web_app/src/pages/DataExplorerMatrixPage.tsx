@@ -12,10 +12,18 @@ type Metric = CensusMetricFormatRow & { label: string }
 type Manifest = { vintage?: string; vintages?: string[]; metrics?: Metric[] }
 type StatePayload = { values: Record<string, Record<string, number | null | undefined>> }
 
-type Layout = 'tiles' | 'pivot'
+type Layout = 'tiles' | 'pivot' | 'dumbbell'
 type GroupBy = 'none' | 'region'
 
 const MAX_COLS = 8
+const STEPS = 6
+/** Discrete 6-step shade (like a printed heatmap legend) so cells compare at a glance. */
+const stepOf = (t: number | null): number | null => (t == null ? null : Math.min(STEPS - 1, Math.floor(t * STEPS)))
+const stepColor = (t: number | null): string => {
+  const k = stepOf(t)
+  return colorFromT(k == null ? null : (k + 0.5) / STEPS)
+}
+const stepText = (t: number | null): string => ((stepOf(t) ?? 0) >= 3 ? '#fff' : '#0f172a')
 
 interface Row {
   fips: string
@@ -30,7 +38,8 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 /** "Matrix map": every state as a box. Tiles = one metric shaded; Pivot = states × chosen metrics. */
 export default function DataExplorerMatrixPage() {
   const [sp, setSp] = useSearchParams()
-  const layout: Layout = sp.get('layout') === 'pivot' ? 'pivot' : 'tiles'
+  const layoutQ = sp.get('layout')
+  const layout: Layout = layoutQ === 'pivot' || layoutQ === 'dumbbell' ? layoutQ : 'tiles'
   const groupBy: GroupBy = sp.get('group') === 'region' ? 'region' : 'none'
   const sortKey = sp.get('sort') ?? ''
   const sortDir = sp.get('dir') === 'asc' ? 'asc' : 'desc'
@@ -60,6 +69,18 @@ export default function DataExplorerMatrixPage() {
       return r.json()
     },
     enabled: !!manifest && !!vintage,
+    retry: false,
+  })
+
+  const vintageList = manifest?.vintages ?? []
+  const baseVintage = vintageList.length > 1 ? vintageList[0]! : ''
+  const { data: basePayload } = useQuery({
+    queryKey: ['census-state-metrics', baseVintage],
+    queryFn: async (): Promise<StatePayload | null> => {
+      const r = await fetch(`/data/census-map/${baseVintage}/state_metrics.json`)
+      return r.ok ? r.json() : null
+    },
+    enabled: layout === 'dumbbell' && !!baseVintage,
     retry: false,
   })
 
@@ -164,6 +185,9 @@ export default function DataExplorerMatrixPage() {
           <button type="button" className={btn(layout === 'pivot')} onClick={() => setQP('layout', 'pivot')}>
             ▤ Pivot
           </button>
+          <button type="button" className={btn(layout === 'dumbbell')} onClick={() => setQP('layout', 'dumbbell')}>
+            ◐ Compare
+          </button>
         </div>
         <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Group by">
           <button type="button" className={btn(groupBy === 'none')} onClick={() => setQP('group', null)}>
@@ -173,7 +197,7 @@ export default function DataExplorerMatrixPage() {
             By region
           </button>
         </div>
-        {layout === 'tiles' ? (
+        {layout !== 'pivot' ? (
           <label className="text-xs text-slate-700">
             Metric{' '}
             <select
@@ -206,11 +230,32 @@ export default function DataExplorerMatrixPage() {
         <p className="text-[11px] text-slate-500">Darker = better rank for the metric (neutral metrics: larger).</p>
       </div>
 
+      {layout !== 'dumbbell' && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-slate-600" aria-label="Scale">
+          <span className="font-semibold uppercase tracking-wide">Scale</span>
+          {['Lowest', '', '', '', '', 'Highest'].map((l, i) => (
+            <span key={i} className="inline-flex items-center gap-1">
+              <span className="inline-block h-3 w-5 rounded-sm border border-slate-300" style={{ background: stepColor((i + 0.5) / STEPS) }} />
+              {l}
+            </span>
+          ))}
+          <span>(per column · darker = better rank)</span>
+        </div>
+      )}
       <div className="overflow-auto rounded-lg border border-slate-300 bg-white p-2">
         {groups.map((g) => (
           <section key={g.label ?? 'all'} className="mb-3">
             {g.label && <h3 className="mb-1 text-xs font-semibold text-slate-700">{g.label}</h3>}
-            {layout === 'tiles' ? (
+            {layout === 'dumbbell' ? (
+              <Dumbbell
+                items={g.items}
+                slug={metricSlug}
+                base={basePayload?.values}
+                baseLabel={baseVintage}
+                curLabel={vintage}
+                fmt={fmt}
+              />
+            ) : layout === 'tiles' ? (
               <ul className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-1.5">
                 {g.items.map((r) => {
                   const v = r.vals[metricSlug] ?? null
@@ -221,7 +266,7 @@ export default function DataExplorerMatrixPage() {
                         to={mapHref(r)}
                         title={`${r.name}: ${fmt(metricSlug, v)} — ${metricLabel(metricSlug)}`}
                         className="flex h-16 flex-col justify-between rounded-md border border-slate-300 p-1.5 text-[11px] leading-tight hover:ring-2 hover:ring-teal-600"
-                        style={{ background: colorFromT(t), color: t != null && t > 0.55 ? '#fff' : '#0f172a' }}
+                        style={{ background: stepColor(t), color: stepText(t) }}
                       >
                         <span className="font-semibold">{r.code}</span>
                         <span className="tabular-nums">{fmt(metricSlug, v)}</span>
@@ -264,7 +309,7 @@ export default function DataExplorerMatrixPage() {
                           <td
                             key={c}
                             className="p-1 text-right tabular-nums"
-                            style={{ background: colorFromT(t), color: t != null && t > 0.55 ? '#fff' : '#0f172a' }}
+                            style={{ background: stepColor(t), color: stepText(t) }}
                           >
                             {fmt(c, v)}
                           </td>
@@ -278,6 +323,62 @@ export default function DataExplorerMatrixPage() {
           </section>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** Dumbbell: earliest vs latest published vintage per state; sorted by the page sort (value) order. */
+function Dumbbell({
+  items,
+  slug,
+  base,
+  baseLabel,
+  curLabel,
+  fmt,
+}: {
+  items: Row[]
+  slug: string
+  base: Record<string, Record<string, number | null | undefined>> | undefined
+  baseLabel: string
+  curLabel: string
+  fmt: (slug: string, v: number | null) => string
+}) {
+  if (!base || !baseLabel) {
+    return <p className="p-2 text-xs text-slate-600">No data available — only one vintage is published, so there is nothing to compare.</p>
+  }
+  const pts = items.map((r) => {
+    const b = base[r.fips]?.[slug]
+    return { r, a: typeof b === 'number' && Number.isFinite(b) ? b : null, c: r.vals[slug] ?? null }
+  })
+  const all = pts.flatMap((p) => [p.a, p.c]).filter((x): x is number => x != null)
+  if (!all.length) return <p className="p-2 text-xs text-slate-600">No data available for this metric.</p>
+  const lo = Math.min(...all)
+  const hi = Math.max(...all)
+  const x = (v: number) => (hi === lo ? 50 : ((v - lo) / (hi - lo)) * 100)
+  return (
+    <div>
+      <p className="mb-1 text-[11px] text-slate-600">
+        <span className="inline-block h-2 w-2 rounded-full bg-slate-400" /> {baseLabel}{' '}
+        <span className="ml-2 inline-block h-2 w-2 rounded-full bg-teal-700" /> {curLabel}
+      </p>
+      <ul className="space-y-0.5">
+        {pts.map(({ r, a, c }) => (
+          <li key={r.fips} className="grid grid-cols-[7rem_1fr_9rem] items-center gap-2 text-[11px]">
+            <span className="truncate font-medium">{r.name}</span>
+            <span className="relative h-4">
+              <span className="absolute inset-x-0 top-1/2 h-px bg-slate-200" />
+              {a != null && c != null && (
+                <span className="absolute top-1/2 h-0.5 bg-slate-400" style={{ left: `${Math.min(x(a), x(c))}%`, width: `${Math.abs(x(c) - x(a))}%` }} />
+              )}
+              {a != null && <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400" style={{ left: `${x(a)}%` }} />}
+              {c != null && <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-teal-700" style={{ left: `${x(c)}%` }} />}
+            </span>
+            <span className="tabular-nums text-slate-700">
+              {fmt(slug, a)} → {fmt(slug, c)}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
