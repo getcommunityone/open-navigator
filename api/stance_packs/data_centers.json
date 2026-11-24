@@ -1,7 +1,7 @@
 {
   "pack_id": "data-centers",
-  "title": "Data centers",
-  "version": 1,
+  "title": "Data Center Challenge",
+  "version": 2,
   "statements": [
     {
       "statement_id": "jobs-worth-it",
@@ -17,7 +17,7 @@
       "order": 2,
       "category": "Where they are",
       "statement": "My area already has enough data centers.",
-      "chart": "sites"
+      "chart": "concerns"
     },
     {
       "statement_id": "water-power-decide",
@@ -52,20 +52,12 @@
       "chart": "community-events"
     },
     {
-      "statement_id": "tax-breaks-fair",
-      "version": 1,
-      "order": 7,
-      "category": "Money",
-      "statement": "Tax breaks for data centers are a fair trade for the investment they bring.",
-      "chart": "projects"
-    },
-    {
       "statement_id": "near-homes-ok",
       "version": 1,
-      "order": 8,
+      "order": 7,
       "category": "Where they go",
       "statement": "A data center that meets the rules should be allowed near homes.",
-      "chart": "sites"
+      "chart": "concerns"
     }
   ]
 }

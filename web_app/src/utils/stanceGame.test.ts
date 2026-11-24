@@ -109,7 +109,7 @@ describe('findings', () => {
   })
   it('sites', () => {
     const res = { counts: { planned: 2, under_construction: 3, operating: 5, no_longer_listed: 1, status_not_published: 0 }, items: [] } as never
-    expect(findingSites(res, 'Virginia')).toContain('11 data center sites are on record in Virginia: 5 operating, 3 under construction, 2 planned.')
+    expect(findingSites(res, 'Virginia')).toContain('Of 11 data center sites on record in Virginia, 5 are operating, 3 under construction and 2 planned.')
     expect(findingSites({ counts: { planned: 0, under_construction: 0, operating: 0, no_longer_listed: 0, status_not_published: 0 }, items: [] } as never)).toBeNull()
   })
   it('concerns uses the area list for a state and the national list otherwise', () => {
@@ -133,13 +133,13 @@ describe('findings', () => {
       items: [{ meeting_date: '2025-03-01' }, { meeting_date: '2025-04-01' }, { meeting_date: '2024-01-01' }, { meeting_date: null }],
     } as never
     expect(findingMeetingMentions(res)).toBe(
-      '2025 has the most meeting passages about data centers nationally: 2 of the 3 most recent (40 passages on record nationally).',
+      'The year 2025 has the most meeting passages about data centers nationally: 2 of the 3 most recent (40 passages on record nationally).',
     )
     expect(findingMeetingMentions({ counts: { passages: 0 }, items: [] } as never)).toBeNull()
   })
   it('agenda items', () => {
     expect(findingAgendaItems({ counts: { upcoming: 2, past: 5 }, items: [] } as never)).toBe(
-      '7 meeting agendas mention a data center nationally: 2 upcoming and 5 past.',
+      'Of 7 meeting agendas that mention a data center nationally, 2 are upcoming and 5 past.',
     )
     expect(findingAgendaItems({ counts: { upcoming: 0, past: 0 }, items: [] } as never)).toBeNull()
   })
@@ -267,7 +267,7 @@ describe('headline and chart agree on a capped list', () => {
     const spec = chartSpec('agenda-items', agenda)!
     if (spec.kind !== 'dots') throw new Error('dots')
     expect(spec.groups.map((g) => g.heading)).toEqual(['Upcoming meetings · 7 records · 12% · showing 1', 'Past meetings · 52 records · 88% · showing 1'])
-    expect(findingAgendaItems(agenda)).toBe('59 meeting agendas mention a data center nationally: 7 upcoming and 52 past.')
+    expect(findingAgendaItems(agenda)).toBe('Of 59 meeting agendas that mention a data center nationally, 7 are upcoming and 52 past.')
   })
   it('a group with a real count but no drawn dots still gets its heading', () => {
     const spec = chartSpec('sites', { counts: { planned: 0, under_construction: 0, operating: 10, no_longer_listed: 5, status_not_published: 0 }, items: [{ data_center_site_id: 'o', site_name: 'O', status: 'operating', source_url: '' }] } as never)!

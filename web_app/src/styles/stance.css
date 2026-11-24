@@ -1,6 +1,6 @@
 /*
- * "Where Do You Stand?" game (#852). Uses the Folio tokens from folio.css (under .folio); imported only by the game page.
- * Pinned mode (wide screens, motion allowed): every round is an act pinned by ScrollTrigger and scrubbed through its beats.
+ * The Data Center Challenge (#852) and the data stories (#884). Uses the Folio tokens from folio.css (under .folio); imported
+ * only by the challenge, story and hub pages. Pinned mode (wide screens, motion allowed): every round is an act pinned by ScrollTrigger and scrubbed through its beats.
  * Stacked mode (narrow screens, or prefers-reduced-motion): plain panels, native scrolling, everything in its final state.
  * The scrubbed values (--draw, --reveal) default to 1 so anything not driven by the timeline is already in its end state.
  */
@@ -116,15 +116,15 @@
   inset: 0;
   z-index: 0;
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding-left: 2%;
-  font-size: min(24vw, 36svh);
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 4% 1% 0;
+  font-size: min(9vw, 20svh);
   font-weight: 600;
   line-height: 0.8;
   letter-spacing: -0.05em;
   color: var(--violet-200);
-  opacity: 0.6;
+  opacity: 0.28;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
@@ -244,8 +244,8 @@
   align-items: center;
   gap: 8px 12px;
   padding: 8px 12px;
-  border: 1px solid var(--vermilion-ink);
-  color: var(--vermilion-ink);
+  border: 1px solid var(--bad-ink);
+  color: var(--bad-ink);
   background: var(--paper-raised);
   font-size: 13px;
 }
@@ -261,11 +261,13 @@
   margin-top: 0;
 }
 .stance-next {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--violet-ink);
+  color: var(--on-violet);
+  border-color: var(--violet-ink);
 }
 .stance-next:hover:not(:disabled) {
-  background: var(--violet-600);
+  background: var(--band);
+  border-color: var(--band);
 }
 
 /* Reveal */
@@ -310,7 +312,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
@@ -318,15 +319,18 @@
 }
 .stance-seg-agree {
   background: var(--violet-ink);
+  color: var(--on-violet);
 }
 .stance-seg-disagree {
-  background: var(--vermilion-ink);
+  background: var(--vermilion);
+  color: var(--on-vermilion);
 }
 .stance-seg-unsure {
   background: var(--ink-3);
+  color: var(--white);
 }
 .stance-seg.is-yours {
-  box-shadow: inset 0 0 0 3px #fff;
+  box-shadow: inset 0 0 0 3px var(--paper-raised);
 }
 .stance-legend {
   display: flex;
@@ -575,8 +579,41 @@
     gap: 6px;
   }
   .stance-word {
-    align-items: flex-start;
-    padding-top: 8px;
+    display: none;
+  }
+  /* Stacked on a phone the headline is followed at once by the chart; the question, answers and Continue come after it. */
+  .stance-game .stance-left {
+    display: contents;
+  }
+  .stance-game .stance-card {
+    order: 1;
+  }
+  .stance-game .stance-head {
+    order: 2;
+  }
+  .stance-game .stance-broaden {
+    order: 3;
+  }
+  .stance-game .stance-right {
+    order: 4;
+  }
+  .stance-game .stance-qblock {
+    order: 5;
+  }
+  .stance-game .stance-reveal {
+    order: 6;
+  }
+  .stance-game .stance-nav {
+    order: 7;
+  }
+  .stance-game .stance-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .stance-crumbs a,
+  .stance-crumbs > span[aria-hidden='true'] {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -731,5 +768,396 @@ a.stance-dot {
   }
   .stance-hbars li {
     grid-template-columns: minmax(4.5rem, 6.5rem) minmax(0, 1fr) 5rem;
+  }
+}
+
+/* Navigation without numbers: crumbs, the current word, Continue and Back */
+.stance-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stance-title {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--ink);
+}
+.stance-counter {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.stance-nodata p {
+  margin: 0 0 8px;
+}
+.stance-nodata p:last-child {
+  margin-bottom: 0;
+}
+.stance-lede {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.stance-nav {
+  align-items: center;
+}
+.stance-back {
+  border-color: transparent;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.stance-broaden {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stance-broaden .folio-btn {
+  margin-top: 0;
+}
+.stance-broaden:empty {
+  display: none;
+}
+.stance-right .stance-stats {
+  margin-top: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.stance-right .stance-stats dd {
+  font-size: clamp(30px, 3.6vw, 52px);
+}
+.stance-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.folio a.stance-link-card {
+  display: grid;
+  gap: 2px;
+  padding: 12px 16px;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink);
+}
+.stance-link-card b {
+  font-size: 17px;
+  font-weight: 600;
+}
+.stance-link-card span {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.folio a.stance-link-card.is-primary {
+  background: var(--violet-ink);
+  color: var(--on-violet);
+}
+.stance-link-card.is-primary span {
+  color: var(--on-violet);
+}
+.folio a.stance-link-card:hover {
+  background: var(--violet-100);
+  color: var(--ink);
+}
+.folio a.stance-link-card.is-primary:hover {
+  background: var(--band);
+  color: var(--on-violet);
+}
+.stance-link-card:focus-visible,
+.stance-next:focus-visible,
+.stance-back:focus-visible,
+.stance-dot:focus-visible,
+.stance-rail-stop:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+
+/* The hub */
+.folio.stories-hub {
+  background: var(--paper);
+  min-height: 60svh;
+  padding: 28px 24px 56px;
+}
+.stories-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 62rem;
+}
+.stories-title {
+  margin: 0;
+  font-size: clamp(40px, 6vw, 80px);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.stories-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.stories-scope .stance-scope {
+  margin: 0;
+}
+.stories-list {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 20px;
+  max-width: 62rem;
+}
+.stories-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px 22px;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink);
+}
+.stories-card-title {
+  margin: 0;
+  font-size: clamp(28px, 3.4vw, 44px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.stories-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.folio .stories-actions a.folio-btn {
+  color: var(--ink);
+}
+.folio .stories-actions a.stance-next {
+  color: var(--on-violet);
+}
+.stories-actions .folio-btn {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: none;
+}
+.stories-card .stance-stats {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+@media (max-width: 767px) {
+  .stance-nav .folio-btn,
+  .stance-top .folio-btn,
+  .stance-figure > .folio-btn,
+  .stance-broaden .folio-btn,
+  .stance-place-actions .folio-btn,
+  .stance-link-card,
+  .stance-cover .folio-btn {
+    min-height: 44px;
+  }
+  .stance-place-panel .folio-select {
+    min-height: 44px;
+  }
+  .stance-rail {
+    display: none;
+  }
+  .stance-act {
+    padding-right: 16px;
+  }
+  .stance-cover {
+    padding-right: 16px;
+  }
+  .stance-right .stance-stats dd {
+    font-size: 30px;
+  }
+  .folio.stories-hub {
+    padding: 20px 16px 40px;
+  }
+}
+
+/* Story: the headline is the bold conclusion of the screen; charts are a little larger */
+.stance-story .stance-headline {
+  font-size: clamp(24px, 2.8vw, 42px);
+  font-weight: 400;
+  line-height: 1.12;
+}
+.stance-story .stance-lede {
+  font-size: clamp(14px, 1.15vw, 17px);
+}
+.stance-game[data-mode='pinned'] .stance-hbars li {
+  font-size: 14px;
+}
+.stance-game[data-mode='pinned'] .stance-hbar-track {
+  height: 26px;
+}
+.stance-game[data-mode='pinned'] .stance-dots {
+  gap: 7px;
+}
+.stance-game[data-mode='pinned'] .stance-dotgroup-head {
+  margin-bottom: 3px;
+}
+
+/* Without the scroll animation (stacked mode) the large word is left out: it would sit over the figure. */
+.stance-game[data-mode="stacked"] .stance-word {
+  display: none;
+}
+
+/* Key hints belong to a hardware keyboard; a touch screen gets the tap hint instead. */
+.stance-hint-keys {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .stance-hint-keys {
+    display: block;
+  }
+  .stance-hint-touch {
+    display: none;
+  }
+}
+.stance-act:focus {
+  outline: none;
+}
+
+/* Sentence heading: "What did [place] say about [topic]?" with underlined inline blanks */
+.stance-heading-row {
+  min-width: 0;
+}
+.stance-sentence {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.stance-sentence.stories-title {
+  font-size: clamp(30px, 5vw, 64px);
+  font-weight: 300;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+.stance-blank,
+.stance-blank-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+.stance-blank-wrap {
+  position: relative;
+}
+.stance-blank {
+  min-height: 0;
+  padding: 0 0.1em;
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--violet-ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 0.08em dotted var(--violet-ink);
+  border-radius: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: left;
+}
+select.stance-blank {
+  padding-right: 0.8em;
+}
+.stance-blank:hover {
+  background: var(--violet-100);
+}
+.stance-blank:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 3px;
+}
+.stance-blank option,
+.stance-blank optgroup {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--paper-raised);
+}
+.stance-blank-caret {
+  font-size: 0.55em;
+  margin-left: 0.15em;
+  color: var(--violet-ink);
+  pointer-events: none;
+}
+.stance-blank-wrap .stance-blank-caret {
+  position: absolute;
+  right: 0.1em;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+}
+.stance-place.is-blank {
+  display: inline-block;
+}
+.stance-place.is-blank .stance-blank {
+  display: inline-flex;
+}
+.stance-place.is-blank .stance-place-panel {
+  left: 0;
+  right: auto;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--ink);
+}
+.stance-try {
+  margin: 0;
+  font-size: 14px;
+}
+.stance-top:has(.stance-heading-row) {
+  align-items: flex-start;
+}
+@media (max-width: 767px) {
+  .stance-blank {
+    min-height: 44px;
+  }
+  .stance-sentence {
+    font-size: 20px;
+    line-height: 1.1;
+  }
+  .stance-top:has(.stance-heading-row) .stance-scope .folio-link-btn,
+  .stance-top:has(.stance-heading-row) .stance-counter {
+    display: none;
+  }
+}
+
+.stance-kicker {
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  border: 1px dashed var(--ink-3);
+}
+
+.stories-head {
+  position: relative;
+}
+@media (max-width: 767px) {
+  .stance-place.is-blank {
+    position: static;
+  }
+  .stance-place.is-blank .stance-place-panel {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    top: 100%;
   }
 }

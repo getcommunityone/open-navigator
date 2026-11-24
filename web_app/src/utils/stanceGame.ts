@@ -1,4 +1,4 @@
-// Pure helpers for the "Where Do You Stand?" game (#852). Nothing here invents a number: every figure comes
+// Pure helpers for the Data Center Challenge (#852) and the data stories (#884). Nothing here invents a number: every figure comes
 // from an API response, and missing or empty data gives null.
 import type {
   AreaConcernsResponse,
@@ -88,12 +88,12 @@ export function roundWord(n: number): string {
 
 // --- findings: one sentence per chart, from that endpoint's real data ---------------------------------------------
 
-const fmt = (n: number) => n.toLocaleString('en-US')
+export const fmt = (n: number) => n.toLocaleString('en-US')
 /** "in Alabama" or "nationally". */
-const where = (place: string | null | undefined) => (place ? `in ${place}` : 'nationally')
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+export const where = (place: string | null | undefined) => (place ? `in ${place}` : 'nationally')
+export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-function tally<T>(items: T[], keyOf: (x: T) => string | null): Array<{ key: string; count: number }> {
+export function tally<T>(items: T[], keyOf: (x: T) => string | null): Array<{ key: string; count: number }> {
   const m = new Map<string, number>()
   for (const it of items) {
     const k = keyOf(it)
@@ -115,11 +115,11 @@ export function findingSites(res: DataCenterSitesResponse | null | undefined, pl
   if (!k) return null
   const total = k.planned + k.under_construction + k.operating + k.no_longer_listed + k.status_not_published
   if (total <= 0) return null
-  return `${fmt(total)} data center ${total === 1 ? 'site is' : 'sites are'} on record ${where(place)}: ${fmt(k.operating)} operating, ${fmt(k.under_construction)} under construction, ${fmt(k.planned)} planned.`
+  return `Of ${fmt(total)} data center ${total === 1 ? 'site' : 'sites'} on record ${where(place)}, ${fmt(k.operating)} ${k.operating === 1 ? 'is' : 'are'} operating, ${fmt(k.under_construction)} under construction and ${fmt(k.planned)} planned.`
 }
 
 /** The concern list that matches the scope: the area's own when a state is chosen, otherwise the national one. */
-function concernList(res: AreaConcernsResponse, place?: string | null) {
+export function concernList(res: AreaConcernsResponse, place?: string | null) {
   return place ? res.items : res.national
 }
 
@@ -153,14 +153,14 @@ export function findingMeetingMentions(
   const dated = years.reduce((a, y) => a + y.count, 0)
   const total = res?.counts?.passages ?? 0
   const tail = total > items.length ? ` (${fmt(total)} passages on record ${where(place)})` : ''
-  return `${top.key} has the most meeting passages about data centers ${where(place)}: ${fmt(top.count)} of the ${fmt(dated)} most recent${tail}.`
+  return `The year ${top.key} has the most meeting passages about data centers ${where(place)}: ${fmt(top.count)} of the ${fmt(dated)} most recent${tail}.`
 }
 
 export function findingAgendaItems(res: DataCenterAgendaItemsResponse | null | undefined, place?: string | null): string | null {
   const u = res?.counts?.upcoming ?? 0
   const p = res?.counts?.past ?? 0
   if (u + p <= 0) return null
-  return `${fmt(u + p)} meeting ${u + p === 1 ? 'agenda mentions' : 'agendas mention'} a data center ${where(place)}: ${fmt(u)} upcoming and ${fmt(p)} past.`
+  return `Of ${fmt(u + p)} meeting ${u + p === 1 ? 'agenda that mentions' : 'agendas that mention'} a data center ${where(place)}, ${fmt(u)} ${u === 1 ? 'is' : 'are'} upcoming and ${fmt(p)} past.`
 }
 
 export function findingCommunityEvents(res: CommunityEventsResponse | null | undefined, place?: string | null): string | null {

@@ -91,6 +91,24 @@ Unique on `(player_id, pack_id, statement_id)`. Index on `(pack_id, statement_id
 
 ## Update, November 24, 2026
 
-The game screens were built in #852 (`/play/data-centers`; guide: [Where Do You Stand? game](../guides/where-you-stand-game.md)).
+The game screens were built in #852 (`/play/data-centers`; guide: [Data Center Challenge](../guides/data-center-challenge.md)).
 Still not done: more topic packs, login-linked answers, and the charts of stance by speaker, which wait for the
 public comment data to be loaded.
+
+## Update, November 24, 2026 (#884): names, routes, data stories
+
+The game is now the **Data Center Challenge** (`title` in `api/stance_packs/data_centers.json`). Its address is
+`/challenge/:packId` (`/challenge` goes to `/challenge/data-centers`); `/play` and `/play/:packId` redirect to it and keep
+the query string. A new family of scrolling **data stories** lives at `/stories` (the hub) and `/stories/:storyId`
+(first story: `data-centers`); the story reads the same data-center endpoints and uses the same scroll engine
+(`web_app/src/components/stance/useActs.ts`, which the challenge and the story share). The challenge's headers no longer carry
+numbers ("Round 1 of 8", "01 / 08" are gone): the category word is the header, and each screen ends with **Continue to ...**
+and, after the first, **Back**. Guide: [Data stories](../guides/data-stories.md) and
+[Data Center Challenge](../guides/data-center-challenge.md).
+
+On November 24, 2026 the owner set the rule that a challenge statement must sit beside a chart built from meeting recordings or
+transcripts. Two statements (`enough-already`, `near-homes-ok`) were re-paired with the concerns chart, and "Tax breaks for data
+centers are a fair trade for the investment they bring." (`tax-breaks-fair`) was removed until transcript-based data on incentives
+exists. Wording and statement versions are unchanged; the pack version went from 1 to 2 and `order` now runs 1 to 7. No answers had
+been recorded. A story or a challenge needs recordings or transcripts behind it; figure-only data, such as census measures, is shown
+under Explore.

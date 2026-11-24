@@ -15,6 +15,10 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   onApply: (stateCode: string | null, city: string | null) => void
+  /** `blank`: the toggle is an inline, underlined blank in a sentence ("What did [Alabama] say ...") and "National only" reads "the United States". */
+  variant?: 'button' | 'blank'
+  /** The blank's current text (the place label). */
+  display?: string
 }
 
 /** Community names for a state from the place lookup (GET /api/feed/places): real hits only, filtered to the chosen state. */
@@ -47,7 +51,8 @@ function useCityOptions(stateCode: string | undefined, text: string) {
 }
 
 /** "Your place": a state select and a community input, in place. Changing either applies to the URL, label and results together. */
-export default function PlaceControl({ stateCode, city, open, onOpenChange, onApply }: Props) {
+export default function PlaceControl({ stateCode, city, open, onOpenChange, onApply, variant = 'button', display }: Props) {
+  const blank = variant === 'blank'
   const [draftCity, setDraftCity] = useState(city ?? '')
   const toggleRef = useRef<HTMLButtonElement>(null)
   const selectRef = useRef<HTMLSelectElement>(null)
@@ -63,7 +68,7 @@ export default function PlaceControl({ stateCode, city, open, onOpenChange, onAp
 
   return (
     <div
-      className="stance-place"
+      className={`stance-place${blank ? ' is-blank' : ''}`}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && open) {
           e.stopPropagation()
@@ -75,12 +80,19 @@ export default function PlaceControl({ stateCode, city, open, onOpenChange, onAp
       <button
         type="button"
         ref={toggleRef}
-        className="folio-btn"
+        className={blank ? 'stance-blank' : 'folio-btn'}
         aria-expanded={open}
         aria-controls="stance-place-panel"
+        aria-label={blank ? `Place, ${display ?? ''}` : undefined}
         onClick={() => onOpenChange(!open)}
       >
-        Your place {open ? '↑' : '↓'}
+        {blank ? (
+          <>
+            {display} <span aria-hidden="true" className="stance-blank-caret">▾</span>
+          </>
+        ) : (
+          <>Your place {open ? '↑' : '↓'}</>
+        )}
       </button>
       {open && (
         <div className="stance-place-panel" id="stance-place-panel" role="group" aria-label="Your place">
@@ -94,7 +106,7 @@ export default function PlaceControl({ stateCode, city, open, onOpenChange, onAp
             value={stateCode ?? ''}
             onChange={(e) => onApply(e.target.value || null, null)}
           >
-            <option value="">National only</option>
+            <option value="">{blank ? 'the United States' : 'National only'}</option>
             {STATE_CODES.map((c) => (
               <option key={c} value={c}>
                 {STATE_CODE_TO_NAME[c] ?? c}

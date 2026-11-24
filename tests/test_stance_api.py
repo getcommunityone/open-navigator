@@ -121,9 +121,9 @@ def test_pack_listing(call):
     assert r.json() == [
         {
             "pack_id": "data-centers",
-            "title": "Data centers",
-            "version": 1,
-            "statement_count": 8,
+            "title": "Data Center Challenge",
+            "version": 2,
+            "statement_count": 7,
         }
     ]
 
@@ -131,7 +131,7 @@ def test_pack_listing(call):
 def test_pack_content_and_404(call):
     ok = call(_Conn(), "GET", "/api/stance/packs/data-centers")
     assert ok.status_code == 200
-    assert [s["order"] for s in ok.json()["statements"]] == list(range(1, 9))
+    assert [s["order"] for s in ok.json()["statements"]] == list(range(1, 8))
     assert call(_Conn(), "GET", "/api/stance/packs/nope").status_code == 404
     assert call(_Conn(), "GET", "/api/stance/packs/nope/results").status_code == 404
 
@@ -140,7 +140,7 @@ def test_pack_file_ids_unique_and_charts_allowed():
     packs = stance.load_packs()
     sts = packs["data-centers"]["statements"]
     ids = [s["statement_id"] for s in sts]
-    assert len(ids) == len(set(ids)) == 8
+    assert len(ids) == len(set(ids)) == 7
     assert {s["chart"] for s in sts} <= stance.ALLOWED_CHARTS
     assert all(s["version"] == 1 for s in sts)
 
@@ -268,7 +268,7 @@ def test_suppression_threshold(call, n, available):
     assert r.status_code == 200
     data = r.json()
     assert data["min_sample"] == 30
-    assert len(data["statements"]) == 8
+    assert len(data["statements"]) == 7
     first = data["statements"][0]
     for group, key in (
         ("national", "agree"),
@@ -319,7 +319,7 @@ def test_results_pass_current_versions_and_normalized_place(call):
     sql, params = next(c for c in conn.calls if "FROM public.stance_response r" in c[0])
     assert "r.statement_version" in sql
     assert params[0] == "data-centers"
-    assert params[2] == [1] * 8
+    assert params[2] == [1] * 7
     assert params[3:] == ("AL", "tuscaloosa")
 
 

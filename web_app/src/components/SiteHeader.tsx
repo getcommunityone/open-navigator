@@ -127,6 +127,22 @@ export default function SiteHeader() {
       onClick: () => navigate('/chat'),
       active: location.pathname === '/chat' || location.pathname === '/support',
     },
+    {
+      label: 'Data Stories',
+      // The place in the address (?state=&city=) travels with the click when the current page has one.
+      onClick: () => {
+        const q = new URLSearchParams()
+        const here = new URLSearchParams(location.search)
+        const st = here.get('state')
+        if (st) {
+          q.set('state', st)
+          const c = here.get('city')
+          if (c) q.set('city', c)
+        }
+        navigate(`/stories${q.toString() ? `?${q}` : ''}`)
+      },
+      active: location.pathname.startsWith('/stories') || location.pathname.startsWith('/challenge'),
+    },
     { label: 'How It Works', onClick: () => goSection('how-it-works'), active: location.pathname === '/' && activeSection === 'how-it-works' },
     { label: 'Impact', onClick: () => goSection('impact'), active: location.pathname === '/' && activeSection === 'impact' },
   ]
