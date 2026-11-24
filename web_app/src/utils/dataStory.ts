@@ -251,7 +251,7 @@ function jobsText(res: JobClaimsResponse, scope: StoryScope): ScreenText | null 
   const lead = c > 0 && o > 0 && gap > 0 ? `${c > o ? 'Construction' : 'Operations'} claims outnumber ${c > o ? 'operations' : 'construction'} claims by ${fmt(gap)}. ` : ''
   return {
     headline,
-    context: `${lead}Each one was said in a public meeting. What concerns come up?`,
+    context: `${lead}Each one was said in a local meeting. What concerns come up?`,
     empty: false,
     failed: false,
   }

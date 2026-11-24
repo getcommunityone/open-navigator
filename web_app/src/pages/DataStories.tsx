@@ -116,7 +116,7 @@ export default function DataStories() {
             <h2 className="stories-card-title" id="story-card-data-centers">
               {question ?? 'Data centers'}
             </h2>
-            <p className="stance-lede">Answer first. Then see what was said in public meetings.</p>
+            <p className="stance-lede">Answer first. Then see what was said in local meetings.</p>
             <div className="stories-actions">
               <Link className="folio-btn stance-next stories-start" to={`/stories/${encodeURIComponent(topic)}${q}`} data-primary>
                 {question ? `Start: ${question}` : 'Start'} <span aria-hidden="true">→</span>
