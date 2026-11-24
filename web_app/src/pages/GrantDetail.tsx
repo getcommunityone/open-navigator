@@ -85,7 +85,7 @@ export default function GrantDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex justify-center items-center h-96">
             <div className="text-center">
@@ -100,7 +100,7 @@ export default function GrantDetail() {
 
   if (error || !grant) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
             <div className="text-red-600 text-5xl mb-4">⚠️</div>
@@ -134,7 +134,7 @@ export default function GrantDetail() {
     .join(', ')
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen page-bg py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
         <div className="mb-6">

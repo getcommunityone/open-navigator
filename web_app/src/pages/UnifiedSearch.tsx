@@ -1606,7 +1606,7 @@ function UnifiedSearchInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen page-bg">
       <div className="max-w-6xl mx-auto px-6 pb-6">
         {/* Search Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">

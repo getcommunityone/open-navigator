@@ -151,7 +151,7 @@ export default function Explore() {
   }, [location.pathname, location.hash])
 
   return (
-    <div className="min-h-screen bg-slate-300">
+    <div className="min-h-screen page-bg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-2">
         <div className="rounded-2xl border border-slate-400/40 bg-white shadow-[0_4px_28px_-10px_rgba(15,23,42,0.18)]">
           <div className="px-4 sm:px-6 lg:px-8 py-8">

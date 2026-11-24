@@ -61,7 +61,7 @@ export default function MeetingChat() {
 
   return (
     <MeetingChatRuntimeProvider scope={scope}>
-      <div className="flex min-h-[calc(100dvh-5rem)] flex-1 justify-end bg-slate-300 p-3 sm:p-4">
+      <div className="flex min-h-[calc(100dvh-5rem)] flex-1 justify-end page-bg p-3 sm:p-4">
         <div
           className="flex h-[min(38rem,calc(100dvh-6.5rem))] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
           role="region"

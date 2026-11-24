@@ -318,7 +318,7 @@ export default function PolicyMap() {
   const totalBillsAcrossStates = mapData ? Object.values(mapData.states).reduce((sum, s) => sum + s.total_bills, 0) : 0
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen page-bg py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">

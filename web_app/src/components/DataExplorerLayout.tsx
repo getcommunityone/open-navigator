@@ -24,7 +24,7 @@ export default function DataExplorerLayout() {
     pathname === DATA_EXPLORER_JURISDICTION_QUALITY || pathname.startsWith(`${DATA_EXPLORER_JURISDICTION_QUALITY}/`)
 
   return (
-    <div className="flex min-h-[calc(100dvh-4.25rem)] flex-1 flex-col bg-slate-200">
+    <div className="flex min-h-[calc(100dvh-4.25rem)] flex-1 flex-col page-bg">
       <div className="mx-auto flex w-full max-w-[1600px] flex-1 min-h-0 flex-col px-3 py-2 sm:px-4 md:px-5 md:py-3">
         <header className="shrink-0 rounded-lg border border-slate-300/80 bg-white px-3 py-2 shadow-sm sm:px-4 sm:py-2">
           <h1 className="text-lg font-semibold leading-tight text-slate-900 sm:text-xl">Data explorer</h1>
@@ -75,7 +75,7 @@ export default function DataExplorerLayout() {
         </header>
 
         {/* Workspace: mid-slate so white cards read clearly (slate-100 alone looked “all white”). */}
-        <div className="mt-2 min-h-0 min-w-0 flex-1 rounded-xl border border-slate-400/50 bg-slate-300/40 p-1.5 shadow-inner sm:mt-2 sm:p-2 md:p-2.5">
+        <div className="mt-2 min-h-0 min-w-0 flex-1 rounded-xl border border-stone-300 bg-stone-200/50 p-1.5 shadow-inner sm:mt-2 sm:p-2 md:p-2.5">
           <Outlet />
         </div>
       </div>

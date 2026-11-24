@@ -901,7 +901,7 @@ export default function DataExplorerScorecardPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl min-w-0 space-y-2 px-4 pb-8 sm:max-w-4xl md:px-8">
-      <div className="rounded-xl border border-slate-400/45 bg-slate-300/35 p-2 shadow-sm sm:p-2">
+      <div className="rounded-xl border border-stone-300 bg-stone-200/50 p-2 shadow-sm sm:p-2">
         <div className="rounded-lg border border-slate-300/80 bg-white p-2.5 shadow-sm sm:p-3">
           <div className="flex flex-col gap-2.5">
             <div className="min-w-0 space-y-0.5">
@@ -1110,7 +1110,7 @@ export default function DataExplorerScorecardPage() {
       </div>
 
       {locationFips ? (
-        <div className="rounded-xl border border-slate-400/45 bg-slate-300/35 p-2 shadow-sm sm:p-2.5">
+        <div className="rounded-xl border border-stone-300 bg-stone-200/50 p-2 shadow-sm sm:p-2.5">
           <div className="rounded-lg border border-slate-300/80 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
               <div className="min-w-0 flex-1">
@@ -1182,7 +1182,7 @@ export default function DataExplorerScorecardPage() {
       ) : null}
 
       {locationFips ? (
-        <div className="rounded-xl border border-slate-400/45 bg-slate-300/35 p-2 shadow-sm sm:p-2.5">
+        <div className="rounded-xl border border-stone-300 bg-stone-200/50 p-2 shadow-sm sm:p-2.5">
           <ScorecardTrendLegend />
         </div>
       ) : null}
@@ -1192,7 +1192,7 @@ export default function DataExplorerScorecardPage() {
         const { letter, pill } = sectionGradeByGroupId.get(g.id) ?? { letter: '—', pill: 'No trend data' }
 
         return (
-          <div key={`${g.id}-trend-${trendYears}`} className="rounded-xl border border-slate-400/45 bg-slate-300/35 p-2 shadow-sm sm:p-2.5">
+          <div key={`${g.id}-trend-${trendYears}`} className="rounded-xl border border-stone-300 bg-stone-200/50 p-2 shadow-sm sm:p-2.5">
             <section className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2">
               <div className="min-w-0 flex-1 space-y-2">
@@ -1404,7 +1404,7 @@ export default function DataExplorerScorecardPage() {
         : null}
 
       {locationFips ? (
-        <div className="rounded-xl border border-slate-400/45 bg-slate-300/35 p-2 shadow-sm sm:p-2.5">
+        <div className="rounded-xl border border-stone-300 bg-stone-200/50 p-2 shadow-sm sm:p-2.5">
           <ScorecardGiniLegend />
         </div>
       ) : null}
