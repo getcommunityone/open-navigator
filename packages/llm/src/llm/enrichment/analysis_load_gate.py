@@ -28,11 +28,15 @@ def tier_from_path(path: Path) -> str:
 
 
 def meta_matches_file(meta: Optional[Mapping[str, Any]], analysis_path: Path) -> bool:
-    """False when the metadata was written for a different analysis file.
+    """False when the metadata was written for the other tier's analysis file.
 
     Before #796 a full run overwrote the light run's ``<stem>.meta.json``; that shared file lists the
     full analysis file in ``files.analysis_json``. Pairing it with the light file would label a light
     analysis with the full run's model. No ``files.analysis_json`` means nothing to compare.
+
+    Only the tier is compared, not the name (#820): an analysis and its metadata are renamed together
+    when a meeting's date or title is corrected, and the path stored inside the metadata keeps the old
+    name. A different name with the same tier is still this file's own record.
     """
     if not meta:
         return True
@@ -40,7 +44,7 @@ def meta_matches_file(meta: Optional[Mapping[str, Any]], analysis_path: Path) ->
     recorded = files.get("analysis_json") if isinstance(files, Mapping) else None
     if not recorded:
         return True
-    return Path(str(recorded)).name == Path(analysis_path).name
+    return tier_from_path(Path(str(recorded))) == tier_from_path(Path(analysis_path))
 
 
 def decide_skip(info: Optional[Mapping[str, Any]], low_keep: bool) -> Optional[str]:
