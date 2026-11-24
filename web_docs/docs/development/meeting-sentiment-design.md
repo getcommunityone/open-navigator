@@ -178,6 +178,17 @@ Purpose: see real output on real pages before spending on a wider run.
 | 6. Heat matches the words | phrase rules on the quote and summary: explicit threats, insults or "I am furious" must not sit at 1 or 2; a bare question must not sit at 4 or 5; plus constructed cases at each level | gross heat errors and drift between prompt versions | fine distinctions between neighbouring levels |
 | 5. Outcome smoke test | decisions the body denied should lean against among public speakers on average | gross errors | cause and effect |
 
+Checks 1, 2 and 6 are built (#818) as a package CLI that reads one analysis file and its transcript, with no network,
+database or model call:
+
+```bash
+python -m llm.gemini.public_comment_checks --analysis analysis.json --transcript transcript.txt
+```
+
+It exits non-zero when a bar is missed and lists each row that failed a check. Check 2 only counts quotes that state a
+side in plain words, with negations handled ("do not support" reads against, "not opposed" reads for). Checks 3
+(constructed transcripts run through the model), 4 and 5 need a model run or the warehouse and are not built.
+
 Bar to show the numbers (best judgement; change with a dated line under Decisions): check 1 at least 98 of 100 quotes
 found; check 2 at most 5 of 100 wrong-side flips (a quote that says "oppose" on a row marked For, or the reverse);
 check 3 at least 95 of 100 with no wrong-side flip. Checks 4 and 5 are reported. A row failing check 1 is dropped
