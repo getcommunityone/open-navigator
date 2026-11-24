@@ -39,6 +39,14 @@ from typing import Any, Optional
 import psycopg2
 from loguru import logger
 
+from llm.enrichment.analysis_load_gate import (
+    DEFAULT_MIN_MEETING_P,
+    SKIP_REASONS,
+    decide_skip,
+    fetch_video_info,
+    meta_matches_file,
+    tier_from_path,
+)
 from llm.prompt_version import prompt_version_from_meta
 
 PROJECT_ROOT = Path(__file__).parents[5]
@@ -178,47 +186,101 @@ def upsert_row(conn, *, event_id: int, video_id: str, ai_model: str,
         ))
 
 
+def _empty_stats() -> dict[str, int]:
+    stats = {
+        "discovered": 0, "loaded": 0, "loaded_light": 0, "loaded_full": 0,
+        "skipped_no_meta": 0, "skipped_meta_mismatch": 0, "skipped_tier_mismatch": 0,
+        "skipped_no_video": 0, "skipped_no_event": 0, "skipped_other_tier": 0,
+        "unchecked_no_bronze_row": 0, "errors": 0,
+    }
+    for reason in SKIP_REASONS:
+        stats[f"skipped_{reason}"] = 0
+    return stats
+
+
 def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
         states: Optional[list[str]] = None, dry_run: bool = False,
-        limit: Optional[int] = None) -> dict[str, int]:
+        limit: Optional[int] = None, tier: str = "both",
+        min_meeting_p: float = DEFAULT_MIN_MEETING_P, gate: bool = True) -> dict[str, int]:
+    """Load saved analyses into ``bronze_events_analysis_ai``. Reads files only: never moves,
+    renames or deletes one. ``gate=False`` turns the non-government skip rules off."""
     logger.info("=" * 70)
     logger.info("CACHE → bronze_events_analysis_ai backfill")
     logger.info("  cache root : {}", cache_root)
     logger.info("  states     : {}", ",".join(states) if states else "ALL")
+    logger.info("  tier       : {}", tier)
+    logger.info("  gate       : {}", f"on (keep-score floor {min_meeting_p})" if gate else "OFF")
     logger.info("  dry-run    : {}", dry_run)
     logger.info("=" * 70)
 
+    stats = _empty_stats()
     if not cache_root.exists():
         logger.error("Cache root not found: {}", cache_root)
-        return {"discovered": 0, "loaded": 0, "skipped_no_meta": 0,
-                "skipped_no_video": 0, "skipped_no_event": 0, "errors": 0}
+        return stats
 
     files = discover_analysis_files(cache_root, states)
     if limit:
         files = files[:limit]
+    stats["discovered"] = len(files)
     logger.info("Discovered {:,} analysis files", len(files))
 
+    # Pass 1: read each file's own metadata and decide which tier and video it is.
+    entries: list[dict[str, Any]] = []
+    for path in files:
+        file_tier = tier_from_path(path)
+        if tier != "both" and file_tier != tier:
+            stats["skipped_other_tier"] += 1
+            continue
+        try:
+            analysis = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Unreadable analysis {}: {}", path.name, exc)
+            stats["errors"] += 1
+            continue
+        meta = load_meta(path)
+        if meta is None:
+            stats["skipped_no_meta"] += 1
+            continue
+        if not meta_matches_file(meta, path):
+            # A shared, pre-#796 metadata file written for the other tier's analysis.
+            stats["skipped_meta_mismatch"] += 1
+            logger.warning("Metadata for {} belongs to a different analysis file; skipped", path.name)
+            continue
+        recorded_tier = meta.get("analysis_tier")
+        if recorded_tier and recorded_tier != file_tier:
+            stats["skipped_tier_mismatch"] += 1
+            continue
+        video_id = meta.get("video_id") or extract_video_id(meta.get("video_url"))
+        if not video_id:
+            stats["skipped_no_video"] += 1
+            continue
+        entries.append({"path": path, "tier": file_tier, "analysis": analysis, "meta": meta, "video_id": video_id})
+
     conn = psycopg2.connect(database_url)
-    video_to_event = build_video_to_event_map(conn)
-    logger.info("Resolved {:,} video_id → civic_event.legacy_id mappings from promoted civic_event rows", len(video_to_event))
-
-    stats = {"discovered": len(files), "loaded": 0, "skipped_no_meta": 0,
-             "skipped_no_video": 0, "skipped_no_event": 0, "errors": 0}
-
     try:
-        for path in files:
-            try:
-                analysis = json.loads(path.read_text())
-            except (json.JSONDecodeError, OSError) as exc:
-                logger.warning("Unreadable analysis {}: {}", path.name, exc)
-                stats["errors"] += 1
-                continue
+        video_to_event = build_video_to_event_map(conn)
+        logger.info("Resolved {:,} video_id → civic_event.legacy_id mappings from promoted civic_event rows", len(video_to_event))
 
-            meta = load_meta(path)
-            video_id = (meta or {}).get("video_id") or extract_video_id((meta or {}).get("video_url"))
-            if not video_id:
-                stats["skipped_no_video"] += 1
-                continue
+        info: dict[str, dict[str, Any]] = {}
+        low_keep: set[str] = set()
+        if gate:
+            info = fetch_video_info(conn, [e["video_id"] for e in entries])
+            from llm.typesafe.screen_transcripts import jev_skip_meeting_video_ids
+
+            low_keep = jev_skip_meeting_video_ids(database_url, min_meeting_p)
+
+        # Pass 2: skip what the gate rejects, load the rest.
+        for e in entries:
+            path, video_id, meta, analysis = e["path"], e["video_id"], e["meta"], e["analysis"]
+            if gate:
+                row = info.get(video_id)
+                if row is None:
+                    stats["unchecked_no_bronze_row"] += 1
+                reason = decide_skip(row, video_id in low_keep)
+                if reason:
+                    stats[f"skipped_{reason}"] += 1
+                    logger.debug("Skip {} ({})", path.name, reason)
+                    continue
 
             event_id = video_to_event.get(video_id)
             if event_id is None:
@@ -226,14 +288,14 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
                 logger.debug("No civic_event for video_id={} ({})", video_id, path.name)
                 continue
 
-            ai_model = (meta or {}).get("gemini_model") or DEFAULT_AI_MODEL
+            ai_model = meta.get("gemini_model") or DEFAULT_AI_MODEL
             from llm.gemini.meeting_date_qa import qa_recorded_video_meeting_date
 
             analysis, date_warnings = qa_recorded_video_meeting_date(
                 analysis,
                 video_id=video_id,
-                title=str((meta or {}).get("title") or ""),
-                published_at=(meta or {}).get("published_at"),
+                title=str(meta.get("title") or ""),
+                published_at=meta.get("published_at"),
             )
             for w in date_warnings:
                 logger.warning("{} ({})", w, path.name)
@@ -246,6 +308,7 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
 
             if dry_run:
                 stats["loaded"] += 1
+                stats[f"loaded_{e['tier']}"] += 1
                 continue
 
             try:
@@ -258,6 +321,7 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
                 )
                 conn.commit()
                 stats["loaded"] += 1
+                stats[f"loaded_{e['tier']}"] += 1
             except psycopg2.Error as exc:
                 conn.rollback()
                 logger.error("Upsert failed for {} (event_id={}): {}", path.name, event_id, exc)
@@ -265,10 +329,14 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
     finally:
         conn.close()
 
+    skipped_gate = sum(stats[f"skipped_{r}"] for r in SKIP_REASONS)
     logger.success(
-        "Backfill done: loaded={loaded:,} of {discovered:,} "
-        "(no_event={skipped_no_event:,}, no_video={skipped_no_video:,}, errors={errors:,})",
-        **stats,
+        "Backfill done: loaded={loaded:,} of {discovered:,} (light {loaded_light:,}, full {loaded_full:,}); "
+        "skipped by gate={g:,} (excluded={ex:,}, junk={ju:,}, non-meeting={nm:,}, low keep-score={lk:,}); "
+        "no_event={skipped_no_event:,}, no_meta={skipped_no_meta:,}, meta_mismatch={skipped_meta_mismatch:,}, "
+        "no_video={skipped_no_video:,}, errors={errors:,}",
+        g=skipped_gate, ex=stats["skipped_policy_excluded"], ju=stats["skipped_junk_channel"],
+        nm=stats["skipped_non_meeting_type"], lk=stats["skipped_low_keep_score"], **stats,
     )
     return stats
 
@@ -286,6 +354,12 @@ def main() -> int:
                         help="Discover and resolve, but do not write to the DB")
     parser.add_argument("--limit", type=int, default=None,
                         help="Cap the number of files processed (debug)")
+    parser.add_argument("--tier", choices=("light", "full", "both"), default="both",
+                        help="Which analyses to load (default: both; full files end in _full.json)")
+    parser.add_argument("--min-meeting-p", type=float, default=DEFAULT_MIN_MEETING_P,
+                        help="Skip videos whose Jev keep-score P(government_meeting)+P(town_hall) is below this")
+    parser.add_argument("--no-gate", action="store_true",
+                        help="Load everything: turn off the non-government skip rules")
     args = parser.parse_args()
 
     states = [s.strip().upper() for s in args.states.split(",")] if args.states else None
@@ -293,6 +367,7 @@ def main() -> int:
     stats = run(
         cache_root=args.cache_root, database_url=args.database_url,
         states=states, dry_run=args.dry_run, limit=args.limit,
+        tier=args.tier, min_meeting_p=args.min_meeting_p, gate=not args.no_gate,
     )
     # Non-zero exit only on hard errors; unmatched events are expected/benign.
     return 1 if stats["errors"] else 0

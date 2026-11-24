@@ -139,6 +139,7 @@ def _with_tier_suffix(path: Path, tier: str) -> Path:
         return path
     return path.with_name(f"{path.stem}_full{path.suffix}")
 
+from llm.gemini.tier_names import meta_with_tier_suffix as _meta_with_tier_suffix  # noqa: E402
 from llm.gemini.agenda_presenter_hints import (  # noqa: E402
     enrich_uncontested_media_anchors,
     format_agenda_presenter_hints_block,
@@ -514,7 +515,9 @@ def save_transcript_policy_output(
         report_cache_path(output_dir, jid, title=title, event_date=event_date, **geo),
         tier,
     )
-    meta_path = run_meta_path(output_dir, jid, title=title, event_date=event_date, **geo)
+    meta_path = _meta_with_tier_suffix(
+        run_meta_path(output_dir, jid, title=title, event_date=event_date, **geo), tier
+    )
     diagrams_md_path = run_diagrams_path(
         output_dir, jid, title=title, event_date=event_date, **geo
     )
@@ -682,6 +685,8 @@ def save_transcript_policy_output(
         # Content hash of the prompt used, so each analysis shows which wording made it.
         "prompt_sha256": prompt_hash,
         "gemini_model": model,
+        # light or full, so the loader can check a file against its own metadata (#796).
+        "analysis_tier": tier,
         "generation_source": generation_source,
         "pipeline": pipeline,
         "generated_at": ts,
@@ -1601,6 +1606,17 @@ def run_pipeline(args: argparse.Namespace) -> None:
     # Prefer disk captions when batching from bronze; sync bronze → 01_transcripts/ first.
     if args.from_bronze and args.use_local_transcript:
         args.ensure_local_from_bronze = True
+
+    from llm.gemini.tier_model_guard import tier_model_conflict
+
+    _conflict = tier_model_conflict(
+        tier=_analysis_tier(args),
+        model=(args.model or "").strip(),
+        part_2_model=(args.part_2_model or "").strip(),
+        gemini_default=default_flash_lite_model(),
+    )
+    if _conflict:
+        raise SystemExit(_conflict)
 
     needs_api = not args.transcript_only
     api_key = ""
