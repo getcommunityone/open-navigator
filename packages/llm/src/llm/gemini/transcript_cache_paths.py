@@ -1906,18 +1906,43 @@ def destination_for_policy_file(
     return None
 
 
+SUPERSEDED_DIR = "_superseded"
+
+
+def _set_aside(path: Path) -> Path:
+    """Move ``path`` into a sibling ``_superseded/`` folder instead of deleting it (#796).
+
+    A duplicate in the cache may be the only copy of a light analysis, so nothing here deletes
+    it. A name already taken in ``_superseded`` gets the file's modified time added.
+    """
+    aside = path.parent / SUPERSEDED_DIR
+    aside.mkdir(parents=True, exist_ok=True)
+    target = aside / path.name
+    if target.exists():
+        stamp = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y%m%dT%H%M%S")
+        target = aside / f"{path.stem}.{stamp}{path.suffix}"
+        n = 1
+        while target.exists():
+            target = aside / f"{path.stem}.{stamp}.{n}{path.suffix}"
+            n += 1
+    shutil.move(str(path), str(target))
+    logger.info("Set aside {} -> {}", path, target)
+    return target
+
+
 def _safe_move(src: Path, dest: Path, *, dry_run: bool) -> str:
+    """Move ``src`` to ``dest``. When ``dest`` exists, the older file is set aside, never deleted."""
     if dest.resolve() == src.resolve():
         return "same"
     if dest.is_file():
         if src.stat().st_mtime <= dest.stat().st_mtime:
             if dry_run:
-                return "would_remove_older_duplicate"
-            src.unlink()
-            return "removed_older_duplicate"
+                return "would_set_aside_older_duplicate"
+            _set_aside(src)
+            return "set_aside_older_duplicate"
         if dry_run:
             return "would_replace_newer"
-        dest.unlink()
+        _set_aside(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dry_run:
         return "would_move"
@@ -2026,7 +2051,7 @@ def migrate_policy_cache_layout(
         for i, src in enumerate(sources):
             action = _safe_move(src, dest, dry_run=dry_run)
             stats[action] += 1
-            if i > 0 and action in ("removed_older_duplicate", "would_remove_older_duplicate"):
+            if i > 0 and action in ("set_aside_older_duplicate", "would_set_aside_older_duplicate"):
                 continue
     repair_policy_cache_basenames(folder, dry_run=dry_run)
     return dict(stats)
