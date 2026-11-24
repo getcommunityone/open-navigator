@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { tracer } from './instrumentation'
@@ -51,7 +51,7 @@ import CensusDrilldownMapPage from './pages/CensusDrilldownMapPage'
 import DataExplorerLayout from './components/DataExplorerLayout'
 import AdminLayout from './components/AdminLayout'
 import DataExplorerScorecardPage from './pages/DataExplorerScorecardPage'
-import DataExplorerMatrixPage from './pages/DataExplorerMatrixPage'
+import LazyRouteBoundary from './components/LazyRouteBoundary'
 import BillDetail from './pages/BillDetail'
 import GrantDetail from './pages/GrantDetail'
 import DecisionDetail from './pages/DecisionDetail'
@@ -61,6 +61,10 @@ import MeetingCompare from './pages/MeetingCompare'
 import EventBillDetail from './pages/EventBillDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
+
+// Loaded only when its route is visited (#856): its fonts and chart code stay out of the main bundle, and a
+// failure to load it cannot blank the rest of the site.
+const DataExplorerMatrixPage = lazy(() => import('./pages/DataExplorerMatrixPage'))
 
 /** Old route-based drill-down (`/map/state/13/...`, `/map/place/13/...`) is now in-page;
  * redirect those bookmarks to the unified `/map/us/{vintage}/{metric}` entry. */
@@ -182,7 +186,14 @@ function App() {
         <Route path="data-explorer" element={<DataExplorerLayout />}>
           <Route index element={<DataExplorerMapDefaultRedirect />} />
           <Route path="scorecard" element={<DataExplorerScorecardPage />} />
-          <Route path="matrix" element={<DataExplorerMatrixPage />} />
+          <Route
+            path="matrix"
+            element={
+              <LazyRouteBoundary name="Matrix map">
+                <DataExplorerMatrixPage />
+              </LazyRouteBoundary>
+            }
+          />
           <Route path="jurisdiction-quality" element={<JurisdictionMappingQualityPage />} />
           {/* Lighthouse report + batch jobs moved to the Admin area; keep old URLs working. */}
           <Route path="lighthouse-report" element={<Navigate to="/admin/lighthouse-report" replace />} />

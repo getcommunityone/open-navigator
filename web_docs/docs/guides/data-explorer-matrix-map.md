@@ -179,3 +179,9 @@ Rules that always hold:
 - **Numbers never animate to anything but the real value.** A count-up always ends on the exact formatted value from the
   data. If a value is missing, the figure shows a dash and does not count at all.
 - Motion never changes what is shown: the scope label, the URL parameters and the data are the same with or without it.
+
+## If the page does not load (#856)
+
+The Matrix map's code and fonts load only when its tab is opened. If they fail to load, the tab shows "Matrix map
+could not be loaded" with the error and a Reload button, and the rest of the site keeps working. On a developer
+machine the usual cause is a pull that added a package: run `npm install` in `web_app` and reload.
