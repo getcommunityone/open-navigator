@@ -19,6 +19,7 @@ import {
 } from '@assistant-ui/react'
 import { apiBaseUrl } from '../../lib/api'
 import { withSpan } from '../../instrumentation'
+import { chatErrorMessage } from '../../utils/chatError'
 
 export type MeetingChatCitation = {
   title: string
@@ -255,8 +256,8 @@ export function MeetingChatRuntimeProvider({
                 county_fips: scope.county_fips || undefined,
               }),
             })
-            const body = (await res.json()) as ChatApiResponse & { detail?: string }
-            if (!res.ok) {
+            const body = (await res.json().catch(() => null)) as (ChatApiResponse & { detail?: string }) | null
+            if (!res.ok || !body) {
               throw { response: { status: res.status, data: body } }
             }
             return body
@@ -286,16 +287,8 @@ export function MeetingChatRuntimeProvider({
           },
         ])
       } catch (err: unknown) {
-        const status = (
-          err as { response?: { status?: number; data?: { detail?: string } } }
-        )?.response
-        const detail =
-          status?.data?.detail ||
-          (status?.status === 429
-            ? 'Rate limit reached. Please wait a moment.'
-            : status?.status === 503
-              ? 'Daily chat budget reached. Try again tomorrow.'
-              : 'Something went wrong answering that. Please try again.')
+        // Say what actually happened: the server's reason, a timeout, or no connection (#916).
+        const detail = chatErrorMessage(err).text
         setActiveMessages((prev) => [
           ...prev,
           {

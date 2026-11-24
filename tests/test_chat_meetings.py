@@ -53,7 +53,11 @@ class _Pool:
 
 
 @pytest.fixture(autouse=True)
-def _reset_limits():
+def _reset_limits(monkeypatch):
+    # The model call is mocked in these tests; the provider only has to look configured (#916).
+    monkeypatch.delenv("CHAT_PROVIDER", raising=False)
+    monkeypatch.delenv("CHAT_MODEL", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "placeholder-for-tests")
     chat.clear_chat_rate_limits()
     yield
     chat.clear_chat_rate_limits()
@@ -242,3 +246,54 @@ def test_a_refusal_is_a_502_not_an_answer(post):
     r = post(_Conn(rows=[_meeting_row()]), {"question": "fluoride in Madison"}, llm=refuse)
     assert r.status_code == 502
     assert "answer" not in r.json()
+
+
+# --- #916: the live chat failed for every question and nobody could tell why --------------------
+
+
+def _get_status() -> httpx.Response:
+    app = FastAPI()
+    app.include_router(chat.router, prefix="/api")
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+            return await c.get("/api/chat/status")
+
+    return asyncio.run(go())
+
+
+def test_without_the_provider_key_the_chat_says_it_is_not_set_up_and_calls_no_model(post, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    called = []
+    r = post(
+        _Conn(rows=[_meeting_row()]),
+        {"question": "fluoride in Madison"},
+        llm=lambda s, u: called.append(1) or ("a", "m", 1, 1, None),
+    )
+    assert r.status_code == 503
+    assert r.json()["detail"] == "Chat is not set up on this site yet."
+    assert called == []
+
+
+def test_a_question_that_finds_no_meetings_still_answers_without_a_key(post, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    r = post(_Conn(rows=[]), {"question": "nothing matches this"})
+    assert r.status_code == 200
+    assert r.json()["found"] is False
+
+
+def test_status_reports_provider_model_and_whether_the_key_is_set(monkeypatch):
+    body = _get_status().json()
+    assert body == {"provider": "anthropic", "model": "claude-haiku-5-5", "configured": True}
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    body = _get_status().json()
+    assert body["configured"] is False
+    assert set(body) == {"provider", "model", "configured"}
+
+
+def test_the_missing_setting_names_the_variable_and_never_a_value(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "   ")
+    assert chat.chat_missing_setting() == "ANTHROPIC_API_KEY"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "placeholder-for-tests")
+    assert chat.chat_missing_setting() is None

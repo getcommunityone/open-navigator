@@ -183,6 +183,10 @@ git push hf huggingface-deploy:main
  ```
 5. Click **Save**
 
+The meeting chat needs `ANTHROPIC_API_KEY` as a secret (or, with `CHAT_PROVIDER=gemini`, a Gemini key). Without it the
+chat answers "Chat is not set up on this site yet." To check a running Space, open `/api/chat/status`: it returns the
+provider, the model and `"configured": true` or `false`, and never a key.
+
 ## Step 5: Wait for Build
 
 The Space will automatically build when you push. This takes **10-15 minutes**:
