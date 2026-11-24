@@ -70,7 +70,7 @@ function TileGrid({ ctx, groups }: { ctx: MatrixCtx; groups: Group[] }) {
   let i = 0
   const { metricSlug: slug, fmt, theme, metricLabel } = ctx
   return (
-    <ul ref={ref} className="folio-tiles">
+    <ul ref={ref} className="folio-tiles" data-hot={ctx.hotFips ? '' : undefined}>
       {groups.flatMap((g) => [
         ...(g.label ? [<li key={`g:${g.key}`} className="folio-group-label">{g.label}</li>] : []),
         ...g.items.map((r) => {
@@ -82,7 +82,7 @@ function TileGrid({ ctx, groups }: { ctx: MatrixCtx; groups: Group[] }) {
             <li
               key={r.fips}
               data-flip={r.fips}
-              className={intro ? 'folio-in' : undefined}
+              className={[intro ? 'folio-in' : '', ctx.hotFips === r.fips ? 'is-hot' : ''].filter(Boolean).join(' ') || undefined}
               style={intro ? delayVar(staggerDelayMs(idx % nCols, Math.floor(idx / nCols), maxDiag, 900)) : undefined}
             >
               <Link to={ctx.mapHref} title={`${r.name}: ${fmt(slug, v)} — ${metricLabel}`} className="folio-tile" style={style}>

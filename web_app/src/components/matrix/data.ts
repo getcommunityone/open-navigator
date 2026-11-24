@@ -4,6 +4,7 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import type { FolioTheme } from '../../utils/folioThemes'
 import { labelOn } from '../../utils/folioRamp'
+import { signedChange as signedChange0 } from '../../utils/matrixTable'
 import type { MatrixCtx, Metric, Row, StatePayload } from './types'
 
 export const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -74,12 +75,7 @@ export function signedChange(
   metrics: Metric[],
   fmt: (slug: string, v: number | null) => string,
 ): string {
-  if (base == null || latest == null || !Number.isFinite(base) || !Number.isFinite(latest)) return '—'
-  const d = latest - base
-  const sign = d > 0 ? '+' : d < 0 ? '−' : ''
-  const a = Math.abs(d)
-  if (metricOf(metrics, slug)?.format === 'percent') return `${sign}${a.toFixed(a >= 10 ? 0 : 1)} pp`
-  return `${sign}${fmt(slug, a)}`
+  return signedChange0(latest, base, metricOf(metrics, slug)?.format === 'percent' ? 'pp' : 'number', (a) => fmt(slug, a)) ?? '—'
 }
 
 export const FIG_NO = (i: number): string => String(i + 1).padStart(2, '0')

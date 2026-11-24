@@ -29,6 +29,16 @@ describe('every theme', () => {
         expect(contrastRatio(bg, labelOn(bg, [ink]))).toBeGreaterThanOrEqual(4.5)
       }
     })
+    it(`${t.id}: table bars, sparklines and share-label leaders are visible (3:1) on the page and against the bar track`, () => {
+      const v = t.vars
+      // The bar fill and sparkline stroke are --violet-ink; the track is --neutral-data; leaders are --ink-3.
+      for (const paper of [v['--paper']!, v['--paper-raised']!]) {
+        expect(contrastRatio(paper, v['--violet-ink']!), 'fill on paper').toBeGreaterThanOrEqual(3)
+        expect(contrastRatio(paper, v['--ink-3']!), 'leader on paper').toBeGreaterThanOrEqual(3)
+      }
+      expect(contrastRatio(t.neutral, v['--violet-ink']!), 'fill on track').toBeGreaterThanOrEqual(3)
+      expect(t.neutral).toBe(v['--neutral-data'])
+    })
     it(`${t.id}: body text, links and the section band are at 4.5:1`, () => {
       for (const bg of [t.vars['--paper']!, t.vars['--paper-raised']!]) {
         for (const fg of ['--ink', '--ink-2', '--ink-3', '--violet-ink', '--vermilion-ink']) {
