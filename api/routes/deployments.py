@@ -51,6 +51,15 @@ router = APIRouter(
 # separate, optional step — selectable in the panel but not run by default.
 _STEP_DEFS: List[Dict[str, str]] = [
     {
+        "key": "promote-events",
+        "group": "load",
+        "label": "Promote events — videos → civic_event",
+        "description": (
+            "Give every analysed video an event row (bronze_event_youtube -> civic_event), so the next step can attach its analysis. Safe to repeat: it upserts."
+        ),
+        "target": "local-warehouse",
+    },
+    {
         "key": "load-analysis",
         "group": "load",
         "label": "Load analyses — files → bronze",
@@ -90,7 +99,7 @@ _STEP_GROUP = {d["key"]: d["group"] for d in _STEP_DEFS}
 _DEFAULT_STEPS = ["database"]
 # Default steps per group (keep in sync with hosting.deploy.run_deployment.DEFAULT_STEPS_BY_GROUP).
 _DEFAULT_STEPS_BY_GROUP: Dict[str, List[str]] = {
-    "load": ["load-analysis", "dbt-gold"],
+    "load": ["promote-events", "load-analysis", "dbt-gold"],
     "deploy": ["database"],
 }
 # Steps that publish outside this machine. Only these need DEPLOYMENTS_ALLOW_LAUNCH; the load
@@ -272,7 +281,7 @@ class StepResultResponse(BaseModel):
 _REASON_INFO: Dict[str, tuple] = {
     "unreadable": ("File could not be read", "The analysis file is empty or not valid JSON, usually from an interrupted run. The next analysis run redoes it; then load again."),
     "upsert_failed": ("Database write failed", "Read the error text; a foreign-key error usually means the meeting's event row is missing."),
-    "no_event": ("No event row yet", "Run ingestion.youtube.promote_to_c1_event so the video has a civic_event row, then load again."),
+    "no_event": ("No event row yet", "The Promote events step creates these rows, but only for videos with an analysis stamp and a date. If this stays high, check those videos in bronze_event_youtube."),
     "no_meta": ("No run metadata", "The file has no metadata file of its own in 04_runs, so its model and video are unknown."),
     "meta_mismatch": ("Metadata is for the other tier", "A full run overwrote the light run's metadata before #796. Re-run the light analysis to get its own record."),
     "tier_mismatch": ("Tier does not match", "The metadata's analysis_tier disagrees with the file name."),

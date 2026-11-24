@@ -6,6 +6,9 @@ const PAGE_SIZE = 50
 
 /** The counts a step row shows, in reading order. Keys a step did not record are left out. */
 const COUNT_LABELS: Array<[key: string, label: string, tone: 'plain' | 'good' | 'warn' | 'bad']> = [
+  ['eligible', 'videos', 'plain'],
+  ['events_upserted', 'events', 'good'],
+  ['media_attached', 'recordings', 'good'],
   ['read', 'read', 'plain'],
   ['models', 'models', 'plain'],
   ['loaded', 'loaded', 'good'],

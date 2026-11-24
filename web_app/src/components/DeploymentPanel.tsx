@@ -192,7 +192,7 @@ const COPY: Record<
   load: {
     heading: 'Load analyses into the database',
     blurb:
-      'Runs the selected steps in order: saved analysis files → bronze, then dbt rebuilds the gold tables and ' +
+      'Runs the selected steps in order: analysed videos get their event rows, saved analysis files → bronze, then dbt rebuilds the gold tables and ' +
       'refreshes the public views the website reads. Local warehouse only; nothing is published. A failing step stops the run.',
     realLabel: '▶ Run load',
     confirm: (steps) =>

@@ -58,6 +58,17 @@ from typing import Any, Dict, List, Optional
 # local serving objects to prod). The two groups never run in the same job (#796).
 # ``{dbt}`` is replaced with the dbt executable (see :func:`dbt_bin`).
 STEP_DEFS: Dict[str, Dict[str, Any]] = {
+    "promote-events": {
+        "group": "load",
+        "label": "Promote events — videos → civic_event",
+        "description": (
+            "Give every analysed video an event row (bronze_event_youtube -> civic_event), so the next step can attach its analysis. Safe to repeat: it upserts."
+        ),
+        "target": "local-warehouse",
+        # --local-warehouse: the same database the loader writes to, never production (#827).
+        "argv": ["{python}", "-m", "ingestion.youtube.promote_to_c1_event", "--local-warehouse",
+                 "--result-json", "{result}"],
+    },
     "load-analysis": {
         "group": "load",
         "label": "Load analyses — files → bronze",
@@ -99,7 +110,7 @@ STEP_DEFS: Dict[str, Dict[str, Any]] = {
 # Default pipeline per group. For ``deploy`` it is the database serving copy only; ``web`` is
 # selectable in the panel but not run by default (it's a separate, flakier concern).
 DEFAULT_STEPS_BY_GROUP: Dict[str, List[str]] = {
-    "load": ["load-analysis", "dbt-gold"],
+    "load": ["promote-events", "load-analysis", "dbt-gold"],
     "deploy": ["database"],
 }
 DEFAULT_STEPS: List[str] = DEFAULT_STEPS_BY_GROUP["deploy"]  # back-compat
@@ -337,7 +348,12 @@ def collect_step_result(key: str, result_path: Path, root: Path, started_epoch: 
             return None
         data = json.loads(result_path.read_text())
         counts = data.get("counts") if isinstance(data, dict) else None
-        return summarize_load_counts(counts) if isinstance(counts, dict) else None
+        if not isinstance(counts, dict):
+            return None
+        if key == "load-analysis":
+            return summarize_load_counts(counts)
+        # Other steps (promotion) already write the few numbers their row shows.
+        return {str(k): int(v) for k, v in counts.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
     except (OSError, ValueError, TypeError):
         return None
 
@@ -349,6 +365,8 @@ def _child_env() -> Dict[str, str]:
     srcs = [
         str(_repo_root() / "packages" / "hosting" / "src"),
         str(_repo_root() / "packages" / "llm" / "src"),
+        str(_repo_root() / "packages" / "ingestion" / "src"),
+        str(_repo_root() / "packages" / "core-lib" / "src"),
     ]
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = os.pathsep.join(srcs + ([existing] if existing else []))

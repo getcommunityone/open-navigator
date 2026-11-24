@@ -54,9 +54,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 
 import psycopg2
 from loguru import logger
@@ -262,9 +265,41 @@ def insert_media(conn, events: list[YouTubeEvent], *, dry_run: bool) -> int:
     return n
 
 
+def local_warehouse_url() -> str:
+    """The database the analysis cache loader writes to: ``NEON_DATABASE_URL_DEV``, else the local
+    warehouse on ``localhost:5433``. Never ``NEON_DATABASE_URL`` (production).
+
+    The Load tab runs promotion and the load back to back, so both must hit the same database, and
+    that tab never touches production (#827). This is the same rule as ``DATABASE_URL`` in
+    ``llm.enrichment.load_analysis_cache_to_bronze``; a test keeps the two in step.
+    """
+    dev = (os.getenv("NEON_DATABASE_URL_DEV") or "").strip()
+    if dev:
+        return dev
+    password = os.getenv("POSTGRES_PASSWORD", "password")
+    return f"postgresql://postgres:{password}@localhost:5433/open_navigator"
+
+
+def write_result_json(path: Path, stats: dict[str, int], *, dry_run: bool) -> None:
+    """Counts for the Load tab's step row (#827)."""
+    payload = {
+        "schema": 1,
+        "kind": "promote",
+        "dry_run": dry_run,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "counts": stats,
+        "items": [],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload), encoding="utf-8")
+    tmp.replace(path)
+
+
 def run(*, states: tuple[str, ...] | None = None, all_dated: bool = False,
-        dry_run: bool = False, limit: int | None = None) -> dict[str, int]:
-    db_url = resolve_target_database_url()
+        dry_run: bool = False, limit: int | None = None,
+        database_url: str | None = None) -> dict[str, int]:
+    db_url = database_url or resolve_target_database_url()
     logger.info("=" * 70)
     logger.info("bronze_event_youtube -> public.civic_event promotion")
     logger.info("  scope   : {}", "all dated videos" if all_dated else "policy-analyzed only")
@@ -305,10 +340,20 @@ def main(argv: list[str] | None = None) -> int:
                    help="Promote every video with an event_date (default: policy-analyzed only)")
     p.add_argument("--dry-run", action="store_true", help="Resolve & count, but no DB writes")
     p.add_argument("--limit", type=int, default=None, help="Cap rows processed (debug)")
+    p.add_argument("--local-warehouse", action="store_true",
+                   help="Write to the database the analysis loader uses (NEON_DATABASE_URL_DEV, else "
+                        "localhost:5433); never NEON_DATABASE_URL")
+    p.add_argument("--result-json", type=Path, default=None, help="Write the counts to this JSON file")
     args = p.parse_args(argv)
 
     states = tuple(s.strip().upper() for s in args.states.split(",") if s.strip()) or None
-    run(states=states, all_dated=args.all_dated, dry_run=args.dry_run, limit=args.limit)
+    stats = run(states=states, all_dated=args.all_dated, dry_run=args.dry_run, limit=args.limit,
+                database_url=local_warehouse_url() if args.local_warehouse else None)
+    if args.result_json:
+        try:
+            write_result_json(args.result_json, stats, dry_run=args.dry_run)
+        except OSError as exc:
+            logger.warning("Could not write the result file {}: {}", args.result_json, exc)
     return 0
 
 

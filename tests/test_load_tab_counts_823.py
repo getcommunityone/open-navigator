@@ -211,6 +211,78 @@ def test_summarize_load_counts(orch):
     assert orch.summarize_load_counts({}) == {"read": 0, "loaded": 0, "skipped": 0, "errors": 0}
 
 
+# --------------------------------------------------------------------------- promotion (#827)
+def test_promotion_runs_first_against_the_local_warehouse(orch, tmp_path):
+    assert orch.DEFAULT_STEPS_BY_GROUP["load"][0] == "promote-events"
+    assert orch.step_group("promote-events") == "load"
+    assert orch.STEP_DEFS["promote-events"]["target"] == "local-warehouse"
+    path = orch.result_path_for(tmp_path, "load_1", "promote-events")
+    argv = orch._step_argv("promote-events", path)
+    assert argv[1:4] == ["-m", "ingestion.youtube.promote_to_c1_event", "--local-warehouse"]
+    assert argv[-2:] == ["--result-json", str(path)]
+    assert "--all-dated" not in argv  # only analysed videos, never the raw scrape
+    paths = orch._child_env()["PYTHONPATH"].split(os.pathsep)
+    assert any(p.endswith("packages/ingestion/src") for p in paths)
+    assert any(p.endswith("packages/core-lib/src") for p in paths)
+
+
+def test_promotion_counts_show_as_written(orch, tmp_path):
+    result = tmp_path / "j_promote-events.result.json"
+    result.write_text(json.dumps({"kind": "promote", "counts": {"eligible": 9, "events_upserted": 9, "media_attached": 8,
+                                                              "flag": True}}))
+    assert orch.collect_step_result("promote-events", result, tmp_path, time.time()) == {
+        "eligible": 9, "events_upserted": 9, "media_attached": 8}
+
+
+promote = pytest.importorskip("ingestion.youtube.promote_to_c1_event")
+
+
+def test_local_warehouse_url_never_falls_back_to_production(monkeypatch):
+    monkeypatch.setenv("NEON_DATABASE_URL", "postgresql://prod.example/db")
+    monkeypatch.setenv("OPEN_NAVIGATOR_DATABASE_URL", "postgresql://other.example/db")
+    monkeypatch.delenv("NEON_DATABASE_URL_DEV", raising=False)
+    monkeypatch.setenv("POSTGRES_PASSWORD", "pw")
+    assert promote.local_warehouse_url() == "postgresql://postgres:pw@localhost:5433/open_navigator"
+    monkeypatch.setenv("NEON_DATABASE_URL_DEV", "postgresql://dev.example/db")
+    assert promote.local_warehouse_url() == "postgresql://dev.example/db"
+
+
+def test_promotion_and_the_loader_resolve_the_same_database(monkeypatch):
+    """Both steps of a Load run must write to one database."""
+    import importlib
+
+    for dev in ("", "postgresql://dev.example/db"):
+        if dev:
+            monkeypatch.setenv("NEON_DATABASE_URL_DEV", dev)
+        else:
+            monkeypatch.delenv("NEON_DATABASE_URL_DEV", raising=False)
+        monkeypatch.setenv("POSTGRES_PASSWORD", "pw")
+        reloaded = importlib.reload(loader)
+        assert reloaded.DATABASE_URL == promote.local_warehouse_url(), dev
+    monkeypatch.delenv("NEON_DATABASE_URL_DEV", raising=False)
+    importlib.reload(loader)
+
+
+def test_promote_cli_uses_the_local_warehouse_and_writes_counts(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(**kw):
+        seen.update(kw)
+        return {"eligible": 3, "events_upserted": 3, "media_attached": 2}
+
+    monkeypatch.setattr(promote, "run", fake_run)
+    monkeypatch.setenv("NEON_DATABASE_URL", "postgresql://prod.example/db")
+    monkeypatch.delenv("NEON_DATABASE_URL_DEV", raising=False)
+    out = tmp_path / "p.json"
+    assert promote.main(["--local-warehouse", "--result-json", str(out)]) == 0
+    assert "localhost:5433" in seen["database_url"] and "prod.example" not in seen["database_url"]
+    data = json.loads(out.read_text())
+    assert data["kind"] == "promote" and data["counts"]["events_upserted"] == 3 and data["items"] == []
+    seen.clear()
+    assert promote.main([]) == 0
+    assert seen["database_url"] is None  # without the flag the existing resolution is unchanged
+
+
 def _run_results(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"results": [
