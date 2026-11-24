@@ -4,19 +4,21 @@ branch: fix/924-local-meetings-copy
 title: "fix(web_app): say local meetings in the Data Stories and challenge copy"
 author: jcbowyer
 reviewed_at: 2026-11-24
-reviewer: github-actions
+reviewer: github-actions, coordinator
 head_sha: b7dfedd176fab5f9573378200e93ed20d2d6fb22
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: fix(web_app): say local meetings in the Data Stories and challenge copy
 
 ## Summary
 
-Automated review (#648) for PR #925 on `fix/924-local-meetings-copy`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Copy only: public meetings becomes local meetings in the hub card, the story's last screen and promises screen, one challenge chart title and two sentences of the challenge guide, at the owner's request.
+
+Read by the coordinator against the diff and screenshots at desktop and phone sizes; the heuristic scan ran first.
 
 ## Scope of Change
+
 
 - `web_app/src/components/stance/StoryVoteScreens.tsx`
 - `web_app/src/pages/DataStories.tsx`
@@ -26,16 +28,11 @@ Automated review (#648) for PR #925 on `fix/924-local-meetings-copy`. Heuristic 
 
 ## CI Status
 
-See the PR checks on `b7dfedd176fa`.
+Required checks are read on the head commit before merge. Locally: tsc clean, vitest passed, build ok.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
+- Secrets: clean. Fabricated data: none. Personal data: none. Destructive changes: none.
 
 ## Findings
 
@@ -45,12 +42,14 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+None.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- Not viewed in a browser; each change swaps one word for another of similar length inside existing text.
+- Code comments still say public meeting; they are not reader-facing.
+- Other pages of the site (home, events) still say city council and public hearings; out of scope here.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**
