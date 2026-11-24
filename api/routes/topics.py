@@ -234,7 +234,10 @@ async def list_topic_meetings(
         except Exception as exc:  # noqa: BLE001
             logger.exception("topic meetings failed")
             span.record_exception(exc)
-            return TopicMeetingList(topic_id=topic_id, total=0, items=[])
+            # A failed query is not "no meetings" (#816): the list component shows its error state.
+            raise HTTPException(
+                status_code=503, detail="Meetings for this topic are unavailable right now."
+            ) from exc
 
         span.set_attribute("topics.meetings_total", int(total or 0))
         return TopicMeetingList(

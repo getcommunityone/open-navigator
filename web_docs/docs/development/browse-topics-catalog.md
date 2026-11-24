@@ -31,6 +31,9 @@ data centers, short-term rentals, Flock cameras and license plate readers.
 | The query fails | `503 {"detail": "Topics are unavailable right now."}` | "Couldn't load topics"; the filter reads "Topics unavailable" |
 | No topics for the scope | `200 []` | "No topics available for (place) yet", with a link to the national view; the filter reads "No topics available" |
 
+A topic's meeting list (`GET /api/topics/{topic_id}/meetings`) follows the same rule since #816: a failed query is a
+`503`, shown as "Couldn't load meetings for this topic", and never as a topic with zero meetings.
+
 Before issue #808 a failed query returned `200 []`, so a failure looked the same as an empty catalog and the page
 showed nothing at all.
 

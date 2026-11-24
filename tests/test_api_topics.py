@@ -175,6 +175,16 @@ def test_topic_meetings_national_scope_passes_nulls(get):
     assert conn.calls[0][1] == (51, None, None)
 
 
+def test_topic_meetings_query_failure_is_503_not_zero_meetings(get):
+    class _Broken(_Conn):
+        async def fetchval(self, sql: str, *params: Any):
+            raise RuntimeError("relation does not exist")
+
+    resp = get(_Broken(), "/api/topics/51/meetings")
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Meetings for this topic are unavailable right now."
+
+
 def test_curated_topic_tsquery_matches_phrases_not_loose_words():
     tq = search._curated_topic_tsquery(
         "Data centers",
