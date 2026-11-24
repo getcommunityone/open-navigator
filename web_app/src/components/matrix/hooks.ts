@@ -7,7 +7,7 @@ export const SectionContext = createContext<{ seen: boolean; el: HTMLElement | n
 export const useSection = () => useContext(SectionContext)
 
 /** True once the element has been at least `threshold` visible. Stays true (each section animates in once). */
-export function useInViewOnce(ref: RefObject<Element>, threshold = 0.12): boolean {
+export function useInViewOnce(ref: RefObject<Element>, threshold = 0.12, rootMargin?: string): boolean {
   const [seen, setSeen] = useState(() => typeof IntersectionObserver === 'undefined')
   useEffect(() => {
     const el = ref.current
@@ -19,13 +19,20 @@ export function useInViewOnce(ref: RefObject<Element>, threshold = 0.12): boolea
           io.disconnect()
         }
       },
-      { threshold },
+      { threshold, rootMargin },
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [ref, seen, threshold])
+  }, [ref, seen, threshold, rootMargin])
   return seen
 }
+
+/**
+ * When a title plays its entrance: once, when 20% of it is in view above the bottom 10% of the viewport. These are the
+ * reference's own numbers (its `[data-reveal]` observer: threshold 0.20, rootMargin 0 0 -10% 0), applied to the title block
+ * itself so a very tall section cannot delay it. Stays true afterwards: a filter change never replays it.
+ */
+export const useTitleShown = (ref: RefObject<Element>): boolean => useInViewOnce(ref, 0.2, '0px 0px -10% 0px')
 
 /** Width in px of an element, kept current with a ResizeObserver. */
 export function useElementWidth(ref: RefObject<HTMLElement>, fallback = 560): number {

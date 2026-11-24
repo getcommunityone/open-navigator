@@ -1,5 +1,6 @@
 import DotMatrixMap from '../DotMatrixMap'
-import { stepColor, statsOf, statsSentence } from './data'
+import { dotsStory } from '../../utils/matrixStory'
+import { itemsOf, stepColor, statsOf, statsSentence } from './data'
 import { Empty, ScaleLegend } from './parts'
 import SectionShell from './SectionShell'
 import type { MatrixCtx } from './types'
@@ -11,11 +12,13 @@ export default function DotsSection({ ctx }: { ctx: MatrixCtx }) {
   const slug = ctx.metricSlug
   const st = statsOf(ctx.rows, slug)
   const where = drillName ? `${drillName} counties` : 'the United States'
+  const story = dotsStory({ metricLabel: ctx.metricLabel, vintage: ctx.vintage, drillName, items: itemsOf(ctx.rows, slug), fmt: (v) => ctx.fmt(slug, v) })
   return (
     <SectionShell
       ctx={ctx}
       id="dots"
-      headline={[ctx.metricLabel, `across ${where},`, ctx.vintage]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>

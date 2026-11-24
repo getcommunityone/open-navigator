@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { medianOf, quantileOf } from '../../utils/matrixMapMath'
-import { signedChange } from './data'
+import { divergingStory } from '../../utils/matrixStory'
+import { itemsOf, signedChange } from './data'
 import DivergingBars, { type BarRow } from './DivergingBars'
 import { useSection, useSeries } from './hooks'
 import Kpi from './Kpi'
@@ -72,12 +73,14 @@ export default function DivergingSection({ ctx }: { ctx: MatrixCtx }) {
   const above = vals.filter((x) => med != null && x.v > med).length
   const high = vals.reduce<{ r: (typeof vals)[number]['r']; v: number } | null>((a, x) => (a == null || x.v > a.v ? x : a), null)
   const low = vals.reduce<{ r: (typeof vals)[number]['r']; v: number } | null>((a, x) => (a == null || x.v < a.v ? x : a), null)
+  const story = divergingStory({ metricLabel: ctx.metricLabel, vintage: ctx.vintage, items: itemsOf(ctx.rows, slug), median: ok ? med : null, fmt: (v) => ctx.fmt(slug, v) })
   const shownNote = sv.off.size ? ` Only ${sv.on('below') ? 'below' : 'above'}-median rows are shown.` : ''
   return (
     <SectionShell
       ctx={ctx}
       id="diverging"
-      headline={[ctx.metricLabel, `against the median,`, `${ctx.geoNoun}, ${ctx.vintage}`]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { CENSUS_REGION_LABEL, type CensusRegionId } from '../../utils/censusRegions'
 import { niceScale } from '../../utils/matrixMapMath'
+import { columnsStory } from '../../utils/matrixStory'
 import { stackByRegion } from '../../utils/matrixTable'
 import { useElementWidth, useSection, useSeries } from './hooks'
 import LegendChips from './LegendChips'
@@ -48,10 +49,17 @@ export default function ColumnsSection({ ctx }: { ctx: MatrixCtx }) {
     }
   })
   const fmtShare = (v: number | null) => (v == null ? '—' : `${v.toFixed(1)}%`)
-  const first = vintages[0]
-  const last = vintages[vintages.length - 1]
   const firstCol = cols.find((c) => c.sum != null)
   const lastCol = [...cols].reverse().find((c) => c.sum != null)
+
+  const story = pending
+    ? { headline: `${ctx.metricLabel} by Census region.`, lead: null }
+    : columnsStory({
+        metricLabel: ctx.metricLabel,
+        isCount,
+        vintage: lastCol?.d.vintage ?? null,
+        regions: shown.map((id) => ({ label: CENSUS_REGION_LABEL[id], value: lastCol?.d.byRegion[id] ?? null })),
+      })
 
   let body: React.ReactNode
   if (!isCount) {
@@ -79,7 +87,8 @@ export default function ColumnsSection({ ctx }: { ctx: MatrixCtx }) {
     <SectionShell
       ctx={ctx}
       id="columns"
-      headline={[ctx.metricLabel, `by Census region,`, vintages.length > 1 ? `${first} to ${last}` : `${first ?? ''}`]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>

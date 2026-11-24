@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { staggerDelayMs } from '../../utils/folioMotion'
 import { largestRemainder } from '../../utils/matrixMapMath'
 import { fitsInside, labelWidth, layoutLabels } from '../../utils/matrixTable'
+import { shareStory } from '../../utils/matrixStory'
 import { labelFor } from './data'
 import { useElementWidth, useSeries } from './hooks'
 import LegendChips from './LegendChips'
@@ -123,11 +124,22 @@ export default function ShareSection({ ctx }: { ctx: MatrixCtx }) {
   const labelH = rowsUsed * ROW_H + 8
   const figH = labelH + BAR_H
 
+  const story = shareStory({
+    metricLabel: label,
+    vintage: ctx.vintage,
+    whole: scope === 'state' ? `the ${whole}` : whole,
+    unit,
+    segments: visible.filter((s) => s.id !== 'rest').map((s) => ({ name: s.name, value: s.value, pct: pctOf(s.id) })),
+    hiddenCount: model.segs.length - visible.length,
+    partCount: model.parts.length,
+  })
+
   return (
     <SectionShell
       ctx={ctx}
       id="share"
-      headline={[`${label}, as a share`, `of ${whole}`, ctx.vintage]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>

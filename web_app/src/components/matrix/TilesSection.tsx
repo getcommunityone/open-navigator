@@ -4,7 +4,9 @@ import { CENSUS_REGION_LABEL, type CensusRegionId } from '../../utils/censusRegi
 import { staggerDelayMs } from '../../utils/folioMotion'
 import { largestRemainder } from '../../utils/matrixMapMath'
 import { useFlip, useIntro } from '../../hooks/useFlip'
-import { cellStyle, labelFor, sortByMetric, statsOf, statsSentence } from './data'
+import { censusMetricRankDirection } from '../../utils/censusDataDictionary'
+import { tilesStory } from '../../utils/matrixStory'
+import { cellStyle, itemsOf, labelFor, sortByMetric, statsOf, statsSentence } from './data'
 import { useSection } from './hooks'
 import { Empty, ScaleLegend, Seg } from './parts'
 import SectionShell from './SectionShell'
@@ -111,12 +113,20 @@ export default function TilesSection({ ctx }: { ctx: MatrixCtx }) {
     if (t != null && t * 100 >= ctx.minPct) lit += 1
   }
   const scope = `${ctx.geoNoun}, ${ctx.vintage}`
+  const story = tilesStory({
+    metricLabel: ctx.metricLabel,
+    vintage: ctx.vintage,
+    items: itemsOf(ctx.rows, ctx.metricSlug),
+    fmt: (v) => ctx.fmt(ctx.metricSlug, v),
+    lowerIsBetter: censusMetricRankDirection(ctx.metricSlug) === 'lower',
+  })
   const modeText = mode === 'region' ? 'grouped by Census region' : mode === 'quartile' ? 'grouped by quarter of the ranking' : 'in one flat grid'
   return (
     <SectionShell
       ctx={ctx}
       id="tiles"
-      headline={[`${ctx.metricLabel}`, `across ${ctx.geoNoun},`, ctx.vintage]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>

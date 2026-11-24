@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { censusMetricRankDirection } from '../../utils/censusDataDictionary'
+import { heatmapStory } from '../../utils/matrixStory'
 import { cellStyle, rankShade, sortByKey } from './data'
 import { Empty, ScaleLegend } from './parts'
 import { nextSort } from './PivotSection'
@@ -25,12 +26,19 @@ export default function HeatmapSection({ ctx }: { ctx: MatrixCtx }) {
       if (r.vals[m.slug] != null) withData += 1
       if (t != null && t * 100 >= ctx.minPct) lit += 1
     }
+  const story = heatmapStory({
+    vintage: ctx.vintage,
+    metricCount: metrics.length,
+    geoCount: ctx.rows.length,
+    leaders: metrics.map((m) => ctx.rows.filter((r) => ranks[m.slug]?.get(r.fips) === 1).map((r) => r.name)),
+  })
   return (
     <SectionShell
       ctx={ctx}
       id="heatmap"
       wide
-      headline={[`${metrics.length} metrics`, `across ${ctx.geoNoun},`, ctx.vintage]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>

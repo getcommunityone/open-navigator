@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { medianOf, niceScale } from '../../utils/matrixMapMath'
+import { trendStory } from '../../utils/matrixStory'
 import { sortByMetric } from './data'
 import { useElementWidth, useSection, useSeries } from './hooks'
 import LegendChips from './LegendChips'
@@ -106,12 +107,23 @@ export default function TrendSection({ ctx }: { ctx: MatrixCtx }) {
   const usable = nV >= 2 && !pending
   const first = ctx.vintages[0]
   const last = ctx.vintages[nV - 1]
+  const medianSeries = series.find((s) => s.key === 'median')
+  const story = pending
+    ? { headline: `${ctx.metricLabel}, ${first ?? ''} to ${last ?? ''}.`, lead: null }
+    : trendStory({
+        metricLabel: ctx.metricLabel,
+        vintages: ctx.vintages,
+        median: { first: medianSeries?.values[0] ?? null, last: medianSeries?.values[nV - 1] ?? null },
+        geos: series.filter((s) => s.key !== 'median').map((s) => ({ name: s.label, first: s.values[0] ?? null, last: s.values[nV - 1] ?? null })),
+        fmt: (v) => ctx.fmt(slug, v),
+      })
 
   return (
     <SectionShell
       ctx={ctx}
       id="trend"
-      headline={[ctx.metricLabel, `across ${nV} ${nV === 1 ? 'vintage' : 'vintages'},`, nV > 1 ? `${first} to ${last}` : `${first ?? ''}`]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>

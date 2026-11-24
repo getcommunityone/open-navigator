@@ -29,18 +29,19 @@ export type SectionId =
   | 'dots'
   | 'table'
 
+/** In reading order, chapter by chapter (see CHAPTERS in utils/matrixStory.ts); the position here is the section's number. */
 export const SECTIONS: ReadonlyArray<{ id: SectionId; name: string }> = [
   { id: 'tiles', name: 'Tiles' },
+  { id: 'dots', name: 'Dot map' },
   { id: 'share', name: 'Share' },
-  { id: 'pivot', name: 'Pivot' },
   { id: 'dumbbell', name: 'Compare' },
+  { id: 'diverging', name: 'Diverging' },
   { id: 'bars', name: 'Bars' },
+  { id: 'scatter', name: 'Scatter' },
+  { id: 'heatmap', name: 'Heatmap' },
   { id: 'trend', name: 'Trend' },
   { id: 'columns', name: 'Columns' },
-  { id: 'heatmap', name: 'Heatmap' },
-  { id: 'diverging', name: 'Diverging' },
-  { id: 'scatter', name: 'Scatter' },
-  { id: 'dots', name: 'Dot map' },
+  { id: 'pivot', name: 'Pivot' },
   { id: 'table', name: 'Table' },
 ]
 
@@ -78,6 +79,8 @@ export interface MatrixCtx {
   sortDir: 'asc' | 'desc'
   /** Count of geographies, as "N states and territories". */
   geoNoun: string
+  /** The single state in scope (a dot-map drill or the county share), or null for the whole country. */
+  stateScope: { fips: string; code: string; name: string } | null
   /** The geography (FIPS) a Pivot row is hovered or focused on; Tiles highlights the matching tile. Null when none. */
   hotFips: string | null
   setHotFips: (fips: string | null) => void

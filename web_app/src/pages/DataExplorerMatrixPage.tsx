@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import '@fontsource-variable/geist'
@@ -11,8 +11,10 @@ import { shadeT } from '../utils/matrixMapMath'
 import { DATA_EXPLORER_MAP_BASE, mapPathUs } from '../utils/dataExplorerPaths'
 import { DEFAULT_THEME_ID, FOLIO_THEMES, themeById } from '../utils/folioThemes'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { CHAPTERS, chapterDomId, chapterLead, isChapterId } from '../utils/matrixStory'
 import { geoNounFor, rowsFromPayload, statsOf } from '../components/matrix/data'
 import Kpi from '../components/matrix/Kpi'
+import ChapterCard from '../components/matrix/ChapterCard'
 import SectionBand from '../components/matrix/SectionBand'
 import BarsSection from '../components/matrix/BarsSection'
 import ColumnsSection from '../components/matrix/ColumnsSection'
@@ -30,10 +32,28 @@ import { SECTIONS, type Manifest, type MatrixCtx, type Row, type SectionId, type
 
 const isSection = (v: string | null): v is SectionId => SECTIONS.some((s) => s.id === v)
 
+const SECTION_VIEW: Record<SectionId, (p: { ctx: MatrixCtx }) => JSX.Element> = {
+  tiles: TilesSection,
+  dots: DotsSection,
+  share: ShareSection,
+  dumbbell: CompareSection,
+  diverging: DivergingSection,
+  bars: BarsSection,
+  scatter: ScatterSection,
+  heatmap: HeatmapSection,
+  trend: TrendSection,
+  columns: ColumnsSection,
+  pivot: PivotSection,
+  table: TableSection,
+}
+/** Every element the band follows, in reading order: each chapter card, then its sections. */
+const FOLLOW: readonly string[] = CHAPTERS.flatMap((c) => [chapterDomId(c.id), ...c.sections])
+
 /**
- * "Matrix map": one scrolling, sectioned report over the census bundle (tiles, share, pivot, compare, bars, trend, columns,
- * heatmap, diverging, scatter, dot map, table). The shared controls (metric, vintage, theme) sit under the heading; each
- * section has its own text, figure, controls and data table. All state that shapes the data lives in the URL.
+ * "Matrix map": one scrolling report over the census bundle, told as a public meeting in five chapters (call to order, the
+ * motion, public comment, the vote and the work, new business), each opened by a chapter card and holding two or three
+ * sections (twelve in all). The shared controls (metric, vintage, theme) sit under the heading; each section has its own story
+ * sentence, text, figure, controls and data table. All state that shapes the data lives in the URL.
  */
 export default function DataExplorerMatrixPage() {
   const [sp, setSp] = useSearchParams()
@@ -132,6 +152,13 @@ export default function DataExplorerMatrixPage() {
     return out
   }, [rows, metrics])
 
+  // The one state in scope, if any: the dot map drilled into a state, or the county share of a state.
+  const stateFips = sp.get('dot') || (sp.get('part') === 'county' ? sp.get('st') || '01' : null)
+  const stateScope = useMemo(() => {
+    const r = stateFips ? rows.find((x) => x.fips === stateFips.padStart(2, '0')) : undefined
+    return r ? { fips: r.fips, code: r.code, name: r.name } : null
+  }, [rows, stateFips])
+
   const sortRaw = sp.get('sort') ?? ''
   const sortKey = sortRaw === 'name' || metrics.some((m) => m.slug === sortRaw) ? sortRaw : ''
   const ctx: MatrixCtx = {
@@ -160,17 +187,23 @@ export default function DataExplorerMatrixPage() {
     geoNoun: geoNounFor(rows.length),
     hotFips,
     setHotFips,
+    stateScope,
   }
 
-  // Section in view (band + `layout` param), and the deep link on load.
+  // Where the reader is (band + `layout` / `chapter` params), and the deep link on load. `pos` is a DOM id: a chapter card
+  // (`chapter-<id>`) or a section. A section in view writes `layout=<id>`; a chapter card writes `chapter=<id>`.
   const layoutQ = sp.get('layout')
-  const [active, setActive] = useState<SectionId>(isSection(layoutQ) ? layoutQ : 'tiles')
-  const activeRef = useRef(active)
-  activeRef.current = active
+  const chapterQ = sp.get('chapter')
+  const target = isSection(layoutQ) ? layoutQ : isChapterId(chapterQ) ? chapterDomId(chapterQ) : null
+  const [pos, setPos] = useState<string>(target ?? chapterDomId('problem'))
+  const posRef = useRef(pos)
+  posRef.current = pos
   const jumping = useRef(false)
   const jumpTimer = useRef<number | undefined>(undefined)
   const sectionsRef = useRef<HTMLDivElement>(null)
-  // Deep-link scrolling and section tracking wait until every vintage file has settled, because Compare, Trend and
+  const urlFor = (domId: string): Record<string, string | null> =>
+    isSection(domId) ? { layout: domId, chapter: null } : { chapter: domId.replace(/^chapter-/, ''), layout: null }
+  // Deep-link scrolling and position tracking wait until every vintage file has settled, because Compare, Trend and
   // Columns change height as they load and would otherwise push the target out from under the scroll position.
   const settled = vintages.every((v) => rowsByVintage[v] !== undefined)
   const ready = !!manifest && !pLoading && rows.length > 0 && metrics.length > 0 && settled
@@ -179,19 +212,18 @@ export default function DataExplorerMatrixPage() {
     window.clearTimeout(jumpTimer.current)
     jumpTimer.current = window.setTimeout(() => (jumping.current = false), ms)
   }
-  const jump = (id: SectionId, smooth: boolean) => {
-    setActive(id)
-    setManyRef.current({ layout: id === 'tiles' ? null : id })
+  const jump = (domId: string, smooth: boolean) => {
+    setPos(domId)
+    setManyRef.current(urlFor(domId))
     hold(smooth && !reduced ? 1100 : 400)
-    document.getElementById(id)?.scrollIntoView({ behavior: smooth && !reduced ? 'smooth' : 'auto', block: 'start' })
+    document.getElementById(domId)?.scrollIntoView({ behavior: smooth && !reduced ? 'smooth' : 'auto', block: 'start' })
   }
   const deepLinked = useRef(false)
   useEffect(() => {
-    if (!ready || deepLinked.current) return
-    if (!isSection(layoutQ) || layoutQ === 'tiles') return
-    // Land on the section, and keep it there while web fonts and charts settle (heights above it still change for a moment),
+    if (!ready || deepLinked.current || !target) return
+    // Land on the target, and keep it there while web fonts and charts settle (heights above it still change for a moment),
     // until the reader scrolls or the settling window ends.
-    const align = () => document.getElementById(layoutQ)?.scrollIntoView({ behavior: 'auto', block: 'start' })
+    const align = () => document.getElementById(target)?.scrollIntoView({ behavior: 'auto', block: 'start' })
     hold(1800)
     let live = true
     const ro = typeof ResizeObserver !== 'undefined' && sectionsRef.current ? new ResizeObserver(() => live && align()) : null
@@ -204,7 +236,7 @@ export default function DataExplorerMatrixPage() {
     }
     const finish = () => {
       stop()
-      deepLinked.current = true // done: later vintage changes must not pull the page back to the section
+      deepLinked.current = true // done: later vintage changes must not pull the page back to the target
     }
     const timer = window.setTimeout(finish, 1600)
     for (const ev of ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const) window.addEventListener(ev, finish, { once: true })
@@ -215,32 +247,38 @@ export default function DataExplorerMatrixPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
+  // The element in view is the last one in reading order whose top has passed the 40% line of the viewport. Reading it from
+  // the scroll position (not from intersection events) keeps the band right after a long jump and at the end of the page.
   useEffect(() => {
-    if (!ready || typeof IntersectionObserver === 'undefined') return
-    const hit = new Set<SectionId>()
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          const id = e.target.id as SectionId
-          if (e.isIntersecting) hit.add(id)
-          else hit.delete(id)
-        }
-        if (jumping.current || !hit.size) return
-        const idx = Math.max(...[...hit].map((id) => SECTIONS.findIndex((s) => s.id === id)))
-        const id = SECTIONS[idx]!.id
-        if (id !== activeRef.current) {
-          activeRef.current = id
-          setActive(id)
-          setManyRef.current({ layout: id === 'tiles' ? null : id })
-        }
-      },
-      { rootMargin: '-35% 0px -60% 0px', threshold: 0 },
-    )
-    SECTIONS.forEach((s) => {
-      const el = document.getElementById(s.id)
-      if (el) io.observe(el)
-    })
-    return () => io.disconnect()
+    if (!ready) return
+    let raf = 0
+    const update = () => {
+      raf = 0
+      if (jumping.current) return
+      const line = window.innerHeight * 0.4
+      let id: string | null = null
+      for (const x of FOLLOW) {
+        const el = document.getElementById(x)
+        if (el && el.getBoundingClientRect().top <= line) id = x
+      }
+      if (id && id !== posRef.current) {
+        posRef.current = id
+        setPos(id)
+        setManyRef.current(urlFor(id))
+      }
+    }
+    const on = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    window.addEventListener('scroll', on, { passive: true })
+    window.addEventListener('resize', on)
+    on()
+    return () => {
+      window.removeEventListener('scroll', on)
+      window.removeEventListener('resize', on)
+      if (raf) cancelAnimationFrame(raf)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
 
   if (mLoading || pLoading) {
@@ -262,6 +300,15 @@ export default function DataExplorerMatrixPage() {
   }
 
   const st = statsOf(rows, metricSlug)
+  const scatterY = sp.get('y') && metrics.some((m) => m.slug === sp.get('y')) ? sp.get('y')! : metrics.find((m) => m.slug !== metricSlug)?.slug
+  const chapterData = {
+    metricLabel: ctx.metricLabel,
+    vintage,
+    vintages,
+    geoNoun: rows.length ? ctx.geoNoun : null,
+    yLabel: scatterY ? ctx.labelOf(scatterY) : null,
+    stateName: stateScope?.name ?? null,
+  }
   const select = (label: string, value: string, onChange: (v: string) => void, options: Array<{ value: string; label: string }>) => (
     <label className="folio-field">
       {label}
@@ -277,7 +324,7 @@ export default function DataExplorerMatrixPage() {
 
   return (
     <div className="folio" data-theme={theme.id} style={theme.vars as CSSProperties}>
-      <SectionBand active={active} onJump={(id) => jump(id, true)} rootRef={sectionsRef} reduced={reduced} />
+      <SectionBand pos={pos} onJump={(id) => jump(id, true)} rootRef={sectionsRef} reduced={reduced} />
       <p className="folio-eyebrow folio-page-eyebrow">Matrix map</p>
       <h2 className="folio-heading">
         {ctx.geoNoun} · {vintage} ACS 5-year
@@ -301,18 +348,17 @@ export default function DataExplorerMatrixPage() {
       </div>
 
       <div ref={sectionsRef}>
-        <TilesSection ctx={ctx} />
-        <ShareSection ctx={ctx} />
-        <PivotSection ctx={ctx} />
-        <CompareSection ctx={ctx} />
-        <BarsSection ctx={ctx} />
-        <TrendSection ctx={ctx} />
-        <ColumnsSection ctx={ctx} />
-        <HeatmapSection ctx={ctx} />
-        <DivergingSection ctx={ctx} />
-        <ScatterSection ctx={ctx} />
-        <DotsSection ctx={ctx} />
-        <TableSection ctx={ctx} />
+        {CHAPTERS.map((c, i) => {
+          return (
+            <Fragment key={c.id}>
+              <ChapterCard chapter={c} index={i} total={CHAPTERS.length} lead={chapterLead(c.id, chapterData)} />
+              {c.sections.map((id) => {
+                const Section = SECTION_VIEW[id]
+                return <Section key={id} ctx={ctx} />
+              })}
+            </Fragment>
+          )
+        })}
       </div>
     </div>
   )

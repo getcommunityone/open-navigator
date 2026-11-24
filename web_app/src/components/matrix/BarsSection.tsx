@@ -2,7 +2,8 @@ import { useMemo, useRef } from 'react'
 import { CENSUS_REGION_LABEL, type CensusRegionId } from '../../utils/censusRegions'
 import { rowDelayMs } from '../../utils/folioMotion'
 import { useFlip } from '../../hooks/useFlip'
-import { sortByMetric, statsOf, statsSentence } from './data'
+import { barsStory } from '../../utils/matrixStory'
+import { itemsOf, sortByMetric, statsOf, statsSentence } from './data'
 import { Empty } from './parts'
 import SectionShell from './SectionShell'
 import { delayVar, type MatrixCtx } from './types'
@@ -24,11 +25,13 @@ export default function BarsSection({ ctx }: { ctx: MatrixCtx }) {
   const span = hi - lo || 1
   const st = statsOf(scoped, slug)
   const scope = region ? `${CENSUS_REGION_LABEL[region]} states` : ctx.geoNoun
+  const story = barsStory({ metricLabel: ctx.metricLabel, vintage: ctx.vintage, scopeLabel: scope, items: itemsOf(scoped, slug), fmt: (v) => ctx.fmt(slug, v) })
   return (
     <SectionShell
       ctx={ctx}
       id="bars"
-      headline={[ctx.metricLabel, `by geography,`, `${scope}, ${ctx.vintage}`]}
+      headline={story.headline}
+      lead={story.lead}
       text={
         <>
           <p>

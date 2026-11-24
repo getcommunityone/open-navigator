@@ -1,19 +1,22 @@
 import { useEffect, useRef } from 'react'
 import { FIG_NO } from './data'
-import { SECTIONS, type SectionId } from './types'
+import { CHAPTERS, chapterDomId, chapterOfSection } from '../../utils/matrixStory'
+import { SECTIONS } from './types'
+
 
 /**
- * Sticky band under the Data explorer tabs: the section numbers (the one in view is marked with aria-current), a scroll
- * progress line along its bottom edge, and click / keyboard jumps. It is a `nav` of real links.
+ * Sticky band under the Data explorer tabs: the five chapters (short labels) with the section numbers under each, the chapter
+ * and the section in view marked with aria-current, a scroll progress line along its bottom edge, and click / keyboard jumps.
+ * It is a `nav` of real links. `pos` is the DOM id in view: a chapter card (`chapter-<id>`) or a section id.
  */
 export default function SectionBand({
-  active,
+  pos,
   onJump,
   rootRef,
   reduced,
 }: {
-  active: SectionId
-  onJump: (id: SectionId) => void
+  pos: string
+  onJump: (domId: string) => void
   /** The element whose height the progress line measures (the sections wrapper). */
   rootRef: React.RefObject<HTMLElement>
   reduced: boolean
@@ -42,30 +45,56 @@ export default function SectionBand({
       if (raf) cancelAnimationFrame(raf)
     }
   }, [rootRef, reduced])
+  const atChapter = CHAPTERS.find((c) => chapterDomId(c.id) === pos) ?? null
+  const section = SECTIONS.find((s) => s.id === pos) ?? null
+  const chapter = atChapter ?? (section ? chapterOfSection(section.id) : CHAPTERS[0]!)
   return (
-    <nav className="folio-band" aria-label="Matrix map sections">
-      <span className="folio-band-label">Section</span>
+    <nav className="folio-band" aria-label="Matrix map chapters and sections">
+      <span className="folio-band-label">Chapter</span>
       <ol className="folio-band-list">
-        {SECTIONS.map((s, i) => (
-          <li key={s.id}>
+        {CHAPTERS.map((c, ci) => (
+          <li key={c.id} className="folio-band-chapter">
             <a
-              href={`#${s.id}`}
-              className="folio-band-link"
-              aria-current={active === s.id ? 'true' : undefined}
-              aria-label={`Section ${i + 1}: ${s.name}`}
-              title={s.name}
+              href={`#${chapterDomId(c.id)}`}
+              className="folio-band-chap"
+              aria-current={chapter.id === c.id ? 'true' : undefined}
+              aria-label={`Chapter ${ci + 1}: ${c.meeting}, ${c.title}`}
+              title={`${c.meeting}: ${c.blurb}`}
               onClick={(e) => {
                 e.preventDefault()
-                onJump(s.id)
+                onJump(chapterDomId(c.id))
               }}
             >
-              {FIG_NO(i)}
+              {c.short}
             </a>
+            <ol className="folio-band-sub">
+              {c.sections.map((id) => {
+                const i = SECTIONS.findIndex((s) => s.id === id)
+                return (
+                  <li key={id}>
+                    <a
+                      href={`#${id}`}
+                      className="folio-band-link"
+                      aria-current={pos === id ? 'true' : undefined}
+                      aria-label={`Section ${i + 1}: ${SECTIONS[i]!.name}`}
+                      title={SECTIONS[i]!.name}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        onJump(id)
+                      }}
+                    >
+                      {FIG_NO(i)}
+                    </a>
+                  </li>
+                )
+              })}
+            </ol>
           </li>
         ))}
       </ol>
       <span className="folio-band-name" aria-hidden="true">
-        {SECTIONS.find((s) => s.id === active)?.name}
+        {chapter.meeting}
+        {section ? ` · ${section.name}` : ''}
       </span>
       <span className="folio-band-progress" aria-hidden="true">
         <span ref={bar} />
