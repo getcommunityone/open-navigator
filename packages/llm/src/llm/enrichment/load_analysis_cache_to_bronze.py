@@ -152,8 +152,34 @@ def _timeline_from_analysis(analysis: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def transcript_source_from_meta(meta: Optional[dict[str, Any]]) -> Optional[str]:
+    """The transcript source the run recorded (``meta["transcript"]["source"]``), or None.
+
+    Older runs did not record it; they get NULL, never a guessed source (#798)."""
+    t = (meta or {}).get("transcript")
+    src = t.get("source") if isinstance(t, dict) else None
+    src = str(src).strip() if src is not None else ""
+    return src or None
+
+
+_PROVENANCE_COLUMNS_SQL = """
+ALTER TABLE bronze.bronze_events_analysis_ai
+    ADD COLUMN IF NOT EXISTS analysis_tier VARCHAR(10),
+    ADD COLUMN IF NOT EXISTS transcript_source TEXT
+"""
+
+
+def ensure_provenance_columns(conn) -> None:
+    """Add the two nullable provenance columns when a database predates them (migration 115)."""
+    with conn.cursor() as cur:
+        cur.execute(_PROVENANCE_COLUMNS_SQL)
+    conn.commit()
+
+
 def upsert_row(conn, *, event_id: int, video_id: str, ai_model: str,
                prompt_version: Optional[str] = None,
+               analysis_tier: Optional[str] = None,
+               transcript_source: Optional[str] = None,
                raw_response: str, analysis: dict[str, Any],
                summary_text: Optional[str], timeline_mermaid: Optional[str],
                created_at: Optional[datetime]) -> None:
@@ -162,16 +188,20 @@ def upsert_row(conn, *, event_id: int, video_id: str, ai_model: str,
     INSERT INTO bronze.bronze_events_analysis_ai (
         event_id, video_id, analysis_type, ai_model, prompt_version,
         raw_response, structured_analysis, summary_text, timeline_mermaid,
-        processing_time_seconds, tokens_used, error_message, created_at, updated_at
+        processing_time_seconds, tokens_used, error_message, created_at, updated_at,
+        analysis_tier, transcript_source
     ) VALUES (
         %s, %s, %s, %s, %s,
         %s, %s, %s, %s,
-        NULL, NULL, NULL, COALESCE(%s, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP
+        NULL, NULL, NULL, COALESCE(%s, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP,
+        %s, %s
     )
     ON CONFLICT (event_id, analysis_type, ai_model)
     DO UPDATE SET
         video_id = EXCLUDED.video_id,
         prompt_version = EXCLUDED.prompt_version,
+        analysis_tier = EXCLUDED.analysis_tier,
+        transcript_source = EXCLUDED.transcript_source,
         raw_response = EXCLUDED.raw_response,
         structured_analysis = EXCLUDED.structured_analysis,
         summary_text = EXCLUDED.summary_text,
@@ -182,7 +212,7 @@ def upsert_row(conn, *, event_id: int, video_id: str, ai_model: str,
         cur.execute(insert_sql, (
             event_id, video_id, ANALYSIS_TYPE, ai_model, prompt_version,
             raw_response, json.dumps(analysis), summary_text, timeline_mermaid,
-            created_at,
+            created_at, analysis_tier, transcript_source,
         ))
 
 
@@ -258,6 +288,8 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
 
     conn = psycopg2.connect(database_url)
     try:
+        if not dry_run:
+            ensure_provenance_columns(conn)
         video_to_event = build_video_to_event_map(conn)
         logger.info("Resolved {:,} video_id → civic_event.legacy_id mappings from promoted civic_event rows", len(video_to_event))
 
@@ -315,6 +347,8 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
                 upsert_row(
                     conn, event_id=event_id, video_id=video_id, ai_model=ai_model,
                     prompt_version=prompt_version_from_meta(meta),
+                    analysis_tier=e["tier"],
+                    transcript_source=transcript_source_from_meta(meta),
                     raw_response=raw_response, analysis=analysis,
                     summary_text=summary_text, timeline_mermaid=timeline_mermaid,
                     created_at=created_at,

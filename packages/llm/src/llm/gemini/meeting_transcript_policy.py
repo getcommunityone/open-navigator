@@ -1233,6 +1233,8 @@ def prepare_part1_request(
         "event_date": video.event_date,
         "jurisdiction_id": jurisdiction_id,
         "youtube": yt,
+        # Where the transcript text came from (shown in the "how this summary was made" panel, #798).
+        "source": source_note,
         "diarize": diarize_meta,
         "segment_count": len(segments),
         "transcript_chars": len(transcript_block),

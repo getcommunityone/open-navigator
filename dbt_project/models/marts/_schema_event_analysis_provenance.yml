@@ -1,0 +1,65 @@
+version: 2
+
+# gold/public.event_analysis_provenance: how each AI analysis was made (#798). One row per analysis.
+# Read by GET /api/decisions/{id} to fill the "how this summary was made" panel. Every fact is nullable:
+# a fact the run did not record is NULL and the page leaves it out.
+#
+# Keys: PK analysis_id (= bronze_events_analysis_ai.id = event_decision.analysis_id for the preferred
+# analysis). No foreign key to event_meeting: only the preferred analysis of a meeting is in
+# event_meeting, while this table also holds the analyses that were not chosen.
+
+models:
+  - name: event_analysis_provenance
+    description: >
+      How each AI analysis was made: model, when, light or full tier, prompt name and hash, transcript
+      source, and whether it is the analysis shown for its meeting. One row per analysis. Facts the run
+      did not record are NULL, never guessed.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'ai-extraction', 'provenance', 'production']
+      contract:
+        enforced: true
+    columns:
+      - name: analysis_id
+        description: "Primary key: bronze_events_analysis_ai.id."
+        data_type: integer
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: legacy_event_id
+        description: "bronze_events_analysis_ai.event_id (civic_event.legacy_id)."
+        data_type: integer
+      - name: video_id
+        description: "YouTube video id of the meeting recording."
+        data_type: text
+      - name: state_code
+        description: "2-letter state of the meeting (civic_event.state)."
+        data_type: text
+      - name: ai_model
+        description: "Model that produced the analysis."
+        data_type: text
+      - name: generated_at
+        description: "When the analysis was generated (bronze created_at)."
+        data_type: timestamp without time zone
+      - name: analysis_tier
+        description: "light or full; NULL when the run did not record it (before migration 115)."
+        data_type: text
+      - name: prompt_name
+        description: "Prompt file name, from prompt_version '<name>@<sha12>'; NULL when not recorded."
+        data_type: text
+      - name: prompt_sha
+        description: "First 12 hex of the prompt's SHA-256; NULL when not recorded."
+        data_type: text
+      - name: transcript_source
+        description: "Where the transcript text came from; NULL when not recorded."
+        data_type: text
+      - name: is_preferred
+        description: "True for the one analysis int_preferred_event_analysis chose for the meeting."
+        data_type: boolean
+      - name: analyses_for_meeting
+        description: "Publishable analyses that exist for this meeting video (more than 1 means a choice was made)."
+        data_type: integer
