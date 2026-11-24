@@ -26,9 +26,11 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { STATE_CODES } from '../lib/usStates'
 import { HOUSE_STYLE } from '../utils/houseTheme'
-import { placeLabel } from '../utils/stanceGame'
+import { placeLabel, roundBeat } from '../utils/stanceGame'
+import { createSoundBoard, type Cue } from '../utils/stanceSound'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { getStancePlayerId } from '../utils/stancePlayer'
+import SoundToggle from '../components/stance/SoundToggle'
 
 const DEFAULT_PACK = 'data-centers'
 
@@ -77,6 +79,40 @@ export default function Challenge() {
   const [errors, setErrors] = useState<Record<string, { message: string; attempt: Attempt } | null>>({})
   const [changing, setChanging] = useState<Record<string, boolean>>({})
   const [placeOpen, setPlaceOpen] = useState(false)
+
+  // --- beats and sound (#899) -------------------------------------------------------------------------------------------
+  // Rounds the player has asked for the question of (button, Space, or the pause running out). Not kept across visits.
+  const [asked, setAsked] = useState<Record<string, boolean>>({})
+  const ask = useCallback((id: string) => setAsked((a) => (a[id] ? a : { ...a, [id]: true })), [])
+  // The answer being saved, shown locked on its button.
+  const [pending, setPending] = useState<Attempt | null>(null)
+  // One sound board per page; it makes no AudioContext until the first click or key press, and the choice is kept on the device.
+  // (Listening starts in an effect, so React's development double-render cannot leave a stray listener behind.)
+  const board = useMemo(() => createSoundBoard({ attach: false }), [])
+  useEffect(() => {
+    board.attach()
+    return () => board.dispose()
+  }, [board])
+  const [soundOn, setSoundOn] = useState(board.enabled)
+  const cue = useCallback((c: Cue, step?: number) => board.play(c, step), [board])
+  const toggleSound = () => {
+    const next = !soundOn
+    board.setEnabled(next)
+    setSoundOn(next)
+    if (next) board.play('bar', 0)
+  }
+  // The cover fills the first screen; a round's beats start only once it has scrolled away.
+  const [coverGone, setCoverGone] = useState(false)
+  useEffect(() => {
+    const el = gameRef.current?.querySelector('[data-cover]')
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setCoverGone(true)
+      return
+    }
+    const io = new IntersectionObserver((es) => es.forEach((e) => setCoverGone(e.intersectionRatio < 0.5)), { threshold: [0, 0.25, 0.5, 0.75, 1] })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [pack])
 
   // --- scrolling: pinned acts with Lenis, or plain stacked panels ------------------------------------------------------
   const wide = useMediaQuery('(min-width: 768px)')
@@ -141,6 +177,7 @@ export default function Challenge() {
     if (!act) return
     const target =
       act.querySelector<HTMLElement>('.stance-answers button:not(:disabled)') ??
+      act.querySelector<HTMLElement>('.stance-ask-btn') ??
       act.querySelector<HTMLElement>('.stance-next') ??
       act.querySelector<HTMLElement>('.stance-end-body button')
     target?.focus({ preventScroll: true })
@@ -149,6 +186,7 @@ export default function Challenge() {
   const acts = useActs({
     animated,
     smooth: !reduced,
+    beats: true,
     gameRef,
     count: pack ? n : 0,
     isAnswered: (i) => Boolean(confirmedRef.current[statementsRef.current[i]?.statement_id ?? '']),
@@ -186,10 +224,18 @@ export default function Challenge() {
   useEffect(() => acts.lock(placeOpen), [placeOpen, acts])
   placeOpenRef.current = placeOpen
 
+  // The end screen has its own short cue (its counterpart is the screen itself).
+  useEffect(() => {
+    if (n > 0 && active === n && coverGone) cue('finish')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active === n && n > 0, coverGone])
+
   // --- answering ------------------------------------------------------------------------------------------------------
   const submit = useCallback(
     async (attempt: Attempt) => {
       const { statementId, answer } = attempt
+      cue('lock')
+      setPending(attempt)
       setPosting(statementId)
       setErrors((e) => ({ ...e, [statementId]: null }))
       try {
@@ -219,9 +265,10 @@ export default function Challenge() {
         setErrors((e) => ({ ...e, [statementId]: { message, attempt } }))
       } finally {
         setPosting(null)
+        setPending(null)
       }
     },
-    [playerId, packId, stateCode, city, qc, resultsKey],
+    [playerId, packId, stateCode, city, qc, resultsKey, cue],
   )
 
   // A confirmed answer is the interaction beat: carry the player to this round's reveal hold.
@@ -252,13 +299,24 @@ export default function Challenge() {
 
   // --- keyboard -------------------------------------------------------------------------------------------------------
   // A, D and N answer; Enter goes on. Moving between rounds (PageDown/PageUp, Space, arrows, Home/End) is the shared hook.
-  const live = useRef({ active, statements, confirmed, changing, posting })
-  live.current = { active, statements, confirmed, changing, posting }
+  const live = useRef({ active, statements, confirmed, changing, posting, asked })
+  live.current = { active, statements, confirmed, changing, posting, asked }
   const nextScreen = useCallback(() => {
     // On the cover (above the first round's question) going on starts the first round.
     const first = acts.holds().find((h) => h.kind === 'q')
-    goToRound(first && window.scrollY < first.pos - 40 && live.current.active === 0 ? 0 : live.current.active + 1)
-  }, [acts, goToRound])
+    if (first && window.scrollY < first.pos - 40 && live.current.active === 0) {
+      goToRound(0)
+      return
+    }
+    // In a round that is still on its finding, "next" asks the question first; after that it moves on (an unanswered round counts as skipped).
+    const L = live.current
+    const st = L.statements[L.active]
+    if (st && L.active < L.statements.length && roundBeat({ answered: Boolean(L.confirmed[st.statement_id]), asked: Boolean(L.asked[st.statement_id]), changing: Boolean(L.changing[st.statement_id]) }) === 'finding') {
+      ask(st.statement_id)
+      return
+    }
+    goToRound(L.active + 1)
+  }, [acts, goToRound, ask])
   useScreenKeys({
     next: nextScreen,
     prev: () => goToRound(live.current.active - 1),
@@ -278,6 +336,8 @@ export default function Challenge() {
         const st = L.statements[L.active]
         if (!st || L.posting) return
         if (L.confirmed[st.statement_id] && !L.changing[st.statement_id]) return
+        // The answers exist only from the question on: A, D and N do nothing while the finding is showing.
+        if (roundBeat({ answered: false, asked: Boolean(L.asked[st.statement_id]), changing: Boolean(L.changing[st.statement_id]) }) !== 'question') return
         e.preventDefault()
         void submit({ statementId: st.statement_id, answer: map[k]! })
       } else if (k === 'enter' && !(t && (t.tagName === 'BUTTON' || t.tagName === 'A'))) {
@@ -322,7 +382,7 @@ export default function Challenge() {
   const rounds = statements.map((s) => ({ statementId: s.statement_id, answer: confirmed[s.statement_id] ?? null, results: resultsById.get(s.statement_id) }))
 
   return (
-    <div className="folio stance-game" style={HOUSE_STYLE} ref={gameRef} data-mode={animated ? 'pinned' : 'stacked'}>
+    <div className="folio stance-game" style={HOUSE_STYLE} ref={gameRef} data-mode={animated ? 'pinned' : 'stacked'} data-beats>
       <ScopeBar
         backTo={`/stories${placeQuery}`}
         backLabel="← Data stories"
@@ -332,6 +392,7 @@ export default function Challenge() {
         stateName={stateName}
         city={city}
         current={active < n ? (statements[active]?.category ?? '') : 'Where you stood'}
+        extra={<SoundToggle on={soundOn} onToggle={toggleSound} />}
         placeOpen={placeOpen}
         onPlaceOpenChange={setPlaceOpen}
         onApply={applyPlace}
@@ -349,6 +410,12 @@ export default function Challenge() {
               index={i}
               total={n}
               active={active === i}
+              playing={active === i && coverGone && !resultsQ.isLoading}
+              asked={Boolean(asked[st.statement_id])}
+              onAsk={() => ask(st.statement_id)}
+              paused={placeOpen}
+              onCue={cue}
+              pendingAnswer={pending?.statementId === st.statement_id ? pending.answer : null}
               near={Math.abs(active - i) <= 1}
               scope={{ stateCode, stateName, city }}
               results={resultsById.get(st.statement_id)}
@@ -387,7 +454,7 @@ export default function Challenge() {
         </div>
         <ProgressRail labels={railLabels} active={active} answered={answeredFlags} onJump={goToRound} navLabel="Challenge screens" />
       </div>
-      <p className="stance-keys">Keys: A agree · D disagree · N not sure · PageDown, Space or Enter next · PageUp or Shift+Space back</p>
+      <p className="stance-keys">Keys: Space ask me the question · then A agree · D disagree · N not sure · PageDown or Enter next · PageUp or Shift+Space back</p>
     </div>
   )
 }

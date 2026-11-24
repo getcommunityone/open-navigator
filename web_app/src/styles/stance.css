@@ -365,12 +365,14 @@
 .stance-nav .folio-btn {
   margin-top: 0;
 }
-.stance-next {
+.stance-next,
+.stance-ask-btn {
   background: var(--violet-ink);
   color: var(--on-violet);
   border-color: var(--violet-ink);
 }
-.stance-next:hover:not(:disabled) {
+.stance-next:hover:not(:disabled),
+.stance-ask-btn:hover:not(:disabled) {
   background: var(--band);
   border-color: var(--band);
 }
@@ -1244,5 +1246,290 @@ select.stance-blank {
 @media (max-width: 767px) {
   .stance-place.is-blank {
     position: static;
+  }
+}
+
+/* ===================================================================================================================
+ * #899: the beats of a round (finding, question, results) and the sound switch. Kept in one block at the end of the file.
+ * =================================================================================================================== */
+@property --draw {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+/* Beat 1: the chart draws on a clock (not the scroll) the first time the round plays. */
+.stance-game[data-beats] .stance-act:not(.is-played):not(.is-still) {
+  --draw: 0;
+}
+.stance-game[data-beats] .stance-act.is-played {
+  animation: stance-draw 1100ms cubic-bezier(0.22, 1, 0.36, 1) 350ms both;
+}
+@keyframes stance-draw {
+  from {
+    --draw: 0;
+  }
+  to {
+    --draw: 1;
+  }
+}
+@keyframes stance-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stance-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stance-land {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stance-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes stance-lockpulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.stance-game[data-beats] .stance-act.is-played .stance-headline {
+  animation: stance-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both;
+}
+.stance-game[data-beats] .stance-act.is-played .stance-context {
+  animation: stance-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) 350ms both;
+}
+
+/* Beat 1: the finding is the title. */
+.stance-act[data-beat='finding'] .stance-headline {
+  font-size: clamp(26px, 3vw, 46px);
+  font-weight: 400;
+  line-height: 1.08;
+}
+.stance-askrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  position: relative;
+  padding-bottom: 8px;
+}
+.stance-askrow .folio-btn {
+  margin-top: 0;
+}
+.stance-ask-btn kbd {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+.stance-skip {
+  color: var(--ink-2);
+}
+.stance-countdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--rule);
+}
+.stance-countdown > span {
+  display: block;
+  height: 100%;
+  background: var(--violet-ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* Beat 2: the statement arrives large, the answers stagger in, the chart goes quiet. */
+.stance-act[data-beat='question'] .stance-headline,
+.stance-act[data-beat='results'] .stance-headline {
+  font-size: clamp(18px, 1.5vw, 22px);
+  color: var(--ink-2);
+}
+.stance-act[data-beat='question'] .stance-statement {
+  font-size: clamp(24px, 2.6vw, 38px);
+  font-weight: 400;
+  line-height: 1.12;
+}
+.stance-act[data-beat='question'] .stance-figure {
+  opacity: 0.5;
+  transition: opacity 400ms var(--ease-std);
+}
+.stance-act[data-beat='question'] .stance-figure:hover,
+.stance-act[data-beat='question'] .stance-figure:focus-within {
+  opacity: 1;
+}
+.stance-game[data-beats] .stance-act[data-beat='question'] .stance-qblock .stance-ask,
+.stance-game[data-beats] .stance-act[data-beat='question'] .stance-qblock .stance-statement {
+  animation: stance-arrive 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stance-game[data-beats] .stance-act[data-beat='question'] .stance-qblock .stance-statement {
+  animation-delay: 80ms;
+}
+.stance-game[data-beats] .stance-act[data-beat='question'] .stance-answer {
+  animation: stance-arrive 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(260ms + var(--i, 0) * 110ms);
+}
+
+/* Beat 3: the chosen answer locks; the other two step back. */
+.stance-answer.is-locked {
+  background: var(--ink);
+  color: var(--paper);
+  opacity: 1;
+}
+.stance-game[data-beats] .stance-act .stance-answer.is-locked {
+  animation: stance-lockpulse 320ms var(--ease-std) both;
+}
+.stance-answer.is-dim {
+  opacity: 0.35;
+}
+.stance-answer.is-locked:disabled {
+  opacity: 1;
+}
+.stance-reveal.is-fresh .stance-result {
+  opacity: 0;
+  animation: stance-land 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--k, 0) * 650ms);
+}
+.stance-reveal.is-fresh .stance-stack {
+  animation: stance-grow 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--k, 0) * 650ms);
+}
+
+/* The two sides, when a source supplies verbatim quotes. */
+.stance-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  max-height: 34svh;
+  overflow-y: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+.stance-side-title {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stance-side-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.stance-side blockquote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--ink-3);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.stance-side-who {
+  margin: 2px 0 0 10px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+@media (max-width: 767px) {
+  .stance-sides {
+    grid-template-columns: minmax(0, 1fr);
+    max-height: 30svh;
+  }
+}
+
+/* The sound switch in the top bar. */
+.stance-sound {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.stance-sound[aria-pressed='false'] {
+  color: var(--ink-2);
+}
+@media (max-width: 767px) {
+  .stance-sound {
+    min-height: 44px;
+    min-width: 44px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+/* A phone shows the round on one screen: the chart folds away once the question is asked, and the finding is the title. */
+@media (max-width: 767px) {
+  .stance-game[data-beats] .stance-act {
+    min-height: calc(100svh - var(--hdr) - var(--top-h));
+  }
+  .stance-act[data-beat='finding'] .stance-headline {
+    font-size: clamp(22px, 6.4vw, 28px);
+  }
+  .stance-act[data-beat='question'] .stance-right,
+  .stance-act[data-beat='results'] .stance-right {
+    display: none;
+  }
+  /* In the phone's one-column order: title, chart, then the two sides and the "Ask me" row. */
+  .stance-game .stance-sides {
+    order: 5;
+  }
+  .stance-game .stance-askrow {
+    order: 6;
+  }
+  .stance-game[data-beats] .stance-counter,
+  .stance-ask-btn kbd {
+    display: none;
+  }
+}
+
+/* Reduced motion: the beats still happen, as steps, with no movement. */
+@media (prefers-reduced-motion: reduce) {
+  .stance-game[data-beats] .stance-act,
+  .stance-game[data-beats] .stance-act *,
+  .stance-reveal.is-fresh .stance-result,
+  .stance-reveal.is-fresh .stance-stack {
+    animation: none !important;
+    transition: none !important;
+  }
+  .stance-game[data-beats] .stance-act {
+    --draw: 1 !important;
+  }
+  .stance-reveal.is-fresh .stance-result {
+    opacity: 1;
   }
 }

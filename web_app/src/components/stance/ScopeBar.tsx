@@ -20,6 +20,8 @@ interface Props {
   current: string
   /** A sentence heading (the page's h1, its blanks are the controls); replaces the title and the Your place button. */
   heading?: ReactNode
+  /** Extra controls in the bar, before "Your place" (the challenge's sound switch). */
+  extra?: ReactNode
   placeOpen: boolean
   onPlaceOpenChange: (open: boolean) => void
   onApply: (stateCode: string | null, city: string | null) => void
@@ -61,6 +63,7 @@ export default function ScopeBar(p: Props) {
       <p className="stance-counter" data-testid="stance-current">
         {p.current}
       </p>
+      {p.extra}
       {!p.heading && <PlaceControl stateCode={p.stateCode} city={p.city} open={p.placeOpen} onOpenChange={p.onPlaceOpenChange} onApply={p.onApply} />}
     </header>
   )

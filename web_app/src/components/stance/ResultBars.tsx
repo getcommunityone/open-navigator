@@ -12,15 +12,17 @@ interface Props {
   play?: boolean
   /** Why there is no group at all (no state or community chosen). */
   missing?: string
+  /** Position in the reveal (0 national, 1 state, 2 place): sets when this row lands (see `.is-fresh` in stance.css). */
+  landIndex?: number
 }
 
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
 
 /** One group's split as a horizontal stacked bar. Counts and percentages are also written as text, never colour alone. */
-export default function ResultBars({ title, group, minSample, yourAnswer, missing, play = true }: Props) {
+export default function ResultBars({ title, group, minSample, yourAnswer, missing, play = true, landIndex = 0 }: Props) {
   const bars: ResultBar[] | null = resultBars(group)
   return (
-    <div className="stance-result">
+    <div className="stance-result" style={{ ['--k' as string]: landIndex }}>
       <p className="stance-result-title">
         <span>{title}</span>
         {group && <span className="stance-result-n"> · {plural(group.n, 'answer', 'answers')}</span>}

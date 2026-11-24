@@ -35,6 +35,11 @@ interface Options {
   onSettled: (hold: Hold) => void
   /** Smooth scrolling is allowed (not reduced motion). */
   smooth: boolean
+  /**
+   * The challenge's beats (#899): the chart draw, the question and the reveal are played by the round itself on a clock, not
+   * scrubbed by the scroll, so the timeline leaves --draw, --reveal and the question block alone.
+   */
+  beats?: boolean
 }
 
 export interface ActsApi {
@@ -215,8 +220,11 @@ export function useActs(opts: Options): ActsApi {
         const head = q('.stance-head')
         const draw = { v: 0 }
         const reveal = { v: 0 }
-        act.style.setProperty('--draw', '0')
-        act.style.setProperty('--reveal', '0')
+        const beats = Boolean(o.current.beats)
+        if (!beats) {
+          act.style.setProperty('--draw', '0')
+          act.style.setProperty('--reveal', '0')
+        }
         const tl = gsap.timeline({
           defaults: { ease: 'none' },
           scrollTrigger: {
@@ -238,13 +246,13 @@ export function useActs(opts: Options): ActsApi {
         }
         // (b) the chart builds with the scroll
         if (right) tl.fromTo(right, { opacity: 0, y: 48 }, { opacity: 1, y: 0, duration: 0.14, ease: 'expo.out' }, 0.1)
-        tl.to(draw, { v: 1, duration: 0.34, onUpdate: () => act.style.setProperty('--draw', draw.v.toFixed(3)) }, 0.16)
+        if (!beats) tl.to(draw, { v: 1, duration: 0.34, onUpdate: () => act.style.setProperty('--draw', draw.v.toFixed(3)) }, 0.16)
         // (c) the headline, then the statement, resolve to a sharp hold
         if (head) tl.fromTo(head, { opacity: 0, y: 44 }, { opacity: 1, y: 0, duration: 0.2, ease: 'expo.out' }, 0.22)
         // the statement resolves to a sharp hold with the answers
-        if (qblock.length) tl.fromTo(qblock, { opacity: 0, y: 36, filter: 'blur(10px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.2, ease: 'expo.out' }, 0.36)
+        if (qblock.length && !beats) tl.fromTo(qblock, { opacity: 0, y: 36, filter: 'blur(10px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.2, ease: 'expo.out' }, 0.36)
         // (d) the reveal bars extend
-        tl.to(reveal, { v: 1, duration: 0.18, onUpdate: () => act.style.setProperty('--reveal', reveal.v.toFixed(3)) }, 0.7)
+        if (!beats) tl.to(reveal, { v: 1, duration: 0.18, onUpdate: () => act.style.setProperty('--reveal', reveal.v.toFixed(3)) }, 0.7)
         // (e) exit
         if (grid) tl.to(grid, { opacity: 0.3, y: -28, duration: 0.07 }, 0.93)
         triggers[i] = tl.scrollTrigger as ScrollTrigger

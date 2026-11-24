@@ -112,3 +112,32 @@ centers are a fair trade for the investment they bring." (`tax-breaks-fair`) was
 exists. Wording and statement versions are unchanged; the pack version went from 1 to 2 and `order` now runs 1 to 7. No answers had
 been recorded. A story or a challenge needs recordings or transcripts behind it; figure-only data, such as census measures, is shown
 under Explore.
+
+## Update, November 24, 2026 (#899): pacing in three beats, and sound
+
+The owner's feedback was that a round showed everything at once, and that it should show the data and its conclusion first, then
+ask the player where they stand, with sound to give it energy. Later the same day the owner said what the challenge is: not a
+quiz on facts, but questions where there were open, documented disagreements in meetings, with facts on both sides. That shapes
+the design.
+
+- **Three beats.** `roundBeat(state)` in `web_app/src/utils/stanceGame.ts` returns `finding`, `question` or `results` from
+  whether the round is answered, asked or being changed. Beat 1 is "what the record shows": the finding sentence as the title and
+  the chart drawing in. The question arrives on **Ask me** or Space, or by itself once the chart has finished and a pause (2.5 s)
+  has passed; the timer never runs while the player is on the chart or its table, while a menu is open, or while the tab is hidden.
+  The answer buttons are not rendered before the question, so they cannot be focused or hit by the A, D and N keys. A round
+  already answered goes straight to the results.
+- **No right answers.** Nothing in the words, the sounds or the visuals implies a right or wrong answer or a score. The prompt
+  is "Where do you stand?". The `lock` cue is one pitch, so it cannot sound like a verdict. The results copy still says how people
+  who played answered and that it is not a poll.
+- **Both sides.** `RoundPanel` accepts an optional `sides` prop (`for` and `against` lists of verbatim passages, each with its
+  speaker role, jurisdiction, meeting date and a recording link at the timestamp). It shows them in beat 1 only when both sides
+  have at least one real passage; otherwise nothing renders. No endpoint feeds it yet; a separate issue adds one.
+- **Sound.** `web_app/src/utils/stanceSound.ts` makes five cues from oscillators and gain envelopes (`open`, `question`, `lock`,
+  `bar`, `finish`); `cueNotes(cue, step)` is the pure note list and is unit tested. One shared AudioContext is made lazily, only
+  after the first pointer or key press and only when sound is on, through a master gain of 0.15. The setting `stance.sound`
+  (`on` or `off`) is read and written through guarded `localStorage` calls. A browser without Web Audio stays silent. Every cue has
+  a visible counterpart, so sound is never the only signal. The cues are our own short motifs; nothing is taken from any
+  existing game or show.
+- **Scroll.** The pinned, scroll-scrubbed acts (`useActs.ts`) stay. With the `beats` option the timeline no longer scrubs the
+  chart draw, the question block or the reveal; the round plays those on a clock. Scrolling past an unanswered round still counts
+  as skipping it.
