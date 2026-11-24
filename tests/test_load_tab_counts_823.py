@@ -86,12 +86,78 @@ def test_result_json_shape(tmp_path):
     assert not list(out.parent.glob("*.tmp"))
 
 
+def test_gate_reasons_and_failed_writes_are_listed(cache, monkeypatch):
+    """Run the real second pass: one video the gate rejects, one whose database write fails."""
+    _put(cache, "junk", meta={"video_id": "vidJUNK0001"})
+    monkeypatch.setattr(loader, "build_video_to_event_map", lambda _c: {"vidGOOD0001": 7, "vidJUNK0001": 8})
+    monkeypatch.setattr(loader, "fetch_video_info", lambda _c, _ids: {"vidJUNK0001": {"junk": True}, "vidGOOD0001": {"meeting_type": "CITY_COUNCIL"}})
+    monkeypatch.setattr(loader, "ensure_provenance_columns", lambda _c: None)
+    screen = types.ModuleType("llm.typesafe.screen_transcripts")
+    screen.jev_skip_meeting_video_ids = lambda *_a, **_k: set()
+    monkeypatch.setitem(sys.modules, "llm.typesafe.screen_transcripts", screen)
+
+    class _Conn:
+        def close(self):
+            pass
+
+        def rollback(self):
+            pass
+
+        def commit(self):
+            pass
+
+    def boom(*_a, **_k):
+        raise loader.psycopg2.Error("insert or update violates foreign key constraint")
+
+    monkeypatch.setattr(loader.psycopg2, "connect", lambda *_a, **_k: _Conn())
+    monkeypatch.setattr(loader, "upsert_row", boom)
+    items: list[dict] = []
+    stats = loader.run(cache_root=cache, database_url="x", dry_run=False, gate=True, items=items)
+    by_file = {Path(i["file"]).name: i for i in items}
+    assert (by_file["junk.json"]["outcome"], by_file["junk.json"]["reason"]) == ("skipped", "junk_channel")
+    assert (by_file["good.json"]["outcome"], by_file["good.json"]["reason"]) == ("error", "upsert_failed")
+    assert "foreign key" in by_file["good.json"]["detail"] and by_file["good.json"]["video_id"] == "vidGOOD0001"
+    assert stats["errors_upsert"] == 1 and stats["skipped_junk_channel"] == 1 and stats["loaded"] == 0
+    assert stats["errors"] == stats["errors_unreadable"] + stats["errors_upsert"]
+    assert stats["loaded"] + len(items) == stats["discovered"]
+    assert loader.exit_code(stats) == 1
+
+
+def test_a_missing_cache_is_an_error_not_an_empty_success(tmp_path):
+    items: list[dict] = []
+    stats = loader.run(cache_root=tmp_path / "nope", database_url="x", items=items)
+    assert items[0]["reason"] == "cache_missing" and loader.exit_code(stats) == 1
+
+
+def test_the_report_is_written_even_when_the_run_raises(monkeypatch, tmp_path):
+    def broken_run(**kw):
+        kw["items"].append({"file": "reached.json", "outcome": "skipped", "reason": "no_meta"})
+        raise RuntimeError("boom")
+
+    out = tmp_path / "r.json"
+    monkeypatch.setattr(loader, "run", broken_run)
+    monkeypatch.setattr(sys, "argv", ["loader", "--result-json", str(out)])
+    with pytest.raises(RuntimeError):
+        loader.main()
+    assert json.loads(out.read_text())["items"][0]["file"] == "reached.json"
+
+
+def test_failing_to_write_the_report_does_not_fail_a_good_load(monkeypatch, tmp_path):
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    monkeypatch.setattr(loader, "run", lambda **_kw: {"loaded": 3})
+    monkeypatch.setattr(sys, "argv", ["loader", "--result-json", str(blocker / "sub" / "r.json")])
+    assert loader.main() == 0
+
+
 @pytest.mark.parametrize(
     ("stats", "code"),
     [
-        ({"errors": 1, "errors_unreadable": 1, "errors_upsert": 0}, 0),  # one bad input file must not stop dbt
-        ({"errors": 1, "errors_unreadable": 0, "errors_upsert": 1}, 1),  # a failed write is a failed run
-        ({"errors": 0, "errors_unreadable": 0, "errors_upsert": 0}, 0),
+        ({"loaded": 9, "errors": 1, "errors_unreadable": 1, "errors_upsert": 0}, 0),  # one bad file must not stop dbt
+        ({"loaded": 0, "errors": 5, "errors_unreadable": 5, "errors_upsert": 0}, 1),  # nothing loaded: a broken cache
+        ({"loaded": 9, "errors": 1, "errors_unreadable": 0, "errors_upsert": 1}, 1),  # a failed write is a failed run
+        ({"loaded": 0, "errors": 1, "errors_cache_missing": 1}, 1),
+        ({"loaded": 0, "errors": 0, "errors_unreadable": 0, "errors_upsert": 0}, 0),
     ],
 )
 def test_exit_code_fails_only_on_database_errors(monkeypatch, tmp_path, stats, code):
@@ -137,8 +203,11 @@ def test_load_step_gets_a_result_path_and_other_steps_do_not(orch, tmp_path):
 
 def test_summarize_load_counts(orch):
     counts = {"discovered": 10, "loaded": 4, "loaded_light": 4, "skipped_no_event": 3, "skipped_low_keep_score": 2,
-              "skipped_other_tier": 9, "errors": 1, "errors_unreadable": 1, "unchecked_no_bronze_row": 5}
+              "skipped_other_tier": 0, "errors": 1, "errors_unreadable": 1, "unchecked_no_bronze_row": 5}
     assert orch.summarize_load_counts(counts) == {"read": 10, "loaded": 4, "skipped": 5, "errors": 1}
+    # files of the tier that was not asked for are neither read nor skipped, so the numbers still add up
+    one_tier = orch.summarize_load_counts({"discovered": 10, "loaded": 4, "skipped_other_tier": 6})
+    assert one_tier == {"read": 4, "loaded": 4, "skipped": 0, "errors": 0}
     assert orch.summarize_load_counts({}) == {"read": 0, "loaded": 0, "skipped": 0, "errors": 0}
 
 
@@ -263,6 +332,7 @@ def test_result_endpoint_counts_and_reasons(get):
     assert body["available"] is True and body["kind"] == "load-analysis"
     assert body["counts"] == {"discovered": 100, "loaded": 38, "errors": 1}  # only numbers
     assert body["total"] == 62 and len(body["rows"]) == 50
+    assert body["rows"][0]["outcome"] == "error"  # errors come first in the table too
     reasons = body["reasons"]
     assert [(r["reason"], r["outcome"], r["count"]) for r in reasons] == [
         ("unreadable", "error", 1), ("no_event", "skipped", 60), ("brand_new_reason", "skipped", 1)]  # errors first
@@ -289,5 +359,6 @@ def test_result_endpoint_says_when_nothing_was_recorded(get):
 
 def test_result_endpoint_rejects_bad_input(get):
     assert get("/api/deployments/load_1/result", step="nope").status_code == 400
-    assert get("/api/deployments/a..b/result", step="load-analysis").status_code == 400
+    assert get("/api/deployments/bad$id/result", step="load-analysis").status_code == 400
+    assert get("/api/deployments/a.b/result", step="load-analysis").status_code == 400
     assert get("/api/deployments/load_1/result", step="load-analysis", limit=0).status_code == 422

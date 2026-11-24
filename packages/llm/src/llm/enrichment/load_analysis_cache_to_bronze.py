@@ -222,6 +222,7 @@ def _empty_stats() -> dict[str, int]:
         "skipped_no_meta": 0, "skipped_meta_mismatch": 0, "skipped_tier_mismatch": 0,
         "skipped_no_video": 0, "skipped_no_event": 0, "skipped_other_tier": 0,
         "unchecked_no_bronze_row": 0, "errors": 0, "errors_unreadable": 0, "errors_upsert": 0,
+        "errors_cache_missing": 0,
     }
     for reason in SKIP_REASONS:
         stats[f"skipped_{reason}"] = 0
@@ -278,6 +279,11 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
     stats = _empty_stats()
     if not cache_root.exists():
         logger.error("Cache root not found: {}", cache_root)
+        stats["errors"] += 1
+        stats["errors_cache_missing"] = 1
+        if items is not None:
+            items.append({"file": str(cache_root), "video_id": None, "tier": None, "outcome": "error",
+                          "reason": "cache_missing", "detail": "the analysis cache folder does not exist"})
         return stats
 
     files = discover_analysis_files(cache_root, states)
@@ -446,17 +452,37 @@ def main() -> int:
     states = [s.strip().upper() for s in args.states.split(",")] if args.states else None
 
     items: list[dict[str, Any]] = []
-    stats = run(
-        cache_root=args.cache_root, database_url=args.database_url,
-        states=states, dry_run=args.dry_run, limit=args.limit,
-        tier=args.tier, min_meeting_p=args.min_meeting_p, gate=not args.no_gate,
-        items=items,
-    )
-    if args.result_json:
-        write_result_json(args.result_json, stats, items, dry_run=args.dry_run)
-    # Non-zero only when a database write failed. A file that cannot be read is one bad input: it is
-    # counted and listed, but it must not stop the steps that follow for every other file (#823).
-    return 1 if stats["errors_upsert"] else 0
+    stats = _empty_stats()
+    try:
+        stats = run(
+            cache_root=args.cache_root, database_url=args.database_url,
+            states=states, dry_run=args.dry_run, limit=args.limit,
+            tier=args.tier, min_meeting_p=args.min_meeting_p, gate=not args.no_gate,
+            items=items,
+        )
+    finally:
+        # Written even when the run raises, so the Load tab can show what was reached. A failure to
+        # write the report must not turn a good load into a failed one.
+        if args.result_json:
+            try:
+                write_result_json(args.result_json, stats, items, dry_run=args.dry_run)
+            except OSError as exc:
+                logger.warning("Could not write the result file {}: {}", args.result_json, exc)
+    return exit_code(stats)
+
+
+def exit_code(stats: dict[str, int]) -> int:
+    """0 unless the run as a whole failed (#823).
+
+    One unreadable file is a bad input: counted and listed, but it must not stop the dbt rebuild for
+    every other analysis. The run fails when a database write failed, when the cache folder is
+    missing, or when files were unreadable and nothing at all loaded (a broken mount or permissions,
+    not one bad file)."""
+    if stats.get("errors_upsert") or stats.get("errors_cache_missing"):
+        return 1
+    if stats.get("errors_unreadable") and not stats.get("loaded"):
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

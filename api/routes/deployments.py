@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -280,10 +281,15 @@ _REASON_INFO: Dict[str, tuple] = {
     "junk_channel": ("Junk channel", "The channel is classified as not a government channel. Expected."),
     "non_meeting_type": ("Not a meeting", "meeting_type is OTHER, UNKNOWN or blank. Review it on the Meeting kinds tab if that is wrong."),
     "low_keep_score": ("Low meeting score", "The Jev keep-score is below the floor. Override the meeting kind if it is a real meeting."),
+    "cache_missing": ("Analysis cache not found", "The cache folder the loader reads does not exist on this machine. Check the path and the mount."),
     "error": ("dbt model failed", "Read the dbt message; fix the model or its upstream data and run the step again."),
     "fail": ("dbt test failed", "Read the dbt message."),
     "skipped": ("dbt model skipped", "An upstream model failed, so this one did not run."),
 }
+
+
+# Job ids are "<group>_<YYYYMMDD>_<HHMMSS>"; the id becomes part of a file name.
+_JOB_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,80}")
 
 
 def _load_step_result(job_id: str, step: str) -> Optional[Dict[str, Any]]:
@@ -591,7 +597,7 @@ async def deployment_step_result(
     step = (step or "").strip().lower()
     if step not in _STEP_KEYS:
         raise HTTPException(status_code=400, detail=f"step must be one of {_STEP_KEYS}")
-    if not job_id or "/" in job_id or "\\" in job_id or ".." in job_id:
+    if not _JOB_ID_RE.fullmatch(job_id or ""):
         raise HTTPException(status_code=400, detail="invalid job id")
     data = _load_step_result(job_id, step)
     if data is None:
@@ -626,7 +632,8 @@ async def deployment_step_result(
             return needle in hay
         return True
 
-    matched = [i for i in items if keep(i)]
+    # Errors first, otherwise the order the step wrote them (sorted() is stable).
+    matched = sorted((i for i in items if keep(i)), key=lambda i: str(i.get("outcome") or "") != "error")
     rows = [
         StepResultItem(
             file=str(i.get("file") or ""),

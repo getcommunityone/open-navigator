@@ -78,7 +78,7 @@ function StepRow({ job, step }: { job: DeploymentJob; step: DeploymentStep }) {
               <p className="mb-1 text-xs font-semibold text-slate-700">
                 {hasProblems(step.counts) ? 'What was skipped or failed' : 'Counts'}
               </p>
-              <StepResultPanel jobId={job.job_id} step={step.key} live={step.status === 'running'} />
+              <StepResultPanel jobId={job.job_id} step={step.key} live={step.status === 'running'} recorded={!!step.counts} />
             </div>
           )}
           {step.cmd && (

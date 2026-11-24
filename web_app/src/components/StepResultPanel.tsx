@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { fetchStepResult, type StepResultReason } from '../api/deployments'
 
@@ -33,9 +33,10 @@ export function StepCounts({ counts }: { counts?: Record<string, number> | null 
         const n = counts[key] as number
         // A zero is a real, measured zero here; quiet it so the non-zero problems stand out.
         const cls = n === 0 && (tone === 'warn' || tone === 'bad') ? TONE.plain : TONE[tone]
+        const text = n === 1 && label.endsWith('s') ? label.slice(0, -1) : label
         return (
           <span key={key} className={`rounded-full border px-2 py-0.5 text-[11px] font-medium tabular-nums ${cls}`}>
-            {n.toLocaleString()} {n === 1 && label.endsWith('s') && label !== 'success' ? label.slice(0, -1) : label}
+            {n.toLocaleString()} {text}
           </span>
         )
       })}
@@ -68,17 +69,30 @@ function ReasonButton({ r, active, onClick }: { r: StepResultReason; active: boo
  * Drill-down for one step of a Load run (#823): every reason with its count and what to do, then a
  * searchable, paged list of the items that were not loaded. Reads the step's result file through the API.
  */
-export default function StepResultPanel({ jobId, step, live }: { jobId: string; step: string; live: boolean }) {
+export default function StepResultPanel({
+  jobId,
+  step,
+  live,
+  recorded,
+}: {
+  jobId: string
+  step: string
+  live: boolean
+  /** True once the step has recorded counts; part of the query key so the panel refetches when they land. */
+  recorded: boolean
+}) {
   const [reason, setReason] = useState<string>('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['deployment-step-result', jobId, step, reason, q, page],
+    queryKey: ['deployment-step-result', jobId, step, recorded, reason, q, page],
     queryFn: () => fetchStepResult(jobId, step, { reason: reason || undefined, q: q.trim() || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
     refetchInterval: live ? 5_000 : false,
+    // Keep the last page on screen while a new filter loads, so the search box is never unmounted mid-typing.
+    placeholderData: keepPreviousData,
   })
 
-  if (isLoading) return <p className="text-xs text-slate-400">Loading counts…</p>
+  if (isLoading && !data) return <p className="text-xs text-slate-400">Loading counts…</p>
   if (isError) {
     return (
       <p className="text-xs text-red-700" role="status">

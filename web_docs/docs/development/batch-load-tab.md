@@ -44,11 +44,11 @@ Each step of a Load run records what it did, and the tab shows it the way tab 1 
 
 | Where | What you see |
 |---|---|
-| A run's header | `12,169 files read · 9,100 loaded · 3,060 skipped · 1 file errors`, then `41 of 42 models built` once dbt has run (the numbers are whatever that run recorded) |
+| A run's header | `N files read · N loaded · N skipped · N file errors`, then `N of N models built` once dbt has run |
 | A step's row | count chips: read, loaded, skipped, errors for the loader; models, built, skipped, failed for dbt |
 | An opened step | every reason with its count and what to do about it, a search box, and a paged table of the items: outcome, reason, file (with a link to the video), and the error text |
 
-Click a reason to filter the table to it. Errors are listed before skips. The log tail stays below the table.
+Click a reason to filter the table to it. Errors are listed before skips, in the reasons and in the table. The log tail stays below the table.
 
 A step shows **No counts recorded for this run** when it left no result: runs from before #823, dry runs (no command
 is executed), and a step that crashed before it could write. It never shows zeros it did not measure.
@@ -65,10 +65,20 @@ How it works:
 
 ### When the loader fails the run
 
-The loader exits non-zero only when a **database write fails** (or the run itself raises). A file that cannot be read,
-for example an empty analysis file, is counted and listed as an error but does not fail the step, so one bad file no
-longer stops the dbt rebuild for every other analysis. Before #823 any unreadable file failed the step and dbt was
-skipped.
+A file that cannot be read, for example an empty analysis file, is counted and listed as an error but does not fail
+the step, so one bad file no longer stops the dbt rebuild for every other analysis. Before #823 any unreadable file
+failed the step and dbt was skipped.
+
+The loader exits non-zero, which stops the run before dbt, when:
+
+- a **database write fails**;
+- the **cache folder is missing**;
+- files were unreadable **and nothing loaded at all** (a broken mount or permissions, not one bad file);
+- the run itself raises.
+
+Two cases still finish as "completed" and are worth a look when the counts seem wrong: every file skipped as
+`no_event` (no events have been promoted), and a `--tier` run, where files of the other tier are not counted as read.
+The counts are written even when the run raises partway, so the tab shows how far it got.
 
 ## What the load skips
 

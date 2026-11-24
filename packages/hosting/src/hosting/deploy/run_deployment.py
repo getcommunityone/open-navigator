@@ -281,7 +281,9 @@ def summarize_load_counts(counts: Dict[str, Any]) -> Dict[str, int]:
             return 0
 
     skipped = sum(n(k) for k in counts if k.startswith("skipped_") and k != "skipped_other_tier")
-    return {"read": n("discovered"), "loaded": n("loaded"), "skipped": skipped, "errors": n("errors")}
+    # Files of the tier this run was not asked for were never candidates, so they are not "read".
+    read = max(0, n("discovered") - n("skipped_other_tier"))
+    return {"read": read, "loaded": n("loaded"), "skipped": skipped, "errors": n("errors")}
 
 
 def dbt_result_from_run_results(run_results: Path, started_epoch: float) -> Optional[Dict[str, Any]]:
