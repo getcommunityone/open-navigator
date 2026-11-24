@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { tracedFetch } from '../lib/api'
+import { ApiError, apiErrorMessage } from '../utils/apiErrorMessage'
 
 const DEFAULT_WEBSITE_URL = 'https://www.communityone.com/'
 
@@ -120,19 +121,6 @@ function WarningBox({ items }: { items: string[] }) {
   )
 }
 
-function formatErrorDetail(detail: unknown): string {
-  if (typeof detail === 'string') return detail
-  if (Array.isArray(detail)) {
-    return detail
-      .map((x) => (typeof x === 'object' && x && 'msg' in x ? String((x as { msg: string }).msg) : String(x)))
-      .join('; ')
-  }
-  if (detail && typeof detail === 'object' && 'detail' in detail) {
-    return formatErrorDetail((detail as { detail: unknown }).detail)
-  }
-  return 'Request failed'
-}
-
 async function fetchReport(websiteUrl: string, batchId?: string): Promise<LighthouseReportPayload> {
   const u = new URL('/api/lighthouse/report', window.location.origin)
   u.searchParams.set('website_url', websiteUrl.trim())
@@ -145,11 +133,7 @@ async function fetchReport(websiteUrl: string, batchId?: string): Promise<Lighth
     } catch {
       /* ignore */
     }
-    const msg =
-      body && typeof body === 'object' && 'detail' in body
-        ? formatErrorDetail((body as { detail: unknown }).detail)
-        : `HTTP ${res.status}`
-    throw new Error(msg)
+    throw new ApiError(apiErrorMessage(body, res.status), res.status)
   }
   return (await res.json()) as LighthouseReportPayload
 }
@@ -241,7 +225,19 @@ export default function LighthouseReportPage() {
         </p>
       )}
 
-      {isError && (
+      {/* No audit stored for this URL is an empty state, not a failure (#888). */}
+      {isError && error instanceof ApiError && error.status === 404 && (
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800" role="status">
+          <p className="font-semibold">No Lighthouse audit is stored for this URL</p>
+          <p className="mt-1 break-all text-slate-600">{submittedUrl}</p>
+          <p className="mt-2 text-slate-600">
+            Scores appear here after the accessibility Lighthouse scan has been run for the site and loaded. Check the
+            address, including the trailing slash and <code>www</code>, or try a batch ID.
+          </p>
+        </div>
+      )}
+
+      {isError && !(error instanceof ApiError && error.status === 404) && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
           {(error as Error)?.message ?? 'Failed to load report'}
         </div>

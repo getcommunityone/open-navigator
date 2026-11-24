@@ -151,13 +151,21 @@ function RouteChangeTracer() {
   return null
 }
 
-// The game pulls in gsap and lenis, so it loads on its own route chunk and no other page pays for them.
-const WhereYouStand = lazy(() => import('./pages/WhereYouStand'))
+// The challenge and the story pull in gsap and lenis, so they load on their own route chunks and no other page pays for them.
+const Challenge = lazy(() => import('./pages/Challenge'))
+const DataStory = lazy(() => import('./pages/DataStory'))
+const DataStories = lazy(() => import('./pages/DataStories'))
 
-/** `/play` goes to the first topic pack and keeps any place already in the URL. */
-function PlayRedirect() {
+/** `/challenge` and `/play` go to the first topic pack and keep any place already in the URL. */
+function ChallengeRedirect({ to = 'data-centers' }: { to?: string }) {
   const { search } = useLocation()
-  return <Navigate to={`/play/data-centers${search}`} replace />
+  return <Navigate to={`/challenge/${to}${search}`} replace />
+}
+
+/** `/play/:packId` is the old address of `/challenge/:packId`; the query string (the place) is kept. */
+function PlayPackRedirect() {
+  const { packId = 'data-centers' } = useParams()
+  return <ChallengeRedirect to={encodeURIComponent(packId)} />
 }
 
 function App() {
@@ -189,12 +197,30 @@ function App() {
         <Route path="browse-topics" element={<BrowseTopics />} />
         <Route path="browse-causes" element={<BrowseCauses />} />
         <Route path="data-centers" element={<DataCenters />} />
-        <Route path="play" element={<PlayRedirect />} />
+        <Route path="play" element={<ChallengeRedirect />} />
+        <Route path="play/:packId" element={<PlayPackRedirect />} />
+        <Route path="challenge" element={<ChallengeRedirect />} />
         <Route
-          path="play/:packId"
+          path="challenge/:packId"
           element={
-            <LazyRouteBoundary name="Where Do You Stand?">
-              <WhereYouStand />
+            <LazyRouteBoundary name="Data Center Challenge">
+              <Challenge />
+            </LazyRouteBoundary>
+          }
+        />
+        <Route
+          path="stories"
+          element={
+            <LazyRouteBoundary name="Data stories">
+              <DataStories />
+            </LazyRouteBoundary>
+          }
+        />
+        <Route
+          path="stories/:storyId"
+          element={
+            <LazyRouteBoundary name="Data story">
+              <DataStory />
             </LazyRouteBoundary>
           }
         />
@@ -230,7 +256,7 @@ function App() {
         </Route>
         {/* Admin area — operational tools, reachable from the logged-in profile menu. */}
         <Route path="admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/admin/lighthouse-report" replace />} />
+          <Route index element={<Navigate to="/admin/batch-jobs" replace />} />
           <Route path="lighthouse-report" element={<LighthouseReportPage />} />
           <Route path="batch-jobs" element={<BatchJobStatusPage />} />
           <Route path="batch-jobs/failures" element={<BatchFailureReasonsPage />} />

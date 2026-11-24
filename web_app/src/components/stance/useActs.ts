@@ -3,7 +3,7 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
 
-/** Pinned scroll distance per round, as a share of the frame height (the brief: roughly 220 to 320 %). */
+/** Pinned scroll distance per screen, as a share of the frame height (the brief: roughly 220 to 320 %). */
 const DIST = 2.8
 /** Where the beats sit on a round's 0..1 timeline. */
 export const QUESTION_HOLD = 0.62
@@ -12,7 +12,7 @@ export const REVEAL_HOLD = 0.9
 export type HoldKind = 'q' | 'r' | 'cover'
 export interface Hold {
   pos: number
-  /** 0-based round, or `count` for the end screen. */
+  /** 0-based screen, or `count` for the untimed end screen. */
   round: number
   kind: HoldKind | 'end'
 }
@@ -21,8 +21,13 @@ interface Options {
   /** True: pinned, scrubbed acts with Lenis. False: plain stacked panels with native scrolling. */
   animated: boolean
   gameRef: RefObject<HTMLElement>
-  /** Number of rounds (the end screen is one more act). */
+  /** Number of timed screens (game rounds, or story screens). */
   count: number
+  /**
+   * True (default, the challenge): one more, untimed panel follows the timed ones (the end screen).
+   * False: every panel is timed. Panels are the elements with a `data-panel` attribute, in order.
+   */
+  endPanel?: boolean
   /** Whether round i has a confirmed answer: only answered rounds get a reveal hold. */
   isAnswered: (round: number) => boolean
   onActive: (round: number) => void
@@ -50,13 +55,18 @@ function frameOffset(game: HTMLElement): number {
 }
 
 /**
+ * The shared scrolling engine of the Data Center Challenge (rounds) and the Data Center Story (screens): a screen is any
+ * element with `data-panel`, using the `.stance-card`, `.stance-word`, `.stance-head`, `.stance-right`, `.stance-grid`,
+ * `.stance-qblock`, `.stance-reveal` and `.stance-nav` hooks that the timeline animates. Only the challenge has reveal holds
+ * (`isAnswered`) and a cover; a story passes `endPanel: false` or `isAnswered: () => false` and gets one hold per screen.
+ *
  * The game's scrolling. Animated mode (the kinetic reference's technique): Lenis for inertial scrolling, driven from the
  * gsap ticker; every round is an act pinned for about 280 % of the frame while a timeline scrubs through its beats
  * (category card and round word, chart build, question hold, reveal, exit); one ScrollTrigger snaps to the hold points.
  * Plain mode: stacked panels, native scrolling, IntersectionObserver for the round in view.
  * Everything created here is torn down on unmount, so no other page is affected.
  */
-export function useStanceActs(opts: Options): ActsApi {
+export function useActs(opts: Options): ActsApi {
   const o = useRef(opts)
   o.current = opts
   const api = useRef<ActsApi>({ holds: () => [], goToRound: () => {}, goToReveal: () => {}, lock: () => {} })
@@ -66,8 +76,10 @@ export function useStanceActs(opts: Options): ActsApi {
     const game = gameRef.current
     if (!game || count === 0) return
     const acts = Array.from(game.querySelectorAll<HTMLElement>('[data-panel]'))
-    if (acts.length !== count + 1) return
-    const endEl = acts[count]!
+    const withEnd = o.current.endPanel !== false
+    if (acts.length !== count + (withEnd ? 1 : 0)) return
+    const last = acts.length - 1
+    const endEl = withEnd ? acts[count]! : null
 
     if (!animated) {
       const holds = (): Hold[] => {
@@ -75,11 +87,11 @@ export function useStanceActs(opts: Options): ActsApi {
         return acts.map((el, i) => ({
           pos: Math.max(0, el.getBoundingClientRect().top + window.scrollY - off),
           round: i,
-          kind: i === count ? 'end' : 'q',
+          kind: withEnd && i === count ? 'end' : 'q',
         }))
       }
       const go = (round: number) => {
-        const h = holds()[Math.min(Math.max(round, 0), count)]
+        const h = holds()[Math.min(Math.max(round, 0), last)]
         if (h) window.scrollTo({ top: h.pos, behavior: o.current.smooth ? 'smooth' : 'auto' })
       }
       api.current = { holds, goToRound: go, goToReveal: () => {}, lock: () => {} }
@@ -172,7 +184,7 @@ export function useStanceActs(opts: Options): ActsApi {
         out.push({ pos: Math.round(st.start + QUESTION_HOLD * span), round: i, kind: 'q' })
         if (o.current.isAnswered(i)) out.push({ pos: Math.round(st.start + REVEAL_HOLD * span), round: i, kind: 'r' })
       }
-      out.push({ pos: Math.max(0, Math.round(endEl.getBoundingClientRect().top + window.scrollY - frameOffset(game))), round: count, kind: 'end' })
+      if (endEl) out.push({ pos: Math.max(0, Math.round(endEl.getBoundingClientRect().top + window.scrollY - frameOffset(game))), round: count, kind: 'end' })
       return out
     }
     const scrollToPos = (pos: number, duration = 0.9) => {
@@ -182,7 +194,7 @@ export function useStanceActs(opts: Options): ActsApi {
     api.current = {
       holds,
       goToRound: (r, d) => {
-        const h = holds().find((x) => x.round === Math.min(Math.max(r, 0), count) && (x.kind === 'q' || x.kind === 'end'))
+        const h = holds().find((x) => x.round === Math.min(Math.max(r, 0), last) && (x.kind === 'q' || x.kind === 'end'))
         if (h) scrollToPos(h.pos, d)
       },
       goToReveal: (r) => {
@@ -287,7 +299,7 @@ export function useStanceActs(opts: Options): ActsApi {
       lenis.destroy()
       api.current = { holds: () => [], goToRound: () => {}, goToReveal: () => {}, lock: () => {} }
     }
-  }, [animated, count, gameRef])
+  }, [animated, count, gameRef, opts.endPanel])
 
   const holds = useCallback(() => api.current.holds(), [])
   const goToRound = useCallback((r: number, d?: number) => api.current.goToRound(r, d), [])

@@ -11,11 +11,14 @@ interface Props {
   /** Query string that carries the place into the next pack ("?state=AL&city=…" or ""). */
   placeQuery: string
   onJump: (roundIndex: number) => void
+  onBack: () => void
+  /** The data story, with the scope in it. */
+  storyLink: string
   onChangePlace: () => void
 }
 
 /** The end screen. Counts only rounds the player answered, and only groups that were available. */
-export default function EndPanel({ index, rounds, stateName, city, otherPacks, placeQuery, onJump, onChangePlace }: Props) {
+export default function EndPanel({ index, rounds, stateName, city, otherPacks, placeQuery, onJump, onBack, storyLink, onChangePlace }: Props) {
   const answered = rounds.filter((r) => r.answer != null)
   const unsure = answered.filter((r) => r.answer === 'unsure').length
   const nat = tallySided(answered.map((r) => ({ answer: r.answer, group: r.results?.national })))
@@ -25,11 +28,11 @@ export default function EndPanel({ index, rounds, stateName, city, otherPacks, p
   return (
     <section className="stance-panel stance-act stance-end" data-panel={index} aria-labelledby="stance-end-h" aria-roledescription="round">
       <span className="stance-word" aria-hidden="true">
-        end
+        Results
       </span>
       <div className="stance-end-body">
         <div className="stance-card">
-          <p className="stance-card-eyebrow">All rounds</p>
+          <p className="stance-card-eyebrow">Your results</p>
           <p className="stance-card-title" id="stance-end-h">
             Where you stood
           </p>
@@ -79,8 +82,14 @@ export default function EndPanel({ index, rounds, stateName, city, otherPacks, p
           <button type="button" className="folio-btn stance-next" onClick={() => onJump(0)}>
             Play again
           </button>
+          <Link className="folio-btn" to={storyLink}>
+            Read the story
+          </Link>
           <button type="button" className="folio-btn" onClick={onChangePlace}>
             Change my place
+          </button>
+          <button type="button" className="folio-btn stance-back" onClick={onBack}>
+            <span aria-hidden="true">←</span> Back
           </button>
         </div>
         {otherPacks.length > 0 && (
@@ -89,7 +98,7 @@ export default function EndPanel({ index, rounds, stateName, city, otherPacks, p
             <ul>
               {otherPacks.map((p) => (
                 <li key={p.pack_id}>
-                  <Link to={`/play/${encodeURIComponent(p.pack_id)}${placeQuery}`}>
+                  <Link to={`/challenge/${encodeURIComponent(p.pack_id)}${placeQuery}`}>
                     {p.title} ({p.statement_count} statements)
                   </Link>
                 </li>
