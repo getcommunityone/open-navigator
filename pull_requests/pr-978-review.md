@@ -5,7 +5,7 @@ title: "fix(web_app): main tabs scroll to home sections; one type system and but
 author: jcbowyer
 reviewed_at: 2026-11-25
 reviewer: github-actions
-head_sha: 614d9c0727235cb26b79b010e68089a6e57b2469
+head_sha: 2c46a334c8fe863624fc1f7b57d14a1a0a739fed
 verdict: approve
 ---
 
@@ -36,7 +36,7 @@ Automated review (#648) for PR #978 on `fix/975-tabs-sections-one-look`. Heurist
 
 ## CI Status
 
-See the PR checks on `614d9c072723`.
+See the PR checks on `2c46a334c8fe`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
