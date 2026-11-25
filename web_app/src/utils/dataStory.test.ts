@@ -80,12 +80,11 @@ const ready: StoryStatus = Object.fromEntries(STORY_CHARTS.map((k) => [k, 'ready
 const BANNED = /\b(because|due to|driven by|good|bad|worrying|best|worst|should|problem|crisis|hates?|loves?|will|expected|likely)\b/i
 
 describe('story structure', () => {
-  it('opens on the question, then the place, and ends on the question again; a header is never a number', () => {
+  it('opens on overview, then voices, and ends on the question; a header is never a number', () => {
     expect(DATA_CENTER_STORY.map((s) => s.id)).toEqual([
-      'question',
-      'scope',
-      'voices',
       'overview',
+      'voices',
+      'scope',
       'sites',
       'projects',
       'jobs',
@@ -96,8 +95,9 @@ describe('story structure', () => {
       'gatherings',
       'verdict',
     ])
-    expect(DATA_CENTER_STORY.slice(0, 2).map((s) => s.kind)).toEqual(['question', 'scope'])
+    expect(DATA_CENTER_STORY.slice(0, 2).map((s) => s.kind)).toEqual(['overview', 'chart'])
     expect(DATA_CENTER_STORY[DATA_CENTER_STORY.length - 1]!.kind).toBe('verdict')
+    expect(DATA_CENTER_STORY.some((s) => s.id === 'question')).toBe(false)
     for (const s of DATA_CENTER_STORY) expect(s.eyebrow).toMatch(/^[A-Za-z]/)
     expect(new Set(DATA_CENTER_STORY.map((s) => s.id)).size).toBe(DATA_CENTER_STORY.length)
   })
@@ -106,24 +106,27 @@ describe('story structure', () => {
 describe('the screens around the record', () => {
   const q = { text: 'Should we allow new data centers?', place_text: 'Should {place} allow new data centers?' }
   const at = (id: string) => DATA_CENTER_STORY.find((s) => s.id === id)!
+  const legacyQuestion = { id: 'question', eyebrow: 'The question', chart: null, kind: 'question' as const }
   it('word the question for the place in scope', () => {
-    expect(screenText(at('question'), {}, {}, nat, q).headline).toBe('Should we allow new data centers?')
-    expect(screenText(at('question'), {}, {}, tus, q).headline).toBe('Should Tuscaloosa allow new data centers?')
+    expect(screenText(legacyQuestion, {}, {}, nat, q).headline).toBe('Should we allow new data centers?')
+    expect(screenText(legacyQuestion, {}, {}, tus, q).headline).toBe('Should Tuscaloosa allow new data centers?')
     expect(screenText(at('verdict'), {}, {}, al, q).headline).toBe("You've seen the record. Where do you stand now?")
     expect(screenText(at('verdict'), {}, {}, al, q).context).toBe('Should Alabama allow new data centers?')
     expect(screenText(at('scope'), {}, {}, nat, q).headline).toBe('Where?')
   })
   it('state no number and no question that was not loaded', () => {
-    for (const id of ['question', 'scope', 'verdict']) {
-      const t = screenText(at(id), {}, {}, nat)
+    for (const screen of [legacyQuestion, at('scope'), at('verdict')]) {
+      const t = screenText(screen, {}, {}, nat)
       expect(`${t.headline} ${t.context}`).not.toMatch(/\d/)
       expect(t.empty || t.failed).toBe(false)
     }
-    expect(screenText(at('question'), {}, {}, nat).headline).toBe('The question')
+    expect(screenText(legacyQuestion, {}, {}, nat).headline).toBe('The question')
   })
   it('finds a screen by its id, and an old link by the screen that replaced it', () => {
-    expect(storyScreenIndex(DATA_CENTER_STORY, 'question')).toBe(0)
-    expect(storyScreenIndex(DATA_CENTER_STORY, 'scope')).toBe(1)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'overview')).toBe(0)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'question')).toBe(0) // alias → overview (#950)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'voices')).toBe(1)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'scope')).toBe(2)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'verdict')).toBe(DATA_CENTER_STORY.length - 1)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'turn')).toBe(DATA_CENTER_STORY.length - 1)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'nope')).toBe(-1)
@@ -223,8 +226,8 @@ describe('empty, loading and failed screens', () => {
 describe('who spoke up', () => {
   const voices = DATA_CENTER_STORY.find((s) => s.id === 'voices')!
   const value = (res: never, key: string) => positionFigures(res)!.find((f) => f.key === key)!
-  it('comes right after the question and the place, and reads the positions data', () => {
-    expect(DATA_CENTER_STORY.indexOf(voices)).toBe(2)
+  it('comes right after the overview, and reads the positions data', () => {
+    expect(DATA_CENTER_STORY.indexOf(voices)).toBe(1)
     expect(voices.chart).toBe('positions')
     expect(voices.eyebrow).toBe('Who spoke up')
     expect(STORY_CHARTS).toContain('positions')
