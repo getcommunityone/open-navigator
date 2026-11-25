@@ -119,14 +119,9 @@ export default function SiteHeader() {
     }
   }
 
+  // Chat & Contact lives in the profile menu and the site footer (#952 / #860).
   const navItems: { label: string; onClick: () => void; active: boolean }[] = [
     { label: 'Search', onClick: () => navigate('/search'), active: location.pathname === '/search' },
-    // Chat and Contact are one item (#860): the chat panel carries the contact link at its top.
-    {
-      label: 'Chat & Contact',
-      onClick: () => navigate('/chat'),
-      active: location.pathname === '/chat' || location.pathname === '/support',
-    },
     {
       label: 'Data Stories',
       // The place in the address (?state=&city=) travels with the click when the current page has one.
@@ -234,6 +229,13 @@ export default function SiteHeader() {
                 <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
                   <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={menuBtn}>My Profile</button>
                   <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/settings?section=account&tab=profile') }} style={menuBtn}>Settings</button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); navigate('/chat') }}
+                    style={menuBtn}
+                  >
+                    Chat & Contact
+                  </button>
                   <a
                     href={DOCS_INTRO}
                     target="_blank"
@@ -280,7 +282,14 @@ export default function SiteHeader() {
               </button>
               {showLoginMenu && (
                 <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 8, zIndex: 60 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#78716c', padding: '4px 8px 8px' }}>Sign in with:</div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); navigate('/chat') }}
+                    style={menuBtn}
+                  >
+                    Chat & Contact
+                  </button>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#78716c', padding: '8px 8px 8px', borderTop: '1px solid #f5f5f4', marginTop: 4 }}>Sign in with:</div>
                   {(['google', 'facebook', 'github', 'huggingface'] as const).map((provider) => (
                     <button
                       key={provider}

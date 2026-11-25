@@ -95,12 +95,12 @@ per meeting per term and took about a minute on the live site, longer than the p
 no stored search column, so each wider step builds one per meeting when it runs; a stored `tsvector` column with a GIN
 index is the next step if a few seconds is still too slow.
 
-## Chat and Contact are one header item (#860)
+## Chat and Contact (#860 / #952)
 
-The site header has a single "Chat & Contact" item that opens `/chat`. The top of the chat panel says the chat
-answers from meeting records and offers a "Contact us" email link for reaching a person. The link's address is
-`CONTACT_EMAIL` in `web_app/src/utils/contact.ts`, which the older `/support` page also uses; that page stays for
-existing links.
+"Chat & Contact" opens `/chat`. It lives in the **profile menu** (signed-in) and the **site footer**, not the
+primary header nav (#952). The top of the chat panel says the chat answers from meeting records and offers a
+"Contact us" email link for reaching a person. The link's address is `CONTACT_EMAIL` in
+`web_app/src/utils/contact.ts`, which the older `/support` page also uses; that page stays for existing links.
 
 ## Closing the chat (#879)
 

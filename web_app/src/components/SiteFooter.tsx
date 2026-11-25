@@ -1,8 +1,9 @@
 /**
- * Minimal site footer: legal links (YouTube API audit expects these on the
- * public homepage) + CommunityOne social icons (same URLs as docs).
+ * Minimal site footer: Chat & Contact, legal links (YouTube API audit expects
+ * these on the public homepage) + CommunityOne social icons (same URLs as docs).
  */
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { docsUrl } from '../utils/docsLinks'
 
 const MUTED = '#78716c'
@@ -120,7 +121,19 @@ export default function SiteFooter() {
             gap: 16,
           }}
         >
-          <nav aria-label="Legal" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
+          <nav aria-label="Site" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
+            <Link
+              to="/chat"
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: ICON,
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
+            >
+              Chat & Contact
+            </Link>
             {LEGAL.map((item) => (
               <a
                 key={item.href}
