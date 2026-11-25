@@ -105,6 +105,56 @@ export interface DataCenterDecisionsResponse {
   items: DataCenterDecision[]
 }
 
+/** A data center hearing whose official government page states the date together with the data center item (#955). */
+export interface DataCenterHearing {
+  data_center_hearing_id: string
+  jurisdiction_id?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  state?: string | null
+  body_name?: string | null
+  topic?: string | null
+  meeting_date: string
+  /** The official page that states the hearing. */
+  source_url: string
+  source_name?: string | null
+  /** Verbatim excerpt of the official page; matched words in <mark>. */
+  evidence?: string | null
+  /** The page calls the date tentative, expected, not final or to be determined. */
+  tentative?: boolean
+  checked_at?: string | null
+  is_upcoming: boolean
+}
+
+export interface DataCenterHearingsResponse {
+  scope: Schemas['JobClaimScope']
+  /** False when the table is not loaded: counts are null, not zero. */
+  available: boolean
+  counts: { upcoming?: number | null; past?: number | null }
+  items: DataCenterHearing[]
+}
+
+/** Verified upcoming data center hearings for the scope, soonest first (#955). */
+export async function fetchDataCenterHearings(params: {
+  state?: string
+  city?: string
+  when?: 'upcoming' | 'past' | 'all'
+}): Promise<DataCenterHearingsResponse> {
+  const q: Record<string, string> = { when: params.when ?? 'upcoming' }
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.hearings.load',
+    async (span) => {
+      const res = await api.get<DataCenterHearingsResponse>('/data-centers/hearings', { params: q })
+      span.setAttribute('data_centers.hearings.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
+}
+
 /** Decisions on data center items for the scope, newest first, with whole-scope counts (#933). */
 export async function fetchDataCenterDecisions(params: {
   state?: string

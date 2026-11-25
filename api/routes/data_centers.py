@@ -20,7 +20,7 @@ new), the route returns the scope with an empty ``items`` list instead of a 500.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
 
 import asyncpg
@@ -1591,3 +1591,124 @@ async def data_center_decisions(
         items = [DataCenterDecision(**dict(r)) for r in item_rows]
         span.set_attribute("decisions.items", len(items))
         return DataCenterDecisionsResponse(scope=applied, counts=counts, items=items)
+
+
+# --- upcoming data center hearings, verified against the official page (#955) ------------------------------------------
+
+HEARINGS_DEFAULT = 100
+HEARINGS_MAX = 500
+
+
+class DataCenterHearing(BaseModel):
+    """A data center hearing whose official government page states the date together with the data center item."""
+
+    data_center_hearing_id: str
+    jurisdiction_id: str | None = None
+    jurisdiction_name: str | None = None
+    state_code: str | None = None
+    state: str | None = None
+    body_name: str | None = None
+    topic: str | None = None
+    meeting_date: date
+    source_url: str = Field(..., description="The official page that states the hearing.")
+    source_name: str | None = None
+    evidence: str | None = Field(None, description="Verbatim excerpt of the official page; matched words in <mark>.")
+    tentative: bool = Field(False, description="The page calls the date tentative, expected, not final or to be determined.")
+    checked_at: datetime | None = Field(None, description="When the official page was last read.")
+    is_upcoming: bool = Field(..., description="The meeting is today or later.")
+
+
+class DataCenterHearingCounts(BaseModel):
+    upcoming: int | None = None
+    past: int | None = None
+
+
+class DataCenterHearingsResponse(BaseModel):
+    scope: JobClaimScope
+    available: bool = Field(True, description="False when the table isn't loaded: counts are null, not zero.")
+    counts: DataCenterHearingCounts = Field(default_factory=DataCenterHearingCounts)
+    items: list[DataCenterHearing] = Field(default_factory=list)
+
+
+def build_hearing_queries(scope: JobClaimScope, when: str, limit: int) -> tuple[str, list[Any], str, list[Any]]:
+    """(items SQL, params, counts SQL, params) over ``data_center_hearing_verified``, the served
+    slice that holds verified hearings only (verification happens in dbt; an unverified lead is
+    never published). Upcoming first (soonest), then past (newest)."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"h.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"h.jurisdiction_name ILIKE ${len(params)}")
+    counts_where = " AND ".join(where) or "TRUE"
+    counts_params = list(params)
+    if when == "upcoming":
+        where.append("h.meeting_date >= current_date")
+    elif when == "past":
+        where.append("h.meeting_date < current_date")
+    params.append(limit)
+    items_sql = (
+        "SELECT h.data_center_hearing_id, h.jurisdiction_id, h.jurisdiction_name, h.state_code, h.state, "
+        "h.body_name, h.topic, h.meeting_date, h.source_url, h.source_name, h.evidence, h.tentative, "
+        "h.checked_at, (h.meeting_date >= current_date) AS is_upcoming "
+        f"FROM data_center_hearing_verified h WHERE {' AND '.join(where) or 'TRUE'} "
+        "ORDER BY (h.meeting_date >= current_date) DESC, "
+        "CASE WHEN h.meeting_date >= current_date THEN h.meeting_date END ASC, "
+        "h.meeting_date DESC, h.data_center_hearing_id "
+        f"LIMIT ${len(params)}"
+    )
+    counts_sql = (
+        "SELECT count(*) FILTER (WHERE h.meeting_date >= current_date)::int AS upcoming, "
+        "count(*) FILTER (WHERE h.meeting_date < current_date)::int AS past "
+        f"FROM data_center_hearing_verified h WHERE {counts_where}"
+    )
+    return items_sql, params, counts_sql, counts_params
+
+
+@router.get("/hearings", response_model=DataCenterHearingsResponse)
+async def list_data_center_hearings(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the jurisdiction name."),
+    when: Literal["upcoming", "past", "all"] = Query("upcoming", description="Which meetings to list."),
+    limit: int = Query(HEARINGS_DEFAULT, ge=1, le=HEARINGS_MAX, description="Hearings to list."),
+) -> DataCenterHearingsResponse:
+    """
+    Upcoming local government hearings on data centers whose official page (a government
+    agenda, notice or project page) states the date together with the data center item, each
+    with a verbatim excerpt and the link; ``tentative`` when the page says the date isn't final.
+    Leads that aren't backed by an official page are never returned. ``available`` is false, with null counts, when the table isn't loaded.
+
+    Example:
+        GET /api/data-centers/hearings?state=AZ&when=upcoming
+    """
+    scope = build_scope(state, city, None)
+    applied = JobClaimScope(
+        level="city" if scope.city else ("state" if scope.state_code else "national"),
+        state_code=scope.state_code,
+        state=scope.state,
+        city=scope.city,
+    )
+    items_sql, params, counts_sql, counts_params = build_hearing_queries(applied, when, limit)
+    with tracer.start_as_current_span("data-centers.hearings") as span:
+        span.set_attribute("hearings.scope_level", applied.level)
+        span.set_attribute("hearings.when", when)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                with tracer.start_as_current_span("data-centers.hearings.query"):
+                    rows = await conn.fetch(items_sql, *params)
+                    count_rows = await conn.fetch(counts_sql, *counts_params)
+        except asyncpg.exceptions.UndefinedTableError as e:
+            span.set_attribute("hearings.relation_missing", True)
+            logger.warning("data-centers: 'data_center_hearing_verified' isn't here yet ({}); unavailable", e)
+            return DataCenterHearingsResponse(scope=applied, available=False)
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers hearings error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load data center hearings")
+        counts = DataCenterHearingCounts(**dict(count_rows[0])) if count_rows else DataCenterHearingCounts()
+        items = [DataCenterHearing(**dict(r)) for r in rows]
+        span.set_attribute("hearings.items", len(items))
+        return DataCenterHearingsResponse(scope=applied, counts=counts, items=items)
