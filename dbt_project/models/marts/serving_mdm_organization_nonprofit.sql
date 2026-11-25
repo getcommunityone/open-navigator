@@ -3,7 +3,7 @@
   config(
     materialized='table',
     post_hook=[
-      "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_organization_nonprofit_master_org_id_fkey FOREIGN KEY (master_org_id) REFERENCES {{ ref('serving_mdm_organization') }} (master_org_id) NOT VALID",
+      {'sql': "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_organization_nonprofit_master_org_id_fkey FOREIGN KEY (master_org_id) REFERENCES {{ ref('serving_mdm_organization') }} (master_org_id) NOT VALID", 'transaction': false},
       "{{ gold_pk_post_hook('ein') }}"
     ]
   )

@@ -2,10 +2,11 @@
 {#-
     Rebuild-proof the /search performance indexes.
 
-    Each search-serving mart declares its indexes in its own model post_hook, but
-    some rebuild paths skip post_hooks (the table is renamed in from
-    <model>__dbt_tmp without the CREATE INDEX statements firing — the tell is a
-    surviving `<model>__dbt_tmp_pkey` and NO other indexes). When that happens the
+    Each search-serving mart declares its indexes in its model's dbt `indexes`
+    config (#938), built on <model>__dbt_tmp before the swap. They used to be
+    named post_hook indexes, which a rebuild skipped on alternate builds (the old
+    table still owned the name) and then dropped with the backup. When an index is
+    missing anyway the
     index silently vanishes and the matching /search text leg degrades to a full
     sequential scan: ~18s for org name FTS over mdm_organization (~4.1M rows), ~19s
     for the un-indexed ILIKE over public.grant (~6.7M rows). Concurrently fanned

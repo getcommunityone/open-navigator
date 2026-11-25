@@ -1,5 +1,5 @@
 {#
-  post_hook GIN index rationale: gold carries TWO FTS GIN indexes on the body.
+  GIN index rationale (declared in `indexes`, #938): gold carries TWO FTS GIN indexes on the body.
   * event_documents_content_tsv_idx is on the STORED content_tsv column. gold is
     the private warehouse and not size-constrained, so we keep the materialized
     vector + its index for any consumer that still ts_rank()s off content_tsv.
@@ -227,7 +227,7 @@ SELECT
     -- Neon serving slim: full transcript text is the single largest cost on Neon
     -- (~559 MB for the national document set). On the `neon` target we DROP the
     -- full `content` and the precomputed `content_tsv` (and skip its GIN index,
-    -- see post_hook), keeping only a capped excerpt. National document full-text
+    -- see the indexes config), keeping only a capped excerpt. National document full-text
     -- search is therefore disabled on Neon — search_documents_pg returns empty
     -- (content_tsv IS NULL) rather than erroring. dev keeps the full content/FTS.
     NULL::text                                             AS content,
@@ -238,7 +238,7 @@ SELECT
     LEFT(raw_text, 300)                                    AS content_excerpt,
     -- Precomputed full-text vector stored alongside the raw text so the search
     -- API can ts_rank() without recomputing to_tsvector over every match.
-    -- Indexed by the content_tsv GIN index (see post_hook).
+    -- Indexed by the content_tsv GIN index (see the indexes config).
     to_tsvector('english', raw_text)                       AS content_tsv,
 {% endif %}
     LENGTH(raw_text)                                       AS content_length,

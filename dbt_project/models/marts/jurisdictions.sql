@@ -1,5 +1,5 @@
 {#
-  post_hook GIN FTS index rationale: jurisdiction search (search_jurisdictions_pg
+  GIN FTS index rationale (declared in `indexes`, #938): jurisdiction search (search_jurisdictions_pg
   in api/routes/search_postgres.py) ranks with
   ts_rank(to_tsvector('english', COALESCE(search_text, display_name)), query).
   Without a GIN index Postgres recomputes to_tsvector over all ~82k rows per

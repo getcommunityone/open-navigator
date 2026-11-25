@@ -8,8 +8,8 @@
     ],
     post_hook=[
       "{{ swap_guard_check() }}",
-      "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_person_jurisdiction_person_uid_fkey FOREIGN KEY (person_uid) REFERENCES {{ ref('mdm_person') }} (person_uid) NOT VALID",
-      "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_person_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID"
+      {'sql': "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_person_jurisdiction_person_uid_fkey FOREIGN KEY (person_uid) REFERENCES {{ ref('mdm_person') }} (person_uid) NOT VALID", 'transaction': false},
+      {'sql': "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_person_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID", 'transaction': false}
     ]
   )
 }}

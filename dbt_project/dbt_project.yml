@@ -27,10 +27,10 @@ on-run-start:
   - "{{ ensure_event_partitions('gold.event_bill') }}"
   - "{{ ensure_event_partitions('gold.event_organization') }}"
 
-# Rebuild-proof the /search performance indexes. Per-model post_hooks declare them,
-# but some rebuild paths skip post_hooks and silently drop them, turning text-search
-# legs into multi-second seq-scans that blow the homepage past the frontend's
-# fetch-abort. This re-ensures them idempotently after every run.
+# Rebuild-proof the /search performance indexes. Models declare them in their dbt `indexes`
+# config (#938; built before the swap). If one still goes missing, its text-search leg
+# falls back to a multi-second seq-scan that can push the homepage past the frontend's
+# fetch-abort, so this re-ensures them idempotently after every run.
 # See macros/ensure_search_indexes.sql.
 #
 # Then re-publish the public serving layer: the warehouse marts live in `gold`

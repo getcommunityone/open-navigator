@@ -57,22 +57,32 @@ For a large `table` model:
 - **Indexes go in `indexes`, never in a post_hook.** dbt builds them on the tmp table before the swap, under a generated
   name, so they never collide with the backup's and never build under the lock.
 - **`swap_guard()`** (`dbt_project/macros/swap_guard.sql`) is an in-transaction pre-hook. It does three things:
-  - It sets `SET LOCAL lock_timeout = '10s'`, so a swap that can't get its lock rolls back fast (the old table keeps
-    serving) instead of queuing every reader.
   - It takes `pg_try_advisory_xact_lock` on the relation, so a second build of the same model fails immediately with
     "swap_guard: another build of … is running".
   - It records the transaction id.
+  - It records the rename timeout (10s) as a transaction-local setting.
+
+  The project's **`postgres__rename_relation`** (same file) applies that timeout immediately before each `ALTER TABLE …
+  RENAME`. A swap that can't get its lock then rolls back fast (the old table keeps serving) instead of queuing every
+  reader. The timeout covers only the renames, not the build. A model with contract foreign keys creates its tmp table
+  with `references <parent>`, which waits for sibling models building against the same parent. A timeout over the whole
+  build would fail them for nothing, as review of #938 pointed out. Outside a guarded transaction the setting is empty,
+  and the override is exactly dbt's own rename.
 
   All of this ends at the swap's COMMIT, so none of it applies to the backup drop or to other models.
 - **`swap_guard_check()`** must be the **first** post-hook. It runs right after the renames, before COMMIT, and does two
   things:
   - It fails the build if the swap didn't run in the transaction `swap_guard()` started.
-  - It ends the `lock_timeout` window (`set local lock_timeout to default`). The timeout is meant for the renames only.
-    Later post-hooks lock other tables that models running in parallel in the same dbt run may hold, and they must wait
-    as before.
+  - It ends the rename timeout (`lock_timeout` back to default, the setting cleared), so nothing after the renames
+    inherits it.
+- **Statements that lock other tables go in after-commit post-hooks:** `{'sql': "ALTER TABLE … ADD CONSTRAINT … FOREIGN
+  KEY …", 'transaction': false}`. A foreign key needs a lock on the parent table, which a parallel model may hold for
+  many minutes (`grant`'s build holds `mdm_organization` for 20-30). Inside the swap transaction the `ALTER` waits while
+  still holding the swapped table's exclusive lock, so every reader waits too. After commit it holds only a lock that
+  doesn't block reads.
 
-  In #938 the timeout was still on when `mdm_bridge_org_jurisdiction`'s `ADD CONSTRAINT … REFERENCES mdm_organization`
-  ran. It timed out and threw away a 10-minute build.
+  In #938's builds, `mdm_bridge_org_jurisdiction`'s in-transaction `ADD CONSTRAINT … REFERENCES mdm_organization` waited
+  on `grant` and timed out twice. The four bridge models' foreign keys are now after-commit hooks.
 - **`pg_trgm`** is created once per invocation in `on-run-start` (`dbt_project.yml`). Trigram indexes now build before
   any hook, so a per-model hook would come too late on a fresh warehouse.
 - **No before-begin hooks** (`{'sql': ..., 'transaction': false}` in `pre_hook`) on these models. dbt sends a literal
@@ -85,6 +95,8 @@ For a large `table` model:
   `swap_guard_check()` now catches this. An after-commit post-hook (`'transaction': false` in `post_hook`) is harmless.
 - **`ensure_search_indexes`** finds an index by definition when its entry has a `match` key, so it counts the config index
   (generated name) as present instead of building a duplicate. Only valid, non-partial indexes count.
+- **Incremental models** (`grant_opportunity`): dbt builds `indexes` only when the table is first created or
+  full-refreshed. An index added to the config later appears only after `--full-refresh`.
 
 ## Primary keys added in hooks (#941)
 

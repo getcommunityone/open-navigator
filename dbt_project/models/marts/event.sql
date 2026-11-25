@@ -1,5 +1,5 @@
 {#
-  post_hook FTS index rationale: full-text search support for search_events_pg
+  FTS index rationale (declared in `indexes`, #938): full-text search support for search_events_pg
   (api/routes/search_postgres.py). That search UNIONs a title-FTS branch with a
   jurisdiction-substring branch; both need a GIN index or Postgres falls back to
   a 153k-row seq scan that recomputes to_tsvector per row (~3.8s for a common

@@ -15,7 +15,7 @@
     Mart (MDM Layer 5): one golden record per resolved organization, with a
     canonical org_type. Canonical public org table.
 
-    Indexes (post_hook): a GIN FTS index on org_name for org search; a btree on
+    Indexes (dbt `indexes` config, #938): a GIN FTS index on org_name for org search; a btree on
     org_name_norm that both orders org browse/name-sort results (index scan instead
     of a 3.6M-row sort) and powers the person-search anti-join keeping
     officer-derived org names (e.g. CareQuest Institute) out of People results; and

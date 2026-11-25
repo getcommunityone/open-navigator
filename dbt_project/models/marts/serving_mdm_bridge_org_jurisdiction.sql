@@ -6,8 +6,8 @@
       {'columns': ["master_org_id"], 'type': 'btree'}
     ],
     post_hook=[
-      "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_bridge_org_jurisdiction_master_org_id_fkey FOREIGN KEY (master_org_id) REFERENCES {{ ref('serving_mdm_organization') }} (master_org_id) NOT VALID",
-      "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_bridge_org_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID",
+      {'sql': "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_bridge_org_jurisdiction_master_org_id_fkey FOREIGN KEY (master_org_id) REFERENCES {{ ref('serving_mdm_organization') }} (master_org_id) NOT VALID", 'transaction': false},
+      {'sql': "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_bridge_org_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID", 'transaction': false},
       "{{ gold_pk_post_hook('org_jurisdiction_id') }}"
     ]
   )
