@@ -145,26 +145,42 @@ export function createSoundBoard(opts: { attach?: boolean } = {}): SoundBoard {
   }
   if (opts.attach !== false) attach()
 
+  const schedule = (c: AudioContext, cue: Cue, step: number) => {
+    if (!master) return
+    const t0 = c.currentTime + 0.02
+    for (const n of cueNotes(cue, step)) {
+      const osc = c.createOscillator()
+      const env = c.createGain()
+      osc.type = n.type
+      osc.frequency.value = n.freq
+      env.gain.setValueAtTime(0.0001, t0 + n.start)
+      env.gain.linearRampToValueAtTime(0.9 * n.gain, t0 + n.start + 0.012)
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + n.start + n.duration)
+      osc.connect(env)
+      env.connect(master)
+      osc.start(t0 + n.start)
+      osc.stop(t0 + n.start + n.duration + 0.03)
+    }
+  }
+
   return {
     play(cue, step = 0) {
       if (!enabled) return
       const c = ensure()
       if (!c || !master) return
       try {
-        const t0 = c.currentTime + 0.02
-        for (const n of cueNotes(cue, step)) {
-          const osc = c.createOscillator()
-          const env = c.createGain()
-          osc.type = n.type
-          osc.frequency.value = n.freq
-          env.gain.setValueAtTime(0.0001, t0 + n.start)
-          env.gain.linearRampToValueAtTime(0.9 * n.gain, t0 + n.start + 0.012)
-          env.gain.exponentialRampToValueAtTime(0.0001, t0 + n.start + n.duration)
-          osc.connect(env)
-          env.connect(master)
-          osc.start(t0 + n.start)
-          osc.stop(t0 + n.start + n.duration + 0.03)
+        // A fresh AudioContext is often "suspended" until resume finishes; scheduling before that drops the cue (#966).
+        if (c.state === 'suspended') {
+          void c.resume().then(() => {
+            try {
+              schedule(c, cue, step)
+            } catch {
+              /* a cue that cannot play is not worth an error */
+            }
+          }).catch(() => {})
+          return
         }
+        schedule(c, cue, step)
       } catch {
         /* a cue that cannot play is not worth an error */
       }

@@ -13,7 +13,16 @@ import StatRow from '../components/stance/StatRow'
 import { useStoryData } from '../components/stance/useStoryData'
 import { useIdleNudge } from '../hooks/useIdleNudge'
 import { STATE_CODES } from '../lib/usStates'
-import { challengePath, scopeQuery, statsScopeNote, storyPlaceDisplay, storyScopeLabel, storyStats } from '../utils/dataStory'
+import {
+  challengePath,
+  positionFigures,
+  positionsLoaded,
+  scopeQuery,
+  statsScopeNote,
+  storyPlaceDisplay,
+  storyScopeLabel,
+  storyStats,
+} from '../utils/dataStory'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import type { ChartKey } from '../utils/stanceGame'
@@ -25,9 +34,10 @@ const COUNT_CHARTS: ChartKey[] = ['meeting-mentions', 'agenda-items', 'sites', '
 const HUB_CHARTS: ChartKey[] = ['positions', ...COUNT_CHARTS]
 
 /**
- * `/stories`: one card per topic. The page sentence names place and topic (two lines max); the card leads with a
- * care-first hook and a prompt to Start — not a second topic title (#950 / #954). The agree/disagree question lives in
- * the story's closing screen and in the Challenge.
+ * `/stories`: one card per topic. Short sentence about what people are saying in local data-center meetings; the card
+ * leads with a care-first hook and compact counts so Start fits the first viewport (#950 / #954 / #962). Empty "Who spoke
+ * up" is omitted on the hub until positions data is loaded. The agree/disagree question lives in the story's closing
+ * screen and in the Challenge.
  */
 export default function DataStories() {
   const [sp, setSp] = useSearchParams()
@@ -66,6 +76,14 @@ export default function DataStories() {
   const allFailed = states.every((s) => s === 'error')
   const stats = storyStats(data, scope)
   const q = scopeQuery(scope)
+  const positions = data.positions as DataCenterPositionsResponse | null | undefined
+  // Hub: only show Who spoke up when real figures are in — never the empty "not loaded yet" filler (#962).
+  const showVoices =
+    (status.positions ?? 'loading') === 'ready' && Boolean(positionFigures(positions) && positionsLoaded(positions))
+  const placeInLede = label === 'National' ? 'the United States' : label
+  const countsLabel = stateName
+    ? `What the data center records cover: ${label}`
+    : 'What the data center records cover'
 
   return (
     <div className="folio stories-hub" style={HOUSE_STYLE} ref={rootRef}>
@@ -73,8 +91,16 @@ export default function DataStories() {
         <p className="folio-eyebrow">Data stories</p>
         <SentenceHeading
           className="stories-title"
-          template={['What did local meetings in ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?']}
+          template={['What people are saying about ', { blank: 'topic' }, ' in ', { blank: 'place' }]}
           blanks={[
+            {
+              id: 'topic',
+              label: 'Topic',
+              value: topic,
+              display: 'data centers',
+              options: [{ value: 'data-centers', label: 'data centers' }],
+              onChange: setTopic,
+            },
             {
               id: 'place',
               label: 'Place',
@@ -94,24 +120,24 @@ export default function DataStories() {
                 />
               ),
             },
-            { id: 'topic', label: 'Topic', value: topic, display: 'data centers', options: [{ value: 'data-centers', label: 'data centers' }], onChange: setTopic },
           ]}
         />
-        <div className="stories-scope">
-          <p className="stance-scope" data-testid="stance-scope">
-            Showing: <b>{label}</b>
-            {city && stateName && (
-              <button type="button" className="folio-link-btn" onClick={() => applyPlace(stateCode ?? null, null)}>
-                All of {stateName}
-              </button>
-            )}
-            {stateName && (
+        {/* National is already "the United States" in the sentence — don't repeat Showing: National (#959). */}
+        {stateName && (
+          <div className="stories-scope">
+            <p className="stance-scope" data-testid="stance-scope">
+              Showing: <b>{label}</b>
+              {city && (
+                <button type="button" className="folio-link-btn" onClick={() => applyPlace(stateCode ?? null, null)}>
+                  All of {stateName}
+                </button>
+              )}
               <button type="button" className="folio-link-btn" onClick={() => applyPlace(null, null)}>
                 National only
               </button>
-            )}
-          </p>
-        </div>
+            </p>
+          </div>
+        )}
       </header>
 
       <ul className="stories-list">
@@ -121,20 +147,22 @@ export default function DataStories() {
               Power, water, and land bring people to the microphone
             </h2>
             <p className="stance-lede">
-              In {label === 'National' ? 'the United States' : label}, neighbors show up when a project hits the agenda. See
-              who spoke for and against — then Start the story to walk through what the meetings put on the record.
+              In {placeInLede}, neighbors show up when a data center hits the agenda. Start the story to walk through what
+              the meetings put on the record.
             </p>
-            <section className="stories-voices" aria-labelledby="story-voices-h">
-              <h3 className="stories-voices-title" id="story-voices-h">
-                Who spoke up
-              </h3>
-              <PositionsBlock
-                data={data.positions as DataCenterPositionsResponse | null | undefined}
-                status={status.positions ?? 'loading'}
-                scope={scope}
-                labelledBy="story-voices-h"
-              />
-            </section>
+            {showVoices && (
+              <section className="stories-voices" aria-labelledby="story-voices-h">
+                <h3 className="stories-voices-title" id="story-voices-h">
+                  Who spoke for and against
+                </h3>
+                <PositionsBlock
+                  data={positions}
+                  status={status.positions ?? 'ready'}
+                  scope={scope}
+                  labelledBy="story-voices-h"
+                />
+              </section>
+            )}
             {loading ? (
               <p className="folio-muted" role="status">
                 Loading counts…
@@ -148,8 +176,8 @@ export default function DataStories() {
               </div>
             ) : stats.length > 0 ? (
               <>
-                <StatRow stats={stats} label={`What the data center records cover: ${label}`} />
-                <p className="stance-note">{statsScopeNote(stats, scope)}</p>
+                <StatRow stats={stats} label={countsLabel} />
+                {stateName ? <p className="stance-note">{statsScopeNote(stats, scope)}</p> : null}
               </>
             ) : (
               <p className="stance-nodata" role="status">

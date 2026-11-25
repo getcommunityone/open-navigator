@@ -1,0 +1,206 @@
+version: 2
+
+models:
+  - name: data_center_hearing
+    description: >
+      One row per data center hearing lead (#955) with whether its official page backs it up.
+      status 'verified' means the official page states the claimed date together with a data
+      center word (within ~500 characters on a web page; anywhere on a PDF agenda).
+      This table holds every lead and stays in gold; only data_center_hearing_verified is served.
+      Every other status names what is missing (unsourced, not_fetched, fetch_failed,
+      no_data_center_mention, date_not_found, date_not_with_item).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'data_centers']
+      indexes:
+        - columns: ["status", "meeting_date"]
+          type: btree
+        - columns: ["state_code", "meeting_date"]
+          type: btree
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: data_center_hearing_id
+        description: "Primary key: the lead's id (seeds.data_center_hearing_lead.lead_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: jurisdiction_id
+        description: "FK -> jurisdictions, when exactly one city, town or county in the state has the lead's name; else null."
+        data_type: text
+      - name: meeting_date
+        description: "The claimed meeting date (verified rows: the official page states it)."
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: jurisdiction_name
+        description: "The government holding the meeting, as the lead names it."
+        data_type: text
+      - name: state_code
+        description: "Two-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: body_name
+        description: "The body meeting (as the lead names it; '(as listed)' marks one the list probably got wrong)."
+        data_type: text
+      - name: topic
+        description: "What the lead says is on the agenda."
+        data_type: text
+      - name: source_kind
+        description: "official, tracker, news or none."
+        data_type: text
+      - name: source_name
+        description: "Where the lead came from (a government site, a tracker's name, a news outlet)."
+        data_type: text
+      - name: source_url
+        description: "The official page (tracking parameters removed); null unless source_kind is official."
+        data_type: text
+      - name: lead_from
+        description: "Which research list named the lead (owner_list_1, owner_list_2, or both)."
+        data_type: text
+      - name: status
+        description: "verified, date_not_with_item, date_not_found, no_data_center_mention, fetch_failed, not_fetched or unsourced."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['verified', 'date_not_with_item', 'date_not_found', 'no_data_center_mention', 'fetch_failed', 'not_fetched', 'unsourced']
+      - name: fetch_error
+        description: "Why the official page wasn't read, when it wasn't."
+        data_type: text
+      - name: evidence
+        description: "Verbatim text of the official page holding the date and the data center item (web page), or the date then the first data center passage (PDF agenda); whole data center phrases in <mark>; null unless verified."
+        data_type: text
+      - name: tentative
+        description: "The evidence says tentative, expected, not final or to be determined about the date."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: checked_at
+        description: "When the official page was last fetched."
+        data_type: timestamptz
+
+  - name: data_center_hearing_verified
+    description: >
+      The served slice of data_center_hearing (#955): verified leads only, the columns a reader
+      needs (no research-lead bookkeeping). This is what public / Neon / the API see, so an
+      unverified lead is never published.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'data_centers', 'serving']
+      indexes:
+        - columns: ["state_code", "meeting_date"]
+          type: btree
+    constraints:
+      - type: foreign_key
+        columns: [data_center_hearing_id]
+        to: ref('data_center_hearing')
+        to_columns: [data_center_hearing_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: data_center_hearing_id
+        description: "Primary key; FK -> data_center_hearing."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: jurisdiction_id
+        description: "FK -> jurisdictions when the name matched exactly one; else null."
+        data_type: text
+      - name: meeting_date
+        description: "The meeting date the official page states."
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: jurisdiction_name
+        description: "The government holding the meeting, as the lead names it."
+        data_type: text
+      - name: state_code
+        description: "Two-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: body_name
+        description: "The body, as the research lead names it (not checked against the page)."
+        data_type: text
+      - name: topic
+        description: "The topic, as the research lead words it (not checked against the page)."
+        data_type: text
+      - name: source_url
+        description: "The official page."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_name
+        description: "What the official page is (city website, Legistar, AgendaCenter …)."
+        data_type: text
+      - name: evidence
+        description: "Verbatim text of the official page; whole data center phrases in <mark>."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: tentative
+        description: "The page calls the date tentative, expected, not final or to be determined."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: checked_at
+        description: "When the official page was last read."
+        data_type: timestamptz
+
+unit_tests:
+  # #961 review: the date and the data center item must appear TOGETHER on a web page; a
+  # written date with a different year, or a neighbouring day, never verifies a lead.
+  - name: dc_hearing_verification_rules
+    model: data_center_hearing
+    given:
+      - input: ref('data_center_hearing_lead')
+        rows:
+          - {lead_id: ok, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/a', lead_from: l}
+          - {lead_id: day10, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/b', lead_from: l}
+          - {lead_id: year2025, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/c', lead_from: l}
+          - {lead_id: far, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/d', lead_from: l}
+          - {lead_id: pdf, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/e.pdf', lead_from: l}
+          - {lead_id: tent, meeting_date: '2026-12-08', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/f', lead_from: l}
+          - {lead_id: lower, meeting_date: '2026-05-03', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/g', lead_from: l}
+          - {lead_id: trk, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: tracker, source_name: Siting Radar, source_url: null, lead_from: l}
+      - input: source('bronze', 'bronze_data_center_hearing_source')
+        rows:
+          - {lead_id: ok, source_url: 'https://x.gov/a', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'The Council holds a public hearing on the data center ordinance on December 1, 2026 at 7 PM.'}
+          - {lead_id: day10, source_url: 'https://x.gov/b', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'Data center study. The next hearing is December 10, 2026.'}
+          - {lead_id: year2025, source_url: 'https://x.gov/c', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'The data center workshop was held December 1, 2025.'}
+          - {lead_id: far, source_url: 'https://x.gov/d', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'Data Centers Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. The library is closed December 1, 2026.'}
+          - {lead_id: pdf, source_url: 'https://x.gov/e.pdf', content_type: application/pdf, fetched_at: '2026-11-25 00:00:00', page_text: 'AGENDA Planning Board December 1, 2026 Regular Meeting Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. Parks and recreation schedule update. B. Revised Data Center Ordinance'}
+          - {lead_id: tent, source_url: 'https://x.gov/f', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'The data center ordinance is tentatively scheduled for the Board on December 8, 2026.'}
+          - {lead_id: lower, source_url: 'https://x.gov/g', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'Residents may 3 times object to the data center plan.'}
+      - input: ref('jurisdictions')
+        rows: []
+    expect:
+      rows:
+        - {data_center_hearing_id: ok, status: verified, tentative: false}
+        - {data_center_hearing_id: day10, status: date_not_found, tentative: false}
+        - {data_center_hearing_id: year2025, status: date_not_found, tentative: false}
+        - {data_center_hearing_id: far, status: date_not_with_item, tentative: false}
+        - {data_center_hearing_id: pdf, status: verified, tentative: false}
+        - {data_center_hearing_id: tent, status: verified, tentative: true}
+        - {data_center_hearing_id: lower, status: date_not_found, tentative: false}
+        - {data_center_hearing_id: trk, status: unsourced, tentative: false}

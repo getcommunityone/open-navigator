@@ -70,6 +70,7 @@ one is left out but isn't listed here.
 | `policy_question.topic_code` | `cap_topic.code` | seed `cap_topic` is published with a contract |
 | `topic_money_and_talk.canonical_theme` | `policy_theme_cofog.primary_theme` | seed `policy_theme_cofog` is published with a contract |
 | `data_center_public_comment.public_comment_id` | `public_comment.public_comment_id` | `public_comment` (unserved) is published with a contract |
+| `data_center_hearing_verified.data_center_hearing_id` | `data_center_hearing.data_center_hearing_id` | never on purpose: `data_center_hearing` holds unverified research leads and stays in gold (#955) |
 
 ## What a contract holds
 

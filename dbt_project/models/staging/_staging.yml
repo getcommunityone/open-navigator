@@ -1835,6 +1835,33 @@ sources:
             description: "The site name this timeline row belongs to (Epoch's 'Data center' link)."
           - name: record
             description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_hearing_source
+        config:
+          loaded_at_field: fetched_at
+          freshness:
+            warn_after: {count: 7, period: day}
+        description: >
+          The official page behind each data center hearing lead (#955), one row per lead_id
+          (latest fetch), landed by `python -m ingestion.data_centers.fetch_hearing_sources`.
+          page_text is the page's visible text (HTML main content, or a PDF's extracted text);
+          null when the fetch failed or robots.txt / the never-fetch list said no (see error).
+        columns:
+          - name: lead_id
+            description: "FK -> seeds.data_center_hearing_lead.lead_id; primary key."
+          - name: source_url
+            description: "The lead's official URL, tracking parameters removed."
+          - name: final_url
+            description: "Where the request ended after redirects."
+          - name: fetched_at
+            description: "When the page was fetched."
+          - name: http_status
+            description: "HTTP status; null when no request was made."
+          - name: content_type
+            description: "Response content type."
+          - name: page_text
+            description: "Visible text of the page; null when nothing was read."
+          - name: error
+            description: "Why nothing was read: 'not fetched: robots.txt disallows …', 'HTTP 403', a transport error, a bot challenge, or a PDF extraction failure."
       - name: bronze_data_center_news_item
         config:
           loaded_at_field: last_seen_at

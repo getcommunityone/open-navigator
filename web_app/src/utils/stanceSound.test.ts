@@ -93,6 +93,9 @@ describe('the sound board', () => {
       createOscillator() {
         return { frequency: { value: 0 }, connect() {}, start: vi.fn(), stop() {} }
       }
+      resume() {
+        return Promise.resolve()
+      }
     }
     const w = fakeWindow({}, { AudioContext: Ctx })
     const b = createSoundBoard()
@@ -109,6 +112,38 @@ describe('the sound board', () => {
     c.play('open')
     const d = createSoundBoard()
     expect(() => d.play('lock')).not.toThrow()
+  })
+  it('waits for a suspended context to resume before scheduling (#966)', async () => {
+    let started = 0
+    class Ctx {
+      state = 'suspended'
+      currentTime = 0
+      destination = {}
+      createGain() {
+        return { gain: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }
+      }
+      createOscillator() {
+        return { frequency: { value: 0 }, connect() {}, start: vi.fn(() => {
+          started += 1
+        }), stop() {} }
+      }
+      resume() {
+        return new Promise<void>((resolve) => {
+          queueMicrotask(() => {
+            this.state = 'running'
+            resolve()
+          })
+        })
+      }
+    }
+    const w = fakeWindow({}, { AudioContext: Ctx })
+    const b = createSoundBoard()
+    w.fire('pointerdown')
+    b.play('lock')
+    expect(started).toBe(0)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(started).toBeGreaterThan(0)
   })
   it('stays silent when sound is off', () => {
     const made = vi.fn()

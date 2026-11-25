@@ -43,24 +43,30 @@ export default function ScopeBar(p: Props) {
             {p.titleAsH1 ? <h1 className="stance-title">{p.title}</h1> : <span>{p.title}</span>}
           </div>
         )}
-        <p className="stance-scope" data-testid="stance-scope">
-          {p.heading && (
-            <>
-              <Link to={p.backTo}>{p.backLabel}</Link> ·{' '}
-            </>
-          )}
-          {p.scopeLead ? `${p.scopeLead} · showing:` : 'Showing:'} <b>{p.label}</b>
-          {p.city && p.stateName && (
-            <button type="button" className="folio-link-btn" onClick={() => p.onApply(p.stateCode ?? null, null)}>
-              All of {p.stateName}
-            </button>
-          )}
-          {p.stateName && (
-            <button type="button" className="folio-link-btn" onClick={() => p.onApply(null, null)}>
-              National only
-            </button>
-          )}
-        </p>
+        {/* With the United States in the sentence blank, skip Showing: National (#959). Keep the back crumb and broaden controls when a place is set. */}
+        {(p.heading || p.stateName) && (
+          <p className="stance-scope" data-testid="stance-scope">
+            {p.heading && (
+              <>
+                <Link to={p.backTo}>{p.backLabel}</Link>
+                {p.stateName ? ' · ' : null}
+              </>
+            )}
+            {p.stateName ? (
+              <>
+                {p.scopeLead ? `${p.scopeLead} · showing:` : 'Showing:'} <b>{p.label}</b>
+                {p.city && (
+                  <button type="button" className="folio-link-btn" onClick={() => p.onApply(p.stateCode ?? null, null)}>
+                    All of {p.stateName}
+                  </button>
+                )}
+                <button type="button" className="folio-link-btn" onClick={() => p.onApply(null, null)}>
+                  National only
+                </button>
+              </>
+            ) : null}
+          </p>
+        )}
       </div>
       <p className="stance-counter" data-testid="stance-current">
         {p.current}

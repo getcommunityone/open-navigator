@@ -238,6 +238,7 @@ CIVIC_SERVING = frozenset(
         "data_center_meeting_position",
         "data_center_public_comment",
         "data_center_decision",
+        "data_center_hearing_verified",
         # question dashboard: place label, company named, nearby tracked site (#508), ~0.5 MB (#528)
         "decision_place_label",
         "decision_company_mention",

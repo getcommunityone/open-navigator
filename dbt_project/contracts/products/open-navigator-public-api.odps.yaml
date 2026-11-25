@@ -340,6 +340,11 @@ outputPorts:
   contractId: open-navigator-public-data_center_decision
   type: table
   description: 'One row per decision a local meeting took on a data center item (#933): contested decisions from event_decision (headline or statement says a data center word) and uncontested items from event_uncontested_item (headline says one).'
+- name: data_center_hearing_verified
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_hearing_verified
+  type: table
+  description: 'The served slice of data_center_hearing (#955): verified leads only, the columns a reader needs (no research-lead bookkeeping).'
 - name: decision_place_label
   version: 1.0.0
   contractId: open-navigator-public-decision_place_label
