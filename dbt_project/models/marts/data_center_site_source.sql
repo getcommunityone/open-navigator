@@ -30,7 +30,7 @@ registry as (
         'us_data_center_registry'::text as source,
         r.registry_id::text             as source_record_id,
         r.facility_name::text           as source_record_name,
-        r.profile_url::text             as source_url,
+        coalesce(r.profile_url, 'https://suedatacenters.org/data-centers/data')::text as source_url,
         m.match_basis::text             as match_basis,
         'CC BY 4.0'::text               as license,
         r.attribution::text             as attribution

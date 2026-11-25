@@ -149,7 +149,14 @@ schema:
     name: source_url
     logicalType: string
     physicalType: text
-    description: The Epoch AI dataset page, or the record's own page on the registry.
+    description: 'The Epoch AI dataset page, or the record''s own page on the registry (the registry''s dataset page when the record has none, #983). Never null.'
+    required: true
+    quality:
+    - type: library
+      metric: nullValues
+      mustBe: 0
+      dimension: completeness
+      severity: error
   - id: license
     name: license
     logicalType: string

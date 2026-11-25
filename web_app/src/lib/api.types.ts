@@ -1675,7 +1675,7 @@ export interface components {
             /** Source Name */
             source_name: string;
             /** Source Url */
-            source_url: string;
+            source_url?: string | null;
             /** State */
             state?: string | null;
             /** State Code */
