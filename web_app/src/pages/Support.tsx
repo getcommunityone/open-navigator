@@ -5,8 +5,8 @@ import { contactMailto } from '../utils/contact'
  * Contact page — the simple "Get in Touch" card.
  *
  * Mirrors the legacy home-page contact CTA (a single mailto button) rather than
- * the previous full ticket form. The header's "Chat & Contact" item opens the chat, which carries the
- * same contact link at its top (#860); this page stays for existing links.
+ * the previous full ticket form. "Chat & Contact" in the profile menu and footer opens the chat, which
+ * carries the same contact link at its top (#860 / #952); this page stays for existing links.
  */
 export default function Support() {
   return (
