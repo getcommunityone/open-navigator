@@ -1,5 +1,6 @@
 import { Component, Suspense, type ReactNode } from 'react'
 import { lazyRouteFailureMessage } from '../utils/lazyRouteMessage'
+import { isStaleChunkError, reloadOnceForStaleDeploy } from '../utils/staleDeploy'
 
 interface Props {
   /** The page's name as the reader knows it, e.g. "How states compare". */
@@ -15,12 +16,18 @@ interface State {
 /**
  * Wraps a lazily loaded page (#856): a loading state while its code arrives, and, if it fails to
  * load or throws while rendering, a message in place of the page so the rest of the site keeps working.
+ * A chunk a deploy removed (#936) first gets one automatic reload; the message shows only if that
+ * already happened in the last 30 seconds.
  */
 export default class LazyRouteBoundary extends Component<Props, State> {
   state: State = { error: null, failed: false }
 
   static getDerivedStateFromError(error: unknown): State {
     return { error, failed: true }
+  }
+
+  componentDidCatch(error: unknown) {
+    if (!import.meta.env.DEV && isStaleChunkError(error)) reloadOnceForStaleDeploy()
   }
 
   render() {

@@ -359,11 +359,22 @@ Rules that always hold:
   data. If a value is missing, the figure shows a dash and does not count at all.
 - Motion never changes what is shown: the scope label, the URL parameters and the data are the same with or without it.
 
-## If the page does not load (#856)
+## If the page does not load (#856, #936)
 
-This tab's code and fonts load only when its tab is opened. If they fail to load, the tab shows "Analysis
-could not be loaded" with the error and a Reload button, and the rest of the site keeps working. On a developer
-machine the usual cause is a pull that added a package: run `npm install` in `web_app` and reload.
+This tab's code and fonts load only when its tab is opened, and the same holds for every lazily loaded page
+(the Data Story, Data stories, ...). If they fail to load, the page shows "<name> could not be loaded" with the
+error and a Reload button, and the rest of the site keeps working.
+
+On the public site the usual cause is a deploy since the tab was opened. Every build gives these files new
+names and a deploy removes the old ones, so a tab opened before the deploy asks for a file that is gone (for
+example "Unable to preload CSS for …/ScrollCue-C-uJ7YO1.css"). The app reloads the page once on its own
+(`web_app/src/utils/staleDeploy.ts`, on Vite's `vite:preloadError`), which picks up the new build because
+`index.html` is served no-cache. If the file is still missing within 30 seconds of that reload, it doesn't
+reload again: the message says "This site was updated since this page was opened. Reload to get the latest
+version."
+
+On a developer machine (`npm run dev`) the usual cause is a pull that added a package, and the message says so:
+run `npm install` in `web_app` and reload.
 
 ## Moving to the next screen
 
