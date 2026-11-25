@@ -87,6 +87,8 @@ export default function Challenge() {
   // --- beats and sound (#899) -------------------------------------------------------------------------------------------
   // Rounds the player has asked for the question of (button, Space, or the pause running out). Not kept across visits.
   const [asked, setAsked] = useState<Record<string, boolean>>({})
+  const askedRef = useRef(asked)
+  askedRef.current = asked
   // The answer being saved, shown locked on its button.
   const [pending, setPending] = useState<Attempt | null>(null)
   // One sound board per page; it makes no AudioContext until the first click or key press, and the choice is kept on the device.
@@ -208,11 +210,9 @@ export default function Challenge() {
 
   const ask = useCallback(
     (id: string) => {
-      setAsked((a) => {
-        if (a[id]) return a
-        requestAnimationFrame(() => acts.goToStop(activeRef.current, 'question'))
-        return { ...a, [id]: true }
-      })
+      if (askedRef.current[id]) return
+      setAsked((a) => ({ ...a, [id]: true }))
+      requestAnimationFrame(() => acts.goToStop(activeRef.current, 'question'))
     },
     [acts],
   )
