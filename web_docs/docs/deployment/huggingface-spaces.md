@@ -252,6 +252,23 @@ git push hf huggingface-deploy:main
 
 The Space will automatically rebuild.
 
+## Census map data comes from the deploying checkout
+
+The census maps read static JSON at `/data/census-map/*` (plus ZCTA tiles and the jurisdiction-quality file). That data
+is **generated, not stored in git**: `web_app/public/data` falls under the `data/` gitignore rule. The deploy script
+force-adds it from the checkout you deploy from.
+
+- The deploy runs in an isolated clone, and the script hard-links `web_app/public/data` into it (#948). Before that fix,
+  the clone had no map data, and the 24 Nov 2026 deploy shipped gray maps ("No map data available … manifest.json could
+  not be read").
+- If `web_app/public/data/census-map/manifest.json` is missing, the deploy **stops** with an error. Generate the data
+  first with `python -m ingestion.census.export_census_map_static --all-years`. To deploy without maps on purpose, set
+  `HF_DEPLOY_ALLOW_NO_MAP_DATA=1`.
+- The script publishes your **local** `main`, so run `git fetch origin main:main` (or pull) first, or the deploy ships an
+  older commit.
+- To check after a deploy: `curl -sI https://www.communityone.com/data/census-map/manifest.json` should report
+  `content-type: application/json`, not `text/html`.
+
 ## Seeing a new deploy on a phone that visited before
 
 The web app installs a service worker, which serves the site from the device's cache and swaps in a new version when
