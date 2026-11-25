@@ -129,8 +129,12 @@ export default function SiteHeader() {
       if (c) q.set('city', c)
     }
     const query = q.toString() ? `?${q}` : ''
-    if (location.pathname === '/' && (!query || query === location.search)) {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (location.pathname === '/') {
+      // Already home: keep or set the carried place (compared by value, not by encoding), then scroll. The home page
+      // doesn't remount on a same-route navigate, so the scroll can't wait for its hash effect.
+      const samePlace = (here.get('state') ?? '') === (q.get('state') ?? '') && (here.get('city') ?? '') === (q.get('city') ?? '')
+      if (!samePlace) navigate(`/${query}#${id}`, { replace: true })
+      requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     } else {
       navigate(`/${query}#${id}`)
     }

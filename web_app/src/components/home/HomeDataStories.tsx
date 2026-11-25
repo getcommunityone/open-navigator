@@ -1,5 +1,4 @@
-import { Link, useSearchParams } from 'react-router-dom'
-import { STATE_CODES } from '../../lib/usStates'
+import { Link } from 'react-router-dom'
 import { useStoryData } from '../stance/useStoryData'
 import { challengePath, scopeQuery, storyScopeLabel, storyStats } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
@@ -20,13 +19,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
  * Home `#data-stories` (#975): the header's Data Stories tab scrolls here; the story, the challenge and the full hub open
  * from its actions. Counts are real (the hub's own endpoints); while they load, or when none load, it says so.
  */
-export default function HomeDataStories({ stateCode: homeState, city: homeCity = null }: Props) {
-  // A place carried in the address (from a tab on a scoped page) wins over the home page's own place.
-  const [sp] = useSearchParams()
-  const urlState = (sp.get('state') ?? '').trim().toUpperCase()
-  const fromUrl = STATE_CODES.includes(urlState)
-  const stateCode = fromUrl ? urlState : homeState
-  const city = fromUrl ? (sp.get('city') ?? '').trim() || null : homeCity
+export default function HomeDataStories({ stateCode, city = null }: Props) {
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
   const scope = { stateCode, stateName, city: stateCode ? city : null }
   const label = storyScopeLabel(scope)

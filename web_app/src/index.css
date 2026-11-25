@@ -20,8 +20,8 @@
   /* Page and section headings use the display face everywhere (#975); a utility class can still override. Small h2s
      (card and admin headings set in text-xs / text-sm / text-base) keep the body face: a high-contrast serif reads poorly
      that small. */
-  h1,
-  h2:not([class*='text-xs']):not([class*='text-sm']):not([class*='text-base']) {
+  /* :where() keeps the specificity at zero, so any component class (.sh-title, .stance-dialog-title, utilities) wins. */
+  :where(h1, h2:not([class*='text-xs']):not([class*='text-sm']):not([class*='text-base'])) {
     font-family: var(--font-display);
     letter-spacing: -0.01em;
   }

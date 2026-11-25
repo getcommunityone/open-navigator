@@ -28,7 +28,8 @@ page. A detail page opens only from an action inside its section.
 | Impact | `#impact` | its links |
 
 - **The place travels with the tab.** On a scoped page (`?state=&city=`), a tab goes to `/?state=…&city=…#section`. The
-  home Data stories section uses that place in its label, counts and links.
+  whole home page takes that place (its scope label, the hero search, the tiles and the Data stories section) ahead of
+  the saved location, without overwriting it. Picking a new place on the home page clears the carried one.
 - **On the home page**, the tab for the section crossing the middle of the screen is highlighted (scroll-spy). Between
   sections none is.
 - **On a detail page**, the tab it belongs to stays highlighted: `/search` → Search; `/stories*` and `/challenge*` →

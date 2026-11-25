@@ -18,7 +18,7 @@
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { getLaunchCounty } from '../lib/launchCounties'
@@ -35,6 +35,7 @@ import { fetchMeetings, type MeetingCard } from '../api/meetings'
 import { highlightSnippet } from '../lib/highlight'
 import { LAUNCH_CITIES } from '../lib/launchCoverage'
 import HomeDataStories from '../components/home/HomeDataStories'
+import { STATE_CODES } from '../lib/usStates'
 
 // The brand teal, the same as the data stories' primary action and Tailwind's primary-600 (#975).
 const TEAL = '#0f766e'
@@ -441,8 +442,13 @@ function StepZeroImpact() {
 export default function HomeV9() {
   const navigate = useNavigate()
   const { location, setLocation } = useLocationContext()
-  const locState = location?.state || undefined
-  const locCity = location?.city || undefined
+  // A place carried in the address (?state=&city=, e.g. from a header tab on a scoped page) sets the whole page's
+  // scope, ahead of the saved location, without overwriting it (#975; CLAUDE.md: filters carry over via the URL).
+  const [urlParams, setUrlParams] = useSearchParams()
+  const urlState = (urlParams.get('state') ?? '').trim().toUpperCase()
+  const urlHasPlace = STATE_CODES.includes(urlState)
+  const locState = urlHasPlace ? urlState : location?.state || undefined
+  const locCity = urlHasPlace ? (urlParams.get('city') ?? '').trim() || undefined : location?.city || undefined
 
   // ── Location level — City / State / National ──
   // Restores the geography selector that used to live in the hero. Defaults to
@@ -1219,6 +1225,18 @@ export default function HomeV9() {
                     onLocationFound={(loc) => {
                       setUncoveredPick(null)
                       setLocation(loc)
+                      // A place picked here replaces any place carried in the address.
+                      if (urlHasPlace) {
+                        setUrlParams(
+                          (prev) => {
+                            const next = new URLSearchParams(prev)
+                            next.delete('state')
+                            next.delete('city')
+                            return next
+                          },
+                          { replace: true },
+                        )
+                      }
                       levelPicked.current = false
                       setChangingLoc(false)
                     }}
