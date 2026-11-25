@@ -53,3 +53,13 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- **Filtering:** only `kind: 'chart'` screens drop, and only once `screenText(...).empty` is true. `empty` comes from `noData`, which is used only after the data has loaded, so loading screens stay.
+- **Stability:** `.stance-acts` is keyed by the kept set. Without the key, GSAP's pin spacers made React's `removeChild` throw; this was reproduced and then fixed.
+- **Landing:** when the list changes, the reader stays on the same screen id. A deep link to a dropped screen falls back to Overview.
+- **No-default-quote:** neither map renders a card unless a state or pin is hovered or focused. Leaving the stage hides it.
+- **Rubric scans:** clean. No data, API or docs contract changes.
+
+Verdict stands: approve.
