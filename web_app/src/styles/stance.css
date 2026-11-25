@@ -2016,6 +2016,24 @@ html.stance-snap {
 .stance-game[data-mode='snap'] .stance-keys {
   display: none;
 }
+/* Challenge (#969): tall acts with finding / question / reveal stops snap per stop, not per act. */
+.stance-game[data-mode='snap'][data-beats] .stance-act {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  scroll-snap-align: none;
+  scroll-snap-stop: normal;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-stop {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-grid,
+.stance-game[data-mode='snap'][data-beats] .stance-end-body {
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
+}
 
 @media (prefers-reduced-motion: no-preference) {
   /* Wide screens: the headline's words are scrubbed by the scroll (--title runs 0 to 1 on the screen's timeline). */

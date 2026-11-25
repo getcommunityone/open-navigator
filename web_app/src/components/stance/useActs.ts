@@ -150,6 +150,13 @@ export function useActs(opts: Options): ActsApi {
       const holds = (): Hold[] => {
         const off = frameOffset(game)
         const out: Hold[] = []
+        if (cover) {
+          out.push({
+            pos: Math.max(0, cover.getBoundingClientRect().top + window.scrollY - off),
+            round: 0,
+            kind: 'cover',
+          })
+        }
         acts.forEach((act, i) => {
           if (withEnd && i === count) {
             out.push({
@@ -202,7 +209,7 @@ export function useActs(opts: Options): ActsApi {
       }
       const go = (round: number) => {
         const r = Math.min(Math.max(round, 0), last)
-        const h = holds().find((x) => x.round === r)
+        const h = holds().find((x) => x.round === r && (x.kind === 'q' || x.kind === 'end'))
         if (!h) return
         scrollToPos(h.pos)
       }
@@ -213,17 +220,17 @@ export function useActs(opts: Options): ActsApi {
         goToStop,
         lock: () => {},
       }
-      /** Where each screen rests (the cover included), top to bottom. */
-      const stops = (): number[] => {
-        const off = frameOffset(game)
-        return screens.map((el) => Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY - off)))
-      }
-      // The screen the reader was resting on when the gesture began. Scroll snap stops a swipe at the next screen; this is the
-      // backstop for a hard fling that carries past it: the page is put on that next screen and the fling ends there.
+      /** Scroll snap / fence / settle targets: one position per hold (cover, finding, question, reveal, end), not one per act. */
+      const snapPositions = (): number[] =>
+        holds()
+          .map((h) => Math.round(h.pos))
+          .sort((a, b) => a - b)
+      // The hold the reader was resting on when the gesture began. Scroll snap stops a swipe at the next hold; this is the
+      // backstop for a hard fling that carries past it: the page is put on that next hold and the fling ends there.
       let anchor: number | null = null
       const fence = () => {
         if (programmatic || anchor == null) return
-        const ps = stops()
+        const ps = snapPositions()
         const y = window.scrollY
         let i = 0
         ps.forEach((p, k) => {
@@ -239,7 +246,7 @@ export function useActs(opts: Options): ActsApi {
       const settle = () => {
         const pos = window.scrollY
         programmatic = false
-        const rest = stops().find((p) => Math.abs(p - pos) <= 8)
+        const rest = snapPositions().find((p) => Math.abs(p - pos) <= 8)
         if (rest != null) anchor = rest
         const h = holds().find((x) => Math.abs(x.pos - pos) <= 8)
         if (h) o.current.onSettled(h)
