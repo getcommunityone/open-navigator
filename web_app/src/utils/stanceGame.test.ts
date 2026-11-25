@@ -11,6 +11,7 @@ import {
   findingAgendaItems,
   findingCommunityEvents,
   findingConcerns,
+  findingDecisions,
   findingFor,
   findingJobClaims,
   findingMeetingMentions,
@@ -365,5 +366,40 @@ describe('roundHeadline', () => {
   it('uses the finding, or a neutral description of the chart', () => {
     expect(roundHeadline('sites', 'X.')).toEqual({ text: 'X.', isFinding: true })
     expect(roundHeadline('sites', null)).toEqual({ text: 'Data center sites on record, by status', isFinding: false })
+  })
+})
+
+describe('decisions chart (#933)', () => {
+  const res = {
+    scope: { level: 'state', state_code: 'GA', state: 'Georgia', city: null, jurisdiction_id: null },
+    available: true,
+    counts: { contested: 1, uncontested: 2, meetings: 2 },
+    items: [
+      { data_center_decision_id: 'd1', contested: true, headline: 'Data center rezoning approved', meeting_date: '2026-03-02', jurisdiction_name: 'Testville', state_code: 'GA', video_url: 'https://y/v1', decision_url: '/decisions/d1' },
+      { data_center_decision_id: 'u1', contested: false, headline: 'Temporary moratorium on data centers', outcome: 'Tabled', vote_text: 'voice vote', meeting_date: '2026-02-01', jurisdiction_name: 'Testville', state_code: 'GA', video_url: 'https://y/v2', decision_url: null },
+      { data_center_decision_id: 'u2', contested: false, headline: null, meeting_date: null, jurisdiction_name: null, state_code: 'GA', video_url: null, decision_url: null },
+    ],
+  }
+
+  it('says how many were debated and how many taken up without debate, from the counts only', () => {
+    expect(findingDecisions(res as never, 'Georgia')).toBe('Of 3 decisions on a data center item in Georgia, 1 was debated and 2 were taken up without debate.')
+    expect(findingDecisions({ ...res, available: false } as never)).toBeNull()
+    expect(findingDecisions({ ...res, counts: { contested: 0, uncontested: 0, meetings: 0 } } as never)).toBeNull()
+    expect(findingDecisions({ ...res, counts: {} } as never)).toBeNull()
+  })
+
+  it('draws one dot per decision, debated vs taken up without debate, linked to the page or the recording', () => {
+    const spec = chartSpec('decisions', res as never) as { kind: string; groups: { key: string; dots: { id: string; url: string | null; title: string }[] }[] }
+    expect(spec.kind).toBe('dots')
+    const by = Object.fromEntries(spec.groups.map((g) => [g.key, g.dots]))
+    expect(by.contested!.map((d) => d.id)).toEqual(['d1'])
+    expect(by.contested![0]!.url).toBe('/decisions/d1')
+    expect(by.uncontested!.map((d) => d.id)).toEqual(['u1', 'u2'])
+    expect(by.uncontested![0]!.url).toBe('https://y/v2')
+    // the outcome as recorded, so an item tabled without debate never reads as passed
+    expect(by.uncontested![0]!.title).toBe('Temporary moratorium on data centers · Tabled')
+    // no headline: a neutral title, never an invented one
+    expect(by.uncontested![1]!.title).toBe('Decision on a data center item')
+    expect(by.uncontested![1]!.url).toBeNull()
   })
 })

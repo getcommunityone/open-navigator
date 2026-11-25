@@ -116,6 +116,42 @@ does not itself say "data center" still shows why it is there.
 `data_center_public_comment` was not in the issue's contract. It was added because the endpoint has to return quotes, the
 API may only read `public`, and the rule for which comments count must stay in dbt.
 
+## Decisions on data center items
+
+[#933](https://github.com/getcommunityone/open-navigator/issues/933) adds `data_center_decision`, a mart in `gold` served
+in `public` and copied to Neon. It has one row per decision a meeting took on a data center item:
+
+| Source | `contested` | Counts as a data center decision when |
+| --- | --- | --- |
+| `event_decision` (debated) | true | its `headline` or `decision_statement` says a data center word |
+| `event_uncontested_item` (taken up without debate: consent agenda, routine vote) | false | its `headline` says a data center word, and no debated data center decision in the same meeting reads like it (see below) |
+
+- `votes_for` and `votes_against` come only from a debated decision whose tally records both sides as whole numbers (the
+  vote rule above).
+- An item taken up without debate keeps its vote as said in `vote_text` ("voice vote", "5-0"). It's never turned into
+  numbers.
+- Only debated decisions have a page, so `decision_url` (`/decisions/:id`) is null for the others.
+- "Without debate" is not "passed". Those items include ones that were tabled, recommended for denial or only noted, so
+  the screen says "taken up without debate" and titles each dot with its recorded `outcome`.
+- **One action, two lists.** The analysis sometimes lists the same action both as a debated decision and as an
+  uncontested item (Wayne County: "Data Center Ordinance Approved" 5-0 and "Approve Data Center Ordinance" 5-0). An
+  uncontested row is dropped when a debated data center decision in the same meeting reads like it: pg_trgm
+  `word_similarity` of either headline against the other's headline and outcome is at least 0.4. On 25 Nov 2026 there
+  were 3 such pairs. The 2 that were one action scored 0.44-1.00, and the 1 that was two actions ("regulation
+  discussion" vs "agenda order changed") scored 0.18-0.30. That's a small sample, so re-check the threshold as the table
+  grows.
+- Both sources read only the recording's preferred analysis (`int_preferred_event_analysis`).
+- The primary key `data_center_decision_id` is the source row's own id. The foreign key `event_meeting_id` points to
+  `event_meeting`.
+
+`GET /api/data-centers/decisions?state=&city=&limit=` returns:
+- the scope;
+- `counts`: `contested`, `uncontested` and `meetings`, over the whole scope;
+- the decisions, newest first.
+
+When the mart isn't loaded, `available` is false and the counts are null. The Data Story's **Decisions** screen draws one
+dot per decision in two groups: "Debated" and "Without debate" ([Data stories](../guides/data-stories.md)).
+
 ## The endpoint
 
 `GET /api/data-centers/positions?state=&city=&limit=`

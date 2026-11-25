@@ -335,6 +335,11 @@ outputPorts:
   contractId: open-navigator-public-data_center_public_comment
   type: table
   description: 'One row per public comment counted as about a data center item (the comments behind data_center_meeting_position): linked to a decision whose headline or statement says a data center word (match_basis data_center_decision), on an uncontested item whose headline says one (data_center_item), saying one in the speaker''s own quoted words or the comment''s summary (own_words), or on the same item of the same meeting as a speaker who says one (same_item).'
+- name: data_center_decision
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_decision
+  type: table
+  description: 'One row per decision a local meeting took on a data center item (#933): contested decisions from event_decision (headline or statement says a data center word) and uncontested items from event_uncontested_item (headline says one).'
 - name: decision_place_label
   version: 1.0.0
   contractId: open-navigator-public-decision_place_label

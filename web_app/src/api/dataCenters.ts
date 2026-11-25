@@ -76,6 +76,56 @@ export async function fetchDataCenterPositions(params: {
     { 'data_centers.scope_level': scopeLevel },
   )
 }
+
+/** One decision a local meeting took on a data center item, debated or taken up without debate (#933). */
+export interface DataCenterDecision {
+  data_center_decision_id: string
+  /** True: debated. False: taken up without debate (consent agenda). */
+  contested: boolean
+  headline?: string | null
+  outcome?: string | null
+  /** Recorded yes / no votes; null unless a debated decision's tally records both sides. */
+  votes_for?: number | null
+  votes_against?: number | null
+  /** How an item taken up without debate, as said ("voice vote", "5-0"); never parsed into numbers. */
+  vote_text?: string | null
+  meeting_date?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  video_url?: string | null
+  /** Site path of the decision's page; debated decisions only. */
+  decision_url?: string | null
+}
+
+export interface DataCenterDecisionsResponse {
+  scope: Schemas['JobClaimScope']
+  /** False when the table is not in the database yet: every count is null, not zero. */
+  available: boolean
+  counts: { contested?: number | null; uncontested?: number | null; meetings?: number | null }
+  items: DataCenterDecision[]
+}
+
+/** Decisions on data center items for the scope, newest first, with whole-scope counts (#933). */
+export async function fetchDataCenterDecisions(params: {
+  state?: string
+  city?: string
+  limit?: number
+}): Promise<DataCenterDecisionsResponse> {
+  const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.decisions.load',
+    async (span) => {
+      const res = await api.get<DataCenterDecisionsResponse>('/data-centers/decisions', { params: q })
+      span.setAttribute('data_centers.decisions.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
+}
 export type JobClaim = Schemas['JobClaim']
 export type JobClaimPhase = JobClaim['phase']
 export type JobClaimsScope = Schemas['JobClaimScope']

@@ -4,6 +4,7 @@ import type {
   AreaConcernsResponse,
   CommunityEventsResponse,
   DataCenterAgendaItemsResponse,
+  DataCenterDecisionsResponse,
   DataCenterMeetingMentionsResponse,
   DataCenterProjectsResponse,
   DataCenterSitesResponse,
@@ -21,6 +22,7 @@ export type ChartKey =
   | 'concerns'
   | 'meeting-mentions'
   | 'agenda-items'
+  | 'decisions'
   | 'community-events'
   | 'projects'
 
@@ -30,6 +32,7 @@ export type ChartData =
   | AreaConcernsResponse
   | DataCenterMeetingMentionsResponse
   | DataCenterAgendaItemsResponse
+  | DataCenterDecisionsResponse
   | CommunityEventsResponse
   | DataCenterProjectsResponse
   | DataCenterPositionsResponse
@@ -166,6 +169,22 @@ export function findingAgendaItems(res: DataCenterAgendaItemsResponse | null | u
   return `Of ${fmt(u + p)} meeting ${u + p === 1 ? 'agenda that mentions' : 'agendas that mention'} a data center ${where(place)}, ${fmt(u)} ${u === 1 ? 'is' : 'are'} upcoming and ${fmt(p)} past.`
 }
 
+/**
+ * Decisions on data center items (#933): how many were debated and how many were taken up without debate. "Taken up",
+ * not "passed": items without debate include ones that were tabled, denied or only noted.
+ */
+export function decisionsSentence(c: number, u: number, place?: string | null): string {
+  return `Of ${fmt(c + u)} ${c + u === 1 ? 'decision' : 'decisions'} on a data center item ${where(place)}, ${fmt(c)} ${c === 1 ? 'was' : 'were'} debated and ${fmt(u)} ${u === 1 ? 'was' : 'were'} taken up without debate.`
+}
+
+export function findingDecisions(res: DataCenterDecisionsResponse | null | undefined, place?: string | null): string | null {
+  if (!res || res.available !== true) return null
+  const c = res.counts?.contested ?? 0
+  const u = res.counts?.uncontested ?? 0
+  if (c + u <= 0) return null
+  return decisionsSentence(c, u, place)
+}
+
 export function findingCommunityEvents(res: CommunityEventsResponse | null | undefined, place?: string | null): string | null {
   const items = res?.items ?? []
   if (items.length === 0) return null
@@ -201,6 +220,8 @@ export function findingFor(key: string, data: ChartData | null | undefined, plac
       return findingMeetingMentions(data as DataCenterMeetingMentionsResponse, place)
     case 'agenda-items':
       return findingAgendaItems(data as DataCenterAgendaItemsResponse, place)
+    case 'decisions':
+      return findingDecisions(data as DataCenterDecisionsResponse, place)
     case 'community-events':
       return findingCommunityEvents(data as CommunityEventsResponse, place)
     case 'projects':
@@ -317,6 +338,7 @@ export const CHART_TITLES: Record<ChartKey, string> = {
   concerns: 'What people raise about data centers in their meetings',
   'meeting-mentions': 'Meeting passages that mention a data center, by year',
   'agenda-items': 'Meeting agendas that mention a data center',
+  decisions: 'Decisions on data center items, debated or taken up without debate',
   'community-events': 'Company-hosted data center meetings, by kind',
   projects: 'Data center projects, by status',
 }
@@ -577,6 +599,31 @@ export function chartSpec(
           { key: 'past', label: 'Past meetings', total: res.counts?.past ?? null, dots: items.filter((a) => !a.is_upcoming).map(toDot) },
         ],
         on,
+      )
+    }
+    case 'decisions': {
+      const res = data as DataCenterDecisionsResponse
+      const items = res.items ?? []
+      const c = res.counts?.contested ?? null
+      const u = res.counts?.uncontested ?? null
+      const toDot = (d: (typeof items)[number]): Dot => ({
+        id: d.data_center_decision_id,
+        // the outcome as recorded, so an item tabled or denied without debate never reads as passed
+        title: [d.headline ?? 'Decision on a data center item', d.outcome].filter(Boolean).join(' · '),
+        place: joinPlace(d.jurisdiction_name, d.state_code),
+        date: d.meeting_date ?? null,
+        // a debated decision has its own page; one taken up without debate links to the meeting recording
+        url: d.decision_url ?? d.video_url ?? null,
+      })
+      return dots(
+        CHART_TITLES.decisions,
+        'Open Navigator, decisions recorded in local meeting recordings',
+        'decision',
+        [
+          { key: 'contested', label: 'Debated', total: c, dots: items.filter((d) => d.contested).map(toDot) },
+          { key: 'uncontested', label: 'Without debate', total: u, dots: items.filter((d) => !d.contested).map(toDot) },
+        ],
+        c != null && u != null ? c + u : null,
       )
     }
     case 'community-events': {

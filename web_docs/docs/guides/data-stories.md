@@ -15,7 +15,7 @@ A story or a challenge needs meeting recordings or transcripts behind it. Figure
 
 ## The heading is a sentence
 
-The hub and the story are headed by one sentence, "What did local meetings in [place] say about [topic]?", and its two blanks are the controls: the place blank opens a dialog with one search box for a city, county or ZIP code (pick a suggestion and it applies and closes), one-click **The United States** and **All of [state]**, **Use my location**, and an "Or pick a state" list. It has a close button, and Escape or a click outside closes it too; on a phone it is a bottom sheet. A county has no city grain here, so picking one applies its state and the dialog says "Stories are told by city or state; showing all of [state]". The lookup uses the same geocoder helpers as the home page location search (`web_app/src/utils/resolvePlace.ts`), picks carry the geocoder's own city name so nothing has to be typed exactly, and the choice is kept only in the address (`state` and `city`), never in the saved site-wide location, the topic blank lists the topics that have a story (today only data centers). They are underlined inline controls you can reach with the keyboard, named "Place" and "Topic", and at least 44 pixels tall on a phone. Because the story is built from meeting records, the screens that are things said in meetings (concerns, job claims, passages, agendas, company-hosted meetings) carry the sentence; sites and projects are marked "For context". The component is `web_app/src/components/stance/SentenceHeading.tsx`; it has the same props as the shared story component being built elsewhere, and the two should be merged.
+The hub and the story are headed by one sentence, "What did local meetings in [place] say about [topic]?", and its two blanks are the controls: the place blank opens a dialog with one search box for a city, county or ZIP code (pick a suggestion and it applies and closes), one-click **The United States** and **All of [state]**, **Use my location**, and an "Or pick a state" list. It has a close button, and Escape or a click outside closes it too; on a phone it is a bottom sheet. A county has no city grain here, so picking one applies its state and the dialog says "Stories are told by city or state; showing all of [state]". The lookup uses the same geocoder helpers as the home page location search (`web_app/src/utils/resolvePlace.ts`), picks carry the geocoder's own city name so nothing has to be typed exactly, and the choice is kept only in the address (`state` and `city`), never in the saved site-wide location, the topic blank lists the topics that have a story (today only data centers). They are underlined inline controls you can reach with the keyboard, named "Place" and "Topic", and at least 44 pixels tall on a phone. Because the story is built from meeting records, the screens that are things said in meetings (concerns, job claims, passages, agendas, decisions, company-hosted meetings) carry the sentence; sites and projects are marked "For context". The component is `web_app/src/components/stance/SentenceHeading.tsx`; it has the same props as the shared story component being built elsewhere, and the two should be merged.
 
 ## The hub
 
@@ -48,7 +48,7 @@ The figures come from `GET /api/data-centers/positions?state=&city=&limit=`, whi
 
 ## The Data Center Story
 
-Twelve screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries.
+Thirteen screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries.
 
 | Screen | Word | Id | What it shows |
 | --- | --- | --- | --- |
@@ -62,6 +62,7 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | What is raised | Concerns | `concerns` | Concerns ranked, with count and share (one dot per mention) |
 | When it comes up | Meetings | `meetings` | Meeting passages by year (one dot per passage) |
 | What is on the agenda | Agendas | `agendas` | Agendas for upcoming and past meetings |
+| What was decided | Decisions | `decisions` | Decisions on data center items, debated or taken up without debate (one dot per decision, titled with its outcome as recorded); a debated one links to its page, one without debate to the meeting recording. "Not loaded yet" when the table isn't in the database ([#933](https://github.com/getcommunityone/open-navigator/issues/933)) |
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | The question again | Your answer | `verdict` | The same question, then how readers answered before and after, then the challenge |
 

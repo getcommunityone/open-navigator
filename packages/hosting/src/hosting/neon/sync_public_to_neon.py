@@ -237,6 +237,7 @@ CIVIC_SERVING = frozenset(
         # one row per meeting, and one per counted public comment (a short quote each)
         "data_center_meeting_position",
         "data_center_public_comment",
+        "data_center_decision",
         # question dashboard: place label, company named, nearby tracked site (#508), ~0.5 MB (#528)
         "decision_place_label",
         "decision_company_mention",
