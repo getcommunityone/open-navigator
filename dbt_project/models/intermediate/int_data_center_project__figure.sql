@@ -42,7 +42,7 @@ epoch as (
         s.site_name || ' | IT power (MW), ' || s.status_as_of::text || ': '
             || trim_scale(s.it_power_mw::numeric)::text as source_excerpt,
         s.status_as_of                           as published_on
-    from {{ ref('data_center_site') }} as s
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch') as s
     inner join projects as p on p.data_center_site_id = s.data_center_site_id
     where s.it_power_mw is not null and s.it_power_mw > 0
 ),

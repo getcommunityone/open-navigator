@@ -28,7 +28,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { STATE_CODES } from '../lib/usStates'
 import { HOUSE_STYLE } from '../utils/houseTheme'
-import { placeLabel, roundBeat } from '../utils/stanceGame'
+import { LOCK_HOLD_MS, placeLabel, roundBeat } from '../utils/stanceGame'
 import { createSoundBoard, type Cue } from '../utils/stanceSound'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { getStancePlayerId } from '../utils/stancePlayer'
@@ -85,7 +85,8 @@ export default function Challenge() {
   // --- beats and sound (#899) -------------------------------------------------------------------------------------------
   // Rounds the player has asked for the question of (button, Space, or the pause running out). Not kept across visits.
   const [asked, setAsked] = useState<Record<string, boolean>>({})
-  const ask = useCallback((id: string) => setAsked((a) => (a[id] ? a : { ...a, [id]: true })), [])
+  const askedRef = useRef(asked)
+  askedRef.current = asked
   // The answer being saved, shown locked on its button.
   const [pending, setPending] = useState<Attempt | null>(null)
   // One sound board per page; it makes no AudioContext until the first click or key press, and the choice is kept on the device.
@@ -119,7 +120,6 @@ export default function Challenge() {
   // --- scrolling: pinned acts with Lenis (wide), one screen per swipe (phone), or plain stacked panels (reduced motion) ---
   const wide = useMediaQuery('(min-width: 768px)')
   const mode = actsMode(reduced, wide)
-  const animated = mode === 'pinned'
   const gameRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
   // A player who has stopped gets a livelier cue on the next step, with one soft sound on the first cue when sound is on.
@@ -160,6 +160,7 @@ export default function Challenge() {
   confirmedRef.current = confirmed
   const placeOpenRef = useRef(false)
   const justAnswered = useRef<number | null>(null)
+  const revealLandedRef = useRef<Set<number>>(new Set())
 
   const onActive = useCallback(
     (i: number) => {
@@ -204,6 +205,15 @@ export default function Challenge() {
     onActive,
     onSettled,
   })
+
+  const ask = useCallback(
+    (id: string) => {
+      if (askedRef.current[id]) return
+      setAsked((a) => ({ ...a, [id]: true }))
+      requestAnimationFrame(() => acts.goToStop(activeRef.current, 'question'))
+    },
+    [acts],
+  )
 
   // Land on the round named in the URL once the acts exist, then start following the scroll.
   useEffect(() => {
@@ -282,13 +292,29 @@ export default function Challenge() {
     [playerId, packId, stateCode, city, qc, resultsKey, cue],
   )
 
-  // A confirmed answer is the interaction beat: carry the player to this round's reveal hold.
+  // A confirmed answer is the interaction beat: carry the player to this round's reveal hold after the lock.
   useEffect(() => {
     const i = justAnswered.current
     if (i == null || i < 0) return
     justAnswered.current = null
-    if (animated && i === activeRef.current) requestAnimationFrame(() => acts.goToReveal(i))
-  }, [confirmed, animated, acts])
+    revealLandedRef.current.add(i)
+    const t = window.setTimeout(() => {
+      if (i === activeRef.current) acts.goToStop(i, 'reveal')
+    }, reduced ? 0 : LOCK_HOLD_MS)
+    return () => window.clearTimeout(t)
+  }, [confirmed, acts, reduced])
+
+  // Deep-link or scroll onto a round that is already answered: land on reveal once (not when changing).
+  useEffect(() => {
+    if (!ready.current || !coverGone) return
+    const st = statements[active]
+    if (!st) return
+    const sid = st.statement_id
+    if (!confirmed[sid] || changing[sid]) return
+    if (revealLandedRef.current.has(active)) return
+    revealLandedRef.current.add(active)
+    requestAnimationFrame(() => acts.goToStop(active, 'reveal'))
+  }, [active, coverGone, statements, confirmed, changing, acts])
 
   // --- place ----------------------------------------------------------------------------------------------------------
   const applyPlace = useCallback(
@@ -443,7 +469,11 @@ export default function Challenge() {
                 const at = errors[st.statement_id]?.attempt
                 if (at) void submit(at)
               }}
-              onChange={() => setChanging((c) => ({ ...c, [st.statement_id]: true }))}
+              onChange={() => {
+                revealLandedRef.current.delete(i)
+                setChanging((c) => ({ ...c, [st.statement_id]: true }))
+              }}
+              onNeedPageScroll={(stop) => acts.goToStop(i, stop)}
               nextLabel={i < n - 1 ? statements[i + 1]!.category : 'Where you stood'}
               onPrev={i > 0 ? () => goToRound(activeRef.current - 1) : undefined}
               onNext={() => goToRound(activeRef.current + 1)}

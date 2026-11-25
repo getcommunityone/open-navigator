@@ -10,7 +10,7 @@ The challenge (earlier called the "Where Do You Stand?" game) is about questions
 ## How to play
 
 1. The first screen says what the game is and shows large counts of what the public records cover. Each count comes straight from a national data-center endpoint. A count that is missing or zero is left out.
-2. Each round is one screen that plays in three beats (see [Pacing and sound](#pacing-and-sound)): the finding and chart, then the question, then the results.
+2. Each round is three full-viewport scroll stops in order (see [Pacing and sound](#pacing-and-sound)): the finding and chart, then the question (answers below the fold), then the reveal.
 3. The headline is one sentence about the chart, computed from the chart's own data (for example a ranking, a count or a share). If the data cannot support a sentence, the headline describes the chart in neutral words.
 4. Choose an answer. Your choice locks in, it is saved when the server confirms it, and the results land. The page carries you to the reveal. If saving fails you see the error with a Retry button and the page does not move on.
 5. You can scroll ahead past a round without answering it (**Skip this one**, or the wheel). A skipped round shows no results. The end screen counts only the rounds you answered.
@@ -26,7 +26,7 @@ A challenge statement must sit beside a chart built from meeting recordings or t
 
 | Key | Does |
 | --- | --- |
-| Space, Enter, PageDown, down arrow or right arrow | On a round's first beat: ask the question. After that: next round (or start the first round from the first screen) |
+| Space, Enter, PageDown, down arrow or right arrow | On the Finding stop: move to the Question stop (Ask me or the ask timer). On the Reveal stop: next round (or start the first round from the first screen) |
 | A | Agree (only once the question is showing) |
 | D | Disagree (only once the question is showing) |
 | N | Not sure (only once the question is showing) |
@@ -38,13 +38,21 @@ Focus moves to **Ask me** when a round settles, then to the answer buttons once 
 
 ## Pacing and sound
 
-A round plays in three beats, in this order.
+A round is three scroll stops (not three beats on one pinned panel). Each stop fills one viewport; the page scrolls between them, with smooth auto-scroll when motion is allowed. Full behaviour is in [Challenge scroll-to-answer and scroll reveal](../development/challenge-scroll-reveal-design.md).
 
-1. **The finding.** The category and the finding sentence are the title, with the chart drawing in. Under it sits **Ask me** (key: Space) and **Skip this one**. If a source supplies verbatim quotes, a "What was said for" and a "What was said against" block sits here too, each quote linked to its recording at that moment; nothing is shown there unless both sides have real quotes. The answer buttons are not on the page yet. After the chart has finished drawing and a pause of about two and a half seconds, the question arrives by itself; a thin line under **Ask me** shows the time left. The timer waits while your pointer or keyboard focus is on the chart or its data table, while the data table is open, while a menu is open, and while the tab is hidden.
-2. **The question.** "Where do you stand?" and the statement arrive large, and the three answers follow one after another. The chart stays, quieter. A phone hides the chart here so the round fits one screen. **Skip this one** is offered; **Next** is not, because nothing has been answered.
-3. **The results.** The answer you chose locks in and the other two step back. Then the national, state and place results land one after another. A group with too few answers still reads "Not enough answers yet (N so far, M needed)". Last, **Next: ...** appears. A round you already answered goes straight to this beat, with no animation.
+| Stop | On screen | How you leave |
+| --- | --- | --- |
+| **Finding** | Category, record headline, chart, optional quotes; **Ask me** / **Skip this one**. Answer buttons are not visible yet. | **Ask me**, Space, or the ask timer → scroll to Question |
+| **Question** | "Where do you stand?" and the statement fill the viewport; **Agree**, **Disagree** and **Not sure** as large stacked pills **below the fold** (scroll or auto-scroll to reach them). **Skip this one** is offered; **Next** is not. | Answer locks → short hold → scroll to Reveal |
+| **Reveal** | Your choice (opinion only — never "right" or "wrong") → how people who played answered (national, state, place bars) → **Next: ...** | **Next** or keys → next round's Finding |
 
-Each round fits one screen at 1366 by 768 and at 390 by 844 at every beat.
+**Finding.** The category and finding sentence are the title, with the chart drawing in. Under them sit **Ask me** (Space) and **Skip this one**. If a source supplies verbatim quotes, "What was said for" and "What was said against" blocks sit here, each quote linked to its recording; nothing is shown unless both sides have real quotes. After the chart finishes and a pause of about two and a half seconds, the page scrolls to the Question stop unless you already pressed **Ask me**; a thin line under **Ask me** shows time left. The timer waits while focus is on the chart or its data table, while the table is open, while a menu is open, or while the tab is hidden.
+
+**Question.** The statement is large at the top of the viewport; the three answers are a stacked column under it, so on a short screen you scroll (or are scrolled) to reach them. The chart may stay, quieter, or hide on a phone so the question stop stays readable.
+
+**Reveal.** Your answer locks in; the other two step back. National, state and place results land one after another. A group with too few answers reads "Not enough answers yet (N so far, M needed)". **Next: ...** comes last. A round you already answered opens on the Reveal stop (you can still **Change my answer**).
+
+Each stop is laid out for one viewport at 1366×768 and 390×844.
 
 **Sound** is made in the browser (Web Audio), with no audio files: a short cue when a round opens, when the question arrives, when your answer locks in, as each result row lands (the pitch steps up for national, state and place, and a withheld split makes no sound), and on the end screen. The cues are neutral. None says right or wrong, and nothing is scored. Every cue has a visible counterpart, so nothing depends on sound. The **Sound on** / **Sound off** button is in the bar at the top of every screen of the challenge. Your choice is kept on this device (`stance.sound` in local storage; the default is on), and sound starts only after your first click or key press. Cues are quiet by design.
 
@@ -52,15 +60,15 @@ For a screen reader, a polite live region reads the finding, then the question, 
 
 ## Motion
 
-The challenge moves between screens the same way the data story does (the three modes are described in [Data stories](data-stories.md#how-the-screens-move)):
+Within a round, scroll moves among the three stops (Finding → Question → Reveal). Between rounds, the challenge still follows the same pin-and-snap patterns as the data story ([How the screens move](data-stories.md#how-the-screens-move)):
 
-- **768 pixels or wider:** each round is pinned and scrubbed by the scroll, and one gesture never passes more than one round.
-- **A phone:** each round is one frame tall and the page snaps one round per swipe. As a round arrives its category card, its headline (word by word) and its chart rise in; as it leaves they fade and lift; coming back plays the entrance again. A round whose chart is taller than the frame scrolls inside its own block first.
-- **prefers-reduced-motion on:** a plain stack of panels with native scrolling and no animation. The three beats still happen as steps: the question appears when you press **Ask me** or Space, or after the pause. The sound button still decides whether cues play. All buttons and keys work the same.
+- **768 pixels or wider:** rounds stay pinned and scrubbed by scroll; one gesture does not skip past more than one round. Inside a round, scroll (or auto-scroll after **Ask me**, the timer, or locking an answer) snaps to the next stop.
+- **A phone:** the page snaps stop by stop inside each round, and one round per swipe between rounds. Entrances and exits on category, headline and chart match the data story; a tall chart scrolls inside its block on the Finding stop first.
+- **prefers-reduced-motion on:** the same three stops in a plain stack with native scrolling and no animated auto-scroll — use buttons, keys, or an instant jump instead. **Ask me**, Space, and the timer still reach the Question stop; answering still reaches Reveal. Sound on/off and all controls work the same.
 
 The challenge is the livelier of the two pages. Its main button (**Start the challenge**, **Ask me**, **Next: ...**) springs in when its round is in view and squashes when pressed. When you have been still for about six seconds its arrow hops twice and a light passes across it, at most three times, with one soft sound on the first if sound is on (the rules are in [Data stories](data-stories.md#moving-to-the-next-screen)). The answer you choose locks and throws a ring while the other two step back. The progress segments along the top bar pop as a round arrives or is answered (an answered round turns ink), and the words beside them say what is left ("Three to go"). None of it says right or wrong. The data story uses the same layout, palette and type with calmer motion; with **Sound on** it still plays soft page-turn cues when you advance or when the idle nudge first fires (#966).
 
-One primary action is always on screen: **Start the challenge** on the first screen, then per beat **Ask me**, the three answers, and **Next: ...**. When that control is out of view, a bar pinned to the bottom of the window shows the same action (the three answers as three buttons), with **Back** beside it.
+One primary action is always on screen: **Start the challenge** on the first screen, then per stop **Ask me**, the three stacked answers, and **Next: ...**. When that control is out of view, a bar pinned to the bottom of the window shows the same action (the three answers as three buttons), with **Back** beside it.
 
 ## What the reveal means
 
