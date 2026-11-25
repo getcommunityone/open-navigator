@@ -9,7 +9,7 @@ A data story opens on an **overview of the record**, shows what public meetings 
 
 The **Data Stories** item in the header scrolls to the Data stories section of the home page (`/#data-stories`), which shows the story's real counts and opens the story, the challenge and the full hub at `/stories` ([#975](https://github.com/getcommunityone/open-navigator/issues/975)). The first story is the Data Center Story at `/stories/data-centers`.
 
-On the home page, the Data stories section names the story (**The Data Center Story** and its question). It has a US map with one marker per state where a data center came up in at least one meeting; a marker's size follows that real count and clicking it opens the story for that state. The page's own place is highlighted, with its counts and a **Start the story for {place}** button. Under the box, **All data stories** lists every story there is, and says so plainly while there is only one ([#985](https://github.com/getcommunityone/open-navigator/issues/985)).
+On the home page, the Data stories section names the story (**The Data Center Story** and its question). It has a US map with one marker per state where a data center came up in at least one meeting; a marker's size follows that real count and clicking it opens the story for that state. The page's own place is highlighted, with its counts and a **Start the story** button named for that place. Under the box, **All data stories** lists every story there is, and says so plainly while there is only one ([#985](https://github.com/getcommunityone/open-navigator/issues/985)).
 
 ## Which topics get a story
 
