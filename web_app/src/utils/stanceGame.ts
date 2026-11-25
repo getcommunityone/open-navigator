@@ -724,6 +724,14 @@ export function roundBeat(state: { answered: boolean; asked: boolean; changing?:
   return state.asked ? 'question' : 'finding'
 }
 
+/** Scroll stop inside a challenge round (#969). `results` beat lands on the reveal stop. */
+export type RoundStop = 'finding' | 'question' | 'reveal'
+
+export function roundStop(beat: RoundBeat): RoundStop {
+  if (beat === 'results') return 'reveal'
+  return beat
+}
+
 /** Milliseconds the chart waits before it starts to draw, and how long the draw takes (the CSS animation uses the same). */
 export const CHART_DRAW_DELAY_MS = 350
 export const CHART_DRAW_MS = 1100
