@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
 import { STORIES, scopeQuery, storyScopeLabel } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
-import { useStoryConclusion } from '../stance/useStoryConclusion'
+import { useStoryConclusionState } from '../stance/useStoryConclusion'
 import HomeTopicStrip from './HomeTopicStrip'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 
@@ -28,7 +28,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   const scope = { stateCode, stateName, city: stateCode ? city : null }
   const label = storyScopeLabel(scope)
   const q = scopeQuery(scope)
-  const conclusion = useStoryConclusion('data-centers')
+  const { conclusion, pending } = useStoryConclusionState('data-centers')
 
   // National: every state's own count, and the newest passages to quote (newest first, so the first per state is its newest).
   const national = useQuery({
@@ -81,7 +81,8 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         <div className="home-story-card">
           <div className="home-story-text">
             <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
-            <h1 id="home-story-dc" className="font-display home-story-headline">
+            {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}
+            <h1 id="home-story-dc" className="font-display home-story-headline" aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
               {conclusion ? conclusion.headline : STORY.question}
             </h1>
             {conclusion && (

@@ -69,6 +69,8 @@ export default function DataStory() {
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
   const city = stateCode ? (sp.get('city') ?? '').trim() || null : null
   const scope: StoryScope = useMemo(() => ({ stateCode, stateName, city }), [stateCode, stateName, city])
+  const scopeKey = `${stateCode ?? ''}|${city ?? ''}`
+  const landedScope = useRef<string | null>(null)
   const screenParam = sp.get('screen') ?? ''
 
   const screens = useMemo(() => story?.screens ?? [], [story])
@@ -176,6 +178,8 @@ export default function DataStory() {
   // The story's own path. As the story unmounts, the scroller's last updates still arrive; writing `?screen=` then would
   // navigate relative to the story's route and pull the reader back into it, on its last screen (#997).
   const storyPath = useRef(window.location.pathname)
+  /** True from landing until the reader moves (or 4s): the page is being kept on its screen while its content settles. */
+  const settling = useRef(false)
   const alive = useRef(true)
   useEffect(() => {
     alive.current = true
@@ -186,7 +190,7 @@ export default function DataStory() {
   }, [story])
   const onActive = useCallback(
     (i: number) => {
-      if (!alive.current || window.location.pathname !== storyPath.current) return
+      if (!alive.current || window.location.pathname !== storyPath.current || settling.current) return
       if (!ready.current || (i === activeRef.current && lastWritten.current != null)) return
       const moved = i !== activeRef.current
       activeRef.current = i
@@ -237,8 +241,12 @@ export default function DataStory() {
   useEffect(() => {
     if (n === 0) return
     ready.current = false
-    // The story opens on its first screen's hold (overview), not on the empty start of its timeline.
-    const at = Math.max(0, storyScreenIndex(screens, screenParam))
+    // The story opens on its first screen's hold (overview), not on the empty start of its timeline. A change of place with
+    // no screen in the URL keeps the reader on the screen they were on.
+    const fromUrl = storyScreenIndex(screens, screenParam)
+    const placeChanged = landedScope.current != null && landedScope.current !== scopeKey
+    landedScope.current = scopeKey
+    const at = Math.max(0, fromUrl >= 0 ? fromUrl : placeChanged ? activeRef.current : 0)
     const land = (behavior: ScrollBehavior) => {
       const h = acts.holds().find((x) => x.round === at && x.kind !== 'r')
       // The first screen on the flow layout is the top of the page. The page can arrive scrolled (a previous page's
@@ -252,12 +260,25 @@ export default function DataStory() {
     setActive(at)
     lastWritten.current = screens[at]?.id ?? null
     const id = requestAnimationFrame(() => requestAnimationFrame(() => (ready.current = true)))
-    // Under reduced motion the page is put on the screen at once, before the top bar has its final height (which sets every
-    // screen's height). While the reader has not moved, a change in that height puts the page back on the screen it opened on.
+    // The page is put on its screen before everything has its final height: the top bar (which sets every screen's height)
+    // and the data for the place, which arrives after a change of place. While the reader has not moved, the page is kept on
+    // the screen it landed on and the scroller's reports are ignored; otherwise the shifting page reads as another screen,
+    // often a later one (#999). Pinned positions follow a ScrollTrigger refresh, so the page lands again once they settle.
+    settling.current = true
+    let again = 0
+    const reland = () => {
+      window.clearTimeout(again)
+      again = window.setTimeout(() => land('instant' as ScrollBehavior), 300)
+    }
     const top = rootRef.current?.querySelector('.stance-top')
-    const ro = reduced && at > 0 && top && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => land('instant' as ScrollBehavior)) : null
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(reland) : null
     if (top) ro?.observe(top)
-    const stop = () => ro?.disconnect()
+    if (rootRef.current) ro?.observe(rootRef.current)
+    const stop = () => {
+      ro?.disconnect()
+      window.clearTimeout(again)
+      settling.current = false
+    }
     const moves = ['pointerdown', 'wheel', 'keydown', 'touchstart'] as const
     moves.forEach((e) => window.addEventListener(e, stop, { once: true, passive: true }))
     const timer = window.setTimeout(stop, 4000)
@@ -268,7 +289,7 @@ export default function DataStory() {
       stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [n, mode])
+  }, [n, mode, scopeKey])
 
   // A screen in the URL that changed from outside (a link, the back button) moves the page.
   useEffect(() => {

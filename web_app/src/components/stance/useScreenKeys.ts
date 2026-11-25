@@ -15,9 +15,9 @@ interface Options {
 const OWN_KEYS = 'input, select, textarea, [contenteditable="true"], table, [data-keys-own], [role="listbox"], [role="menu"]'
 
 /**
- * Keys that move between screens, shared by the challenge and the story: PageDown / Space / arrow down / arrow right go on,
+ * Keys that move between screens, shared by the challenge and the story: PageDown / Enter / Space / arrow down / arrow right go on,
  * PageUp / Shift+Space / arrow up / arrow left go back, Home and End jump to the ends. Nothing happens while focus is in an
- * input, select, table or a figure that scrolls on its own, and Space leaves a focused button or link to press it.
+ * input, select, table or a figure that scrolls on its own, and Space and Enter leave a focused button or link to press it.
  * Wheel and touch are untouched: this never traps the reader.
  */
 export function useScreenKeys(opts: Options) {
@@ -34,6 +34,11 @@ export function useScreenKeys(opts: Options) {
       let act: (() => void) | null = null
       switch (e.key) {
         case 'PageDown':
+          act = o.current.next
+          break
+        case 'Enter':
+          // A focused button, link or summary keeps Enter (it presses it); anywhere else Enter goes on, like Next.
+          if (onControl || e.shiftKey) return
           act = o.current.next
           break
         case 'PageUp':

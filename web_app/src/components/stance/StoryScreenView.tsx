@@ -139,6 +139,7 @@ export default function StoryScreenView(p: Props) {
                     scopeLabel={storyScopeLabel(scope)}
                     onPickState={(code) => p.onBroaden(code, null)}
                     labelledBy={`story-h-${screen.id}`}
+                    passages={mentions?.items}
                   />
                 ) : stats.some((s) => s.key === 'meetings') && (
                   <ChartPanel
