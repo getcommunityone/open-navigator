@@ -28,7 +28,7 @@ these holds. The table keeps the first that applies, in this order, in `match_ba
 | `data_center_decision` | It is linked to a decision (`public_comment.event_decision_id`) whose `headline` or `decision_statement` says a data center word |
 | `data_center_item` | It is on an uncontested (consent) item (`event_uncontested_item`, matched on the meeting and `item_id`) whose `headline` says a data center word |
 | `own_words` | The speaker's own quoted words (`stance_evidence`) or the comment's `summary` says a data center word |
-| `same_item` | Another public speaker on the **same item of the same meeting** says a data center word in their own words. The item is about a data center even though its headline names it another way |
+| `same_item` | Another public speaker on the **same item of the same meeting** says a data center word in their own quoted words (`stance_evidence`, not the summary). The item is about a data center even though its headline names it another way |
 
 `same_item` is what catches an item like Casa Grande's "Phoenix Mart PAD major amendment (DSA 2600139)": the headline never
 says "data center", but one speaker on it says "The data centers need to go away". The ten other speakers on that item ("We
@@ -65,6 +65,7 @@ Comments that are about a data center and are **not** counted:
 Comments that are counted and are arguably not about the data center:
 
 - A comment on a data center item (by its headline, or through `same_item`) is counted even when the speaker talked about a side issue of that item.
+- Through `same_item`, one speaker's passing mention of a data center pulls in every speaker on that item, even when the item itself is about something else. `same_item` reads only the speaker's verbatim quote (`stance_evidence`), never the AI's `summary`, so it takes a speaker's own words to spread.
 
 Rules that were considered and left out:
 
@@ -88,12 +89,14 @@ production the two vote figures may read "not recorded" until tallies are extrac
 
 ## The tables
 
-All three are dbt marts in `gold`, published to `public` by `publish_public_serving` and copied to Neon. `event_uncontested_item` is read from `bronze.bronze_uncontested_items_from_ai`, which unpacks `structured_analysis->'uncontested_items'` with the same publishable-analysis filter as the other `bronze_*_from_ai` extractions.
+All three are dbt marts in `gold`, published to `public` by `publish_public_serving`. The two `data_center_*` marts are copied
+to Neon. `event_uncontested_item` is not yet (it is `NON_SERVING` in `hosting.neon.sync_public_to_neon` until
+[#933](https://github.com/getcommunityone/open-navigator/issues/933) gives it a reader). `event_uncontested_item` is read from `bronze.bronze_uncontested_items_from_ai`, which unpacks `structured_analysis->'uncontested_items'` with the same publishable-analysis filter as the other `bronze_*_from_ai` extractions.
 
 | Model | Grain | Primary key | Foreign keys |
 | --- | --- | --- | --- |
 | `data_center_meeting_position` | One row per meeting where a data center came up | `data_center_meeting_position_id` | `event_meeting_id` to `event_meeting` |
-| `event_uncontested_item` | One row per uncontested (consent) item of an analysed meeting; the sibling of `event_decision`, which holds only contested decisions | `event_uncontested_item_id` | `event_meeting_id` to `event_meeting` |
+| `event_uncontested_item` | One row per uncontested (consent) item of a recording's preferred analysis (`int_preferred_event_analysis`, as `event_decision` uses); the sibling of `event_decision`, which holds only contested decisions. An `item_id` the analysis repeated within one meeting keeps its first item only (13 such items on the local warehouse, 24 Nov 2026) | `event_uncontested_item_id` | `event_meeting_id` to `event_meeting` |
 | `data_center_public_comment` | One row per counted public comment | `public_comment_id` | `public_comment_id` to `public_comment`, `data_center_meeting_position_id` to `data_center_meeting_position`, `event_meeting_id` to `event_meeting`; `event_decision_id` to `event_decision` as a relationships test |
 
 The rule itself is one intermediate view, `int_data_center__public_comment`. Both marts read it, so the counts and the
@@ -131,13 +134,14 @@ The tables do not exist until dbt has built them. Until then the endpoint answer
 "Who spoke for and against is not loaded yet."
 
 ```bash
-./scripts/dbt.sh run --select public_comment+ data_center_meeting_position data_center_public_comment
-./scripts/dbt.sh test --select int_data_center__public_comment data_center_meeting_position data_center_public_comment
+./scripts/dbt.sh run --select bronze_uncontested_items_from_ai event_uncontested_item public_comment+ data_center_meeting_position data_center_public_comment
+./scripts/dbt.sh test --select event_uncontested_item int_data_center__public_comment data_center_meeting_position data_center_public_comment
 ./scripts/dbt.sh run-operation publish_public_serving
 ```
 
 The first command also rebuilds `public_comment` and what reads it. If `public_comment` is already current, select only
-`int_data_center__public_comment data_center_meeting_position data_center_public_comment`. Every `dbt run` publishes the
+`int_data_center__public_comment data_center_meeting_position data_center_public_comment` (with `event_uncontested_item` the
+first time, since the rule reads it). Every `dbt run` publishes the
 `public` views when it ends, so the third command is only needed after a run that failed part-way.
 
 ## How it was checked

@@ -1330,9 +1330,15 @@ class PositionQuote(BaseModel):
     start_seconds: float | None = None
     jump_url: str | None = Field(None, description="video_url at start_seconds; null when untimed.")
     decision_headline: str | None = Field(
-        None, description="The data center decision the comment is linked to, when that is why it counts."
+        None,
+        description="The item the comment is on (a contested decision or an uncontested item); "
+        "null for general public comment.",
     )
-    match_basis: Literal["data_center_decision", "own_words"] | None = None
+    match_basis: Literal["data_center_decision", "data_center_item", "own_words", "same_item"] | None = Field(
+        None,
+        description="Why the comment counts: its decision or uncontested item names a data center, "
+        "its own words do, or another speaker on the same item does (#932).",
+    )
 
 
 class PositionQuotes(BaseModel):

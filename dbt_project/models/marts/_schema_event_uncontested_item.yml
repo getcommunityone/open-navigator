@@ -14,7 +14,9 @@ models:
         enforced: true
       tags: ['marts', 'event-extraction', 'ai', 'serving']
       post_hook:
-        - "create index if not exists event_uncontested_item_meeting_idx on {{ this }} (event_meeting_id, item_id)"
+        # unnamed on purpose: a fixed name collides with the old table's index during dbt's
+        # rename swap, so "if not exists" skipped it on every other build (#932 review)
+        - "create index on {{ this }} (event_meeting_id, item_id)"
     constraints:
       - type: foreign_key
         columns: [event_meeting_id]

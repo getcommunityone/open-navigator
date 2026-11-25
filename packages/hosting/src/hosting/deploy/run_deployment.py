@@ -114,6 +114,7 @@ STEP_DEFS: Dict[str, Dict[str, Any]] = {
             "bronze_meetings_from_ai", "bronze_topics_from_ai", "bronze_places_from_ai",
             "bronze_persons_from_ai", "bronze_bills_from_ai", "bronze_financial_items_from_ai",
             "bronze_public_participation_from_ai", "bronze_organizations_from_ai", "bronze_causes_from_ai",
+            "bronze_uncontested_items_from_ai",
         ],
     },
     "database": {

@@ -33,8 +33,11 @@
     smart_brevity, human_element) add no match beyond the headline; a wider vocabulary
     ("megawatt", "servers", "substation") hits more often outside data center meetings than
     in them; comment timestamps are null, so no timing rule.
-    Known over-count: a comment linked to a data center item (by headline or same_item) is
-    counted even when the speaker talked about a side issue of that item.
+    Known over-counts: a comment on a data center item (by headline or same_item) is counted
+    even when the speaker talked about a side issue of that item; and through same_item, one
+    speaker's passing mention of a data center (quoted) pulls in every speaker on that item,
+    even if the item itself is about something else. same_item reads only the verbatim
+    quote (stance_evidence), never the summary, to keep that to the speaker's own words.
 
     is_counted marks the one row that stands for a speaker in a meeting: a speaker with
     several rows on data center items is counted once, taking a row with a known stance
@@ -64,23 +67,34 @@ dc_uncontested as (
 comments as (
     select
         c.*,
-        (coalesce(c.stance_evidence, '') || ' ' || coalesce(c.summary, '') ~* '{{ dc_regex }}') as says_dc
+        -- own_words: the quote or the extraction's summary of the comment
+        (coalesce(c.stance_evidence, '') || ' ' || coalesce(c.summary, '') ~* '{{ dc_regex }}') as says_dc,
+        -- same_item spreads only from the speaker's verbatim quote, never from the AI summary,
+        -- so one paraphrase can't pull a whole item in
+        (coalesce(c.stance_evidence, '') ~* '{{ dc_regex }}') as quote_says_dc
     from {{ ref('public_comment') }} as c
 ),
 
--- Items (meeting + item_id) where at least one public speaker says a data center word.
+-- Items (meeting + item_id) where at least one public speaker's own quoted words say a data
+-- center word.
 dc_spoken_items as (
     select distinct event_meeting_id, item_id
     from comments
-    where says_dc and item_id is not null
+    where quote_says_dc and item_id is not null
 ),
 
--- Any decision's headline, so a same_item or own_words row on a contested decision whose
--- headline doesn't say the words still names its item.
-item_headline as (
+-- Every item's headline, for display, whichever table holds it: a contested decision
+-- (event_decision) or an uncontested item (event_uncontested_item), whether or not the
+-- headline itself says a data center word.
+decision_headline as (
     select distinct on (event_decision_id) event_decision_id, headline
     from {{ ref('event_decision') }}
     order by event_decision_id, extracted_at desc
+),
+
+uncontested_headline as (
+    select event_meeting_id, item_id, headline
+    from {{ ref('event_uncontested_item') }}
 ),
 
 matched as (
@@ -88,7 +102,7 @@ matched as (
         c.public_comment_id,
         c.event_meeting_id,
         c.event_decision_id,
-        coalesce(d.headline, u.headline, h.headline)            as decision_headline,
+        coalesce(h.headline, uh.headline)                       as decision_headline,
         c.speaker_id,
         c.stance_bucket,
         c.stance_evidence,
@@ -106,7 +120,9 @@ matched as (
         on u.event_meeting_id = c.event_meeting_id and u.item_id = c.item_id
     left join dc_spoken_items as s
         on s.event_meeting_id = c.event_meeting_id and s.item_id = c.item_id
-    left join item_headline as h on h.event_decision_id = c.event_decision_id
+    left join decision_headline as h on h.event_decision_id = c.event_decision_id
+    left join uncontested_headline as uh
+        on uh.event_meeting_id = c.event_meeting_id and uh.item_id = c.item_id
     where d.event_decision_id is not null
        or u.item_id is not null
        or c.says_dc

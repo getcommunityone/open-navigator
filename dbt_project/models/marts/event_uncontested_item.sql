@@ -21,13 +21,19 @@ VOTE   : the extraction's text, as said ("voice vote", "5-0", "unanimous"); not 
          a tally, because it is often not a count. Null when not stated.
 KEYS   : PK event_uncontested_item_id = md5(analysis id || '_' || item_id), the same shape
          as event_decision_id, so a public comment's (meeting, item_id) finds it.
-         FK event_meeting_id -> event_meeting is an enforced constraint; the inner join to
-         event_meeting is the parent guard (an analysis that is not the meeting's preferred
-         one has no row there, and its items are left out rather than failing the FK).
+         FK event_meeting_id -> event_meeting is an enforced constraint.
+PREFERRED: only the recording's preferred analysis (int_preferred_event_analysis, as
+         event_decision uses). event_meeting is append-only and still holds rows for analyses
+         that were later superseded, so joining it alone would keep two analyses' items for
+         one recording. The join to event_meeting is then the parent guard for the FK.
 Design : web_docs/docs/development/data-center-who-spoke-up.md
 */
 
-with meetings as (
+with preferred as (
+    select analysis_id from {{ ref('int_preferred_event_analysis') }}
+),
+
+meetings as (
     select event_meeting_id, state_code, state, jurisdiction_name, video_id
     from (
         select
@@ -55,4 +61,5 @@ select
     u.source_ai_model::text                             as source_ai_model,
     u.extracted_at::timestamp                           as extracted_at
 from {{ ref('bronze_uncontested_items_from_ai') }} as u
+inner join preferred as p on p.analysis_id = u.source_event_id
 inner join meetings as m on m.event_meeting_id = u.source_event_id

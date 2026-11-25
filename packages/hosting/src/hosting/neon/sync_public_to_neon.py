@@ -138,6 +138,9 @@ NON_SERVING = frozenset(
         "mdm_bridge_event_analysis",
         "instance_argument",
         "jurisdiction_document",
+        # Uncontested (consent) items (#932): ~41k rows, ~12 MB in gold. No endpoint reads
+        # them yet; move to CIVIC_SERVING (after a size check) when #933 serves them.
+        "event_uncontested_item",
     }
 )
 

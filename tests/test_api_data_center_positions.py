@@ -145,6 +145,25 @@ def test_quotes_only_counted_speakers_with_their_own_words() -> None:
     assert "vote_tally" not in totals_sql + quotes_sql and "~*" not in totals_sql + quotes_sql
 
 
+def test_every_match_basis_the_rule_emits_is_served(get) -> None:
+    # #932 added data_center_item and same_item to int_data_center__public_comment; a quote with
+    # either must serialize instead of failing validation (a 500 for the whole scope).
+    conn = _Conn(totals=[_totals()], quotes=[
+        _quote("against", public_comment_id="c1", match_basis="same_item",
+               decision_headline="Phoenix Mart PAD major amendment tabled"),
+        _quote("for", public_comment_id="c2", match_basis="data_center_item",
+               decision_headline="Approve Data Center Ordinance"),
+        _quote("question", public_comment_id="c3", match_basis="own_words", decision_headline=None),
+    ])
+    resp = get(conn)
+    assert resp.status_code == 200, resp.text
+    quotes = resp.json()["quotes"]
+    assert quotes["against"][0]["match_basis"] == "same_item"
+    assert quotes["against"][0]["decision_headline"] == "Phoenix Mart PAD major amendment tabled"
+    assert quotes["for"][0]["match_basis"] == "data_center_item"
+    assert quotes["question"][0]["match_basis"] == "own_words"
+
+
 def test_untimed_quote_has_no_jump(get) -> None:
     conn = _Conn(totals=[_totals()], quotes=[_quote("for", start_seconds=None)])
     (q,) = get(conn).json()["quotes"]["for"]

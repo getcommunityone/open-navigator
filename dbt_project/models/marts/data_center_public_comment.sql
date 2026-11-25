@@ -7,9 +7,9 @@
     rule and its known misses are written there).
 
     quote is public_comment.stance_evidence, verbatim (25 words or fewer); null when the
-    extraction kept none. decision_headline names the item when the comment counts because
-    of the decision it is linked to (match_basis = data_center_decision), so a quote that
-    doesn't itself say "data center" still shows why it is here.
+    extraction kept none. decision_headline names the item the comment is on (a contested
+    decision or an uncontested item, #932), so a quote that doesn't itself say "data center"
+    still shows why it is here; null for general public comment.
     is_counted: the one row counted for the speaker in that meeting.
     Design: web_docs/docs/development/data-center-who-spoke-up.md
 */
