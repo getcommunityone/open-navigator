@@ -50,3 +50,10 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- One-line path fix; the router prefix is `/decision`. Browser check: 1,000 pins, no 4xx. No other `/decisions/map` callers.
+- Scans clean.
+
+Verdict stands: approve.
