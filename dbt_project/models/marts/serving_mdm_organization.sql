@@ -7,7 +7,7 @@
       {'columns': ["state_code"], 'type': 'btree'}
     ],
     post_hook=[
-      "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_organization_pkey PRIMARY KEY (master_org_id)"
+      "{{ gold_pk_post_hook('master_org_id') }}"
     ]
   )
 }}

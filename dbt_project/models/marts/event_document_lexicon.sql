@@ -20,7 +20,7 @@
     materialized='table',
     tags=['marts', 'events', 'documents', 'search', 'production'],
     indexes=([{'columns': ['word gin_trgm_ops'], 'type': 'gin'}] if target.name != 'neon' else []),
-    post_hook=[gold_pk_post_hook('word')]
+    post_hook=["{{ gold_pk_post_hook('word') }}"]
   )
 }}
 

@@ -2,7 +2,7 @@
     config(
         materialized='table',
         unique_key=['level', 'state_code', 'county', 'city'],
-        post_hook=[gold_pk_post_hook('level, state_code, county, city')]
+        post_hook=["{{ gold_pk_post_hook('level, state_code, county, city') }}"]
     )
 }}
 
