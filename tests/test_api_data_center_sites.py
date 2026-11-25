@@ -154,5 +154,12 @@ def test_table_without_the_new_columns_is_an_empty_list_not_500(get) -> None:
     assert resp.status_code == 200 and resp.json()["items"] == []
 
 
+def test_a_site_without_a_source_url_is_served_not_500(get) -> None:
+    """#983: a registry record with no record page must not turn the whole list into a 500."""
+    conn = _Conn(rows=[_site(source_url=None, source="us_data_center_registry")], counts=[{"status": "planned", "n": 1}])
+    resp = get(conn, {"state": "AL"})
+    assert resp.status_code == 200 and resp.json()["items"][0]["source_url"] is None
+
+
 def test_other_errors_are_500(get) -> None:
     assert get(_Conn(error=RuntimeError("boom"))).status_code == 500

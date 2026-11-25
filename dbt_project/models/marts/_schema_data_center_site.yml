@@ -104,8 +104,11 @@ models:
         description: "'Epoch AI' or 'US Data Center Registry (SueDataCenters.org)'."
         data_type: text
       - name: source_url
-        description: "The Epoch AI dataset page, or the record's own page on the registry."
+        description: "The Epoch AI dataset page, or the record's own page on the registry (the registry's dataset page when the record has none, #983). Never null."
         data_type: text
+        constraints:
+          - type: not_null
+        tests: [not_null]
       - name: license
         description: "Always 'CC BY 4.0'."
         data_type: text

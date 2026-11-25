@@ -147,7 +147,8 @@ select
     last_seen_on::date                                  as last_seen_on,
     is_listed::boolean                                  as is_listed,
     'US Data Center Registry (SueDataCenters.org)'::text as source_name,
-    profile_url::text                                   as source_url,
+    -- the record's page on the registry; a few records have none, so the dataset page (#983)
+    coalesce(profile_url, 'https://suedatacenters.org/data-centers/data')::text as source_url,
     'CC BY 4.0'::text                                   as license,
     attribution::text                                   as attribution,
     'us_data_center_registry'::text                     as source,

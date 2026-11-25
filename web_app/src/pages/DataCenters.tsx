@@ -612,9 +612,13 @@ function SiteCard({ site }: { site: DataCenterSite }) {
       </p>
       {site.construction_note && <p className="mt-1 text-xs italic text-gray-600">“{site.construction_note}”</p>}
       <p className="mt-2 text-xs text-gray-500">
-        <a href={site.source_url} target="_blank" rel="noopener noreferrer" className="underline">
-          {site.source_name}
-        </a>
+        {site.source_url ? (
+          <a href={site.source_url} target="_blank" rel="noopener noreferrer" className="underline">
+            {site.source_name}
+          </a>
+        ) : (
+          site.source_name
+        )}
       </p>
     </li>
   )

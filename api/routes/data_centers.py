@@ -316,7 +316,7 @@ class DataCenterSite(BaseModel):
     last_seen_on: date | None = None
     is_listed: bool
     source_name: str
-    source_url: str
+    source_url: str | None = Field(None, description="The source record or dataset page; null only if the table lacks one (#983).")
     license: str
     attribution: str
     source: SiteSource = Field("epoch", description="Which inventory the row comes from (#958).")
