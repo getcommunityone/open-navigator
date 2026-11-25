@@ -161,10 +161,17 @@ export function QuestionScreen(p: ScreenProps) {
             </p>
           )}
         </div>
-        <div className="stance-nav">
+        <div className="stance-nav stance-nav-split">
           {said || !vote.question ? (
-            <button type="button" className="folio-btn stance-next" onClick={p.onNext} data-primary>
-              Next: {p.nextLabel} <span aria-hidden="true">→</span>
+            <button
+              type="button"
+              className="folio-btn stance-next stance-next-end"
+              onClick={p.onNext}
+              aria-label={`Next: ${p.nextLabel}`}
+              title={`Next: ${p.nextLabel}`}
+              data-primary
+            >
+              Next <span aria-hidden="true">→</span>
             </button>
           ) : (
             <button type="button" className="folio-link-btn stance-skip" onClick={p.onNext}>
