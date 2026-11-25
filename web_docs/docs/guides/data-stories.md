@@ -52,7 +52,7 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 
 | Screen | Word | Id | What it shows |
 | --- | --- | --- | --- |
-| Opener | Overview | `overview` | One dot per meeting where a data center came up (or per stated number of meetings), then the row of large real counts |
+| Opener | Overview | `overview` | A dot map of the country: each state's dots shaded by its real number of meetings where a data center came up, nationally (none stays grey). Hover or choose a state to read its count; clicking a state narrows the whole story to it (`?state=`). In a state or city scope that state stands out and the rest are muted but keep their own counts; clicking it again broadens (city → state → country), and **United States** goes straight to the country. A data table lists every state with a count. Then the row of large real counts ([#970](https://github.com/getcommunityone/open-navigator/issues/970)) |
 | Who spoke up | Who spoke up | `voices` | The five figures, one dot per speaker, and up to three of the speakers' own words on each side, each linked to the moment in the recording |
 | The place | Where | `scope` | The place picker, with the United States chosen, and the question worded for the place |
 | Where they are | Sites | `sites` | Data center sites by status (one dot per site) |
