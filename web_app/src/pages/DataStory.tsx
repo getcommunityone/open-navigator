@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import '../styles/folio.css'
 import '../styles/stance.css'
 import { errorStatus, fetchChoiceResults, fetchStancePack, postStanceChoice, type ChoiceMoment, type ChoiceResults } from '../api/stance'
+import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse } from '../api/dataCenters'
 import FloatingNext from '../components/stance/FloatingNext'
 import ProgressPips from '../components/stance/ProgressPips'
 import ProgressRail from '../components/stance/ProgressRail'
@@ -31,10 +32,12 @@ import {
   storyScreenIndex,
   type StoryScope,
   STORIES,
+  storyTitle,
 } from '../utils/dataStory'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { createSoundBoard } from '../utils/stanceSound'
+import { speakerCounts } from '../utils/stanceGame'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 
@@ -362,6 +365,11 @@ export default function DataStory() {
   }
 
   const label = storyScopeLabel(scope)
+  // #993: the title states the place's conclusion: the sentiment when its speakers back it, else the fact, else the question.
+  const title = storyTitle(story, scope, {
+    speakers: speakerCounts(data.positions as DataCenterPositionsResponse | null | undefined),
+    meetings: (data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined)?.counts?.meetings,
+  })
   const links = {
     dataCenters: `/data-centers${scopeQuery(scope)}`,
     decisions: `/browse-topics${scopeQuery(scope)}`,
@@ -378,10 +386,10 @@ export default function DataStory() {
     error: voteError,
     onAnswer: (moment, choice) => void answer(moment, choice),
   }
-  const placeBlank = (open: boolean, onOpenChange: (o: boolean) => void) => (
+  const placeBlank = (open: boolean, onOpenChange: (o: boolean) => void, display = storyPlaceDisplay(scope)) => (
     <PlaceControl
       variant="blank"
-      display={storyPlaceDisplay(scope)}
+      display={display}
       stateCode={stateCode}
       city={city}
       open={open}
@@ -398,17 +406,18 @@ export default function DataStory() {
         title={story.title}
         label={label}
         heading={
+          <>
           <SentenceHeading
-            template={['What did local meetings in ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?']}
+            template={title.template}
             blanks={[
               {
                 id: 'place',
                 label: 'Place',
                 value: stateCode ?? '',
-                display: storyPlaceDisplay(scope),
+                display: title.place,
                 options: [],
                 onChange: () => {},
-                control: placeBlank(placeOpen, setPlaceOpen),
+                control: placeBlank(placeOpen, setPlaceOpen, title.place),
               },
               {
                 id: 'topic',
@@ -420,6 +429,8 @@ export default function DataStory() {
               },
             ]}
           />
+          {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+          </>
         }
         stateCode={stateCode}
         stateName={stateName}
