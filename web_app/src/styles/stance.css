@@ -2503,6 +2503,71 @@ html.stance-snap {
   white-space: nowrap;
 }
 
+/* Meeting recording in place (#972): a modal over a dimmed page; the player exists only while it is open. */
+.stance-video-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(18, 17, 22, 0.62);
+}
+.stance-video-dialog {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  padding: 16px;
+}
+.stance-video-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.stance-video-title {
+  margin: 0;
+  font-size: var(--t-h2);
+  line-height: 1.15;
+  font-weight: 500;
+}
+.stance-video-sub {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+  color: var(--ink-2);
+}
+.stance-video-close {
+  flex: none;
+}
+.stance-video-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--ink);
+}
+.stance-video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.stance-video-foot {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stance-video-backdrop {
+    transition: none;
+  }
+}
+
 /* Overview dot map (#970): the country in dots, each state shaded by its real meeting count. */
 .stance-map {
   margin: 0 0 16px;
