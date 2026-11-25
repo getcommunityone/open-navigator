@@ -205,10 +205,36 @@
 }
 .stance-act {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   padding: 24px 44px 32px 16px;
   scroll-margin-top: calc(var(--hdr) + var(--top-h));
   border-bottom: 1px solid var(--rule);
+}
+.stance-stop {
+  min-height: calc(100svh - var(--hdr, 0px) - var(--top-h, 96px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 0 24px;
+  scroll-margin-top: calc(var(--hdr) + var(--top-h));
+}
+.stance-answers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(100%, 28rem);
+  margin-top: 1.5rem;
+}
+.stance-answers-stack .folio-btn {
+  min-height: 52px;
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  font-size: 16px;
+  font-weight: 600;
 }
 .stance-game[data-mode='pinned'] .stance-act {
   height: calc(100svh - var(--hdr) - var(--top-h));
