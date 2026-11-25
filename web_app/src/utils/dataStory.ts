@@ -79,14 +79,63 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
  * Topics with a story. A story needs meeting recordings or transcripts behind it: figure-only data, such as census
  * measures, is shown under Explore, not here. `question` is the story's sentence, for lists (the home page, the hub).
  */
-export const STORIES: Record<string, { title: string; topic: string; pack: string; question: string; screens: typeof DATA_CENTER_STORY }> = {
+/**
+ * A story's conclusion headline (#989): shown only while the national record backs it. `side` is the speakers it claims
+ * dominate; the headline shows when that side outnumbers the other by at least `minRatio` among at least `minSpeakers`
+ * speakers on record. Otherwise the story's neutral title shows. Decision: development/story-statements-where-you-sit.md.
+ */
+export interface StoryConclusion {
+  headline: string
+  subhead: string
+  side: 'for' | 'against'
+  minRatio: number
+  minSpeakers: number
+}
+
+export interface StoryEntry {
+  title: string
+  topic: string
+  pack: string
+  question: string
+  screens: typeof DATA_CENTER_STORY
+  conclusion?: StoryConclusion
+}
+
+export const STORIES: Record<string, StoryEntry> = {
   'data-centers': {
     title: 'The Data Center Story',
     topic: 'data centers',
     pack: 'data-centers',
     question: 'What did local meetings say about data centers?',
     screens: DATA_CENTER_STORY,
+    conclusion: {
+      headline: 'America hates data centers.',
+      subhead:
+        "Public comments don't always match America's true sentiment, but our nation is clearly at a fever pitch of data center opposition.",
+      side: 'against',
+      minRatio: 2,
+      minSpeakers: 10,
+    },
   },
+}
+
+/** The conclusion to show, with its basis in real counts, or null when the record doesn't back it (#989). */
+export function storyConclusion(
+  story: StoryEntry,
+  counts: { for: number; against: number; question: number; neutral: number; total?: number } | null | undefined,
+): { headline: string; subhead: string; basis: string } | null {
+  const c = story.conclusion
+  if (!c || !counts) return null
+  const total = counts.total ?? counts.for + counts.against + counts.question + counts.neutral
+  const mine = counts[c.side]
+  const other = c.side === 'against' ? counts.for : counts.against
+  if (total < c.minSpeakers || mine <= 0 || mine < c.minRatio * other) return null
+  const fmtN = (n: number) => n.toLocaleString('en-US')
+  return {
+    headline: c.headline,
+    subhead: c.subhead,
+    basis: `Of ${fmtN(total)} speakers on record at local meetings, ${fmtN(mine)} spoke ${c.side} and ${fmtN(other)} spoke ${c.side === 'against' ? 'for' : 'against'}.`,
+  }
 }
 
 /** Screen ids that were renamed: an old link still lands on the screen that replaced it. */
