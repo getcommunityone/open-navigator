@@ -362,7 +362,7 @@ Rules that always hold:
 ## If the page does not load (#856, #936)
 
 This tab's code and fonts load only when its tab is opened, and the same holds for every lazily loaded page
-(the Data Story, Data stories, ...). If they fail to load, the page shows "<name> could not be loaded" with the
+(the Data Story, Data stories, ...). If they fail to load, the page shows "Data story could not be loaded" (with that page's name) with the
 error and a Reload button, and the rest of the site keeps working.
 
 On the public site the usual cause is a deploy since the tab was opened. Every build gives these files new
