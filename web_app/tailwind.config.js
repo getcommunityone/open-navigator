@@ -21,13 +21,20 @@ export default {
       animation: {
         plateIn: 'plateIn 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both',
       },
+      // One type system site-wide (#975): Playfair Display headings, Source Sans 3 body, IBM Plex Mono labels.
+      fontFamily: {
+        sans: ['"Source Sans 3"', 'system-ui', '-apple-system', 'Segoe UI', 'Helvetica', 'Arial', 'sans-serif'],
+        display: ['"Playfair Display"', 'Georgia', 'serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
       colors: {
+        // The brand teal of the logo, the home page and the data stories (#975); was a dark slate.
         primary: {
-          50: '#e8eaeb',
-          100: '#c5cace',
-          500: '#354F52',
-          600: '#2e4346',
-          700: '#27383a',
+          50: '#f0fdfa',
+          100: '#ccfbf1',
+          500: '#0d9488',
+          600: '#0f766e',
+          700: '#115e59',
         },
         sky: {
           50: '#e8eaeb',

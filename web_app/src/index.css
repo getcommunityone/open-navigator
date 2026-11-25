@@ -3,13 +3,26 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* One type system site-wide (#975): the home page's. Loaded once in index.html. */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-label: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
   /* App shell is light (see Layout). Dark scheme + white inherited color broke native controls (e.g. <select>). */
   color-scheme: light;
   color: #0f172a;
   background-color: #fafaf9;
+}
+
+@layer base {
+  /* Page and section headings use the display face everywhere (#975); a utility class can still override. */
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
 }
 
 html {

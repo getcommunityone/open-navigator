@@ -2458,3 +2458,40 @@ html.stance-snap {
 .stance-nowrap {
   white-space: nowrap;
 }
+
+/*
+ * One look site-wide (#975): story and hub titles take the site's display face (Playfair Display, as on the home page),
+ * and the primary action is the same teal pill as the home page's buttons. Decision:
+ * web_docs/docs/development/site-look-and-navigation.md
+ */
+.stance-card-title,
+.stance-statement,
+.stance-cover-title,
+.stance-headline,
+.stance-sentence,
+.stories-title,
+.stories-card-title,
+.stance-video-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* `.folio *` squares every corner with !important; the primary action is the one exception. */
+.folio .stance-next,
+.folio .stance-ask-btn,
+.folio .stories-start,
+.folio .folio-btn[data-primary],
+.folio .stance-float-btn {
+  border-radius: 999px !important;
+  font-weight: 700;
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+/* The hub lines up with the header and the home page: a centred 1180px column (#975). */
+@media (min-width: 761px) {
+  .folio.stories-hub {
+    padding-left: max(24px, calc((100% - 1180px) / 2 + 24px));
+    padding-right: max(24px, calc((100% - 1180px) / 2 + 24px));
+  }
+}

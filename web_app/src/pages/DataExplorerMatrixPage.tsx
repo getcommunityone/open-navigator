@@ -1,8 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
-import '@fontsource-variable/geist'
-import '@fontsource-variable/geist-mono'
 import '../styles/folio.css'
 import { formatMetricValueDisplay } from '../utils/censusMapTransforms'
 import { censusMetricRankDirection } from '../utils/censusDataDictionary'
