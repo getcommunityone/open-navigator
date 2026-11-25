@@ -33,6 +33,10 @@ This page documents all data sources, standards, and research contributions used
  <strong> Proprietary competitors</strong><br/>
  <span style={{fontSize: '0.9em', color: '#666'}}>American Sentiment, ProphecyGov, GroundVue, USLege, Hamlet</span>
  </a>
+ <a href="#data-center-hearing-trackers-and-facility-inventories" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #795548'}}>
+ <strong> Data center trackers &amp; inventories</strong><br/>
+ <span style={{fontSize: '0.9em', color: '#666'}}>Data Center Fights, Siting Radar, PA Ordinance Tracker, Public Evidence Project, Compute Atlas, and more</span>
+ </a>
  <a href="#meeting-agenda-and-video-platforms" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #009688'}}>
  <strong> Meeting agenda &amp; video platforms</strong><br/>
  <span style={{fontSize: '0.9em', color: '#666'}}>Granicus, CivicPlus / CivicClerk, Town Hall Streams</span>
@@ -738,6 +742,360 @@ These are **commercial peers** in local government data, meeting intelligence, l
 ```
 
 ---
+
+## Data center hearing trackers and facility inventories
+
+**In this section:**
+- Hearing trackers: [Data Center Fights](#data-center-fights) · [Siting Radar](#siting-radar) · [Pennsylvania Data Center Ordinance Tracker](#pennsylvania-data-center-ordinance-tracker) · [NC GovWatch](#nc-govwatch) · [Data Centers Atlas](#data-centers-atlas) · [GridWatch USA, The Docket](#gridwatch-usa-the-docket) · [GovMeet](#govmeet)
+- Facility inventories: [Public Evidence Project](#public-evidence-project) · [US Data Center Registry (SueDataCenters.org)](#us-data-center-registry-suedatacentersorg) · [Compute Atlas](#compute-atlas) · [US Data Centers by State (greencalculus)](#us-data-centers-by-state-greencalculus) · [DCMap.us](#dcmapus) · [Cleanview](#cleanview) · [Pew Research Center](#pew-research-center-data-centers) · [Data Center Record](#data-center-record) · [Geolocity](#geolocity) · [ZoningLabs](#zoninglabs) · [Data Center Map](#data-center-map) · [ITAMG](#itamg)
+
+Trackers and inventories of U.S. data center hearings and facilities. Some are civic projects, some are commercial peers.
+We checked each one's terms, license and robots.txt on **25 Nov 2026**; the evidence, with quotes, is in
+[Data center source review](../development/data-center-source-review.md). How we use them:
+
+- **Lead sources (CC BY 4.0):** we may use their records, with attribution, to find hearings. A hearing is shown only after
+  the government's own page confirms it ([Upcoming data center hearings](../development/data-center-hearings.md)). Their
+  text isn't republished as ours.
+- **Importable (CC BY 4.0, free download):** records may be imported, with the attribution each requires.
+- **Reference only:** named and linked, never fetched, copied or redistributed. Sites whose terms forbid scraping, bulk
+  copying or competing use are on the never-fetch list (`BLOCKED_HOSTS` in `community_events.py`).
+- **Ask first:** readable, but no reuse license is granted, so nothing is imported until the publisher agrees.
+
+Counts quoted below are what each source states about itself on that date, not figures we computed.
+
+### Data Center Fights
+
+**Organization:** Data Center Fights (an independent publication; no person or entity named)
+**What they do:** Tracks local fights over data centers, including upcoming hearings, each linked to its source.
+
+- **Website:** https://datacenterfights.com/ (hearings: https://datacenterfights.com/hearings.html)
+- **How we use them:** Lead source. `/data.json` (meetings with a `source` URL and `source_type`), `/hearings.ics`, `/feed.xml`.
+- **License / use:** "our compiled data and original text may be reused under the Creative Commons Attribution 4.0 license with credit to 'Data Center Fights, datacenterfights.com.'" Linked articles and documents belong to their owners.
+
+```bibtex
+@misc{datacenterfights,
+ author = {{Data Center Fights}},
+ title = {Data Center Fights: hearings and local disputes},
+ url = {https://datacenterfights.com/},
+ note = {Compiled data CC BY 4.0, credit "Data Center Fights, datacenterfights.com". Lead source only; hearings verified on official pages.}
+}
+```
+
+### Siting Radar
+
+**Organization:** Siting Radar (commercial; operator not named)
+**What they do:** Pending local hearings and moratoria for energy and data center siting in 7 states (OH, MI, NY, NC, GA, IN, VA).
+
+- **Website:** https://sitingradar.com/pending?sector=data_center · https://sitingradar.com/data-center-moratoria
+- **How we use them:** Lead source, using only the CC BY CSV (`/data/siting-radar-upcoming.csv`, rows carry `source_url` to the official agenda or notice) and the Atom feed. Alerts and the API are paid products we don't use.
+- **License / use:** "The CSV is published under CC BY 4.0. You may copy, redistribute and adapt it, including commercially, as long as you credit Siting Radar and link to this page."
+
+```bibtex
+@misc{sitingradar,
+ author = {{Siting Radar}},
+ title = {Siting Radar: pending data center hearings and moratoria},
+ url = {https://sitingradar.com/pending?sector=data_center},
+ note = {Upcoming CSV CC BY 4.0, credit Siting Radar with a link. Lead source only.}
+}
+```
+
+### Pennsylvania Data Center Ordinance Tracker
+
+**Organization:** David Olson (an Adams County, PA resident)
+**What they do:** Every Pennsylvania municipality's data center ordinance status, rating and source, plus upcoming hearings.
+
+- **Website:** https://padatacenterordinances.org/coming-up
+- **How we use them:** Lead source, from the statewide and county CSV downloads (For Reporters) rather than crawling.
+- **License / use:** Summaries, ratings, maps and data tables are CC BY 4.0, "for any purpose, including … commercial products, as long as you credit the source as 'Pennsylvania Data Center Ordinance Tracker, padatacenterordinances.org,' link to the license, and say whether you changed anything." Don't crawl in a way that burdens the site.
+
+```bibtex
+@misc{pa_dc_ordinance_tracker,
+ author = {Olson, David},
+ title = {Pennsylvania Data Center Ordinance Tracker},
+ url = {https://padatacenterordinances.org/},
+ note = {CC BY 4.0, credit "Pennsylvania Data Center Ordinance Tracker, padatacenterordinances.org". Lead source only.}
+}
+```
+
+### NC GovWatch
+
+**Organization:** NC GovWatch (operator not stated)
+**What they do:** Meetings of 21 North Carolina governments, with links to their own agendas, packets, minutes and streams.
+
+- **Website:** https://ncgovwatch.com/
+- **How we reference them:** Ask first. Its API is documented as open ("No key, no account"), but there are no terms and no reuse license, and robots.txt disallows `/api/`. Its summaries are AI-generated, and we never reuse them.
+- **License / use:** none stated.
+
+```bibtex
+@misc{ncgovwatch,
+ author = {{NC GovWatch}},
+ title = {NC GovWatch},
+ url = {https://ncgovwatch.com/},
+ note = {No license stated; reference only until the operator agrees.}
+}
+```
+
+### Data Centers Atlas
+
+**Organization:** Shaun Wilson Designs (Louisville, KY)
+**What they do:** A map of data center projects with a hearings list that links official notices.
+
+- **Website:** https://datacentersatlas.com/hearings/
+- **How we reference them:** Ask first. The site says: "No new reuse license is granted."
+- **License / use:** none granted for its compilation. Part of its inventory is adapted from Compute Atlas (CC BY 4.0).
+
+```bibtex
+@misc{datacentersatlas,
+ author = {{Shaun Wilson Designs}},
+ title = {Data Centers Atlas},
+ url = {https://datacentersatlas.com/},
+ note = {No reuse license granted; reference only.}
+}
+```
+
+### GridWatch USA, The Docket
+
+**Organization:** GridWatch the USA (an independent public-interest news and advocacy publisher, Georgia)
+**What they do:** Keyword monitoring of government agendas, with each record linked to its agenda.
+
+- **Website:** https://gridwatchtheusa.com/docket/
+- **How we reference them:** Ask first. Brief quotes with credit and a link are allowed; "Any other reproduction requires our permission." It offers free extracts on request.
+- **License / use:** copyright; terms dated July 10, 2026.
+
+```bibtex
+@misc{gridwatch_docket,
+ author = {{GridWatch the USA}},
+ title = {The Docket},
+ url = {https://gridwatchtheusa.com/docket/},
+ note = {All rights reserved; brief quotes with credit only. Reference only.}
+}
+```
+
+### GovMeet
+
+**Organization:** Patton Gaming Ltd (England and Wales, company 17572870)
+**What they do:** Commercial local government agenda intelligence, a peer in our product category.
+
+- **Website:** https://govmeet.us/
+- **How we reference them:** Reference only. Its terms forbid copying "the service or its data wholesale by automated means" and redistributing its data without a written agreement. Never fetched (`BLOCKED_HOSTS`).
+
+```bibtex
+@misc{govmeet,
+ author = {{Patton Gaming Ltd}},
+ title = {GovMeet},
+ url = {https://govmeet.us/},
+ note = {Commercial agenda intelligence peer; terms forbid automated copying and redistribution. Never fetched.}
+}
+```
+
+### Public Evidence Project
+
+**Organization:** Public Evidence Project (an independent civic research initiative)
+**What they do:** The U.S. Data Center Public Records Dataset, a locator of public records (permits, filings) for data center sites, each with a `source_url` to the government record.
+
+- **Website:** https://publicevidence.org
+- **How we use them:** Importable. CSV, GeoJSON and JSON at `/data/national-data-center-public-records.*` (not the `/api/`, which robots.txt disallows).
+- **License / use:** CC BY 4.0. Credit "Public Evidence Project, U.S. Data Center Public Records Dataset" and Compute Atlas upstream; keep the permit identifiers and official document URLs; state any joins we add.
+
+```bibtex
+@misc{public_evidence_project,
+ author = {{Public Evidence Project}},
+ title = {U.S. Data Center Public Records Dataset},
+ url = {https://publicevidence.org},
+ note = {CC BY 4.0; upstream discovery from Compute Atlas (CC BY 4.0).}
+}
+```
+
+### US Data Center Registry (SueDataCenters.org)
+
+**Organization:** Theory Road LLC (SueDataCenters.org)
+**What they do:** A facility registry built on the Compute Atlas survey, with the site's own joins, corrections and additions.
+
+- **Website:** https://suedatacenters.org/data-centers/data
+- **How we use them:** Importable. https://suedatacenters.org/data-centers.csv and `.json`. Records have no primary source URLs (only a `source_count`), so imported rows are marked as registry records, not verified facts.
+- **License / use:** "The data is CC BY 4.0." Credit Compute Atlas for the base and SueDataCenters.org for the joins, corrections and additional records.
+
+```bibtex
+@misc{suedatacenters_registry,
+ author = {{SueDataCenters.org}},
+ title = {US Data Center Registry},
+ url = {https://suedatacenters.org/data-centers/data},
+ note = {CC BY 4.0; base data Compute Atlas (CC BY 4.0).}
+}
+```
+
+### Compute Atlas
+
+**Organization:** Compute Atlas LLC (Edward Kubiak)
+**What they do:** A source-cited survey of U.S. data centers, crypto-mining sites and power plants, with each record's public sources.
+
+- **Website:** https://www.compute-atlas.com
+- **How we reference them:** CC BY 4.0, but the bulk files are paid (the fee is for preparing the files, not a license fee). We use the data through the CC BY derivatives above, and credit it.
+- **License / use:** "free to use, including commercially, under a CC BY 4.0 license, with attribution to Compute Atlas required." Don't suggest Compute Atlas endorses us.
+
+```bibtex
+@misc{compute_atlas,
+ author = {Kubiak, Edward},
+ title = {Compute Atlas},
+ url = {https://www.compute-atlas.com},
+ note = {CC BY 4.0, "Data from Compute Atlas (https://www.compute-atlas.com), licensed under CC BY 4.0".}
+}
+```
+
+### US Data Centers by State (greencalculus)
+
+**Organization:** greencalculus (GitHub)
+**What they do:** State-level data center counts from several publishers side by side, each row with its `source_url`.
+
+- **Website:** https://github.com/greencalculus/us-data-centers-by-state
+- **How we use them:** Importable as state aggregates. Each figure also credits its original publisher, whose own terms may restrict reuse.
+- **License / use:** CC BY 4.0 (LICENSE file); cite via `CITATION.cff`.
+
+```bibtex
+@misc{greencalculus_dc_by_state,
+ author = {{greencalculus}},
+ title = {US Data Centers by State},
+ url = {https://github.com/greencalculus/us-data-centers-by-state},
+ note = {CC BY 4.0 compilation; cite the original publisher of each figure.}
+}
+```
+
+### DCMap.us
+
+**Organization:** Rahil Banthia (a personal project)
+**What they do:** The US Data Center Map, which tracks facilities and projects with status and power figures.
+
+- **Website:** https://dcmap.us
+- **How we reference them:** Reference only. Statistics may be quoted with attribution; "Just don't copy the whole dataset." Never fetched (`BLOCKED_HOSTS`).
+
+```bibtex
+@misc{dcmap_us,
+ author = {Banthia, Rahil},
+ title = {US Data Center Map},
+ url = {https://dcmap.us},
+ note = {Quote statistics with attribution; no bulk copying or competing directory. Reference only.}
+}
+```
+
+### Cleanview
+
+**Organization:** Cleanview (commercial)
+**What they do:** Building-level U.S. data center tracking from permits, rezonings and utility filings.
+
+- **Website:** https://cleanview.co/data-centers
+- **How we reference them:** Reference only. Its data license is for internal business use, forbids redistribution, and forbids building a competing dataset. Never fetched (`BLOCKED_HOSTS`).
+
+```bibtex
+@misc{cleanview,
+ author = {{Cleanview}},
+ title = {Cleanview data center tracker},
+ url = {https://cleanview.co/data-centers},
+ note = {Proprietary; no redistribution or competing use. Reference only.}
+}
+```
+
+### Pew Research Center: data centers
+
+**Organization:** Pew Research Center (nonprofit)
+**What they do:** State-level counts of operating and planned data centers (top 15 states), from Data Center Map data accessed Feb. 19, 2026.
+
+- **Website:** https://www.pewresearch.org/chart/top-states-data-centers/ · https://pewresearch.org/short-reads/2026/11/11/key-facts-about-us-data-centers
+- **How we reference them:** Reference only. Cite Pew and its source, Data Center Map. Pew's terms forbid republishing third-party content "as a stand-alone file" and forbid scraping.
+
+```bibtex
+@misc{pew_data_centers_2026,
+ author = {{Pew Research Center}},
+ title = {Key facts about U.S. data centers},
+ year = {2026},
+ url = {https://pewresearch.org/short-reads/2026/11/11/key-facts-about-us-data-centers},
+ note = {Figures from Data Center Map (accessed Feb. 19, 2026). Reference only.}
+}
+```
+
+### Data Center Record
+
+**Organization:** Colton Digital Consulting LLC (Corvallis, OR)
+**What they do:** Verified data center sites with status and disclosed MW, each with a basis and source tier.
+
+- **Website:** https://datacenterrecord.org
+- **How we reference them:** Reference only, or ask. Rows are CC BY-NC 4.0, and "Commercial, enterprise, financial or AI training use needs a commercial data license"; the bulk files come only with that license.
+
+```bibtex
+@misc{datacenterrecord,
+ author = {{Colton Digital Consulting LLC}},
+ title = {Data Center Record},
+ url = {https://datacenterrecord.org},
+ note = {CC BY-NC 4.0 rows; bulk files under a commercial license. Reference only.}
+}
+```
+
+### Geolocity
+
+**Organization:** Blind Spot Intelligence LLC
+**What they do:** A map of data center facilities from state and county permit records, each linked to its agency record.
+
+- **Website:** https://geolocity.com/data-centers
+- **How we reference them:** Reference only. Its terms forbid bulk copying, republishing as a dataset, and scraping. Go to the linked agency records directly. Never fetched (`BLOCKED_HOSTS`).
+
+```bibtex
+@misc{geolocity,
+ author = {{Blind Spot Intelligence LLC}},
+ title = {Geolocity: data centers},
+ url = {https://geolocity.com/data-centers},
+ note = {Terms forbid bulk copying and scraping. Reference only.}
+}
+```
+
+### ZoningLabs
+
+**Organization:** ZoningLabs (commercial)
+**What they do:** Data center facilities mapped from county and city permit GIS and OpenStreetMap.
+
+- **Website:** https://zoninglabs.com/data-centers
+- **How we reference them:** Reference only. Its terms forbid scraping, redistribution and commercial use without a license. Never fetched (`BLOCKED_HOSTS`).
+
+```bibtex
+@misc{zoninglabs,
+ author = {{ZoningLabs}},
+ title = {ZoningLabs: data centers},
+ url = {https://zoninglabs.com/data-centers},
+ note = {Terms forbid scraping and redistribution without permission. Reference only.}
+}
+```
+
+### Data Center Map
+
+**Organization:** Data Center Map (commercial, Denmark)
+**What they do:** A worldwide commercial directory of data centers, and the source of Pew's state counts.
+
+- **Website:** https://www.datacentermap.com
+- **How we reference them:** Reference only. Its datasets are paid and, per its explorer terms, "may only be used internally in your organization and may never be redistributed." Its site blocked automated reading when we checked. Never fetched (`BLOCKED_HOSTS`).
+
+```bibtex
+@misc{datacentermap,
+ author = {{Data Center Map}},
+ title = {Data Center Map},
+ url = {https://www.datacentermap.com},
+ note = {Proprietary directory; internal use only. Reference only.}
+}
+```
+
+### ITAMG
+
+**Organization:** ITAMG (commercial)
+**What they do:** Publishes a page of tracked U.S. data center locations by operator.
+
+- **Website:** https://www.itamg.com/data-center-locations/
+- **How we reference them:** Ask first. The page refused automated reading (a bot check) when we checked, so we haven't read its terms.
+
+```bibtex
+@misc{itamg_dc_locations,
+ author = {{ITAMG}},
+ title = {Data center locations},
+ url = {https://www.itamg.com/data-center-locations/},
+ note = {Terms not read; reference only.}
+}
+```
 
 ## Meeting agenda and video platforms
 

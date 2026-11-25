@@ -26,6 +26,14 @@ def test_says_data_center() -> None:
 def test_blocked_hosts_are_never_fetched() -> None:
     assert ce.is_blocked_host("https://www.americansentiment.com/x")
     assert ce.is_blocked_host("https://prophecygov.com/")
+    # #956/#958: terms forbid scraping, bulk copying or competing use
+    for url in ("https://govmeet.us/topics/data-centers", "https://dcmap.us/", "https://cleanview.co/data-centers",
+                "https://geolocity.com/data-centers", "https://zoninglabs.com/data-centers", "https://www.datacentermap.com/usa/"):
+        assert ce.is_blocked_host(url), url
+    # CC BY lead sources stay fetchable
+    for url in ("https://datacenterfights.com/data.json", "https://sitingradar.com/data/siting-radar-upcoming.csv",
+                "https://padatacenterordinances.org/coming-up", "https://publicevidence.org/data/x.csv"):
+        assert not ce.is_blocked_host(url), url
     assert not ce.is_blocked_host("https://www.abc3340.com/news")
 
 

@@ -90,8 +90,19 @@ KIND_RE = re.compile(
     r"\b(" + "|".join(re.escape(k).replace("town\\ hall", "town ?hall") for k in KIND_TERMS) + r")s?\b", re.I
 )
 
-# Sites whose terms forbid use by competitors: never fetched, items linking there dropped.
-BLOCKED_HOSTS = ("americansentiment.com", "prophecygov.com")
+# Sites whose terms forbid use by competitors, scraping or bulk copying: never fetched, items
+# linking there dropped. Evidence (terms quoted, 25 Nov 2026):
+# web_docs/docs/development/data-center-source-review.md (#956, #958).
+BLOCKED_HOSTS = (
+    "americansentiment.com",
+    "prophecygov.com",
+    "govmeet.us",  # no automated wholesale copying or redistribution without written agreement
+    "dcmap.us",  # no bulk copying or scraping, no competing directory
+    "cleanview.co",  # internal use only, no redistribution or competing dataset
+    "geolocity.com",  # no bulk copying, republishing as a dataset, or scraping
+    "zoninglabs.com",  # no scraping, redistribution or commercial use without permission
+    "datacentermap.com",  # internal use only, never redistributed
+)
 
 
 # --- pure helpers (unit-tested) ----------------------------------------------------------
