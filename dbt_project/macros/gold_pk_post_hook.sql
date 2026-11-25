@@ -37,7 +37,8 @@ begin
 
   -- No constraint name: post_hooks run after dbt renames the old table to __dbt_backup, which
   -- still owns an index called <model>_pkey until it is dropped after COMMIT. A fixed name
-  -- collides with it on every rebuild after the first (#941); Postgres picks a free one instead.
+  -- collides with it on every rebuild after the first (#941). Unnamed, a new key gets a free
+  -- <model>_pkey / _pkey1, and a promoted unique index keeps its own name.
   if idx is not null then
     execute format('alter table {{ this }} add primary key using index %I', idx);
   else
