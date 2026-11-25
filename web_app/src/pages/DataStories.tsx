@@ -1,12 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
 import '../styles/folio.css'
 import '../styles/stance.css'
 import type { DataCenterPositionsResponse } from '../api/dataCenters'
-import { fetchStancePack } from '../api/stance'
 import FloatingNext from '../components/stance/FloatingNext'
 import PlaceControl from '../components/stance/PlaceControl'
 import PositionsBlock from '../components/stance/PositionsBlock'
@@ -19,7 +17,6 @@ import { challengePath, scopeQuery, statsScopeNote, storyPlaceDisplay, storyScop
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import type { ChartKey } from '../utils/stanceGame'
-import { questionText } from '../utils/storyQuestion'
 
 // Only topics built from meeting recordings or transcripts are listed here (figure-only data such as census measures is under Explore).
 /** The datasets behind the hub's volume counts. */
@@ -27,7 +24,10 @@ const COUNT_CHARTS: ChartKey[] = ['meeting-mentions', 'agenda-items', 'sites', '
 /** Everything the hub reads: who spoke up leads, the volume counts follow. */
 const HUB_CHARTS: ChartKey[] = ['positions', ...COUNT_CHARTS]
 
-/** `/stories`: one card per topic. The card leads with the topic's question, worded for the place in scope, then real counts. */
+/**
+ * `/stories`: one card per topic. The card leads with an overview of the record for the place in scope, then a subtle
+ * Start into the story. The agree/disagree question lives in the story's closing screen and in the Challenge (#950).
+ */
 export default function DataStories() {
   const [sp, setSp] = useSearchParams()
   const rawState = (sp.get('state') ?? '').trim().toUpperCase()
@@ -42,9 +42,6 @@ export default function DataStories() {
   const rootRef = useRef<HTMLDivElement>(null)
   // A reader who has stopped gets a calm cue on Start (or on the floating bar when Start has scrolled away).
   useIdleNudge({ rootRef })
-  // The topic's question comes from its pack; until it loads (or if it cannot), the card is titled by the topic alone.
-  const packQ = useQuery({ queryKey: ['stance', 'pack', 'data-centers'], queryFn: () => fetchStancePack('data-centers'), retry: 1 })
-  const question = packQ.data?.question ? questionText(packQ.data.question, scope) : null
 
   const applyPlace = useCallback(
     (code: string | null, community: string | null) => {
@@ -121,17 +118,12 @@ export default function DataStories() {
           <article className="stories-card" aria-labelledby="story-card-data-centers">
             <p className="folio-eyebrow">Data centers</p>
             <h2 className="stories-card-title" id="story-card-data-centers">
-              {question ?? 'Data centers'}
+              Data centers
             </h2>
-            <p className="stance-lede">Answer first. Then see what was said in local meetings.</p>
-            <div className="stories-actions">
-              <Link className="folio-btn stance-next stories-start" to={`/stories/${encodeURIComponent(topic)}${q}`} data-primary>
-                {question ? `Start: ${question}` : 'Start'} <span aria-hidden="true">→</span>
-              </Link>
-              <Link className="folio-link-btn stories-second" to={challengePath('data-centers', scope)}>
-                Take the challenge
-              </Link>
-            </div>
+            <p className="stance-lede">
+              An overview of what local meetings in {label === 'National' ? 'the United States' : label} said — who spoke up,
+              and the counts on record. Start the story when you are ready; the question comes after the context.
+            </p>
             <section className="stories-voices" aria-labelledby="story-voices-h">
               <h3 className="stories-voices-title" id="story-voices-h">
                 Who spoke up
@@ -164,6 +156,18 @@ export default function DataStories() {
                 No data available for this place.
               </p>
             )}
+            <div className="stories-actions">
+              <Link
+                className="folio-btn stance-next stories-start stories-start-pulse"
+                to={`/stories/${encodeURIComponent(topic)}${q}`}
+                data-primary
+              >
+                Start the story <span aria-hidden="true">→</span>
+              </Link>
+              <Link className="folio-link-btn stories-second" to={challengePath('data-centers', scope)}>
+                Take the challenge
+              </Link>
+            </div>
           </article>
         </li>
       </ul>

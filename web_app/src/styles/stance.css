@@ -1849,18 +1849,36 @@ select.stance-blank {
   color: var(--ink-2);
 }
 
-/* --- The hub card leads with the question ---------------------------------------------------------------------------- */
+/* --- The hub card leads with overview + a subtle Start pulse (#950) --------------------------------------------------- */
 .stories-card-title {
   font-size: clamp(30px, 4.6vw, 60px);
 }
 .stories-actions {
   align-items: center;
   gap: 10px 18px;
+  margin-top: 18px;
 }
 .folio .stories-actions a.stories-start {
   min-height: 52px;
   font-size: 16px;
   text-align: left;
+}
+@keyframes stories-start-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--folio-accent, #0d9488) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--folio-accent, #0d9488) 0%, transparent);
+  }
+}
+.folio .stories-actions a.stories-start-pulse {
+  animation: stories-start-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .folio .stories-actions a.stories-start-pulse {
+    animation: none;
+  }
 }
 .stories-second {
   display: inline-flex;

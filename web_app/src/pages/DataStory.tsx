@@ -53,10 +53,11 @@ export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value
 const ANSWER_HOLD_MS = 700
 
 /**
- * The data story at `/stories/:storyId`. It opens on one question, asks where, shows the record one screen at a time, and
- * closes on the same question (#915). Screens are pinned and driven by the scroll on a wide screen and snap one per swipe on a
- * phone (see `useActs`). Under reduced motion (which a phone's battery saver also turns on) the story keeps one screen at a
- * time on every width and each screen cross-fades in: opacity only, nothing slides, scales or loops (#930).
+ * The data story at `/stories/:storyId`. It opens on an overview of the record, shows who spoke up and the rest one screen
+ * at a time, and closes on the topic question after that context (#950 / #915). Screens are pinned and driven by the scroll
+ * on a wide screen and snap one per swipe on a phone (see `useActs`). Under reduced motion (which a phone's battery saver
+ * also turns on) the story keeps one screen at a time on every width and each screen cross-fades in: opacity only, nothing
+ * slides, scales or loops (#930).
  */
 export default function DataStory() {
   const { storyId = 'data-centers' } = useParams()
@@ -215,7 +216,7 @@ export default function DataStory() {
   useEffect(() => {
     if (n === 0) return
     ready.current = false
-    // The story opens on its first screen's hold, with the question in place, not on the empty start of its timeline.
+    // The story opens on its first screen's hold (overview), not on the empty start of its timeline.
     const at = Math.max(0, storyScreenIndex(screens, screenParam))
     const land = (behavior: ScrollBehavior) => {
       const h = acts.holds().find((x) => x.round === at && x.kind !== 'r')
@@ -293,8 +294,12 @@ export default function DataStory() {
       try {
         await store(moment, choice, stateCode, city)
         if (moment === 'after') setFresh(true)
-        // A first answer to the opening question carries the reader on to "Where?". A changed answer stays put.
-        if (moment === 'before' && first) window.setTimeout(() => activeRef.current === 0 && goTo(1), reduced ? 0 : ANSWER_HOLD_MS)
+        // Legacy: a first "before" answer on an opening question screen carried the reader on. The story no longer opens on
+        // that screen (#950); keep the advance only if the active panel is still a question kind.
+        if (moment === 'before' && first) {
+          const kind = screens[activeRef.current]?.kind
+          if (kind === 'question') window.setTimeout(() => activeRef.current === 0 && goTo(1), reduced ? 0 : ANSWER_HOLD_MS)
+        }
       } catch (err) {
         const message =
           errorStatus(err) === 429
@@ -305,7 +310,7 @@ export default function DataStory() {
         setPending(null)
       }
     },
-    [question, pending, before, after, board, store, stateCode, city, goTo, reduced],
+    [question, pending, before, after, board, store, stateCode, city, goTo, reduced, screens],
   )
 
   const answersRef = useRef({ before, after })

@@ -50,20 +50,20 @@ export interface StoryScreen {
   /** The dataset behind the screen's chart, or null for a screen without one. */
   chart: ChartKey | null
   /**
-   * `question` asks the story's question before the record, `scope` sets the place, `verdict` asks it again at the end and
-   * shows how readers answered (#915). `overview` is the row of counts and `chart` one dataset.
+   * `overview` opens the record, `scope` sets the place, `verdict` asks the story's question after the record and shows how
+   * readers answered (#950). `question` remains a kind for tests and any legacy screen helper; the story no longer opens on
+   * it. `chart` is one dataset.
    */
   kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict'
   /** "For context": the screen is records about the topic that are not something said in a meeting (sites, projects). */
   kicker?: string
 }
 
-/** The Data Center Story, in order: the question, the place, the record, then the question again. */
+/** The Data Center Story: overview first, then voices and the record, then the question at the end (#950). */
 export const DATA_CENTER_STORY: StoryScreen[] = [
-  { id: 'question', eyebrow: 'The question', chart: null, kind: 'question' },
-  { id: 'scope', eyebrow: 'Where', chart: null, kind: 'scope' },
-  { id: 'voices', eyebrow: 'Who spoke up', chart: 'positions', kind: 'chart' },
   { id: 'overview', eyebrow: 'Overview', chart: null, kind: 'overview' },
+  { id: 'voices', eyebrow: 'Who spoke up', chart: 'positions', kind: 'chart' },
+  { id: 'scope', eyebrow: 'Where', chart: null, kind: 'scope' },
   { id: 'sites', eyebrow: 'Sites', chart: 'sites', kind: 'chart', kicker: 'For context' },
   { id: 'projects', eyebrow: 'Proposals', chart: 'projects', kind: 'chart', kicker: 'For context' },
   { id: 'jobs', eyebrow: 'Promises', chart: 'job-claims', kind: 'chart' },
@@ -76,7 +76,7 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
 ]
 
 /** Screen ids that were renamed: an old link still lands on the screen that replaced it. */
-const SCREEN_ALIASES: Record<string, string> = { turn: 'verdict' }
+const SCREEN_ALIASES: Record<string, string> = { turn: 'verdict', question: 'overview' }
 
 /** The position of the screen a `?screen=` value names, or -1. */
 export function storyScreenIndex(screens: StoryScreen[], param: string | null | undefined): number {

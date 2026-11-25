@@ -1,11 +1,11 @@
 ---
 title: Data stories
-description: What the data stories hub and the Data Center Story are, who spoke for and against, the question a story opens and closes on, how a story screen is built, how screens move on a phone, on a wide screen and with reduced motion, the cue on the next step, the voice rules for its sentences, how the place in scope is carried, and how to add a story.
+description: What the data stories hub and the Data Center Story are, who spoke for and against, how the story opens on an overview then asks its question after the record, how a story screen is built, how screens move on a phone, on a wide screen and with reduced motion, the cue on the next step, the voice rules for its sentences, how the place in scope is carried, and how to add a story.
 ---
 
 # Data stories
 
-A data story opens on one question, asks where, shows what public records say one screen at a time, and then asks the same question again. Each screen of the record has a bold sentence computed from the data, one line of context, and a chart where every dot is a record you can open. The story ends by showing how other readers answered before and after, and hands you to a challenge on the same topic, the [Data Center Challenge](data-center-challenge.md) for data centers.
+A data story opens on an **overview of the record**, shows what public meetings said one screen at a time, and only then asks its topic question so you can agree or disagree and see how other readers answered. Each screen of the record has a bold sentence computed from the data, one line of context, and a chart where every dot is a record you can open. The story ends by handing you to a challenge on the same topic, the [Data Center Challenge](data-center-challenge.md) for data centers. The hub never leads with the question (#950).
 
 Open the hub at `/stories` (the **Data Stories** item in the header). The first story is the Data Center Story at `/stories/data-centers`.
 
@@ -19,11 +19,11 @@ The hub and the story are headed by one sentence, "What did local meetings in [p
 
 ## The hub
 
-The hub is one card per topic. Today there is one, Data centers. The card leads with the topic's question, worded for the place in scope ("Should we allow new data centers?", "Should Tuscaloosa allow new data centers?"), and one short line. Its main button is **Start: [the question]**, which opens the story on its question screen; **Take the challenge** is the quieter link beside it. The question comes from the topic's pack; until it has loaded the card is titled "Data centers". Below the buttons the card leads with **Who spoke up** (see below), and under that it shows a row of large counts for the place in scope: meetings where a data center came up, meeting passages quoted, agendas that name a data center, sites on record, projects on record and jobs claims. Every count is the endpoint's own whole-scope total. A count that is missing or zero is left out. Under a city, a count the source cannot narrow to a city (sites) is labelled with its own, wider place ("data center sites on record in Alabama") and the note under the row says which counts are city-level and which are state-level; the story's opener does the same. If the data cannot be loaded the card says so and offers **Try again**; the two links still work. On a phone the question and the main button are on the first screen (checked at 390 by 844 and 360 by 640). If nothing is on record for the place it says "No data available for this place."
+The hub is one card per topic. Today there is one, **Data centers**. The card is titled with the topic (not the challenge question), a short overview lede for the place in scope, then **Who spoke up** and a row of large counts: meetings where a data center came up, meeting passages quoted, agendas that name a data center, sites on record, projects on record and jobs claims. Every count is the endpoint's own whole-scope total. A count that is missing or zero is left out. Under a city, a count the source cannot narrow to a city (sites) is labelled with its own, wider place ("data center sites on record in Alabama") and the note under the row says which counts are city-level and which are state-level; the story's opener does the same. Below the data, the main button is **Start the story**, with a subtle pulse (disabled under reduced motion); **Take the challenge** is the quieter link beside it. The agree/disagree question is not on this card — it comes after the story's context, and in the Challenge. If the data cannot be loaded the card says so and offers **Try again**; the two links still work. If nothing is on record for the place it says "No data available for this place."
 
 ### Who spoke up
 
-Above the counts, the card shows what people said about data centers at local meetings in the place in scope, as five figures and one chart:
+The card shows what people said about data centers at local meetings in the place in scope, as five figures and one chart:
 
 | Figure | What it counts |
 | --- | --- |
@@ -48,14 +48,13 @@ The figures come from `GET /api/data-centers/positions?state=&city=&limit=`, whi
 
 ## The Data Center Story
 
-Thirteen screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries.
+Twelve screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries. The story opens on the record, not on the question (#950).
 
 | Screen | Word | Id | What it shows |
 | --- | --- | --- | --- |
-| The question | The question | `question` | "Should we allow new data centers?" with **Yes**, **No** and **Pause for now** |
-| The place | Where | `scope` | The place picker, with the United States chosen, and the question worded for the place |
-| Who spoke up | Who spoke up | `voices` | The five figures, one dot per speaker, and up to three of the speakers' own words on each side, each linked to the moment in the recording |
 | Opener | Overview | `overview` | One dot per meeting where a data center came up (or per stated number of meetings), then the row of large real counts |
+| Who spoke up | Who spoke up | `voices` | The five figures, one dot per speaker, and up to three of the speakers' own words on each side, each linked to the moment in the recording |
+| The place | Where | `scope` | The place picker, with the United States chosen, and the question worded for the place |
 | Where they are | Sites | `sites` | Data center sites by status (one dot per site) |
 | What is proposed | Proposals | `projects` | Projects by status (one dot per project) |
 | What is promised | Promises | `jobs` | Jobs claims by phase (one dot per claim) |
@@ -64,20 +63,20 @@ Thirteen screens, in this order. Each has a short word as its header (never a nu
 | What is on the agenda | Agendas | `agendas` | Agendas for upcoming and past meetings |
 | What was decided | Decisions | `decisions` | Decisions on data center items, debated or taken up without debate (one dot per decision, titled with its outcome as recorded); a debated one links to its page, one without debate to the meeting recording. "Not loaded yet" when the table isn't in the database ([#933](https://github.com/getcommunityone/open-navigator/issues/933)) |
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
-| The question again | Your answer | `verdict` | The same question, then how readers answered before and after, then the challenge |
+| Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
-An old link to `?screen=turn` (the closing screen this replaced) opens the last screen.
+An old link to `?screen=turn` opens the last screen. An old link to `?screen=question` opens **Overview**.
 
-### The question, before and after
+### The question, after the record
 
-The story opens on its question, large, with three answers and nothing before it. The answers are **Yes**, **No** and **Pause for now**; one line under them says a pause is a moratorium (no new approvals until the rules are settled). **Skip, I'd rather read first** moves on and stores nothing.
+The story does **not** open on its question. After the overview and the rest of the record, the last screen says "You've seen the record. Where do you stand now?" and asks the topic question, worded for the place. The answers are **Yes**, **No** and **Pause for now**; one line under them says a pause is a moratorium (no new approvals until the rules are settled).
 
-The second screen asks "Where?". The place picker sits in the sentence "Show me [the United States]", and the question under it is worded for the place it shows. **Next: Overview** is the default, so a reader who wants the whole country just goes on.
+A **Where?** screen sits after Who spoke up so you can narrow the place before the chart screens. The place picker also stays in the top sentence. **Next** from Where continues through the record.
 
-The last screen says "You've seen the record. Where do you stand now?" and asks the same question, worded for the place. After you answer it says whether your answer changed ("You said No before. Now you say Pause for now.", "You said Yes both times.", or "You said No. You skipped the question at the start."). Then it shows how readers of the story answered **before reading** and **after reading**, for the country, your state and your community, as stacked bars: Yes in teal, No in amber, Pause for now in a neutral ink tone, each with its count and percentage written out and your own answer marked. Then it offers the Data Center Challenge.
+After you answer on the last screen it says whether your answer changed when a prior answer is on record ("You said No before. Now you say Pause for now.", "You said Yes both times.", or that you had no earlier answer). Then it shows how readers of the story answered for the country, your state and your community, as stacked bars: Yes in teal, No in amber, Pause for now in a neutral ink tone, each with its count and percentage written out and your own answer marked. Then it offers the Data Center Challenge.
 
-- Both answers are stored once per reader for the question (one before, one after). Picking another answer replaces the stored one.
-- An answer is stored with the place showing when you give it. Because the question comes before the place, an answer you have already given is stored again with the place you then name, so it can count in that state's and community's results. Broadening back to the country changes nothing stored.
+- Answers are stored once per reader for the question (an optional earlier "before" if one exists, and "after" on the closing screen). Picking another answer replaces the stored one.
+- An answer is stored with the place showing when you give it. Broadening back to the country changes nothing stored.
 - A group with fewer than 30 answers shows "Not enough answers yet (N so far, 30 needed)" and no bars, exactly as the challenge does. Nothing is ever seeded: with no answers every group says so.
 - The results are how readers of this story answered. It is not a poll, and the page says so next to the results.
 - Nothing on these screens implies a right answer.
