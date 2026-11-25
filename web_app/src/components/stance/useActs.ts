@@ -10,11 +10,14 @@ export const QUESTION_HOLD = 0.62
 export const REVEAL_HOLD = 0.9
 
 export type HoldKind = 'q' | 'r' | 'cover'
+export type ChallengeStop = 'finding' | 'question' | 'reveal'
 export interface Hold {
   pos: number
   /** 0-based screen, or `count` for the untimed end screen. */
   round: number
   kind: HoldKind | 'end'
+  /** Challenge three-stop rhythm (#969); absent on story screens. */
+  stop?: ChallengeStop
 }
 
 /**
@@ -93,6 +96,7 @@ export interface ActsApi {
   holds: () => Hold[]
   goToRound: (round: number, duration?: number) => void
   goToReveal: (round: number) => void
+  goToStop: (round: number, stop: ChallengeStop) => void
   /** Freeze or release scrolling (a popover is open). */
   lock: (locked: boolean) => void
 }
@@ -124,7 +128,7 @@ function frameOffset(game: HTMLElement): number {
 export function useActs(opts: Options): ActsApi {
   const o = useRef(opts)
   o.current = opts
-  const api = useRef<ActsApi>({ holds: () => [], goToRound: () => {}, goToReveal: () => {}, lock: () => {} })
+  const api = useRef<ActsApi>({ holds: () => [], goToRound: () => {}, goToReveal: () => {}, goToStop: () => {}, lock: () => {} })
 
   const { mode, count, gameRef } = opts
   useEffect(() => {
@@ -145,21 +149,70 @@ export function useActs(opts: Options): ActsApi {
       if (snap) root.classList.add(SNAP_CLASS)
       const holds = (): Hold[] => {
         const off = frameOffset(game)
-        return acts.map((el, i) => ({
-          pos: Math.max(0, el.getBoundingClientRect().top + window.scrollY - off),
-          round: i,
-          kind: withEnd && i === count ? 'end' : 'q',
-        }))
+        const out: Hold[] = []
+        acts.forEach((act, i) => {
+          if (withEnd && i === count) {
+            out.push({
+              pos: Math.max(0, act.getBoundingClientRect().top + window.scrollY - off),
+              round: count,
+              kind: 'end',
+            })
+            return
+          }
+          const stops = Array.from(act.querySelectorAll<HTMLElement>('[data-stop]'))
+          if (stops.length) {
+            for (const el of stops) {
+              const stop = el.dataset.stop as ChallengeStop | undefined
+              if (!stop) continue
+              out.push({
+                pos: Math.max(0, el.getBoundingClientRect().top + window.scrollY - off),
+                round: i,
+                kind: stop === 'reveal' ? 'r' : 'q',
+                stop,
+              })
+            }
+          } else {
+            out.push({
+              pos: Math.max(0, act.getBoundingClientRect().top + window.scrollY - off),
+              round: i,
+              kind: 'q',
+            })
+          }
+        })
+        return out
       }
       // A move the page itself makes (Next, a key, a link) may cross several screens; a swipe may not (see `fence`).
       let programmatic = false
-      const go = (round: number) => {
-        const h = holds()[Math.min(Math.max(round, 0), last)]
-        if (!h) return
-        if (Math.abs(h.pos - window.scrollY) > 2) programmatic = true
-        window.scrollTo({ top: h.pos, behavior: o.current.smooth ? 'smooth' : 'auto' })
+      const scrollToPos = (pos: number) => {
+        if (Math.abs(pos - window.scrollY) > 2) programmatic = true
+        window.scrollTo({ top: pos, behavior: o.current.smooth ? 'smooth' : 'auto' })
       }
-      api.current = { holds, goToRound: go, goToReveal: () => {}, lock: () => {} }
+      const goToStop = (round: number, stop: ChallengeStop) => {
+        const h = holds().find((x) => x.round === round && x.stop === stop)
+        if (h) {
+          scrollToPos(h.pos)
+          return
+        }
+        const act = acts[round]
+        const el = act?.querySelector<HTMLElement>(`[data-stop="${stop}"]`)
+        if (el) {
+          const off = frameOffset(game)
+          scrollToPos(Math.max(0, el.getBoundingClientRect().top + window.scrollY - off))
+        }
+      }
+      const go = (round: number) => {
+        const r = Math.min(Math.max(round, 0), last)
+        const h = holds().find((x) => x.round === r)
+        if (!h) return
+        scrollToPos(h.pos)
+      }
+      api.current = {
+        holds,
+        goToRound: go,
+        goToReveal: (r) => goToStop(r, 'reveal'),
+        goToStop,
+        lock: () => {},
+      }
       /** Where each screen rests (the cover included), top to bottom. */
       const stops = (): number[] => {
         const off = frameOffset(game)
@@ -249,7 +302,7 @@ export function useActs(opts: Options): ActsApi {
         window.removeEventListener('wheel', onWheel)
         root.classList.remove(SNAP_CLASS)
         clearStates(screens)
-        api.current = { holds: () => [], goToRound: () => {}, goToReveal: () => {}, lock: () => {} }
+        api.current = { holds: () => [], goToRound: () => {}, goToReveal: () => {}, goToStop: () => {}, lock: () => {} }
       }
     }
 
@@ -360,8 +413,9 @@ export function useActs(opts: Options): ActsApi {
         const st = triggers[i]
         if (!st) continue
         const span = st.end - st.start
-        out.push({ pos: Math.round(st.start + QUESTION_HOLD * span), round: i, kind: 'q' })
-        if (o.current.isAnswered(i)) out.push({ pos: Math.round(st.start + REVEAL_HOLD * span), round: i, kind: 'r' })
+        out.push({ pos: Math.round(st.start + 0.08 * span), round: i, kind: 'q', stop: 'finding' })
+        out.push({ pos: Math.round(st.start + QUESTION_HOLD * span), round: i, kind: 'q', stop: 'question' })
+        if (o.current.isAnswered(i)) out.push({ pos: Math.round(st.start + REVEAL_HOLD * span), round: i, kind: 'r', stop: 'reveal' })
       }
       if (endEl) out.push({ pos: Math.max(0, Math.round(endEl.getBoundingClientRect().top + window.scrollY - frameOffset(game))), round: count, kind: 'end' })
       return out
@@ -378,16 +432,27 @@ export function useActs(opts: Options): ActsApi {
       lenis.scrollTo(pos, { duration, onComplete: done })
       progTimer = window.setTimeout(done, duration * 1000 + 400)
     }
+    const goToStop = (round: number, stop: ChallengeStop) => {
+      const h = holds().find((x) => x.round === round && x.stop === stop)
+      if (h) {
+        scrollToPos(h.pos)
+        return
+      }
+      const act = acts[round]
+      const el = act?.querySelector<HTMLElement>(`[data-stop="${stop}"]`)
+      if (el) {
+        const pos = Math.max(0, el.getBoundingClientRect().top + window.scrollY - frameOffset(game))
+        scrollToPos(pos)
+      }
+    }
     api.current = {
       holds,
       goToRound: (r, d) => {
         const h = holds().find((x) => x.round === Math.min(Math.max(r, 0), last) && (x.kind === 'q' || x.kind === 'end'))
         if (h) scrollToPos(h.pos, d)
       },
-      goToReveal: (r) => {
-        const h = holds().find((x) => x.round === r && x.kind === 'r')
-        if (h) scrollToPos(h.pos)
-      },
+      goToReveal: (r) => goToStop(r, 'reveal'),
+      goToStop,
       lock: (locked) => (locked ? lenis.stop() : lenis.start()),
     }
 
@@ -509,13 +574,14 @@ export function useActs(opts: Options): ActsApi {
       gsap.ticker.remove(tick)
       gsap.ticker.lagSmoothing(500, 33)
       lenis.destroy()
-      api.current = { holds: () => [], goToRound: () => {}, goToReveal: () => {}, lock: () => {} }
+      api.current = { holds: () => [], goToRound: () => {}, goToReveal: () => {}, goToStop: () => {}, lock: () => {} }
     }
   }, [mode, count, gameRef, opts.endPanel])
 
   const holds = useCallback(() => api.current.holds(), [])
   const goToRound = useCallback((r: number, d?: number) => api.current.goToRound(r, d), [])
   const goToReveal = useCallback((r: number) => api.current.goToReveal(r), [])
+  const goToStop = useCallback((r: number, stop: ChallengeStop) => api.current.goToStop(r, stop), [])
   const lock = useCallback((l: boolean) => api.current.lock(l), [])
-  return useMemo(() => ({ holds, goToRound, goToReveal, lock }), [holds, goToRound, goToReveal, lock])
+  return useMemo(() => ({ holds, goToRound, goToReveal, goToStop, lock }), [holds, goToRound, goToReveal, goToStop, lock])
 }
