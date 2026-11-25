@@ -5,7 +5,7 @@ title: "fix(web): open Data Stories on overview, not the question"
 author: jcbowyer
 reviewed_at: 2026-11-25
 reviewer: github-actions
-head_sha: 66128e3f539219b7ed88043ab5a2016931c24729
+head_sha: d1abf21633af179fbdef8595b85c4e806f407cd8
 verdict: approve
 ---
 
@@ -18,6 +18,7 @@ Automated review (#648) for PR #951 on `fix/950-stories-overview-first`. Heurist
 
 ## Scope of Change
 
+- `pull_requests/pr-951-review.md`
 - `web_app/src/pages/DataStories.tsx`
 - `web_app/src/pages/DataStory.tsx`
 - `web_app/src/styles/stance.css`
@@ -27,7 +28,7 @@ Automated review (#648) for PR #951 on `fix/950-stories-overview-first`. Heurist
 
 ## CI Status
 
-See the PR checks on `66128e3f5392`.
+See the PR checks on `d1abf21633af`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
