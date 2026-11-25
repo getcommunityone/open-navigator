@@ -5,7 +5,7 @@ title: "feat(data-centers): show the decisions meetings took on data center item
 author: jcbowyer
 reviewed_at: 2026-11-25
 reviewer: github-actions
-head_sha: 9d1d035e1ebfbc24632e2551487c4a98da0c4501
+head_sha: be296f15a4bfc8777fa48e5d55540799b0c0c21d
 verdict: approve
 ---
 
@@ -25,6 +25,7 @@ Automated review (#648) for PR #944 on `feat/933-dc-uncontested-decisions`. Heur
 - `dbt_project/models/marts/_schema_data_center_decision.yml`
 - `dbt_project/models/marts/data_center_decision.sql`
 - `packages/hosting/src/hosting/neon/sync_public_to_neon.py`
+- `pull_requests/pr-944-review.md`
 - `tests/test_api_data_center_decisions.py`
 - `web_app/src/api/dataCenters.ts`
 - `web_app/src/api/stance.ts`
@@ -37,7 +38,7 @@ Automated review (#648) for PR #944 on `feat/933-dc-uncontested-decisions`. Heur
 
 ## CI Status
 
-See the PR checks on `9d1d035e1ebf`.
+See the PR checks on `be296f15a4bf`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
