@@ -1,11 +1,12 @@
 """Fetch the official pages behind data center hearing leads, for dbt to verify (#955).
 
-    python -m ingestion.data_centers.fetch_hearing_sources                 # every official lead
+    python -m ingestion.data_centers.fetch_hearing_sources                 # official leads, upcoming + last week
+    python -m ingestion.data_centers.fetch_hearing_sources --all           # every official lead
     python -m ingestion.data_centers.fetch_hearing_sources --lead wichita-ks-2026-12-03
     python -m ingestion.data_centers.fetch_hearing_sources --dry-run       # fetch, don't write
 
-A *lead* (``seeds.data_center_hearing_lead``) is a claimed upcoming hearing from research
-lists. Only a lead with an official government ``source_url`` can become a hearing the site
+A *lead* (``intermediate.int_data_center_hearing_lead``: the curated seed plus the CC BY tracker
+leads, #956) is a claimed upcoming hearing from research lists and trackers. Only a lead with an official government ``source_url`` can become a hearing the site
 shows: this CLI fetches that page and stores its text in
 ``bronze.bronze_data_center_hearing_source``; the dbt model ``data_center_hearing`` then checks
 that the page states the meeting date and a data center word, and keeps a quoted excerpt.
@@ -42,8 +43,9 @@ from ingestion.data_centers.community_events import (
 TABLE = "bronze.bronze_data_center_hearing_source"
 LEADS_SQL = """
     SELECT lead_id, source_url
-    FROM seeds.data_center_hearing_lead
+    FROM intermediate.int_data_center_hearing_lead
     WHERE source_kind = 'official' AND coalesce(source_url, '') <> ''
+      AND (%(all)s OR meeting_date >= current_date - 7)
     ORDER BY meeting_date, lead_id
 """
 DDL = f"""
@@ -158,6 +160,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--lead", action="append", help="Only this lead_id (repeatable).")
     parser.add_argument("--dry-run", action="store_true", help="Fetch and report, but don't write.")
     parser.add_argument(
+        "--all", action="store_true", help="Also leads more than a week past (default: upcoming and the last week)."
+    )
+    parser.add_argument(
         "--database-url",
         default=os.environ.get("NEON_DATABASE_URL_DEV"),
         help="Local / dev warehouse (default NEON_DATABASE_URL_DEV). Never production.",
@@ -169,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with psycopg2.connect(args.database_url) as conn:
         with conn.cursor() as cur:
-            cur.execute(LEADS_SQL)
+            cur.execute(LEADS_SQL, {"all": bool(args.all or args.lead)})
             leads = [(lid, url) for lid, url in cur.fetchall() if not args.lead or lid in args.lead]
         logger.info("{} official lead(s) to fetch", len(leads))
         fetcher = PoliteFetcher(min_interval=3.0)

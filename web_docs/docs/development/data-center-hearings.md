@@ -52,8 +52,10 @@ section (or of the agenda) follows after " … ". Both are verbatim.
 
 | Step | Where | What it does |
 | --- | --- | --- |
-| Leads | seed `data_center_hearing_lead` | One row per claimed meeting: date, place, body, topic, `source_kind` (`official`, `tracker`, `news`, `none`), `source_url` with tracking parameters removed, `lead_from` |
-| Fetch | `python -m ingestion.data_centers.fetch_hearing_sources` | Fetches each official URL once. It identifies itself, honours robots.txt and the `BLOCKED_HOSTS` never-fetch list, spaces requests per host, and turns PDF agendas into text with PyMuPDF. Writes `bronze.bronze_data_center_hearing_source`. It writes only to the local or dev warehouse (`--database-url` or `NEON_DATABASE_URL_DEV`), never to production |
+| Leads (curated) | seed `data_center_hearing_lead` | One row per claimed meeting: date, place, body, topic, `source_kind` (`official`, `tracker`, `news`, `none`), `source_url` with tracking parameters removed, `lead_from` |
+| Leads (trackers) | `python -m ingestion.data_centers.load_hearing_tracker_leads` → `bronze_data_center_hearing_tracker_lead` → `stg_data_center_hearing_tracker_lead` | The CC BY 4.0 files of Data Center Fights (`data.json` meetings) and Siting Radar (upcoming CSV), one request each. The place comes from the record's own words, and a record naming no local place is left out. A lead is `official` only when the URL it cites is on a government host |
+| All leads | `int_data_center_hearing_lead` | Curated and tracker leads, one per (state, place, date). Of duplicates it keeps a seed lead with an official URL, then a tracker lead with one, then the rest |
+| Fetch | `python -m ingestion.data_centers.fetch_hearing_sources` | Fetches each official URL once (leads from the last week on; `--all` for every lead). It identifies itself, honours robots.txt and the `BLOCKED_HOSTS` never-fetch list, spaces requests per host, and turns PDF agendas into text with PyMuPDF. Writes `bronze.bronze_data_center_hearing_source`. It writes only to the local or dev warehouse (`--database-url` or `NEON_DATABASE_URL_DEV`), never to production |
 | Verify | mart `data_center_hearing` (gold only) | One row per lead, with `status`, `evidence`, `tentative` and `checked_at`. PK `data_center_hearing_id` (the lead id). FK `jurisdiction_id` → `jurisdictions` when exactly one city, town or county in the state has the name, otherwise null |
 | Serve | mart `data_center_hearing_verified` (served in `public`, copied to Neon) | Verified rows only, with the columns a reader needs. PK and FK to `data_center_hearing` and `jurisdictions` |
 | API | `GET /api/data-centers/hearings?state=&city=&when=upcoming\|past\|all` | Verified rows only, upcoming soonest first. `available: false` with null counts when the table isn't loaded |
@@ -65,8 +67,10 @@ Agendas are posted 3 to 7 days before a meeting, so a lead that is `date_not_fou
 next week. Re-run the fetch, then the mart:
 
 ```bash
+python -m ingestion.data_centers.load_hearing_tracker_leads   # at most daily
+./scripts/dbt.sh run --select stg_data_center_hearing_tracker_lead int_data_center_hearing_lead
 python -m ingestion.data_centers.fetch_hearing_sources
-./scripts/dbt.sh run --select data_center_hearing
+./scripts/dbt.sh run --select data_center_hearing data_center_hearing_verified
 ```
 
 To add leads, add rows to `dbt_project/seeds/data_center_hearing_lead.csv`, then run
@@ -75,7 +79,7 @@ that looks wrong "(as listed)", and use the government's own URL as `source_url`
 
 ## First load (25 Nov 2026)
 
-There are 54 leads from the owner's two research lists: 11 official, 23 from trackers, 1 news, and 19 unsourced. Five
+There were 54 leads from the owner's two research lists: 11 official, 23 from trackers, 1 news, and 19 unsourced. Five
 are verified:
 
 | Date | Place | What the official page says |
@@ -94,6 +98,22 @@ The others show the guard rails working:
   away, so it is `date_not_with_item`.
 - **No mention:** Shawnee County's page doesn't mention a data center.
 
-Which trackers may feed leads, and on what terms, is being recorded in
-[#956](https://github.com/getcommunityone/open-navigator/issues/956) (hearing trackers) and
-[#958](https://github.com/getcommunityone/open-navigator/issues/958) (facility inventories).
+## Tracker leads (25 Nov 2026)
+
+Which trackers may feed leads, and on what terms, is in
+[Data center source review](./data-center-source-review.md)
+([#956](https://github.com/getcommunityone/open-navigator/issues/956)). Two do, under CC BY 4.0: Data Center Fights (176
+meetings) and Siting Radar (14 items, 12 of them data centers). A served row from a tracker lead credits it in
+`source_name` ("Government page cited by Siting Radar …, CC BY 4.0"). The tracker's own text is never shown.
+
+After the place filter and de-duplication, trackers add 116 leads. Most cite news reports, so they stay leads. Seventeen
+cite a government page, and 8 of those were upcoming or from the last week. Of those 8:
+- **Verified (3):**
+  - Whitley County, IN, Nov 18: Plan Commission, "Data Center Public Hearing";
+  - Calvert County, MD, Nov 18: hearing on "Revisions to Data Center Use";
+  - Kings Mountain, NC, Feb 23, 2027: the moratorium extension public hearing, from the agenda on permitting data
+    centers.
+- **No mention (2):** Starbase, TX and Elbert County, CO pages don't say a data center word.
+- **Date not found (1):** Dorr Township, MI's packet doesn't state Dec 15.
+- **No text (1):** Banks Township, MI's packet is scanned.
+- **Robots.txt (1):** Raleigh disallows its news page.

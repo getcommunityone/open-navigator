@@ -2,7 +2,8 @@
 
 /*
     Data center hearing leads and whether their official page backs them up (#955).
-    Grain: one row per lead (seeds.data_center_hearing_lead).
+    Grain: one row per lead (int_data_center_hearing_lead: the curated seed plus the CC BY
+    tracker leads, #956).
 
     A lead is a claimed upcoming meeting from research lists. It is VERIFIED only when its
     official government page (fetched by ingestion.data_centers.fetch_hearing_sources into
@@ -42,7 +43,7 @@
 {%- set dc_regex = data_center_regex() %}
 
 with leads as (
-    select * from {{ ref('data_center_hearing_lead') }}
+    select * from {{ ref('int_data_center_hearing_lead') }}
 ),
 
 pages as (
@@ -117,10 +118,10 @@ checked as (
         case
             when fw.item_region is not null and fw.item_date_window ~* '\y{{ dc_regex }}\y' then fw.item_date_window
             when fw.item_region is not null then
-                fw.item_date_window || ' … ' ||
+                regexp_replace(fw.item_date_window, '\s\S*$', '') || ' … ' ||
                 regexp_replace(regexp_replace((regexp_match(fw.item_region, '([\s\S]{0,160}\y{{ dc_regex }}\y[\s\S]{0,160})', 'i'))[1], '^\S*\s', ''), '\s\S*$', '')
             when d.is_pdf and fw.date_window is not null then
-                fw.date_window || ' … ' ||
+                regexp_replace(fw.date_window, '\s\S*$', '') || ' … ' ||
                 regexp_replace(regexp_replace((regexp_match(d.page_text, '([\s\S]{0,160}\y{{ dc_regex }}\y[\s\S]{0,160})', 'i'))[1], '^\S*\s', ''), '\s\S*$', '')
         end                                                                                 as raw_evidence
     from date_patterns as d

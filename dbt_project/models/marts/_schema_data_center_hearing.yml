@@ -27,7 +27,7 @@ models:
         to_columns: [jurisdiction_id]
     columns:
       - name: data_center_hearing_id
-        description: "Primary key: the lead's id (seeds.data_center_hearing_lead.lead_id)."
+        description: "Primary key: the lead's id (int_data_center_hearing_lead.lead_id)."
         data_type: text
         constraints:
           - type: not_null
@@ -173,7 +173,7 @@ unit_tests:
   - name: dc_hearing_verification_rules
     model: data_center_hearing
     given:
-      - input: ref('data_center_hearing_lead')
+      - input: ref('int_data_center_hearing_lead')
         rows:
           - {lead_id: ok, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/a', lead_from: l}
           - {lead_id: day10, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/b', lead_from: l}

@@ -58,8 +58,12 @@ The citations, with BibTeX, are in [Data and citations](../data-sources/citation
 
 ## What happens next
 
-- **Lead feeds (#956):** Data Center Fights, Siting Radar and the PA tracker feed leads into `data_center_hearing`, each
-  credited. Their records point at the official page, and only that page can verify a hearing.
+- **Lead feeds (#956), done:** Data Center Fights and Siting Radar feed leads into `data_center_hearing` through
+  `python -m ingestion.data_centers.load_hearing_tracker_leads` (one request per file), each credited in `source_name`.
+  Only the government page a record cites can verify a hearing; see
+  [Upcoming data center hearings](./data-center-hearings.md#tracker-leads-25-nov-2026). The PA tracker's CSV downloads
+  list ordinances, not meetings, and its meeting list is a web page its terms ask us not to crawl, so it feeds no
+  leads. Its ordinance data could feed an ordinance view later.
 - **Imports (#958):** Public Evidence Project and the US Data Center Registry are imported (bronze, then staging), with
   their attribution. They are linked to existing `data_center_site` rows only where name and place agree, never merged
   on a guess. The greencalculus repo is imported as state aggregates.
