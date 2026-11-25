@@ -26,6 +26,12 @@
 
     See api/routes/search_postgres.py (search_organizations_pg / search_grants_pg /
     search_persons_pg) and the *_index_drops notes.
+
+    An entry may carry `match`: a fragment of pg_get_indexdef(). Any index on the table whose
+    definition contains it counts as present, whatever its name. Models that declare the
+    index in their dbt `indexes` config (built before the swap, under a generated name; see
+    swap_guard and non-blocking-table-rebuilds.md, #935) use this, so the backstop doesn't
+    build a duplicate beside it.
 -#}
 {%- if not execute -%}{{ return('') }}{%- endif -%}
 
@@ -37,7 +43,7 @@
     {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_org_name_fts_idx',  'def': "using gin (to_tsvector('english', org_name))"},
     {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_org_name_norm_idx', 'def': '(org_name_norm)'},
     {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_state_code_idx',     'def': '(state_code)'},
-    {'rel': 'gold.mdm_person',        'name': 'mdm_person_full_name_trgm_idx',       'def': 'using gin (full_name gin_trgm_ops)'},
+    {'rel': 'gold.mdm_person',        'name': 'mdm_person_full_name_trgm_idx',       'def': 'using gin (full_name gin_trgm_ops)', 'match': 'USING gin (full_name gin_trgm_ops)'},
     {'rel': 'gold.contact_official',  'name': 'contact_official_full_name_trgm_idx', 'def': 'using gin (full_name gin_trgm_ops)'},
     {'rel': 'gold.contact_official',  'name': 'contact_official_title_trgm_idx',     'def': 'using gin (title gin_trgm_ops)'},
     {'rel': 'gold."grant"',           'name': 'grant_grantor_name_trgm_idx',         'def': 'using gin (grantor_name gin_trgm_ops)'},
@@ -53,11 +59,17 @@
 {%- for ix in indexes -%}
   {%- set check = run_query("select to_regclass('" ~ ix.rel ~ "') as r") -%}
   {%- if check and check.rows and check.rows[0][0] is not none -%}
-    {%- set present = run_query("select to_regclass('gold." ~ ix.name ~ "') as r") -%}
+    {%- if ix.match -%}
+      {%- set present = run_query(
+          "select 1 from pg_index i where i.indrelid = to_regclass('" ~ ix.rel ~ "') "
+          ~ "and position(lower('" ~ ix.match ~ "') in lower(pg_get_indexdef(i.indexrelid))) > 0 limit 1") -%}
+    {%- else -%}
+      {%- set present = run_query("select to_regclass('gold." ~ ix.name ~ "') as r") -%}
+    {%- endif -%}
     {%- if not (present and present.rows and present.rows[0][0] is not none) -%}
       {%- do created.append(ix.name) -%}
+      {%- do run_query("create index if not exists " ~ ix.name ~ " on " ~ ix.rel ~ " " ~ ix.def) -%}
     {%- endif -%}
-    {%- do run_query("create index if not exists " ~ ix.name ~ " on " ~ ix.rel ~ " " ~ ix.def) -%}
   {%- else -%}
     {%- do skipped.append(ix.name) -%}
   {%- endif -%}
