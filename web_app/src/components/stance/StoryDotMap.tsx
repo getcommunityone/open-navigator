@@ -11,10 +11,12 @@ export interface StateCount {
 }
 
 interface Props {
-  /** Real meetings per state in the current scope (meeting-mentions `counts.by_state`); null while loading. */
+  /** Real meetings per state across the whole country (meeting-mentions `counts.by_state`, never narrowed by scope). */
   byState: StateCount[] | null | undefined
-  /** The state the story is scoped to, if any (its dots stand out; the rest are muted). */
+  /** The state the story is scoped to, if any (its dots stand out; the rest are muted, still with their own counts). */
   scopeStateCode: string | null
+  /** The city the story is scoped to, if any: clicking its state then broadens to the state, not past it. */
+  scopeCity?: string | null
   /** The scope label, for the figure caption ("National", "Texas", "Austin, Texas"). */
   scopeLabel: string
   /** Narrow the story to a state, or broaden it to the whole country (null). */
@@ -27,10 +29,12 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 
 /**
  * Overview dot map (#970): the country as a grid of dots, each state's dots shaded by the real number of its meetings where a
- * data center came up. A state with none stays the empty colour. Clicking or choosing a state narrows the whole story to it
- * (the scope in the URL), so the heading, the counts and this map always describe the same place.
+ * data center came up, nationally. A state with none stays the empty colour. When the story is scoped to a state, that state
+ * stands out and the others are muted, still shaded by their own counts, so no state reads as empty because it wasn't counted.
+ * Clicking or choosing a state narrows the whole story to it (the scope in the URL); from a city, clicking its state broadens
+ * to the state, and United States broadens to the country.
  */
-export default function StoryDotMap({ byState, scopeStateCode, scopeLabel, onPickState, labelledBy }: Props) {
+export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null, scopeLabel, onPickState, labelledBy }: Props) {
   const [hover, setHover] = useState<string | null>(null)
   const { data: topo, isError } = useQuery({
     queryKey: ['us-atlas-states-albers'],
@@ -84,7 +88,9 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeLabel, onPic
   return (
     <figure className="stance-map" aria-labelledby={labelledBy}>
       <figcaption className="stance-map-head">
-        <span>Meetings where a data center came up, by state · {scopeLabel}</span>
+        <span>
+          Meetings where a data center came up, by state · National{scopeStateCode ? ` (${scopeLabel} highlighted)` : ''}
+        </span>
         <span className="stance-map-controls">
           {scopeStateCode && (
             <button type="button" className="folio-link-btn" onClick={() => onPickState(null)}>
@@ -110,7 +116,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeLabel, onPic
         viewBox={vb}
         className="stance-map-svg"
         role="img"
-        aria-label={`Dot map of meetings where a data center came up, by state, ${scopeLabel}. ${listed.length} ${listed.length === 1 ? 'state has' : 'states have'} at least one.`}
+        aria-label={`Dot map of meetings where a data center came up, by state, nationally${scopeStateCode ? `, with ${scopeLabel} highlighted` : ''}. ${listed.length} ${listed.length === 1 ? 'state has' : 'states have'} at least one.`}
         onMouseLeave={() => setHover(null)}
       >
         {grid.dots.map((d, i) => {
@@ -127,12 +133,18 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeLabel, onPic
               opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
               style={{ cursor: code ? 'pointer' : 'default' }}
               onMouseEnter={() => setHover(d.id)}
-              onClick={() => code && onPickState(code === scopeStateCode ? null : code)}
+              onClick={() => {
+                if (!code) return
+                // The scoped state again: from a city, up to the state; from the state, up to the country.
+                if (code === scopeStateCode) onPickState(scopeCity ? code : null)
+                else onPickState(code)
+              }}
             />
           )
         })}
       </svg>
-      <p className="stance-map-readout" aria-live="polite">
+      {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the select and the table. */}
+      <p className="stance-map-readout">
         {hover ? readout(hover) : 'Hover a state, or choose one, to see its count. Click a state to tell its story.'}
       </p>
       {max > 0 && (
@@ -141,8 +153,8 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeLabel, onPic
             <>
               <span>{fmt(min)}</span>
               <span className="stance-map-ramp">
-                {ramp.map((c) => (
-                  <span key={c} style={{ background: c }} />
+                {ramp.map((c, i) => (
+                  <span key={i} style={{ background: c }} />
                 ))}
               </span>
               <span>{fmt(max)} meetings</span>
@@ -165,7 +177,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeLabel, onPic
       <details className="stance-map-table">
         <summary>Show data table</summary>
         {listed.length === 0 ? (
-          <p className="stance-note">No meetings on record for {scopeLabel}.</p>
+          <p className="stance-note">No meetings on record.</p>
         ) : (
           <table>
             <thead>

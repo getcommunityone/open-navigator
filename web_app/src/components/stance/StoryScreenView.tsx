@@ -121,6 +121,7 @@ export default function StoryScreenView(p: Props) {
                   <StoryDotMap
                     byState={byState}
                     scopeStateCode={scope.stateCode ?? null}
+                    scopeCity={scope.city ?? null}
                     scopeLabel={storyScopeLabel(scope)}
                     onPickState={(code) => p.onBroaden(code, null)}
                     labelledBy={`story-h-${screen.id}`}

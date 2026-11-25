@@ -1548,7 +1548,7 @@ export interface components {
         DataCenterMeetingMentionCounts: {
             /**
              * By State
-             * @description Meetings per state in the scope, largest first (#970); states with none are left out.
+             * @description Meetings per state across the whole country (not narrowed by state or city), largest first (#970); states with none are left out.
              */
             by_state?: components["schemas"]["DataCenterMeetingMentionStateCount"][];
             /**

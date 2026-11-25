@@ -142,7 +142,7 @@ def test_other_errors_are_500(get) -> None:
 
 
 def test_counts_by_state_are_real_distinct_meetings_in_scope(get) -> None:
-    """#970: the Overview dot map shades each state by its own count; same filters as the list."""
+    """#970: the Overview dot map shades each state by its own national count."""
     conn = _Conn(
         counts=[{"passages": 9, "meetings": 5, "site_specific": 1}],
         by_state=[
@@ -158,11 +158,19 @@ def test_counts_by_state_are_real_distinct_meetings_in_scope(get) -> None:
     sql, params = next(c for c in conn.calls if "GROUP BY m.state_code" in c[0])
     assert "count(DISTINCT m.video_id)" in sql and "m.state_code IS NOT NULL" in sql and params == ()
 
+    # A state or city scope never narrows the per-state counts: the map is national and only highlights the scope,
+    # so Texas is never shown as having no meetings just because the story is scoped to North Carolina.
     conn = _Conn(counts=[{"passages": 1, "meetings": 1, "site_specific": 0}])
     get(conn, {"state": "NC", "city": "Charlotte"})
     sql, params = next(c for c in conn.calls if "GROUP BY m.state_code" in c[0])
-    assert "m.state_code = $1" in sql and "m.jurisdiction_name ILIKE $2" in sql
-    assert params == ("NC", "%Charlotte%")
+    assert "m.state_code = $" not in sql and "ILIKE" not in sql and params == ()
+    items_sql, items_params = conn.calls[0]
+    assert "m.state_code = $1" in items_sql and items_params[:2] == ("NC", "%Charlotte%")
+
+    conn = _Conn(counts=[{"passages": 1, "meetings": 1, "site_specific": 1}])
+    get(conn, {"strength": "site_specific"})
+    sql, params = next(c for c in conn.calls if "GROUP BY m.state_code" in c[0])
+    assert "m.match_strength = $1" in sql and params == ("site_specific",)
 
 
 def test_by_state_is_empty_not_missing_when_none(get) -> None:
