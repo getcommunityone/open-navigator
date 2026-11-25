@@ -61,8 +61,34 @@ html { scroll-behavior: smooth; }
 .v9 .v9-navlink:hover::after { width: 100%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.v9 .home-story-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px; align-items: start; }
-@media (max-width: 860px) { .v9 .home-story-card { grid-template-columns: minmax(0, 1fr); } }
+.v9 .home-stories { background: #fff; border-bottom: 1px solid #e7e5e4; padding: 28px 24px 30px; }
+.v9 .home-stories-inner { max-width: 1180px; margin: 0 auto; }
+.v9 .home-story-card { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.2fr); gap: 28px; align-items: center; }
+.v9 .home-story-eyebrow { margin: 0; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; font-weight: 600; }
+.v9 .home-story-headline { font-size: clamp(40px, 5.6vw, 72px); font-weight: 800; line-height: 1.02; letter-spacing: -0.02em; margin: 8px 0 14px; color: #1c1917; }
+.v9 .home-story-subhead { margin: 0; font-size: clamp(16px, 1.5vw, 18px); line-height: 1.5; color: #44403c; max-width: 34em; }
+.v9 .home-story-basis { margin: 8px 0 0; font-size: 13px; color: #78716c; }
+.v9 .home-story-start { display: inline-block; background: #0f766e; color: #fff; border-radius: 999px; padding: 12px 24px; font-size: 16px; font-weight: 700; text-decoration: none; }
+.v9 .home-story-start:hover { background: #115e59; }
+.v9 .home-story-map { position: relative; }
+.v9 .home-map-card { position: absolute; width: min(290px, 70%); background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; box-shadow: 0 10px 28px rgba(28,25,23,.12); padding: 14px 16px; margin: 0; z-index: 2; pointer-events: auto; }
+.v9 .home-topics { margin-top: 22px; border: 1px solid #e7e5e4; border-radius: 14px; background: #fff; }
+.v9 .home-topics-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px 0; }
+.v9 .home-topics-head p { margin: 0; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #44403c; font-weight: 600; border-bottom: 2px solid #0f766e; padding-bottom: 8px; }
+.v9 .home-topics-all { color: #1c1917; display: inline-flex; padding: 4px; }
+.v9 .home-topics-list { list-style: none; margin: 0; padding: 12px; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 0; overflow-x: auto; scrollbar-width: thin; }
+.v9 .home-topics-list li + li { border-left: 1px solid #e7e5e4; }
+.v9 .home-topic { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; text-decoration: none; color: inherit; border-radius: 10px; }
+.v9 .home-topic:hover { background: #fafaf9; }
+.v9 .home-topic-icon { flex: none; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; }
+.v9 .home-topic-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.v9 .home-topic-title { font-weight: 700; font-size: 15.5px; color: #1c1917; }
+.v9 .home-topic-blurb { font-size: 13.5px; color: #57534e; line-height: 1.4; }
+.v9 .home-topic-go { font-size: 13.5px; font-weight: 700; color: #0f766e; margin-top: 2px; }
+@media (max-width: 860px) {
+  .v9 .home-story-card { grid-template-columns: minmax(0, 1fr); }
+  .v9 .home-map-card { position: static; width: auto; margin-top: 8px; }
+}
 @media (max-width: 760px) {
   .v9 .v9-nav { display: none; }
   .v9 .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
@@ -803,21 +829,17 @@ export default function HomeV9() {
       {/* ── Shared header (identical to the search page) ── */}
       <SiteHeader />
 
+      {/* ── Data stories first (#995): the conclusion, the quote map and the topics; the header's Data Stories tab. ── */}
+      <HomeDataStories stateCode={stateCode} city={city ?? null} />
+
       <main className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
         {/* ── Hero: thesis + search + trending ── */}
         {/* The header's Search tab scrolls here (#975); results open on /search from this search. */}
         <section id="search" className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center', scrollMarginTop: 72 }}>
-          <h1
-            className="font-display"
-            style={{ fontSize: 'clamp(38px, 6.4vw, 60px)', fontWeight: 900, margin: 0, lineHeight: 1.05, letterSpacing: '-0.02em', color: INK }}
-          >
-            Every local decision, in one place.
-          </h1>
-          <div style={{ fontSize: 'clamp(16px, 2vw, 19px)', fontWeight: 500, color: '#57534e', maxWidth: 760, margin: '16px auto 0', lineHeight: 1.5 }}>
-            Search the meetings, votes, spending, and debates shaping your community.
-            <br />
-            Free, forever.
-          </div>
+          {/* #995: the thesis ("Every local decision, in one place.") now closes the page, under Impact. */}
+          <h2 className="font-display" style={{ fontSize: 'clamp(28px, 4vw, 40px)', fontWeight: 800, margin: 0, lineHeight: 1.1, color: INK }}>
+            Search your community
+          </h2>
 
           {/* ── Launch-coverage note: live in four cities (ordered by content
               volume), each linking to its state-scoped search. ── */}
@@ -1891,8 +1913,6 @@ export default function HomeV9() {
         </section>
       </main>
 
-      {/* ── Data stories (#975): the header's Data Stories tab scrolls here; the story opens from it. ── */}
-      <HomeDataStories stateCode={stateCode} city={city ?? null} />
 
       {/* ── How It Works (ported from the original home page, restyled for v9).
           Header format matches the sibling "Our Impact" section: section name as
@@ -2033,6 +2053,18 @@ export default function HomeV9() {
             </button>
           </div>
         </div>
+      </section>
+
+      {/* ── The thesis, under Impact (#995). ── */}
+      <section className="v9-section-full" aria-labelledby="home-thesis-h" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '52px 24px', textAlign: 'center' }}>
+        <h2 id="home-thesis-h" className="font-display" style={{ fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 900, margin: 0, lineHeight: 1.05, letterSpacing: '-0.02em', color: INK }}>
+          Every local decision, in one place.
+        </h2>
+        <p style={{ fontSize: 'clamp(16px, 2vw, 19px)', fontWeight: 500, color: '#57534e', maxWidth: 760, margin: '16px auto 0', lineHeight: 1.5 }}>
+          Search the meetings, votes, spending, and debates shaping your community.
+          <br />
+          Free, forever.
+        </p>
       </section>
 
       {/* Strategic Plan PDF — lightweight modal (real PDF in public/pdf). */}
