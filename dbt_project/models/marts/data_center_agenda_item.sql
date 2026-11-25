@@ -62,11 +62,11 @@ with_evidence as (
 
 site_names as (
     select data_center_site_id, state_code, lower(site_name) as phrase, site_name
-    from {{ ref('data_center_site') }}
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch')
     where state_code is not null and length(site_name) >= 6
     union all
     select data_center_site_id, state_code, lower(project) as phrase, site_name
-    from {{ ref('data_center_site') }}
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch')
     where state_code is not null and length(project) >= 6
 ),
 

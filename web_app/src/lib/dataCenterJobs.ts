@@ -104,6 +104,7 @@ export function siteStatusLabel(
     planned: 'Planned',
     under_construction: 'Under construction',
     operating: 'Operating',
+    cancelled: 'Cancelled (per the source)',
   }
   if (status === 'no_longer_listed') {
     const seen = formatIsoDate(lastSeenOn)
@@ -195,4 +196,22 @@ export function figureLabel(metric: string, value: number, unit: string): string
     default:
       return `${n} ${unit}`
   }
+}
+
+/** Sites in a scope, every status counted once (#958 adds `cancelled`, which only the registry publishes). */
+export function siteTotal(
+  k: { planned: number; under_construction: number; operating: number; cancelled?: number; no_longer_listed: number; status_not_published: number } | null | undefined,
+): number {
+  if (!k) return 0
+  return k.planned + k.under_construction + k.operating + (k.cancelled ?? 0) + k.no_longer_listed + k.status_not_published
+}
+
+/** The sources the listed sites come from, in words ("Epoch AI and the US Data Center Registry"), from the rows' own
+ * `source` values, so a scope (or a warehouse) with only one source never names the other. Null when nothing is listed. */
+export function siteSourcesText(items: { source?: string | null }[] | null | undefined): string | null {
+  const have = new Set((items ?? []).map((i) => i.source ?? 'epoch'))
+  const names = [have.has('epoch') && 'Epoch AI', have.has('us_data_center_registry') && 'the US Data Center Registry'].filter(
+    (n): n is string => Boolean(n),
+  )
+  return names.length ? names.join(' and ') : null
 }

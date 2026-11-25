@@ -13,7 +13,7 @@ import type {
   JobClaimsResponse,
 } from '../api/dataCenters'
 import type { GroupResult, StanceAnswer } from '../api/stance'
-import { communityEventKindLabel, concernLabel } from '../lib/dataCenterJobs'
+import { communityEventKindLabel, concernLabel, siteTotal } from '../lib/dataCenterJobs'
 import { largestRemainder } from './matrixMapMath'
 
 
@@ -127,7 +127,7 @@ export function findingJobClaims(res: JobClaimsResponse | null | undefined, plac
 export function findingSites(res: DataCenterSitesResponse | null | undefined, place?: string | null): string | null {
   const k = res?.counts
   if (!k) return null
-  const total = k.planned + k.under_construction + k.operating + k.no_longer_listed + k.status_not_published
+  const total = siteTotal(k)
   if (total <= 0) return null
   return `Of ${fmt(total)} data center ${total === 1 ? 'site' : 'sites'} on record ${where(place)}, ${fmt(k.operating)} ${k.operating === 1 ? 'is' : 'are'} operating, ${fmt(k.under_construction)} under construction and ${fmt(k.planned)} planned.`
 }
@@ -521,24 +521,25 @@ export function chartSpec(
     case 'sites': {
       const res = data as DataCenterSitesResponse
       const k = res.counts
-      const on = k ? k.planned + k.under_construction + k.operating + k.no_longer_listed + k.status_not_published : null
-      const order = ['operating', 'under_construction', 'planned', 'no_longer_listed', '']
+      const on = k ? siteTotal(k) : null
+      const order = ['operating', 'under_construction', 'planned', 'cancelled', 'no_longer_listed', '']
       const names: Record<string, string> = {
         operating: 'Operating',
         under_construction: 'Under construction',
         planned: 'Planned',
+        cancelled: 'Cancelled (per the source)',
         no_longer_listed: 'No longer listed',
         '': 'Status not published',
       }
       const items = res.items ?? []
       return dots(
         CHART_TITLES.sites,
-        'Epoch AI data center sites, CC BY 4.0',
+        'Epoch AI and the US Data Center Registry (base data from Compute Atlas), CC BY 4.0',
         'data center site',
         order.map((st) => ({
           key: st || 'none',
           label: names[st]!,
-          total: k ? (st === '' ? k.status_not_published : k[st as 'operating' | 'planned' | 'under_construction' | 'no_longer_listed']) : null,
+          total: k ? (st === '' ? k.status_not_published : (k[st as 'operating' | 'planned' | 'under_construction' | 'cancelled' | 'no_longer_listed'] ?? 0)) : null,
           dots: items
             .filter((i) => (i.status ?? '') === st)
             .map((i) => ({
@@ -733,6 +734,14 @@ export function roundBeat(state: { answered: boolean; asked: boolean; changing?:
   if (state.changing) return 'question'
   if (state.answered) return 'results'
   return state.asked ? 'question' : 'finding'
+}
+
+/** Scroll stop inside a challenge round (#969). `results` beat lands on the reveal stop. */
+export type RoundStop = 'finding' | 'question' | 'reveal'
+
+export function roundStop(beat: RoundBeat): RoundStop {
+  if (beat === 'results') return 'reveal'
+  return beat
 }
 
 /** Milliseconds the chart waits before it starts to draw, and how long the draw takes (the CSS animation uses the same). */

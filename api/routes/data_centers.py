@@ -280,13 +280,16 @@ async def list_job_claims(
 
 # --- Data center sites (DC-4.1, #249) -----------------------------------------
 #
-# Backed by the dbt mart ``data_center_site`` (Epoch AI, CC BY 4.0): one row per site,
-# with a status derived from Epoch's dated timeline rows and the credit on every row.
-# A site that left Epoch's list stays, as status 'no_longer_listed'. Epoch has no city
-# field, so only ``state`` narrows the list; the response says so in ``city_applied``.
+# Backed by the dbt mart ``data_center_site``: one row per site from Epoch AI or, for sites
+# Epoch doesn't list, the US Data Center Registry (#958), both CC BY 4.0, with the credit of
+# its own source on every row. A site that left its source's list stays, as status
+# 'no_longer_listed'; 'cancelled' comes only from the registry, which publishes it. Only
+# ``state`` narrows the list: Epoch rows have no city (registry rows do, but a city filter would
+# silently drop every Epoch site), and the response says so in ``city_applied``.
 
-SiteStatus = Literal["planned", "under_construction", "operating", "no_longer_listed"]
-SITE_STATUSES: tuple[str, ...] = ("planned", "under_construction", "operating", "no_longer_listed")
+SiteStatus = Literal["planned", "under_construction", "operating", "cancelled", "no_longer_listed"]
+SITE_STATUSES: tuple[str, ...] = ("planned", "under_construction", "operating", "cancelled", "no_longer_listed")
+SiteSource = Literal["epoch", "us_data_center_registry"]
 
 
 class DataCenterSite(BaseModel):
@@ -302,7 +305,8 @@ class DataCenterSite(BaseModel):
     state_code: str | None = None
     state: str | None = None
     status: SiteStatus | None = Field(
-        None, description="Derived from Epoch's dated rows; null when Epoch has none for the site."
+        None,
+        description="Epoch: derived from its dated rows. Registry: its own status, mapped. Null when the source gives none.",
     )
     last_known_status: SiteStatus | None = None
     status_as_of: date | None = None
@@ -315,6 +319,15 @@ class DataCenterSite(BaseModel):
     source_url: str
     license: str
     attribution: str
+    source: SiteSource = Field("epoch", description="Which inventory the row comes from (#958).")
+    source_status: str | None = Field(None, description="The registry's own status word; null for Epoch.")
+    operator: str | None = None
+    city: str | None = None
+    county: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    capacity_mw_planned: float | None = None
+    capacity_mw_operational: float | None = None
 
 
 class DataCenterSiteCounts(BaseModel):
@@ -323,6 +336,7 @@ class DataCenterSiteCounts(BaseModel):
     planned: int = 0
     under_construction: int = 0
     operating: int = 0
+    cancelled: int = 0
     no_longer_listed: int = 0
     status_not_published: int = 0
 
@@ -339,12 +353,14 @@ class DataCenterSitesResponse(BaseModel):
 _SITE_COLUMNS = (
     "data_center_site_id, site_name, owner, users, project, address, country, state_code, state, "
     "status, last_known_status, status_as_of, construction_note, it_power_mw, first_seen_on, "
-    "last_seen_on, is_listed, source_name, source_url, license, attribution"
+    "last_seen_on, is_listed, source_name, source_url, license, attribution, source, source_status, "
+    "operator, city, county, latitude, longitude, capacity_mw_planned, capacity_mw_operational"
 )
 
 _SITE_ORDER = (
     "CASE status WHEN 'planned' THEN 0 WHEN 'under_construction' THEN 1 "
-    "WHEN 'operating' THEN 2 WHEN 'no_longer_listed' THEN 3 ELSE 4 END, site_name"
+    "WHEN 'operating' THEN 2 WHEN 'cancelled' THEN 3 WHEN 'no_longer_listed' THEN 4 ELSE 5 END, "
+    "CASE source WHEN 'epoch' THEN 0 ELSE 1 END, site_name"
 )
 
 
@@ -384,8 +400,8 @@ async def list_data_center_sites(
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
 ) -> DataCenterSitesResponse:
     """
-    Data center sites (Epoch AI, CC BY 4.0) with status and source; sites no longer
-    listed by the source stay in the list.
+    Data center sites (Epoch AI and the US Data Center Registry, CC BY 4.0) with status and
+    source; sites no longer listed by their source stay in the list.
 
     Example:
         GET /api/data-centers/sites?state=TX
@@ -406,9 +422,10 @@ async def list_data_center_sites(
             async with pool.acquire() as conn:
                 rows = await conn.fetch(items_sql, *params)
                 count_rows = await conn.fetch(counts_sql, *counts_params)
-        except asyncpg.exceptions.UndefinedTableError as e:
+        except (asyncpg.exceptions.UndefinedTableError, asyncpg.exceptions.UndefinedColumnError) as e:
+            # Missing, or not yet rebuilt with the #958 columns (an API deployed before the table): unavailable, not 500.
             span.set_attribute("sites.relation_missing", True)
-            logger.warning("data-centers: relation 'data_center_site' isn't here yet ({}); empty list", e)
+            logger.warning("data-centers: relation 'data_center_site' isn't here yet or is out of date ({}); empty list", e)
             return DataCenterSitesResponse(scope=applied, city_applied=False, items=[])
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
@@ -695,12 +712,24 @@ class DataCenterMeetingMention(BaseModel):
     site_match_basis: Literal["named_in_passage", "nearby_site"] | None = None
 
 
+class DataCenterMeetingMentionStateCount(BaseModel):
+    """Meetings in one state where a data center came up (distinct recordings)."""
+
+    state_code: str
+    state: str | None = None
+    meetings: int
+
+
 class DataCenterMeetingMentionCounts(BaseModel):
     """Real counts for the whole scope (before ``limit``): 0 means none."""
 
     passages: int = 0
     meetings: int = 0
     site_specific: int = 0
+    by_state: list[DataCenterMeetingMentionStateCount] = Field(
+        default_factory=list,
+        description="Meetings per state across the whole country (not narrowed by state or city), largest first (#970); states with none are left out.",
+    )
 
 
 class DataCenterMeetingMentionsResponse(BaseModel):
@@ -709,17 +738,17 @@ class DataCenterMeetingMentionsResponse(BaseModel):
     items: list[DataCenterMeetingMention]
 
 
-def build_mention_queries(
-    scope: JobClaimScope, site_id: str | None, strength: str | None, limit: int
-) -> tuple[str, list[Any], str, list[Any]]:
-    """(items SQL, params, counts SQL, params). Newest meeting first, then by moment in the meeting."""
+def _mention_where(
+    state_code: str | None, city: str | None, site_id: str | None, strength: str | None
+) -> tuple[str, list[Any]]:
+    """The WHERE clause (and its bound params, $1…) shared by the mention queries."""
     where: list[str] = []
     params: list[Any] = []
-    if scope.state_code:
-        params.append(scope.state_code)
+    if state_code:
+        params.append(state_code)
         where.append(f"m.state_code = ${len(params)}")
-    if scope.city:
-        params.append(f"%{scope.city}%")
+    if city:
+        params.append(f"%{city}%")
         where.append(f"m.jurisdiction_name ILIKE ${len(params)}")
     if site_id:
         params.append(site_id)
@@ -727,7 +756,14 @@ def build_mention_queries(
     if strength:
         params.append(strength)
         where.append(f"m.match_strength = ${len(params)}")
-    where_sql = " AND ".join(where) or "TRUE"
+    return " AND ".join(where) or "TRUE", params
+
+
+def build_mention_queries(
+    scope: JobClaimScope, site_id: str | None, strength: str | None, limit: int
+) -> tuple[str, list[Any], str, list[Any]]:
+    """(items SQL, params, counts SQL, params). Newest meeting first, then by moment in the meeting."""
+    where_sql, params = _mention_where(scope.state_code, scope.city, site_id, strength)
     counts_params = list(params)
     params.append(limit)
     items_sql = (
@@ -748,6 +784,21 @@ def build_mention_queries(
         f"FROM data_center_meeting_mention m WHERE {where_sql}"
     )
     return items_sql, params, counts_sql, counts_params
+
+
+def build_mention_by_state_query(site_id: str | None, strength: str | None) -> tuple[str, list[Any]]:
+    """Distinct meetings per state across the whole country (#970), with the same site and strength filters.
+
+    Never narrowed to the requested state or city: the Overview map shades every state with its own count and highlights
+    the scope, so a state outside the scope is never shown as having no meetings when it simply wasn't counted.
+    """
+    where_sql, params = _mention_where(None, None, site_id, strength)
+    sql = (
+        "SELECT m.state_code, max(m.state) AS state, count(DISTINCT m.video_id)::int AS meetings "
+        f"FROM data_center_meeting_mention m WHERE ({where_sql}) AND m.state_code IS NOT NULL "
+        "GROUP BY m.state_code ORDER BY meetings DESC, m.state_code"
+    )
+    return sql, params
 
 
 def jump_url(video_url: str, start_seconds: float | None) -> str | None:
@@ -784,6 +835,7 @@ async def list_data_center_meeting_mentions(
     )
     site_clean = _clean(site_id)
     items_sql, params, counts_sql, counts_params = build_mention_queries(applied, site_clean, strength, limit)
+    by_state_sql, by_state_params = build_mention_by_state_query(site_clean, strength)
     with tracer.start_as_current_span("data-centers.meeting-mentions") as span:
         span.set_attribute("meeting_mentions.scope_level", applied.level)
         span.set_attribute("meeting_mentions.state_code", applied.state_code or "")
@@ -796,6 +848,7 @@ async def list_data_center_meeting_mentions(
                 with tracer.start_as_current_span("data-centers.meeting-mentions.query"):
                     rows = await conn.fetch(items_sql, *params)
                     count_rows = await conn.fetch(counts_sql, *counts_params)
+                    state_rows = await conn.fetch(by_state_sql, *by_state_params)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("meeting_mentions.relation_missing", True)
             logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)
@@ -807,6 +860,7 @@ async def list_data_center_meeting_mentions(
         counts = (
             DataCenterMeetingMentionCounts(**dict(count_rows[0])) if count_rows else DataCenterMeetingMentionCounts()
         )
+        counts.by_state = [DataCenterMeetingMentionStateCount(**dict(r)) for r in state_rows]
         items = []
         for r in rows:
             row = dict(r)

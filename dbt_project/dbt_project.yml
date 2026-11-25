@@ -25,6 +25,8 @@ on-run-start:
   - "{{ ensure_event_partitions('gold.event_organization') }}"
   # bronze tables the data center hearing marts read; empty until the loaders run (#956)
   - "{{ ensure_data_center_hearing_tables() }}"
+  # bronze tables of the open data center inventories; empty until the loader runs (#958)
+  - "{{ ensure_data_center_inventory_tables() }}"
 
 # Rebuild-proof the /search performance indexes. Per-model post_hooks declare them,
 # but some rebuild paths skip post_hooks and silently drop them, turning text-search

@@ -205,10 +205,36 @@
 }
 .stance-act {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   padding: 24px 44px 32px 16px;
   scroll-margin-top: calc(var(--hdr) + var(--top-h));
   border-bottom: 1px solid var(--rule);
+}
+.stance-stop {
+  min-height: calc(100svh - var(--hdr, 0px) - var(--top-h, 96px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 0 24px;
+  scroll-margin-top: calc(var(--hdr) + var(--top-h));
+}
+.stance-answers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(100%, 28rem);
+  margin-top: 1.5rem;
+}
+.stance-answers-stack .folio-btn {
+  min-height: 52px;
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  font-size: 16px;
+  font-weight: 600;
 }
 .stance-game[data-mode='pinned'] .stance-act {
   height: calc(100svh - var(--hdr) - var(--top-h));
@@ -1990,6 +2016,24 @@ html.stance-snap {
 .stance-game[data-mode='snap'] .stance-keys {
   display: none;
 }
+/* Challenge (#969): tall acts with finding / question / reveal stops snap per stop, not per act. */
+.stance-game[data-mode='snap'][data-beats] .stance-act {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  scroll-snap-align: none;
+  scroll-snap-stop: normal;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-stop {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-grid,
+.stance-game[data-mode='snap'][data-beats] .stance-end-body {
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
+}
 
 @media (prefers-reduced-motion: no-preference) {
   /* Wide screens: the headline's words are scrubbed by the scroll (--title runs 0 to 1 on the screen's timeline). */
@@ -2522,4 +2566,81 @@ html.stance-snap {
   .stance-video-backdrop {
     transition: none;
   }
+
+/* Overview dot map (#970): the country in dots, each state shaded by its real meeting count. */
+.stance-map {
+  margin: 0 0 16px;
+}
+.stance-map-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.stance-map-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+}
+.stance-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.stance-map-readout {
+  min-height: 1.4em;
+  margin: 4px 0 6px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.stance-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+}
+.stance-map-ramp {
+  display: inline-flex;
+}
+.stance-map-ramp span,
+.stance-map-none span {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+}
+.stance-map-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.stance-map-table {
+  margin-top: 8px;
+  font-size: 14px;
+}
+.stance-map-table summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.stance-map-table table {
+  margin-top: 6px;
+  border-collapse: collapse;
+}
+.stance-map-table th,
+.stance-map-table td {
+  padding: 2px 16px 2px 0;
+  text-align: left;
+}
+.stance-map-table td:last-child,
+.stance-map-table th:last-child {
+  text-align: right;
 }

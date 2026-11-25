@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
-import type { DataCenterPositionsResponse } from '../../api/dataCenters'
+import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
 import PositionsBlock from './PositionsBlock'
 import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
+import StoryDotMap from './StoryDotMap'
 
 interface Props {
   screen: StoryScreen
@@ -63,6 +64,9 @@ export default function StoryScreenView(p: Props) {
   )
 
   const stats = screen.kind === 'overview' ? storyStats(p.data, scope) : []
+  // The Overview map (#970) needs the per-state counts; an older API without them keeps the dot chart.
+  const mentions = p.data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined
+  const byState = mentions?.counts?.by_state
 
   return (
     <section
@@ -113,7 +117,16 @@ export default function StoryScreenView(p: Props) {
           ) : screen.kind === 'overview' ? (
             stats.length > 0 ? (
               <>
-                {stats.some((s) => s.key === 'meetings') && (
+                {stats.some((s) => s.key === 'meetings') && byState ? (
+                  <StoryDotMap
+                    byState={byState}
+                    scopeStateCode={scope.stateCode ?? null}
+                    scopeCity={scope.city ?? null}
+                    scopeLabel={storyScopeLabel(scope)}
+                    onPickState={(code) => p.onBroaden(code, null)}
+                    labelledBy={`story-h-${screen.id}`}
+                  />
+                ) : stats.some((s) => s.key === 'meetings') && (
                   <ChartPanel
                     chartKey="meeting-mentions"
                     view="meetings"

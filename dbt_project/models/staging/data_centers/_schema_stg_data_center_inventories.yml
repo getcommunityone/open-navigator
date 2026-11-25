@@ -1,0 +1,57 @@
+version: 2
+
+# #958: the open (CC BY 4.0) data center inventories, typed. Terms:
+# web_docs/docs/development/data-center-source-review.md
+
+models:
+  - name: stg_data_center_facility_registry
+    description: >
+      US Data Center Registry records (SueDataCenters.org, base data from Compute Atlas), one
+      row per registry id, typed with guarded casts. Registry records, credited as such: the
+      registry gives a source count per record but no primary source URL.
+    columns:
+      - name: registry_id
+        description: "The registry's id. Primary key."
+        tests: [unique, not_null]
+      - name: facility_type
+        description: "data_center or crypto_mining."
+        tests:
+          - accepted_values:
+              values: ['data_center', 'crypto_mining']
+              config:
+                severity: warn
+      - name: registry_status
+        description: "operational, under_construction, proposed, permitted or cancelled (lower-cased)."
+        tests:
+          - accepted_values:
+              values: ['operational', 'under_construction', 'proposed', 'permitted', 'cancelled']
+              config:
+                severity: warn
+      - name: state_code
+        description: "2-letter state code."
+      - name: profile_url
+        description: "The record's page on the registry."
+      - name: is_listed
+        description: "The newest load still lists the record."
+
+  - name: stg_data_center_public_record
+    description: >
+      Public Evidence Project records, one row per record id, each with its government
+      source_url. facility_id is the project's own facility id (not a registry id).
+    columns:
+      - name: public_record_id
+        description: "The project's record id. Primary key."
+        tests: [unique, not_null]
+      - name: source_url
+        description: "The government document the record rests on."
+        tests: [not_null]
+
+  - name: stg_data_center_state_count
+    description: >
+      State data center figures from github.com/greencalculus/us-data-centers-by-state, one row
+      per figure. Each figure belongs to its original publisher (Pew Research Center, Data
+      Center Map, …), several of whom limit republishing, so this is not served.
+    columns:
+      - name: state_count_id
+        description: "The repo's figure id. Primary key."
+        tests: [unique, not_null]

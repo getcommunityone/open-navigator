@@ -242,7 +242,8 @@ def load_candidates(cur: Any, exclude_jurisdictions: Iterable[str], limit: int) 
                    max(CASE WHEN platform = 'granicus' THEN split_part(split_part(url, '//', 2), '.', 1) END) AS granicus_slug
             FROM {SURVEY_TABLE} GROUP BY jurisdiction_id
         ),
-        dc_states AS (SELECT DISTINCT state_code FROM public.data_center_site WHERE state_code IS NOT NULL)
+        -- Epoch AI sites only, as before the registry import (#958); widening the crawl is #979.
+        dc_states AS (SELECT DISTINCT state_code FROM public.data_center_site WHERE state_code IS NOT NULL AND source = 'epoch')
         SELECT j.jurisdiction_id, j.geoid, j.name, j.jurisdiction_type, j.state_code, j.state_name AS state,
                s.jurisdiction_id IS NOT NULL AS surveyed, coalesce(s.dc, false) AS dc, s.granicus_slug,
                j.population

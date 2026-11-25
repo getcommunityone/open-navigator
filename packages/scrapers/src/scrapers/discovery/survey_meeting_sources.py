@@ -272,7 +272,9 @@ class PgWarehouse:
     def data_center_sites(self) -> list[dict[str, Any]]:
         return self._all(
             "SELECT data_center_site_id, site_name, address, state_code, state "
-            "FROM public.data_center_site WHERE state_code IS NOT NULL ORDER BY data_center_site_id"
+            # Epoch AI sites only: registry sites (#958) have no street address to find the town from; widening is #979.
+            "FROM public.data_center_site WHERE state_code IS NOT NULL AND source = 'epoch' "
+            "ORDER BY data_center_site_id"
         )
 
     def places(self, state_code: str) -> list[dict[str, Any]]:

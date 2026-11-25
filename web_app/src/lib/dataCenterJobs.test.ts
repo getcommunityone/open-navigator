@@ -13,6 +13,8 @@ import {
   placeScope,
   siteStatusLabel,
   verifiedLabel,
+  siteSourcesText,
+  siteTotal,
 } from './dataCenterJobs'
 
 describe('formatHeadcount', () => {
@@ -115,5 +117,23 @@ describe('community events and project figures (#532)', () => {
     expect(figureLabel('investment_usd', 3_200_000_000, 'usd')).toBe('$3.2 billion investment')
     expect(figureLabel('it_mw', 210, 'mw')).toBe('210 MW IT load')
     expect(figureLabel('square_feet', 1_260_000, 'sq_ft')).toBe('1,260,000 sq ft')
+  })
+})
+
+describe('sites from two inventories (#958)', () => {
+  it('labels a cancelled site as the source says so', () => {
+    expect(siteStatusLabel('cancelled', 'cancelled', null)).toBe('Cancelled (per the source)')
+  })
+  it('names only the sources the listed sites come from', () => {
+    expect(siteSourcesText([{ source: 'epoch' }, {}])).toBe('Epoch AI')
+    expect(siteSourcesText([{ source: 'us_data_center_registry' }])).toBe('the US Data Center Registry')
+    expect(siteSourcesText([{ source: 'epoch' }, { source: 'us_data_center_registry' }])).toBe('Epoch AI and the US Data Center Registry')
+    expect(siteSourcesText([])).toBeNull()
+  })
+  it('counts every status once, cancelled included, and treats a missing cancelled count as zero', () => {
+    const k = { planned: 2, under_construction: 3, operating: 5, no_longer_listed: 1, status_not_published: 0 }
+    expect(siteTotal(k)).toBe(11)
+    expect(siteTotal({ ...k, cancelled: 4 })).toBe(15)
+    expect(siteTotal(null)).toBe(0)
   })
 })

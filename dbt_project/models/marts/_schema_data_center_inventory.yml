@@ -1,0 +1,165 @@
+version: 2
+
+# #958: the open data center inventories. Built into gold (not served yet).
+
+models:
+  - name: data_center_site_source
+    description: >
+      Every source record behind each data_center_site, one row per (site, source record). An
+      Epoch site the US Data Center Registry also lists (equal names in the state, one-to-one)
+      has a row for each, so both credits and both record URLs are kept.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'data_centers']
+      indexes:
+        - columns: ["data_center_site_id"]
+          type: btree
+    constraints:
+      - type: foreign_key
+        columns: [data_center_site_id]
+        to: ref('data_center_site')
+        to_columns: [data_center_site_id]
+    columns:
+      - name: data_center_site_source_id
+        description: "Primary key: md5(source | source_record_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: data_center_site_id
+        description: "FK -> data_center_site."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('data_center_site')
+              field: data_center_site_id
+      - name: source
+        description: "epoch or us_data_center_registry."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['epoch', 'us_data_center_registry']
+      - name: source_record_id
+        description: "The record's id in its source (Epoch: the site name; registry: its id)."
+        data_type: text
+      - name: source_record_name
+        description: "The site's name as that source gives it."
+        data_type: text
+      - name: source_url
+        description: "The record's page (registry) or the dataset page (Epoch)."
+        data_type: text
+      - name: match_basis
+        description: "epoch_same_name (a registry record joined an Epoch site) or own_site."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['epoch_same_name', 'own_site']
+      - name: license
+        description: "CC BY 4.0."
+        data_type: text
+      - name: attribution
+        description: "The credit the source asks for."
+        data_type: text
+
+  - name: data_center_public_record
+    description: >
+      Public Evidence Project records about data centers (permits, dockets, filings, incentives,
+      moratoriums), one row per record, each with the government document it rests on
+      (source_url), its page on publicevidence.org (record_url) and the CC BY 4.0 credit.
+      facility_id is the project's own facility id; it shares no id with Epoch or the registry, so
+      records are not linked to data_center_site.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'data_centers']
+      indexes:
+        - columns: ["state_code"]
+          type: btree
+    columns:
+      - name: data_center_public_record_id
+        description: "Primary key: the Public Evidence Project's record id."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: facility_id
+        description: "The Public Evidence Project's own facility id, if any (not a registry or Epoch id)."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: locality
+        description: "The place, as the project gives it (a city, a county, 'Statewide', a utility territory)."
+        data_type: text
+      - name: category
+        description: "filings, permits, utility, incentive, legislation or moratorium (as published)."
+        data_type: text
+      - name: category_label
+        description: "The project's label for the record's kind (e.g. 'Utility docket')."
+        data_type: text
+      - name: title
+        description: "The record's title, as published."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: record_status
+        description: "The record's status, as published (e.g. 'Open docket', 'No Violation Identified')."
+        data_type: text
+      - name: record_date_text
+        description: "The record's date, as published (free text)."
+        data_type: text
+      - name: summary
+        description: "The project's summary of the record (its own words)."
+        data_type: text
+      - name: boundary
+        description: "What the record is not (the project's own caution)."
+        data_type: text
+      - name: source_label
+        description: "The government source, as named (e.g. 'South Carolina Public Service Commission')."
+        data_type: text
+      - name: source_publisher
+        description: "The source's publisher, when given."
+        data_type: text
+      - name: source_url
+        description: "The government document the record rests on."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests: [not_null]
+      - name: verified_on_text
+        description: "When the project last checked the record, as published."
+        data_type: text
+      - name: latitude
+        description: "Latitude, when given."
+        data_type: double precision
+      - name: longitude
+        description: "Longitude, when given."
+        data_type: double precision
+      - name: record_url
+        description: "The record's page on publicevidence.org."
+        data_type: text
+      - name: source_name
+        description: "Always 'Public Evidence Project'."
+        data_type: text
+      - name: license
+        description: "Always 'CC BY 4.0'."
+        data_type: text
+      - name: attribution
+        description: "The credit the project asks for (it and Compute Atlas upstream)."
+        data_type: text
+      - name: last_seen_on
+        description: "The last load that listed the record."
+        data_type: date

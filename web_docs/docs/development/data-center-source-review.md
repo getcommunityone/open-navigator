@@ -65,9 +65,16 @@ The citations, with BibTeX, are in [Data and citations](../data-sources/citation
   [Upcoming data center hearings](./data-center-hearings.md#tracker-leads-25-nov-2026). The PA tracker's CSV downloads
   list ordinances, not meetings, and its meeting list is a web page its terms ask us not to crawl, so it feeds no
   leads. Its ordinance data could feed an ordinance view later.
-- **Imports (#958), planned:** Public Evidence Project and the US Data Center Registry are to be imported (bronze, then
-  staging), with their attribution, and linked to existing `data_center_site` rows only where name and place agree, never
-  merged on a guess. The greencalculus repo would land as state aggregates.
+- **Imports (#958), done**, through `python -m ingestion.data_centers.facility_inventories` (one request per file):
+  - **US Data Center Registry:** its data centers are in `data_center_site`, credited row by row. One joins an Epoch
+    site only on an equal name in the same state, one-to-one (see [Data center sites](./data-center-sites.md)).
+  - **Public Evidence Project:** 253 records in `data_center_public_record` (gold), each with its government
+    `source_url`.
+
+    Its `facility_id` is the project's own id, not a registry or Epoch id. So records are **not** linked to sites: a
+    name match would be a guess.
+  - **greencalculus:** 128 state figures land in `stg_data_center_state_count` and are **not served**. Each figure
+    belongs to its original publisher (Pew Research Center, Data Center Map), and their terms limit republishing.
 - **Ask first:** NC GovWatch, Data Centers Atlas, GridWatch and ITAMG get a permission request from the owner before
   any use. Record the answer here.
 - **Re-check** a source's terms before changing how we use it. Terms change, and these were read on 25 Nov 2026.

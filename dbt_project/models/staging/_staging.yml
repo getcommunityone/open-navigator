@@ -1818,6 +1818,48 @@ sources:
             description: "The site's Name column, trimmed."
           - name: record
             description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_facility_registry
+        config:
+          loaded_at_field: last_seen_at
+          freshness:
+            warn_after: {count: 14, period: day}
+        description: >
+          US Data Center Registry records (#958), one row per registry id, as published (CSV
+          row header -> value), landed by
+          `python -m ingestion.data_centers.facility_inventories --source registry`.
+          first_seen_at is kept; last_seen_at moves to each load that lists the record.
+        columns:
+          - name: record_id
+            description: "The registry's id; primary key."
+          - name: record
+            description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_facility_public_evidence
+        config:
+          loaded_at_field: last_seen_at
+          freshness:
+            warn_after: {count: 14, period: day}
+        description: >
+          Public Evidence Project records (#958), one row per record id, as published, landed by
+          `python -m ingestion.data_centers.facility_inventories --source public_evidence`.
+        columns:
+          - name: record_id
+            description: "The project's record id; primary key."
+          - name: record
+            description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_state_count_greencalculus
+        config:
+          loaded_at_field: last_seen_at
+          freshness:
+            warn_after: {count: 30, period: day}
+        description: >
+          State data center figures from github.com/greencalculus/us-data-centers-by-state (#958),
+          one row per figure id, landed by
+          `python -m ingestion.data_centers.facility_inventories --source greencalculus`. Not served.
+        columns:
+          - name: record_id
+            description: "The repo's figure id; primary key."
+          - name: record
+            description: "The whole CSV row, header -> value."
       - name: bronze_epoch_data_center_timelines
         description: >
           Epoch AI "AI data center timelines" CSV rows (CC BY 4.0): dated construction status and
