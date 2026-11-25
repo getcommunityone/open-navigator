@@ -411,6 +411,7 @@ export function useActs(opts: Options): ActsApi {
     gsap.ticker.lagSmoothing(0)
 
     const triggers: Array<ScrollTrigger | undefined> = []
+    let primeId = 0
     const hasCover = Boolean(cover)
     // The screens the timeline does not pin (the cover and the end screen) get their entrance and exit from their state.
     const loose = [cover, withEnd ? acts[count]! : null].filter((e): e is HTMLElement => e != null)
@@ -534,6 +535,10 @@ export function useActs(opts: Options): ActsApi {
       })
 
       const rail = game
+      // The trigger reports once as it is created, from positions measured before the pinned page has its full height; that
+      // report often names the last screen, which wrote `?screen=verdict` (#999). Screens count from the next frame on.
+      let primed = false
+      primeId = requestAnimationFrame(() => (primeId = requestAnimationFrame(() => (primed = true))))
       const master = ScrollTrigger.create({
         start: 0,
         end: 'max',
@@ -553,7 +558,7 @@ export function useActs(opts: Options): ActsApi {
           }
           // A refresh measures with the page scrolled to the top, then puts it back: that pass is not the reader's position, and
           // taking it would make a deep-linked screen give way to the first one (#997).
-          if (!(ScrollTrigger as unknown as { isRefreshing?: boolean }).isRefreshing) o.current.onActive(best)
+          if (primed && !(ScrollTrigger as unknown as { isRefreshing?: boolean }).isRefreshing) o.current.onActive(best)
           paintStates(game, loose)
         },
       })
@@ -570,6 +575,7 @@ export function useActs(opts: Options): ActsApi {
     window.addEventListener('orientationchange', onResize)
 
     return () => {
+      cancelAnimationFrame(primeId)
       window.clearTimeout(snapTimer)
       window.clearTimeout(progTimer)
       clearStates(loose)

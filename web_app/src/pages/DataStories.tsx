@@ -9,7 +9,7 @@ import PositionsBlock from '../components/stance/PositionsBlock'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import StatRow from '../components/stance/StatRow'
 import { useStoryData } from '../components/stance/useStoryData'
-import { useStoryConclusion } from '../components/stance/useStoryConclusion'
+import { useStoryConclusionState } from '../components/stance/useStoryConclusion'
 import { useIdleNudge } from '../hooks/useIdleNudge'
 import { STATE_CODES } from '../lib/usStates'
 import {
@@ -48,7 +48,7 @@ export default function DataStories() {
   const [placeOpen, setPlaceOpen] = useState(false)
   const [topic, setTopic] = useState('data-centers')
   const { data, status, refetch } = useStoryData(stateCode, city, HUB_CHARTS)
-  const conclusion = useStoryConclusion('data-centers')
+  const { conclusion, pending } = useStoryConclusionState('data-centers')
   const rootRef = useRef<HTMLDivElement>(null)
   // A reader who has stopped gets a calm cue on Start (or on the floating bar when Start has scrolled away).
   useIdleNudge({ rootRef })
@@ -143,7 +143,7 @@ export default function DataStories() {
         <li>
           <article className="stories-card" aria-labelledby="story-card-data-centers">
             {/* #989: the story's conclusion leads, while the national record backs it; else the neutral hook. */}
-            <h2 className="stories-card-title" id="story-card-data-centers">
+            <h2 className="stories-card-title" id="story-card-data-centers" aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
               {conclusion ? conclusion.headline : 'Power, water, and land bring people to the microphone'}
             </h2>
             {conclusion ? (

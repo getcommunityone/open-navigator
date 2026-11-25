@@ -9,6 +9,14 @@ import { speakerCounts } from '../../utils/stanceGame'
  * record doesn't back it, or for a story without one.
  */
 export function useStoryConclusion(storyId: string) {
+  return useStoryConclusionState(storyId).conclusion
+}
+
+/**
+ * The conclusion and whether the record behind it is still loading, so a page can hold the headline's place instead of
+ * flashing the story's question first and then swapping it for the conclusion (#999).
+ */
+export function useStoryConclusionState(storyId: string) {
   const story = STORIES[storyId]
   const q = useQuery({
     queryKey: ['story-conclusion', 'positions', 'national'],
@@ -17,5 +25,8 @@ export function useStoryConclusion(storyId: string) {
     staleTime: 5 * 60_000,
     retry: 1,
   })
-  return story ? storyConclusion(story, speakerCounts(q.data)) : null
+  return {
+    conclusion: story ? storyConclusion(story, speakerCounts(q.data)) : null,
+    pending: Boolean(story?.conclusion) && q.isPending,
+  }
 }

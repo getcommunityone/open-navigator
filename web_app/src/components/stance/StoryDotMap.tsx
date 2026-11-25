@@ -4,6 +4,19 @@ import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, to
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
+import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
+
+/** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
+export interface MapPassage {
+  state_code?: string | null
+  jurisdiction_name?: string | null
+  meeting_date?: string | null
+  meeting_title?: string | null
+  /** Verbatim excerpt; matched words in <mark>. */
+  evidence?: string | null
+  jump_url?: string | null
+  video_url?: string | null
+}
 
 export interface StateCount {
   state_code: string
@@ -23,9 +36,17 @@ interface Props {
   /** Narrow the story to a state, or broaden it to the whole country (null). */
   onPickState: (stateCode: string | null) => void
   labelledBy?: string
+  /** The scope's meeting passages, newest first (meeting-mentions `items`). The newest is quoted on the map until the reader
+   *  hovers a state, which then quotes that state's newest, where the scope has one (#999). */
+  passages?: MapPassage[] | null
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
+const fmtDate = (d?: string | null) => {
+  if (!d) return null
+  const t = new Date(`${d.slice(0, 10)}T12:00:00`)
+  return Number.isNaN(t.getTime()) ? null : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 
 
 /**
@@ -35,8 +56,10 @@ const fmt = (n: number) => n.toLocaleString('en-US')
  * Clicking or choosing a state narrows the whole story to it (the scope in the URL); from a city, clicking its state broadens
  * to the state, and United States broadens to the country.
  */
-export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null, scopeLabel, onPickState, labelledBy }: Props) {
+export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null, scopeLabel, onPickState, labelledBy, passages }: Props) {
   const [hover, setHover] = useState<string | null>(null)
+  const [cardOpen, setCardOpen] = useState(true)
+  const quoted = useMemo(() => (passages ?? []).filter((m) => m.evidence), [passages])
   const { data: topo, isError } = useQuery({
     queryKey: ['us-atlas-states-albers'],
     queryFn: () => fetchTopo(STATES_ALBERS_TOPO),
@@ -78,6 +101,9 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     )
   }
 
+  const hoverCode = hover ? codeOf(hover) : null
+  const passage = (hoverCode ? quoted.find((m) => m.state_code === hoverCode) : undefined) ?? quoted[0]
+
   const listed = [...(byState ?? [])].sort((a, b) => b.meetings - a.meetings || a.state_code.localeCompare(b.state_code))
   const r = grid.step * 0.38
   const pad = 4
@@ -114,6 +140,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           </select>
         </span>
       </figcaption>
+      <div className="stance-map-stage">
       <svg
         viewBox={vb}
         className="stance-map-svg"
@@ -145,6 +172,25 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           )
         })}
       </svg>
+      {cardOpen && passage && (
+        // Over the lower left of the map (the Pacific, beside Alaska and Hawaii), so it covers the fewest states.
+        <figure className="stance-map-card">
+          <button type="button" className="stance-map-card-x" aria-label="Hide the meeting quote" onClick={() => setCardOpen(false)}>
+            ×
+          </button>
+          <figcaption className="stance-map-card-place">{[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}</figcaption>
+          <blockquote>“{highlightSnippet(excerptAroundMark(passage.evidence ?? ''))}”</blockquote>
+          <p className="stance-map-card-meta">
+            {fmtDate(passage.meeting_date) && <span>{fmtDate(passage.meeting_date)}</span>}
+            {(passage.jump_url ?? passage.video_url) && (
+              <a href={(passage.jump_url ?? passage.video_url)!} target="_blank" rel="noopener noreferrer">
+                Hear it ↗
+              </a>
+            )}
+          </p>
+        </figure>
+      )}
+      </div>
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the select and the table. */}
       <p className="stance-map-readout">
         {hover ? readout(hover) : 'Hover a state, or choose one, to see its count. Click a state to tell its story.'}
