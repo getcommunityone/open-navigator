@@ -111,6 +111,15 @@ def validate_pack(pack: dict[str, Any], source: str = "pack") -> dict[str, Any]:
             raise PackError(f"{source}: duplicate order {st['order']}")
         seen_ids.add(st["statement_id"])
         seen_orders.add(st["order"])
+        # #981: where the Data Story asks the statement, and what agreeing lines up with among meeting speakers.
+        screen = st.get("story_screen")
+        if screen is not None and (not isinstance(screen, str) or not screen):
+            raise PackError(f"{source}: statement {st['statement_id']} 'story_screen' must be a screen id")
+        if st.get("speaker_lean") not in (None, "for", "against"):
+            raise PackError(f"{source}: statement {st['statement_id']} 'speaker_lean' must be 'for', 'against' or null")
+    screens = [st["story_screen"] for st in statements if st.get("story_screen")]
+    if len(screens) != len(set(screens)):
+        raise PackError(f"{source}: two statements share a story_screen")
     pack["statements"] = sorted(statements, key=lambda s: s["order"])
     if pack.get("question") is not None:
         _validate_question(pack["question"], source)

@@ -568,5 +568,3 @@ export function scopeQuery(scope: Pick<StoryScope, 'stateCode' | 'city'>): strin
   return s ? `?${s}` : ''
 }
 
-export const challengePath = (packId: string, scope: Pick<StoryScope, 'stateCode' | 'city'>) =>
-  `/challenge/${encodeURIComponent(packId)}${scopeQuery(scope)}`

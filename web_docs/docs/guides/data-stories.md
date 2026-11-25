@@ -5,7 +5,7 @@ description: What the data stories hub and the Data Center Story are, who spoke 
 
 # Data stories
 
-A data story opens on an **overview of the record**, shows what public meetings said one screen at a time, and only then asks its topic question so you can agree or disagree and see how other readers answered. Each screen of the record has a bold sentence computed from the data, one line of context, and a chart where every dot is a record you can open. The story ends by handing you to a challenge on the same topic, the [Data Center Challenge](data-center-challenge.md) for data centers. The hub never leads with the question (#950).
+A data story opens on an **overview of the record**, shows what public meetings said one screen at a time, and only then asks its topic question so you can agree or disagree and see how other readers answered. Each screen of the record has a bold sentence computed from the data, one line of context, and a chart where every dot is a record you can open. Along the way, each contested screen asks the statement its record is about (Agree / Disagree / Not sure) and shows **where you sit** once you answer ([#981](https://github.com/getcommunityone/open-navigator/issues/981)); there is no separate challenge any more. The hub never leads with the question (#950).
 
 The **Data Stories** item in the header scrolls to the Data stories section of the home page (`/#data-stories`), which shows the story's real counts and opens the story, the challenge and the full hub at `/stories` ([#975](https://github.com/getcommunityone/open-navigator/issues/975)). The first story is the Data Center Story at `/stories/data-centers`.
 
@@ -19,7 +19,7 @@ The hub is headed by a short sentence, "What people are saying about [topic] in 
 
 ## The hub
 
-The hub is one card per topic. Today there is one story (data centers), already named in the page sentence so the card does **not** repeat the topic as a second title. The page sentence stays within two lines. When the place blank is **the United States**, there is no **Showing: National** line and the counts row is not labelled National (#959 / #962); a city or state still gets a Showing line with broaden controls. The card opens with a care-first hook about power, water and land, a lede that invites **Start the story**, then a compact row of counts (small enough that the first viewport reaches Start): meetings where a data center came up, meeting passages quoted, agendas that name a data center, sites on record, projects on record and jobs claims. Every count is the endpoint's own whole-scope total. A count that is missing or zero is left out. Under a city, a count the source cannot narrow to a city (sites) is labelled with its own, wider place ("data center sites on record in Alabama") and the note under the row says which counts are city-level and which are state-level; the story's opener does the same. **Who spoke for and against** appears on the hub only when that table is loaded with figures — the empty "not loaded yet" line is never shown here (it still appears inside the story). Below the data, the main button is **Start the story**, with a subtle pulse (disabled under reduced motion); **Take the challenge** is the quieter link beside it. The agree/disagree question is not on this card — it comes after the story's context, and in the Challenge. If the data cannot be loaded the card says so and offers **Try again**; the two links still work. If nothing is on record for the place it says "No data available for this place."
+The hub is one card per topic. Today there is one story (data centers), already named in the page sentence so the card does **not** repeat the topic as a second title. The page sentence stays within two lines. When the place blank is **the United States**, there is no **Showing: National** line and the counts row is not labelled National (#959 / #962); a city or state still gets a Showing line with broaden controls. The card opens with a care-first hook about power, water and land, a lede that invites **Start the story**, then a compact row of counts (small enough that the first viewport reaches Start): meetings where a data center came up, meeting passages quoted, agendas that name a data center, sites on record, projects on record and jobs claims. Every count is the endpoint's own whole-scope total. A count that is missing or zero is left out. Under a city, a count the source cannot narrow to a city (sites) is labelled with its own, wider place ("data center sites on record in Alabama") and the note under the row says which counts are city-level and which are state-level; the story's opener does the same. **Who spoke for and against** appears on the hub only when that table is loaded with figures — the empty "not loaded yet" line is never shown here (it still appears inside the story). Below the data, the main button is **Start the story**, with a subtle pulse (disabled under reduced motion). The agree/disagree statements are not on this card — they come inside the story, after each screen's record. If the data cannot be loaded the card says so and offers **Try again**; the button still works. If nothing is on record for the place it says "No data available for this place."
 
 ### Who spoke up
 
@@ -65,6 +65,16 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
+### Statements along the way (#981)
+
+The contested screens (Sites, Proposals, Promises, Concerns, Meetings, Agendas, Gatherings) each ask, under the headline, the statement their record is about, with **Agree**, **Disagree** and **Not sure**. A screen with no record for the place asks nothing. Answers are saved as before (`/api/stance/responses`, anonymous player id), and you can change one.
+
+After you answer, **Where you sit** shows:
+- **Readers:** one bar from Agree to Disagree with a **You** marker, for the most specific place that has reached the minimum sample (your community, then your state, then the country). Below it, the page says how many have answered and how many are needed, and shows no split.
+- **Speakers at meetings:** shown only where agreeing clearly lines up with one side (for example "The jobs a data center brings are worth what it asks"). One bar from **Spoke for** through **asked a question or took no side** to **Spoke against**, from the real speaker counts for the place, with **You** on the side your answer lines up with, and the same in a sentence. Statements that don't lean (such as "Local officials discuss data centers enough") show no speaker bar, because mapping that answer onto speakers for or against data centers would be invented.
+
+The separate Data Center Challenge is retired: `/challenge/data-centers` (and `/play`) open the story, keeping the place.
+
 An old link to `?screen=turn` opens the last screen. An old link to `?screen=question` opens **Overview**.
 
 ### The question, after the record
@@ -73,7 +83,7 @@ The story does **not** open on its question. After the overview and the rest of 
 
 A **Where?** screen sits after Who spoke up so you can narrow the place before the chart screens. The place picker also stays in the top sentence. **Next** from Where continues through the record.
 
-After you answer on the last screen it says whether your answer changed when a prior answer is on record ("You said No before. Now you say Pause for now.", "You said Yes both times.", or that you had no earlier answer). Then it shows how readers of the story answered for the country, your state and your community, as stacked bars: Yes in teal, No in amber, Pause for now in a neutral ink tone, each with its count and percentage written out and your own answer marked. Then it offers the Data Center Challenge.
+After you answer on the last screen it says whether your answer changed when a prior answer is on record ("You said No before. Now you say Pause for now.", "You said Yes both times.", or that you had no earlier answer). Then it shows how readers of the story answered for the country, your state and your community, as stacked bars: Yes in teal, No in amber, Pause for now in a neutral ink tone, each with its count and percentage written out and your own answer marked. Then it offers **See every data center record**.
 
 - Answers are stored once per reader for the question (an optional earlier "before" if one exists, and "after" on the closing screen). Picking another answer replaces the stored one.
 - An answer is stored with the place showing when you give it. Broadening back to the country changes nothing stored.
@@ -104,7 +114,7 @@ The story's motion is calm: rises, fades and a steady filled button, with no bou
 
 A strip of segments along the lower edge of the top bar has one segment per screen. The one in view fills, the ones behind it stay filled, and the words beside it say what is left ("Seven to go", "One to go", "Last one").
 
-Every screen has one primary action: the three answers on the question and the last screen (then **Take the Data Center Challenge** once you have answered), and **Next →** everywhere else. When that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, full width on a phone, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
+Every screen has one primary action: the three answers on the question and the last screen (then **See every data center record** once you have answered), and **Next →** everywhere else. When that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, full width on a phone, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
 
 ### Moving between screens
 
@@ -144,7 +154,7 @@ There are two kinds of dot chart, and the caption says which:
 1. Add the screens to `web_app/src/utils/dataStory.ts` (a list like `DATA_CENTER_STORY`: an `id`, a short word, the dataset key and the kind; start with a `question` and a `scope` screen and end with a `verdict` screen) and a function per record screen that returns its headline and context from the endpoint's response. Add them to `screenText` and cover them in `dataStory.test.ts`, including the empty and failed cases and the banned wording.
 2. If the story needs a dataset the charts do not have yet, add it to `chartSpec` in `web_app/src/utils/stanceGame.ts` and to `fetchChartData` in `web_app/src/api/stance.ts`, with its test.
 3. Register the story in `STORIES` in `web_app/src/pages/DataStory.tsx` and add its card to the hub in `web_app/src/pages/DataStories.tsx`.
-4. Add the pack, with the story's `question`, as described in [Data Center Challenge](data-center-challenge.md).
+4. Add the pack (`api/stance_packs/<pack>.json`) with the story's `question` and its statements. Give each statement the story screen that asks it (`story_screen`) and, only when agreeing clearly lines up with one side of the meeting speakers, `speaker_lean` (`for` / `against`); see [Story statements and where you sit](../development/story-statements-where-you-sit.md).
 5. Update this page.
 
 ## Moving to the next screen

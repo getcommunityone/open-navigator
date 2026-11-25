@@ -12,6 +12,7 @@ import ScopeBar from '../components/stance/ScopeBar'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
+import { useStoryStatements } from '../components/stance/useStoryStatements'
 import { QuestionScreen, ScopeScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
 import { actsMode, useActs, type Hold } from '../components/stance/useActs'
 import { useRecentWrites } from '../components/stance/useRecentWrites'
@@ -23,7 +24,6 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { STATE_CODES } from '../lib/usStates'
 import {
   DATA_CENTER_STORY,
-  challengePath,
   screenText,
   scopeQuery,
   stopLabel,
@@ -82,6 +82,8 @@ export default function DataStory() {
   const packId = story?.pack ?? ''
   const packQ = useQuery({ queryKey: ['stance', 'pack', packId], queryFn: () => fetchStancePack(packId), enabled: Boolean(story), retry: 1 })
   const question = packQ.data?.question ?? null
+  // The statements each contested screen asks (#981), and the reader's answers to them.
+  const statements = useStoryStatements(packQ.data, playerId, stateCode, city)
   const choiceKey = useMemo(() => ['stance', 'choices', packId, stateCode ?? '', city ?? '', playerId], [packId, stateCode, city, playerId])
   const choiceQ = useQuery({
     queryKey: choiceKey,
@@ -363,7 +365,6 @@ export default function DataStory() {
 
   const label = storyScopeLabel(scope)
   const links = {
-    challenge: challengePath(story.pack, scope),
     dataCenters: `/data-centers${scopeQuery(scope)}`,
     decisions: `/browse-topics${scopeQuery(scope)}`,
   }
@@ -460,7 +461,6 @@ export default function DataStory() {
                   resultsFailed={choiceQ.isError}
                   fresh={fresh}
                   links={links}
-                  statementCount={packQ.data?.statements.length ?? null}
                 />
               )
             }
@@ -472,6 +472,7 @@ export default function DataStory() {
                 status={status}
                 onBroaden={applyPlace}
                 onRetry={() => s.chart && refetch(s.chart)}
+                stance={statements.get(s.id)}
               />
             )
           })}

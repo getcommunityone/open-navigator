@@ -23,6 +23,10 @@ export interface StanceStatement {
   category: string
   statement: string
   chart: ChartKey | string
+  /** The Data Story screen that asks this statement (#981), e.g. `jobs`; absent when the story doesn't ask it. */
+  story_screen?: string | null
+  /** What agreeing lines up with among meeting speakers (#981); null when it lines up with neither side. */
+  speaker_lean?: 'for' | 'against' | null
 }
 
 /** The one question a story asks before and after the record (#915). Absent on a pack without one. */

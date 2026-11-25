@@ -1,11 +1,15 @@
 ---
-title: Data Center Challenge
+title: Data Center Challenge (retired)
 description: How to play the Data Center Challenge, what the reveal means and does not mean, the minimum sample rule, privacy, keyboard keys, the sources and limits of each chart, and how to add a topic pack.
 ---
 
 # Data Center Challenge
 
-The challenge (earlier called the "Where Do You Stand?" game) is about questions that people openly disagreed about in local meetings. Each round first shows what the record says, and, where a source supplies them, what was said on both sides. Then one opinion statement asks where you stand. You answer **Agree**, **Disagree** or **Not sure**, then see how people who played answered. It is not a quiz: there is no right answer, no answer key and no score. The first topic is data centers, with seven statements. Open it at `/challenge/data-centers`, from the Data stories page (`/stories`), the end of the [Data Center Story](data-stories.md), the Data centers page or the Data explorer Matrix page. The old address `/play/data-centers` redirects to it and keeps the place in the address.
+:::warning Retired
+The separate Data Center Challenge was retired in [#981](https://github.com/getcommunityone/open-navigator/issues/981): its statements are now asked inside the [Data Center Story](../../guides/data-stories.md#statements-along-the-way-981), with where you sit after each answer. `/challenge/data-centers` opens the story. This page is kept for the record. See [Story statements and where you sit](../story-statements-where-you-sit.md).
+:::
+
+The challenge (earlier called the "Where Do You Stand?" game) is about questions that people openly disagreed about in local meetings. Each round first shows what the record says, and, where a source supplies them, what was said on both sides. Then one opinion statement asks where you stand. You answer **Agree**, **Disagree** or **Not sure**, then see how people who played answered. It is not a quiz: there is no right answer, no answer key and no score. The first topic is data centers, with seven statements. Open it at `/challenge/data-centers`, from the Data stories page (`/stories`), the end of the [Data Center Story](../../guides/data-stories.md), the Data centers page or the Data explorer Matrix page. The old address `/play/data-centers` redirects to it and keeps the place in the address.
 
 ## How to play
 
@@ -38,7 +42,7 @@ Focus moves to **Ask me** when a round settles, then to the answer buttons once 
 
 ## Pacing and sound
 
-A round is three scroll stops (not three beats on one pinned panel). Each stop fills one viewport; the page scrolls between them, with smooth auto-scroll when motion is allowed. Full behaviour is in [Challenge scroll-to-answer and scroll reveal](../development/challenge-scroll-reveal-design.md).
+A round is three scroll stops (not three beats on one pinned panel). Each stop fills one viewport; the page scrolls between them, with smooth auto-scroll when motion is allowed. Full behaviour is in [Challenge scroll-to-answer and scroll reveal](../challenge-scroll-reveal-design.md).
 
 | Stop | On screen | How you leave |
 | --- | --- | --- |
@@ -60,13 +64,13 @@ For a screen reader, a polite live region reads the finding, then the question, 
 
 ## Motion
 
-Within a round, scroll moves among the three stops (Finding → Question → Reveal). Between rounds, the challenge still follows the same pin-and-snap patterns as the data story ([How the screens move](data-stories.md#how-the-screens-move)):
+Within a round, scroll moves among the three stops (Finding → Question → Reveal). Between rounds, the challenge still follows the same pin-and-snap patterns as the data story ([How the screens move](../../guides/data-stories.md#how-the-screens-move)):
 
 - **768 pixels or wider:** rounds stay pinned and scrubbed by scroll; one gesture does not skip past more than one round. Inside a round, scroll (or auto-scroll after **Ask me**, the timer, or locking an answer) snaps to the next stop.
 - **A phone:** the page snaps stop by stop inside each round, and one round per swipe between rounds. Entrances and exits on category, headline and chart match the data story; a tall chart scrolls inside its block on the Finding stop first.
 - **prefers-reduced-motion on:** the same three stops in a plain stack with native scrolling and no animated auto-scroll — use buttons, keys, or an instant jump instead. **Ask me**, Space, and the timer still reach the Question stop; answering still reaches Reveal. Sound on/off and all controls work the same.
 
-The challenge is the livelier of the two pages. Its main button (**Start the challenge**, **Ask me**, **Next: ...**) springs in when its round is in view and squashes when pressed. When you have been still for about six seconds its arrow hops twice and a light passes across it, at most three times, with one soft sound on the first if sound is on (the rules are in [Data stories](data-stories.md#moving-to-the-next-screen)). The answer you choose locks and throws a ring while the other two step back. The progress segments along the top bar pop as a round arrives or is answered (an answered round turns ink), and the words beside them say what is left ("Three to go"). None of it says right or wrong. The data story uses the same layout, palette and type with calmer motion; with **Sound on** it still plays soft page-turn cues when you advance or when the idle nudge first fires (#966).
+The challenge is the livelier of the two pages. Its main button (**Start the challenge**, **Ask me**, **Next: ...**) springs in when its round is in view and squashes when pressed. When you have been still for about six seconds its arrow hops twice and a light passes across it, at most three times, with one soft sound on the first if sound is on (the rules are in [Data stories](../../guides/data-stories.md#moving-to-the-next-screen)). The answer you choose locks and throws a ring while the other two step back. The progress segments along the top bar pop as a round arrives or is answered (an answered round turns ink), and the words beside them say what is left ("Three to go"). None of it says right or wrong. The data story uses the same layout, palette and type with calmer motion; with **Sound on** it still plays soft page-turn cues when you advance or when the idle nudge first fires (#966).
 
 One primary action is always on screen: **Start the challenge** on the first screen, then per stop **Ask me**, the three stacked answers, and **Next: ...**. When that control is out of view, a bar pinned to the bottom of the window shows the same action (the three answers as three buttons), with **Back** beside it.
 

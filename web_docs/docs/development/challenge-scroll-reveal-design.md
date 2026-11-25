@@ -82,4 +82,4 @@ Rejected alternatives:
 
 ## Relation to earlier design
 
-This updates the **pacing** of the challenge screens described in [Where Do You Stand? game design](where-you-stand-game-design.md) and the player-facing [Data Center Challenge](../guides/data-center-challenge.md). Storage, anonymity, minimum sample, and “no right answer” decisions are unchanged.
+This updates the **pacing** of the challenge screens described in [Where Do You Stand? game design](where-you-stand-game-design.md) and the player-facing [Data Center Challenge](./archive/data-center-challenge.md). Storage, anonymity, minimum sample, and “no right answer” decisions are unchanged.

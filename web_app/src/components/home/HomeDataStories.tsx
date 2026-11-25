@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useStoryData } from '../stance/useStoryData'
-import { challengePath, scopeQuery, storyScopeLabel, storyStats } from '../../utils/dataStory'
+import { scopeQuery, storyScopeLabel, storyStats } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import type { ChartKey } from '../../utils/stanceGame'
 
@@ -104,9 +104,6 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
               style={{ background: '#0f766e', color: '#fff', borderRadius: 999, padding: '11px 22px', fontSize: 15, fontWeight: 700, textDecoration: 'none' }}
             >
               Start the story <span aria-hidden="true">→</span>
-            </Link>
-            <Link to={challengePath('data-centers', scope)} style={{ color: '#0f766e', fontWeight: 600, fontSize: 15 }}>
-              Take the challenge
             </Link>
             <Link to={`/stories${q}`} style={{ color: '#0f766e', fontWeight: 600, fontSize: 15 }}>
               All data stories
