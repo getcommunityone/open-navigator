@@ -9,6 +9,8 @@ import {
   type CommunityEvent,
   type DataCenterProject,
   fetchDataCenterAgendaItems,
+  fetchDataCenterHearings,
+  type DataCenterHearing,
   fetchDataCenterMeetingMentions,
   fetchDataCenterSites,
   type DataCenterAgendaItem,
@@ -146,6 +148,7 @@ export default function DataCenters() {
           )}
         </section>
 
+        <HearingsSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
         <AgendaSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
 
         <MeetingMentionsSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
@@ -159,6 +162,74 @@ export default function DataCenters() {
         <ApplySection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
       </div>
     </div>
+  )
+}
+
+/**
+ * "Hearings coming up" (#955): upcoming data center hearings whose OFFICIAL page (a government
+ * agenda, notice or project page) states both the date and the data center item. Leads from
+ * research lists that no official page backs up are never shown. Each card quotes the official
+ * page with the matched words highlighted (server ts_headline -> highlightSnippet, React-escaped)
+ * and links to it. Same ?state=&city= scope as the rest of the page.
+ */
+function HearingsSection({ rawState, cityName, scopeLabel }: { rawState?: string; cityName?: string; scopeLabel: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['data-centers', 'hearings', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchDataCenterHearings({ state: rawState, city: cityName, when: 'upcoming' }),
+  })
+  // Not loaded, or nothing verified in scope: stay quiet; "On the agenda" below covers the place.
+  if (isLoading || data?.available === false || (!isError && (data?.items ?? []).length === 0)) return null
+  return (
+    <section aria-labelledby="hearings-heading" className="mt-6">
+      <h2 id="hearings-heading" className="mb-1 text-xl font-semibold text-gray-900">
+        Hearings coming up{data?.counts?.upcoming != null ? ` (${data.counts.upcoming})` : ''}
+      </h2>
+      <p className="mb-3 text-sm text-gray-600">
+        Upcoming data center hearings in {scopeLabel}, each confirmed on the government&apos;s own page, which is quoted
+        and linked.
+      </p>
+      {isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Couldn&apos;t load hearings.{' '}
+          <button type="button" onClick={() => refetch()} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {(data?.items ?? []).map((h) => (
+            <HearingCard key={h.data_center_hearing_id} hearing={h} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function HearingCard({ hearing }: { hearing: DataCenterHearing }) {
+  const when = formatIsoDate(hearing.meeting_date)
+  const where = [hearing.jurisdiction_name, hearing.state_code].filter(Boolean).join(', ')
+  return (
+    <li className="rounded-lg border border-primary-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold text-gray-900">
+          {hearing.body_name || 'Hearing'}
+          {where && <span className="font-normal text-gray-600"> · {where}</span>}
+        </p>
+        <p className="text-sm font-semibold text-primary-700">{when ?? 'Date not listed'}</p>
+      </div>
+      {hearing.topic && <p className="mt-1 text-sm text-gray-700">{hearing.topic}</p>}
+      {hearing.evidence && (
+        <blockquote className="mt-2 line-clamp-4 border-l-4 border-primary-300 pl-3 text-sm text-gray-800">
+          {highlightSnippet(hearing.evidence)}
+        </blockquote>
+      )}
+      <div className="mt-2 text-xs">
+        <a href={hearing.source_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-700 hover:underline">
+          Read the official notice{hearing.source_name ? ` (${hearing.source_name})` : ''}
+        </a>
+      </div>
+    </li>
   )
 }
 

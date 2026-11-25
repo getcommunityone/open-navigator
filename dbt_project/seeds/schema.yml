@@ -487,6 +487,39 @@ seeds:
       - name: note
         description: "Why a feed is disabled or blank, or what kind of feed it is."
 
+  - name: data_center_hearing_lead
+    config:
+      column_types:
+        lead_id: text
+        meeting_date: date
+        jurisdiction_name: text
+        state_code: text
+        body_name: text
+        topic: text
+        source_kind: text
+        source_name: text
+        source_url: text
+        lead_from: text
+    description: >
+      Leads on upcoming local government data center hearings (#955), one row per claimed
+      meeting, as collected from the owner's research lists (owner_list_1, owner_list_2, or both).
+      A lead is a CLAIM, never shown as fact: only a row whose source_url is an official
+      government page, fetched by ingestion.data_centers.fetch_hearing_sources and found to
+      state the date and a data center word, becomes a verified hearing in data_center_hearing.
+      source_kind: official (a government page), tracker (a third-party tracker named as the
+      source, no URL kept), news, or none. Tracking parameters (utm_*) are stripped from URLs.
+      body_name keeps the list's wording; "(as listed)" marks a body the list probably got wrong.
+    columns:
+      - name: lead_id
+        tests: [unique, not_null]
+      - name: meeting_date
+        tests: [not_null]
+      - name: state_code
+        tests: [not_null]
+      - name: source_kind
+        tests:
+          - accepted_values:
+              values: ['official', 'tracker', 'news', 'none']
   - name: data_center_projects
     config:
       column_types:

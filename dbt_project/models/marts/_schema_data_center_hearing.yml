@@ -1,0 +1,85 @@
+version: 2
+
+models:
+  - name: data_center_hearing
+    description: >
+      One row per data center hearing lead (#955) with whether its official page backs it up.
+      status 'verified' means the official page says a data center word and states the claimed
+      date; only those rows are served as upcoming hearings. Every other status names what is
+      missing (unsourced, not_fetched, fetch_failed, no_data_center_mention, date_not_found).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'data_centers', 'serving']
+      indexes:
+        - columns: ["status", "meeting_date"]
+          type: btree
+        - columns: ["state_code", "meeting_date"]
+          type: btree
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: data_center_hearing_id
+        description: "Primary key: the lead's id (seeds.data_center_hearing_lead.lead_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: jurisdiction_id
+        description: "FK -> jurisdictions, when exactly one city, town or county in the state has the lead's name; else null."
+        data_type: text
+      - name: meeting_date
+        description: "The claimed meeting date (verified rows: the official page states it)."
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: jurisdiction_name
+        description: "The government holding the meeting, as the lead names it."
+        data_type: text
+      - name: state_code
+        description: "Two-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: body_name
+        description: "The body meeting (as the lead names it; '(as listed)' marks one the list probably got wrong)."
+        data_type: text
+      - name: topic
+        description: "What the lead says is on the agenda."
+        data_type: text
+      - name: source_kind
+        description: "official, tracker, news or none."
+        data_type: text
+      - name: source_name
+        description: "Where the lead came from (a government site, a tracker's name, a news outlet)."
+        data_type: text
+      - name: source_url
+        description: "The official page (tracking parameters removed); null unless source_kind is official."
+        data_type: text
+      - name: lead_from
+        description: "Which research list named the lead (owner_list_1, owner_list_2, or both)."
+        data_type: text
+      - name: status
+        description: "verified, date_not_found, no_data_center_mention, fetch_failed, not_fetched or unsourced."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['verified', 'date_not_found', 'no_data_center_mention', 'fetch_failed', 'not_fetched', 'unsourced']
+      - name: fetch_error
+        description: "Why the official page wasn't read, when it wasn't."
+        data_type: text
+      - name: evidence
+        description: "Verbatim excerpt of the official page around the data center words, matched words in <mark>; null when the page doesn't say one."
+        data_type: text
+      - name: checked_at
+        description: "When the official page was last fetched."
+        data_type: timestamptz
