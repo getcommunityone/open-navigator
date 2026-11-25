@@ -80,6 +80,19 @@ For a large `table` model:
 - **`ensure_search_indexes`** finds an index by definition when its entry has a `match` key, so it counts the config index
   (generated name) as present instead of building a duplicate. Only valid, non-partial indexes count.
 
+## Primary keys added in hooks (#941)
+
+Models whose key isn't a dbt contract constraint add it with `gold_pk_post_hook('<cols>')`. Two rules, both learned the
+hard way ([#941](https://github.com/getcommunityone/open-navigator/issues/941)):
+
+- **Pass the hook as a string:** `post_hook=["{{ gold_pk_post_hook('word') }}"]`. Called directly inside `config()`
+  (`post_hook=[gold_pk_post_hook('word')]`), the macro renders when the model is parsed, when `{{ this }}` still points
+  at `public.<model>` instead of the `gold` table. All 15 callers had that bug, so their keys were never attached.
+- **Don't name the key.** Post-hooks run after the old table is renamed to `__dbt_backup`, which still owns an index
+  called `<model>_pkey`. A fixed name fails every rebuild after the first ("relation … _pkey already exists"). The macro
+  now runs `add primary key …` and lets Postgres pick a free name (`<model>_pkey`, or `_pkey1` while the backup holds
+  the first).
+
 ## Measured on mdm_person (local warehouse, 25 Nov 2026)
 
 | Check | Result |
