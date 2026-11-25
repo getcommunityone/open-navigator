@@ -59,7 +59,7 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | What is proposed | Proposals | `projects` | Projects by status (one dot per project) |
 | What is promised | Promises | `jobs` | Jobs claims by phase (one dot per claim) |
 | What is raised | Concerns | `concerns` | Concerns ranked, with count and share (one dot per mention) |
-| When it comes up | Meetings | `meetings` | Meeting passages by year (one dot per passage) |
+| When it comes up | Meetings | `meetings` | Meeting passages by year (one dot per passage). Hovering or focusing a dot previews the recording's thumbnail, title, place and date; clicking it (or Enter / Space) plays the recording in a dialog from the quoted moment. Nothing loads from YouTube before the hover, and the player exists only while the dialog is open: Escape, Close or a click outside removes it and returns focus to the dot ([#972](https://github.com/getcommunityone/open-navigator/issues/972)) |
 | What is on the agenda | Agendas | `agendas` | Agendas for upcoming and past meetings |
 | What was decided | Decisions | `decisions` | Decisions on data center items, debated or taken up without debate (one dot per decision, titled with its outcome as recorded); a debated one links to its page, one without debate to the meeting recording. "Not loaded yet" when the table isn't in the database ([#933](https://github.com/getcommunityone/open-navigator/issues/933)) |
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |

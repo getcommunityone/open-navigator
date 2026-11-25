@@ -1653,3 +1653,14 @@ html.folio-snap {
 .sh-title {
   scroll-margin-top: calc(var(--folio-top, 108px) + 12px);
 }
+
+/* A tooltip's preview image (a meeting recording's thumbnail, #972). */
+.folio-tt-thumb {
+  display: block;
+  width: 160px;
+  height: 90px;
+  object-fit: cover;
+  margin: 0 0 6px;
+  background: var(--neutral-data);
+  border: 1px solid var(--rule);
+}

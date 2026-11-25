@@ -1,5 +1,6 @@
 // Pure helpers for the Data Center Challenge (#852) and the data stories (#884). Nothing here invents a number: every figure comes
 // from an API response, and missing or empty data gives null.
+import { youtubeVideoId } from '../lib/youtubeEmbed'
 import type {
   AreaConcernsResponse,
   CommunityEventsResponse,
@@ -14,6 +15,13 @@ import type {
 import type { GroupResult, StanceAnswer } from '../api/stance'
 import { communityEventKindLabel, concernLabel } from '../lib/dataCenterJobs'
 import { largestRemainder } from './matrixMapMath'
+
+
+/** The recording to play in place for a meeting passage (#972), when it is on YouTube. */
+function meetingVideo(videoUrl: string | null | undefined, start: number | null | undefined): Pick<Dot, 'video'> {
+  const videoId = youtubeVideoId(videoUrl)
+  return videoId ? { video: { videoId, start: start ?? null } } : {}
+}
 
 export type ChartKey =
   | 'positions'
@@ -242,6 +250,8 @@ export interface Dot {
   url: string | null
   /** How many records the dot stands for. Absent means one. Only a chart drawn from a count (no listed records) sets it. */
   weight?: number
+  /** A YouTube recording to play in place at the passage's moment (#972); only meeting passages with one set it. */
+  video?: { videoId: string; start: number | null }
 }
 
 /** A stance a dot group stands for: it picks the group's colour and its shape, so colour is never the only signal. */
@@ -574,6 +584,7 @@ export function chartSpec(
               place: joinPlace(m.jurisdiction_name, m.state_code),
               date: m.meeting_date ?? null,
               url: m.jump_url ?? m.video_url ?? null,
+              ...meetingVideo(m.video_url, m.start_seconds),
             })),
         })),
         res.counts?.passages ?? null,
