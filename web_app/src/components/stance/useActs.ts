@@ -551,7 +551,9 @@ export function useActs(opts: Options): ActsApi {
               best = h.round
             }
           }
-          o.current.onActive(best)
+          // A refresh measures with the page scrolled to the top, then puts it back: that pass is not the reader's position, and
+          // taking it would make a deep-linked screen give way to the first one (#997).
+          if (!(ScrollTrigger as unknown as { isRefreshing?: boolean }).isRefreshing) o.current.onActive(best)
           paintStates(game, loose)
         },
       })
