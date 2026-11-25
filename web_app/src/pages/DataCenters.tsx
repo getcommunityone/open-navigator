@@ -542,13 +542,13 @@ function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: st
         Sites <span className="font-normal text-gray-400">· {sitesScope}</span>
       </h2>
       <p className="mb-2 text-sm text-gray-600">
-        Data center sites from two open inventories: Epoch AI (the largest AI sites) and the US Data Center Registry
-        (about 2,300 more). Each site is credited to its source. Sites a source stops listing stay here, marked, so they
-        don&apos;t quietly disappear.
+        Data center sites from open inventories: Epoch AI (the largest AI sites) and the US Data Center Registry. Each
+        site is credited to its own source. Sites a source stops listing stay here, marked, so they don&apos;t quietly
+        disappear.
       </p>
       {cityName && (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          This source doesn&apos;t give cities, so these are all tracked sites in {sitesScope}, not just {cityName}.
+          Sites are listed by state (Epoch AI gives no city), so these are all sites in {sitesScope}, not just {cityName}.
         </p>
       )}
       {counts && sites.length > 0 && (

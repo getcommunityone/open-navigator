@@ -6,7 +6,7 @@
     (Crypto mines, facility_type 'crypto_mining', are not data centers and are left out.)
 
     A registry record joins an existing Epoch AI site only when, in the same state, their names
-    are EQUAL once normalised (lower case, punctuation dropped, and the words "data center(s)",
+    are EQUAL once normalised (lower case, punctuation and extra spaces dropped, then the words "data center(s)",
     "campus", "dc", "ai", "the" removed: "Google Cedar Rapids Data Center Campus" = "Google Cedar
     Rapids"), and that pairing is one-to-one: the Epoch site has exactly one such registry
     record and the record exactly one such site. Anything else (no equal name, or several) is
@@ -17,7 +17,8 @@
     'epoch_same_name'), else md5('us_data_center_registry|' || registry id) ('own_site').
 */
 
-{%- set norm = "btrim(regexp_replace(regexp_replace(lower({}), '\\m(data cent(er|re)s?|campus|dc|ai|the)\\M', ' ', 'g'), '[^a-z0-9]+', ' ', 'g'))" %}
+{#- punctuation and runs of spaces become one space first ("Data-Center", "Data  Center"), then the type words go -#}
+{%- set norm = "btrim(regexp_replace(regexp_replace(regexp_replace(lower({}), '[^a-z0-9]+', ' ', 'g'), '\\m(data cent(er|re)s?|datacent(er|re)s?|campus|dc|ai|the)\\M', ' ', 'g'), ' +', ' ', 'g'))" %}
 
 with registry as (
     select *, {{ norm.format('facility_name') }} as name_key

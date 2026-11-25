@@ -9,11 +9,13 @@ models:
   - name: data_center_site
     data_tests:
       - dbt_utils.recency:
-          # Freshness (context-engineering.md, principle 5): no Epoch AI snapshot loaded in 14 days
+          # Freshness (context-engineering.md, principle 5): no Epoch AI snapshot loaded in 14 days. Per source, so a
+          # fresh registry load can't hide a stale Epoch one (#958 review).
           arguments:
             datepart: day
             field: last_seen_on
             interval: 14
+            where: "source = 'epoch'"
           config:
             severity: warn
             tags: ['freshness']
@@ -90,13 +92,13 @@ models:
         description: "IT power capacity (MW) on the latest dated row on or before today; null when not given."
         data_type: double precision
       - name: first_seen_on
-        description: "First Epoch download that listed the site."
+        description: "First load of the site's source that listed it."
         data_type: date
       - name: last_seen_on
-        description: "Latest Epoch download that listed the site."
+        description: "Latest load of the site's source that listed it."
         data_type: date
       - name: is_listed
-        description: "True when the newest Epoch download lists the site."
+        description: "True when the newest load of the site's source lists it."
         data_type: boolean
       - name: source_name
         description: "'Epoch AI' or 'US Data Center Registry (SueDataCenters.org)'."

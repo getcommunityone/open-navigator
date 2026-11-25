@@ -284,7 +284,8 @@ async def list_job_claims(
 # Epoch doesn't list, the US Data Center Registry (#958), both CC BY 4.0, with the credit of
 # its own source on every row. A site that left its source's list stays, as status
 # 'no_longer_listed'; 'cancelled' comes only from the registry, which publishes it. Only
-# ``state`` narrows the list (Epoch has no city field); the response says so in ``city_applied``.
+# ``state`` narrows the list: Epoch rows have no city (registry rows do, but a city filter would
+# silently drop every Epoch site), and the response says so in ``city_applied``.
 
 SiteStatus = Literal["planned", "under_construction", "operating", "cancelled", "no_longer_listed"]
 SITE_STATUSES: tuple[str, ...] = ("planned", "under_construction", "operating", "cancelled", "no_longer_listed")
@@ -421,9 +422,10 @@ async def list_data_center_sites(
             async with pool.acquire() as conn:
                 rows = await conn.fetch(items_sql, *params)
                 count_rows = await conn.fetch(counts_sql, *counts_params)
-        except asyncpg.exceptions.UndefinedTableError as e:
+        except (asyncpg.exceptions.UndefinedTableError, asyncpg.exceptions.UndefinedColumnError) as e:
+            # Missing, or not yet rebuilt with the #958 columns (an API deployed before the table): unavailable, not 500.
             span.set_attribute("sites.relation_missing", True)
-            logger.warning("data-centers: relation 'data_center_site' isn't here yet ({}); empty list", e)
+            logger.warning("data-centers: relation 'data_center_site' isn't here yet or is out of date ({}); empty list", e)
             return DataCenterSitesResponse(scope=applied, city_applied=False, items=[])
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)

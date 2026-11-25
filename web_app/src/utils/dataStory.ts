@@ -13,7 +13,7 @@ import type {
   DataCenterSitesResponse,
   JobClaimsResponse,
 } from '../api/dataCenters'
-import { communityEventKindLabel, concernLabel, siteTotal } from '../lib/dataCenterJobs'
+import { communityEventKindLabel, concernLabel, siteSourcesText, siteTotal } from '../lib/dataCenterJobs'
 import type { StanceQuestion } from '../api/stance'
 import { questionText } from './storyQuestion'
 import {
@@ -164,7 +164,7 @@ export function storyStats(data: StoryData, scope: StoryScope = { stateName: nul
     { key: 'passages', value: mentions?.counts?.passages ?? 0, label: 'meeting passages quoted' },
     { key: 'agendas', value: agendas?.counts ? agendas.counts.upcoming + agendas.counts.past : 0, label: 'meeting agendas that name a data center' },
     { key: 'claims', value: (claims?.totals?.construction ?? 0) + (claims?.totals?.operations ?? 0), label: 'jobs claims made in meetings' },
-    { key: 'sites', value: sitesOnRecord, label: `data center sites on record${scope.city && scope.stateName ? ` in ${scope.stateName}` : ''}, from Epoch AI and the US Data Center Registry` },
+    { key: 'sites', value: sitesOnRecord, label: `data center sites on record${scope.city && scope.stateName ? ` in ${scope.stateName}` : ''}, from ${siteSourcesText(sites?.items) ?? 'Epoch AI'}` },
     { key: 'projects', value: projects?.total ?? 0, label: 'data center projects on record, from announcements and Epoch AI' },
   ]
   return all.filter((s) => s.value > 0)

@@ -327,10 +327,10 @@ describe('stats and links', () => {
   })
   it('keeps a state-level count honest under a city scope', () => {
     const state = storyStats(full, al)
-    expect(state.find((s) => s.key === 'sites')!.label).toBe('data center sites on record, from Epoch AI and the US Data Center Registry')
+    expect(state.find((s) => s.key === 'sites')!.label).toBe('data center sites on record, from Epoch AI')
     expect(statsScopeNote(state, al)).toBe('Counts for Alabama.')
     const city = storyStats(full, tus)
-    expect(city.find((s) => s.key === 'sites')!.label).toBe('data center sites on record in Alabama, from Epoch AI and the US Data Center Registry')
+    expect(city.find((s) => s.key === 'sites')!.label).toBe('data center sites on record in Alabama, from Epoch AI')
     expect(city.find((s) => s.key === 'meetings')!.label).toBe('meetings where a data center came up')
     expect(statsScopeNote(city, tus)).toContain('except sites')
     expect(statsScopeNote(city, tus)).toContain('Tuscaloosa, Alabama')

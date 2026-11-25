@@ -4,85 +4,61 @@ branch: feat/958-dc-facility-inventories
 title: "feat(data-centers): import the open data center inventories"
 author: jcbowyer
 reviewed_at: 2026-11-25
-reviewer: github-actions
-head_sha: 1fef1e0d267a1d11663cf13579a5fc575a5021aa
-verdict: approve
+reviewer: general-purpose subagent (read-only) and coordinator
+head_sha: see branch head
+verdict: approve-with-nits
 ---
 
-# PR Review: feat(data-centers): import the open data center inventories
+# PR Review: import the open data center inventories
 
 ## Summary
 
-Automated review (#648) for PR #980 on `feat/958-dc-facility-inventories`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Closes #958. The US Data Center Registry's data centers join `data_center_site`, each credited on its row. A registry
+record merges with an Epoch site only on an equal normalised name in the same state, one-to-one.
+`data_center_site_source` keeps every source record. Public Evidence Project records land in
+`data_center_public_record` (gold) with their government URLs. The greencalculus figures stay in staging.
 
-## Scope of Change
+The independent pass said **request-changes**. Every Blocking and Should-fix finding is fixed on the branch. The
+reviewer could not run dbt; the coordinator did, on the local warehouse.
 
-- `api/routes/data_centers.py`
-- `dbt_project/contracts/data_center_site.odcs.yaml`
-- `dbt_project/contracts/products/open-navigator-public-api.odps.yaml`
-- `dbt_project/dbt_project.yml`
-- `dbt_project/macros/ensure_data_center_inventory_tables.sql`
-- `dbt_project/models/intermediate/_schema_int_data_center_facility_registry.yml`
-- `dbt_project/models/intermediate/int_data_center_facility_registry__site.sql`
-- `dbt_project/models/intermediate/int_data_center_project__base.sql`
-- `dbt_project/models/intermediate/int_data_center_project__figure.sql`
-- `dbt_project/models/intermediate/int_data_center_site__jurisdiction.sql`
-- `dbt_project/models/marts/_schema_data_center_inventory.yml`
-- `dbt_project/models/marts/_schema_data_center_site.yml`
-- `dbt_project/models/marts/_schema_decision_context.yml`
-- `dbt_project/models/marts/data_center_agenda_item.sql`
-- `dbt_project/models/marts/data_center_meeting_mention.sql`
-- `dbt_project/models/marts/data_center_project_company.sql`
-- `dbt_project/models/marts/data_center_public_record.sql`
-- `dbt_project/models/marts/data_center_site.sql`
-- `dbt_project/models/marts/data_center_site_source.sql`
-- `dbt_project/models/marts/decision_company_mention.sql`
-- `dbt_project/models/staging/_staging.yml`
-- `dbt_project/models/staging/data_centers/_schema_stg_data_center_inventories.yml`
-- `dbt_project/models/staging/data_centers/stg_data_center_facility_registry.sql`
-- `dbt_project/models/staging/data_centers/stg_data_center_public_record.sql`
-- `dbt_project/models/staging/data_centers/stg_data_center_state_count.sql`
-- `packages/ingestion/src/ingestion/data_centers/facility_inventories.py`
-- `packages/ingestion/tests/test_facility_inventories.py`
-- `tests/test_api_data_center_sites.py`
-- `web_app/src/lib/api.types.ts`
-- `web_app/src/lib/dataCenterJobs.test.ts`
-- `web_app/src/lib/dataCenterJobs.ts`
-- `web_app/src/pages/DataCenters.tsx`
-- `web_app/src/utils/dataStory.test.ts`
-- `web_app/src/utils/dataStory.ts`
-- `web_app/src/utils/stanceGame.ts`
-- `web_docs/docs/development/data-center-sites.md`
-- `web_docs/docs/development/data-center-source-review.md`
+## Findings and their fixes
 
-## CI Status
+### 🔴 Blocking (fixed)
+1. **Two Python consumers read `public.data_center_site` directly.** `survey_meeting_sources.data_center_sites()` and
+   `platforms/discover.py` (`dc_states`) would have taken about 2,283 more sites. **Fixed:** both read
+   `source = 'epoch'`; widening is #979.
 
-See the PR checks on `1fef1e0d267a`.
+### 🟡 Should fix (fixed)
+- **Deploy order:** an API deployed before `data_center_site` gains its new columns answers with an empty "not loaded"
+  list, not a 500 (`UndefinedColumnError` is handled). Tested.
+- **Name normalisation:** punctuation and runs of spaces are dropped before the type words ("Data-Center",
+  "Data  Center"). Unit test case added. On real data the matches are unchanged (24).
+- **Truncated download:** the loader refuses a file with fewer than half the records still listed (`--min-ratio`,
+  `--force`). Tested.
 
-## Scans (secrets, fabricated data, personal data, destructive data changes)
+### 🔵 Nits
+- **Fixed:**
+  - the recency test reads Epoch rows only;
+  - the `last_seen_on` / `is_listed` descriptions name the site's own source;
+  - the UI names only the sources present in the rows (`siteSourcesText`), and the hard-coded "about 2,300" is gone;
+  - the city-filter reason is corrected.
+- **Open:** the status mapping matches exact lower-cased words; an unknown word shows as "status not published",
+  which is honest.
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+## Scans
+- Secrets: clean. DSNs come from the environment and are never printed.
+- Fabricated data: clean. Every site row carries its own source's credit and URL, and no count is invented.
+- Personal data: none.
+- Destructive changes: none. New bronze tables; the `data_center_site` PK is unchanged.
 
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
-
-## Findings
-
-### 🔴 Blocking (Critical)
-
-None.
-
-### 🟡 Should fix (Important)
-
-None from automated heuristics.
-
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
+## Tests
+- **dbt on the local warehouse:** the build of the new models plus `data_center_site+` passed (including the unit
+  tests). Every downstream table that reads sites kept its row count; `data_center_project_mention` (16 → 17) changed
+  because its meeting inputs changed.
+- **pytest:** 13 passed (loader and sites API). ruff is clean on the changed files; `discover.py` has older findings.
+- **Frontend:** vitest 385; `tsc` and eslint clean.
+- **Contracts:** `models.odcs --check` current.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: merge when the required checks are green.

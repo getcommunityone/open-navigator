@@ -70,3 +70,10 @@ def test_dry_run_needs_no_database(monkeypatch) -> None:
     monkeypatch.delenv("NEON_DATABASE_URL_DEV", raising=False)
     assert mod.main(["--dry-run"]) == 0
     assert mod.main([]) == 2
+
+
+def test_a_much_shorter_file_is_refused_unless_forced() -> None:
+    assert mod.too_short_ok(2535, 0, 0.5)  # first load
+    assert mod.too_short_ok(2400, 2535, 0.5)  # a few dropped
+    assert not mod.too_short_ok(1200, 2535, 0.5)  # truncated download
+    assert mod.too_short_ok(1200, 2535, 0.5, force=True)

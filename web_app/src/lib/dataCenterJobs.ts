@@ -205,3 +205,13 @@ export function siteTotal(
   if (!k) return 0
   return k.planned + k.under_construction + k.operating + (k.cancelled ?? 0) + k.no_longer_listed + k.status_not_published
 }
+
+/** The sources the listed sites come from, in words ("Epoch AI and the US Data Center Registry"), from the rows' own
+ * `source` values, so a scope (or a warehouse) with only one source never names the other. Null when nothing is listed. */
+export function siteSourcesText(items: { source?: string | null }[] | null | undefined): string | null {
+  const have = new Set((items ?? []).map((i) => i.source ?? 'epoch'))
+  const names = [have.has('epoch') && 'Epoch AI', have.has('us_data_center_registry') && 'the US Data Center Registry'].filter(
+    (n): n is string => Boolean(n),
+  )
+  return names.length ? names.join(' and ') : null
+}

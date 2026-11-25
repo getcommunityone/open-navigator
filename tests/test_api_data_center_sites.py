@@ -148,5 +148,11 @@ def test_missing_mart_is_an_empty_list(get) -> None:
     assert resp.json()["items"] == [] and resp.json()["scope"]["level"] == "national"
 
 
+def test_table_without_the_new_columns_is_an_empty_list_not_500(get) -> None:
+    """#958: an API deployed before data_center_site is rebuilt with its new columns answers empty, not 500."""
+    resp = get(_Conn(error=asyncpg.exceptions.UndefinedColumnError('column "source" does not exist')))
+    assert resp.status_code == 200 and resp.json()["items"] == []
+
+
 def test_other_errors_are_500(get) -> None:
     assert get(_Conn(error=RuntimeError("boom"))).status_code == 500

@@ -131,6 +131,12 @@ def upsert_sql(inv: Inventory) -> str:
     """
 
 
+def too_short_ok(rows: int, listed: int, min_ratio: float, force: bool = False) -> bool:
+    """True when a file with ``rows`` records may replace a load that lists ``listed``: a file far shorter than
+    the last load is more likely a truncated download than a source that dropped half its records."""
+    return force or listed == 0 or rows >= listed * min_ratio
+
+
 def fetch_inventory(
     fetcher: PoliteFetcher, inv: Inventory
 ) -> list[tuple[str, dict[str, str]]]:
@@ -153,6 +159,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="Fetch and report, but don't write."
+    )
+    parser.add_argument(
+        "--min-ratio",
+        type=float,
+        default=0.5,
+        help="Refuse a file with fewer records than this share of the records still listed (default 0.5): a "
+        "truncated download would otherwise mark the rest no longer listed.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Write even when --min-ratio refuses the file.",
     )
     parser.add_argument(
         "--database-url",
@@ -187,6 +205,22 @@ def main(argv: list[str] | None = None) -> int:
         for key, rows in loaded.items():
             inv = INVENTORIES[key]
             cur.execute(create_sql(inv))
+            cur.execute(
+                f"SELECT count(*) FROM {inv.table} "
+                f"WHERE last_seen_at = (SELECT max(last_seen_at) FROM {inv.table})"
+            )
+            listed = cur.fetchone()[0]
+            if not too_short_ok(len(rows), listed, args.min_ratio, args.force):
+                failed += 1
+                logger.error(
+                    "{}: refused: {:,} record(s) in the file but {:,} still listed (below {:.0%}); "
+                    "rerun with --force if the source really dropped them",
+                    key,
+                    len(rows),
+                    listed,
+                    args.min_ratio,
+                )
+                continue
             sql = upsert_sql(inv)
             for record_id, row in rows:
                 cur.execute(

@@ -13,6 +13,7 @@ import {
   placeScope,
   siteStatusLabel,
   verifiedLabel,
+  siteSourcesText,
   siteTotal,
 } from './dataCenterJobs'
 
@@ -122,6 +123,12 @@ describe('community events and project figures (#532)', () => {
 describe('sites from two inventories (#958)', () => {
   it('labels a cancelled site as the source says so', () => {
     expect(siteStatusLabel('cancelled', 'cancelled', null)).toBe('Cancelled (per the source)')
+  })
+  it('names only the sources the listed sites come from', () => {
+    expect(siteSourcesText([{ source: 'epoch' }, {}])).toBe('Epoch AI')
+    expect(siteSourcesText([{ source: 'us_data_center_registry' }])).toBe('the US Data Center Registry')
+    expect(siteSourcesText([{ source: 'epoch' }, { source: 'us_data_center_registry' }])).toBe('Epoch AI and the US Data Center Registry')
+    expect(siteSourcesText([])).toBeNull()
   })
   it('counts every status once, cancelled included, and treats a missing cancelled count as zero', () => {
     const k = { planned: 2, under_construction: 3, operating: 5, no_longer_listed: 1, status_not_published: 0 }
