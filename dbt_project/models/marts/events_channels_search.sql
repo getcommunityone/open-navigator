@@ -10,7 +10,7 @@
         {'columns': ['activity_status']},
         {'columns': ['quality_score']}
     ],
-    post_hook=[gold_pk_post_hook('channel_id')]
+    post_hook=["{{ gold_pk_post_hook('channel_id') }}"]
 ) }}
 
 /*

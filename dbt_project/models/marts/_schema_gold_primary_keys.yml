@@ -33,6 +33,20 @@ models:
     tests:
     - unique
     - not_null
+- name: serving_mdm_organization
+  description: 'Serving-tier organizations (the civic subset of mdm_organization served to the API).
+    Grain: one row per master_org_id. PK master_org_id, attached by gold_pk_post_hook (#941).
+
+    '
+  columns:
+  - name: master_org_id
+    description: MDM organization master id. Primary key.
+    constraints:
+    - type: not_null
+    - type: primary_key
+    tests:
+    - unique
+    - not_null
 - name: serving_mdm_organization_nonprofit
   description: 'Serving-tier nonprofit satellite (990 financials) for orgs retained in serving_mdm_organization.
     Grain: one row per ein. PK ein.

@@ -6,7 +6,7 @@
       "CREATE INDEX IF NOT EXISTS serving_mdm_bridge_org_jurisdiction_master_org_id_idx ON {{ this }} (master_org_id)",
       "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_bridge_org_jurisdiction_master_org_id_fkey FOREIGN KEY (master_org_id) REFERENCES {{ ref('serving_mdm_organization') }} (master_org_id) NOT VALID",
       "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_bridge_org_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID",
-      gold_pk_post_hook('org_jurisdiction_id')
+      "{{ gold_pk_post_hook('org_jurisdiction_id') }}"
     ]
   )
 }}

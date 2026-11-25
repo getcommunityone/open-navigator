@@ -1,7 +1,7 @@
 {{ config(
     materialized='table',
     tags=['mart', 'jurisdictions', 'data_quality', 'llm_export'],
-    post_hook=[gold_pk_post_hook('jurisdiction_id, website_record_key')]
+    post_hook=["{{ gold_pk_post_hook('jurisdiction_id, website_record_key') }}"]
 ) }}
 
 /*

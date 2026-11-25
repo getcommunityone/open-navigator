@@ -1,7 +1,7 @@
 {{ config(
     materialized='table',
     tags=['mart', 'jurisdictions', 'data_quality'],
-    post_hook=[gold_pk_post_hook('municipality_place_kind')]
+    post_hook=["{{ gold_pk_post_hook('municipality_place_kind') }}"]
 ) }}
 
 /*
