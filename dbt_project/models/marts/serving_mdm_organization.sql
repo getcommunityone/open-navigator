@@ -2,7 +2,7 @@
   config(
     materialized='table',
     post_hook=[
-      "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_organization_pkey PRIMARY KEY (master_org_id)",
+      "{{ gold_pk_post_hook('master_org_id') }}",
       "CREATE INDEX IF NOT EXISTS serving_mdm_organization_org_name_fts_idx ON {{ this }} USING gin (to_tsvector('english', org_name))",
       "CREATE INDEX IF NOT EXISTS serving_mdm_organization_org_name_norm_idx ON {{ this }} (org_name_norm)",
       "CREATE INDEX IF NOT EXISTS serving_mdm_organization_state_code_idx ON {{ this }} (state_code)"

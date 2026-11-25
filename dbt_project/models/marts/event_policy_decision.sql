@@ -3,7 +3,7 @@
         materialized='table',
         unique_key='event_policy_decision_id',
         tags=['marts', 'policy-analysis', 'text', 'ai'],
-        post_hook=[gold_pk_post_hook('event_policy_decision_id')]
+        post_hook=["{{ gold_pk_post_hook('event_policy_decision_id') }}"]
     )
 }}
 
