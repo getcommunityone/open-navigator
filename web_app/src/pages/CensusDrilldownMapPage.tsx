@@ -266,9 +266,12 @@ export default function CensusDrilldownMapPage() {
   const setViz = (v) => setQP('viz', v, 'filled')
   const setScale = (v) => setQP('scale', v, 'linear')
   const setValueMode = (v) => setQP('valueMode', v, 'raw')
-  // ZIP view: overlay the drilled-from county boundary. Off by default.
-  const showCountyOutline = searchParams.get('zipOutline') === '1'
-  const setShowCountyOutline = (on: boolean) => setQP('zipOutline', on ? '1' : '0', '0')
+  // The drilled-from county boundary. ZIP view: off by default. Places view: on by default (#1001), since the towns alone
+  // are scattered shapes; `zipOutline=0` turns it off there.
+  const outlineParam = searchParams.get('zipOutline')
+  const placeView = view === 'place'
+  const showCountyOutline = placeView ? outlineParam !== '0' : outlineParam === '1'
+  const setShowCountyOutline = (on: boolean) => setQP('zipOutline', on ? '1' : '0', placeView ? '1' : '0')
   // Opt-in ZIP boundary overlay for the place tier. Lets the user see which
   // ZCTAs each city overlaps — useful for delivery / service-area work.
   const showZipOutlineInPlace = searchParams.get('placeZipOutline') === '1'

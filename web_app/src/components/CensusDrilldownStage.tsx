@@ -703,6 +703,16 @@ export default function CensusDrilldownStage({
 
         {/* place layer — cities, towns, CDPs filtered to the drilled-from
             county by centroid containment. Raw lng/lat → projectedPath. */}
+        {/* Places tier: the county's land, faintly, under its towns (#1001). Census places cover only incorporated towns
+            and CDPs, so without it the view is scattered shapes on white and reads as broken. */}
+        {view === 'place' && selectedCountyFeature ? (
+          <path
+            d={path(selectedCountyFeature as never) ?? ''}
+            pointerEvents="none"
+            style={{ fill: '#f1f5f9', stroke: 'none' }}
+          />
+        ) : null}
+
         {view === 'place' && placesInCounty ? (
           <g className="places-layer">
             {placesInCounty.map((f) => {
@@ -759,7 +769,7 @@ export default function CensusDrilldownStage({
           </g>
         ) : null}
 
-        {/* county outline for the place tier — same opt-in toggle as ZIP. */}
+        {/* county outline for the place tier — on by default here (#1001), off with the same toggle as ZIP. */}
         {view === 'place' && showCountyOutline && selectedCountyFeature ? (
           <path
             d={path(selectedCountyFeature as never) ?? ''}
