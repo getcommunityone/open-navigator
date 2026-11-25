@@ -105,7 +105,7 @@ export interface DataCenterDecisionsResponse {
   items: DataCenterDecision[]
 }
 
-/** A data center hearing whose official government page states the date and the data center item (#955). */
+/** A data center hearing whose official government page states the date together with the data center item (#955). */
 export interface DataCenterHearing {
   data_center_hearing_id: string
   jurisdiction_id?: string | null
@@ -120,6 +120,8 @@ export interface DataCenterHearing {
   source_name?: string | null
   /** Verbatim excerpt of the official page; matched words in <mark>. */
   evidence?: string | null
+  /** The page calls the date tentative, expected, not final or to be determined. */
+  tentative?: boolean
   checked_at?: string | null
   is_upcoming: boolean
 }

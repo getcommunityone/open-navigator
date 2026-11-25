@@ -6,25 +6,34 @@
 
     A lead is a claimed upcoming meeting from research lists. It is VERIFIED only when its
     official government page (fetched by ingestion.data_centers.fetch_hearing_sources into
-    bronze_data_center_hearing_source) both
-      * says a data center word (data_center_regex, the site-wide test), and
-      * states the claimed meeting date, written out ("December 1", "Dec. 1st") or numeric
-        ("12/01/2026", "12-1-26", "2026-12-01"). The year isn't required: agendas often omit it.
-    Only verified rows are served as hearings; every other status says what is missing, so the
-    gaps are visible instead of being filled with a guess (CLAUDE.md, No Fabricated Data).
+    bronze_data_center_hearing_source) states the claimed date TOGETHER WITH a data center
+    word (data_center_regex, the site-wide test):
+      * a web page: a data center word within ~500 characters of a statement of the date (the
+        same section of the page). Topic pages always say "data center" somewhere, so a
+        date anywhere on the page (a sidebar calendar, another deadline) is not enough (#961).
+      * a PDF agenda: the agenda IS the meeting, so the date anywhere on it plus a data center
+        word anywhere on it is enough.
+    The date may be written out with a capital ("December 1", "DEC. 1st"; lowercase prose like
+    "may 3" doesn't count) or numeric ("12/01/2026", "12-1-26", "2026-12-01"). A written date
+    followed by a DIFFERENT year ("December 1, 2025") does not count; no year at all is fine,
+    agendas often omit it.
+    Only verified rows are served (data_center_hearing_verified); every other status says what
+    is missing, so the gaps are visible instead of being filled with a guess (CLAUDE.md, No
+    Fabricated Data).
 
     status, first that applies:
-      unsourced               no official URL (a tracker, a news report, or nothing)
-      not_fetched             official URL, not fetched yet
-      fetch_failed            fetched, but nothing read (robots.txt, HTTP error, bot check, scanned PDF)
-      no_data_center_mention  the page doesn't say a data center word
-      date_not_found          the page doesn't state the claimed date
-      verified                both
-    evidence: verbatim text of the official page with data center words in <mark> (the site-wide
-    match-evidence rule). For a lead whose page states the date, it is the passage around the
-    date (up to ~240 characters each side, within one line), which is what shows the page
-    announces this meeting; otherwise the page's data center passages. Null unless the page
-    says a data center word.
+      unsourced                no official URL (a tracker, a news report, or nothing)
+      not_fetched              official URL, not fetched yet
+      fetch_failed             fetched, but nothing read (robots.txt, HTTP error, bot check, scanned PDF)
+      no_data_center_mention   the page doesn't say a data center word
+      date_not_found           the page doesn't state the claimed date
+      date_not_with_item       a web page states the date, but nowhere near a data center word
+      verified                 the date and the data center item together
+    evidence: verbatim text of the official page with whole data center phrases in <mark>:
+    the date's passage (250 characters each side), and when it doesn't say the words, " … " then
+    the nearest data center passage of the same region (web page) or of the agenda (PDF).
+    Trimmed to whole words. Null unless verified.
+    tentative: the evidence window says tentative / expected / not final / to be determined.
     jurisdiction_id: the jurisdiction whose name and state match the lead exactly once; null when
     none or several match (never a guess).
     Design: web_docs/docs/development/data-center-hearings.md
@@ -46,32 +55,76 @@ date_patterns as (
         p.fetched_at,
         p.http_status,
         p.error                                                     as fetch_error,
+        coalesce(p.content_type, '') ilike '%pdf%'                  as is_pdf,
         nullif(btrim(p.page_text), '')                              as page_text,
         p.lead_id is not null                                       as was_fetched,
-        -- the claimed date, written out: December 1 / Dec. 1st / Dec 01 (case-insensitive)
-        '\m(?:' || to_char(l.meeting_date, 'FMMonth') || '|' || to_char(l.meeting_date, 'Mon')
-            || case when extract(month from l.meeting_date) = 9 then '|Sept' else '' end
-            || ')\.?,?\s+0?' || extract(day from l.meeting_date)::int || '(?:st|nd|rd|th)?\M' as written_re,
-        -- numeric: 12/01/2026, 12-1-26, 12.01.2026, or ISO 2026-12-01
-        '(?:\m0?' || extract(month from l.meeting_date)::int || '[/.-]0?' || extract(day from l.meeting_date)::int
-            || '[/.-](?:20)?' || to_char(l.meeting_date, 'YY') || '\M|'
-            || to_char(l.meeting_date, 'YYYY-MM-DD') || ')'          as numeric_re
+        -- the claimed date. Written out, capitalised (December / DECEMBER / Dec / DEC, and Sept),
+        -- matched case-sensitively so prose like "may 3" doesn't count; not followed by a
+        -- different year. Or numeric: 12/01/2026, 12-1-26, 12.01.2026, or ISO 2026-12-01.
+        '(?:\m(?:' || to_char(l.meeting_date, 'FMMonth') || '|' || upper(to_char(l.meeting_date, 'FMMonth'))
+            || '|' || to_char(l.meeting_date, 'Mon') || '|' || upper(to_char(l.meeting_date, 'Mon'))
+            || case when extract(month from l.meeting_date) = 9 then '|Sept|SEPT' else '' end
+            || ')\.?,?\s*0?' || extract(day from l.meeting_date)::int || '(?:st|nd|rd|th)?\M'
+            || '(?!,?\s*(?!' || to_char(l.meeting_date, 'YYYY') || ')(?:19|20)\d\d\M)'
+            || '|\m0?' || extract(month from l.meeting_date)::int || '[/.-]0?' || extract(day from l.meeting_date)::int
+            || '[/.-](?:20)?' || to_char(l.meeting_date, 'YY') || '\M'
+            || '|' || to_char(l.meeting_date, 'YYYY-MM-DD') || ')'     as date_re
     from leads as l
     left join pages as p on p.lead_id = l.lead_id
+),
+
+windows as (
+    -- every statement of the date on the page: `region` is up to ~500 characters on each side
+    -- (two chained {0,250}: Postgres caps one repeat at 255), `pre`/`post` the 250 nearest
+    select d.lead_id, w.n, w.m[1] as region_before, w.m[2] as date_text, w.m[3] as region_after
+    from date_patterns as d
+    cross join lateral regexp_matches(
+        coalesce(d.page_text, ''),
+        '([\s\S]{0,250}[\s\S]{0,250})(' || d.date_re || ')([\s\S]{0,250}[\s\S]{0,250})', 'g'
+    ) with ordinality as w(m, n)
+),
+
+shaped as (
+    select
+        lead_id,
+        n,
+        -- the date's own passage: 250 characters each side
+        right(region_before, 250) || date_text || left(region_after, 250)                   as date_window,
+        region_before || date_text || region_after                                          as region
+    from windows
+),
+
+first_windows as (
+    select
+        lead_id,
+        (array_agg(date_window order by n))[1]                                              as date_window,
+        -- the first statement of the date with a data center word in its region
+        (array_agg(date_window order by n) filter (where region ~* '\y{{ dc_regex }}\y'))[1] as item_date_window,
+        (array_agg(region order by n) filter (where region ~* '\y{{ dc_regex }}\y'))[1]      as item_region
+    from shaped
+    group by lead_id
 ),
 
 checked as (
     select
         d.*,
-        coalesce(d.page_text, '') ~* '\y{{ dc_regex }}\y'           as says_data_center,
-        (coalesce(d.page_text, '') ~* d.written_re or coalesce(d.page_text, '') ~ d.numeric_re) as states_date,
-        -- the passage around the first place the page states the date: the evidence that this
-        -- page announces THIS meeting (a page's first data center mention is often its menu)
-        coalesce(
-            (regexp_match(d.page_text, '([^\n]{0,240}' || d.written_re || '[^\n]{0,240})', 'i'))[1],
-            (regexp_match(d.page_text, '([^\n]{0,240}' || d.numeric_re || '[^\n]{0,240})'))[1]
-        )                                                           as date_passage
+        coalesce(d.page_text, '') ~* '\y{{ dc_regex }}\y'                                   as says_data_center,
+        fw.date_window is not null                                                          as states_date,
+        fw.item_region is not null or (d.is_pdf and fw.date_window is not null)             as date_with_item,
+        -- the evidence, before marking and trimming: the date's passage; when that passage
+        -- doesn't say the words, then the nearest data center passage of the same region (web
+        -- page) or of the agenda (PDF), after " … "
+        case
+            when fw.item_region is not null and fw.item_date_window ~* '\y{{ dc_regex }}\y' then fw.item_date_window
+            when fw.item_region is not null then
+                fw.item_date_window || ' … ' ||
+                regexp_replace(regexp_replace((regexp_match(fw.item_region, '([\s\S]{0,160}\y{{ dc_regex }}\y[\s\S]{0,160})', 'i'))[1], '^\S*\s', ''), '\s\S*$', '')
+            when d.is_pdf and fw.date_window is not null then
+                fw.date_window || ' … ' ||
+                regexp_replace(regexp_replace((regexp_match(d.page_text, '([\s\S]{0,160}\y{{ dc_regex }}\y[\s\S]{0,160})', 'i'))[1], '^\S*\s', ''), '\s\S*$', '')
+        end                                                                                 as raw_evidence
     from date_patterns as d
+    left join first_windows as fw on fw.lead_id = d.lead_id
 ),
 
 juris as (
@@ -111,25 +164,18 @@ select
         when c.page_text is null then 'fetch_failed'
         when not c.says_data_center then 'no_data_center_mention'
         when not c.states_date then 'date_not_found'
+        when not c.date_with_item then 'date_not_with_item'
         else 'verified'
     end)::text                                                          as status,
     c.fetch_error::text                                                 as fetch_error,
-    (case
-        -- verified, the date passage itself names the data center item: that passage, marked
-        when c.says_data_center and c.date_passage ~* '\y{{ dc_regex }}\y' then
-            ts_headline('english', btrim(c.date_passage), {{ data_center_headline_tsquery() }},
-                        'StartSel=<mark>, StopSel=</mark>, HighlightAll=true')
-        -- verified, the date stands on its own line (PDF agendas): the date line, then the page's
-        -- data center passage, both verbatim
-        when c.says_data_center and c.date_passage is not null then
-            btrim(c.date_passage) || ' … ' ||
-            ts_headline('english', c.page_text, {{ data_center_headline_tsquery() }},
-                        'StartSel=<mark>, StopSel=</mark>, MaxFragments=1, MaxWords=35, MinWords=12')
-        -- otherwise the page's data center passages, so the gap is visible
-        when c.says_data_center then
-            ts_headline('english', c.page_text, {{ data_center_headline_tsquery() }},
-                        'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=35, MinWords=12, FragmentDelimiter=" … "')
+    -- verbatim window, partial words trimmed at both ends, whole data center phrases marked
+    (case when c.date_with_item and c.says_data_center then
+        regexp_replace(
+            regexp_replace(regexp_replace(btrim(regexp_replace(c.raw_evidence, '\s+', ' ', 'g')), '^\S*\s', ''), '\s\S*$', ''),
+            '\y({{ dc_regex }})\y', '<mark>\1</mark>', 'gi'
+        )
     end)::text                                                          as evidence,
+    coalesce(c.date_with_item and c.raw_evidence ~* '\m(tentative(ly)?|expected|not final|to be determined|tbd)\M', false)::boolean as tentative,
     c.fetched_at::timestamptz                                           as checked_at
 from checked as c
 left join juris as j on j.lead_id = c.lead_id

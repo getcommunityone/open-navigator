@@ -77,7 +77,7 @@ def _hearing(**kw) -> dict[str, Any]:
         "body_name": "City Council and Planning & Zoning Commission", "topic": "Joint public hearing",
         "meeting_date": date(2026, 12, 1), "source_url": "https://cityofdeerpark.legistar.com/x",
         "source_name": "City Legistar", "evidence": "amend the zoning ordinance as it relates to <mark>data</mark> <mark>centers</mark>",
-        "checked_at": None, "is_upcoming": True,
+        "checked_at": None, "is_upcoming": True, "tentative": False,
     }
     base.update(kw)
     return base
@@ -91,17 +91,19 @@ def test_state_scope_serves_verified_hearings_with_their_official_link(get) -> N
     assert body["scope"]["state_code"] == "TX" and body["available"] is True
     assert body["counts"] == {"upcoming": 1, "past": 0}
     (h,) = body["items"]
-    assert h["source_url"].startswith("https://") and "<mark>" in h["evidence"]
+    assert h["source_url"].startswith("https://") and "<mark>" in h["evidence"] and h["tentative"] is False
     items_sql, params = conn.calls[0]
-    assert "h.status = 'verified'" in items_sql and "h.meeting_date >= current_date" in items_sql
+    assert "FROM data_center_hearing_verified h" in items_sql and "h.meeting_date >= current_date" in items_sql
     assert params == ("TX", data_centers.HEARINGS_DEFAULT)
 
 
-def test_only_verified_rows_are_ever_queried() -> None:
+def test_only_the_verified_slice_is_ever_queried() -> None:
     scope = data_centers.build_scope(None, None, None)
     for when in ("upcoming", "past", "all"):
         items_sql, _, counts_sql, _ = data_centers.build_hearing_queries(scope, when, 5)
-        assert "h.status = 'verified'" in items_sql and "h.status = 'verified'" in counts_sql
+        # data_center_hearing (all leads) stays in gold; the route reads only the verified slice
+        assert "FROM data_center_hearing_verified h" in items_sql and "FROM data_center_hearing_verified h" in counts_sql
+        assert "FROM data_center_hearing h" not in items_sql + counts_sql
 
 
 def test_city_scope_and_when(get) -> None:

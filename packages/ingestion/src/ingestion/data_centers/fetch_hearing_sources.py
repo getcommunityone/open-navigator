@@ -85,14 +85,21 @@ class SourcePage:
     error: str | None
 
 
+# Page text kept per lead: far more than any agenda or notice page, small enough for ts_headline.
+MAX_PAGE_CHARS = 1_000_000
+
+
 def clean_url(url: str) -> str:
-    """``url`` without tracking parameters; every other parameter kept in order."""
-    parts = urlsplit(url.strip())
+    """``url`` without tracking parameters (utm_*, fbclid, …). A URL that has none comes back
+    exactly as given, so an official URL is never re-encoded for nothing."""
+    url = url.strip()
+    parts = urlsplit(url)
+    pairs = parse_qsl(parts.query, keep_blank_values=True)
     query = [
-        (k, v)
-        for k, v in parse_qsl(parts.query, keep_blank_values=True)
-        if not k.lower().startswith(_TRACKING_PREFIXES) and k.lower() not in _TRACKING_KEYS
+        (k, v) for k, v in pairs if not k.lower().startswith(_TRACKING_PREFIXES) and k.lower() not in _TRACKING_KEYS
     ]
+    if len(query) == len(pairs):
+        return url
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query, doseq=True), parts.fragment))
 
 
@@ -136,6 +143,13 @@ def fetch_source(
             text = page_text(resp.content, ctype, pdf_text=pdf_text).replace("\x00", "")
         except Exception as err:  # noqa: BLE001 - a broken PDF is a recorded outcome, not a crash
             error = f"text extraction failed: {type(err).__name__}: {err}"
+        if text is not None and not text.strip():
+            is_pdf = "pdf" in ctype.lower() or resp.content[:5] == b"%PDF-"
+            error = "PDF has no text layer (scanned?)" if is_pdf else "page has no visible text"
+            text = None
+        elif text is not None and len(text) > MAX_PAGE_CHARS:
+            logger.warning("{}: page text {:,} chars, keeping the first {:,}", lead_id, len(text), MAX_PAGE_CHARS)
+            text = text[:MAX_PAGE_CHARS]
     return SourcePage(lead_id, url, str(resp.url), now, resp.status_code, ctype or None, text, error)
 
 

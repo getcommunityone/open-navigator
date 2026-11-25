@@ -1600,7 +1600,7 @@ HEARINGS_MAX = 500
 
 
 class DataCenterHearing(BaseModel):
-    """A data center hearing whose official government page states the date and the data center item."""
+    """A data center hearing whose official government page states the date together with the data center item."""
 
     data_center_hearing_id: str
     jurisdiction_id: str | None = None
@@ -1613,6 +1613,7 @@ class DataCenterHearing(BaseModel):
     source_url: str = Field(..., description="The official page that states the hearing.")
     source_name: str | None = None
     evidence: str | None = Field(None, description="Verbatim excerpt of the official page; matched words in <mark>.")
+    tentative: bool = Field(False, description="The page calls the date tentative, expected, not final or to be determined.")
     checked_at: datetime | None = Field(None, description="When the official page was last read.")
     is_upcoming: bool = Field(..., description="The meeting is today or later.")
 
@@ -1630,10 +1631,10 @@ class DataCenterHearingsResponse(BaseModel):
 
 
 def build_hearing_queries(scope: JobClaimScope, when: str, limit: int) -> tuple[str, list[Any], str, list[Any]]:
-    """(items SQL, params, counts SQL, params) over verified rows of ``data_center_hearing``.
-    Upcoming first (soonest), then past (newest). Verification happens in dbt; unverified
-    leads are never served."""
-    where: list[str] = ["h.status = 'verified'"]
+    """(items SQL, params, counts SQL, params) over ``data_center_hearing_verified``, the served
+    slice that holds verified hearings only (verification happens in dbt; an unverified lead is
+    never published). Upcoming first (soonest), then past (newest)."""
+    where: list[str] = []
     params: list[Any] = []
     if scope.state_code:
         params.append(scope.state_code)
@@ -1641,7 +1642,7 @@ def build_hearing_queries(scope: JobClaimScope, when: str, limit: int) -> tuple[
     if scope.city:
         params.append(f"%{scope.city}%")
         where.append(f"h.jurisdiction_name ILIKE ${len(params)}")
-    counts_where = " AND ".join(where)
+    counts_where = " AND ".join(where) or "TRUE"
     counts_params = list(params)
     if when == "upcoming":
         where.append("h.meeting_date >= current_date")
@@ -1650,9 +1651,9 @@ def build_hearing_queries(scope: JobClaimScope, when: str, limit: int) -> tuple[
     params.append(limit)
     items_sql = (
         "SELECT h.data_center_hearing_id, h.jurisdiction_id, h.jurisdiction_name, h.state_code, h.state, "
-        "h.body_name, h.topic, h.meeting_date, h.source_url, h.source_name, h.evidence, h.checked_at, "
-        "(h.meeting_date >= current_date) AS is_upcoming "
-        f"FROM data_center_hearing h WHERE {' AND '.join(where)} "
+        "h.body_name, h.topic, h.meeting_date, h.source_url, h.source_name, h.evidence, h.tentative, "
+        "h.checked_at, (h.meeting_date >= current_date) AS is_upcoming "
+        f"FROM data_center_hearing_verified h WHERE {' AND '.join(where) or 'TRUE'} "
         "ORDER BY (h.meeting_date >= current_date) DESC, "
         "CASE WHEN h.meeting_date >= current_date THEN h.meeting_date END ASC, "
         "h.meeting_date DESC, h.data_center_hearing_id "
@@ -1661,7 +1662,7 @@ def build_hearing_queries(scope: JobClaimScope, when: str, limit: int) -> tuple[
     counts_sql = (
         "SELECT count(*) FILTER (WHERE h.meeting_date >= current_date)::int AS upcoming, "
         "count(*) FILTER (WHERE h.meeting_date < current_date)::int AS past "
-        f"FROM data_center_hearing h WHERE {counts_where}"
+        f"FROM data_center_hearing_verified h WHERE {counts_where}"
     )
     return items_sql, params, counts_sql, counts_params
 
@@ -1675,9 +1676,9 @@ async def list_data_center_hearings(
 ) -> DataCenterHearingsResponse:
     """
     Upcoming local government hearings on data centers whose official page (a government
-    agenda, notice or project page) states both the date and the data center item, each
-    with a verbatim excerpt and the link. Leads that aren't backed by an official page are
-    never returned. ``available`` is false, with null counts, when the table isn't loaded.
+    agenda, notice or project page) states the date together with the data center item, each
+    with a verbatim excerpt and the link; ``tentative`` when the page says the date isn't final.
+    Leads that aren't backed by an official page are never returned. ``available`` is false, with null counts, when the table isn't loaded.
 
     Example:
         GET /api/data-centers/hearings?state=AZ&when=upcoming
@@ -1701,7 +1702,7 @@ async def list_data_center_hearings(
                     count_rows = await conn.fetch(counts_sql, *counts_params)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("hearings.relation_missing", True)
-            logger.warning("data-centers: 'data_center_hearing' isn't here yet ({}); unavailable", e)
+            logger.warning("data-centers: 'data_center_hearing_verified' isn't here yet ({}); unavailable", e)
             return DataCenterHearingsResponse(scope=applied, available=False)
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)

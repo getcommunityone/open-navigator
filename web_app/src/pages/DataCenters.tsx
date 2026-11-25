@@ -167,7 +167,7 @@ export default function DataCenters() {
 
 /**
  * "Hearings coming up" (#955): upcoming data center hearings whose OFFICIAL page (a government
- * agenda, notice or project page) states both the date and the data center item. Leads from
+ * agenda, notice or project page) states the date together with the data center item. Leads from
  * research lists that no official page backs up are never shown. Each card quotes the official
  * page with the matched words highlighted (server ts_headline -> highlightSnippet, React-escaped)
  * and links to it. Same ?state=&city= scope as the rest of the page.
@@ -185,8 +185,8 @@ function HearingsSection({ rawState, cityName, scopeLabel }: { rawState?: string
         Hearings coming up{data?.counts?.upcoming != null ? ` (${data.counts.upcoming})` : ''}
       </h2>
       <p className="mb-3 text-sm text-gray-600">
-        Upcoming data center hearings in {scopeLabel}, each confirmed on the government&apos;s own page, which is quoted
-        and linked.
+        Upcoming data center hearings in {scopeLabel}, each listed on the government&apos;s own page, which is quoted and
+        linked. Dates can change; check the notice before you go.
       </p>
       {isError ? (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -212,15 +212,24 @@ function HearingCard({ hearing }: { hearing: DataCenterHearing }) {
   return (
     <li className="rounded-lg border border-primary-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-semibold text-gray-900">
+        <p className="font-semibold text-gray-900" title="Body as named by the research lead; the quote below is the government's page">
           {hearing.body_name || 'Hearing'}
           {where && <span className="font-normal text-gray-600"> · {where}</span>}
         </p>
-        <p className="text-sm font-semibold text-primary-700">{when ?? 'Date not listed'}</p>
+        <p className="text-sm font-semibold text-primary-700">
+          {when ?? 'Date not listed'}
+          {hearing.tentative && (
+            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">Tentative</span>
+          )}
+        </p>
       </div>
-      {hearing.topic && <p className="mt-1 text-sm text-gray-700">{hearing.topic}</p>}
+      {hearing.topic && (
+        <p className="mt-1 text-sm text-gray-700">
+          <span className="text-gray-500">From the research lead:</span> {hearing.topic}
+        </p>
+      )}
       {hearing.evidence && (
-        <blockquote className="mt-2 line-clamp-4 border-l-4 border-primary-300 pl-3 text-sm text-gray-800">
+        <blockquote className="mt-2 line-clamp-6 border-l-4 border-primary-300 pl-3 text-sm text-gray-800">
           {highlightSnippet(hearing.evidence)}
         </blockquote>
       )}

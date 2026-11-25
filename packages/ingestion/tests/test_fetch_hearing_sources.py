@@ -31,6 +31,9 @@ def _resp(status: int, body: bytes, ctype: str, url: str = "https://town.example
 def test_clean_url_drops_tracking_parameters_only() -> None:
     url = "https://x.legistar.com/LegislationDetail.aspx?GUID=ABC&ID=8301424&Options&Search&utm_source=chatgpt.com"
     assert clean_url(url) == "https://x.legistar.com/LegislationDetail.aspx?GUID=ABC&ID=8301424&Options=&Search="
+    # no tracking parameter: the official URL comes back exactly as given, not re-encoded
+    plain = "https://x.legistar.com/LegislationDetail.aspx?GUID=ABC&ID=8301424&Options&Search"
+    assert clean_url(plain) == plain
     assert clean_url("https://www.wichita.gov/datacenters?utm_source=chatgpt.com") == "https://www.wichita.gov/datacenters"
 
 
@@ -60,3 +63,9 @@ def test_every_outcome_is_recorded_not_raised() -> None:
         "l", "https://x.gov/a",
     )
     assert challenge.page_text is None and "bot challenge" in (challenge.error or "")
+
+
+def test_scanned_pdf_says_why_it_has_no_text() -> None:
+    page = fetch_source(_Fetcher(_resp(200, b"%PDF-1.7 scanned", "application/pdf")), "l", "https://x.gov/a.pdf",
+                        pdf_text=lambda b: "  ")
+    assert page.page_text is None and page.error == "PDF has no text layer (scanned?)"
