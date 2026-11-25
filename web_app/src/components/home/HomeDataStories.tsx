@@ -1,176 +1,117 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { useStoryData } from '../stance/useStoryData'
-import { fetchDataCenterMeetingMentions } from '../../api/dataCenters'
-import { STORIES, scopeQuery, storyScopeLabel, storyStats } from '../../utils/dataStory'
+import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
+import { STORIES, scopeQuery, storyScopeLabel } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
-import type { ChartKey } from '../../utils/stanceGame'
-import StoryStatesMap from './StoryStatesMap'
 import { useStoryConclusion } from '../stance/useStoryConclusion'
-
-/** The counts the box shows: the same datasets (and `storyStats`) as the Data Stories hub. */
-const COUNT_CHARTS: ChartKey[] = ['meeting-mentions', 'agenda-items', 'sites']
+import HomeTopicStrip from './HomeTopicStrip'
+import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 
 interface Props {
-  /** The home page's place, so this section's label, counts and links match it (CLAUDE.md, scope label rule). */
+  /** The home page's place, so the Start button and the topic links carry it (CLAUDE.md, scope label rule). */
   stateCode?: string
   city?: string | null
 }
 
-const fmt = (n: number) => n.toLocaleString('en-US')
 const STORY = STORIES['data-centers']!
 
 /**
- * Home `#data-stories` (#975, #985): the header's Data Stories tab scrolls here. The box names the story (The Data
- * Center Story), shows a US map whose markers open the story for each state (real meeting counts), the counts for the
- * home page's place, and lists every story there is. Counts are real (the hub's own endpoints); while they load, or when
- * none load, it says so.
+ * Home `#data-stories`, the top of the home page (#975, #985, #989, #995):
+ * - the story's conclusion headline (gated on the national record; else its question), subtitle, basis and Start;
+ * - a US map with a pin per state that discussed data centers, each linking to that state's story, and a card quoting the
+ *   state's newest meeting passage, verbatim, with where and when it was said;
+ * - Browse topics: the story's screens, for the page's place.
  */
 export default function HomeDataStories({ stateCode, city = null }: Props) {
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
   const scope = { stateCode, stateName, city: stateCode ? city : null }
   const label = storyScopeLabel(scope)
-  const { data, status, refetch } = useStoryData(stateCode, scope.city, COUNT_CHARTS)
-  const states = COUNT_CHARTS.map((k) => status[k] ?? 'loading')
-  const loading = states.some((s) => s === 'loading')
-  const failed = states.every((s) => s === 'error')
-  const stats = storyStats(data, scope)
   const q = scopeQuery(scope)
-  // The map is national (every state's own count); the page's state is highlighted.
+  const conclusion = useStoryConclusion('data-centers')
+
+  // National: every state's own count, and the newest passages to quote (newest first, so the first per state is its newest).
   const national = useQuery({
-    queryKey: ['home', 'story-map', 'meeting-mentions-by-state'],
-    queryFn: () => fetchDataCenterMeetingMentions({ limit: 1 }),
+    queryKey: ['home', 'story-map', 'meeting-mentions', 500],
+    queryFn: () => fetchDataCenterMeetingMentions({ limit: 500 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })
-  const placeIn = label === 'National' ? 'across the country' : `in ${label}`
-  const conclusion = useStoryConclusion('data-centers')
-  const otherStories = Object.entries(STORIES)
+  // Speakers' own words with their recorded side, preferred over a meeting passage where a state has them.
+  const speakers = useQuery({
+    // The API returns at most 10 quotes per side (POSITION_QUOTES_MAX).
+    queryKey: ['home', 'story-map', 'positions', 10],
+    queryFn: () => fetchDataCenterPositions({ limit: 10 }),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const quotes = useMemo(() => {
+    const out = new Map<string, StateQuote>()
+    const sides = speakers.data?.quotes
+    for (const side of ['against', 'for', 'question'] as const) {
+      for (const sq of sides?.[side] ?? []) {
+        if (!sq.state_code || out.has(sq.state_code) || !sq.quote) continue
+        out.set(sq.state_code, {
+          place: [sq.jurisdiction_name, sq.state_code].filter(Boolean).join(', '),
+          side,
+          who: sq.speaker_role ?? null,
+          text: sq.quote,
+          date: sq.meeting_date ?? null,
+          meeting: sq.decision_headline ?? null,
+          url: sq.jump_url ?? sq.video_url ?? null,
+        })
+      }
+    }
+    for (const m of national.data?.items ?? []) {
+      if (!m.state_code || out.has(m.state_code) || !m.evidence) continue
+      out.set(m.state_code, {
+        place: [m.jurisdiction_name, m.state_code].filter(Boolean).join(', '),
+        text: m.evidence,
+        date: m.meeting_date ?? null,
+        meeting: m.meeting_title ?? null,
+        url: m.jump_url ?? m.video_url ?? null,
+      })
+    }
+    return out
+  }, [national.data, speakers.data])
 
   return (
-    <section
-      id="data-stories"
-      className="v9-section-full"
-      aria-labelledby="home-data-stories-h"
-      style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '40px 24px', scrollMarginTop: 72 }}
-    >
-      <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 22px' }}>
-          <h2 id="home-data-stories-h" className="font-display" style={{ fontSize: 'clamp(26px, 3.6vw, 34px)', fontWeight: 800, margin: 0, color: '#1c1917' }}>
-            Data stories
-          </h2>
-          <p style={{ fontSize: 15, color: '#57534e', lineHeight: 1.45, marginTop: 8 }}>
-            Walk through what local meetings put on the record, one screen at a time, and say where you stand along the way.
-          </p>
-        </div>
-
-        <article
-          aria-labelledby="home-story-dc"
-          className="home-story-card"
-          style={{ border: '1px solid #e7e5e4', borderRadius: 16, background: '#fafaf9', padding: '24px', maxWidth: 1080, margin: '0 auto' }}
-        >
+    <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
+      <div className="home-stories-inner">
+        <div className="home-story-card">
           <div className="home-story-text">
-            <p className="font-mono-x" style={{ margin: 0, fontSize: 11.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 600 }}>
-              {STORY.title}
-            </p>
-            {/* #989: the conclusion leads while the national record backs it; otherwise the story's question. */}
-            <h3 id="home-story-dc" className="font-display" style={{ fontSize: 'clamp(28px, 3.4vw, 40px)', fontWeight: 800, margin: '6px 0 6px', color: '#1c1917', lineHeight: 1.08 }}>
+            <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
+            <h1 id="home-story-dc" className="font-display home-story-headline">
               {conclusion ? conclusion.headline : STORY.question}
-            </h3>
+            </h1>
             {conclusion && (
               <>
-                <p style={{ margin: 0, fontSize: 16, color: '#44403c', lineHeight: 1.45 }}>{conclusion.subhead}</p>
-                <p style={{ margin: '6px 0 0', fontSize: 13, color: '#78716c' }}>{conclusion.basis}</p>
+                <p className="home-story-subhead">{conclusion.subhead}</p>
+                <p className="home-story-basis">{conclusion.basis}</p>
               </>
             )}
-            {/* Start right under the headline: in view after the Data Stories tab, on a laptop and a phone. */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 18px', marginTop: 16 }}>
-              <Link
-                to={`/stories/data-centers${q}`}
-                style={{ background: '#0f766e', color: '#fff', borderRadius: 999, padding: '11px 22px', fontSize: 15, fontWeight: 700, textDecoration: 'none' }}
-              >
-                Start the story {label === 'National' ? '' : `for ${label} `}
-                <span aria-hidden="true">→</span>
+            <div style={{ marginTop: 18 }}>
+              <Link to={`/stories/data-centers${q}`} className="home-story-start">
+                Start the story{label === 'National' ? '' : ` for ${label}`} <span aria-hidden="true">→</span>
               </Link>
             </div>
-
-            <p className="font-mono-x" style={{ margin: '18px 0 0', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#57534e' }}>
-              On the record {placeIn}
-            </p>
-            {loading ? (
-              <p role="status" style={{ margin: '8px 0 0', fontSize: 14, color: '#78716c' }}>
-                Loading counts…
-              </p>
-            ) : failed ? (
-              <p role="status" style={{ margin: '8px 0 0', fontSize: 14, color: '#78716c' }}>
-                The counts could not be loaded right now.{' '}
-                <button
-                  type="button"
-                  onClick={() => COUNT_CHARTS.forEach((k) => refetch(k))}
-                  style={{ background: 'none', border: 'none', padding: 0, color: '#0f766e', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}
-                >
-                  Try again
-                </button>
-              </p>
-            ) : stats.length > 0 ? (
-              <dl
-                aria-label={`What the data center records cover: ${label}`}
-                style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, margin: '8px 0 0' }}
-              >
-                {stats.map((s) => (
-                  <div key={s.key} style={{ borderTop: '1px solid #d6d3d1', paddingTop: 6, display: 'flex', flexDirection: 'column-reverse', justifyContent: 'flex-end' }}>
-                    <dt style={{ fontSize: 13, color: '#57534e', marginTop: 2, lineHeight: 1.3 }}>{s.label}</dt>
-                    <dd className="font-display" style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#1c1917', lineHeight: 1.1 }}>
-                      {fmt(s.value)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p role="status" style={{ margin: '8px 0 0', fontSize: 14, color: '#78716c' }}>
-                No data available for {label}.
-              </p>
-            )}
-
           </div>
 
           <div className="home-story-map">
-            <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 600, color: '#1c1917' }}>Pick a state to read its story</p>
             {national.isError ? (
               <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
             ) : (
               <StoryStatesMap
                 byState={national.data?.counts?.by_state}
+                quotes={quotes}
                 highlight={stateCode ?? null}
                 href={(code) => `/stories/data-centers?state=${encodeURIComponent(code)}`}
               />
             )}
           </div>
-        </article>
+        </div>
 
-        <nav aria-labelledby="home-all-stories-h" style={{ maxWidth: 1080, margin: '18px auto 0' }}>
-          <p id="home-all-stories-h" className="font-mono-x" style={{ margin: '0 0 8px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#57534e' }}>
-            All data stories
-          </p>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {otherStories.map(([id, s]) => (
-              <li key={id}>
-                <Link
-                  to={`/stories/${id}${q}`}
-                  style={{ display: 'inline-block', border: '1px solid #d6d3d1', borderRadius: 999, padding: '7px 14px', fontSize: 14, fontWeight: 600, color: '#0f766e', textDecoration: 'none', background: '#fff' }}
-                >
-                  {s.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <p style={{ margin: '8px 0 0', fontSize: 13, color: '#78716c' }}>
-            {otherStories.length === 1 ? 'This is the first story; more topics are being written.' : `${otherStories.length} stories.`}{' '}
-            <Link to={`/stories${q}`} style={{ color: '#0f766e', fontWeight: 600 }}>
-              See the stories page
-            </Link>
-          </p>
-        </nav>
+        <HomeTopicStrip query={q} />
       </div>
     </section>
   )

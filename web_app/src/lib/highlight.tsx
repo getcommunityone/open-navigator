@@ -22,3 +22,20 @@ export function highlightSnippet(text: string): ReactNode {
     ),
   )
 }
+
+/** About `max` visible characters of the passage around its first match, cut at word edges, with ellipses where cut. */
+export function excerptAroundMark(text: string, max = 190): string {
+  const plain = text.replace(/\s+/g, ' ').trim()
+  if (plain.replace(/<\/?mark>/g, '').length <= max) return plain
+  const at = Math.max(0, plain.indexOf('<mark>'))
+  let start = Math.max(0, at - Math.round(max * 0.35))
+  let end = Math.min(plain.length, start + max + 26)
+  if (start > 0) start = plain.indexOf(' ', start) + 1
+  if (end < plain.length) end = Math.max(start, plain.lastIndexOf(' ', end))
+  let cut = plain.slice(start, end)
+  // never leave half a tag, or a <mark> without its end, at either edge
+  cut = cut.replace(/<\/?m?a?r?k?$/, '')
+  if (/^[^<]*<\/mark>/.test(cut)) cut = cut.replace('</mark>', '')
+  if ((cut.match(/<mark>/g)?.length ?? 0) > (cut.match(/<\/mark>/g)?.length ?? 0)) cut += '</mark>'
+  return `${start > 0 ? '… ' : ''}${cut}${end < plain.length ? ' …' : ''}`
+}
