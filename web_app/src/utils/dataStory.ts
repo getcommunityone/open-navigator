@@ -13,7 +13,7 @@ import type {
   DataCenterSitesResponse,
   JobClaimsResponse,
 } from '../api/dataCenters'
-import { communityEventKindLabel, concernLabel } from '../lib/dataCenterJobs'
+import { communityEventKindLabel, concernLabel, siteSourcesText, siteTotal } from '../lib/dataCenterJobs'
 import type { StanceQuestion } from '../api/stance'
 import { questionText } from './storyQuestion'
 import {
@@ -109,7 +109,7 @@ export function landConcernNote(res: AreaConcernsResponse | null | undefined, pl
 
 /** Where a "For context" screen's figures come from (they are not from meeting recordings or transcripts), or null. */
 export function contextSourceFor(key: string | null | undefined): string | null {
-  if (key === 'sites') return 'Epoch AI data center sites'
+  if (key === 'sites') return 'Epoch AI and the US Data Center Registry'
   if (key === 'projects') return 'curated announcements and Epoch AI'
   return null
 }
@@ -157,14 +157,14 @@ export function storyStats(data: StoryData, scope: StoryScope = { stateName: nul
   const claims = data['job-claims'] as JobClaimsResponse | null | undefined
   const projects = data.projects as DataCenterProjectsResponse | null | undefined
   const k = sites?.counts
-  const siteTotal = k ? k.planned + k.under_construction + k.operating + k.no_longer_listed + k.status_not_published : 0
+  const sitesOnRecord = siteTotal(k)
   // Counts from meeting recordings and transcripts lead; counts from other sources follow with their source named.
   const all: StoryStat[] = [
     { key: 'meetings', value: mentions?.counts?.meetings ?? 0, label: 'meetings where a data center came up' },
     { key: 'passages', value: mentions?.counts?.passages ?? 0, label: 'meeting passages quoted' },
     { key: 'agendas', value: agendas?.counts ? agendas.counts.upcoming + agendas.counts.past : 0, label: 'meeting agendas that name a data center' },
     { key: 'claims', value: (claims?.totals?.construction ?? 0) + (claims?.totals?.operations ?? 0), label: 'jobs claims made in meetings' },
-    { key: 'sites', value: siteTotal, label: `data center sites on record${scope.city && scope.stateName ? ` in ${scope.stateName}` : ''}, from Epoch AI` },
+    { key: 'sites', value: sitesOnRecord, label: `data center sites on record${scope.city && scope.stateName ? ` in ${scope.stateName}` : ''}, from ${siteSourcesText(sites?.items) ?? 'Epoch AI'}` },
     { key: 'projects', value: projects?.total ?? 0, label: 'data center projects on record, from announcements and Epoch AI' },
   ]
   return all.filter((s) => s.value > 0)
@@ -281,7 +281,7 @@ function positionsText(res: DataCenterPositionsResponse, scope: StoryScope): Scr
 function sitesText(res: DataCenterSitesResponse, scope: StoryScope): ScreenText | null {
   const k = res.counts
   if (!k) return null
-  const total = k.planned + k.under_construction + k.operating + k.no_longer_listed + k.status_not_published
+  const total = siteTotal(k)
   if (total <= 0) return null
   const place = placeFor('sites', scope)
   const pipeline = k.planned + k.under_construction
@@ -290,6 +290,7 @@ function sitesText(res: DataCenterSitesResponse, scope: StoryScope): ScreenText 
       ? `None of the ${plural(total, 'data center site')} ${where(place)} ${total === 1 ? 'is' : 'are'} listed as operating; ${fmt(pipeline)} ${pipeline === 1 ? 'is' : 'are'} planned or under construction.`
       : `Of ${plural(total, 'data center site')} ${where(place)}, ${fmt(k.operating)} ${k.operating === 1 ? 'is' : 'are'} operating, and ${fmt(pipeline)} more ${pipeline === 1 ? 'is' : 'are'} planned or under construction.`
   const rest: string[] = []
+  if ((k.cancelled ?? 0) > 0) rest.push(`${fmt(k.cancelled ?? 0)} cancelled, per the source`)
   if (k.no_longer_listed > 0) rest.push(`${fmt(k.no_longer_listed)} no longer listed`)
   if (k.status_not_published > 0) rest.push(`${fmt(k.status_not_published)} with no published status`)
   const lead = rest.length ? `Also on record: ${rest.join(' and ')}. ` : ''

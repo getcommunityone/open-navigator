@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: int_data_center_facility_registry__site
+    description: >
+      Which data_center_site each US Data Center Registry data center belongs to (#958): the
+      Epoch site with an equal normalised name in the same state when that pairing is
+      one-to-one, else its own site. Crypto mines are left out.
+    columns:
+      - name: registry_id
+        description: "Primary key: the registry id."
+        tests: [unique, not_null]
+      - name: data_center_site_id
+        description: "The Epoch site's id when matched, else md5('us_data_center_registry|' || registry_id)."
+        tests: [not_null]
+      - name: match_basis
+        description: "epoch_same_name or own_site."
+        tests:
+          - accepted_values:
+              values: ['epoch_same_name', 'own_site']
+
+unit_tests:
+  - name: dc_registry_joins_epoch_only_on_equal_names_one_to_one
+    description: "Equal normalised names in the same state join; a near name, another state, or a two-way tie never does; crypto mines are left out."
+    model: int_data_center_facility_registry__site
+    given:
+      - input: ref('stg_epoch_data_center')
+        rows:
+          - {name: 'Google Cedar Rapids', state_code: IA}
+          - {name: 'Google New Albany', state_code: OH}
+          - {name: 'Colossus 1', state_code: TN}
+          - {name: 'Meta Temple', state_code: TX}
+      - input: ref('stg_data_center_facility_registry')
+        rows:
+          - {registry_id: r1, facility_name: 'Google Cedar Rapids Data Center Campus', facility_type: data_center, state_code: IA}
+          - {registry_id: r2, facility_name: 'QTS New Albany 1', facility_type: data_center, state_code: OH}
+          - {registry_id: r3, facility_name: 'Google Cedar Rapids', facility_type: data_center, state_code: NE}
+          - {registry_id: r4, facility_name: 'Meta Temple Data Center', facility_type: data_center, state_code: TX}
+          - {registry_id: r5, facility_name: 'Meta Temple Campus', facility_type: data_center, state_code: TX}
+          - {registry_id: r6, facility_name: 'Colossus 1', facility_type: crypto_mining, state_code: TN}
+          - {registry_id: r7, facility_name: 'Colossus-1  Data-Center', facility_type: data_center, state_code: TN}
+    expect:
+      rows:
+        - {registry_id: r1, match_basis: epoch_same_name}
+        - {registry_id: r2, match_basis: own_site}
+        - {registry_id: r3, match_basis: own_site}
+        - {registry_id: r4, match_basis: own_site}
+        - {registry_id: r5, match_basis: own_site}
+        # punctuation and double spaces don't stop an equal name from joining
+        - {registry_id: r7, match_basis: epoch_same_name}
