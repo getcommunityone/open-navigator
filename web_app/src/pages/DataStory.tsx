@@ -23,7 +23,6 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { STATE_CODES } from '../lib/usStates'
 import {
-  DATA_CENTER_STORY,
   screenText,
   scopeQuery,
   stopLabel,
@@ -31,6 +30,7 @@ import {
   storyScopeLabel,
   storyScreenIndex,
   type StoryScope,
+  STORIES,
 } from '../utils/dataStory'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
@@ -38,13 +38,7 @@ import { createSoundBoard } from '../utils/stanceSound'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 
-// Topics with a story. A story (and a challenge) needs meeting recordings or transcripts behind it: figure-only data, such as
-// census measures, is shown under Explore, not here.
-const STORIES: Record<string, { title: string; topic: string; pack: string; screens: typeof DATA_CENTER_STORY }> = {
-  'data-centers': { title: 'Data Center Story', topic: 'data centers', pack: 'data-centers', screens: DATA_CENTER_STORY },
-}
-
-/** The topics that have a story: the options of the topic blank. */
+// The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
 export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value, label: s.topic }))
 
 /** How long a first answer stays on screen, locked, before the story moves on. */

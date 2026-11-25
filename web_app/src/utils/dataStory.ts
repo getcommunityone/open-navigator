@@ -75,6 +75,20 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'verdict', eyebrow: 'Your answer', chart: null, kind: 'verdict' },
 ]
 
+/**
+ * Topics with a story. A story needs meeting recordings or transcripts behind it: figure-only data, such as census
+ * measures, is shown under Explore, not here. `question` is the story's sentence, for lists (the home page, the hub).
+ */
+export const STORIES: Record<string, { title: string; topic: string; pack: string; question: string; screens: typeof DATA_CENTER_STORY }> = {
+  'data-centers': {
+    title: 'The Data Center Story',
+    topic: 'data centers',
+    pack: 'data-centers',
+    question: 'What did local meetings say about data centers?',
+    screens: DATA_CENTER_STORY,
+  },
+}
+
 /** Screen ids that were renamed: an old link still lands on the screen that replaced it. */
 const SCREEN_ALIASES: Record<string, string> = { turn: 'verdict', question: 'overview' }
 
@@ -164,7 +178,7 @@ export function storyStats(data: StoryData, scope: StoryScope = { stateName: nul
     { key: 'passages', value: mentions?.counts?.passages ?? 0, label: 'meeting passages quoted' },
     { key: 'agendas', value: agendas?.counts ? agendas.counts.upcoming + agendas.counts.past : 0, label: 'meeting agendas that name a data center' },
     { key: 'claims', value: (claims?.totals?.construction ?? 0) + (claims?.totals?.operations ?? 0), label: 'jobs claims made in meetings' },
-    { key: 'sites', value: sitesOnRecord, label: `data center sites on record${scope.city && scope.stateName ? ` in ${scope.stateName}` : ''}, from ${siteSourcesText(sites?.items) ?? 'Epoch AI'}` },
+    { key: 'sites', value: sitesOnRecord, label: `data center sites on record${scope.city && scope.stateName ? ` in ${scope.stateName}` : ''}, from ${siteSourcesText(sites?.items, sitesOnRecord) ?? 'Epoch AI'}` },
     { key: 'projects', value: projects?.total ?? 0, label: 'data center projects on record, from announcements and Epoch AI' },
   ]
   return all.filter((s) => s.value > 0)

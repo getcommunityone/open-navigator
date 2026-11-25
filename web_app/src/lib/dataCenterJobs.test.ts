@@ -129,6 +129,9 @@ describe('sites from two inventories (#958)', () => {
     expect(siteSourcesText([{ source: 'us_data_center_registry' }])).toBe('the US Data Center Registry')
     expect(siteSourcesText([{ source: 'epoch' }, { source: 'us_data_center_registry' }])).toBe('Epoch AI and the US Data Center Registry')
     expect(siteSourcesText([])).toBeNull()
+    // A capped list can't tell which sources exist: both are named.
+    expect(siteSourcesText([{ source: 'us_data_center_registry' }], 2379)).toBe('Epoch AI and the US Data Center Registry')
+    expect(siteSourcesText([{ source: 'epoch' }], 1)).toBe('Epoch AI')
   })
   it('counts every status once, cancelled included, and treats a missing cancelled count as zero', () => {
     const k = { planned: 2, under_construction: 3, operating: 5, no_longer_listed: 1, status_not_published: 0 }

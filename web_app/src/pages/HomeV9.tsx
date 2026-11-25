@@ -61,6 +61,8 @@ html { scroll-behavior: smooth; }
 .v9 .v9-navlink:hover::after { width: 100%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.v9 .home-story-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px; align-items: center; }
+@media (max-width: 860px) { .v9 .home-story-card { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) {
   .v9 .v9-nav { display: none; }
   .v9 .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
