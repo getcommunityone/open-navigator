@@ -1,0 +1,83 @@
+version: 2
+
+models:
+  - name: event_uncontested_item
+    description: >
+      One row per uncontested (consent / routine) item of a preferred analysis in
+      event_meeting (#932): the actions a meeting took without debate. event_decision holds
+      only contested decisions, so this is its sibling; together they are every action the
+      analysis recorded. vote is the extraction's own text ("voice vote", "5-0"), not a tally.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'event-extraction', 'ai', 'serving']
+      post_hook:
+        - "create index if not exists event_uncontested_item_meeting_idx on {{ this }} (event_meeting_id, item_id)"
+    constraints:
+      - type: foreign_key
+        columns: [event_meeting_id]
+        to: ref('event_meeting')
+        to_columns: [event_meeting_id]
+    columns:
+      - name: event_uncontested_item_id
+        description: "Primary key. md5(analysis id || '_' || item_id), the same shape as event_decision_id."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_meeting_id
+        description: "FK -> event_meeting.event_meeting_id (the analysis); enforced constraint."
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_meeting')
+              field: event_meeting_id
+      - name: item_id
+        description: "The item's id within the analysis (U001, U002, ...); public_comment.item_id points at it."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: headline
+        description: "What was approved or done, as the analysis wrote it; null when it gave none."
+        data_type: text
+      - name: outcome
+        description: "Approved / Denied / Tabled ..., as extracted; null when not stated."
+        data_type: text
+      - name: vote
+        description: "How it passed, as said (voice vote, 5-0, unanimous); text, not a tally; null when not stated."
+        data_type: text
+      - name: primary_theme
+        description: "The analysis's theme for the item."
+        data_type: text
+      - name: primary_cause_ntee
+        description: "NTEE major-group letter the analysis assigned."
+        data_type: text
+      - name: primary_cause_label
+        description: "Label for primary_cause_ntee."
+        data_type: text
+      - name: state_code
+        description: "Two-letter state code of the meeting."
+        data_type: varchar(2)
+      - name: state
+        description: "Full state name of the meeting."
+        data_type: text
+      - name: jurisdiction_name
+        description: "Jurisdiction of the meeting."
+        data_type: varchar(200)
+      - name: video_id
+        description: "YouTube id of the meeting recording."
+        data_type: varchar(64)
+      - name: source_ai_model
+        description: "Model that produced the analysis."
+        data_type: text
+      - name: extracted_at
+        description: "When the analysis row was written."
+        data_type: timestamp

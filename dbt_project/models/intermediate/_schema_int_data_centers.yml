@@ -114,11 +114,13 @@ models:
 
   - name: int_data_center__public_comment
     description: >
-      One row per public comment counted as about a data center item (#930): linked to a
-      decision whose headline or statement says a data center word, or saying one in the
-      speaker's own quoted words or the comment's summary (data_center_regex). The one
-      definition of the rule; data_center_meeting_position and data_center_public_comment
-      read it. is_counted marks the one row counted for a speaker in a meeting.
+      One row per public comment counted as about a data center item (#930, #932): linked
+      to a decision whose headline or statement says a data center word, on an uncontested
+      item whose headline says one, saying one in the speaker's own quoted words or the
+      comment's summary, or on the same item of the same meeting as a speaker who says one
+      (data_center_regex). The one definition of the rule; data_center_meeting_position and
+      data_center_public_comment read it. is_counted marks the one row counted for a speaker
+      in a meeting.
     columns:
       - name: public_comment_id
         tests: [unique, not_null]
@@ -126,6 +128,6 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['data_center_decision', 'own_words']
+              values: ['data_center_decision', 'data_center_item', 'own_words', 'same_item']
       - name: is_counted
         tests: [not_null]

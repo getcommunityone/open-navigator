@@ -14,19 +14,26 @@ where a tally was recorded. This page is the rule for what counts, and what the 
 ## In short
 
 - A public comment counts only when it is **about the data center item**. A comment on another item of the same meeting never counts.
-- "About the data center item" means one of two things, both checked with the same data center words the rest of the site uses.
+- "About the data center item" means one of four things, all checked with the same data center words the rest of the site uses ([#932](https://github.com/getcommunityone/open-navigator/issues/932) added two).
 - Votes count only for decisions that are about a data center **and** recorded both a yes and a no count.
 - A figure with no data behind it is null in the table and the API, and reads "not recorded" on the page. It is never zero.
 
 ## The rule for a public comment
 
-`public_comment` has one row per meeting, public speaker and item, with the speaker's stance. A row counts when either of
-these holds. The table keeps which one, in `match_basis`.
+`public_comment` has one row per meeting, public speaker and item, with the speaker's stance. A row counts when any of
+these holds. The table keeps the first that applies, in this order, in `match_basis`.
 
 | `match_basis` | The comment counts when |
 | --- | --- |
 | `data_center_decision` | It is linked to a decision (`public_comment.event_decision_id`) whose `headline` or `decision_statement` says a data center word |
+| `data_center_item` | It is on an uncontested (consent) item (`event_uncontested_item`, matched on the meeting and `item_id`) whose `headline` says a data center word |
 | `own_words` | The speaker's own quoted words (`stance_evidence`) or the comment's `summary` says a data center word |
+| `same_item` | Another public speaker on the **same item of the same meeting** says a data center word in their own words. The item is about a data center even though its headline names it another way |
+
+`same_item` is what catches an item like Casa Grande's "Phoenix Mart PAD major amendment (DSA 2600139)": the headline never
+says "data center", but one speaker on it says "The data centers need to go away". The ten other speakers on that item ("We
+ask that you deny this PAD", "Is there a way that the applicants can address the diesel generators?") are about the same
+project, so they count. It needs an `item_id`, so general public comment (no item) never counts because of another speaker.
 
 "A data center word" is the one definition in `dbt_project/macros/data_center_terms.sql` (`data_center_regex`): "data
 center", "data centre", "datacenter", "datacentre", "hyperscale" and "hyperscaler", matched on word boundaries, so "metadata
@@ -51,18 +58,19 @@ unknown (null) is in none of the four. Unknown is never counted as neutral.
 
 Comments that are about a data center and are **not** counted:
 
-- General public comment that never says the words. It has no linked decision, so only `own_words` can catch it, and "Please do not approve this project, our wells are already low" names no data center.
-- A comment on an uncontested (consent) item. Those items are not in `event_decision`, so the comment has no decision to link to.
-- A comment on a decision whose headline and statement name the project some other way ("the Project Sail rezoning") without a data center word.
+- General public comment that never says the words. It has no item, so only `own_words` can catch it, and "Please do not approve this project, our wells are already low" names no data center.
+- A comment on an item whose headline and statement name the project some other way ("the Project Sail rezoning") when no speaker on that item says a data center word either.
 - Anything said in a meeting that has no analysis. `public_comment` only holds analysed meetings, so the counts cover fewer meetings than the "meetings where a data center came up" count, which comes from transcripts.
 
 Comments that are counted and are arguably not about the data center:
 
-- A comment linked to a data center decision is counted even when the speaker talked about a side issue of that item.
+- A comment on a data center item (by its headline, or through `same_item`) is counted even when the speaker talked about a side issue of that item.
 
-A rule that was considered and left out: counting a comment because it was spoken during a transcript passage that mentions a
-data center. A passage is three minutes long, and the next speaker on another subject often falls inside it, so it would
-count comments that are not about the data center.
+Rules that were considered and left out:
+
+- Counting a comment because it was spoken during a transcript passage that mentions a data center. A passage is three minutes long, and the next speaker on another subject often falls inside it, so it would count comments that are not about the data center. (The comments' timestamps are also null in the light analyses, so the rule could not be applied.)
+- Matching the decision's narrative fields (`competing_views`, `smart_brevity`, `human_element`). Measured in #932: they matched no decision the headline had not already matched.
+- A wider vocabulary. Measured in #932 over all comments and decisions: "megawatt", "servers", "substation", "backup generators" and "digital infrastructure" hit more often in meetings where no data center came up than in meetings where one did, so they would add more wrong rows than right ones.
 
 ## The rule for a vote
 
@@ -73,17 +81,19 @@ The analysis prompt sets both to null when a decision was made by consensus or w
 - A decision has a **recorded tally** only when both `yes` and `no` are whole numbers. A tally with a yes count and no "no" count is not used, because writing 0 for the missing side would invent a number.
 - `decisions_with_tally` counts those decisions. `votes_for` and `votes_against` are the sums of `yes` and `no` over them, and are null when there are none.
 
-What this misses: votes on uncontested items (not in `event_decision`), and decisions where the extraction did not capture
-the tally. When the page was built, the data center decisions the live API returned all had a null `vote_tally`, so in
+What this misses: votes on uncontested items, and decisions where the extraction did not capture the tally. Uncontested items
+are in `event_uncontested_item` since #932, but their `vote` is text as said ("voice vote", "5-0"), not a tally, so they are
+not summed into `votes_for` and `votes_against`. When the page was built, the data center decisions the live API returned all had a null `vote_tally`, so in
 production the two vote figures may read "not recorded" until tallies are extracted.
 
 ## The tables
 
-Both are dbt marts in `gold`, published to `public` by `publish_public_serving` and copied to Neon.
+All three are dbt marts in `gold`, published to `public` by `publish_public_serving` and copied to Neon. `event_uncontested_item` is read from `bronze.bronze_uncontested_items_from_ai`, which unpacks `structured_analysis->'uncontested_items'` with the same publishable-analysis filter as the other `bronze_*_from_ai` extractions.
 
 | Model | Grain | Primary key | Foreign keys |
 | --- | --- | --- | --- |
 | `data_center_meeting_position` | One row per meeting where a data center came up | `data_center_meeting_position_id` | `event_meeting_id` to `event_meeting` |
+| `event_uncontested_item` | One row per uncontested (consent) item of an analysed meeting; the sibling of `event_decision`, which holds only contested decisions | `event_uncontested_item_id` | `event_meeting_id` to `event_meeting` |
 | `data_center_public_comment` | One row per counted public comment | `public_comment_id` | `public_comment_id` to `public_comment`, `data_center_meeting_position_id` to `data_center_meeting_position`, `event_meeting_id` to `event_meeting`; `event_decision_id` to `event_decision` as a relationships test |
 
 The rule itself is one intermediate view, `int_data_center__public_comment`. Both marts read it, so the counts and the
@@ -97,7 +107,7 @@ it has a data center decision, or it has a counted comment. Its columns are `eve
 
 `data_center_public_comment` carries what a quote on the page needs: the speaker's own words (`quote`, verbatim from the
 transcript), `speaker_role`, `stance_bucket`, `start_seconds`, `video_url`, the meeting's place and date, and
-`decision_headline`, the item the comment is linked to. The headline is shown with the quote ("On: ..."), so a quote that
+`decision_headline`, the item the comment is on (a contested decision or an uncontested item). The headline is shown with the quote ("On: ..."), so a quote that
 does not itself say "data center" still shows why it is there.
 
 `data_center_public_comment` was not in the issue's contract. It was added because the endpoint has to return quotes, the
