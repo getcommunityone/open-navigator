@@ -39,7 +39,7 @@ description: Bite-sized TDD plan for #969 — three full-viewport stops per chal
 | `web_app/src/components/stance/useActs.ts` | Snap/stacked holds include `data-stop` positions; `goToStop(round, stop)` |
 | `web_app/src/pages/Challenge.tsx` | After ask / answer / land-on-answered → scroll to the matching stop |
 | `web_app/src/styles/stance.css` | Stop viewport height, stacked pills, reveal lead |
-| `web_docs/docs/guides/data-center-challenge.md` | Player-facing pacing matches the design |
+| `web_docs/docs/development/archive/data-center-challenge.md (retired, #981)` | Player-facing pacing matches the design |
 | `web_docs/docs/development/challenge-scroll-reveal-design.md` | Already written; tweak only if contract drifts |
 
 ---
@@ -331,7 +331,7 @@ git commit -m "feat(web): scroll challenge rounds between finding, question, rev
 ### Task 5: Docs + guide
 
 **Files:**
-- Modify: `web_docs/docs/guides/data-center-challenge.md` (Pacing and sound; How screens move)
+- Modify: `web_docs/docs/development/archive/data-center-challenge.md (retired, #981)` (Pacing and sound; How screens move)
 - Optionally link from that guide to `development/challenge-scroll-reveal-design.md`
 
 - [ ] **Step 1: Rewrite pacing bullets**
@@ -341,7 +341,7 @@ Replace “three beats on one screen” with the three stops table from the desi
 - [ ] **Step 2: Commit**
 
 ```bash
-git add web_docs/docs/guides/data-center-challenge.md
+git add web_docs/docs/development/archive/data-center-challenge.md (retired, #981)
 git commit -m "docs(web_docs): challenge guide three-stop scroll rhythm"
 ```
 

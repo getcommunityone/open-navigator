@@ -12,7 +12,6 @@ import { useStoryData } from '../components/stance/useStoryData'
 import { useIdleNudge } from '../hooks/useIdleNudge'
 import { STATE_CODES } from '../lib/usStates'
 import {
-  challengePath,
   positionFigures,
   positionsLoaded,
   scopeQuery,
@@ -189,9 +188,6 @@ export default function DataStories() {
                 data-primary
               >
                 Start the story <span aria-hidden="true">→</span>
-              </Link>
-              <Link className="folio-link-btn stories-second" to={challengePath('data-centers', scope)}>
-                Take the challenge
               </Link>
             </div>
           </article>

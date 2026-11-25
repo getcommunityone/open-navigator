@@ -88,14 +88,9 @@ export default function DataCenters() {
           >
             Read the Data Center Story
           </Link>{' '}
-          <span className="text-gray-600">The records on this page as a scrolling story.</span>{' '}
-          <Link
-            to={`/challenge/data-centers${placeQuery}`}
-            className="font-medium text-primary-700 underline hover:text-primary-900"
-          >
-            Take the Data Center Challenge
-          </Link>{' '}
-          <span className="text-gray-600">Seven statements, and how people who played answered.</span>
+          <span className="text-gray-600">
+            The records on this page as a scrolling story, with a few statements to agree or disagree with along the way.
+          </span>
         </p>
 
         <ScopeControl

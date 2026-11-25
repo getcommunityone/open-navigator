@@ -70,7 +70,7 @@ Rejected alternatives:
 - `web_app/src/components/stance/useActs.ts`
 - `web_app/src/components/stance/FloatingNext.tsx`
 - `web_app/src/utils/stanceGame.ts` (`roundBeat`, result helpers)
-- `web_docs/docs/guides/data-center-challenge.md`
+- `web_docs/docs/development/archive/data-center-challenge.md (retired, #981)`
 - `web_docs/docs/development/where-you-stand-game-design.md`
 
 ## Done when
@@ -82,4 +82,4 @@ Rejected alternatives:
 
 ## Relation to earlier design
 
-This updates the **pacing** of the challenge screens described in [Where Do You Stand? game design](where-you-stand-game-design.md) and the player-facing [Data Center Challenge](../guides/data-center-challenge.md). Storage, anonymity, minimum sample, and “no right answer” decisions are unchanged.
+This updates the **pacing** of the challenge screens described in [Where Do You Stand? game design](where-you-stand-game-design.md) and the player-facing [Data Center Challenge](./archive/data-center-challenge.md). Storage, anonymity, minimum sample, and “no right answer” decisions are unchanged.

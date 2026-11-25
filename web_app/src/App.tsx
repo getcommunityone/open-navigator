@@ -152,17 +152,18 @@ function RouteChangeTracer() {
 }
 
 // The challenge and the story pull in gsap and lenis, so they load on their own route chunks and no other page pays for them.
-const Challenge = lazy(() => import('./pages/Challenge'))
 const DataStory = lazy(() => import('./pages/DataStory'))
 const DataStories = lazy(() => import('./pages/DataStories'))
 
-/** `/challenge` and `/play` go to the first topic pack and keep any place already in the URL. */
+/**
+ * The Data Center Challenge is retired (#981): its statements are asked in the story itself. `/challenge`,
+ * `/challenge/:packId`, `/play` and `/play/:packId` go to the story for that topic, keeping the place in the URL.
+ */
 function ChallengeRedirect({ to = 'data-centers' }: { to?: string }) {
   const { search } = useLocation()
-  return <Navigate to={`/challenge/${to}${search}`} replace />
+  return <Navigate to={`/stories/${to}${search}`} replace />
 }
 
-/** `/play/:packId` is the old address of `/challenge/:packId`; the query string (the place) is kept. */
 function PlayPackRedirect() {
   const { packId = 'data-centers' } = useParams()
   return <ChallengeRedirect to={encodeURIComponent(packId)} />
@@ -200,14 +201,7 @@ function App() {
         <Route path="play" element={<ChallengeRedirect />} />
         <Route path="play/:packId" element={<PlayPackRedirect />} />
         <Route path="challenge" element={<ChallengeRedirect />} />
-        <Route
-          path="challenge/:packId"
-          element={
-            <LazyRouteBoundary name="Data Center Challenge">
-              <Challenge />
-            </LazyRouteBoundary>
-          }
-        />
+        <Route path="challenge/:packId" element={<PlayPackRedirect />} />
         <Route
           path="stories"
           element={

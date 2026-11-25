@@ -8,6 +8,9 @@ import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
 import StoryDotMap from './StoryDotMap'
+import StoryStatement from './StoryStatement'
+import type { ScreenStatement } from './useStoryStatements'
+import { speakerCounts } from '../../utils/stanceGame'
 
 interface Props {
   screen: StoryScreen
@@ -23,6 +26,8 @@ interface Props {
   /** Broaden the place: to the state (null when none is chosen) or to the whole country. */
   onBroaden: (stateCode: string | null, city: string | null) => void
   onRetry: () => void
+  /** The statement this screen asks (#981): Agree / Disagree / Not sure, then where the reader sits. */
+  stance?: ScreenStatement
 }
 
 /** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
@@ -100,6 +105,15 @@ export default function StoryScreenView(p: Props) {
             </p>
           </div>
           {(text.empty || text.failed) && broaden}
+          {/* Asked only when the screen has a record to react to: no statement under "No data available". */}
+          {p.stance && !text.empty && !text.failed && (
+            <StoryStatement
+              s={p.stance}
+              scope={scope}
+              speakers={speakerCounts(p.data.positions as DataCenterPositionsResponse | null | undefined)}
+              id={`story-q-${screen.id}`}
+            />
+          )}
           <ScreenNav ref={nextRef} nextLabel={p.nextLabel} onNext={p.onNext} onPrev={p.onPrev} />
         </div>
         <div className="stance-right" ref={rightRef}>

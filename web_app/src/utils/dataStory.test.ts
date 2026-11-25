@@ -5,7 +5,6 @@ import {
   SPEAKERS_NOT_RECORDED,
   STORY_CHARTS,
   VOTES_NOT_RECORDED,
-  challengePath,
   chartScopeLabel,
   contextSourceFor,
   landConcernNote,
@@ -342,7 +341,6 @@ describe('stats and links', () => {
     expect(scopeQuery(tus)).toBe('?state=AL&city=Tuscaloosa')
     expect(scopeQuery(al)).toBe('?state=AL')
     expect(scopeQuery(nat)).toBe('')
-    expect(challengePath('data-centers', tus)).toBe('/challenge/data-centers?state=AL&city=Tuscaloosa')
     expect(storyScopeLabel(nat)).toBe('National')
     expect(storyScopeLabel(tus)).toBe('Tuscaloosa, Alabama')
   })
