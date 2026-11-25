@@ -2,8 +2,9 @@
 
 /*
     Data center hearing leads and whether their official page backs them up (#955).
-    Grain: one row per lead (int_data_center_hearing_lead: the curated seed plus the CC BY
-    tracker leads, #956).
+    Grain: one row per meeting (meeting_key of int_data_center_hearing_lead: the curated seed
+    plus the CC BY tracker leads, #956). When several leads name the meeting, the row is the
+    best of them: a verified lead first, then lead_rank. data_center_hearing_id is that lead's id.
 
     A lead is a claimed upcoming meeting from research lists. It is VERIFIED only when its
     official government page (fetched by ingestion.data_centers.fetch_hearing_sources into
@@ -33,7 +34,12 @@
     evidence: verbatim text of the official page with whole data center phrases in <mark>:
     the date's passage (250 characters each side), and when it doesn't say the words, " … " then
     the nearest data center passage of the same region (web page) or of the agenda (PDF).
-    Trimmed to whole words. Null unless verified.
+    A side cut mid-text is trimmed to a whole word; a side that reached the page's edge is
+    kept whole, so the date itself is never trimmed away. Null unless verified.
+    topic: the lead's topic for a curated lead; null for a tracker lead, whose own text is never
+    served (CC BY lead sources: we credit them, we don't republish them). body_name is the
+    body's name as the lead gives it.
+    jurisdiction_name: the matched jurisdiction's name when exactly one matches, else the lead's.
     tentative: the evidence window says tentative / expected / not final / to be determined.
     jurisdiction_id: the jurisdiction whose name and state match the lead exactly once; null when
     none or several match (never a guess).
@@ -89,8 +95,13 @@ shaped as (
     select
         lead_id,
         n,
-        -- the date's own passage: 250 characters each side
-        right(region_before, 250) || date_text || left(region_after, 250)                   as date_window,
+        -- the date's own passage: 250 characters each side, a side that was cut trimmed to a
+        -- whole word (a side shorter than that reached the edge of the page and stays whole)
+        case when length(region_before) > 250 then regexp_replace(right(region_before, 250), '^\S*\s', '')
+             else region_before end
+            || date_text
+            || case when length(region_after) > 250 then regexp_replace(left(region_after, 250), '\s\S*$', '')
+                    else region_after end                                                   as date_window,
         region_before || date_text || region_after                                          as region
     from windows
 ),
@@ -118,10 +129,10 @@ checked as (
         case
             when fw.item_region is not null and fw.item_date_window ~* '\y{{ dc_regex }}\y' then fw.item_date_window
             when fw.item_region is not null then
-                regexp_replace(fw.item_date_window, '\s\S*$', '') || ' … ' ||
+                fw.item_date_window || ' … ' ||
                 regexp_replace(regexp_replace((regexp_match(fw.item_region, '([\s\S]{0,160}\y{{ dc_regex }}\y[\s\S]{0,160})', 'i'))[1], '^\S*\s', ''), '\s\S*$', '')
             when d.is_pdf and fw.date_window is not null then
-                regexp_replace(fw.date_window, '\s\S*$', '') || ' … ' ||
+                fw.date_window || ' … ' ||
                 regexp_replace(regexp_replace((regexp_match(d.page_text, '([\s\S]{0,160}\y{{ dc_regex }}\y[\s\S]{0,160})', 'i'))[1], '^\S*\s', ''), '\s\S*$', '')
         end                                                                                 as raw_evidence
     from date_patterns as d
@@ -132,6 +143,7 @@ juris as (
     select
         c.lead_id,
         min(j.jurisdiction_id) as jurisdiction_id,
+        min(coalesce(j.display_name, j.name)) as matched_name,
         count(*)              as matches
     from checked as c
     join {{ ref('jurisdictions') }} as j
@@ -144,17 +156,20 @@ juris as (
             (c.jurisdiction_name ~* '\mcounty$') = (j.jurisdiction_type = 'county')
         )
     group by c.lead_id
-)
+),
 
+final as (
 select
     c.lead_id::text                                                     as data_center_hearing_id,
+    c.meeting_key,
+    c.lead_rank,
     case when j.matches = 1 then j.jurisdiction_id end::text            as jurisdiction_id,
     c.meeting_date::date                                                as meeting_date,
-    c.jurisdiction_name::text                                           as jurisdiction_name,
+    (case when j.matches = 1 then j.matched_name else c.jurisdiction_name end)::text as jurisdiction_name,
     c.state_code::text                                                  as state_code,
     ({{ state_code_to_name('c.state_code') }})::text                    as state,
     c.body_name::text                                                   as body_name,
-    c.topic::text                                                       as topic,
+    (case when c.lead_from in ('datacenterfights', 'sitingradar') then null else c.topic end)::text as topic,
     c.source_kind::text                                                 as source_kind,
     c.source_name::text                                                 as source_name,
     nullif(c.source_url, '')::text                                      as source_url,
@@ -169,10 +184,10 @@ select
         else 'verified'
     end)::text                                                          as status,
     c.fetch_error::text                                                 as fetch_error,
-    -- verbatim window, partial words trimmed at both ends, whole data center phrases marked
+    -- verbatim window (already trimmed where it was cut), whole data center phrases marked
     (case when c.date_with_item and c.says_data_center then
         regexp_replace(
-            regexp_replace(regexp_replace(btrim(regexp_replace(c.raw_evidence, '\s+', ' ', 'g')), '^\S*\s', ''), '\s\S*$', ''),
+            btrim(regexp_replace(c.raw_evidence, '\s+', ' ', 'g')),
             '\y({{ dc_regex }})\y', '<mark>\1</mark>', 'gi'
         )
     end)::text                                                          as evidence,
@@ -180,3 +195,15 @@ select
     c.fetched_at::timestamptz                                           as checked_at
 from checked as c
 left join juris as j on j.lead_id = c.lead_id
+)
+
+-- one row per meeting: a verified lead first, then the best-ranked lead
+select
+    data_center_hearing_id, jurisdiction_id, meeting_date, jurisdiction_name, state_code, state,
+    body_name, topic, source_kind, source_name, source_url, lead_from, status, fetch_error,
+    evidence, tentative, checked_at
+from (
+    select f.*, row_number() over (partition by meeting_key order by (status = 'verified') desc, lead_rank) as pick
+    from final as f
+) as ranked
+where pick = 1

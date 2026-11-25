@@ -60,13 +60,14 @@ The citations, with BibTeX, are in [Data and citations](../data-sources/citation
 
 - **Lead feeds (#956), done:** Data Center Fights and Siting Radar feed leads into `data_center_hearing` through
   `python -m ingestion.data_centers.load_hearing_tracker_leads` (one request per file), each credited in `source_name`.
+  Their own text (topics, summaries) is not shown, and Data Center Fights' user-added records are not used.
   Only the government page a record cites can verify a hearing; see
   [Upcoming data center hearings](./data-center-hearings.md#tracker-leads-25-nov-2026). The PA tracker's CSV downloads
   list ordinances, not meetings, and its meeting list is a web page its terms ask us not to crawl, so it feeds no
   leads. Its ordinance data could feed an ordinance view later.
-- **Imports (#958):** Public Evidence Project and the US Data Center Registry are imported (bronze, then staging), with
-  their attribution. They are linked to existing `data_center_site` rows only where name and place agree, never merged
-  on a guess. The greencalculus repo is imported as state aggregates.
+- **Imports (#958), planned:** Public Evidence Project and the US Data Center Registry are to be imported (bronze, then
+  staging), with their attribution, and linked to existing `data_center_site` rows only where name and place agree, never
+  merged on a guess. The greencalculus repo would land as state aggregates.
 - **Ask first:** NC GovWatch, Data Centers Atlas, GridWatch and ITAMG get a permission request from the owner before
   any use. Record the answer here.
 - **Re-check** a source's terms before changing how we use it. Terms change, and these were read on 25 Nov 2026.

@@ -157,7 +157,7 @@ def fetch_source(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--lead", action="append", help="Only this lead_id (repeatable).")
+    parser.add_argument("--lead", action="append", help="Only this lead_id (repeatable); any date, like --all.")
     parser.add_argument("--dry-run", action="store_true", help="Fetch and report, but don't write.")
     parser.add_argument(
         "--all", action="store_true", help="Also leads more than a week past (default: upcoming and the last week)."
