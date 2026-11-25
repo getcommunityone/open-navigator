@@ -44,14 +44,18 @@ export function useStoryStatements(
     staleTime: 60_000,
     retry: 1,
   })
-  const [posting, setPosting] = useState<string | null>(null)
+  // Per statement, so saving one answer never blocks (or silently drops) an answer on another screen.
+  const [posting, setPosting] = useState<Record<string, boolean>>({})
+  // What the server confirmed for each statement on this visit, so a saved answer shows even when the results request
+  // failed or hasn't returned yet.
+  const [saved, setSaved] = useState<Record<string, { answer: StanceAnswer; results: StatementResults }>>({})
   const [errors, setErrors] = useState<Record<string, string | null>>({})
   const [changing, setChanging] = useState<Record<string, boolean>>({})
 
   const answer = useCallback(
     async (statementId: string, a: StanceAnswer) => {
-      if (!packId || posting) return
-      setPosting(statementId)
+      if (!packId || posting[statementId]) return
+      setPosting((p) => ({ ...p, [statementId]: true }))
       setErrors((e) => ({ ...e, [statementId]: null }))
       try {
         const out = await postStanceResponse({
@@ -72,6 +76,8 @@ export function useStoryStatements(
               }
             : old,
         )
+        const confirmed = out.stance_response.answer as StanceAnswer
+        setSaved((sv) => ({ ...sv, [statementId]: { answer: confirmed, results: { ...out.results, your_answer: confirmed } } }))
         setChanging((c) => ({ ...c, [statementId]: false }))
       } catch (e) {
         const msg =
@@ -80,7 +86,7 @@ export function useStoryStatements(
             : 'Your answer could not be saved. Check your connection, then try again.'
         setErrors((er) => ({ ...er, [statementId]: msg }))
       } finally {
-        setPosting(null)
+        setPosting((p) => ({ ...p, [statementId]: false }))
       }
     },
     [packId, posting, playerId, stateCode, city, qc, key],
@@ -91,13 +97,14 @@ export function useStoryStatements(
     const byId = new Map((resultsQ.data?.statements ?? []).map((s) => [s.statement_id, s]))
     for (const st of pack?.statements ?? []) {
       if (!st.story_screen) continue
-      const results = byId.get(st.statement_id)
+      const mine = saved[st.statement_id]
+      const results = byId.get(st.statement_id) ?? mine?.results
       out.set(st.story_screen, {
         statement: st,
         results,
         minSample: resultsQ.data?.min_sample ?? null,
-        answer: (results?.your_answer as StanceAnswer | null | undefined) ?? null,
-        posting: posting === st.statement_id,
+        answer: (results?.your_answer as StanceAnswer | null | undefined) ?? mine?.answer ?? null,
+        posting: Boolean(posting[st.statement_id]),
         error: errors[st.statement_id] ?? null,
         changing: Boolean(changing[st.statement_id]),
         onAnswer: (a) => void answer(st.statement_id, a),
@@ -105,5 +112,5 @@ export function useStoryStatements(
       })
     }
     return out
-  }, [pack, resultsQ.data, posting, errors, changing, answer])
+  }, [pack, resultsQ.data, posting, saved, errors, changing, answer])
 }

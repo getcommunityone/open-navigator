@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { StanceAnswer } from '../../api/stance'
 import type { StoryScope } from '../../utils/dataStory'
 import { storyScopeLabel } from '../../utils/dataStory'
@@ -24,6 +25,21 @@ interface Props {
  */
 export default function StoryStatement({ s, scope, speakers, id }: Props) {
   const answered = s.answer != null && !s.changing
+  // Keep keyboard focus in the block: a saved answer replaces the buttons (focus would fall to the page and the next
+  // Space or arrow would jump screens), so it moves to "Change"; after "Change", to the answer that was chosen.
+  const changeRef = useRef<HTMLButtonElement>(null)
+  const answersRef = useRef<HTMLDivElement>(null)
+  const was = useRef(answered)
+  useEffect(() => {
+    const block = answersRef.current?.closest('.story-statement')
+    const focusInside = block?.contains(document.activeElement) || document.activeElement === document.body
+    if (answered && !was.current && focusInside) changeRef.current?.focus()
+    if (!answered && was.current && focusInside) {
+      answersRef.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus() ??
+        answersRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    }
+    was.current = answered
+  }, [answered])
   const placePhrase = scope.stateName ? `in ${storyScopeLabel(scope)}` : 'across the country'
   const readers = answered ? readersRow(s.results, s.minSample, s.answer, { stateName: scope.stateName, city: scope.city }) : null
   const talk = answered ? speakersRow(speakers, s.statement.speaker_lean, s.answer, placePhrase) : null
@@ -35,7 +51,7 @@ export default function StoryStatement({ s, scope, speakers, id }: Props) {
       </p>
       <p className="stance-statement story-statement-text">{s.statement.statement}</p>
       {!answered ? (
-        <div className="stance-answers story-answers" role="group" aria-label={`Your answer: ${s.statement.statement}`}>
+        <div ref={answersRef} className="stance-answers story-answers" role="group" aria-label={`Your answer: ${s.statement.statement}`}>
           {ORDER.map((a) => (
             <button
               key={a}
@@ -52,7 +68,7 @@ export default function StoryStatement({ s, scope, speakers, id }: Props) {
       ) : (
         <p className="stance-yours story-yours" role="status">
           Your answer: <strong>{ANSWER_LABEL[s.answer!]}</strong>{' '}
-          <button type="button" className="folio-link-btn" onClick={s.onChange}>
+          <button ref={changeRef} type="button" className="folio-link-btn" onClick={s.onChange}>
             Change
           </button>
         </p>
@@ -68,14 +84,18 @@ export default function StoryStatement({ s, scope, speakers, id }: Props) {
         </p>
       )}
       {answered && (
-        <div className="story-sit" aria-label="Where you sit">
-          <p className="story-sit-title">Where you sit</p>
+        <div className="story-sit" role="group" aria-labelledby={`${id}-sit`}>
+          <p className="story-sit-title" id={`${id}-sit`}>
+            Where you sit
+          </p>
           {readers && 'row' in readers ? (
             <Continuum row={readers.row} />
           ) : readers && 'pending' in readers ? (
             <p className="stance-note">
-              {readers.pending.title}: {readers.pending.n.toLocaleString('en-US')} so far. The split shows once{' '}
-              {readers.pending.minSample.toLocaleString('en-US')} have answered.
+              {readers.pending.title}: {readers.pending.n.toLocaleString('en-US')} so far.{' '}
+              {readers.pending.minSample > 0
+                ? `The split shows once ${readers.pending.minSample.toLocaleString('en-US')} have answered.`
+                : 'The split shows once enough readers have answered.'}
             </p>
           ) : (
             <p className="stance-note">Readers&apos; answers couldn&apos;t be loaded right now.</p>
@@ -101,7 +121,11 @@ function Continuum({ row }: { row: ContinuumRow }) {
             <span key={g.key} className={`story-continuum-seg story-continuum-seg--${g.key}`} style={{ width: `${g.percent}%` }} />
           ) : null,
         )}
-        <span className="story-continuum-you" style={{ left: `${row.marker}%` }} aria-hidden="true">
+        <span
+          className={`story-continuum-you${row.marker < 8 ? ' is-start' : row.marker > 92 ? ' is-end' : ''}`}
+          style={{ left: `${row.marker}%` }}
+          aria-hidden="true"
+        >
           <span>You</span>
         </span>
       </div>

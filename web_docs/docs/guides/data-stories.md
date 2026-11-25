@@ -75,6 +75,25 @@ After you answer, **Where you sit** shows:
 
 The separate Data Center Challenge is retired: `/challenge/data-centers` (and `/play`) open the story, keeping the place.
 
+#### The minimum sample
+
+A group's split is shown only when at least **30** people in that group have answered the statement (the API setting `STANCE_MIN_SAMPLE`). Below that the page says how many have answered so far and how many are needed, and never shows a split. **Where you sit** names the group its bar uses (your community, your state or the country), and the sentence under it says the same group.
+
+#### Privacy
+
+Your browser makes a random id and keeps it in local storage under `on_stance_player_id`. That is the only thing stored about you in the browser. The server stores your id, the statement, your answer and the state and community you chose. It does not store your IP address, name or email. The rate limiter keeps only a hash in memory.
+
+## Sources and limits
+
+Every chart has a caption that names its source and what it counts. The numbers are real counts from the Open Navigator warehouse through the `/api/data-centers/*` endpoints. If a chart has no data, the screen says "No data available" and asks no statement.
+
+- **Meeting records are not a survey.** The charts count what appears in local meeting records (transcripts, agendas) and in news and company announcements. They do not measure what the public thinks.
+- **Charts follow your place as far as their source allows.** With a state they are for that state; with a community they are for that community wherever the source can narrow to one. Data center sites are listed by state, so that chart stays at the state, and its sentence and caption say so. With no state they are national, and the caption says which.
+- **Dot charts draw one dot per record,** up to 500. When there are more records than dots, the caption says "Showing the most recent 500 of N" and the group percentages are shares of the dots drawn. A dot with a link opens the source record (a meeting recording at the moment, an agenda document, an article, a site's source page).
+- **Ranked bars show a count and a share of the counted total.**
+- **Site data** comes from Epoch AI and the US Data Center Registry (both CC BY 4.0), each site credited to its own source. Sites no longer listed by their source stay in the list.
+- The dots are small. Use the arrow keys to move between them and the data table under each chart for the group counts.
+
 An old link to `?screen=turn` opens the last screen. An old link to `?screen=question` opens **Overview**.
 
 ### The question, after the record

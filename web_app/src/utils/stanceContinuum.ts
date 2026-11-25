@@ -75,10 +75,14 @@ export function readersRow(
   scope: ScopeNames,
 ): { row: ContinuumRow } | { pending: ContinuumPending } | null {
   if (!results) return null
-  const groups: Array<{ title: string; group: GroupResult | null | undefined }> = [
-    { title: scope.city && scope.stateName ? `Readers in ${scope.city}, ${scope.stateName}` : '', group: scope.city ? results.place : null },
-    { title: scope.stateName ? `Readers in ${scope.stateName}` : '', group: scope.stateName ? results.state : null },
-    { title: 'Readers across the country', group: results.national },
+  const groups: Array<{ title: string; where: string; group: GroupResult | null | undefined }> = [
+    {
+      title: scope.city && scope.stateName ? `Readers in ${scope.city}, ${scope.stateName}` : '',
+      where: `in ${scope.city}, ${scope.stateName}`,
+      group: scope.city ? results.place : null,
+    },
+    { title: scope.stateName ? `Readers in ${scope.stateName}` : '', where: `in ${scope.stateName}`, group: scope.stateName ? results.state : null },
+    { title: 'Readers across the country', where: 'across the country', group: results.national },
   ]
   const ready = groups.find((g) => g.group?.available && g.title)
   if (ready?.group) {
@@ -91,9 +95,12 @@ export function readersRow(
         title: ready.title,
         ...built,
         marker: answer ? markerAt(built.segments, answer) : 50,
-        sentence: mine
-          ? `You answered ${mine.label.toLowerCase()}, like ${mine.percent}% of ${plural(built.total, 'reader', 'readers')} here.`
-          : `${plural(built.total, 'reader', 'readers')} have answered.`,
+        // Names the group the bar uses (it may be wider than the story's place), and says only what the counts say.
+        sentence: !mine
+          ? `${plural(built.total, 'reader', 'readers')} ${ready.where} have answered.`
+          : mine.count === 0
+            ? `None of the ${plural(built.total, 'reader', 'readers')} ${ready.where} answered ${mine.label.toLowerCase()} so far.`
+            : `${mine.percent}% of the ${plural(built.total, 'reader', 'readers')} ${ready.where} answered ${mine.label.toLowerCase()}, as you did.`,
       },
     }
   }

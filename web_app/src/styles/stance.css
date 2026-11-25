@@ -2787,6 +2787,16 @@ html.stance-snap {
   color: var(--paper);
   white-space: nowrap;
 }
+/* Near either end of the bar the label hangs inward, so it never runs off the bar. */
+.story-continuum-you.is-start > span {
+  left: 0;
+  transform: none;
+}
+.story-continuum-you.is-end > span {
+  left: auto;
+  right: 0;
+  transform: none;
+}
 .story-continuum-ends {
   display: flex;
   justify-content: space-between;

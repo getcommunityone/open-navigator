@@ -150,7 +150,7 @@ export default function SiteHeader() {
       onClick: () => goSection('data-stories'),
       active: onHome
         ? activeSection === 'data-stories'
-        : location.pathname.startsWith('/stories') || location.pathname.startsWith('/challenge'),
+        : location.pathname.startsWith('/stories'),
     },
     { label: 'How It Works', onClick: () => goSection('how-it-works'), active: onHome && activeSection === 'how-it-works' },
     { label: 'Impact', onClick: () => goSection('impact'), active: onHome && activeSection === 'impact' },

@@ -4,77 +4,66 @@ branch: feat/981-story-stance-continuum
 title: "feat(web_app): ask agree/disagree in the story and show where the reader sits; retire the Challenge"
 author: jcbowyer
 reviewed_at: 2026-11-25
-reviewer: github-actions
-head_sha: 8f6e2f4dfc45852207bf81ac9e90b9f2c37f6a4b
-verdict: approve
+reviewer: general-purpose subagent (read-only) and coordinator
+head_sha: see branch head
+verdict: approve-with-nits
 ---
 
-# PR Review: feat(web_app): ask agree/disagree in the story and show where the reader sits; retire the Challenge
+# PR Review: ask agree/disagree in the story and show where the reader sits
 
 ## Summary
 
-Automated review (#648) for PR #982 on `feat/981-story-stance-continuum`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Closes #981. The story's contested screens ask the statement their record is about (Agree / Disagree / Not sure). After an
+answer, **Where you sit** places the reader among readers (the most specific place at the minimum sample) and, only for
+statements that lean to one side, among meeting speakers. The separate Challenge is retired: its links are removed, its
+routes redirect to the story, and its page and own components are deleted.
 
-## Scope of Change
+The independent pass said **request-changes**. Every Blocking and Should-fix finding is fixed on the branch, and the
+coordinator verified the fixes in a browser.
 
-- `api/routes/stance.py`
-- `api/stance_packs/data_centers.json`
-- `tests/test_stance_api.py`
-- `web_app/src/App.tsx`
-- `web_app/src/api/stance.ts`
-- `web_app/src/components/home/HomeDataStories.tsx`
-- `web_app/src/components/stance/Cover.tsx`
-- `web_app/src/components/stance/EndPanel.tsx`
-- `web_app/src/components/stance/ResultBars.tsx`
-- `web_app/src/components/stance/RoundPanel.tsx`
-- `web_app/src/components/stance/StoryScreenView.tsx`
-- `web_app/src/components/stance/StoryStatement.tsx`
-- `web_app/src/components/stance/StoryVoteScreens.tsx`
-- `web_app/src/components/stance/useAskTimer.ts`
-- `web_app/src/components/stance/useStoryStatements.ts`
-- `web_app/src/pages/Challenge.tsx`
-- `web_app/src/pages/DataCenters.tsx`
-- `web_app/src/pages/DataStories.tsx`
-- `web_app/src/pages/DataStory.tsx`
-- `web_app/src/styles/stance.css`
-- `web_app/src/utils/dataStory.test.ts`
-- `web_app/src/utils/dataStory.ts`
-- `web_app/src/utils/stanceContinuum.test.ts`
-- `web_app/src/utils/stanceContinuum.ts`
-- `web_docs/docs/development/archive/data-center-challenge.md`
-- `web_docs/docs/development/challenge-scroll-reveal-design.md`
-- `web_docs/docs/development/story-statements-where-you-sit.md`
-- `web_docs/docs/development/where-you-stand-game-design.md`
-- `web_docs/docs/guides/data-stories.md`
+## Findings and their fixes
 
-## CI Status
+### 🔴 Blocking (fixed)
+1. **The readers sentence said "here" even when the bar fell back to a wider group.** Fixed:
+   - the sentence names the group used ("60% of the 100 readers across the country answered agree, as you did");
+   - a 0% own segment reads "None of the N readers … answered … so far".
 
-See the PR checks on `8f6e2f4dfc45`.
+   Tested.
 
-## Scans (secrets, fabricated data, personal data, destructive data changes)
+### 🟡 Should fix (fixed)
+- **A saved answer was invisible when the results request failed.** The confirmed answer and its results are now kept
+  locally.
+- **One global `posting` dropped answers on other screens.** Saving is now tracked per statement.
+- **Keyboard focus fell to the page after answering.** It now moves to **Change**, and after Change to the chosen
+  answer. Verified in a browser.
+- **The charts' "Sources and limits" link pointed at the archived page.** The section now lives in
+  `guides/data-stories.md`, updated for the story, with the link repointed. The dev notes point at the archived path.
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+### 🔵 Nits
+- **Fixed:**
+  - "Where you sit" is a labelled group;
+  - the **You** label hangs inward at the bar's ends;
+  - the dead `/challenge` tab check is gone;
+  - an unknown minimum sample no longer prints "once 0 have answered".
+- **Open:**
+  - `/challenge/:packId` assumes each pack has a story (true for the only pack);
+  - challenge-only helpers in `stanceGame.ts` could be pruned;
+  - the `speaker_lean` mapping is an editorial call, recorded with its reason on the decision page.
 
-## Strengths
+## Scans
+- Secrets, personal data, destructive changes: none. The deleted code is the retired Challenge page; no data is deleted.
+- Fabricated data: none. Every bar comes from real counts. No split is shown below the minimum sample, and there is no
+  speaker line without a lean.
 
-- Automated scans found no secret/credential patterns in added lines.
-
-## Findings
-
-### 🔴 Blocking (Critical)
-
-None.
-
-### 🟡 Should fix (Important)
-
-None from automated heuristics.
-
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
+## Tests
+- **pytest** `tests/test_stance_api.py`: 49 passed.
+- **Frontend:** vitest 404 passed; `tsc` is clean; eslint has no new warnings. Docs build OK; no broken links on the
+  touched pages.
+- **Browser** (answer POST intercepted; no rows written):
+  - the statement, answer and Where you sit render;
+  - focus lands on Change after answering;
+  - `/challenge/data-centers?state=TX` → `/stories/data-centers?state=TX`.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: merge when the required checks are green.

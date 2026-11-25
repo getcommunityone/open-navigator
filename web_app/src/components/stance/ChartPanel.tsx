@@ -187,7 +187,7 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
         {spec?.note && ` ${spec.note}`}
         {spec && chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'}
         {spec && stateName == null && ' National figures, because no state is chosen.'}{' '}
-        <a href={docsUrl('/guides/data-center-challenge#sources-and-limits')} target="_blank" rel="noopener noreferrer">
+        <a href={docsUrl('/guides/data-stories#sources-and-limits')} target="_blank" rel="noopener noreferrer">
           About this data
         </a>
       </figcaption>

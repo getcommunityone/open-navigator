@@ -21,12 +21,20 @@ describe('readersRow (#981)', () => {
     expect(row.title).toBe('Readers in Texas')
     expect(row.segments.map((s) => [s.key, s.percent])).toEqual([['agree', 20], ['unsure', 20], ['disagree', 60]])
     expect(row.marker).toBe(70)
-    expect(row.sentence).toBe('You answered disagree, like 60% of 50 readers here.')
+    expect(row.sentence).toBe('60% of the 50 readers in Texas answered disagree, as you did.')
   })
 
   it('falls back to the country when the state has too few answers', () => {
     const r = readersRow(results({ state: group(1, 1, 0, false) }), 20, 'agree', { stateName: 'Texas', city: null })
-    expect((r as { row: { title: string } }).row.title).toBe('Readers across the country')
+    const row = (r as { row: { title: string; sentence: string } }).row
+    expect(row.title).toBe('Readers across the country')
+    // The sentence names the wider group too, never just "here".
+    expect(row.sentence).toBe('60% of the 100 readers across the country answered agree, as you did.')
+  })
+
+  it('says so plainly when no reader in the group gave your answer', () => {
+    const r = readersRow(results({ national: group(40, 0, 10) }), 20, 'disagree', { stateName: null, city: null })
+    expect((r as { row: { sentence: string } }).row.sentence).toBe('None of the 50 readers across the country answered disagree so far.')
   })
 
   it('says how many have answered when no group has reached the minimum sample', () => {
