@@ -9,6 +9,7 @@ import PositionsBlock from '../components/stance/PositionsBlock'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import StatRow from '../components/stance/StatRow'
 import { useStoryData } from '../components/stance/useStoryData'
+import { useStoryConclusion } from '../components/stance/useStoryConclusion'
 import { useIdleNudge } from '../hooks/useIdleNudge'
 import { STATE_CODES } from '../lib/usStates'
 import {
@@ -47,6 +48,7 @@ export default function DataStories() {
   const [placeOpen, setPlaceOpen] = useState(false)
   const [topic, setTopic] = useState('data-centers')
   const { data, status, refetch } = useStoryData(stateCode, city, HUB_CHARTS)
+  const conclusion = useStoryConclusion('data-centers')
   const rootRef = useRef<HTMLDivElement>(null)
   // A reader who has stopped gets a calm cue on Start (or on the floating bar when Start has scrolled away).
   useIdleNudge({ rootRef })
@@ -140,13 +142,31 @@ export default function DataStories() {
       <ul className="stories-list">
         <li>
           <article className="stories-card" aria-labelledby="story-card-data-centers">
+            {/* #989: the story's conclusion leads, while the national record backs it; else the neutral hook. */}
             <h2 className="stories-card-title" id="story-card-data-centers">
-              Power, water, and land bring people to the microphone
+              {conclusion ? conclusion.headline : 'Power, water, and land bring people to the microphone'}
             </h2>
-            <p className="stance-lede">
-              In {placeInLede}, neighbors show up when a data center hits the agenda. Start the story to walk through what
-              the meetings put on the record.
-            </p>
+            {conclusion ? (
+              <>
+                <p className="stance-lede">{conclusion.subhead}</p>
+                <p className="stance-note stories-basis">{conclusion.basis}</p>
+              </>
+            ) : (
+              <p className="stance-lede">
+                In {placeInLede}, neighbors show up when a data center hits the agenda. Start the story to walk through what
+                the meetings put on the record.
+              </p>
+            )}
+            {/* Start right under the headline, so it is in view on a laptop and a phone (#989). */}
+            <div className="stories-actions">
+              <Link
+                className="folio-btn stance-next stories-start stories-start-pulse"
+                to={`/stories/${encodeURIComponent(topic)}${q}`}
+                data-primary
+              >
+                Start the story <span aria-hidden="true">→</span>
+              </Link>
+            </div>
             {showVoices && (
               <section className="stories-voices" aria-labelledby="story-voices-h">
                 <h3 className="stories-voices-title" id="story-voices-h">
@@ -181,15 +201,6 @@ export default function DataStories() {
                 No data available for this place.
               </p>
             )}
-            <div className="stories-actions">
-              <Link
-                className="folio-btn stance-next stories-start stories-start-pulse"
-                to={`/stories/${encodeURIComponent(topic)}${q}`}
-                data-primary
-              >
-                Start the story <span aria-hidden="true">→</span>
-              </Link>
-            </div>
           </article>
         </li>
       </ul>

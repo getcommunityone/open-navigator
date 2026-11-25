@@ -51,3 +51,31 @@ The maths lives in `web_app/src/utils/stanceContinuum.ts`, with tests. The block
 comes from `useStoryStatements.ts`.
 
 Change a lean only with a reason written here: it is an editorial judgment about what an answer means.
+
+## Decision: conclusion headlines, shown only when the record backs them (#989)
+
+The owner (25 Nov 2026) wants every data story to lead with a compelling conclusion as its title, with a subtitle. A
+conclusion is a claim, so it is **data-gated**. It shows only while the national speaker record backs it: the side it
+names must outnumber the other by at least 2:1, among at least 10 speakers on record. A basis line under it states the
+real counts. When the record stops backing it, the story's neutral title shows instead. The gate is
+`storyConclusion()` in `web_app/src/utils/dataStory.ts`, with tests.
+
+| Story | Headline | Subtitle | Gate | Today (local warehouse) |
+| --- | --- | --- | --- | --- |
+| Data centers (live) | America hates data centers. | Public comments don't always match America's true sentiment, but our nation is clearly at a fever pitch of data center opposition. | against ≥ 2 × for, ≥ 10 speakers | 18 against, 3 for, of 29 speakers: shown |
+
+### Drafts for topics without a story yet
+
+These are not on the site. Each would need its own story, and a speaker-position record like data centers'
+(`data_center_meeting_position`), before its headline could be checked. On 25 Nov 2026 the general `public_comment`
+table holds very few comments that name them (matched on the speaker's own words):
+
+| Topic | Draft headline | Draft subtitle | Would need | Comments today |
+| --- | --- | --- | --- | --- |
+| Short-term rentals | Neighbors want limits on short-term rentals. | Public comments are a slice of a town, not a poll, but the people who come to the microphone keep asking councils to rein in Airbnb-style rentals. | against ≥ 2 × for, ≥ 10 speakers | 2 against, 2 for |
+| Flock cameras | Flock cameras are splitting towns. | Safety on one side, surveillance on the other: speakers rarely land in the middle on automated police cameras. | a clear majority either way, ≥ 10 speakers | 2 against, 1 for |
+| Bike lanes and paths | Everyone wants safer streets, until the bike lane is theirs. | Support for biking is broad in the abstract; the fights are about one street, one parking lane, one block at a time. | for/against split by meeting, ≥ 10 speakers | none |
+| License plate readers | Americans don't want to be tracked by license plate readers. | Comments are not a census of opinion, but speakers keep raising privacy before police get another camera. | against ≥ 2 × for, ≥ 10 speakers | none |
+
+If a topic's record lands the other way, its headline changes to match the record. A headline is never kept against
+the data.

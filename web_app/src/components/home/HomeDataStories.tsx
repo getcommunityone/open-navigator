@@ -6,6 +6,7 @@ import { STORIES, scopeQuery, storyScopeLabel, storyStats } from '../../utils/da
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import type { ChartKey } from '../../utils/stanceGame'
 import StoryStatesMap from './StoryStatesMap'
+import { useStoryConclusion } from '../stance/useStoryConclusion'
 
 /** The counts the box shows: the same datasets (and `storyStats`) as the Data Stories hub. */
 const COUNT_CHARTS: ChartKey[] = ['meeting-mentions', 'agenda-items', 'sites']
@@ -43,6 +44,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     retry: 1,
   })
   const placeIn = label === 'National' ? 'across the country' : `in ${label}`
+  const conclusion = useStoryConclusion('data-centers')
   const otherStories = Object.entries(STORIES)
 
   return (
@@ -69,18 +71,28 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         >
           <div className="home-story-text">
             <p className="font-mono-x" style={{ margin: 0, fontSize: 11.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 600 }}>
-              Data story · Data centers
-            </p>
-            <h3 id="home-story-dc" className="font-display" style={{ fontSize: 'clamp(26px, 3vw, 34px)', fontWeight: 800, margin: '6px 0 4px', color: '#1c1917' }}>
               {STORY.title}
+            </p>
+            {/* #989: the conclusion leads while the national record backs it; otherwise the story's question. */}
+            <h3 id="home-story-dc" className="font-display" style={{ fontSize: 'clamp(28px, 3.4vw, 40px)', fontWeight: 800, margin: '6px 0 6px', color: '#1c1917', lineHeight: 1.08 }}>
+              {conclusion ? conclusion.headline : STORY.question}
             </h3>
-            <p className="font-display" style={{ margin: '0 0 8px', fontSize: 'clamp(17px, 1.8vw, 20px)', fontWeight: 600, color: '#0f766e' }}>
-              {STORY.question}
-            </p>
-            <p style={{ margin: 0, fontSize: 15.5, color: '#44403c', lineHeight: 1.5 }}>
-              Power, water and land bring neighbors to the microphone. See who spoke, what was promised and what was decided,
-              and say whether you agree.
-            </p>
+            {conclusion && (
+              <>
+                <p style={{ margin: 0, fontSize: 16, color: '#44403c', lineHeight: 1.45 }}>{conclusion.subhead}</p>
+                <p style={{ margin: '6px 0 0', fontSize: 13, color: '#78716c' }}>{conclusion.basis}</p>
+              </>
+            )}
+            {/* Start right under the headline: in view after the Data Stories tab, on a laptop and a phone. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 18px', marginTop: 16 }}>
+              <Link
+                to={`/stories/data-centers${q}`}
+                style={{ background: '#0f766e', color: '#fff', borderRadius: 999, padding: '11px 22px', fontSize: 15, fontWeight: 700, textDecoration: 'none' }}
+              >
+                Start the story {label === 'National' ? '' : `for ${label} `}
+                <span aria-hidden="true">→</span>
+              </Link>
+            </div>
 
             <p className="font-mono-x" style={{ margin: '18px 0 0', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#57534e' }}>
               On the record {placeIn}
@@ -120,15 +132,6 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
               </p>
             )}
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 18px', marginTop: 20 }}>
-              <Link
-                to={`/stories/data-centers${q}`}
-                style={{ background: '#0f766e', color: '#fff', borderRadius: 999, padding: '11px 22px', fontSize: 15, fontWeight: 700, textDecoration: 'none' }}
-              >
-                Start the story {label === 'National' ? '' : `for ${label} `}
-                <span aria-hidden="true">→</span>
-              </Link>
-            </div>
           </div>
 
           <div className="home-story-map">
