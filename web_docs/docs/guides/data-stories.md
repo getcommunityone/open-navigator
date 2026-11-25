@@ -67,6 +67,18 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
+### The title states the place's conclusion (#993)
+
+The story's title is a conclusion for the place in scope, with the place and topic still clickable. It uses the strongest
+claim the place's record supports:
+1. **"[America] hates [data centers]."** when that place's speakers on record pass the headline's gate (against at least
+   twice for, at least 10 speakers). The place reads "America" for the country, otherwise its name.
+2. **"[Washington] talked about [data centers] in 69 meetings."** otherwise, from the place's real meeting count.
+3. The question, **"What did local meetings in … say about …?"**, when nothing is on record.
+
+A small line under the title gives the numbers behind it. Most places have too few speakers with a recorded side for a
+sentiment, so they get the fact. On 25 Nov 2026, Washington had 0 speakers on record for or against.
+
 ### Statements along the way (#981)
 
 The contested screens (Sites, Proposals, Promises, Concerns, Meetings, Agendas, Gatherings) each ask, under the headline, the statement their record is about, with **Agree**, **Disagree** and **Not sure**. A screen with no record for the place asks nothing. Answers are saved as before (`/api/stance/responses`, anonymous player id), and you can change one.

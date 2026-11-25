@@ -86,6 +86,8 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
  */
 export interface StoryConclusion {
   headline: string
+  /** The verb of the headline with its blanks ("[America] hates [data centers]."), for a title scoped to a place. */
+  verb: string
   subhead: string
   side: 'for' | 'against'
   minRatio: number
@@ -110,6 +112,7 @@ export const STORIES: Record<string, StoryEntry> = {
     screens: DATA_CENTER_STORY,
     conclusion: {
       headline: 'America hates data centers.',
+      verb: 'hates',
       subhead:
         "Public comments don't always match America's true sentiment, but our nation is clearly at a fever pitch of data center opposition.",
       side: 'against',
@@ -123,6 +126,8 @@ export const STORIES: Record<string, StoryEntry> = {
 export function storyConclusion(
   story: StoryEntry,
   counts: { for: number; against: number; question: number; neutral: number; total?: number } | null | undefined,
+  /** "in Washington"; omitted for the country. */
+  placePhrase?: string,
 ): { headline: string; subhead: string; basis: string } | null {
   const c = story.conclusion
   if (!c || !counts) return null
@@ -134,7 +139,53 @@ export function storyConclusion(
   return {
     headline: c.headline,
     subhead: c.subhead,
-    basis: `Of ${fmtN(total)} speakers on record at local meetings, ${fmtN(mine)} spoke ${c.side} and ${fmtN(other)} spoke ${c.side === 'against' ? 'for' : 'against'}.`,
+    basis: `Of ${fmtN(total)} speakers on record at local meetings${placePhrase ? ` ${placePhrase}` : ''}, ${fmtN(mine)} spoke ${c.side} and ${fmtN(other)} spoke ${c.side === 'against' ? 'for' : 'against'}.`,
+  }
+}
+
+export type StoryTitlePart = string | { blank: 'place' | 'topic' }
+
+/**
+ * The story's title for its place (#993): the strongest conclusion the place's record supports, with the place and topic as
+ * blanks. (1) The sentiment headline ("[America] hates [data centers].") when the place's own speaker counts pass the
+ * conclusion's gate; (2) otherwise the fact ("[Washington] talked about [data centers] in 69 meetings.") from its meeting
+ * count; (3) otherwise the question. `place` is how the place blank reads ("America" for the country). `basis` is the line
+ * of numbers under the title, null for the question.
+ */
+export function storyTitle(
+  story: StoryEntry,
+  scope: StoryScope,
+  record: {
+    speakers: { for: number; against: number; question: number; neutral: number; total?: number } | null | undefined
+    meetings: number | null | undefined
+  },
+): { kind: 'sentiment' | 'fact' | 'question'; template: StoryTitlePart[]; place: string; basis: string | null } {
+  const label = storyScopeLabel(scope)
+  const national = !scope.stateName
+  const placePhrase = national ? undefined : `in ${label}`
+  const sentiment = storyConclusion(story, record.speakers, placePhrase)
+  if (sentiment && story.conclusion) {
+    return {
+      kind: 'sentiment',
+      template: [{ blank: 'place' }, ` ${story.conclusion.verb} `, { blank: 'topic' }, '.'],
+      place: national ? 'America' : label,
+      basis: sentiment.basis,
+    }
+  }
+  const m = record.meetings ?? 0
+  if (m > 0) {
+    return {
+      kind: 'fact',
+      template: [{ blank: 'place' }, ' talked about ', { blank: 'topic' }, ` in ${m.toLocaleString('en-US')} ${m === 1 ? 'meeting' : 'meetings'}.`],
+      place: national ? 'America' : label,
+      basis: 'Counted from local meeting recordings and transcripts. Not enough speakers on record here to say which way they lean.',
+    }
+  }
+  return {
+    kind: 'question',
+    template: ['What did local meetings in ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?'],
+    place: storyPlaceDisplay(scope),
+    basis: null,
   }
 }
 

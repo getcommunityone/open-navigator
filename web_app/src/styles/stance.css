@@ -2815,3 +2815,10 @@ html.stance-snap {
     transition: left var(--d-2, 240ms) var(--ease-out, ease-out);
   }
 }
+
+/* The numbers behind the story's title (#993): the speaker counts or the meeting count it states. */
+.stance-title-basis {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
