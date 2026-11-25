@@ -9,7 +9,7 @@ import { STATE_CODES } from '../lib/usStates'
 import 'leaflet/dist/leaflet.css'
 
 /**
- * A single geocoded civic-decision pin from `GET /decisions/map`.
+ * A single geocoded civic-decision pin from `GET /api/decision/map`.
  *
  * NOTE: this maps the `event_decision` mart, NOT `event_policy_decision`. The
  * `/decisions/{id}` detail route resolves against a *different* mart, so the
@@ -87,7 +87,7 @@ export default function DecisionsMapPage() {
       return withSpan(
         'decisions_map.fetch',
         async () => {
-          const response = await api.get('/decisions/map', { params })
+          const response = await api.get('/decision/map', { params })
           // Tolerate both a bare array and an envelope ({ decisions: [...] }).
           const data = response.data
           if (Array.isArray(data)) return data as DecisionPin[]
