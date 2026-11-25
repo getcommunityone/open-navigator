@@ -155,9 +155,9 @@ When you stop on a screen that has a next step, the page draws your eye to it. A
 - Anything you do (scroll, tap, type) starts the wait and the count again. So does arriving on a new screen, and there the wait begins only after the screen has finished arriving.
 - It never plays while the place picker is open, while a data table is open, while you are typing in a field or selecting text, or while the tab is in the background.
 - It is never shown on a group of answers: no answer is pushed.
-- It is visual only. Focus does not move, nothing is announced to a screen reader, no control is added and nothing shifts.
+- Focus does not move, nothing is announced to a screen reader, no control is added and nothing shifts.
 - With reduced motion nothing moves: an outline inside the button shows and goes, once per cue.
-- The story and the hub are calm. In the challenge the arrow hops twice and the light is brighter, and the first cue plays one soft sound if sound is on.
+- The hub cue is visual only. On the story, with **Sound on**, the first idle nudge also plays one soft page-turn cue, and advancing to a new screen plays the same soft cue (after your first click or key unlocks Web Audio). Answering still plays the lock cue. The challenge is louder: its arrow hops twice and the light is brighter, and its first idle cue plays a soft sound when sound is on (#966).
 
 | Timing | Value | Constant |
 | --- | --- | --- |

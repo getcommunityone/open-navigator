@@ -100,7 +100,7 @@ export default function DataStory() {
   const [voteError, setVoteError] = useState<VoteState['error']>(null)
   const [fresh, setFresh] = useState(false)
 
-  // One sound board, shared with the challenge's setting. The story plays one cue: an answer locking in.
+  // One sound board, shared with the challenge's setting. Soft page-turn / idle cues while reading; lock when an answer lands (#966).
   const board = useMemo(() => createSoundBoard({ attach: false }), [])
   useEffect(() => {
     board.attach()
@@ -111,6 +111,7 @@ export default function DataStory() {
     const next = !soundOn
     board.setEnabled(next)
     setSoundOn(next)
+    // Preview so Sound on is audible immediately (Web Audio unlocks on this click).
     if (next) board.play('lock')
   }
 
@@ -124,8 +125,16 @@ export default function DataStory() {
   const [placeOpen, setPlaceOpen] = useState(false)
   const [whereOpen, setWhereOpen] = useState(false)
   const dialogOpen = placeOpen || whereOpen
-  // A reader who has stopped gets a calm cue on the screen's next step (or on the floating bar standing in for it).
-  useIdleNudge({ rootRef, screen: `[data-panel="${active}"]`, resetKey: active, entranceMs: NUDGE_ENTRANCE_MS })
+  // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
+  useIdleNudge({
+    rootRef,
+    screen: `[data-panel="${active}"]`,
+    resetKey: active,
+    entranceMs: NUDGE_ENTRANCE_MS,
+    onNudge: (first) => {
+      if (first) board.play('open')
+    },
+  })
 
   useLayoutEffect(() => {
     const root = rootRef.current
@@ -170,6 +179,7 @@ export default function DataStory() {
   const onActive = useCallback(
     (i: number) => {
       if (!ready.current || (i === activeRef.current && lastWritten.current != null)) return
+      const moved = i !== activeRef.current
       activeRef.current = i
       setActive(i)
       lastWritten.current = idAt(i)
@@ -182,8 +192,10 @@ export default function DataStory() {
         },
         { replace: true },
       )
+      // Soft page-turn when the reader advances (silent until Web Audio is unlocked by a click/key) (#966).
+      if (moved) board.play('open')
     },
-    [setSp, idAt, recent],
+    [setSp, idAt, recent, board],
   )
   /** After a keyboard move, focus lands on the settled screen's first answer or its Continue button so the next key press carries on. */
   const onSettled = useCallback((h: Hold) => {
