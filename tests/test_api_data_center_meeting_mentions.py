@@ -21,9 +21,10 @@ PATH = "/api/data-centers/meeting-mentions"
 
 
 class _Conn:
-    def __init__(self, rows=None, counts=None, error: Exception | None = None):
+    def __init__(self, rows=None, counts=None, error: Exception | None = None, by_state=None):
         self.rows = rows or []
         self.counts = counts or []
+        self.by_state = by_state or []
         self.error = error
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
 
@@ -31,6 +32,8 @@ class _Conn:
         self.calls.append((sql, params))
         if self.error:
             raise self.error
+        if "GROUP BY m.state_code" in sql:
+            return self.by_state
         return self.counts if "AS passages" in sql and "LIMIT" not in sql else self.rows
 
 
@@ -94,7 +97,7 @@ def test_city_scope_counts_evidence_and_jump(get) -> None:
     assert body["scope"] == {
         "level": "city", "state_code": "NC", "state": "North Carolina", "city": "Charlotte", "jurisdiction_id": None,
     }
-    assert body["counts"] == {"passages": 30, "meetings": 1, "site_specific": 0}
+    assert body["counts"] == {"passages": 30, "meetings": 1, "site_specific": 0, "by_state": []}
     (item,) = body["items"]
     assert "<mark>data</mark>" in item["evidence"]
     assert item["jump_url"] == "https://www.youtube.com/watch?v=7VghnjHd_1w&t=7747s"
@@ -136,3 +139,32 @@ def test_missing_mart_is_an_empty_list(get) -> None:
 
 def test_other_errors_are_500(get) -> None:
     assert get(_Conn(error=RuntimeError("boom"))).status_code == 500
+
+
+def test_counts_by_state_are_real_distinct_meetings_in_scope(get) -> None:
+    """#970: the Overview dot map shades each state by its own count; same filters as the list."""
+    conn = _Conn(
+        counts=[{"passages": 9, "meetings": 5, "site_specific": 1}],
+        by_state=[
+            {"state_code": "TX", "state": "Texas", "meetings": 3},
+            {"state_code": "NC", "state": "North Carolina", "meetings": 2},
+        ],
+    )
+    body = get(conn).json()
+    assert body["counts"]["by_state"] == [
+        {"state_code": "TX", "state": "Texas", "meetings": 3},
+        {"state_code": "NC", "state": "North Carolina", "meetings": 2},
+    ]
+    sql, params = next(c for c in conn.calls if "GROUP BY m.state_code" in c[0])
+    assert "count(DISTINCT m.video_id)" in sql and "m.state_code IS NOT NULL" in sql and params == ()
+
+    conn = _Conn(counts=[{"passages": 1, "meetings": 1, "site_specific": 0}])
+    get(conn, {"state": "NC", "city": "Charlotte"})
+    sql, params = next(c for c in conn.calls if "GROUP BY m.state_code" in c[0])
+    assert "m.state_code = $1" in sql and "m.jurisdiction_name ILIKE $2" in sql
+    assert params == ("NC", "%Charlotte%")
+
+
+def test_by_state_is_empty_not_missing_when_none(get) -> None:
+    body = get(_Conn(counts=[{"passages": 0, "meetings": 0, "site_specific": 0}])).json()
+    assert body["counts"]["by_state"] == []

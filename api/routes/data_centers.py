@@ -695,12 +695,24 @@ class DataCenterMeetingMention(BaseModel):
     site_match_basis: Literal["named_in_passage", "nearby_site"] | None = None
 
 
+class DataCenterMeetingMentionStateCount(BaseModel):
+    """Meetings in one state where a data center came up (distinct recordings)."""
+
+    state_code: str
+    state: str | None = None
+    meetings: int
+
+
 class DataCenterMeetingMentionCounts(BaseModel):
     """Real counts for the whole scope (before ``limit``): 0 means none."""
 
     passages: int = 0
     meetings: int = 0
     site_specific: int = 0
+    by_state: list[DataCenterMeetingMentionStateCount] = Field(
+        default_factory=list,
+        description="Meetings per state in the scope, largest first (#970); states with none are left out.",
+    )
 
 
 class DataCenterMeetingMentionsResponse(BaseModel):
@@ -750,6 +762,20 @@ def build_mention_queries(
     return items_sql, params, counts_sql, counts_params
 
 
+def build_mention_by_state_query(
+    scope: JobClaimScope, site_id: str | None, strength: str | None
+) -> tuple[str, list[Any]]:
+    """Distinct meetings per state for the same filters as ``build_mention_queries`` (#970)."""
+    _, _, counts_sql, params = build_mention_queries(scope, site_id, strength, 1)
+    where_sql = counts_sql.split(" WHERE ", 1)[1]
+    sql = (
+        "SELECT m.state_code, max(m.state) AS state, count(DISTINCT m.video_id)::int AS meetings "
+        f"FROM data_center_meeting_mention m WHERE ({where_sql}) AND m.state_code IS NOT NULL "
+        "GROUP BY m.state_code ORDER BY meetings DESC, m.state_code"
+    )
+    return sql, params
+
+
 def jump_url(video_url: str, start_seconds: float | None) -> str | None:
     """The recording at the passage's moment (YouTube ``t=`` in whole seconds)."""
     if start_seconds is None or "youtu" not in video_url:
@@ -784,6 +810,7 @@ async def list_data_center_meeting_mentions(
     )
     site_clean = _clean(site_id)
     items_sql, params, counts_sql, counts_params = build_mention_queries(applied, site_clean, strength, limit)
+    by_state_sql, by_state_params = build_mention_by_state_query(applied, site_clean, strength)
     with tracer.start_as_current_span("data-centers.meeting-mentions") as span:
         span.set_attribute("meeting_mentions.scope_level", applied.level)
         span.set_attribute("meeting_mentions.state_code", applied.state_code or "")
@@ -796,6 +823,7 @@ async def list_data_center_meeting_mentions(
                 with tracer.start_as_current_span("data-centers.meeting-mentions.query"):
                     rows = await conn.fetch(items_sql, *params)
                     count_rows = await conn.fetch(counts_sql, *counts_params)
+                    state_rows = await conn.fetch(by_state_sql, *by_state_params)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("meeting_mentions.relation_missing", True)
             logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)
@@ -807,6 +835,7 @@ async def list_data_center_meeting_mentions(
         counts = (
             DataCenterMeetingMentionCounts(**dict(count_rows[0])) if count_rows else DataCenterMeetingMentionCounts()
         )
+        counts.by_state = [DataCenterMeetingMentionStateCount(**dict(r)) for r in state_rows]
         items = []
         for r in rows:
             row = dict(r)

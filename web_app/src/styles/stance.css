@@ -2458,3 +2458,81 @@ html.stance-snap {
 .stance-nowrap {
   white-space: nowrap;
 }
+
+/* Overview dot map (#970): the country in dots, each state shaded by its real meeting count. */
+.stance-map {
+  margin: 0 0 16px;
+}
+.stance-map-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.stance-map-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+}
+.stance-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.stance-map-readout {
+  min-height: 1.4em;
+  margin: 4px 0 6px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.stance-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+}
+.stance-map-ramp {
+  display: inline-flex;
+}
+.stance-map-ramp span,
+.stance-map-none span {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+}
+.stance-map-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.stance-map-table {
+  margin-top: 8px;
+  font-size: 14px;
+}
+.stance-map-table summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.stance-map-table table {
+  margin-top: 6px;
+  border-collapse: collapse;
+}
+.stance-map-table th,
+.stance-map-table td {
+  padding: 2px 16px 2px 0;
+  text-align: left;
+}
+.stance-map-table td:last-child,
+.stance-map-table th:last-child {
+  text-align: right;
+}

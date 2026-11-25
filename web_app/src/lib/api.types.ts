@@ -1533,7 +1533,24 @@ export interface components {
          * DataCenterMeetingMentionCounts
          * @description Real counts for the whole scope (before ``limit``): 0 means none.
          */
+        /**
+         * DataCenterMeetingMentionStateCount
+         * @description Meetings in one state where a data center came up (distinct recordings).
+         */
+        DataCenterMeetingMentionStateCount: {
+            /** State Code */
+            state_code: string;
+            /** State */
+            state?: string | null;
+            /** Meetings */
+            meetings: number;
+        };
         DataCenterMeetingMentionCounts: {
+            /**
+             * By State
+             * @description Meetings per state in the scope, largest first (#970); states with none are left out.
+             */
+            by_state?: components["schemas"]["DataCenterMeetingMentionStateCount"][];
             /**
              * Meetings
              * @default 0
