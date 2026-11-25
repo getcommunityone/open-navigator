@@ -1664,3 +1664,14 @@ html.folio-snap {
   font-family: var(--font-display);
   letter-spacing: -0.01em;
 }
+
+/* A tooltip's preview image (a meeting recording's thumbnail, #972). */
+.folio-tt-thumb {
+  display: block;
+  width: 160px;
+  height: 90px;
+  object-fit: cover;
+  margin: 0 0 6px;
+  background: var(--neutral-data);
+  border: 1px solid var(--rule);
+}
