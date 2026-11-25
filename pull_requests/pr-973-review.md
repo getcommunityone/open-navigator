@@ -4,59 +4,52 @@ branch: feat/972-meeting-dot-video
 title: "feat(web_app): meeting dots preview a thumbnail and play the recording in a modal"
 author: jcbowyer
 reviewed_at: 2026-11-25
-reviewer: github-actions
-head_sha: 22c6310b92a8c1cd95c156e0d3cd66de0084e976
-verdict: approve
+reviewer: general-purpose subagent (read-only, two passes) and coordinator
+head_sha: see branch head
+verdict: approve-with-nits
 ---
 
 # PR Review: feat(web_app): meeting dots preview a thumbnail and play the recording in a modal
 
 ## Summary
 
-Automated review (#648) for PR #973 on `feat/972-meeting-dot-video`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Closes #972. A meeting dot previews its YouTube thumbnail on hover or focus, and click, Enter or Space plays the recording in a dialog from the quoted moment. The iframe exists only while the dialog is open.
 
-## Scope of Change
+The first independent pass said **request-changes**. Every Blocking and Should-fix finding is fixed on the branch, and
+the second pass says **approve-with-nits**. The CI bot's heuristic auto-review is superseded by this file.
 
-- `pull_requests/pr-973-review.md`
-- `web_app/src/components/matrix/Tooltip.tsx`
-- `web_app/src/components/stance/ChartPanel.tsx`
-- `web_app/src/components/stance/MeetingDots.test.tsx`
-- `web_app/src/components/stance/MeetingVideoModal.tsx`
-- `web_app/src/lib/youtubeEmbed.test.ts`
-- `web_app/src/lib/youtubeEmbed.ts`
-- `web_app/src/styles/folio.css`
-- `web_app/src/styles/stance.css`
-- `web_app/src/utils/stanceGame.ts`
-- `web_docs/docs/guides/data-stories.md`
+## Findings and their fixes
 
-## CI Status
+### 🔴 Blocking (fixed)
+1. **Arrow keys in the dialog moved focus to a dot behind it.** Portal events bubbled to the grid's key handler. **Fixed:** the dialog renders outside the grid and stops key propagation.
 
-See the PR checks on `22c6310b92a8`.
+### 🟡 Should fix (fixed)
+- **The story scrolled under the open dialog.**
+  - Fixed: `html` and `body` are locked; `data-lenis-prevent` is set; wheel and touch are blocked on the backdrop; story keys are stopped while it is open; the dialog takes focus when its text is clicked.
+  - Checked in a browser: the page moved 0px.
+- **The dialog couldn't scroll in short windows** (second pass). Fixed: only the backdrop blocks wheel and touch; the dialog has `overscroll-behavior: contain`.
+- The focus-restore side effect left the state updater.
+- The caption says "hover or focus".
+- `altKey` counts as a modifier click.
 
-## Scans (secrets, fabricated data, personal data, destructive data changes)
+### 🔵 Nits (open)
+- While the dialog is open, story keys are stopped for every element. Native activation still works, but a future `onKeyDown` inside the dialog wouldn't fire.
+- Desktop scrollbar shift when the page locks (`scrollbar-gutter` could fix it).
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+## Tests
+- vitest: 8 new tests; the full suite (388) green. `tsc` is clean.
+- Browser:
+  - No YouTube request before a hover; one thumbnail on hover.
+  - The dialog plays from 6:57.
+  - Escape removes the iframe and returns focus to the dot.
 
-## Strengths
+## Scans
 
-- Automated scans found no secret/credential patterns in added lines.
-
-## Findings
-
-### 🔴 Blocking (Critical)
-
-None.
-
-### 🟡 Should fix (Important)
-
-None from automated heuristics.
-
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
+- Secrets: clean.
+- Fabricated data: clean.
+- Personal data: none.
+- Destructive changes: none.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: merge when the required checks are green.

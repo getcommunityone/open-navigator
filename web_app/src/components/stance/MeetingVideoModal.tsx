@@ -68,8 +68,10 @@ export default function MeetingVideoModal({ video, onClose }: Props) {
     const prev = { html: html.style.overflow, body: document.body.style.overflow }
     html.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
+    // Only the backdrop itself is blocked: the dialog may be taller than a short window and must still scroll
+    // (its overscroll-behavior: contain keeps that scroll from chaining to the page).
     const block = (e: Event) => {
-      if (e.cancelable) e.preventDefault()
+      if (e.cancelable && !boxRef.current?.contains(e.target as Node)) e.preventDefault()
     }
     const bd = backdropRef.current
     bd?.addEventListener('wheel', block, { passive: false })

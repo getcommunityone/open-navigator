@@ -2474,6 +2474,7 @@ html.stance-snap {
   width: min(960px, 100%);
   max-height: calc(100vh - 32px);
   overflow: auto;
+  overscroll-behavior: contain;
   background: var(--paper-raised);
   color: var(--ink);
   border: 1px solid var(--ink);
