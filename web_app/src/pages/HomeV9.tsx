@@ -543,7 +543,8 @@ export default function HomeV9() {
   // When arriving from another page via `/#how-it-works` (shared header nav),
   // scroll to the requested in-page section once it has rendered.
   // The sections above load their data after this runs and grow, which would leave the section mid-screen (#975), so
-  // the scroll settles again a few times while the page fills in, and stops as soon as the reader scrolls themselves.
+  // the scroll settles again a few times while the page fills in, and stops as soon as the reader scrolls, clicks,
+  // presses a key or navigates.
   useEffect(() => {
     const id = window.location.hash.replace('#', '')
     if (!id) return
@@ -554,7 +555,10 @@ export default function HomeV9() {
     const opts = { passive: true } as const
     window.addEventListener('wheel', stop, opts)
     window.addEventListener('touchstart', stop, opts)
+    window.addEventListener('pointerdown', stop, opts)
     window.addEventListener('keydown', stop)
+    window.addEventListener('hashchange', stop)
+    window.addEventListener('popstate', stop)
     const settle = () => {
       if (userMoved) return
       const el = document.getElementById(id)
@@ -567,7 +571,10 @@ export default function HomeV9() {
       timers.forEach((t) => window.clearTimeout(t))
       window.removeEventListener('wheel', stop)
       window.removeEventListener('touchstart', stop)
+      window.removeEventListener('pointerdown', stop)
       window.removeEventListener('keydown', stop)
+      window.removeEventListener('hashchange', stop)
+      window.removeEventListener('popstate', stop)
     }
   }, [])
 

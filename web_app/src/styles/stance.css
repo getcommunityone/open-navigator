@@ -2480,8 +2480,7 @@ html.stance-snap {
 .folio .stance-next,
 .folio .stance-ask-btn,
 .folio .stories-start,
-.folio .folio-btn[data-primary],
-.folio .stance-float-btn {
+.folio .folio-btn[data-primary] {
   border-radius: 999px !important;
   font-weight: 700;
   padding-left: 22px;

@@ -86,11 +86,16 @@ export default function SiteHeader() {
       return
     }
     const ids = ['search', 'data-stories', 'how-it-works', 'impact']
+    // The section crossing the middle of the screen is active; between sections (the meetings and maps in the
+    // middle of the page) none is, so no tab stays lit over unrelated content.
+    const inView = new Set<string>()
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
-          if (e.isIntersecting) setActiveSection(e.target.id)
+          if (e.isIntersecting) inView.add(e.target.id)
+          else inView.delete(e.target.id)
         })
+        setActiveSection(ids.find((id) => inView.has(id)) ?? '')
       },
       { rootMargin: '-50% 0px -50% 0px' },
     )
@@ -111,12 +116,23 @@ export default function SiteHeader() {
   // How It Works, Impact. On home we smooth-scroll to it; elsewhere we route home
   // with a hash so HomeV9's hash-scroll effect lands on the right section. The
   // detail pages (/search, /stories, ...) open from actions inside each section.
+  // The place in the address (?state=&city=) travels with the tab, so the home section shows the same scope the
+  // reader had (CLAUDE.md: filters carry over across navigation).
   const goSection = (id: string) => {
     setActiveSection(id) // keep the clicked link highlighted immediately
-    if (location.pathname === '/') {
+    const here = new URLSearchParams(location.search)
+    const q = new URLSearchParams()
+    const st = here.get('state')
+    if (st) {
+      q.set('state', st)
+      const c = here.get('city')
+      if (c) q.set('city', c)
+    }
+    const query = q.toString() ? `?${q}` : ''
+    if (location.pathname === '/' && (!query || query === location.search)) {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } else {
-      navigate(`/#${id}`)
+      navigate(`/${query}#${id}`)
     }
   }
 

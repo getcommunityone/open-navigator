@@ -32,7 +32,8 @@ export default {
         primary: {
           50: '#f0fdfa',
           100: '#ccfbf1',
-          500: '#0d9488',
+          // 500 is used as a background under white text (scope toggles), so it must pass WCAG AA: #0f766e is 5.5:1.
+          500: '#0f766e',
           600: '#0f766e',
           700: '#115e59',
         },
