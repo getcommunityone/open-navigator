@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import '@fontsource-variable/geist'
-import '@fontsource-variable/geist-mono'
 import '../styles/folio.css'
 import '../styles/stance.css'
 import {

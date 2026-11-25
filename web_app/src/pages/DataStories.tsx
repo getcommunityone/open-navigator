@@ -1,7 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import '@fontsource-variable/geist'
-import '@fontsource-variable/geist-mono'
 import '../styles/folio.css'
 import '../styles/stance.css'
 import type { DataCenterPositionsResponse } from '../api/dataCenters'

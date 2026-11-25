@@ -85,12 +85,17 @@ export default function SiteHeader() {
       setActiveSection('')
       return
     }
-    const ids = ['how-it-works', 'impact']
+    const ids = ['search', 'data-stories', 'how-it-works', 'impact']
+    // The section crossing the middle of the screen is active; between sections (the meetings and maps in the
+    // middle of the page) none is, so no tab stays lit over unrelated content.
+    const inView = new Set<string>()
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
-          if (e.isIntersecting) setActiveSection(e.target.id)
+          if (e.isIntersecting) inView.add(e.target.id)
+          else inView.delete(e.target.id)
         })
+        setActiveSection(ids.find((id) => inView.has(id)) ?? '')
       },
       { rootMargin: '-50% 0px -50% 0px' },
     )
@@ -107,39 +112,48 @@ export default function SiteHeader() {
     }
   }, [location.pathname])
 
-  // "How It Works" / "Impact" are in-page sections that only exist on the home
-  // page. On home we smooth-scroll to them; elsewhere we route home with a hash
-  // so HomeV9's hash-scroll effect lands on the right section.
+  // Every main tab is a section of the home page (#975): Search, Data Stories,
+  // How It Works, Impact. On home we smooth-scroll to it; elsewhere we route home
+  // with a hash so HomeV9's hash-scroll effect lands on the right section. The
+  // detail pages (/search, /stories, ...) open from actions inside each section.
+  // The place in the address (?state=&city=) travels with the tab, so the home section shows the same scope the
+  // reader had (CLAUDE.md: filters carry over across navigation).
   const goSection = (id: string) => {
     setActiveSection(id) // keep the clicked link highlighted immediately
+    const here = new URLSearchParams(location.search)
+    const q = new URLSearchParams()
+    const st = here.get('state')
+    if (st) {
+      q.set('state', st)
+      const c = here.get('city')
+      if (c) q.set('city', c)
+    }
+    const query = q.toString() ? `?${q}` : ''
     if (location.pathname === '/') {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // Already home: keep or set the carried place (compared by value, not by encoding), then scroll. The home page
+      // doesn't remount on a same-route navigate, so the scroll can't wait for its hash effect.
+      const samePlace = (here.get('state') ?? '') === (q.get('state') ?? '') && (here.get('city') ?? '') === (q.get('city') ?? '')
+      if (!samePlace) navigate(`/${query}#${id}`, { replace: true })
+      requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     } else {
-      navigate(`/#${id}`)
+      navigate(`/${query}#${id}`)
     }
   }
 
   // Chat & Contact lives in the profile menu and the site footer (#952 / #860).
+  // On home a tab lights up for the section in view; on a detail page, for the section it was opened from.
+  const onHome = location.pathname === '/'
   const navItems: { label: string; onClick: () => void; active: boolean }[] = [
-    { label: 'Search', onClick: () => navigate('/search'), active: location.pathname === '/search' },
+    { label: 'Search', onClick: () => goSection('search'), active: onHome ? activeSection === 'search' : location.pathname === '/search' },
     {
       label: 'Data Stories',
-      // The place in the address (?state=&city=) travels with the click when the current page has one.
-      onClick: () => {
-        const q = new URLSearchParams()
-        const here = new URLSearchParams(location.search)
-        const st = here.get('state')
-        if (st) {
-          q.set('state', st)
-          const c = here.get('city')
-          if (c) q.set('city', c)
-        }
-        navigate(`/stories${q.toString() ? `?${q}` : ''}`)
-      },
-      active: location.pathname.startsWith('/stories') || location.pathname.startsWith('/challenge'),
+      onClick: () => goSection('data-stories'),
+      active: onHome
+        ? activeSection === 'data-stories'
+        : location.pathname.startsWith('/stories') || location.pathname.startsWith('/challenge'),
     },
-    { label: 'How It Works', onClick: () => goSection('how-it-works'), active: location.pathname === '/' && activeSection === 'how-it-works' },
-    { label: 'Impact', onClick: () => goSection('impact'), active: location.pathname === '/' && activeSection === 'impact' },
+    { label: 'How It Works', onClick: () => goSection('how-it-works'), active: onHome && activeSection === 'how-it-works' },
+    { label: 'Impact', onClick: () => goSection('impact'), active: onHome && activeSection === 'impact' },
   ]
 
   const goHome = (event: MouseEvent<HTMLAnchorElement>) => {

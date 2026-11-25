@@ -4,8 +4,10 @@
  * Imported only by DataExplorerMatrixPage.
  */
 .folio {
-  --font-sans: 'Geist Variable', 'Geist', 'Inter', 'Helvetica Neue', Arial, system-ui, sans-serif;
-  --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The site's one type system (#975), the same faces as the home page. */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --paper: #e8e6ef;
   --paper-raised: #f4f3f8;
@@ -1652,6 +1654,15 @@ html.folio-snap {
 }
 .sh-title {
   scroll-margin-top: calc(var(--folio-top, 108px) + 12px);
+}
+
+/* Folio headings in the site's display face (#975). */
+.folio-heading,
+.folio-headline,
+.folio-chapter-title,
+.folio-action-title {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 /* A tooltip's preview image (a meeting recording's thumbnail, #972). */

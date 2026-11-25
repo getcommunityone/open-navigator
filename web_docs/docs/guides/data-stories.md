@@ -7,7 +7,7 @@ description: What the data stories hub and the Data Center Story are, who spoke 
 
 A data story opens on an **overview of the record**, shows what public meetings said one screen at a time, and only then asks its topic question so you can agree or disagree and see how other readers answered. Each screen of the record has a bold sentence computed from the data, one line of context, and a chart where every dot is a record you can open. The story ends by handing you to a challenge on the same topic, the [Data Center Challenge](data-center-challenge.md) for data centers. The hub never leads with the question (#950).
 
-Open the hub at `/stories` (the **Data Stories** item in the header). The first story is the Data Center Story at `/stories/data-centers`.
+The **Data Stories** item in the header scrolls to the Data stories section of the home page (`/#data-stories`), which shows the story's real counts and opens the story, the challenge and the full hub at `/stories` ([#975](https://github.com/getcommunityone/open-navigator/issues/975)). The first story is the Data Center Story at `/stories/data-centers`.
 
 ## Which topics get a story
 

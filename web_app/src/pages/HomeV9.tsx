@@ -18,7 +18,7 @@
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { getLaunchCounty } from '../lib/launchCounties'
@@ -34,13 +34,15 @@ import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 import { fetchMeetings, type MeetingCard } from '../api/meetings'
 import { highlightSnippet } from '../lib/highlight'
 import { LAUNCH_CITIES } from '../lib/launchCoverage'
+import HomeDataStories from '../components/home/HomeDataStories'
+import { STATE_CODES } from '../lib/usStates'
 
-const TEAL = '#0d9488'
-const TEAL_DARK = '#0f766e'
+// The brand teal, the same as the data stories' primary action and Tailwind's primary-600 (#975).
+const TEAL = '#0f766e'
+const TEAL_DARK = '#115e59'
 const INK = '#1c1917'
 
 const FONTS = `
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 .v9 .font-display { font-family: 'Playfair Display', Georgia, serif; }
 .v9 .font-body { font-family: 'Source Sans 3', system-ui, sans-serif; }
 .v9 .font-mono-x { font-family: 'IBM Plex Mono', monospace; }
@@ -440,8 +442,13 @@ function StepZeroImpact() {
 export default function HomeV9() {
   const navigate = useNavigate()
   const { location, setLocation } = useLocationContext()
-  const locState = location?.state || undefined
-  const locCity = location?.city || undefined
+  // A place carried in the address (?state=&city=, e.g. from a header tab on a scoped page) sets the whole page's
+  // scope, ahead of the saved location, without overwriting it (#975; CLAUDE.md: filters carry over via the URL).
+  const [urlParams, setUrlParams] = useSearchParams()
+  const urlState = (urlParams.get('state') ?? '').trim().toUpperCase()
+  const urlHasPlace = STATE_CODES.includes(urlState)
+  const locState = urlHasPlace ? urlState : location?.state || undefined
+  const locCity = urlHasPlace ? (urlParams.get('city') ?? '').trim() || undefined : location?.city || undefined
 
   // ── Location level — City / State / National ──
   // Restores the geography selector that used to live in the hero. Defaults to
@@ -541,12 +548,39 @@ export default function HomeV9() {
 
   // When arriving from another page via `/#how-it-works` (shared header nav),
   // scroll to the requested in-page section once it has rendered.
+  // The sections above load their data after this runs and grow, which would leave the section mid-screen (#975), so
+  // the scroll settles again a few times while the page fills in, and stops as soon as the reader scrolls, clicks,
+  // presses a key or navigates.
   useEffect(() => {
     const id = window.location.hash.replace('#', '')
-    if (id) {
-      requestAnimationFrame(() =>
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-      )
+    if (!id) return
+    let userMoved = false
+    const stop = () => {
+      userMoved = true
+    }
+    const opts = { passive: true } as const
+    window.addEventListener('wheel', stop, opts)
+    window.addEventListener('touchstart', stop, opts)
+    window.addEventListener('pointerdown', stop, opts)
+    window.addEventListener('keydown', stop)
+    window.addEventListener('hashchange', stop)
+    window.addEventListener('popstate', stop)
+    const settle = () => {
+      if (userMoved) return
+      const el = document.getElementById(id)
+      if (el && Math.abs(el.getBoundingClientRect().top - 72) > 8) el.scrollIntoView({ behavior: 'auto', block: 'start' })
+    }
+    const raf = requestAnimationFrame(settle)
+    const timers = [300, 800, 1500, 2500, 4000].map((ms) => window.setTimeout(settle, ms))
+    return () => {
+      cancelAnimationFrame(raf)
+      timers.forEach((t) => window.clearTimeout(t))
+      window.removeEventListener('wheel', stop)
+      window.removeEventListener('touchstart', stop)
+      window.removeEventListener('pointerdown', stop)
+      window.removeEventListener('keydown', stop)
+      window.removeEventListener('hashchange', stop)
+      window.removeEventListener('popstate', stop)
     }
   }, [])
 
@@ -769,7 +803,8 @@ export default function HomeV9() {
 
       <main className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
         {/* ── Hero: thesis + search + trending ── */}
-        <section className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center' }}>
+        {/* The header's Search tab scrolls here (#975); results open on /search from this search. */}
+        <section id="search" className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center', scrollMarginTop: 72 }}>
           <h1
             className="font-display"
             style={{ fontSize: 'clamp(38px, 6.4vw, 60px)', fontWeight: 900, margin: 0, lineHeight: 1.05, letterSpacing: '-0.02em', color: INK }}
@@ -1190,6 +1225,18 @@ export default function HomeV9() {
                     onLocationFound={(loc) => {
                       setUncoveredPick(null)
                       setLocation(loc)
+                      // A place picked here replaces any place carried in the address.
+                      if (urlHasPlace) {
+                        setUrlParams(
+                          (prev) => {
+                            const next = new URLSearchParams(prev)
+                            next.delete('state')
+                            next.delete('city')
+                            return next
+                          },
+                          { replace: true },
+                        )
+                      }
                       levelPicked.current = false
                       setChangingLoc(false)
                     }}
@@ -1841,6 +1888,9 @@ export default function HomeV9() {
           />
         </section>
       </main>
+
+      {/* ── Data stories (#975): the header's Data Stories tab scrolls here; the story opens from it. ── */}
+      <HomeDataStories stateCode={stateCode} city={city ?? null} />
 
       {/* ── How It Works (ported from the original home page, restyled for v9).
           Header format matches the sibling "Our Impact" section: section name as
