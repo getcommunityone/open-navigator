@@ -208,3 +208,4 @@ backups/
 # draw.io export webapp (sparse clone for PNG render)
 diagrams/youtube-api-audit/_build/drawio/
 diagrams/youtube-api-audit/_build/__pycache__/
+.superpowers/
