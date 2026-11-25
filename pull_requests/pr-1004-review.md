@@ -51,3 +51,10 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- **Browser check:** the county land is drawn before the places, so towns stay on top and clickable. The fill has `pointerEvents="none"`. The outline defaults on only when `view === 'place'`; the ZIP view's default is unchanged.
+- **Scans:** clean. No data, API or docs contract changes.
+
+Verdict stands: approve.
