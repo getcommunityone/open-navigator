@@ -8,12 +8,9 @@
     indexes=[
       {'columns': ['id'], 'unique': True},
       {'columns': ['state_code'], 'type': 'btree'},
-      {'columns': ['is_current'], 'type': 'btree'}
-    ],
-    post_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "CREATE INDEX IF NOT EXISTS contact_official_full_name_trgm_idx ON {{ this }} USING gin (full_name gin_trgm_ops)",
-      "CREATE INDEX IF NOT EXISTS contact_official_title_trgm_idx ON {{ this }} USING gin (title gin_trgm_ops)"
+      {'columns': ['is_current'], 'type': 'btree'},
+      {'columns': ["full_name gin_trgm_ops"], 'type': 'gin'},
+      {'columns': ["title gin_trgm_ops"], 'type': 'gin'}
     ]
   )
 }}

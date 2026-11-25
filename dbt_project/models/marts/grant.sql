@@ -7,15 +7,18 @@
 {{
   config(
     materialized='table',
+    pre_hook=["{{ swap_guard() }}"],
+    indexes=[
+      {'columns': ["grantor_master_org_id"], 'type': 'btree'},
+      {'columns': ["grantee_master_org_id"], 'type': 'btree'},
+      {'columns': ["grantor_state_code"], 'type': 'btree'},
+      {'columns': ["amount DESC NULLS LAST"], 'type': 'btree'},
+      {'columns': ["grantor_name gin_trgm_ops"], 'type': 'gin'},
+      {'columns': ["grantee_name gin_trgm_ops"], 'type': 'gin'},
+      {'columns': ["purpose gin_trgm_ops"], 'type': 'gin'}
+    ],
     post_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "CREATE INDEX IF NOT EXISTS grant_grantor_master_org_id_idx ON {{ this }} (grantor_master_org_id)",
-      "CREATE INDEX IF NOT EXISTS grant_grantee_master_org_id_idx ON {{ this }} (grantee_master_org_id)",
-      "CREATE INDEX IF NOT EXISTS grant_grantor_state_code_idx ON {{ this }} (grantor_state_code)",
-      "CREATE INDEX IF NOT EXISTS grant_amount_idx ON {{ this }} (amount DESC NULLS LAST)",
-      "CREATE INDEX IF NOT EXISTS grant_grantor_name_trgm_idx ON {{ this }} USING gin (grantor_name gin_trgm_ops)",
-      "CREATE INDEX IF NOT EXISTS grant_grantee_name_trgm_idx ON {{ this }} USING gin (grantee_name gin_trgm_ops)",
-      "CREATE INDEX IF NOT EXISTS grant_purpose_trgm_idx ON {{ this }} USING gin (purpose gin_trgm_ops)"
+      "{{ swap_guard_check() }}"
     ]
   )
 }}

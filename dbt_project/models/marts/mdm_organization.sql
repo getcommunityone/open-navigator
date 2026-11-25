@@ -1,11 +1,13 @@
 {{
   config(
     materialized='table',
-    post_hook=[
-      "CREATE INDEX IF NOT EXISTS mdm_organization_org_name_fts_idx ON {{ this }} USING gin (to_tsvector('english', org_name))",
-      "CREATE INDEX IF NOT EXISTS mdm_organization_org_name_norm_idx ON {{ this }} (org_name_norm)",
-      "CREATE INDEX IF NOT EXISTS mdm_organization_state_code_idx ON {{ this }} (state_code)"
-    ]
+    pre_hook=["{{ swap_guard() }}"],
+    indexes=[
+      {'columns': ["to_tsvector('english', org_name)"], 'type': 'gin'},
+      {'columns': ["org_name_norm"], 'type': 'btree'},
+      {'columns': ["state_code"], 'type': 'btree'}
+    ],
+    post_hook=["{{ swap_guard_check() }}"]
   )
 }}
 

@@ -18,17 +18,14 @@
     materialized='table',
     tags=['marts', 'meetings', 'documents', 'suiteone', 'scraped_meetings', 'production'],
     unique_key='event_meeting_document_id',
-    indexes=[
-      {'columns': ['event_meeting_id'], 'type': 'btree'},
-      {'columns': ['jurisdiction_id'], 'type': 'btree'},
-      {'columns': ['census_geoid'], 'type': 'btree'},
-      {'columns': ['document_type'], 'type': 'btree'},
-      {'columns': ['doc_date'], 'type': 'btree'}
-    ],
-    post_hook=(
+    indexes=(
       [
-        "CREATE INDEX IF NOT EXISTS event_meeting_document_content_tsv_idx ON {{ this }} USING gin (content_tsv)"
-      ] if target.name != 'neon' else []
+        {'columns': ['event_meeting_id'], 'type': 'btree'},
+        {'columns': ['jurisdiction_id'], 'type': 'btree'},
+        {'columns': ['census_geoid'], 'type': 'btree'},
+        {'columns': ['document_type'], 'type': 'btree'},
+        {'columns': ['doc_date'], 'type': 'btree'}
+      ] + ([{'columns': ['content_tsv'], 'type': 'gin'}] if target.name != 'neon' else [])
     )
   )
 }}

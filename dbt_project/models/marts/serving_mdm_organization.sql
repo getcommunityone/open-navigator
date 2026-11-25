@@ -1,11 +1,13 @@
 {{
   config(
     materialized='table',
+    indexes=[
+      {'columns': ["to_tsvector('english', org_name)"], 'type': 'gin'},
+      {'columns': ["org_name_norm"], 'type': 'btree'},
+      {'columns': ["state_code"], 'type': 'btree'}
+    ],
     post_hook=[
-      "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_organization_pkey PRIMARY KEY (master_org_id)",
-      "CREATE INDEX IF NOT EXISTS serving_mdm_organization_org_name_fts_idx ON {{ this }} USING gin (to_tsvector('english', org_name))",
-      "CREATE INDEX IF NOT EXISTS serving_mdm_organization_org_name_norm_idx ON {{ this }} (org_name_norm)",
-      "CREATE INDEX IF NOT EXISTS serving_mdm_organization_state_code_idx ON {{ this }} (state_code)"
+      "ALTER TABLE {{ this }} ADD CONSTRAINT serving_mdm_organization_pkey PRIMARY KEY (master_org_id)"
     ]
   )
 }}

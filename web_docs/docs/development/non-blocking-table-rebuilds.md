@@ -46,10 +46,7 @@ For a large `table` model:
       {'columns': ['state_code'], 'type': 'btree'},
       {'columns': ['full_name gin_trgm_ops'], 'type': 'gin'}   -- operator classes pass through as written
     ],
-    pre_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "{{ swap_guard() }}"
-    ],
+    pre_hook=["{{ swap_guard() }}"],
     post_hook=[
       "{{ swap_guard_check() }}"
     ]
@@ -67,8 +64,17 @@ For a large `table` model:
   - It records the transaction id.
 
   All of this ends at the swap's COMMIT, so none of it applies to the backup drop or to other models.
-- **`swap_guard_check()`** is an in-transaction post-hook that runs after the renames and before COMMIT. It fails the build
-  if the swap didn't run in the transaction `swap_guard()` started.
+- **`swap_guard_check()`** must be the **first** post-hook. It runs right after the renames, before COMMIT, and does two
+  things:
+  - It fails the build if the swap didn't run in the transaction `swap_guard()` started.
+  - It ends the `lock_timeout` window (`set local lock_timeout to default`). The timeout is meant for the renames only.
+    Later post-hooks lock other tables that models running in parallel in the same dbt run may hold, and they must wait
+    as before.
+
+  In #938 the timeout was still on when `mdm_bridge_org_jurisdiction`'s `ADD CONSTRAINT … REFERENCES mdm_organization`
+  ran. It timed out and threw away a 10-minute build.
+- **`pg_trgm`** is created once per invocation in `on-run-start` (`dbt_project.yml`). Trigram indexes now build before
+  any hook, so a per-model hook would come too late on a fresh warehouse.
 - **No before-begin hooks** (`{'sql': ..., 'transaction': false}` in `pre_hook`) on these models. dbt sends a literal
   `commit;` before those, and psycopg2 then never opens another transaction on that connection. Every later statement
   autocommits, including the two renames, so they stop being atomic, and `SET LOCAL` and transaction locks end with
@@ -94,7 +100,29 @@ trade-off, since the alternative was freezing every reader for as long as the bl
 
 ## Other models
 
-About 30 other models still build named indexes in post_hooks, including `grant`, `mdm_organization`, `contact_official`,
-`event_documents` and `jurisdictions`. They have the same lock and vanishing-index problems in proportion to their size.
-Moving them to this pattern is
-[#938](https://github.com/getcommunityone/open-navigator/issues/938).
+[#938](https://github.com/getcommunityone/open-navigator/issues/938) moved every other model's index hooks into `indexes`
+config (29 files), plus `event_uncontested_item`'s unnamed one. It also gave `swap_guard` to the largest tables:
+
+| Model | Size |
+|---|---|
+| `event_documents` | 8.5 GB |
+| `grant` | 4.1 GB |
+| `mdm_organization` | 2.2 GB |
+| `mdm_bridge_org_jurisdiction` | 1.7 GB |
+| `mdm_bridge_person_jurisdiction` | 1.5 GB |
+| `bills` | 0.8 GB |
+| `mdm_organization_nonprofit` | 0.7 GB |
+
+`event_documents`' `ANALYZE` became an after-commit post-hook, so it no longer runs under the swap's lock. No model in
+`dbt_project/models` builds an index in a hook any more.
+
+## Still open: views over a rebuilt table
+
+The swap is atomic and short, but dbt then runs `drop table … __dbt_backup cascade`. Views are bound to the old table's
+OID, so the views over it (the `public` serving views, and dbt view models) are dropped with it:
+- the `public` ones come back only when `publish_public_serving` runs at the end of the run;
+- unselected dbt view models don't come back at all after a selected run.
+
+Readers of `public` views can therefore still get "relation does not exist" while a rebuild runs. That is
+[#940](https://github.com/getcommunityone/open-navigator/issues/940). Until it's fixed, after a selected run, recreate the
+views with `./scripts/dbt.sh run --select config.materialized:view`.

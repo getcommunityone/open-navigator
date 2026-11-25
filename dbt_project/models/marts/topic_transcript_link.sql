@@ -1,12 +1,12 @@
 {{
     config(
         materialized='table',
+        indexes=[
+          {'columns': ["topic_id, state_code"], 'type': 'btree'}
+        ],
         on_schema_change='fail',
         tags=['marts', 'civic', 'meeting-browse', 'topic', 'transcript', 'keyword-fts'],
-        contract={'enforced': true},
-        post_hook=[
-            "create index if not exists {{ this.name }}_topic_state_idx on {{ this }} (topic_id, state_code)"
-        ]
+        contract={'enforced': true}
     )
 }}
 

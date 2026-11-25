@@ -19,14 +19,8 @@
   config(
     materialized='table',
     tags=['marts', 'events', 'documents', 'search', 'production'],
-    post_hook=(
-      (
-        [
-          "CREATE INDEX IF NOT EXISTS event_document_lexicon_word_trgm_idx "
-          "ON {{ this }} USING gin (word gin_trgm_ops)"
-        ] if target.name != 'neon' else []
-      ) + [gold_pk_post_hook('word')]
-    )
+    indexes=([{'columns': ['word gin_trgm_ops'], 'type': 'gin'}] if target.name != 'neon' else []),
+    post_hook=[gold_pk_post_hook('word')]
   )
 }}
 

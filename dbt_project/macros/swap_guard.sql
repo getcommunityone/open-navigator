@@ -40,9 +40,17 @@ $swap_guard$
 
 {% macro swap_guard_check() -%}
 {#-
-    In-transaction post_hook for swap_guard(): runs after the renames, before COMMIT. Fails the build
-    if the swap did not run in the transaction swap_guard() started (the txid it recorded with a
-    transaction-local setting is gone or different), which means the renames were not atomic.
+    In-transaction post_hook for swap_guard(), and it must be the FIRST post_hook: it runs right after
+    the renames, before COMMIT.
+
+      * It fails the build if the swap did not run in the transaction swap_guard() started (the txid
+        it recorded with a transaction-local setting is gone or different), which means the renames
+        were not atomic.
+      * It ends the lock_timeout window. The timeout is for the renames; later post_hooks (adding a
+        foreign key, for one) lock OTHER tables that models running in parallel in the same dbt run
+        may hold, and must wait for them as before. Measured in #938: with the timeout still on,
+        mdm_bridge_org_jurisdiction's ADD CONSTRAINT ... REFERENCES mdm_organization timed out and
+        threw away a 10-minute build.
 -#}
 do $swap_guard_check$
 begin
@@ -50,5 +58,6 @@ begin
         raise exception 'swap_guard_check: {{ this }} was swapped outside the guarded transaction (a before-begin hook?); the renames were not atomic';
     end if;
 end
-$swap_guard_check$
+$swap_guard_check$;
+set local lock_timeout to default
 {%- endmacro %}

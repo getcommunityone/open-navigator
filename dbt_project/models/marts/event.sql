@@ -21,12 +21,9 @@
       {'columns': ['body_name'], 'type': 'btree'},
       {'columns': ['channel_id'], 'type': 'btree'},
       {'columns': ['video_url'], 'unique': True},
-      {'columns': ['source'], 'type': 'btree'}
-    ],
-    post_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "CREATE INDEX IF NOT EXISTS event_title_fts_idx ON {{ this }} USING gin (to_tsvector('english', event_title))",
-      "CREATE INDEX IF NOT EXISTS event_jurisdiction_trgm_idx ON {{ this }} USING gin (jurisdiction_name gin_trgm_ops)"
+      {'columns': ['source'], 'type': 'btree'},
+      {'columns': ["to_tsvector('english', event_title)"], 'type': 'gin'},
+      {'columns': ["jurisdiction_name gin_trgm_ops"], 'type': 'gin'}
     ]
   )
 }}

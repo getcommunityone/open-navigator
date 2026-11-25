@@ -28,8 +28,9 @@ models:
       contract:
         enforced: true
       tags: ['marts', 'data_centers', 'serving', 'sentiment']
-      post_hook:
-        - "create index if not exists data_center_meeting_position_state_idx on {{ this }} (state_code, jurisdiction_name)"
+      indexes:
+        - columns: ["state_code, jurisdiction_name"]
+          type: btree
     constraints:
       - type: foreign_key
         columns: [event_meeting_id]
@@ -127,8 +128,9 @@ models:
       contract:
         enforced: true
       tags: ['marts', 'data_centers', 'serving', 'sentiment']
-      post_hook:
-        - "create index if not exists data_center_public_comment_state_idx on {{ this }} (state_code, stance_bucket)"
+      indexes:
+        - columns: ["state_code, stance_bucket"]
+          type: btree
     constraints:
       - type: foreign_key
         columns: [public_comment_id]

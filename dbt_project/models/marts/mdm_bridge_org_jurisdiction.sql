@@ -1,9 +1,13 @@
 {{
   config(
     materialized='table',
+    pre_hook=["{{ swap_guard() }}"],
+    indexes=[
+      {'columns': ["jurisdiction_id"], 'type': 'btree'},
+      {'columns': ["master_org_id"], 'type': 'btree'}
+    ],
     post_hook=[
-      "CREATE INDEX IF NOT EXISTS mdm_bridge_org_jurisdiction_jurisdiction_id_idx ON {{ this }} (jurisdiction_id)",
-      "CREATE INDEX IF NOT EXISTS mdm_bridge_org_jurisdiction_master_org_id_idx ON {{ this }} (master_org_id)",
+      "{{ swap_guard_check() }}",
       "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_org_jurisdiction_master_org_id_fkey FOREIGN KEY (master_org_id) REFERENCES {{ ref('mdm_organization') }} (master_org_id) NOT VALID",
       "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_org_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID"
     ]

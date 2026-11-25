@@ -7,8 +7,8 @@
 {{
   config(
     materialized='table',
-    post_hook=[
-      "CREATE INDEX IF NOT EXISTS mdm_organization_government_level_idx ON {{ this }} (government_level)"
+    indexes=[
+      {'columns': ["government_level"], 'type': 'btree'}
     ]
   )
 }}

@@ -1,11 +1,11 @@
 {{
     config(
         materialized='table',
-        tags=['intermediate', 'browse', 'decisions', 'topic', 'keyword-fts'],
-        post_hook=[
-            "create index if not exists {{ this.name }}_topic_idx on {{ this }} (topic_id)",
-            "create index if not exists {{ this.name }}_c1_event_idx on {{ this }} (c1_event_id)"
-        ]
+        indexes=[
+          {'columns': ["topic_id"], 'type': 'btree'},
+          {'columns': ["c1_event_id"], 'type': 'btree'}
+        ],
+        tags=['intermediate', 'browse', 'decisions', 'topic', 'keyword-fts']
     )
 }}
 

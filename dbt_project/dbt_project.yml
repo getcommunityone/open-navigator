@@ -16,6 +16,9 @@ profile: 'open_navigator'
 # marts on every run. Guarded: no-op until the partitioned parent is bootstrapped
 # (dbt run-operation bootstrap_event_people). See macros/event_extractions.sql.
 on-run-start:
+  # pg_trgm before any model builds: trigram indexes are declared in models' `indexes`
+  # config, which dbt builds on the tmp table before the swap, ahead of any hook (#938).
+  - "create extension if not exists pg_trgm"
   - "{{ ensure_event_partitions('gold.event_person') }}"
   - "{{ ensure_event_partitions('gold.event_decision') }}"
   - "{{ ensure_event_partitions('gold.event_place') }}"

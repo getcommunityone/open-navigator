@@ -18,10 +18,8 @@
       {'columns': ['jurisdiction_id'], 'unique': True},
       {'columns': ['geoid'], 'type': 'btree'},
       {'columns': ['state_code'], 'type': 'btree'},
-      {'columns': ['jurisdiction_type'], 'type': 'btree'}
-    ],
-    post_hook=[
-      "CREATE INDEX IF NOT EXISTS jurisdictions_search_fts_idx ON {{ this }} USING gin (to_tsvector('english', coalesce(search_text, display_name)))"
+      {'columns': ['jurisdiction_type'], 'type': 'btree'},
+      {'columns': ["to_tsvector('english', coalesce(search_text, display_name))"], 'type': 'gin'}
     ]
   )
 }}
