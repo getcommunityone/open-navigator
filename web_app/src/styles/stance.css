@@ -2633,7 +2633,7 @@ html.stance-snap {
 .stance-map-stage {
   position: relative;
 }
-/* The newest meeting passage, quoted on the Overview map by default (#999). */
+/* The hovered state's newest meeting passage on the Overview map (#999, #1002); at rest nothing shows. */
 .stance-map-card {
   position: absolute;
   left: 0;
@@ -2648,19 +2648,14 @@ html.stance-snap {
   font-size: 13px;
   color: var(--ink-2);
 }
-.stance-map-card-x {
-  position: absolute;
-  top: 4px;
-  right: 8px;
-  border: 0;
-  background: none;
-  font-size: 18px;
-  line-height: 1;
-  color: var(--ink-2);
-  cursor: pointer;
+.stance-map-card.is-right {
+  left: auto;
+  right: 0;
+  bottom: auto;
+  top: 2%;
 }
 .stance-map-card-place {
-  margin: 0 18px 4px 0;
+  margin: 0 0 4px;
   font-weight: 700;
   font-size: 14px;
   color: var(--ink);
@@ -2688,10 +2683,10 @@ html.stance-snap {
   font-weight: 600;
 }
 @media (max-width: 640px) {
-  .stance-map-card {
+  .stance-map-card,
+  .stance-map-card.is-right {
     position: relative;
-    left: auto;
-    bottom: auto;
+    inset: auto;
     width: auto;
     margin-top: 8px;
   }
