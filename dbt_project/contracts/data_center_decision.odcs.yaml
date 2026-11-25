@@ -55,7 +55,7 @@ schema:
     name: contested
     logicalType: boolean
     physicalType: boolean
-    description: 'true: debated (event_decision); false: passed without debate (event_uncontested_item).'
+    description: 'true: debated (event_decision); false: taken up without debate (event_uncontested_item).'
     required: true
   - id: item_id
     name: item_id

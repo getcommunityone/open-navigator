@@ -376,18 +376,19 @@ describe('decisions chart (#933)', () => {
     counts: { contested: 1, uncontested: 2, meetings: 2 },
     items: [
       { data_center_decision_id: 'd1', contested: true, headline: 'Data center rezoning approved', meeting_date: '2026-03-02', jurisdiction_name: 'Testville', state_code: 'GA', video_url: 'https://y/v1', decision_url: '/decisions/d1' },
-      { data_center_decision_id: 'u1', contested: false, headline: 'Approve Data Center Ordinance', vote_text: 'voice vote', meeting_date: '2026-02-01', jurisdiction_name: 'Testville', state_code: 'GA', video_url: 'https://y/v2', decision_url: null },
+      { data_center_decision_id: 'u1', contested: false, headline: 'Temporary moratorium on data centers', outcome: 'Tabled', vote_text: 'voice vote', meeting_date: '2026-02-01', jurisdiction_name: 'Testville', state_code: 'GA', video_url: 'https://y/v2', decision_url: null },
       { data_center_decision_id: 'u2', contested: false, headline: null, meeting_date: null, jurisdiction_name: null, state_code: 'GA', video_url: null, decision_url: null },
     ],
   }
 
-  it('says how many were debated and how many passed without debate, from the counts only', () => {
-    expect(findingDecisions(res as never, 'Georgia')).toBe('Of 3 decisions on a data center item in Georgia, 1 was debated and 2 passed without debate.')
+  it('says how many were debated and how many taken up without debate, from the counts only', () => {
+    expect(findingDecisions(res as never, 'Georgia')).toBe('Of 3 decisions on a data center item in Georgia, 1 was debated and 2 were taken up without debate.')
+    expect(findingDecisions({ ...res, available: false } as never)).toBeNull()
     expect(findingDecisions({ ...res, counts: { contested: 0, uncontested: 0, meetings: 0 } } as never)).toBeNull()
     expect(findingDecisions({ ...res, counts: {} } as never)).toBeNull()
   })
 
-  it('draws one dot per decision, debated vs passed without debate, linked to the page or the recording', () => {
+  it('draws one dot per decision, debated vs taken up without debate, linked to the page or the recording', () => {
     const spec = chartSpec('decisions', res as never) as { kind: string; groups: { key: string; dots: { id: string; url: string | null; title: string }[] }[] }
     expect(spec.kind).toBe('dots')
     const by = Object.fromEntries(spec.groups.map((g) => [g.key, g.dots]))
@@ -395,6 +396,8 @@ describe('decisions chart (#933)', () => {
     expect(by.contested![0]!.url).toBe('/decisions/d1')
     expect(by.uncontested!.map((d) => d.id)).toEqual(['u1', 'u2'])
     expect(by.uncontested![0]!.url).toBe('https://y/v2')
+    // the outcome as recorded, so an item tabled without debate never reads as passed
+    expect(by.uncontested![0]!.title).toBe('Temporary moratorium on data centers · Tabled')
     // no headline: a neutral title, never an invented one
     expect(by.uncontested![1]!.title).toBe('Decision on a data center item')
     expect(by.uncontested![1]!.url).toBeNull()

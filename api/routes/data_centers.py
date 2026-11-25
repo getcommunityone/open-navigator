@@ -1481,7 +1481,7 @@ class DataCenterDecision(BaseModel):
 
     data_center_decision_id: str
     contested: bool = Field(
-        ..., description="True: debated (a contested decision). False: passed without debate (consent agenda)."
+        ..., description="True: debated (a contested decision). False: taken up without debate (consent agenda)."
     )
     headline: str | None = None
     outcome: str | None = None
@@ -1551,10 +1551,10 @@ async def data_center_decisions(
 ) -> DataCenterDecisionsResponse:
     """
     The decisions local meetings took on data center items in the scope: debated ones and
-    ones passed without debate (consent agenda), newest first, with the whole-scope counts.
+    ones taken up without debate (consent agenda), newest first, with the whole-scope counts.
 
     ``votes_for`` / ``votes_against`` are given only when a debated decision's tally records
-    both sides; an item passed without debate carries its vote as said in ``vote_text``.
+    both sides; an item taken up without debate carries its vote as said in ``vote_text``.
     ``available`` is false and every count null when the mart isn't loaded.
 
     Example:

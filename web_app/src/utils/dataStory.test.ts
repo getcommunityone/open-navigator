@@ -163,7 +163,8 @@ describe('screenText on a full fixture', () => {
     expect(by.meetings!.headline).toBe('A data center came up in 3 meetings in Alabama, in 5 quoted passages.')
     expect(by.meetings!.context).toContain('1 passage in 2022, 2 passages in 2024')
     expect(by.agendas!.headline).toContain('Of 11 meeting agendas that name a data center in Alabama, 2 are for upcoming meetings and 9 for past ones.')
-    expect(by.decisions!.headline).toBe('Of 7 decisions on a data center item in Alabama, 3 passed without debate and 4 were debated.')
+    expect(by.decisions!.headline).toBe('Of 7 decisions on a data center item in Alabama, 4 were debated and 3 were taken up without debate.')
+    expect(by.decisions!.headline).not.toContain('passed')
     expect(by.gatherings!.headline).toContain('Company-hosted data center meetings listed in Alabama number 3: 2 town halls and 1 open house.')
   })
 
@@ -341,5 +342,22 @@ describe('stats and links', () => {
     expect(challengePath('data-centers', tus)).toBe('/challenge/data-centers?state=AL&city=Tuscaloosa')
     expect(storyScopeLabel(nat)).toBe('National')
     expect(storyScopeLabel(tus)).toBe('Tuscaloosa, Alabama')
+  })
+})
+
+describe('decisions screen when the table is not loaded (#933)', () => {
+  it('says it is not loaded, instead of "no data here, broaden"', async () => {
+    const { DATA_CENTER_STORY, screenText, DECISIONS_NOT_LOADED } = await import('./dataStory')
+    const screen = DATA_CENTER_STORY.find((s) => s.id === 'decisions')!
+    const scope = { level: 'national', state_code: null, state: null, city: null, jurisdiction_id: null }
+    const t = screenText(
+      screen,
+      { decisions: { scope, available: false, counts: { contested: null, uncontested: null, meetings: null }, items: [] } } as never,
+      { decisions: 'ready' } as never,
+      { stateCode: null, stateName: null, city: null } as never,
+    )
+    expect(t.context).toBe(DECISIONS_NOT_LOADED)
+    expect(t.empty).toBe(false)
+    expect(t.failed).toBe(false)
   })
 })

@@ -29,6 +29,7 @@ import {
   yearOf,
   type ChartData,
   type ChartKey,
+  decisionsSentence,
 } from './stanceGame'
 
 /** The place a story shows. `city` is only ever set together with a state. */
@@ -409,18 +410,15 @@ function agendasText(res: DataCenterAgendaItemsResponse, scope: StoryScope): Scr
   }
 }
 
+export const DECISIONS_NOT_LOADED = 'Decisions on data center items are not loaded yet.'
+
 function decisionsText(res: DataCenterDecisionsResponse, scope: StoryScope): ScreenText | null {
   const c = res.counts?.contested ?? 0
   const u = res.counts?.uncontested ?? 0
   if (c + u <= 0) return null
-  const place = placeFor('decisions', scope)
-  const headline =
-    u > 0
-      ? `Of ${plural(c + u, 'decision')} on a data center item ${where(place)}, ${fmt(u)} passed without debate and ${fmt(c)} ${c === 1 ? 'was' : 'were'} debated.`
-      : `All ${plural(c, 'decision')} on a data center item ${where(place)} ${c === 1 ? 'was' : 'were'} debated.`
   return {
-    headline,
-    context: 'Passed without debate means on the consent agenda or by a routine vote. What about meetings the companies host?',
+    headline: decisionsSentence(c, u, placeFor('decisions', scope)),
+    context: 'Without debate means on the consent agenda or by a routine vote, and includes items that were tabled or denied. What about meetings the companies host?',
     empty: false,
     failed: false,
   }
@@ -513,6 +511,10 @@ export function screenText(
   // The table behind "Who spoke up" may not be in the database yet: that is a quiet line, not an error.
   if (key === 'positions' && (st === 'error' || !positionsLoaded(data[key] as DataCenterPositionsResponse | null | undefined))) {
     return { headline: 'Who spoke up about data centers', context: POSITIONS_NOT_LOADED, empty: false, failed: false }
+  }
+  // Same for the decisions table (#933): not loaded is not "no data here", and broadening can't help.
+  if (key === 'decisions' && st === 'ready' && (data[key] as DataCenterDecisionsResponse | null | undefined)?.available === false) {
+    return { headline: 'Decisions on data center items', context: DECISIONS_NOT_LOADED, empty: false, failed: false }
   }
   if (st === 'error') return { headline: neutral, context: 'This part of the data could not be loaded right now.', empty: false, failed: true }
   const d = data[key]

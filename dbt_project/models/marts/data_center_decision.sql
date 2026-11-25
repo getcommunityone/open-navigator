@@ -3,7 +3,7 @@
 /*
     Every decision a local meeting took on a data center item, contested or not (#933).
     Grain: one row per decision: an event_decision (contested, debated) or an
-    event_uncontested_item (passed without debate: consent agenda, routine approval).
+    event_uncontested_item (taken up without debate: consent agenda, routine approval).
 
     A decision is about a data center when its headline (or, for a contested decision, its
     decision_statement) says a data center word (data_center_regex), the same test as
@@ -15,6 +15,15 @@
     (the rule data_center_meeting_position applies); otherwise votes_for / votes_against are null.
     An uncontested item's vote is text as said ("voice vote", "5-0") in vote_text, never parsed
     into numbers. Nothing is filled in when the record doesn't say.
+    SAME ACTION, TWO LISTS: the analysis sometimes lists one action both as a debated decision and as
+    an uncontested item (Wayne County: D001 "Data Center Ordinance Approved" 5-0 and U007 "Approve
+    Data Center Ordinance" 5-0). An uncontested row is dropped when a debated data center decision
+    in the same meeting reads like it: pg_trgm word_similarity of either headline against the other's
+    headline + outcome >= 0.4. Measured on the 3 debated/uncontested pairs that shared a meeting
+    (25 Nov 2026): the 2 that were one action scored 0.44-1.00, the 1 that was two actions scored
+    0.18-0.30. A small sample: re-check the threshold as the table grows.
+    PREFERRED: both parts read only the recording's preferred analysis (int_preferred_event_analysis);
+    event_decision is append-only and still holds superseded analyses.
     KEYS: PK data_center_decision_id = the source row's own id (event_decision_id or
     event_uncontested_item_id; both are md5 of analysis id and item id, so they can't collide
     with each other's item ids D001 / U001). FK event_meeting_id -> event_meeting.
@@ -24,7 +33,11 @@
 {%- set dc_regex = data_center_regex() %}
 {%- set whole_number = "'^[0-9]+(\\.0+)?$'" %}
 
-with meetings as (
+with preferred as (
+    select analysis_id from {{ ref('int_preferred_event_analysis') }}
+),
+
+meetings as (
     select event_meeting_id, video_id, meeting_date, event_date, jurisdiction_name, state_code, state
     from (
         select
@@ -54,6 +67,7 @@ contested as (
         from {{ ref('event_decision') }}
         order by event_decision_id, extracted_at desc
     ) as d
+    inner join preferred as pa on pa.analysis_id = d.analysis_id
     where coalesce(d.headline, '') || ' ' || coalesce(d.decision_statement, '') ~* '{{ dc_regex }}'
 ),
 
@@ -70,6 +84,15 @@ uncontested as (
         u.vote                                                      as vote_text
     from {{ ref('event_uncontested_item') }} as u
     where coalesce(u.headline, '') ~* '{{ dc_regex }}'
+      and not exists (
+          select 1
+          from contested as c
+          where c.event_meeting_id = u.event_meeting_id
+            and greatest(
+                word_similarity(coalesce(u.headline, ''), coalesce(c.headline, '') || ' ' || coalesce(c.outcome, '')),
+                word_similarity(coalesce(c.headline, ''), coalesce(u.headline, '') || ' ' || coalesce(u.outcome, ''))
+            ) >= 0.4
+      )
 ),
 
 decisions as (

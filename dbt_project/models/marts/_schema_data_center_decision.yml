@@ -42,7 +42,7 @@ models:
               to: ref('event_meeting')
               field: event_meeting_id
       - name: contested
-        description: "true: debated (event_decision); false: passed without debate (event_uncontested_item)."
+        description: "true: debated (event_decision); false: taken up without debate (event_uncontested_item)."
         data_type: boolean
         constraints:
           - type: not_null

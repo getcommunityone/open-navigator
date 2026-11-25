@@ -77,17 +77,17 @@ export async function fetchDataCenterPositions(params: {
   )
 }
 
-/** One decision a local meeting took on a data center item, debated or passed without debate (#933). */
+/** One decision a local meeting took on a data center item, debated or taken up without debate (#933). */
 export interface DataCenterDecision {
   data_center_decision_id: string
-  /** True: debated. False: passed without debate (consent agenda). */
+  /** True: debated. False: taken up without debate (consent agenda). */
   contested: boolean
   headline?: string | null
   outcome?: string | null
   /** Recorded yes / no votes; null unless a debated decision's tally records both sides. */
   votes_for?: number | null
   votes_against?: number | null
-  /** How an item passed without debate, as said ("voice vote", "5-0"); never parsed into numbers. */
+  /** How an item taken up without debate, as said ("voice vote", "5-0"); never parsed into numbers. */
   vote_text?: string | null
   meeting_date?: string | null
   jurisdiction_name?: string | null
