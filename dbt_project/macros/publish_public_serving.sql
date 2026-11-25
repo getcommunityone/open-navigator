@@ -184,6 +184,7 @@
     'data_center_meeting_mention':         "_s.state_code in {{states}}",
     'data_center_meeting_position':        "_s.state_code in {{states}}",
     'data_center_public_comment':          "_s.state_code in {{states}}",
+    'data_center_decision':                "_s.state_code in {{states}}",
     'decision_place_label':                "_s.state_code in {{states}}",
     'decision_nearby_data_center_site':    "_s.state_code in {{states}}",
     'decision_company_mention':
@@ -245,7 +246,7 @@
     'topic_transcript_link',
     'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
     'data_center_meeting_mention',
-    'data_center_meeting_position', 'data_center_public_comment',
+    'data_center_meeting_position', 'data_center_public_comment', 'data_center_decision',
     'decision_place_label', 'decision_company_mention', 'decision_nearby_data_center_site',
     'recent_transcribed_meeting',
     'mdm_organization_data_center', 'data_center_project', 'data_center_project_company',

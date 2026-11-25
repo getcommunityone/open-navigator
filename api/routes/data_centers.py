@@ -1468,3 +1468,126 @@ async def data_center_positions(
             totals=totals,
             quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
         )
+
+
+# --- decisions on data center items (#933) ----------------------------------------------------------------------------
+
+DECISIONS_DEFAULT = 200
+DECISIONS_MAX = 500
+
+
+class DataCenterDecision(BaseModel):
+    """One decision a local meeting took on a data center item, debated or not."""
+
+    data_center_decision_id: str
+    contested: bool = Field(
+        ..., description="True: debated (a contested decision). False: taken up without debate (consent agenda)."
+    )
+    headline: str | None = None
+    outcome: str | None = None
+    votes_for: int | None = Field(None, description="Recorded yes votes; null unless the tally records both sides.")
+    votes_against: int | None = Field(None, description="Recorded no votes; null unless the tally records both sides.")
+    vote_text: str | None = Field(
+        None, description="How an uncontested item passed, as said (voice vote, 5-0); never parsed into numbers."
+    )
+    meeting_date: date | None = None
+    jurisdiction_name: str | None = None
+    state_code: str | None = None
+    video_url: str | None = None
+    decision_url: str | None = Field(None, description="Site path of the decision's page; contested decisions only.")
+
+
+class DataCenterDecisionCounts(BaseModel):
+    """Whole-scope counts (not capped by ``limit``). Null when the mart isn't loaded."""
+
+    contested: int | None = None
+    uncontested: int | None = None
+    meetings: int | None = Field(None, description="Meetings the decisions were taken in.")
+
+
+class DataCenterDecisionsResponse(BaseModel):
+    scope: JobClaimScope
+    available: bool = Field(
+        True, description="False when the mart isn't in the database yet: counts are null, not zero."
+    )
+    counts: DataCenterDecisionCounts = Field(default_factory=DataCenterDecisionCounts)
+    items: list[DataCenterDecision] = Field(default_factory=list)
+
+
+def build_decision_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[Any], str, list[Any]]:
+    """(counts SQL, params, items SQL, params) over ``data_center_decision``. Which decisions are
+    about a data center is decided in dbt; this only counts and lists them, newest first."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"d.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"d.jurisdiction_name ILIKE ${len(params)}")
+    where_sql = " AND ".join(where) or "TRUE"
+    counts_sql = (
+        "SELECT count(*) FILTER (WHERE d.contested)::int AS contested, "
+        "count(*) FILTER (WHERE NOT d.contested)::int AS uncontested, "
+        "count(DISTINCT d.event_meeting_id)::int AS meetings "
+        f"FROM data_center_decision d WHERE {where_sql}"
+    )
+    item_params = [*params, limit]
+    items_sql = (
+        "SELECT d.data_center_decision_id, d.contested, d.headline, d.outcome, d.votes_for, d.votes_against, "
+        "d.vote_text, d.meeting_date, d.jurisdiction_name, d.state_code, d.video_url, d.decision_url "
+        f"FROM data_center_decision d WHERE {where_sql} "
+        "ORDER BY d.meeting_date DESC NULLS LAST, d.data_center_decision_id "
+        f"LIMIT ${len(item_params)}"
+    )
+    return counts_sql, params, items_sql, item_params
+
+
+@router.get("/decisions", response_model=DataCenterDecisionsResponse)
+async def data_center_decisions(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the jurisdiction name."),
+    limit: int = Query(DECISIONS_DEFAULT, ge=1, le=DECISIONS_MAX, description="Decisions to list, newest first."),
+) -> DataCenterDecisionsResponse:
+    """
+    The decisions local meetings took on data center items in the scope: debated ones and
+    ones taken up without debate (consent agenda), newest first, with the whole-scope counts.
+
+    ``votes_for`` / ``votes_against`` are given only when a debated decision's tally records
+    both sides; an item taken up without debate carries its vote as said in ``vote_text``.
+    ``available`` is false and every count null when the mart isn't loaded.
+
+    Example:
+        GET /api/data-centers/decisions?state=GA
+    """
+    scope = build_scope(state, city, None)
+    applied = JobClaimScope(
+        level="city" if scope.city else ("state" if scope.state_code else "national"),
+        state_code=scope.state_code,
+        state=scope.state,
+        city=scope.city,
+    )
+    counts_sql, params, items_sql, item_params = build_decision_queries(applied, limit)
+    with tracer.start_as_current_span("data-centers.decisions") as span:
+        span.set_attribute("decisions.scope_level", applied.level)
+        span.set_attribute("decisions.state_code", applied.state_code or "")
+        span.set_attribute("decisions.city", applied.city or "")
+        span.set_attribute("decisions.limit", limit)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                with tracer.start_as_current_span("data-centers.decisions.query"):
+                    count_rows = await conn.fetch(counts_sql, *params)
+                    item_rows = await conn.fetch(items_sql, *item_params)
+        except asyncpg.exceptions.UndefinedTableError as e:
+            span.set_attribute("decisions.relation_missing", True)
+            logger.warning("data-centers: 'data_center_decision' isn't here yet ({}); unavailable", e)
+            return DataCenterDecisionsResponse(scope=applied, available=False)
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers decisions error (scope={}): {}", applied.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load data center decisions")
+        counts = DataCenterDecisionCounts(**dict(count_rows[0])) if count_rows else DataCenterDecisionCounts()
+        items = [DataCenterDecision(**dict(r)) for r in item_rows]
+        span.set_attribute("decisions.items", len(items))
+        return DataCenterDecisionsResponse(scope=applied, counts=counts, items=items)

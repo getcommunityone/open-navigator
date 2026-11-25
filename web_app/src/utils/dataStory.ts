@@ -6,6 +6,7 @@ import type {
   AreaConcernsResponse,
   CommunityEventsResponse,
   DataCenterAgendaItemsResponse,
+  DataCenterDecisionsResponse,
   DataCenterMeetingMentionsResponse,
   DataCenterPositionsResponse,
   DataCenterProjectsResponse,
@@ -28,6 +29,7 @@ import {
   yearOf,
   type ChartData,
   type ChartKey,
+  decisionsSentence,
 } from './stanceGame'
 
 /** The place a story shows. `city` is only ever set together with a state. */
@@ -68,6 +70,7 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'concerns', eyebrow: 'Concerns', chart: 'concerns', kind: 'chart' },
   { id: 'meetings', eyebrow: 'Meetings', chart: 'meeting-mentions', kind: 'chart' },
   { id: 'agendas', eyebrow: 'Agendas', chart: 'agenda-items', kind: 'chart' },
+  { id: 'decisions', eyebrow: 'Decisions', chart: 'decisions', kind: 'chart' },
   { id: 'gatherings', eyebrow: 'Gatherings', chart: 'community-events', kind: 'chart' },
   { id: 'verdict', eyebrow: 'Your answer', chart: null, kind: 'verdict' },
 ]
@@ -401,7 +404,21 @@ function agendasText(res: DataCenterAgendaItemsResponse, scope: StoryScope): Scr
       : `None of the ${plural(p, 'meeting agenda')} that ${p === 1 ? 'names' : 'name'} a data center ${where(place)} is for an upcoming meeting.`
   return {
     headline,
-    context: 'Upcoming means the meeting date has not passed. What about meetings the companies host?',
+    context: 'Upcoming means the meeting date has not passed. What did the meetings decide?',
+    empty: false,
+    failed: false,
+  }
+}
+
+export const DECISIONS_NOT_LOADED = 'Decisions on data center items are not loaded yet.'
+
+function decisionsText(res: DataCenterDecisionsResponse, scope: StoryScope): ScreenText | null {
+  const c = res.counts?.contested ?? 0
+  const u = res.counts?.uncontested ?? 0
+  if (c + u <= 0) return null
+  return {
+    headline: decisionsSentence(c, u, placeFor('decisions', scope)),
+    context: 'Without debate means on the consent agenda or by a routine vote, and includes items that were tabled or denied. What about meetings the companies host?',
     empty: false,
     failed: false,
   }
@@ -495,6 +512,10 @@ export function screenText(
   if (key === 'positions' && (st === 'error' || !positionsLoaded(data[key] as DataCenterPositionsResponse | null | undefined))) {
     return { headline: 'Who spoke up about data centers', context: POSITIONS_NOT_LOADED, empty: false, failed: false }
   }
+  // Same for the decisions table (#933): not loaded is not "no data here", and broadening can't help.
+  if (key === 'decisions' && st === 'ready' && (data[key] as DataCenterDecisionsResponse | null | undefined)?.available === false) {
+    return { headline: 'Decisions on data center items', context: DECISIONS_NOT_LOADED, empty: false, failed: false }
+  }
   if (st === 'error') return { headline: neutral, context: 'This part of the data could not be loaded right now.', empty: false, failed: true }
   const d = data[key]
   if (!d) return noData(scope)
@@ -519,6 +540,9 @@ export function screenText(
       break
     case 'agenda-items':
       out = agendasText(d as DataCenterAgendaItemsResponse, scope)
+      break
+    case 'decisions':
+      out = decisionsText(d as DataCenterDecisionsResponse, scope)
       break
     case 'community-events':
       out = gatheringsText(d as CommunityEventsResponse, scope)
