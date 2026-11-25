@@ -5,7 +5,7 @@ title: "feat(web_app): meeting dots preview a thumbnail and play the recording i
 author: jcbowyer
 reviewed_at: 2026-11-25
 reviewer: github-actions
-head_sha: 3bdb8964bd59edd912e1b7c09f44947c7333d78b
+head_sha: 22c6310b92a8c1cd95c156e0d3cd66de0084e976
 verdict: approve
 ---
 
@@ -18,6 +18,7 @@ Automated review (#648) for PR #973 on `feat/972-meeting-dot-video`. Heuristic r
 
 ## Scope of Change
 
+- `pull_requests/pr-973-review.md`
 - `web_app/src/components/matrix/Tooltip.tsx`
 - `web_app/src/components/stance/ChartPanel.tsx`
 - `web_app/src/components/stance/MeetingDots.test.tsx`
@@ -31,7 +32,7 @@ Automated review (#648) for PR #973 on `feat/972-meeting-dot-video`. Heuristic r
 
 ## CI Status
 
-See the PR checks on `3bdb8964bd59`.
+See the PR checks on `22c6310b92a8`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
