@@ -2566,6 +2566,7 @@ html.stance-snap {
   .stance-video-backdrop {
     transition: none;
   }
+}
 
 /* Overview dot map (#970): the country in dots, each state shaded by its real meeting count. */
 .stance-map {
