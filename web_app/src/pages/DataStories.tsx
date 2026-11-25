@@ -25,8 +25,9 @@ const COUNT_CHARTS: ChartKey[] = ['meeting-mentions', 'agenda-items', 'sites', '
 const HUB_CHARTS: ChartKey[] = ['positions', ...COUNT_CHARTS]
 
 /**
- * `/stories`: one card per topic. The card leads with an overview of the record for the place in scope, then a subtle
- * Start into the story. The agree/disagree question lives in the story's closing screen and in the Challenge (#950).
+ * `/stories`: one card per topic. The page sentence names place and topic (two lines max); the card leads with a
+ * care-first hook and a prompt to Start — not a second topic title (#950 / #954). The agree/disagree question lives in
+ * the story's closing screen and in the Challenge.
  */
 export default function DataStories() {
   const [sp, setSp] = useSearchParams()
@@ -116,13 +117,12 @@ export default function DataStories() {
       <ul className="stories-list">
         <li>
           <article className="stories-card" aria-labelledby="story-card-data-centers">
-            <p className="folio-eyebrow">Data centers</p>
             <h2 className="stories-card-title" id="story-card-data-centers">
-              Data centers
+              Power, water, and land bring people to the microphone
             </h2>
             <p className="stance-lede">
-              An overview of what local meetings in {label === 'National' ? 'the United States' : label} said — who spoke up,
-              and the counts on record. Start the story when you are ready; the question comes after the context.
+              In {label === 'National' ? 'the United States' : label}, neighbors show up when a project hits the agenda. See
+              who spoke for and against — then Start the story to walk through what the meetings put on the record.
             </p>
             <section className="stories-voices" aria-labelledby="story-voices-h">
               <h3 className="stories-voices-title" id="story-voices-h">
