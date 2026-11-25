@@ -61,7 +61,7 @@ html { scroll-behavior: smooth; }
 .v9 .v9-navlink:hover::after { width: 100%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.v9 .home-story-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px; align-items: center; }
+.v9 .home-story-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px; align-items: start; }
 @media (max-width: 860px) { .v9 .home-story-card { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) {
   .v9 .v9-nav { display: none; }

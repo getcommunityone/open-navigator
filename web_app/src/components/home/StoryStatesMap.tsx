@@ -95,7 +95,8 @@ export default function StoryStatesMap({ byState, highlight, href }: Props) {
           </Link>
         ))}
       </svg>
-      <p className="mt-1 min-h-[1.25rem] text-sm text-stone-600" aria-live="off">
+      {/* A fixed two-line box: if the line changed height on hover the map would move under the pointer (#987). */}
+      <p className="mt-1 h-[2.75rem] overflow-hidden text-sm leading-snug text-stone-600" aria-live="off">
         {hovered
           ? `${hovered.name}: ${fmt(hovered.n)} ${hovered.n === 1 ? 'meeting' : 'meetings'} where a data center came up. Click to open its story.`
           : markers.length
