@@ -97,21 +97,22 @@ export default function DataStories() {
             { id: 'topic', label: 'Topic', value: topic, display: 'data centers', options: [{ value: 'data-centers', label: 'data centers' }], onChange: setTopic },
           ]}
         />
-        <div className="stories-scope">
-          <p className="stance-scope" data-testid="stance-scope">
-            Showing: <b>{label}</b>
-            {city && stateName && (
-              <button type="button" className="folio-link-btn" onClick={() => applyPlace(stateCode ?? null, null)}>
-                All of {stateName}
-              </button>
-            )}
-            {stateName && (
+        {/* National is already "the United States" in the sentence — don't repeat Showing: National (#959). */}
+        {stateName && (
+          <div className="stories-scope">
+            <p className="stance-scope" data-testid="stance-scope">
+              Showing: <b>{label}</b>
+              {city && (
+                <button type="button" className="folio-link-btn" onClick={() => applyPlace(stateCode ?? null, null)}>
+                  All of {stateName}
+                </button>
+              )}
               <button type="button" className="folio-link-btn" onClick={() => applyPlace(null, null)}>
                 National only
               </button>
-            )}
-          </p>
-        </div>
+            </p>
+          </div>
+        )}
       </header>
 
       <ul className="stories-list">
