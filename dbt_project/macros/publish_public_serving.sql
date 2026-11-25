@@ -152,6 +152,7 @@
     'event_financial_item':                "_s.state_code in {{states}}",
     'event_place_geocoded':                "_s.state_code in {{states}}",
     'event_topic':                         "_s.state_code in {{states}}",
+    'event_uncontested_item':              "_s.state_code in {{states}}",
     'item_interestingness':                "_s.state_code in {{states}}",
     'item_flags':                          "_s.state_code in {{states}}",
     'contact_official':                    "_s.state_code in {{states}}",
@@ -219,6 +220,7 @@
 {%- set served = [
     'event', 'event_meeting', 'event_documents', 'event_meeting_document',
     'meeting_document', 'event_analysis_provenance', 'event_decision', 'event_decision_place', 'decision_speakers',
+    'event_uncontested_item',
     'event_place_geocoded', 'event_financial_item', 'event_bill', 'event_topic',
     'contact_official', 'person_government', 'jurisdictions', 'civic_jurisdiction',
     'jurisdiction_county_crosswalk',

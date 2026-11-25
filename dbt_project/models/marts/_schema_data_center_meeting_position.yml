@@ -115,8 +115,10 @@ models:
     description: >
       One row per public comment counted as about a data center item (the comments behind
       data_center_meeting_position): linked to a decision whose headline or statement says a
-      data center word (match_basis data_center_decision), or saying one in the speaker's own
-      quoted words or the comment's summary (own_words). quote is the speaker's own words,
+      data center word (match_basis data_center_decision), on an uncontested item whose
+      headline says one (data_center_item), saying one in the speaker's own quoted words or
+      the comment's summary (own_words), or on the same item of the same meeting as a speaker
+      who says one (same_item). quote is the speaker's own words,
       verbatim from the transcript; start_seconds and video_url link to the moment in the
       recording. is_counted marks the one row counted for a speaker in a meeting.
     config:
@@ -170,16 +172,16 @@ models:
               config:
                 severity: warn
       - name: decision_headline
-        description: "Headline of the linked data center decision; null when match_basis is own_words."
+        description: "Headline of the item the comment is on (contested decision or uncontested item); null for general public comment, or when the item has no headline."
         data_type: text
       - name: match_basis
-        description: "Why the comment counts: data_center_decision (linked to a decision that says a data center word) or own_words (the speaker's quote or the summary says one)."
+        description: "Why the comment counts: data_center_decision (linked to a decision that says a data center word), data_center_item (on an uncontested item whose headline says one), own_words (the speaker's quote or the summary says one) or same_item (another speaker on the same item says one)."
         data_type: text
         constraints:
           - type: not_null
         tests:
           - accepted_values:
-              values: ['data_center_decision', 'own_words']
+              values: ['data_center_decision', 'data_center_item', 'own_words', 'same_item']
       - name: speaker_id
         description: "The speaker's slug from the extraction."
         data_type: text

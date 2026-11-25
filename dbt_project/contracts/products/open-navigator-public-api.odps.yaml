@@ -55,6 +55,11 @@ outputPorts:
   contractId: open-navigator-public-decision_speakers
   type: table
   description: One row per event_decision_id listing the DISTINCT person_id slugs that gave named testimony on that decision, extracted from event_decision.human_element->'personal_stories'.
+- name: event_uncontested_item
+  version: 1.0.0
+  contractId: open-navigator-public-event_uncontested_item
+  type: table
+  description: 'One row per uncontested (consent / routine) item of a preferred analysis in event_meeting (#932): the actions a meeting took without debate.'
 - name: event_place_geocoded
   version: 1.0.0
   contractId: open-navigator-public-event_place_geocoded
@@ -329,7 +334,7 @@ outputPorts:
   version: 1.0.0
   contractId: open-navigator-public-data_center_public_comment
   type: table
-  description: 'One row per public comment counted as about a data center item (the comments behind data_center_meeting_position): linked to a decision whose headline or statement says a data center word (match_basis data_center_decision), or saying one in the speaker''s own quoted words or the comment''s summary (own_words).'
+  description: 'One row per public comment counted as about a data center item (the comments behind data_center_meeting_position): linked to a decision whose headline or statement says a data center word (match_basis data_center_decision), on an uncontested item whose headline says one (data_center_item), saying one in the speaker''s own quoted words or the comment''s summary (own_words), or on the same item of the same meeting as a speaker who says one (same_item).'
 - name: decision_place_label
   version: 1.0.0
   contractId: open-navigator-public-decision_place_label

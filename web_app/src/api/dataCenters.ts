@@ -41,9 +41,10 @@ export interface PositionQuote {
   video_url?: string | null
   start_seconds?: number | null
   jump_url?: string | null
-  /** The data center decision the comment is linked to, when that is why it counts. */
+  /** The item the comment is on (a contested decision or an uncontested item); null for general public comment. */
   decision_headline?: string | null
-  match_basis?: 'data_center_decision' | 'own_words' | null
+  /** Why the comment counts (#932): its decision or uncontested item names a data center, its own words do, or another speaker on the same item does. */
+  match_basis?: 'data_center_decision' | 'data_center_item' | 'own_words' | 'same_item' | null
 }
 
 export interface DataCenterPositionsResponse {
