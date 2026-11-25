@@ -131,3 +131,37 @@ models:
               values: ['data_center_decision', 'data_center_item', 'own_words', 'same_item']
       - name: is_counted
         tests: [not_null]
+
+unit_tests:
+  # #932: a comment counts when its item is about a data center, by the decision headline, the
+  # uncontested item's headline, the speaker's own words, or another speaker on the SAME item.
+  # A comment on another item of the meeting, or general public comment (no item), never counts
+  # just because someone else in the meeting said "data center".
+  - name: dc_comment_rule_same_item_and_consent_items
+    model: int_data_center__public_comment
+    given:
+      - input: ref('event_decision')
+        rows:
+          - {event_decision_id: d1, headline: 'Phoenix Mart PAD major amendment tabled', decision_statement: 'Tabled to January.', extracted_at: '2026-11-01 00:00:00'}
+          - {event_decision_id: d2, headline: 'Park budget approved', decision_statement: 'Approved the park budget.', extracted_at: '2026-11-01 00:00:00'}
+          - {event_decision_id: d3, headline: 'Data center rezoning approved', decision_statement: 'Approved.', extracted_at: '2026-11-01 00:00:00'}
+      - input: ref('event_uncontested_item')
+        rows:
+          - {event_meeting_id: 1, item_id: U003, headline: 'Approve Data Center Ordinance'}
+          - {event_meeting_id: 1, item_id: U004, headline: 'Approve minutes'}
+      - input: ref('public_comment')
+        rows:
+          - {public_comment_id: c1, event_meeting_id: 1, event_decision_id: d1, item_id: D001, speaker_id: a, stance_bucket: against, stance_evidence: 'The data centers need to go away.', summary: null}
+          - {public_comment_id: c2, event_meeting_id: 1, event_decision_id: d1, item_id: D001, speaker_id: b, stance_bucket: against, stance_evidence: 'We ask that you deny this PAD.', summary: null}
+          - {public_comment_id: c3, event_meeting_id: 1, event_decision_id: d2, item_id: D002, speaker_id: c, stance_bucket: for, stance_evidence: 'I support the park.', summary: null}
+          - {public_comment_id: c4, event_meeting_id: 1, event_decision_id: null, item_id: null, speaker_id: d, stance_bucket: against, stance_evidence: 'Please deny it.', summary: null}
+          - {public_comment_id: c5, event_meeting_id: 1, event_decision_id: null, item_id: U003, speaker_id: e, stance_bucket: for, stance_evidence: 'Good for our tax base.', summary: null}
+          - {public_comment_id: c6, event_meeting_id: 1, event_decision_id: d3, item_id: D003, speaker_id: f, stance_bucket: against, stance_evidence: 'Too much water.', summary: null}
+          - {public_comment_id: c7, event_meeting_id: 1, event_decision_id: null, item_id: U004, speaker_id: g, stance_bucket: neutral, stance_evidence: 'Fine by me.', summary: null}
+          - {public_comment_id: c8, event_meeting_id: 2, event_decision_id: null, item_id: D001, speaker_id: h, stance_bucket: against, stance_evidence: 'Deny the PAD.', summary: null}
+    expect:
+      rows:
+        - {public_comment_id: c1, match_basis: own_words, decision_headline: 'Phoenix Mart PAD major amendment tabled'}
+        - {public_comment_id: c2, match_basis: same_item, decision_headline: 'Phoenix Mart PAD major amendment tabled'}
+        - {public_comment_id: c5, match_basis: data_center_item, decision_headline: 'Approve Data Center Ordinance'}
+        - {public_comment_id: c6, match_basis: data_center_decision, decision_headline: 'Data center rezoning approved'}
