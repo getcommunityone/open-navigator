@@ -280,13 +280,15 @@ async def list_job_claims(
 
 # --- Data center sites (DC-4.1, #249) -----------------------------------------
 #
-# Backed by the dbt mart ``data_center_site`` (Epoch AI, CC BY 4.0): one row per site,
-# with a status derived from Epoch's dated timeline rows and the credit on every row.
-# A site that left Epoch's list stays, as status 'no_longer_listed'. Epoch has no city
-# field, so only ``state`` narrows the list; the response says so in ``city_applied``.
+# Backed by the dbt mart ``data_center_site``: one row per site from Epoch AI or, for sites
+# Epoch doesn't list, the US Data Center Registry (#958), both CC BY 4.0, with the credit of
+# its own source on every row. A site that left its source's list stays, as status
+# 'no_longer_listed'; 'cancelled' comes only from the registry, which publishes it. Only
+# ``state`` narrows the list (Epoch has no city field); the response says so in ``city_applied``.
 
-SiteStatus = Literal["planned", "under_construction", "operating", "no_longer_listed"]
-SITE_STATUSES: tuple[str, ...] = ("planned", "under_construction", "operating", "no_longer_listed")
+SiteStatus = Literal["planned", "under_construction", "operating", "cancelled", "no_longer_listed"]
+SITE_STATUSES: tuple[str, ...] = ("planned", "under_construction", "operating", "cancelled", "no_longer_listed")
+SiteSource = Literal["epoch", "us_data_center_registry"]
 
 
 class DataCenterSite(BaseModel):
@@ -302,7 +304,8 @@ class DataCenterSite(BaseModel):
     state_code: str | None = None
     state: str | None = None
     status: SiteStatus | None = Field(
-        None, description="Derived from Epoch's dated rows; null when Epoch has none for the site."
+        None,
+        description="Epoch: derived from its dated rows. Registry: its own status, mapped. Null when the source gives none.",
     )
     last_known_status: SiteStatus | None = None
     status_as_of: date | None = None
@@ -315,6 +318,15 @@ class DataCenterSite(BaseModel):
     source_url: str
     license: str
     attribution: str
+    source: SiteSource = Field("epoch", description="Which inventory the row comes from (#958).")
+    source_status: str | None = Field(None, description="The registry's own status word; null for Epoch.")
+    operator: str | None = None
+    city: str | None = None
+    county: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    capacity_mw_planned: float | None = None
+    capacity_mw_operational: float | None = None
 
 
 class DataCenterSiteCounts(BaseModel):
@@ -323,6 +335,7 @@ class DataCenterSiteCounts(BaseModel):
     planned: int = 0
     under_construction: int = 0
     operating: int = 0
+    cancelled: int = 0
     no_longer_listed: int = 0
     status_not_published: int = 0
 
@@ -339,12 +352,14 @@ class DataCenterSitesResponse(BaseModel):
 _SITE_COLUMNS = (
     "data_center_site_id, site_name, owner, users, project, address, country, state_code, state, "
     "status, last_known_status, status_as_of, construction_note, it_power_mw, first_seen_on, "
-    "last_seen_on, is_listed, source_name, source_url, license, attribution"
+    "last_seen_on, is_listed, source_name, source_url, license, attribution, source, source_status, "
+    "operator, city, county, latitude, longitude, capacity_mw_planned, capacity_mw_operational"
 )
 
 _SITE_ORDER = (
     "CASE status WHEN 'planned' THEN 0 WHEN 'under_construction' THEN 1 "
-    "WHEN 'operating' THEN 2 WHEN 'no_longer_listed' THEN 3 ELSE 4 END, site_name"
+    "WHEN 'operating' THEN 2 WHEN 'cancelled' THEN 3 WHEN 'no_longer_listed' THEN 4 ELSE 5 END, "
+    "CASE source WHEN 'epoch' THEN 0 ELSE 1 END, site_name"
 )
 
 
@@ -384,8 +399,8 @@ async def list_data_center_sites(
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
 ) -> DataCenterSitesResponse:
     """
-    Data center sites (Epoch AI, CC BY 4.0) with status and source; sites no longer
-    listed by the source stay in the list.
+    Data center sites (Epoch AI and the US Data Center Registry, CC BY 4.0) with status and
+    source; sites no longer listed by their source stay in the list.
 
     Example:
         GET /api/data-centers/sites?state=TX

@@ -19,14 +19,14 @@ schema:
   name: data_center_site
   physicalName: public.data_center_site
   logicalType: object
-  description: 'One row per data center site (PK data_center_site_id), from Epoch AI''s "AI data centers" dataset, credited on every row (source_name, source_url, license, attribution). status is derived from Epoch''s dated timeline rows, because Epoch publishes no status field. A site that leaves Epoch''s list stays here as ''no_longer_listed'' with its last known status and last-seen date. Nothing is marked cancelled: Epoch has no such flag.'
-  dataGranularityDescription: One row per data center site (PK data_center_site_id), from Epoch AI's "AI data centers" dataset, credited on every row (source_name, source_url, license, attribution).
+  description: 'One row per data center site (PK data_center_site_id), each credited to its source on the row (source, source_name, source_url, license, attribution). source ''epoch'': Epoch AI''s "AI data centers"; status derived from Epoch''s dated timeline rows, because Epoch publishes no status field. source ''us_data_center_registry'': the US Data Center Registry''s data centers that are not the same site as an Epoch site (equal names in the state, one-to-one; int_data_center_facility_registry__site), with the registry''s status mapped (source_status keeps its word). A site that leaves its source''s list stays as ''no_longer_listed'' with its last known status and last-seen date. ''cancelled'' appears only where the registry publishes it; Epoch has no such flag.'
+  dataGranularityDescription: One row per data center site (PK data_center_site_id), each credited to its source on the row (source, source_name, source_url, license, attribution).
   properties:
   - id: data_center_site_id
     name: data_center_site_id
     logicalType: string
     physicalType: text
-    description: 'Primary key: md5(''epoch|'' || site name).'
+    description: 'Primary key: md5(''epoch|'' || site name), or md5(''us_data_center_registry|'' || registry id).'
     required: true
     unique: true
     primaryKey: true
@@ -87,7 +87,7 @@ schema:
     name: status
     logicalType: string
     physicalType: text
-    description: planned, under_construction, operating or no_longer_listed; null when Epoch has no dated rows for the site.
+    description: planned, under_construction, operating, cancelled (registry only) or no_longer_listed; null when the source gives none.
     quality:
     - type: library
       metric: invalidValues
@@ -96,12 +96,13 @@ schema:
         - planned
         - under_construction
         - operating
+        - cancelled
         - no_longer_listed
       mustBe: 0
       dimension: conformity
       severity: error
     - type: text
-      description: 'Postgres CHECK constraint: status is null or status in (''planned'', ''under_construction'', ''operating'', ''no_longer_listed'')'
+      description: 'Postgres CHECK constraint: status is null or status in (''planned'', ''under_construction'', ''operating'', ''cancelled'', ''no_longer_listed'')'
       dimension: conformity
       severity: error
   - id: last_known_status
@@ -143,12 +144,12 @@ schema:
     name: source_name
     logicalType: string
     physicalType: text
-    description: Always 'Epoch AI'.
+    description: '''Epoch AI'' or ''US Data Center Registry (SueDataCenters.org)''.'
   - id: source_url
     name: source_url
     logicalType: string
     physicalType: text
-    description: The Epoch AI dataset page.
+    description: The Epoch AI dataset page, or the record's own page on the registry.
   - id: license
     name: license
     logicalType: string
@@ -159,3 +160,59 @@ schema:
     logicalType: string
     physicalType: text
     description: The credit line to show with the data.
+  - id: source
+    name: source
+    logicalType: string
+    physicalType: text
+    description: epoch or us_data_center_registry (#958). Models that match sites by name read 'epoch' only.
+    required: true
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - epoch
+        - us_data_center_registry
+      mustBe: 0
+      dimension: conformity
+      severity: error
+  - id: source_status
+    name: source_status
+    logicalType: string
+    physicalType: text
+    description: The registry's own status word (operational, under_construction, proposed, permitted, cancelled); null for Epoch.
+  - id: operator
+    name: operator
+    logicalType: string
+    physicalType: text
+    description: The operator the registry names; null for Epoch (Epoch's owner is in owner).
+  - id: city
+    name: city
+    logicalType: string
+    physicalType: text
+    description: City, as the registry gives it; null for Epoch (its street address is in address).
+  - id: county
+    name: county
+    logicalType: string
+    physicalType: text
+    description: County, as the registry gives it; null for Epoch.
+  - id: latitude
+    name: latitude
+    logicalType: number
+    physicalType: double precision
+    description: Latitude from the registry (often approximate); null for Epoch.
+  - id: longitude
+    name: longitude
+    logicalType: number
+    physicalType: double precision
+    description: Longitude from the registry (often approximate); null for Epoch.
+  - id: capacity_mw_planned
+    name: capacity_mw_planned
+    logicalType: number
+    physicalType: double precision
+    description: Planned capacity (MW) as the registry gives it; null when not given.
+  - id: capacity_mw_operational
+    name: capacity_mw_operational
+    logicalType: number
+    physicalType: double precision
+    description: Operational capacity (MW) as the registry gives it; null when not given.

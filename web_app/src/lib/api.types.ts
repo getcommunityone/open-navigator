@@ -1644,7 +1644,7 @@ export interface components {
             /** It Power Mw */
             it_power_mw?: number | null;
             /** Last Known Status */
-            last_known_status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+            last_known_status?: ("planned" | "under_construction" | "operating" | "cancelled" | "no_longer_listed") | null;
             /** Last Seen On */
             last_seen_on?: string | null;
             /** License */
@@ -1667,11 +1667,34 @@ export interface components {
              * Status
              * @description Derived from Epoch's dated rows; null when Epoch has none for the site.
              */
-            status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+            status?: ("planned" | "under_construction" | "operating" | "cancelled" | "no_longer_listed") | null;
             /** Status As Of */
             status_as_of?: string | null;
             /** Users */
             users?: string | null;
+            /**
+             * Source
+             * @description Which inventory the row comes from (#958).
+             * @default epoch
+             * @enum {string}
+             */
+            source?: "epoch" | "us_data_center_registry";
+            /** Source Status */
+            source_status?: string | null;
+            /** Operator */
+            operator?: string | null;
+            /** City */
+            city?: string | null;
+            /** County */
+            county?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Capacity Mw Planned */
+            capacity_mw_planned?: number | null;
+            /** Capacity Mw Operational */
+            capacity_mw_operational?: number | null;
         };
         /**
          * DataCenterSiteCounts
@@ -1703,6 +1726,11 @@ export interface components {
              * @default 0
              */
             under_construction: number;
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled: number;
         };
         /** DataCenterSitesResponse */
         DataCenterSitesResponse: {
@@ -3262,7 +3290,7 @@ export interface operations {
                 /** @description Accepted so a page's scope can be passed through; it can't narrow sites. */
                 city?: string | null;
                 /** @description Only sites with this status. */
-                status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+                status?: ("planned" | "under_construction" | "operating" | "cancelled" | "no_longer_listed") | null;
                 limit?: number;
             };
             header?: never;

@@ -13,7 +13,7 @@ with curated as (
 ),
 
 sites as (
-    select * from {{ ref('data_center_site') }}
+    select * from (select * from {{ ref('data_center_site') }} where source = 'epoch')
 ),
 
 projects as (

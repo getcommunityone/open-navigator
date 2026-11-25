@@ -522,7 +522,7 @@ function MeetingMentionCard({ passages }: { passages: DataCenterMeetingMention[]
 }
 
 /**
- * "Sites" (DC-4.1, #249): data center sites from Epoch AI (CC BY 4.0), with status and
+ * "Sites" (DC-4.1, #249; #958): data center sites from Epoch AI and the US Data Center Registry (both CC BY 4.0), with status and
  * source. Sites the source stopped listing stay, labeled. The source has no city field,
  * so this section narrows by state only, and its own label says which scope it shows
  * (CLAUDE.md, scope label rule) instead of borrowing the page's city.
@@ -542,8 +542,9 @@ function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: st
         Sites <span className="font-normal text-gray-400">· {sitesScope}</span>
       </h2>
       <p className="mb-2 text-sm text-gray-600">
-        Large AI data center sites tracked by Epoch AI, with each site&apos;s status. Sites the source stops listing
-        stay here, marked, so they don&apos;t quietly disappear.
+        Data center sites from two open inventories: Epoch AI (the largest AI sites) and the US Data Center Registry
+        (about 2,300 more). Each site is credited to its source. Sites a source stops listing stay here, marked, so they
+        don&apos;t quietly disappear.
       </p>
       {cityName && (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -553,6 +554,7 @@ function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: st
       {counts && sites.length > 0 && (
         <p className="mb-3 text-xs text-gray-600">
           {counts.planned} planned · {counts.under_construction} under construction · {counts.operating} operating
+          {(counts.cancelled ?? 0) > 0 && ` · ${counts.cancelled} cancelled (per the registry)`}
           {counts.no_longer_listed > 0 && ` · ${counts.no_longer_listed} no longer listed`}
         </p>
       )}
@@ -580,10 +582,13 @@ function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: st
       )}
       {sites.length > 0 && (
         <p className="mt-2 text-xs text-gray-500">
-          Source:{' '}
-          <a href={sites[0].source_url} target="_blank" rel="noopener noreferrer" className="underline">
-            {sites[0].attribution}
-          </a>
+          {[...new Map(sites.map((s) => [s.source ?? 'epoch', s])).values()].map((s, i) => (
+            <span key={s.source ?? 'epoch'}>
+              {i > 0 && ' · '}
+              Source: {s.attribution}
+            </span>
+          ))}
+          . Each site links to its own record.
         </p>
       )}
     </section>
@@ -591,16 +596,19 @@ function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: st
 }
 
 function SiteCard({ site }: { site: DataCenterSite }) {
-  const gone = site.status === 'no_longer_listed'
-  const place = [site.address, site.state_code && !site.address?.includes(site.state_code) ? site.state_code : null]
+  const gone = site.status === 'no_longer_listed' || site.status === 'cancelled'
+  const where = site.address ?? ([site.city, site.county && `${site.county} County`].filter(Boolean).join(', ') || null)
+  const place = [where, site.state_code && !where?.includes(site.state_code) ? site.state_code : null]
     .filter(Boolean)
     .join(', ')
   return (
     <li className={`rounded-lg border bg-white p-4 shadow-sm ${gone ? 'border-dashed border-gray-300 opacity-90' : 'border-gray-200'}`}>
       <p className="font-semibold text-gray-900">{site.site_name}</p>
-      {(site.owner || site.users) && (
+      {(site.owner || site.users || site.operator) && (
         <p className="text-sm text-gray-600">
-          {[site.owner && `Owner: ${site.owner}`, site.users && `Used by: ${site.users}`].filter(Boolean).join(' · ')}
+          {[site.owner && `Owner: ${site.owner}`, site.users && `Used by: ${site.users}`, site.operator && `Operator: ${site.operator}`]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       )}
       {place && <p className="text-xs text-gray-500">{place}</p>}
@@ -608,6 +616,11 @@ function SiteCard({ site }: { site: DataCenterSite }) {
         {siteStatusLabel(site.status, site.last_known_status, site.last_seen_on)}
       </p>
       {site.construction_note && <p className="mt-1 text-xs italic text-gray-600">“{site.construction_note}”</p>}
+      <p className="mt-2 text-xs text-gray-500">
+        <a href={site.source_url} target="_blank" rel="noopener noreferrer" className="underline">
+          {site.source_name}
+        </a>
+      </p>
     </li>
   )
 }
