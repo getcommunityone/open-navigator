@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, toFeats } from '../../lib/dotMatrix'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
+import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 
 export interface StateCount {
@@ -54,6 +55,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   const ramp = HOUSE_THEME.ramp.slice(1, 5)
   const colorFor = (n: number | undefined): string => meetingColor(n, max, ramp, HOUSE_THEME.neutral)
   const codeOf = (fips: string) => STATE_FIPS_TO_CODE[fips] ?? null
+  const stateNameOf = (code: string) => byState?.find((s) => s.state_code === code)?.state ?? STATE_CODE_TO_NAME[code] ?? code
   const nameOf = (fips: string) => grid?.feats.find((f) => f.id === fips)?.name ?? fips
   const readout = (fips: string) => {
     const code = codeOf(fips)
@@ -89,7 +91,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     <figure className="stance-map" aria-labelledby={labelledBy}>
       <figcaption className="stance-map-head">
         <span>
-          Meetings where a data center came up, by state · National{scopeStateCode ? ` (${scopeLabel} highlighted)` : ''}
+          Meetings where a data center came up, by state · National{scopeStateCode ? ` (${stateNameOf(scopeStateCode)} highlighted${scopeCity ? `, which contains ${scopeCity}` : ''})` : ''}
         </span>
         <span className="stance-map-controls">
           {scopeStateCode && (
@@ -116,7 +118,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
         viewBox={vb}
         className="stance-map-svg"
         role="img"
-        aria-label={`Dot map of meetings where a data center came up, by state, nationally${scopeStateCode ? `, with ${scopeLabel} highlighted` : ''}. ${listed.length} ${listed.length === 1 ? 'state has' : 'states have'} at least one.`}
+        aria-label={`Dot map of meetings where a data center came up, by state, nationally${scopeStateCode ? `, with ${stateNameOf(scopeStateCode)} highlighted (the story is scoped to ${scopeLabel})` : ''}. ${listed.length} ${listed.length === 1 ? 'state has' : 'states have'} at least one.`}
         onMouseLeave={() => setHover(null)}
       >
         {grid.dots.map((d, i) => {

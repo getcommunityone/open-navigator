@@ -4,59 +4,47 @@ branch: feat/970-overview-dot-map
 title: "feat(web_app): story Overview shows a dot map of where data center meetings are"
 author: jcbowyer
 reviewed_at: 2026-11-25
-reviewer: github-actions
-head_sha: 4113a9556b367236f9c11cf2eb8c593bb29986db
-verdict: approve
+reviewer: general-purpose subagent (read-only, two passes) and coordinator
+head_sha: see branch head
+verdict: approve-with-nits
 ---
 
 # PR Review: feat(web_app): story Overview shows a dot map of where data center meetings are
 
 ## Summary
 
-Automated review (#648) for PR #971 on `feat/970-overview-dot-map`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Closes #970. The Data Story's Overview screen draws the US as a dot map shaded by real meetings per state (new `counts.by_state`), and clicking a state narrows the story through `?state=`. The map geometry is shared with the Census dot map.
 
-## Scope of Change
+The first independent pass said **request-changes**. Every Blocking and Should-fix finding is fixed on the branch, and
+the second pass says **approve-with-nits**. The CI bot's heuristic auto-review is superseded by this file.
 
-- `api/routes/data_centers.py`
-- `pull_requests/pr-971-review.md`
-- `tests/test_api_data_center_meeting_mentions.py`
-- `web_app/src/components/DotMatrixMap.tsx`
-- `web_app/src/components/stance/StoryDotMap.test.ts`
-- `web_app/src/components/stance/StoryDotMap.tsx`
-- `web_app/src/components/stance/StoryScreenView.tsx`
-- `web_app/src/lib/api.types.ts`
-- `web_app/src/lib/dotMatrix.ts`
-- `web_app/src/styles/stance.css`
-- `web_docs/docs/guides/data-stories.md`
+## Findings and their fixes
 
-## CI Status
+### 🔴 Blocking (fixed)
+1. **States outside the scope read "no meetings".** `by_state` was narrowed by the story's scope. **Fixed:** it is national (only the site and strength filters apply); the map highlights the scope, and every state keeps its own count. A test asserts that no state or city parameters reach the query.
 
-See the PR checks on `4113a9556b36`.
+### 🟡 Should fix (fixed)
+- The WHERE clause was split from another query's text. Now it comes from a shared `_mention_where` helper.
+- From a city scope, clicking the state jumped to National. Now it broadens to the state (`scopeCity`).
+- The hover readout was a live region that flooded screen readers. It no longer is.
 
-## Scans (secrets, fabricated data, personal data, destructive data changes)
+### 🔵 Nits
+- **Fixed:**
+  - legend keys use the index;
+  - the caption names the highlighted state ("Texas highlighted, which contains Austin").
+- **Open:** `by_state` runs one national count-distinct per call (the mart is small; cache if it grows).
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+## Tests
+- pytest: 9 passed. vitest: 4 new tests for the colour scale; full suite green. `tsc` is clean.
+- Browser: national 1,859 meetings across 50 states. Under a Charlotte scope, Texas reads 71 meetings, and clicking NC goes to `?state=NC`.
 
-## Strengths
+## Scans
 
-- Automated scans found no secret/credential patterns in added lines.
-
-## Findings
-
-### 🔴 Blocking (Critical)
-
-None.
-
-### 🟡 Should fix (Important)
-
-None from automated heuristics.
-
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
+- Secrets: clean.
+- Fabricated data: clean.
+- Personal data: none.
+- Destructive changes: none.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: merge when the required checks are green.
