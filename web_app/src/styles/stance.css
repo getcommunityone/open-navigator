@@ -205,10 +205,36 @@
 }
 .stance-act {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   padding: 24px 44px 32px 16px;
   scroll-margin-top: calc(var(--hdr) + var(--top-h));
   border-bottom: 1px solid var(--rule);
+}
+.stance-stop {
+  min-height: calc(100svh - var(--hdr, 0px) - var(--top-h, 96px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 0 24px;
+  scroll-margin-top: calc(var(--hdr) + var(--top-h));
+}
+.stance-answers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(100%, 28rem);
+  margin-top: 1.5rem;
+}
+.stance-answers-stack .folio-btn {
+  min-height: 52px;
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  font-size: 16px;
+  font-weight: 600;
 }
 .stance-game[data-mode='pinned'] .stance-act {
   height: calc(100svh - var(--hdr) - var(--top-h));
@@ -1989,6 +2015,24 @@ html.stance-snap {
 }
 .stance-game[data-mode='snap'] .stance-keys {
   display: none;
+}
+/* Challenge (#969): tall acts with finding / question / reveal stops snap per stop, not per act. */
+.stance-game[data-mode='snap'][data-beats] .stance-act {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  scroll-snap-align: none;
+  scroll-snap-stop: normal;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-stop {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-grid,
+.stance-game[data-mode='snap'][data-beats] .stance-end-body {
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
 }
 
 @media (prefers-reduced-motion: no-preference) {

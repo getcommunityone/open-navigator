@@ -15,6 +15,7 @@ import {
   roundBeat,
   roundHeadline,
 } from '../../utils/stanceGame'
+import type { RoundStop } from '../../utils/stanceGame'
 import type { Cue } from '../../utils/stanceSound'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 import ChartPanel, { useChartData } from './ChartPanel'
@@ -70,20 +71,27 @@ interface Props {
   /** Absent on the first round. */
   onPrev?: () => void
   onNext: () => void
+  /** Page-level scroll to a stop (e.g. pinned holds); optional until Challenge wires acts.goToStop. */
+  onNeedPageScroll?: (stop: RoundStop) => void
 }
 
 const ORDER: StanceAnswer[] = ['agree', 'disagree', 'unsure']
 const KEY: Record<StanceAnswer, string> = { agree: 'A', disagree: 'D', unsure: 'N' }
 
+function scrollToStop(root: HTMLElement | null, stop: RoundStop, smooth: boolean) {
+  const el = root?.querySelector<HTMLElement>(`[data-stop="${stop}"]`)
+  el?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' })
+}
+
 /**
- * One round, in three beats: (1) the category and the finding as the title, with the chart drawing in; (2) the statement and the
- * three answers, on "Ask me", Space, or after the chart has finished and a short pause; (3) the chosen answer locks and the
- * results land one scope at a time. The answers are not in the page before beat 2.
+ * One round, in three scroll stops: (1) the category and the finding with the chart; (2) the statement and stacked answers
+ * below the fold; (3) the chosen answer and how people who played answered. Answers live only on the question stop.
  */
 export default function RoundPanel(p: Props) {
   const { statement, index, scope } = p
   const round = index + 1
   const reduced = usePrefersReducedMotion()
+  const panelRef = useRef<HTMLElement>(null)
   const chart = useChartData(String(statement.chart), p.near, scope.stateCode, scope.city)
   // The place the chart really shows: the city where the source can narrow to one, otherwise the state, otherwise national.
   const chartScope = chartScopeLabel(String(statement.chart), { stateName: scope.stateName, city: scope.city })
@@ -95,25 +103,8 @@ export default function RoundPanel(p: Props) {
       : null
   const headline = roundHeadline(String(statement.chart), finding)
   const nextRef = useRef<HTMLButtonElement>(null)
-  const leftRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
   const barRef = useRef<HTMLSpanElement>(null)
-
-  // A column that is taller than its frame scrolls on its own: tell Lenis to leave wheel and touch over it alone,
-  // but only while it really overflows (otherwise the wheel must drive the page).
-  const markOverflow = useRef<() => void>(() => {})
-  // Content can shrink without the column's box changing, so re-check after every render as well.
-  useEffect(() => markOverflow.current())
-  useEffect(() => {
-    const els = [leftRef.current, rightRef.current].filter((e): e is HTMLDivElement => e != null)
-    const mark = () => els.forEach((e) => e.toggleAttribute('data-lenis-prevent', e.scrollHeight > e.clientHeight + 1))
-    markOverflow.current = mark
-    mark()
-    if (typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(mark)
-    els.forEach((e) => ro.observe(e))
-    return () => ro.disconnect()
-  }, [])
 
   // --- the beat ---------------------------------------------------------------------------------------------------------
   const rawBeat = roundBeat({ answered: p.answer != null, asked: p.asked, changing: p.changing })
@@ -141,6 +132,9 @@ export default function RoundPanel(p: Props) {
   const showButtons = beat === 'question'
   const revealed = beat === 'results'
 
+  const showQuestionStop = beat !== 'finding' || p.asked || p.answer != null
+  const showRevealStop = beat === 'results' || (p.answer != null && !p.changing)
+
   // The chart draws once, the first time the round plays and is still at the finding.
   const [drawn, setDrawn] = useState(false)
   useEffect(() => {
@@ -161,6 +155,26 @@ export default function RoundPanel(p: Props) {
     prevShown.current = beat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beat])
+
+  const prevAsked = useRef(p.asked)
+  useEffect(() => {
+    if (!p.playing || !p.active) return
+    if (p.asked && !prevAsked.current) {
+      scrollToStop(panelRef.current, 'question', !reduced)
+      p.onNeedPageScroll?.('question')
+    }
+    prevAsked.current = p.asked
+  }, [p.asked, p.playing, p.active, reduced, p])
+
+  const prevHold = useRef(holdLock)
+  useEffect(() => {
+    if (!p.playing || !p.active) return
+    if (prevHold.current && !holdLock && revealed) {
+      scrollToStop(panelRef.current, 'reveal', !reduced)
+      p.onNeedPageScroll?.('reveal')
+    }
+    prevHold.current = holdLock
+  }, [holdLock, revealed, p.playing, p.active, reduced, p])
 
   // The question arrives by itself once the chart is ready, drawn and the pause is over: never while the player is on the chart or its table.
   const [hovering, setHovering] = useState(false)
@@ -221,12 +235,37 @@ export default function RoundPanel(p: Props) {
       : beat === 'question'
         ? `Where do you stand? ${statement.statement}`
         : p.answer
-          ? `You answered ${ANSWER_LABEL[p.answer]}.`
+          ? `You chose ${ANSWER_LABEL[p.answer]}.`
           : ''
-    : ''
+  : ''
+
+  const chartColumn = (
+    <div
+      className="stance-right"
+      ref={rightRef}
+      onPointerEnter={() => setHovering(true)}
+      onPointerLeave={() => setHovering(false)}
+      onFocus={() => setHovering(true)}
+      onBlur={() => setHovering(false)}
+    >
+      {contextSourceFor(String(statement.chart)) && (
+        <p className="stance-kicker">For context · source: {contextSourceFor(String(statement.chart))} (not from meeting recordings)</p>
+      )}
+      <ChartPanel
+        chartKey={String(statement.chart)}
+        round={round}
+        enabled={p.near}
+        stateCode={scope.stateCode}
+        stateName={scope.stateName}
+        city={scope.city}
+        scopeLabel={chartScope}
+      />
+    </div>
+  )
 
   return (
     <section
+      ref={panelRef}
       className={`stance-panel stance-act ${chartMode}`}
       data-panel={index}
       data-beat={beat}
@@ -240,161 +279,151 @@ export default function RoundPanel(p: Props) {
       <p className="folio-sr-only" role="status" aria-live="polite">
         {live}
       </p>
-      <div className="stance-grid">
-        <div className="stance-left" ref={leftRef}>
-          <div className="stance-card">
-            <p className="stance-card-title">{statement.category}</p>
-          </div>
-          <div className="stance-head">
-            {beat === 'finding' && <p className="stance-ask">What the record shows</p>}
-            <h2 className="stance-headline" id={`stance-q-${round}`}>
-              <KineticText text={headline.text} />
-            </h2>
-            {headline.isFinding && (
-              <p className="stance-context">
-                {chartTitle(String(statement.chart))} · {chartScope}
-                {landNote ? ` · ${landNote}` : ''}
-              </p>
-            )}
-          </div>
 
-          {beat === 'finding' && (
-            <>
-              <SidesBlock sides={p.sides} />
-              <div className="stance-askrow">
-                <button type="button" className="folio-btn stance-ask-btn" onClick={p.onAsk} data-primary>
-                  Ask me <span aria-hidden="true">→</span>
-                  <kbd aria-hidden="true">Space</kbd>
-                </button>
-                <button type="button" className="folio-link-btn stance-skip" onClick={p.onNext}>
-                  Skip this one
-                </button>
-                <span className="stance-countdown" aria-hidden="true">
-                  <span ref={barRef} />
-                </span>
-              </div>
-            </>
-          )}
-
-          {beat !== 'finding' && (
-            <div className="stance-qblock">
-              <p className="stance-ask">Where do you stand?</p>
-              <p className="stance-statement">
-                <KineticText text={statement.statement} />
-              </p>
-
-              {showButtons && (
-                <div className="stance-answers" role="group" aria-label={`Your answer: ${statement.category}`} data-primary>
-                  {ORDER.map((a) => (
-                    <button
-                      key={a}
-                      type="button"
-                      style={{ ['--i' as string]: a === 'agree' ? 0 : a === 'disagree' ? 1 : 2 }}
-                      className={`stance-answer stance-answer-${a}${chosen === a ? ' is-locked' : chosen ? ' is-dim' : ''}`}
-                      disabled={p.posting || holdLock}
-                      aria-pressed={chosen ? chosen === a : p.changing ? p.answer === a : undefined}
-                      onClick={() => p.onAnswer(a)}
-                    >
-                      <span>{ANSWER_LABEL[a]}</span>
-                      {p.active && <kbd aria-hidden="true">{KEY[a]}</kbd>}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {p.posting && (
-                <p className="folio-muted" role="status">
-                  Saving your answer…
+      <div className="stance-stop" data-stop="finding">
+        <div className="stance-grid">
+          <div className="stance-left">
+            <div className="stance-card">
+              <p className="stance-card-title">{statement.category}</p>
+            </div>
+            <div className="stance-head">
+              <p className="stance-ask">What the record shows</p>
+              <h2 className="stance-headline" id={`stance-q-${round}`}>
+                <KineticText text={headline.text} />
+              </h2>
+              {headline.isFinding && (
+                <p className="stance-context">
+                  {chartTitle(String(statement.chart))} · {chartScope}
+                  {landNote ? ` · ${landNote}` : ''}
                 </p>
-              )}
-              {p.error && (
-                <div className="stance-error" role="alert">
-                  <span>{p.error}</span>
-                  <button type="button" className="folio-btn" onClick={p.onRetry} disabled={p.posting}>
-                    Retry
-                  </button>
-                </div>
               )}
             </div>
-          )}
-
-          <div className={`stance-reveal${fresh ? ' is-fresh' : ''}`} aria-live="polite" aria-atomic="false">
-            {beat === 'question' && p.answer == null && !p.posting && (
-              <p className="stance-note">Answer above to see how people who played answered.</p>
-            )}
-            {revealed && (
+            {beat === 'finding' && (
               <>
-                <p className="stance-yours">
-                  Your answer: <b>{ANSWER_LABEL[p.answer!]}</b>{' '}
-                  <button type="button" className="folio-link-btn" onClick={p.onChange}>
-                    Change my answer
+                <SidesBlock sides={p.sides} />
+                <div className="stance-askrow">
+                  <button type="button" className="folio-btn stance-ask-btn" onClick={p.onAsk} data-primary>
+                    Ask me <span aria-hidden="true">→</span>
+                    <kbd aria-hidden="true">Space</kbd>
                   </button>
-                </p>
-                {p.results ? (
-                  <div className="stance-reveal-body">
-                    <p className="stance-reveal-head">How people who played answered · showing {label}</p>
-                    <ResultBars title="Nationally" group={p.results.national} minSample={p.minSample} yourAnswer={p.answer} play={p.active} landIndex={0} />
-                    <ResultBars
-                      title={scope.stateName ? `In ${scope.stateName}` : 'In your state'}
-                      group={p.results.state}
-                      minSample={p.minSample}
-                      yourAnswer={p.answer}
-                      play={p.active}
-                      landIndex={1}
-                      missing="Choose your state to see this group."
-                    />
-                    <ResultBars
-                      title={scope.city && scope.stateName ? `In ${scope.city}, ${scope.stateName}` : 'In your community'}
-                      group={p.results.place}
-                      minSample={p.minSample}
-                      yourAnswer={p.answer}
-                      play={p.active}
-                      landIndex={2}
-                      missing={scope.stateName ? 'Add your community to see this group.' : 'Choose your state and community to see this group.'}
-                    />
-                    <p className="stance-note">This is how people who played answered. It is not a poll.</p>
-                  </div>
-                ) : (
-                  <p className="folio-muted" role="status">
-                    {p.resultsFailed ? 'Results could not be loaded right now.' : p.resultsLoading ? `Loading how people answered for ${label}…` : ''}
-                  </p>
-                )}
+                  <button type="button" className="folio-link-btn stance-skip" onClick={p.onNext}>
+                    Skip this one
+                  </button>
+                  <span className="stance-countdown" aria-hidden="true">
+                    <span ref={barRef} />
+                  </span>
+                </div>
               </>
             )}
           </div>
-
-          {beat === 'question' && (
-            <div className="stance-nav">
-              <button type="button" className="folio-link-btn stance-skip" onClick={p.onNext}>
-                Skip this one
-              </button>
-            </div>
-          )}
-          {(beat !== 'finding' || p.onPrev) && (
-            <ScreenNav ref={nextRef} nextLabel={revealed && (landed || !fresh) ? p.nextLabel : null} onNext={p.onNext} onPrev={p.onPrev} />
-          )}
-        </div>
-        <div
-          className="stance-right"
-          ref={rightRef}
-          onPointerEnter={() => setHovering(true)}
-          onPointerLeave={() => setHovering(false)}
-          onFocus={() => setHovering(true)}
-          onBlur={() => setHovering(false)}
-        >
-          {contextSourceFor(String(statement.chart)) && (
-            <p className="stance-kicker">For context · source: {contextSourceFor(String(statement.chart))} (not from meeting recordings)</p>
-          )}
-          <ChartPanel
-            chartKey={String(statement.chart)}
-            round={round}
-            enabled={p.near}
-            stateCode={scope.stateCode}
-            stateName={scope.stateName}
-            city={scope.city}
-            scopeLabel={chartScope}
-          />
+          {chartColumn}
         </div>
       </div>
+
+      {showQuestionStop && (
+        <div className="stance-stop" data-stop="question">
+          <div className="stance-qblock">
+            <div className="stance-card">
+              <p className="stance-card-title">{statement.category}</p>
+            </div>
+            <p className="stance-ask">Where do you stand?</p>
+            <p className="stance-statement">
+              <KineticText text={statement.statement} />
+            </p>
+
+            <div
+              className="stance-answers stance-answers-stack"
+              role="group"
+              aria-label={`Your answer: ${statement.category}`}
+              data-primary={showButtons ? '' : undefined}
+            >
+              {ORDER.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  className={`folio-btn stance-answer stance-answer-${a}${chosen === a ? ' is-locked' : chosen ? ' is-dim' : ''}`}
+                  disabled={!showButtons || p.posting || holdLock}
+                  aria-pressed={chosen ? chosen === a : p.changing ? p.answer === a : undefined}
+                  onClick={() => p.onAnswer(a)}
+                >
+                  <span>{ANSWER_LABEL[a]}</span>
+                  {p.active && showButtons && <kbd aria-hidden="true">{KEY[a]}</kbd>}
+                </button>
+              ))}
+            </div>
+            {p.posting && (
+              <p className="folio-muted" role="status">
+                Saving your answer…
+              </p>
+            )}
+            {p.error && (
+              <div className="stance-error" role="alert">
+                <span>{p.error}</span>
+                <button type="button" className="folio-btn" onClick={p.onRetry} disabled={p.posting}>
+                  Retry
+                </button>
+              </div>
+            )}
+            {beat === 'question' && (
+              <div className="stance-nav">
+                {p.answer != null && (
+                  <button type="button" className="folio-link-btn" onClick={p.onChange}>
+                    Change my answer
+                  </button>
+                )}
+                <button type="button" className="folio-link-btn stance-skip" onClick={p.onNext}>
+                  Skip this one
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showRevealStop && (
+        <div className={`stance-stop stance-reveal${fresh ? ' is-fresh' : ''}`} data-stop="reveal" aria-live="polite" aria-atomic="false">
+          {revealed && p.answer != null && (
+            <>
+              <p className="stance-yours">
+                You chose {ANSWER_LABEL[p.answer]}.{' '}
+                <button type="button" className="folio-link-btn" onClick={p.onChange}>
+                  Change my answer
+                </button>
+              </p>
+              {p.results ? (
+                <div className="stance-reveal-body">
+                  <p className="stance-reveal-head">How people who played answered · showing {label}</p>
+                  <ResultBars title="Nationally" group={p.results.national} minSample={p.minSample} yourAnswer={p.answer} play={p.active} landIndex={0} />
+                  <ResultBars
+                    title={scope.stateName ? `In ${scope.stateName}` : 'In your state'}
+                    group={p.results.state}
+                    minSample={p.minSample}
+                    yourAnswer={p.answer}
+                    play={p.active}
+                    landIndex={1}
+                    missing="Choose your state to see this group."
+                  />
+                  <ResultBars
+                    title={scope.city && scope.stateName ? `In ${scope.city}, ${scope.stateName}` : 'In your community'}
+                    group={p.results.place}
+                    minSample={p.minSample}
+                    yourAnswer={p.answer}
+                    play={p.active}
+                    landIndex={2}
+                    missing={scope.stateName ? 'Add your community to see this group.' : 'Choose your state and community to see this group.'}
+                  />
+                  <p className="stance-note">This is how people who played answered. It is not a poll.</p>
+                </div>
+              ) : (
+                <p className="folio-muted" role="status">
+                  {p.resultsFailed ? 'Results could not be loaded right now.' : p.resultsLoading ? `Loading how people answered for ${label}…` : ''}
+                </p>
+              )}
+              <ScreenNav ref={nextRef} nextLabel={landed || !fresh ? p.nextLabel : null} onNext={p.onNext} onPrev={p.onPrev} />
+            </>
+          )}
+        </div>
+      )}
     </section>
   )
 }
