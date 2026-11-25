@@ -14,7 +14,7 @@ describe('lazyRouteFailureMessage (#856, #936)', () => {
     const m = lazyRouteFailureMessage(
       'Data story',
       new Error('Unable to preload CSS for https://www.communityone.com/assets/ScrollCue-C-uJ7YO1.css'),
-      { dev: false },
+      { dev: false, online: true },
     )
     expect(m.title).toBe('Data story could not be loaded')
     expect(m.detail).toBe('Unable to preload CSS for https://www.communityone.com/assets/ScrollCue-C-uJ7YO1.css')
@@ -22,8 +22,14 @@ describe('lazyRouteFailureMessage (#856, #936)', () => {
     expect(m.hint).not.toContain('npm install')
   })
 
+  it('offline, a failed fetch is not blamed on a deploy', () => {
+    const m = lazyRouteFailureMessage('Data story', new Error('Failed to fetch dynamically imported module: https://x/a.js'), { dev: false, online: false })
+    expect(m.hint).toContain('offline')
+    expect(m.hint).not.toContain('site was updated')
+  })
+
   it('on the public site, any other failure just offers a reload', () => {
-    const m = lazyRouteFailureMessage('Data story', new Error('x is not a function'), { dev: false })
+    const m = lazyRouteFailureMessage('Data story', new Error('x is not a function'), { dev: false, online: true })
     expect(m.hint).toBe('The rest of the site still works. Reload to try again.')
   })
 

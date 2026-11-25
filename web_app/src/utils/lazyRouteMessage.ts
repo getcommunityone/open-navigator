@@ -11,13 +11,16 @@ import { isStaleChunkError } from './staleDeploy'
 export function lazyRouteFailureMessage(
   name: string,
   error: unknown,
-  opts: { dev?: boolean } = {},
+  opts: { dev?: boolean; online?: boolean } = {},
 ): { title: string; detail: string; hint: string } {
   const dev = opts.dev ?? import.meta.env.DEV
+  const online = opts.online ?? (typeof navigator === 'undefined' || navigator.onLine !== false)
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
   let hint = 'The rest of the site still works. Reload to try again.'
   if (dev) {
     hint = 'The rest of the site still works. If you run the site yourself, run "npm install" in web_app, then reload.'
+  } else if (!online) {
+    hint = 'You appear to be offline. Reconnect, then reload. The rest of the site still works.'
   } else if (isStaleChunkError(error)) {
     hint = 'This site was updated since this page was opened. Reload to get the latest version. The rest of the site still works.'
   }

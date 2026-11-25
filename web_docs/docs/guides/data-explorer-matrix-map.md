@@ -368,10 +368,16 @@ error and a Reload button, and the rest of the site keeps working.
 On the public site the usual cause is a deploy since the tab was opened. Every build gives these files new
 names and a deploy removes the old ones, so a tab opened before the deploy asks for a file that is gone (for
 example "Unable to preload CSS for …/ScrollCue-C-uJ7YO1.css"). The app reloads the page once on its own
-(`web_app/src/utils/staleDeploy.ts`, on Vite's `vite:preloadError`), which picks up the new build because
-`index.html` is served no-cache. If the file is still missing within 30 seconds of that reload, it doesn't
-reload again: the message says "This site was updated since this page was opened. Reload to get the latest
-version."
+(`web_app/src/utils/staleDeploy.ts`, on Vite's `vite:preloadError`) and shows "Loading the latest version of
+…" meanwhile. The reload picks up the new build: the server sends `index.html` no-cache, and the PWA service
+worker (`skipWaiting`, `clientsClaim`) has normally swapped to the new precache already. If an old service
+worker still controls the tab, the reload can land on the old page; see
+[Hugging Face Spaces](../deployment/huggingface-spaces.md) on the service worker taking two visits.
+
+It never reloads twice for the same missing file, nor twice within 30 seconds, and not while the browser says
+it's offline (a network failure looks the same). When it doesn't reload, the message says "This site was
+updated since this page was opened. Reload to get the latest version.", or "You appear to be offline" when
+offline.
 
 On a developer machine (`npm run dev`) the usual cause is a pull that added a package, and the message says so:
 run `npm install` in `web_app` and reload.
