@@ -129,17 +129,17 @@ schema:
     name: first_seen_on
     logicalType: date
     physicalType: date
-    description: First Epoch download that listed the site.
+    description: First load of the site's source that listed it.
   - id: last_seen_on
     name: last_seen_on
     logicalType: date
     physicalType: date
-    description: Latest Epoch download that listed the site.
+    description: Latest load of the site's source that listed it.
   - id: is_listed
     name: is_listed
     logicalType: boolean
     physicalType: boolean
-    description: True when the newest Epoch download lists the site.
+    description: True when the newest load of the site's source lists it.
   - id: source_name
     name: source_name
     logicalType: string
