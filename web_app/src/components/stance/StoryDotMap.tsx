@@ -36,8 +36,8 @@ interface Props {
   /** Narrow the story to a state, or broaden it to the whole country (null). */
   onPickState: (stateCode: string | null) => void
   labelledBy?: string
-  /** The scope's meeting passages, newest first (meeting-mentions `items`). The newest is quoted on the map until the reader
-   *  hovers a state, which then quotes that state's newest, where the scope has one (#999). */
+  /** The scope's meeting passages, newest first (meeting-mentions `items`). One is quoted on the map while the reader
+   *  hovers a state: that state's newest, where the scope has one. Nothing is quoted at rest (#1002). */
   passages?: MapPassage[] | null
 }
 
@@ -58,7 +58,6 @@ const fmtDate = (d?: string | null) => {
  */
 export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null, scopeLabel, onPickState, labelledBy, passages }: Props) {
   const [hover, setHover] = useState<string | null>(null)
-  const [cardOpen, setCardOpen] = useState(true)
   const quoted = useMemo(() => (passages ?? []).filter((m) => m.evidence), [passages])
   const { data: topo, isError } = useQuery({
     queryKey: ['us-atlas-states-albers'],
@@ -102,7 +101,12 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   }
 
   const hoverCode = hover ? codeOf(hover) : null
-  const passage = (hoverCode ? quoted.find((m) => m.state_code === hoverCode) : undefined) ?? quoted[0]
+  // Only while a state is hovered: that state's newest passage in scope, if any (no card at rest, #1002).
+  const passage = hoverCode ? quoted.find((m) => m.state_code === hoverCode) : undefined
+  // The card goes on the side of the map away from the hovered state, so it never covers the pointer.
+  const hoverDots = hover ? grid.dots.filter((d) => d.id === hover) : []
+  const hoverX = hoverDots.length ? hoverDots.reduce((a, d) => a + d.x, 0) / hoverDots.length / NATIONAL_BBOX[2] : 0
+  const cardSide = hoverX < 0.5 ? 'stance-map-card is-right' : 'stance-map-card'
 
   const listed = [...(byState ?? [])].sort((a, b) => b.meetings - a.meetings || a.state_code.localeCompare(b.state_code))
   const r = grid.step * 0.38
@@ -140,13 +144,13 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           </select>
         </span>
       </figcaption>
-      <div className="stance-map-stage">
+      {/* Leaving the map and its card (not just the dots) hides the card, so its link can be reached. */}
+      <div className="stance-map-stage" onMouseLeave={() => setHover(null)}>
       <svg
         viewBox={vb}
         className="stance-map-svg"
         role="img"
         aria-label={`Dot map of meetings where a data center came up, by state, nationally${scopeStateCode ? `, with ${stateNameOf(scopeStateCode)} highlighted (the story is scoped to ${scopeLabel})` : ''}. ${listed.length} ${listed.length === 1 ? 'state has' : 'states have'} at least one.`}
-        onMouseLeave={() => setHover(null)}
       >
         {grid.dots.map((d, i) => {
           const code = codeOf(d.id)
@@ -172,12 +176,9 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           )
         })}
       </svg>
-      {cardOpen && passage && (
-        // Over the lower left of the map (the Pacific, beside Alaska and Hawaii), so it covers the fewest states.
-        <figure className="stance-map-card">
-          <button type="button" className="stance-map-card-x" aria-label="Hide the meeting quote" onClick={() => setCardOpen(false)}>
-            ×
-          </button>
+      {passage && (
+        // While a state is hovered, on the side away from it.
+        <figure className={cardSide}>
           <figcaption className="stance-map-card-place">{[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}</figcaption>
           <blockquote>“{highlightSnippet(excerptAroundMark(passage.evidence ?? ''))}”</blockquote>
           <p className="stance-map-card-meta">

@@ -70,17 +70,27 @@ export default function DataStory() {
   const city = stateCode ? (sp.get('city') ?? '').trim() || null : null
   const scope: StoryScope = useMemo(() => ({ stateCode, stateName, city }), [stateCode, stateName, city])
   const scopeKey = `${stateCode ?? ''}|${city ?? ''}`
-  const landedScope = useRef<string | null>(null)
+  const shownIds = useRef<string[]>([])
   const screenParam = sp.get('screen') ?? ''
 
-  const screens = useMemo(() => story?.screens ?? [], [story])
-  const n = screens.length
+  const allScreens = useMemo(() => story?.screens ?? [], [story])
   const { data, status, refetch } = useStoryData(stateCode, city)
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
   const packQ = useQuery({ queryKey: ['stance', 'pack', packId], queryFn: () => fetchStancePack(packId), enabled: Boolean(story), retry: 1 })
   const question = packQ.data?.question ?? null
+  // A screen with nothing on record for the place is left out of the story once its data has loaded (#1002): no step,
+  // no pip, not reached by Next. Only chart screens drop (Overview, Where and the question screens stay); a screen still
+  // loading stays until known.
+  const allTexts = useMemo(() => allScreens.map((s) => screenText(s, data, status, scope, question)), [allScreens, data, status, scope, question])
+  const keep = allScreens.map((s, i) => s.kind !== 'chart' || !allTexts[i]!.empty)
+  const keepKey = keep.join()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const screens = useMemo(() => allScreens.filter((_, i) => keep[i]), [allScreens, keepKey])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const texts = useMemo(() => allTexts.filter((_, i) => keep[i]), [allTexts, keepKey])
+  const n = screens.length
   // The statements each contested screen asks (#981), and the reader's answers to them.
   const statements = useStoryStatements(packQ.data, playerId, stateCode, city)
   const choiceKey = useMemo(() => ['stance', 'choices', packId, stateCode ?? '', city ?? '', playerId], [packId, stateCode, city, playerId])
@@ -114,7 +124,6 @@ export default function DataStory() {
     if (next) board.play('lock')
   }
 
-  const texts = useMemo(() => screens.map((s) => screenText(s, data, status, scope, question)), [screens, data, status, scope, question])
 
   const wide = useMediaQuery('(min-width: 768px)')
   const mode = reduced ? 'snap' : actsMode(false, wide)
@@ -241,12 +250,14 @@ export default function DataStory() {
   useEffect(() => {
     if (n === 0) return
     ready.current = false
-    // The story opens on its first screen's hold (overview), not on the empty start of its timeline. A change of place with
-    // no screen in the URL keeps the reader on the screen they were on.
+    // The story opens on its first screen's hold (overview), not on the empty start of its timeline.
+    // When the screens change (a new place, or empty screens dropping out as data arrives), the reader stays on the
+    // screen they were on, found by its id.
     const fromUrl = storyScreenIndex(screens, screenParam)
-    const placeChanged = landedScope.current != null && landedScope.current !== scopeKey
-    landedScope.current = scopeKey
-    const at = Math.max(0, fromUrl >= 0 ? fromUrl : placeChanged ? activeRef.current : 0)
+    const wasOn = shownIds.current[activeRef.current]
+    shownIds.current = screens.map((x) => x.id)
+    const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1
+    const at = Math.max(0, fromUrl >= 0 ? fromUrl : stay)
     const land = (behavior: ScrollBehavior) => {
       const h = acts.holds().find((x) => x.round === at && x.kind !== 'r')
       // The first screen on the flow layout is the top of the page. The page can arrive scrolled (a previous page's
@@ -289,7 +300,7 @@ export default function DataStory() {
       stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [n, mode, scopeKey])
+  }, [n, mode, scopeKey, screens])
 
   // A screen in the URL that changed from outside (a link, the back button) moves the page.
   useEffect(() => {
@@ -479,7 +490,9 @@ export default function DataStory() {
         {screens[active] ? `${screens[active]!.eyebrow}. ${texts[active]!.headline}` : ''}
       </p>
       <div className="stance-body">
-        <div className="stance-acts">
+        {/* Keyed by which screens are in the story: when empty screens drop out (#1002) the list is rebuilt whole, because
+            the pinned layout has moved the old screens into its own wrappers and React can't remove them one by one. */}
+        <div className="stance-acts" key={keepKey}>
           {screens.map((s, i) => {
             const common = {
               screen: s,

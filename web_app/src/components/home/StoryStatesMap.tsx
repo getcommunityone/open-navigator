@@ -87,14 +87,8 @@ export default function StoryStatesMap({ byState, quotes, highlight, href }: Pro
     .filter((s) => s.code && (counts.get(s.code) ?? 0) > 0)
     .map((s) => ({ ...s, n: counts.get(s.code!)! }))
     .sort((a, b) => b.n - a.n)
-  // At rest, a speaker's own words first: the page's state if it has one, else any state that does; then the page's state's
-  // meeting passage, then any state's.
-  const resting =
-    (highlight && quotes?.get(highlight)?.side ? pins.find((p) => p.code === highlight) : undefined) ??
-    pins.find((p) => quotes?.get(p.code!)?.side) ??
-    (highlight && quotes?.has(highlight) ? pins.find((p) => p.code === highlight) : undefined) ??
-    pins.find((p) => quotes?.has(p.code!))
-  const shown = (hover ? pins.find((p) => p.code === hover) : undefined) ?? resting
+  // The card shows only while a pin is hovered or focused; at rest the map is just the map (owner, #1002).
+  const shown = hover ? pins.find((p) => p.code === hover) : undefined
   const quote = shown ? quotes?.get(shown.code!) : undefined
   const left = shown ? (shown.c[0] / W) * 100 : 0
 
