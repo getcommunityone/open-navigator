@@ -208,7 +208,10 @@ export function siteTotal(
 
 /** The sources the listed sites come from, in words ("Epoch AI and the US Data Center Registry"), from the rows' own
  * `source` values, so a scope (or a warehouse) with only one source never names the other. Null when nothing is listed. */
-export function siteSourcesText(items: { source?: string | null }[] | null | undefined): string | null {
+export function siteSourcesText(items: { source?: string | null }[] | null | undefined, total?: number | null): string | null {
+  // A capped list (fewer rows than the scope holds) may leave a source out entirely, so it can't say which sources
+  // there are: name both (#985). Only a complete list narrows the credit.
+  if (total != null && (items?.length ?? 0) < total) return 'Epoch AI and the US Data Center Registry'
   const have = new Set((items ?? []).map((i) => i.source ?? 'epoch'))
   const names = [have.has('epoch') && 'Epoch AI', have.has('us_data_center_registry') && 'the US Data Center Registry'].filter(
     (n): n is string => Boolean(n),
