@@ -48,7 +48,7 @@ The figures come from `GET /api/data-centers/positions?state=&city=&limit=`, whi
 
 ## The Data Center Story
 
-Twelve screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries.
+Thirteen screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries.
 
 | Screen | Word | Id | What it shows |
 | --- | --- | --- | --- |
@@ -62,6 +62,7 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | What is raised | Concerns | `concerns` | Concerns ranked, with count and share (one dot per mention) |
 | When it comes up | Meetings | `meetings` | Meeting passages by year (one dot per passage) |
 | What is on the agenda | Agendas | `agendas` | Agendas for upcoming and past meetings |
+| What was decided | Decisions | `decisions` | Decisions on data center items, debated or passed without debate (one dot per decision); a debated one links to its page, one passed without debate to the meeting recording ([#933](https://github.com/getcommunityone/open-navigator/issues/933)) |
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | The question again | Your answer | `verdict` | The same question, then how readers answered before and after, then the challenge |
 

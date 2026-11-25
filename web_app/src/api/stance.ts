@@ -5,6 +5,7 @@ import {
   fetchAreaConcerns,
   fetchCommunityEvents,
   fetchDataCenterAgendaItems,
+  fetchDataCenterDecisions,
   fetchDataCenterMeetingMentions,
   fetchDataCenterPositions,
   fetchDataCenterProjects,
@@ -205,6 +206,8 @@ export async function fetchChartData(key: string, stateCode?: string, city?: str
       return fetchDataCenterMeetingMentions(many)
     case 'agenda-items':
       return fetchDataCenterAgendaItems(many)
+    case 'decisions':
+      return fetchDataCenterDecisions(many)
     case 'community-events':
       return fetchCommunityEvents(many)
     case 'projects':

@@ -6,6 +6,7 @@ import type {
   AreaConcernsResponse,
   CommunityEventsResponse,
   DataCenterAgendaItemsResponse,
+  DataCenterDecisionsResponse,
   DataCenterMeetingMentionsResponse,
   DataCenterPositionsResponse,
   DataCenterProjectsResponse,
@@ -68,6 +69,7 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'concerns', eyebrow: 'Concerns', chart: 'concerns', kind: 'chart' },
   { id: 'meetings', eyebrow: 'Meetings', chart: 'meeting-mentions', kind: 'chart' },
   { id: 'agendas', eyebrow: 'Agendas', chart: 'agenda-items', kind: 'chart' },
+  { id: 'decisions', eyebrow: 'Decisions', chart: 'decisions', kind: 'chart' },
   { id: 'gatherings', eyebrow: 'Gatherings', chart: 'community-events', kind: 'chart' },
   { id: 'verdict', eyebrow: 'Your answer', chart: null, kind: 'verdict' },
 ]
@@ -401,7 +403,24 @@ function agendasText(res: DataCenterAgendaItemsResponse, scope: StoryScope): Scr
       : `None of the ${plural(p, 'meeting agenda')} that ${p === 1 ? 'names' : 'name'} a data center ${where(place)} is for an upcoming meeting.`
   return {
     headline,
-    context: 'Upcoming means the meeting date has not passed. What about meetings the companies host?',
+    context: 'Upcoming means the meeting date has not passed. What did the meetings decide?',
+    empty: false,
+    failed: false,
+  }
+}
+
+function decisionsText(res: DataCenterDecisionsResponse, scope: StoryScope): ScreenText | null {
+  const c = res.counts?.contested ?? 0
+  const u = res.counts?.uncontested ?? 0
+  if (c + u <= 0) return null
+  const place = placeFor('decisions', scope)
+  const headline =
+    u > 0
+      ? `Of ${plural(c + u, 'decision')} on a data center item ${where(place)}, ${fmt(u)} passed without debate and ${fmt(c)} ${c === 1 ? 'was' : 'were'} debated.`
+      : `All ${plural(c, 'decision')} on a data center item ${where(place)} ${c === 1 ? 'was' : 'were'} debated.`
+  return {
+    headline,
+    context: 'Passed without debate means on the consent agenda or by a routine vote. What about meetings the companies host?',
     empty: false,
     failed: false,
   }
@@ -519,6 +538,9 @@ export function screenText(
       break
     case 'agenda-items':
       out = agendasText(d as DataCenterAgendaItemsResponse, scope)
+      break
+    case 'decisions':
+      out = decisionsText(d as DataCenterDecisionsResponse, scope)
       break
     case 'community-events':
       out = gatheringsText(d as CommunityEventsResponse, scope)
