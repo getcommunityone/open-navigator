@@ -10,8 +10,11 @@ import ScrollToTop from './components/ScrollToTop'
 import App from './App'
 import './index.css'
 import { installExtensionConsoleNoiseFilter } from './utils/filterExtensionConsoleNoise'
+import { installStaleDeployReload } from './utils/staleDeploy'
 
 installExtensionConsoleNoiseFilter()
+// A tab open across a deploy asks for lazy chunks the deploy removed: reload once (#936).
+installStaleDeployReload()
 
 const queryClient = new QueryClient({
   defaultOptions: {
