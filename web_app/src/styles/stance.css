@@ -918,6 +918,16 @@ a.stance-dot {
 .stance-nav {
   align-items: center;
 }
+/* #964: Back at the left, the primary Next at the right (like the hub's Start the story), on every screen width. */
+.stance-nav-split {
+  width: 100%;
+  justify-content: space-between;
+}
+.stance-nav-split .stance-next-end {
+  margin-left: auto;
+  min-width: 132px;
+  justify-content: center;
+}
 .stance-back {
   border-color: transparent;
   color: var(--ink-2);
