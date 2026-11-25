@@ -173,8 +173,20 @@ export default function DataStory() {
   }, [])
 
   const idAt = useCallback((i: number) => screens[i]?.id ?? '', [screens])
+  // The story's own path. As the story unmounts, the scroller's last updates still arrive; writing `?screen=` then would
+  // navigate relative to the story's route and pull the reader back into it, on its last screen (#997).
+  const storyPath = useRef(window.location.pathname)
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    storyPath.current = window.location.pathname
+    return () => {
+      alive.current = false
+    }
+  }, [story])
   const onActive = useCallback(
     (i: number) => {
+      if (!alive.current || window.location.pathname !== storyPath.current) return
       if (!ready.current || (i === activeRef.current && lastWritten.current != null)) return
       const moved = i !== activeRef.current
       activeRef.current = i

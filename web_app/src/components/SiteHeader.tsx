@@ -85,7 +85,7 @@ export default function SiteHeader() {
       setActiveSection('')
       return
     }
-    const ids = ['search', 'data-stories', 'how-it-works', 'impact']
+    const ids = ['data-stories', 'search', 'how-it-works', 'impact']
     // The section crossing the middle of the screen is active; between sections (the meetings and maps in the
     // middle of the page) none is, so no tab stays lit over unrelated content.
     const inView = new Set<string>()
@@ -144,7 +144,6 @@ export default function SiteHeader() {
   // On home a tab lights up for the section in view; on a detail page, for the section it was opened from.
   const onHome = location.pathname === '/'
   const navItems: { label: string; onClick: () => void; active: boolean }[] = [
-    { label: 'Search', onClick: () => goSection('search'), active: onHome ? activeSection === 'search' : location.pathname === '/search' },
     {
       label: 'Data Stories',
       onClick: () => goSection('data-stories'),
@@ -152,6 +151,7 @@ export default function SiteHeader() {
         ? activeSection === 'data-stories'
         : location.pathname.startsWith('/stories'),
     },
+    { label: 'Search', onClick: () => goSection('search'), active: onHome ? activeSection === 'search' : location.pathname === '/search' },
     { label: 'How It Works', onClick: () => goSection('how-it-works'), active: onHome && activeSection === 'how-it-works' },
     { label: 'Impact', onClick: () => goSection('impact'), active: onHome && activeSection === 'impact' },
   ]
