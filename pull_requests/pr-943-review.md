@@ -5,7 +5,7 @@ title: "fix(dbt): render gold_pk_post_hook at run time and let Postgres name the
 author: jcbowyer
 reviewed_at: 2026-11-25
 reviewer: github-actions
-head_sha: 3d68c0efccd1f49921d248b316a75f796669f3e1
+head_sha: 79a582bf929c056f39d270b6a3b56ae2db9691bf
 verdict: approve
 ---
 
@@ -19,6 +19,7 @@ Automated review (#648) for PR #943 on `fix/941-pk-post-hook-target`. Heuristic 
 ## Scope of Change
 
 - `dbt_project/macros/gold_pk_post_hook.sql`
+- `dbt_project/models/marts/_schema_gold_primary_keys.yml`
 - `dbt_project/models/marts/dq_jurisdiction_mapping_summary.sql`
 - `dbt_project/models/marts/dq_jurisdiction_mapping_summary_by_acs_income_level.sql`
 - `dbt_project/models/marts/dq_jurisdiction_mapping_summary_by_acs_population_tier.sql`
@@ -34,11 +35,13 @@ Automated review (#648) for PR #943 on `fix/941-pk-post-hook-target`. Heuristic 
 - `dbt_project/models/marts/serving_mdm_bridge_org_jurisdiction.sql`
 - `dbt_project/models/marts/serving_mdm_organization.sql`
 - `dbt_project/models/marts/serving_mdm_organization_nonprofit.sql`
+- `pull_requests/pr-943-review.md`
+- `tests/test_dbt_pk_hooks.py`
 - `web_docs/docs/development/non-blocking-table-rebuilds.md`
 
 ## CI Status
 
-See the PR checks on `3d68c0efccd1`.
+See the PR checks on `79a582bf929c`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
