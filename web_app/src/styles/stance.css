@@ -1004,10 +1004,16 @@ a.stance-dot {
 }
 .stories-title {
   margin: 0;
-  font-size: clamp(40px, 6vw, 80px);
+  /* Keep the place/topic sentence to two lines (#954). */
+  font-size: clamp(26px, 3.6vw, 44px);
   font-weight: 300;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-wrap: balance;
 }
 .stories-scope {
   display: flex;
@@ -1036,10 +1042,15 @@ a.stance-dot {
 }
 .stories-card-title {
   margin: 0;
-  font-size: clamp(28px, 3.4vw, 44px);
+  font-size: clamp(22px, 2.8vw, 34px);
   font-weight: 300;
   letter-spacing: -0.03em;
-  line-height: 1.05;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-wrap: balance;
 }
 .stories-actions {
   display: flex;
@@ -1849,9 +1860,9 @@ select.stance-blank {
   color: var(--ink-2);
 }
 
-/* --- The hub card leads with overview + a subtle Start pulse (#950) --------------------------------------------------- */
+/* --- The hub card: care-first hook + subtle Start pulse (#950 / #954) ------------------------------------------------- */
 .stories-card-title {
-  font-size: clamp(30px, 4.6vw, 60px);
+  font-size: clamp(22px, 2.8vw, 34px);
 }
 .stories-actions {
   align-items: center;
@@ -1893,7 +1904,7 @@ select.stance-blank {
     padding: 14px 14px 18px;
   }
   .stance-sentence.stories-title {
-    font-size: 26px;
+    font-size: 24px;
   }
   .folio .stories-actions a.stories-start {
     width: 100%;
