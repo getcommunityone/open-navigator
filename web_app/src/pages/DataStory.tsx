@@ -226,7 +226,11 @@ export default function DataStory() {
     const at = Math.max(0, storyScreenIndex(screens, screenParam))
     const land = (behavior: ScrollBehavior) => {
       const h = acts.holds().find((x) => x.round === at && x.kind !== 'r')
-      if (h && (at > 0 || mode === 'pinned') && Math.abs(h.pos - window.scrollY) > 2) window.scrollTo({ top: h.pos, behavior })
+      // The first screen on the flow layout is the top of the page. The page can arrive scrolled (a previous page's
+      // offset, e.g. home's Data stories section), so the story always moves to its screen; before #991 it stayed put
+      // at screen 0 and opened mid-way, on a screen that wasn't the active one.
+      const target = at > 0 || mode === 'pinned' ? h?.pos : 0
+      if (target != null && Math.abs(target - window.scrollY) > 2) window.scrollTo({ top: target, behavior })
     }
     land('auto')
     activeRef.current = at

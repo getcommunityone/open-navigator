@@ -420,8 +420,13 @@ export function useActs(opts: Options): ActsApi {
         const st = triggers[i]
         if (!st) continue
         const span = st.end - st.start
-        out.push({ pos: Math.round(st.start + 0.08 * span), round: i, kind: 'q', stop: 'finding' })
-        out.push({ pos: Math.round(st.start + QUESTION_HOLD * span), round: i, kind: 'q', stop: 'question' })
+        // The three-stop rhythm (finding, question, reveal) only where a screen asks for it with [data-stop], as on the
+        // flow layout. Story screens have one hold, at QUESTION_HOLD, where the headline has risen: an early 'finding'
+        // hold at 8% sat before the headline's reveal (22-46%), so the story landed on blank screens and snapped between
+        // two holds per screen (#991).
+        const threeStops = Boolean(acts[i]?.querySelector('[data-stop]'))
+        if (threeStops) out.push({ pos: Math.round(st.start + 0.08 * span), round: i, kind: 'q', stop: 'finding' })
+        out.push({ pos: Math.round(st.start + QUESTION_HOLD * span), round: i, kind: 'q', ...(threeStops ? { stop: 'question' as const } : {}) })
         if (o.current.isAnswered(i)) out.push({ pos: Math.round(st.start + REVEAL_HOLD * span), round: i, kind: 'r', stop: 'reveal' })
       }
       if (endEl) out.push({ pos: Math.max(0, Math.round(endEl.getBoundingClientRect().top + window.scrollY - frameOffset(game))), round: count, kind: 'end' })
