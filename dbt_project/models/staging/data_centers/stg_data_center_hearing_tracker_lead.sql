@@ -22,7 +22,7 @@
     locality .us name (ci.monticello.mn.us, co.x.va.us: a 2-letter state before .us), or a
     government's own subdomain of an agenda platform (x.legistar.com, x.api.civicclerk.com,
     x.granicus.com, x.boarddocs.com, x.primegov.com, x.iqm2.com, x.novusagenda.com,
-    x.civicweb.net). A bare .us, .com or .org name is never official, however it reads
+    x.civicweb.net; never a www. vendor page). A bare .us, .com or .org name is never official, however it reads
     (cityofx.com can be registered by anyone), and neither is a URL with user info (x.gov@host).
     Only official URLs are fetched and checked. Anything else (news, a notice registry, a city
     site on .com) is 'tracker': a lead with no official page yet.
@@ -30,9 +30,9 @@
     ensure_data_center_hearing_tables, so the served marts still build without it.
 */
 
-{%- set official_host_rx = "^([a-z0-9-]+\\.)+(gov|[a-z]{2}\\.us)$|^([a-z0-9-]+\\.)+(legistar|civicclerk|granicus|boarddocs|primegov|iqm2|novusagenda)\\.com$|^([a-z0-9-]+\\.)+civicweb\\.net$" %}
+{%- set official_host_rx = "^([a-z0-9-]+\\.)+(gov|[a-z]{2}\\.us)$|^(?!www\\.)([a-z0-9-]+\\.)+(legistar|civicclerk|granicus|boarddocs|primegov|iqm2|novusagenda)\\.com$|^(?!www\\.)([a-z0-9-]+\\.)+civicweb\\.net$" %}
 {%- set place_rx = "^(.+?) (County|Parish|Borough|Township|City|Village|Town)\\M" %}
-{%- set body_words = "(?:Board|Council|Commission|Commissioners|Planning|Zoning|Assembly|Committee|Supervisors|Trustees|Selectboard)" %}
+{%- set body_words = "(?:Board|Council|Commission|Commissioners|Plan|Planning|Zoning|Assembly|Committee|Supervisors|Trustees|Selectboard|Aldermen|Mayor|Public|Hearing|Meeting|Special|Regular)" %}
 
 with raw as (
     -- each tracker's latest file only
@@ -61,7 +61,7 @@ dcf as (
         coalesce(
             nullif(regexp_replace(regexp_replace(
                 (regexp_match(btrim(record->>'body'), '^(?:City|Town|Village) of (.+)$'))[1],
-                '\s*[(,].*$', ''), '\s+{{ body_words }}\M.*$', ''), ''),
+                '\s*[(,].*$', ''), '\s+{{ body_words }}\M.*$', '', 'i'), ''),
             (select m[1] || ' ' || m[2]
              from (select regexp_match(btrim(record->>'body'), '{{ place_rx }}') as m) as x
              where m[1] !~ '^(Board|Council|Commission|Committee) of\M')

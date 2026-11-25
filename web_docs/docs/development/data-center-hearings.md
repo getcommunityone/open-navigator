@@ -23,8 +23,8 @@ page** confirms it.
 - Only verified hearings are published: `data_center_hearing_verified` is the only one of the two tables in `public`
   and Neon. They appear under **Hearings coming up** on `/data-centers`. Each card quotes the official page with the
   matched words highlighted, links to it, and is marked **Tentative** when the page calls the date tentative, expected
-  or not final. The body (and, for a curated lead, the topic) come from the lead and are labelled as such. A
-  tracker's own topic or summary text is never shown.
+  or not final. The body's name comes from the lead; a curated lead's topic is shown labelled "From the research
+  lead". A tracker's own topic or summary text is never shown.
 - Every other lead keeps a status that says what is missing. Nothing is shown on a tracker's or a research tool's
   word alone.
 

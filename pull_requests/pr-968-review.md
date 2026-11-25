@@ -4,63 +4,84 @@ branch: docs/956-dc-sources-citations
 title: "feat(data-centers): cite the hearing trackers and inventories, block the ones we may not use, feed leads from the CC BY trackers"
 author: jcbowyer
 reviewed_at: 2026-11-25
-reviewer: github-actions
-head_sha: b13c45174e4984f936669db379eb5b4bfd85cc72
-verdict: approve
+reviewer: general-purpose subagent (read-only, two passes) and coordinator
+head_sha: see branch head (fixes in 67d4f29b and the nits commit)
+verdict: approve-with-nits
 ---
 
-# PR Review: feat(data-centers): cite the hearing trackers and inventories, block the ones we may not use, feed leads from the CC BY trackers
+# PR Review: cite the hearing trackers and inventories, feed leads from the CC BY trackers
 
 ## Summary
 
-Automated review (#648) for PR #968 on `docs/956-dc-sources-citations`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+This PR cites 19 data center trackers and inventories with a dated record of each one's terms. It puts the six whose
+terms forbid scraping on `BLOCKED_HOSTS`, and feeds hearing leads from the two CC BY trackers (Data Center Fights and
+Siting Radar). A hearing is still shown only when the government's own page states the date with a data center word.
 
-## Scope of Change
+The first independent pass said **request-changes**. Every Blocking and Should-fix finding is fixed in `67d4f29b`, and
+the second pass says **approve-with-nits**. The CI bot's auto-review (against `b13c4517`) approved before those
+findings and is superseded by this file.
 
-- `dbt_project/models/intermediate/_schema_int_data_center_hearing_lead.yml`
-- `dbt_project/models/intermediate/int_data_center_hearing_lead.sql`
-- `dbt_project/models/marts/_schema_data_center_hearing.yml`
-- `dbt_project/models/marts/data_center_hearing.sql`
-- `dbt_project/models/staging/_staging.yml`
-- `dbt_project/models/staging/data_centers/_schema_stg_data_center_hearing_tracker_lead.yml`
-- `dbt_project/models/staging/data_centers/stg_data_center_hearing_tracker_lead.sql`
-- `packages/ingestion/src/ingestion/data_centers/community_events.py`
-- `packages/ingestion/src/ingestion/data_centers/fetch_hearing_sources.py`
-- `packages/ingestion/src/ingestion/data_centers/load_hearing_tracker_leads.py`
-- `packages/ingestion/tests/test_community_events.py`
-- `packages/ingestion/tests/test_load_hearing_tracker_leads.py`
-- `web_docs/docs/data-sources/citations.md`
-- `web_docs/docs/development/data-center-hearings.md`
-- `web_docs/docs/development/data-center-source-review.md`
+## Findings and their fixes
 
-## CI Status
+### 🔴 Blocking (both fixed)
+1. **Tracker text was served.** Each tracker's topic or summary reached the card as "From the research lead".
+   **Fixed:** the mart nulls `topic` for tracker leads, with a unit test. A body's name is kept, as a fact.
+2. **The official-host test was loose.** Any `.us` host, `cityof*.com` and vendor hosts counted. **Fixed:** official
+   now means one of:
+   - a `.gov` host;
+   - a locality `.us` name (`x.<state>.us`);
+   - a government's own subdomain of an agenda platform (no `www.`).
 
-See the PR checks on `b13c45174e49`.
+   Data Center Fights' user-added records are excluded.
 
-## Scans (secrets, fabricated data, personal data, destructive data changes)
+### 🟡 Should fix (all fixed)
+- **User info in a URL:** a URL with `@` in its authority is never official.
+- **Place parsing:**
+  - "City of X …" stops at the first body word, case-insensitively.
+  - The type word is kept ("Kansas City").
+  - A "Board of …" capture is dropped.
+  - The mart shows the matched jurisdiction's name.
+- **Dedupe:**
+  - Every lead is kept, with a `meeting_key` (counties apart from towns) and a `lead_rank`.
+  - Every official URL is fetched.
+  - The mart keeps one row per meeting, the verified one first.
+- **Evidence:** a side is trimmed only when it was cut, so a date at the page's edge survives. Unit test added.
+- **Docs:** they no longer state the #958 imports as done.
+- **Run-start macro:** creates both bronze tables empty, so the served marts build before any loader has run.
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+### 🔵 Nits
+- **Fixed:**
+  - no `www.` vendor pages count as official;
+  - a longer, case-insensitive body-word list;
+  - only each tracker's latest file counts;
+  - softened doc wording about labels.
+- **Open (minor):**
+  - A second date match on a page can begin mid-word (still verbatim).
+  - A parish lead can't match a county jurisdiction; this predates the PR.
+  - The run-start macro runs on every target, as `ensure_event_partitions` already does.
 
-## Strengths
+## Scans
+- **Secrets:** clean. DSNs come from the environment and are never printed.
+- **Fabricated data:** clean. Only verified rows are served, each quoting the official page; tracker text is not served.
+- **Personal data:** none.
+- **Destructive changes:** none. New bronze tables only.
 
-- Automated scans found no secret/credential patterns in added lines.
+## Repo rules
+| Rule | Pass? |
+|---|---|
+| Issue first (`Closes #956`, dated contract note on the issue) | ✅ |
+| New Python in `packages/` (`python -m ingestion.data_centers.load_hearing_tracker_leads`) | ✅ |
+| dbt for transformations | ✅ |
+| Keys (PKs/FKs on the served mart unchanged; ODCS contract regenerated) | ✅ |
+| Match evidence on tiles (verbatim official text) | ✅ |
+| Docs with the change | ✅ |
 
-## Findings
-
-### 🔴 Blocking (Critical)
-
-None.
-
-### 🟡 Should fix (Important)
-
-None from automated heuristics.
-
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
+## Tests
+- dbt on the local warehouse: 39/39, including 4 unit tests.
+- pytest: 26 passed for the touched ingestion modules, 6 passed for the hearings API.
+- `models.odcs --check`: current.
+- Live results: 7 hearings verified, 2 of them from tracker leads (Whitley County IN, Calvert County MD).
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: merge when the required checks are green.
