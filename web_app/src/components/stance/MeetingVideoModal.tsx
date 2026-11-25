@@ -24,9 +24,12 @@ interface Props {
  * `video` is set, so closing removes it and stops playback. Escape, the close button and a click on the backdrop close it;
  * focus goes to the close button on open, stays inside while open, and the caller restores it to the dot it came from.
  */
+const STORY_KEYS = new Set([' ', 'Spacebar', 'PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'])
+
 export default function MeetingVideoModal({ video, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!video) return
@@ -37,6 +40,12 @@ export default function MeetingVideoModal({ video, onClose }: Props) {
         e.stopPropagation()
         onClose()
         return
+      }
+      // The story's own keys (window listeners: Space, PageDown, arrows…) must not move the page behind the dialog. Keys
+      // inside the dialog keep their default action (a focused button or link still works); nothing reaches the story.
+      if (STORY_KEYS.has(e.key)) {
+        e.stopPropagation()
+        if (!boxRef.current?.contains(document.activeElement)) e.preventDefault()
       }
       if (e.key !== 'Tab' || !boxRef.current) return
       // Keep focus inside the dialog (the iframe takes its own focus; Tab around the controls).
@@ -53,25 +62,42 @@ export default function MeetingVideoModal({ video, onClose }: Props) {
       }
     }
     document.addEventListener('keydown', onKey, true)
-    const { overflow } = document.body.style
+    // Lock the page under the dialog: the story scrolls on <html> (and smooth-scrolls with Lenis), so locking <body>
+    // alone isn't enough; wheel and touch over the backdrop are stopped outright (the player's iframe gets its own).
+    const html = document.documentElement
+    const prev = { html: html.style.overflow, body: document.body.style.overflow }
+    html.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
+    const block = (e: Event) => {
+      if (e.cancelable) e.preventDefault()
+    }
+    const bd = backdropRef.current
+    bd?.addEventListener('wheel', block, { passive: false })
+    bd?.addEventListener('touchmove', block, { passive: false })
     return () => {
       document.removeEventListener('keydown', onKey, true)
-      document.body.style.overflow = overflow
+      bd?.removeEventListener('wheel', block)
+      bd?.removeEventListener('touchmove', block)
+      html.style.overflow = prev.html
+      document.body.style.overflow = prev.body
     }
   }, [video, onClose])
 
   if (!video || typeof document === 'undefined') return null
   return createPortal(
     <div className="folio" style={HOUSE_STYLE}>
-      <div className="stance-video-backdrop" onClick={onClose} data-keys-own>
+      {/* data-lenis-prevent: the story's smooth scroller must not scroll the page under the dialog. */}
+      <div ref={backdropRef} className="stance-video-backdrop" onClick={onClose} data-keys-own data-lenis-prevent>
         <div
           ref={boxRef}
           className="stance-video-dialog"
           role="dialog"
           aria-modal="true"
           aria-labelledby="stance-video-title"
+          // Focusable, so a click on its text keeps focus inside the dialog rather than on the page body.
+          tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
         >
           <div className="stance-video-head">
             <div>

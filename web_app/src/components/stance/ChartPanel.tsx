@@ -58,12 +58,13 @@ export function Dots({ spec }: { spec: DotsSpec }) {
   const [rove, setRove] = useState(0)
   const [playing, setPlaying] = useState<{ video: MeetingVideo; from: number } | null>(null)
   const root = useRef<HTMLDivElement>(null)
+  const playingFrom = useRef<number | null>(null)
   const closeVideo = useCallback(() => {
-    setPlaying((p) => {
-      // Back to the dot the video came from, so keyboard users keep their place.
-      if (p) requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-dot="${p.from}"]`)?.focus())
-      return null
-    })
+    const from = playingFrom.current
+    playingFrom.current = null
+    setPlaying(null)
+    // Back to the dot the video came from, so keyboard users keep their place.
+    if (from != null) requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-dot="${from}"]`)?.focus())
   }, [])
   const flat = useMemo(() => spec.groups.flatMap((g, gi) => g.dots.map((d) => ({ d, gi, label: g.label }))), [spec])
   const onKey = (e: KeyboardEvent) => {
@@ -78,6 +79,7 @@ export function Dots({ spec }: { spec: DotsSpec }) {
   let n = -1
   const total = flat.length
   return (
+    <>
     <div className="stance-dots" ref={root} data-keys-own onKeyDown={onKey}>
       {spec.groups.map((g, gi) => {
         const look = dotLook(g, gi)
@@ -100,6 +102,7 @@ export function Dots({ spec }: { spec: DotsSpec }) {
               const play = d.video
                 ? () => {
                     hide()
+                    playingFrom.current = i
                     setPlaying({ video: { ...d.video!, title: d.title, sub, url: d.url }, from: i })
                   }
                 : null
@@ -118,7 +121,7 @@ export function Dots({ spec }: { spec: DotsSpec }) {
                   'aria-haspopup': 'dialog' as const,
                   onClick: (e: MouseEvent) => {
                     // A modifier click still opens YouTube in a tab, like any link.
-                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
                     e.preventDefault()
                     play()
                   },
@@ -141,12 +144,15 @@ export function Dots({ spec }: { spec: DotsSpec }) {
         )
       })}
       {typeof document !== 'undefined' && createPortal(<div className="folio" style={HOUSE_STYLE}><Tooltip tip={tip} /></div>, document.body)}
-      <MeetingVideoModal video={playing?.video ?? null} onClose={closeVideo} />
       <p className="stance-note stance-hint-keys">Use the arrow keys to move between dots.</p>
       {flat.some((x) => x.d.url) && (
         <p className="stance-note stance-hint-touch">{flat.some((x) => x.d.video) ? 'Tap a dot to play the meeting.' : 'Tap a dot to open it.'}</p>
       )}
     </div>
+    {/* Outside the dots' div: React portals bubble events up the React tree, so the dialog's keys must not reach the
+        dots' arrow-key handler and move focus behind the dialog. */}
+    <MeetingVideoModal video={playing?.video ?? null} onClose={closeVideo} />
+    </>
   )
 }
 
@@ -176,7 +182,7 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
       )}
       <figcaption className="folio-fig">
         <b>FIG. {fig}</b> — {spec ? `${spec.title}, ${scope}.` : `${scope}.`}
-        {spec && ` ${spec.dotMeans} ${hasVideos ? 'Hover a dot to preview the meeting; select it to play the recording from the quoted moment.' : hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`}
+        {spec && ` ${spec.dotMeans} ${hasVideos ? 'Hover or focus a dot to preview the meeting; select it to play the recording from the quoted moment.' : hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`}
         {spec && ` Source: ${spec.source}.`}
         {spec?.note && ` ${spec.note}`}
         {spec && chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'}
