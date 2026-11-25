@@ -59,7 +59,7 @@ schema:
     name: jurisdiction_name
     logicalType: string
     physicalType: text
-    description: The government holding the meeting, as the lead names it.
+    description: 'The government holding the meeting: the matched jurisdiction''s name when exactly one matches, else as the lead names it.'
   - id: state_code
     name: state_code
     logicalType: string

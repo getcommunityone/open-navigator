@@ -3,7 +3,8 @@ version: 2
 models:
   - name: data_center_hearing
     description: >
-      One row per data center hearing lead (#955) with whether its official page backs it up.
+      One row per data center hearing (#955, #956), from the best of the leads that name it
+      (a verified lead first, then lead_rank), with whether its official page backs it up.
       status 'verified' means the official page states the claimed date together with a data
       center word (within ~500 characters on a web page; anywhere on a PDF agenda).
       This table holds every lead and stays in gold; only data_center_hearing_verified is served.
@@ -27,7 +28,7 @@ models:
         to_columns: [jurisdiction_id]
     columns:
       - name: data_center_hearing_id
-        description: "Primary key: the lead's id (seeds.data_center_hearing_lead.lead_id)."
+        description: "Primary key: the id of the lead the row comes from (int_data_center_hearing_lead.lead_id)."
         data_type: text
         constraints:
           - type: not_null
@@ -42,7 +43,7 @@ models:
         constraints:
           - type: not_null
       - name: jurisdiction_name
-        description: "The government holding the meeting, as the lead names it."
+        description: "The government holding the meeting: the matched jurisdiction's name when exactly one matches, else as the lead names it."
         data_type: text
       - name: state_code
         description: "Two-letter state code."
@@ -54,7 +55,7 @@ models:
         description: "The body meeting (as the lead names it; '(as listed)' marks one the list probably got wrong)."
         data_type: text
       - name: topic
-        description: "What the lead says is on the agenda."
+        description: "What a curated lead says is on the agenda; null for a tracker lead (a tracker's own text is never served)."
         data_type: text
       - name: source_kind
         description: "official, tracker, news or none."
@@ -131,7 +132,7 @@ models:
         constraints:
           - type: not_null
       - name: jurisdiction_name
-        description: "The government holding the meeting, as the lead names it."
+        description: "The government holding the meeting: the matched jurisdiction's name when exactly one matches, else as the lead names it."
         data_type: text
       - name: state_code
         description: "Two-letter state code."
@@ -173,16 +174,16 @@ unit_tests:
   - name: dc_hearing_verification_rules
     model: data_center_hearing
     given:
-      - input: ref('data_center_hearing_lead')
+      - input: ref('int_data_center_hearing_lead')
         rows:
-          - {lead_id: ok, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/a', lead_from: l}
-          - {lead_id: day10, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/b', lead_from: l}
-          - {lead_id: year2025, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/c', lead_from: l}
-          - {lead_id: far, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/d', lead_from: l}
-          - {lead_id: pdf, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/e.pdf', lead_from: l}
-          - {lead_id: tent, meeting_date: '2026-12-08', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/f', lead_from: l}
-          - {lead_id: lower, meeting_date: '2026-05-03', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/g', lead_from: l}
-          - {lead_id: trk, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: tracker, source_name: Siting Radar, source_url: null, lead_from: l}
+          - {lead_id: ok, meeting_key: k-ok, lead_rank: 1, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/a', lead_from: l}
+          - {lead_id: day10, meeting_key: k-day10, lead_rank: 1, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/b', lead_from: l}
+          - {lead_id: year2025, meeting_key: k-year2025, lead_rank: 1, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/c', lead_from: l}
+          - {lead_id: far, meeting_key: k-far, lead_rank: 1, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/d', lead_from: l}
+          - {lead_id: pdf, meeting_key: k-pdf, lead_rank: 1, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/e.pdf', lead_from: l}
+          - {lead_id: tent, meeting_key: k-tent, lead_rank: 1, meeting_date: '2026-12-08', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/f', lead_from: l}
+          - {lead_id: lower, meeting_key: k-lower, lead_rank: 1, meeting_date: '2026-05-03', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/g', lead_from: l}
+          - {lead_id: trk, meeting_key: k-trk, lead_rank: 1, meeting_date: '2026-12-01', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: tracker, source_name: Siting Radar, source_url: null, lead_from: l}
       - input: source('bronze', 'bronze_data_center_hearing_source')
         rows:
           - {lead_id: ok, source_url: 'https://x.gov/a', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'The Council holds a public hearing on the data center ordinance on December 1, 2026 at 7 PM.'}
@@ -204,3 +205,26 @@ unit_tests:
         - {data_center_hearing_id: tent, status: verified, tentative: true}
         - {data_center_hearing_id: lower, status: date_not_found, tentative: false}
         - {data_center_hearing_id: trk, status: unsourced, tentative: false}
+
+  # #968 review: a side that reached the page's edge is not trimmed (the date stays in the
+  # evidence), duplicate leads of one meeting collapse to the verified one, and a tracker
+  # lead's own topic text is never served.
+  - name: dc_hearing_evidence_edge_and_tracker_text
+    model: data_center_hearing
+    given:
+      - input: ref('int_data_center_hearing_lead')
+        rows:
+          - {lead_id: edge, meeting_key: k-edge, lead_rank: 1, meeting_date: '2026-12-07', jurisdiction_name: Testville, state_code: AL, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/h', lead_from: owner_list_1}
+          - {lead_id: dcf-x, meeting_key: k-dup, lead_rank: 1, meeting_date: '2026-12-01', jurisdiction_name: Dupville, state_code: AL, body_name: Council, topic: tracker words, source_kind: official, source_name: s, source_url: 'https://x.gov/blocked', lead_from: datacenterfights}
+          - {lead_id: sr-y, meeting_key: k-dup, lead_rank: 2, meeting_date: '2026-12-01', jurisdiction_name: Dupville, state_code: AL, body_name: Council, topic: tracker words, source_kind: official, source_name: s, source_url: 'https://x.gov/agenda', lead_from: sitingradar}
+      - input: source('bronze', 'bronze_data_center_hearing_source')
+        rows:
+          - {lead_id: edge, source_url: 'https://x.gov/h', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'Data center ordinance. Public hearing: December 7'}
+          - {lead_id: dcf-x, source_url: 'https://x.gov/blocked', content_type: null, fetched_at: '2026-11-25 00:00:00', page_text: null}
+          - {lead_id: sr-y, source_url: 'https://x.gov/agenda', content_type: text/html, fetched_at: '2026-11-25 00:00:00', page_text: 'Hearing on the data center moratorium, December 1, 2026.'}
+      - input: ref('jurisdictions')
+        rows: []
+    expect:
+      rows:
+        - {data_center_hearing_id: edge, topic: t, evidence: '<mark>Data center</mark> ordinance. Public hearing: December 7'}
+        - {data_center_hearing_id: sr-y, topic: null, evidence: 'Hearing on the <mark>data center</mark> moratorium, December 1, 2026.'}
