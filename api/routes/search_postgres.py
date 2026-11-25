@@ -512,8 +512,9 @@ async def search_persons_pg(
 
     - Deduplicates to one result per RESOLVED person (master_person_id), picking
       the best source occurrence.
-    - Matches names with trigram similarity (typo-tolerant; uses the
-      mdm_person_full_name_trgm_idx GIN index).
+    - Matches names with trigram similarity (typo-tolerant; uses the GIN
+      gin_trgm_ops index on mdm_person.full_name, declared in the model's
+      dbt `indexes` config under a generated name, #935).
     - Joins mdm_bridge_person_organization for the person's top org / title.
 
     Location scoping (city / jurisdiction_id) goes through the MDM

@@ -7,11 +7,11 @@
       {'columns': ['full_name gin_trgm_ops'], 'type': 'gin'}
     ],
     pre_hook=[
-      {'sql': "CREATE EXTENSION IF NOT EXISTS pg_trgm", 'transaction': false},
+      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
       "{{ swap_guard() }}"
     ],
     post_hook=[
-      {'sql': "{{ swap_guard_release() }}", 'transaction': false}
+      "{{ swap_guard_check() }}"
     ]
   )
 }}

@@ -28,7 +28,7 @@
     search_persons_pg) and the *_index_drops notes.
 
     An entry may carry `match`: a fragment of pg_get_indexdef(). Any index on the table whose
-    definition contains it counts as present, whatever its name. Models that declare the
+    definition contains it counts as present, whatever its name (valid, non-partial indexes only). Models that declare the
     index in their dbt `indexes` config (built before the swap, under a generated name; see
     swap_guard and non-blocking-table-rebuilds.md, #935) use this, so the backstop doesn't
     build a duplicate beside it.
@@ -62,7 +62,8 @@
     {%- if ix.match -%}
       {%- set present = run_query(
           "select 1 from pg_index i where i.indrelid = to_regclass('" ~ ix.rel ~ "') "
-          ~ "and position(lower('" ~ ix.match ~ "') in lower(pg_get_indexdef(i.indexrelid))) > 0 limit 1") -%}
+          ~ "and i.indisvalid and i.indpred is null "
+          ~ "and position(lower('" ~ (ix.match | replace("'", "''")) ~ "') in lower(pg_get_indexdef(i.indexrelid))) > 0 limit 1") -%}
     {%- else -%}
       {%- set present = run_query("select to_regclass('gold." ~ ix.name ~ "') as r") -%}
     {%- endif -%}

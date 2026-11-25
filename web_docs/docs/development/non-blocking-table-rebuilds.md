@@ -47,11 +47,11 @@ For a large `table` model:
       {'columns': ['full_name gin_trgm_ops'], 'type': 'gin'}   -- operator classes pass through as written
     ],
     pre_hook=[
-      {'sql': "CREATE EXTENSION IF NOT EXISTS pg_trgm", 'transaction': false},
+      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
       "{{ swap_guard() }}"
     ],
     post_hook=[
-      {'sql': "{{ swap_guard_release() }}", 'transaction': false}
+      "{{ swap_guard_check() }}"
     ]
   )
 }}
@@ -59,26 +59,35 @@ For a large `table` model:
 
 - **Indexes go in `indexes`, never in a post_hook.** dbt builds them on the tmp table before the swap, under a generated
   name, so they never collide with the backup's and never build under the lock.
-- **`swap_guard()`** (`dbt_project/macros/swap_guard.sql`) does two things:
-  - It takes a session advisory lock keyed on the relation, so a second build of the same model fails immediately with
+- **`swap_guard()`** (`dbt_project/macros/swap_guard.sql`) is an in-transaction pre-hook. It does three things:
+  - It sets `SET LOCAL lock_timeout = '10s'`, so a swap that can't get its lock rolls back fast (the old table keeps
+    serving) instead of queuing every reader.
+  - It takes `pg_try_advisory_xact_lock` on the relation, so a second build of the same model fails immediately with
     "swap_guard: another build of … is running".
-  - It sets `lock_timeout` (10s), so a swap that can't get its lock fails fast instead of queuing every reader.
-- **`swap_guard_release()`** resets `lock_timeout` and releases the advisory lock after the commit. If the build fails
-  first, both end when dbt closes the connection.
-- **Session scope, not `SET LOCAL`.** Measured on this dbt (1.13): a `SET LOCAL` from a hook was gone by the next
-  statement (a probe read `lock_timeout = 0`), and a transaction advisory lock is released just as fast. In the first
-  version of this fix that let a swap wait 365 seconds with readers queued behind it.
+  - It records the transaction id.
+
+  All of this ends at the swap's COMMIT, so none of it applies to the backup drop or to other models.
+- **`swap_guard_check()`** is an in-transaction post-hook that runs after the renames and before COMMIT. It fails the build
+  if the swap didn't run in the transaction `swap_guard()` started.
+- **No before-begin hooks** (`{'sql': ..., 'transaction': false}` in `pre_hook`) on these models. dbt sends a literal
+  `commit;` before those, and psycopg2 then never opens another transaction on that connection. Every later statement
+  autocommits, including the two renames, so they stop being atomic, and `SET LOCAL` and transaction locks end with
+  their own statement. The first version of this fix had one (for `CREATE EXTENSION`), and it cost two things:
+  - A reader caught between the renames got `relation "gold.mdm_person" does not exist`.
+  - `lock_timeout` never applied, so one swap waited 365 seconds with readers queued behind it.
+
+  `swap_guard_check()` now catches this. An after-commit post-hook (`'transaction': false` in `post_hook`) is harmless.
 - **`ensure_search_indexes`** finds an index by definition when its entry has a `match` key, so it counts the config index
-  (generated name) as present instead of building a duplicate.
+  (generated name) as present instead of building a duplicate. Only valid, non-partial indexes count.
 
 ## Measured on mdm_person (local warehouse, 25 Nov 2026)
 
 | Check | Result |
 |---|---|
-| Full rebuild (13.8M rows, ~3-4 min) with a reader querying every 0.5s | 338 reads, slowest 0.175s, none over 1s, no errors |
-| Trigram index after two consecutive builds | exactly one; `ensure_search_indexes` built nothing |
-| Second build started while one runs | refused in 0.09s ("another build … is running"); the first finished normally |
-| A reader transaction holds the table open through the swap | the swap gave up after 10s ("canceling statement due to lock timeout"); the slowest reader waited 9.95s; the old table kept serving; re-run the model afterwards |
+| Full rebuild (13.8M rows, ~5 min) with a reader querying every 0.1s | 2,812 reads, slowest 0.087s, none over 1s, no errors; `swap_guard_check` passed; nothing new in the Postgres log (no "does not exist", no "no transaction in progress") |
+| Trigram index after consecutive builds | exactly one; `ensure_search_indexes` built nothing |
+| Second build started during the first's index phase | refused in 0.12s ("another build … is running"); the first finished normally |
+| A reader transaction holds the table open through the swap | the swap rolled back after 10s ("canceling statement due to lock timeout"); 3,012 reads, slowest 11.5s, none errored; the old table kept serving all rows; no tmp or backup table and no advisory lock left behind; re-run the model afterwards |
 
 The cost is the timeout case: a build that can't swap within 10 seconds fails and must be re-run. That's the intended
 trade-off, since the alternative was freezing every reader for as long as the blocking query ran.
