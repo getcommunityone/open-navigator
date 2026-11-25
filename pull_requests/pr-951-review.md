@@ -5,7 +5,7 @@ title: "fix(web): open Data Stories on overview, not the question"
 author: jcbowyer
 reviewed_at: 2026-11-25
 reviewer: github-actions
-head_sha: 66db31cf84287669f588da8de1b507aa3a56f739
+head_sha: 03271c273a7fc2e26db57d56b876dd17126aaa04
 verdict: approve
 ---
 
@@ -28,7 +28,7 @@ Automated review (#648) for PR #951 on `fix/950-stories-overview-first`. Heurist
 
 ## CI Status
 
-See the PR checks on `66db31cf8428`.
+See the PR checks on `03271c273a7f`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
