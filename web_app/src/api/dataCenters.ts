@@ -35,6 +35,8 @@ export interface PositionQuote {
   /** The speaker's own words, verbatim from the transcript. */
   quote: string
   speaker_role?: string | null
+  /** "Audra T." (#1036): first name + last initial, or the first name only; null when no name was heard. */
+  speaker_display_name?: string | null
   jurisdiction_name?: string | null
   state_code?: string | null
   meeting_date?: string | null
@@ -47,12 +49,19 @@ export interface PositionQuote {
   match_basis?: 'data_center_decision' | 'data_center_item' | 'own_words' | 'same_item' | null
 }
 
+/** One state's speaker sums for the home box map (#1087); national, never narrowed by the scope. Generated type. */
+export type PositionStateCount = Schemas['PositionStateCount']
+
 export interface DataCenterPositionsResponse {
   scope: Schemas['JobClaimScope']
   /** False when the table is not in the database yet: every total is null, not zero. */
   available: boolean
   totals: PositionTotals
   quotes: { for: PositionQuote[]; against: PositionQuote[]; question: PositionQuote[] }
+  /** Speakers per state across the country (#1087); empty when the table isn't loaded. Optional for older servers. */
+  by_state?: PositionStateCount[]
+  /** National totals of Jev's meeting readings for the home hero (#1122); null when the lean table isn't loaded. */
+  lean_totals?: Schemas['LeanTotals'] | null
 }
 
 /** Public speakers for and against a data center item, questions asked and recorded votes, for the scope (#930). */
@@ -103,6 +112,56 @@ export interface DataCenterDecisionsResponse {
   available: boolean
   counts: { contested?: number | null; uncontested?: number | null; meetings?: number | null }
   items: DataCenterDecision[]
+}
+
+/** A data center hearing whose official government page states the date together with the data center item (#955). */
+export interface DataCenterHearing {
+  data_center_hearing_id: string
+  jurisdiction_id?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  state?: string | null
+  body_name?: string | null
+  topic?: string | null
+  meeting_date: string
+  /** The official page that states the hearing. */
+  source_url: string
+  source_name?: string | null
+  /** Verbatim excerpt of the official page; matched words in <mark>. */
+  evidence?: string | null
+  /** The page calls the date tentative, expected, not final or to be determined. */
+  tentative?: boolean
+  checked_at?: string | null
+  is_upcoming: boolean
+}
+
+export interface DataCenterHearingsResponse {
+  scope: Schemas['JobClaimScope']
+  /** False when the table is not loaded: counts are null, not zero. */
+  available: boolean
+  counts: { upcoming?: number | null; past?: number | null }
+  items: DataCenterHearing[]
+}
+
+/** Verified upcoming data center hearings for the scope, soonest first (#955). */
+export async function fetchDataCenterHearings(params: {
+  state?: string
+  city?: string
+  when?: 'upcoming' | 'past' | 'all'
+}): Promise<DataCenterHearingsResponse> {
+  const q: Record<string, string> = { when: params.when ?? 'upcoming' }
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.hearings.load',
+    async (span) => {
+      const res = await api.get<DataCenterHearingsResponse>('/data-centers/hearings', { params: q })
+      span.setAttribute('data_centers.hearings.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
 }
 
 /** Decisions on data center items for the scope, newest first, with whole-scope counts (#933). */

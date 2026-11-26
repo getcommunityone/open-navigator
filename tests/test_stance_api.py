@@ -195,6 +195,35 @@ def test_validate_pack_rejects_bad_packs():
         )
 
 
+def test_story_screen_and_speaker_lean_are_checked():
+    """#981: the screen a statement is asked on, and what agreeing lines up with among meeting speakers."""
+    good = {
+        "statement_id": "a", "version": 1, "order": 1, "category": "c", "statement": "s",
+        "chart": "concerns", "story_screen": "concerns", "speaker_lean": None,
+    }
+    base = {"pack_id": "p", "title": "t", "version": 1}
+    ok = stance.validate_pack(
+        {**base, "statements": [good, dict(good, statement_id="b", order=2, story_screen="jobs", speaker_lean="for")]}
+    )
+    assert [s["story_screen"] for s in ok["statements"]] == ["concerns", "jobs"]
+    with pytest.raises(stance.PackError, match="speaker_lean"):
+        stance.validate_pack({**base, "statements": [dict(good, speaker_lean="maybe")]})
+    with pytest.raises(stance.PackError, match="share a story_screen"):
+        stance.validate_pack({**base, "statements": [good, dict(good, statement_id="b", order=2)]})
+    with pytest.raises(stance.PackError, match="story_screen"):
+        stance.validate_pack({**base, "statements": [dict(good, story_screen="")]})
+
+
+def test_data_center_pack_maps_each_story_screen_once():
+    pack = stance.load_packs()["data-centers"]
+    by_screen = {s["story_screen"]: s for s in pack["statements"] if s.get("story_screen")}
+    assert set(by_screen) == {"sites", "projects", "jobs", "concerns", "meetings", "agendas", "gatherings"}
+    # A lean only where agreeing clearly lines up with one side of the meeting speakers.
+    assert {k: v["speaker_lean"] for k, v in by_screen.items() if v["speaker_lean"]} == {
+        "jobs": "for", "sites": "against", "projects": "for",
+    }
+
+
 # --- validation --------------------------------------------------------------
 
 

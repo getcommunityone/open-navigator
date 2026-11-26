@@ -5,13 +5,18 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  type TextMessagePartComponent,
 } from '@assistant-ui/react'
+import ChatMarkdown from './ChatMarkdown'
+
+/** Assistant text as formatted markdown: bold, lists and meeting links (#1011). */
+const AnswerText: TextMessagePartComponent = ({ text }) => <ChatMarkdown text={text} />
 
 function AssistantBubble() {
   return (
     <MessagePrimitive.Root className="flex justify-start">
-      <div className="max-w-[min(100%,40rem)] whitespace-pre-wrap rounded-2xl rounded-tl-md bg-slate-100 px-4 py-3 text-[15px] leading-relaxed text-slate-800">
-        <MessagePrimitive.Content />
+      <div className="max-w-[min(100%,40rem)] rounded-2xl rounded-tl-md bg-slate-100 px-4 py-3 text-[15px] leading-relaxed text-slate-800">
+        <MessagePrimitive.Content components={{ Text: AnswerText }} />
       </div>
     </MessagePrimitive.Root>
   )

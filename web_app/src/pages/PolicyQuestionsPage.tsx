@@ -25,6 +25,7 @@ import {
   type QuestionInstance,
 } from '../api/policyQuestions'
 import DecisionCardList from '../components/DecisionCardList'
+import JevQuestionReading from '../components/JevQuestionReading'
 import { highlightSnippet } from '../lib/highlight'
 import { themeLabel } from '../lib/themeLabel'
 import { companyMentionLabel, companyMentionLink } from '../lib/companyMention'
@@ -685,6 +686,9 @@ function QuestionDetailPanel({
                 ))}
               </ul>
             )}
+
+            {/* Jev's reading of meetings for this question (#1032). */}
+            <JevQuestionReading questionId={question.question_id} stateCode={stateCode} city={city} />
           </div>
 
           {/* Attractive drill-down — opens the full money & talk dashboard. */}

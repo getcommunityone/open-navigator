@@ -703,6 +703,16 @@ export default function CensusDrilldownStage({
 
         {/* place layer — cities, towns, CDPs filtered to the drilled-from
             county by centroid containment. Raw lng/lat → projectedPath. */}
+        {/* Places tier: the county's land, faintly, under its towns (#1001). Census places cover only incorporated towns
+            and CDPs, so without it the view is scattered shapes on white and reads as broken. */}
+        {view === 'place' && selectedCountyFeature ? (
+          <path
+            d={path(selectedCountyFeature as never) ?? ''}
+            pointerEvents="none"
+            style={{ fill: '#f1f5f9', stroke: 'none' }}
+          />
+        ) : null}
+
         {view === 'place' && placesInCounty ? (
           <g className="places-layer">
             {placesInCounty.map((f) => {
@@ -759,7 +769,7 @@ export default function CensusDrilldownStage({
           </g>
         ) : null}
 
-        {/* county outline for the place tier — same opt-in toggle as ZIP. */}
+        {/* county outline for the place tier — on by default here (#1001), off with the same toggle as ZIP. */}
         {view === 'place' && showCountyOutline && selectedCountyFeature ? (
           <path
             d={path(selectedCountyFeature as never) ?? ''}
@@ -876,6 +886,41 @@ export default function CensusDrilldownStage({
             })}
           </g>
         ) : null}
+
+        {/* County with no place polygons (#1095): label the county itself, in
+            the place-label style, so the view isn't a blank grey shape. Name
+            only — no value is implied. */}
+        {view === 'place' && selectedCountyFeature && !placesInCounty?.length
+          ? (() => {
+              const countyName = (selectedCountyFeature.properties as { name?: string } | null)?.name?.trim()
+              if (!countyName) return null
+              const c = path.centroid(selectedCountyFeature as never)
+              if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
+              const fontSize = 14 / zoomK
+              return (
+                <text
+                  className="county-name-label"
+                  x={c[0]}
+                  y={c[1]}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  pointerEvents="none"
+                  style={{
+                    fontSize,
+                    fontFamily: 'inherit',
+                    fontWeight: 600,
+                    fill: '#0f172a',
+                    stroke: '#ffffff',
+                    strokeWidth: fontSize * 0.32,
+                    strokeLinejoin: 'round',
+                    paintOrder: 'stroke',
+                  }}
+                >
+                  {countyName}
+                </text>
+              )
+            })()
+          : null}
 
         {/* county outline (opt-in) — draw the drilled-from county's boundary
             over the ZCTAs so the user can see which ZIPs fall in/near it.

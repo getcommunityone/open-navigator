@@ -33,7 +33,9 @@ from api.routes.search_postgres import (
 router = APIRouter(prefix="/chat", tags=["chat"])
 tracer = trace.get_tracer(__name__)
 
+# Per signed-in user (#1049): the chat requires sign-in, and each user is one bucket across devices.
 _RATE_PER_HOUR = int(os.environ.get("CHAT_RATE_PER_HOUR", "60"))
+_USER_PER_DAY = int(os.environ.get("CHAT_USER_PER_DAY", "200"))
 _BURST_PER_5MIN = int(os.environ.get("CHAT_BURST_PER_5MIN", "20"))
 _MIN_INTERVAL_SECONDS = float(os.environ.get("CHAT_MIN_INTERVAL_SECONDS", "2"))
 _DAILY_SPEND_CAP_USD = float(os.environ.get("CHAT_DAILY_SPEND_CAP_USD", "1.0"))
@@ -45,6 +47,7 @@ _FIVE_MIN = 300.0
 
 _visitor_timestamps: Dict[str, List[float]] = {}
 _visitor_last: Dict[str, float] = {}
+_visitor_daily: Dict[str, Dict[str, int]] = {}  # utc day -> visitor -> messages
 _spend_by_utc_day: Dict[str, float] = {}
 
 
@@ -52,6 +55,7 @@ def clear_chat_rate_limits() -> None:
     """Test helper: reset in-memory rate / spend state."""
     _visitor_timestamps.clear()
     _visitor_last.clear()
+    _visitor_daily.clear()
     _spend_by_utc_day.clear()
 
 
@@ -104,13 +108,30 @@ class MeetingContext:
     summary: str
 
 
+def _signed_in_user_id(request: Request) -> Optional[str]:
+    """The user id in a valid sign-in token (no database read), else None. A bad or expired token counts as a guest."""
+    auth = request.headers.get("authorization") or ""
+    if not auth.lower().startswith("bearer "):
+        return None
+    try:
+        from api.auth import decode_access_token
+
+        sub = decode_access_token(auth[7:].strip()).get("sub")
+    except Exception:  # noqa: BLE001 — any invalid token is simply not signed in
+        return None
+    return str(sub) if sub not in (None, "") else None
+
+
 def _visitor_key(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for") or ""
-    ip = (forwarded.split(",")[0].strip() if forwarded else None) or (
-        request.client.host if request.client else "unknown"
-    )
-    cookie = request.cookies.get("on_chat_sid") or ""
-    return hashlib.sha256(f"{ip}|{cookie}".encode()).hexdigest()[:32]
+    """Who a chat message counts against (#1049): ``user:<id>``. The chat requires sign-in, so no token is a 401."""
+    user_id = _signed_in_user_id(request)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in to use the meeting chat.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return f"user:{user_id}"
 
 
 def _check_rate_limit(visitor: str) -> None:
@@ -130,6 +151,16 @@ def _check_rate_limit(visitor: str) -> None:
             _visitor_timestamps.pop(k, None)
             _visitor_last.pop(k, None)
 
+    day = _utc_day_key()
+    for k in [k for k in _visitor_daily if k != day]:
+        _visitor_daily.pop(k, None)
+    today = _visitor_daily.setdefault(day, {})
+    if today.get(visitor, 0) >= _USER_PER_DAY:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Daily chat limit reached. Try again tomorrow.",
+        )
+
     history = [t for t in _visitor_timestamps.get(visitor, []) if now - t < _HOUR]
     if len(history) >= _RATE_PER_HOUR:
         raise HTTPException(
@@ -146,6 +177,7 @@ def _check_rate_limit(visitor: str) -> None:
     history.append(now)
     _visitor_timestamps[visitor] = history
     _visitor_last[visitor] = now
+    today[visitor] = today.get(visitor, 0) + 1
 
 
 def _utc_day_key() -> str:
@@ -454,13 +486,21 @@ async def load_segments_for_video(video_id: str) -> List[TranscriptCue]:
     return _coerce_segments(row["segments"])
 
 
+# Bumped whenever the system prompts below change (AGENTS.md, "Version and test it").
+# 2026-11-25.1 (#1011): brief Markdown answers, one lead sentence + at most 6 linked bullets.
+CHAT_PROMPT_VERSION = "2026-11-25.1"
+
 _SYSTEM_SUMMARIES = """You answer questions about local government meetings using ONLY the meeting summaries provided.
 Rules:
 - Base every claim on those summaries. If they do not cover the question, say you found nothing relevant in the meetings provided.
-- Cite meetings by title, place, and date for each substantive point.
 - Never invent dollar amounts, vote counts, or other figures that are not in the summaries.
-- Keep the answer concise (a few short paragraphs).
-- Respond as plain text (no JSON wrapper).
+- Be brief. Format in Markdown, exactly like this:
+  - One short lead sentence that answers the question.
+  - Then at most 6 bullets, one per place or meeting, each one sentence:
+    `- **Place, State**: what happened ([Meeting title, YYYY-MM-DD](Link))`, using that meeting's Link exactly.
+  - No headings, no tables, no closing summary.
+- Cite only meetings that are provided; every bullet links its meeting.
+- No JSON wrapper.
 """
 
 _SYSTEM_PASSAGES = """You answer using ONLY the transcript passages provided from one meeting.
@@ -468,7 +508,7 @@ Rules:
 - Quote or paraphrase only from those passages; cite the timestamps when useful.
 - If the passages do not answer the question, say so clearly.
 - Never invent figures or quotes that are not in the passages.
-- Keep the answer concise. Plain text only.
+- Be brief: one short lead sentence, then at most 5 bullets ("- "), with **bold** for the key point. No headings.
 """
 
 
@@ -654,7 +694,6 @@ def _log_zero_result(question: str, *, mode: str, filters: dict) -> None:
 async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeetingsResponse:
     with tracer.start_as_current_span("chat.meetings") as span:
         visitor = _visitor_key(request)
-        span.set_attribute("chat.visitor", visitor)
         _check_rate_limit(visitor)
         _check_spend_cap()
 

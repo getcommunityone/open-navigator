@@ -17,6 +17,7 @@ interface Props {
 
 const toPassage = (q: PositionQuote): Passage => ({
   quote: q.quote,
+  speakerName: q.speaker_display_name ?? null,
   speakerRole: q.speaker_role,
   jurisdictionName: [q.jurisdiction_name, q.state_code].filter(Boolean).join(', '),
   meetingDate: q.meeting_date,
@@ -41,7 +42,7 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
       </p>
     )
   }
-  const figures = positionFigures(data)
+  const figures = positionFigures(data, scope)
   if (!figures || !positionsLoaded(data)) {
     return (
       <p className="stance-note stance-voices-off" data-testid="positions-off">

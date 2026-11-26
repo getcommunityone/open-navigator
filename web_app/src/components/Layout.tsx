@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { XMarkIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
+import SiteFooter from './SiteFooter'
 import SiteHeader from './SiteHeader'
 
 export default function Layout() {
@@ -43,6 +44,7 @@ export default function Layout() {
         <main className="flex min-h-0 flex-1 flex-col">
           <Outlet />
         </main>
+        <SiteFooter />
       </div>
     </div>
   )

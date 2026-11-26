@@ -1973,7 +1973,7 @@ export default function MoneyGameModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
+              <Dialog.Panel className="relative flex max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
                 {/* Close button — pinned to the panel, outside the scroll area. */}
                 <button
                   type="button"

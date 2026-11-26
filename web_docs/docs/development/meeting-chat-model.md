@@ -41,6 +41,25 @@ and then adds nothing to the daily total.
 
 `CHAT_DAILY_SPEND_CAP_USD` (default 1.00) still stops the chat for the day once the estimates add up to it.
 
+## Sign-in and limits per person
+
+The chat requires sign-in ([#1049](https://github.com/getcommunityone/open-navigator/issues/1049)). It is a paid model
+call, so the API answers a request without a valid sign-in token with 401 ("Sign in to use the meeting chat."), and it
+never reaches the model. The chat page shows **Continue with Google / Facebook / GitHub** to a visitor who isn't
+signed in, and sign-in returns them to the same chat URL, place filter included.
+
+Each signed-in user is throttled as one person across all their devices. The counters are kept in the API process's
+memory, so they reset when it restarts.
+
+| Variable | Limit per signed-in user | Default |
+|---|---|---|
+| `CHAT_RATE_PER_HOUR` | per hour | 60 |
+| `CHAT_USER_PER_DAY` | per UTC day | 200 |
+| `CHAT_BURST_PER_5MIN` | per 5 minutes | 20 |
+| `CHAT_MIN_INTERVAL_SECONDS` | between messages | 2 |
+
+`CHAT_DAILY_SPEND_CAP_USD` still applies to the whole site. Telemetry doesn't record the user id.
+
 ## When it fails
 
 The API log line `chat model call failed (<error type>): …` names the cause:
@@ -95,12 +114,12 @@ per meeting per term and took about a minute on the live site, longer than the p
 no stored search column, so each wider step builds one per meeting when it runs; a stored `tsvector` column with a GIN
 index is the next step if a few seconds is still too slow.
 
-## Chat and Contact are one header item (#860)
+## Chat and Contact (#860 / #952)
 
-The site header has a single "Chat & Contact" item that opens `/chat`. The top of the chat panel says the chat
-answers from meeting records and offers a "Contact us" email link for reaching a person. The link's address is
-`CONTACT_EMAIL` in `web_app/src/utils/contact.ts`, which the older `/support` page also uses; that page stays for
-existing links.
+"Chat & Contact" opens `/chat`. It lives in the **profile menu** (signed-in) and the **site footer**, not the
+primary header nav (#952). The top of the chat panel says the chat answers from meeting records and offers a
+"Contact us" email link for reaching a person. The link's address is `CONTACT_EMAIL` in
+`web_app/src/utils/contact.ts`, which the older `/support` page also uses; that page stays for existing links.
 
 ## Closing the chat (#879)
 

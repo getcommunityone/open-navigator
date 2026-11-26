@@ -35,6 +35,15 @@ if [ -z "$HF_DEPLOY_ISOLATED" ]; then
         GIT_LFS_SKIP_SMUDGE=1 git clone --quiet --local "$SRC_ROOT" "$CLONE_DIR"
         # Carry over gitignored .env so HF_USERNAME / HF_TOKEN are available in the clone.
         [ -f "$SRC_ROOT/.env" ] && cp "$SRC_ROOT/.env" "$CLONE_DIR/.env"
+        # Carry over the gitignored, GENERATED static map data the SPA fetches at /data/* (#948).
+        # A fresh clone has none of it, so without this the force-add step below found no
+        # directory and the deploy shipped gray maps ("No map data available"). Hard links:
+        # instant and no extra disk; fall back to a plain copy across filesystems.
+        if [ -d "$SRC_ROOT/web_app/public/data" ]; then
+            mkdir -p "$CLONE_DIR/web_app/public"
+            cp -al "$SRC_ROOT/web_app/public/data" "$CLONE_DIR/web_app/public/data" 2>/dev/null \
+                || cp -a "$SRC_ROOT/web_app/public/data" "$CLONE_DIR/web_app/public/data"
+        fi
         cd "$CLONE_DIR"
         set +e
         # The throwaway clone has no .venv, so the child can't `source
@@ -380,9 +389,18 @@ git add web_app/ web_docs/
 # /data/*.json request, the frontend's fetch().json() chokes on HTML, and maps render
 # with NO shading. Force-staging here is the fix. All files are JSON < 10 MiB, so the
 # oversized/binary drop passes below leave them intact.
-if [ -d web_app/public/data ]; then
+if [ -f web_app/public/data/census-map/manifest.json ]; then
     echo "🗺️  Force-adding web_app/public/data (gitignored static map data)..."
     git add -f web_app/public/data/
+elif [ "${HF_DEPLOY_ALLOW_NO_MAP_DATA:-}" = "1" ]; then
+    echo "⚠️  No web_app/public/data/census-map/manifest.json: deploying WITHOUT map data (HF_DEPLOY_ALLOW_NO_MAP_DATA=1)."
+else
+    # #948: a deploy without this data succeeds but leaves every census map gray in production.
+    echo "❌ ERROR: web_app/public/data/census-map/manifest.json is missing in the deploying checkout."
+    echo "   The census map data is generated, not stored in git. Create it, then deploy again:"
+    echo "     python -m ingestion.census.export_census_map_static --all-years"
+    echo "   (or set HF_DEPLOY_ALLOW_NO_MAP_DATA=1 to deploy without maps on purpose)"
+    exit 1
 fi
 
 # Verify node_modules are NOT staged

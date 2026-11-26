@@ -91,7 +91,7 @@ Unique on `(player_id, pack_id, statement_id)`. Index on `(pack_id, statement_id
 
 ## Update, November 24, 2026
 
-The game screens were built in #852 (`/play/data-centers`; guide: [Data Center Challenge](../guides/data-center-challenge.md)).
+The game screens were built in #852 (`/play/data-centers`; guide: [Data Center Challenge](./archive/data-center-challenge.md)).
 Still not done: more topic packs, login-linked answers, and the charts of stance by speaker, which wait for the
 public comment data to be loaded.
 
@@ -104,7 +104,7 @@ the query string. A new family of scrolling **data stories** lives at `/stories`
 (`web_app/src/components/stance/useActs.ts`, which the challenge and the story share). The challenge's headers no longer carry
 numbers ("Round 1 of 8", "01 / 08" are gone): the category word is the header, and each screen ends with **Continue to ...**
 and, after the first, **Back**. Guide: [Data stories](../guides/data-stories.md) and
-[Data Center Challenge](../guides/data-center-challenge.md).
+[Data Center Challenge](./archive/data-center-challenge.md).
 
 On November 24, 2026 the owner set the rule that a challenge statement must sit beside a chart built from meeting recordings or
 transcripts. Two statements (`enough-already`, `near-homes-ok`) were re-paired with the concerns chart, and "Tax breaks for data

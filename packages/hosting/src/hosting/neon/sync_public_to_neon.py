@@ -199,6 +199,8 @@ CIVIC_SERVING = frozenset(
         "browse_directory_summary",
         "browse_transcript_count",
         "browse_entity_state_transcript_count",
+        # /api/topics reads it for a place's counts and 503s on prod without it (#1007). ~6.7 MB.
+        "browse_entity_place_transcript_count",
         # meeting-grain browse + topic/question linkage (Browse Topics/Questions)
         "meeting_browse",
         "meeting_question_link",
@@ -238,6 +240,7 @@ CIVIC_SERVING = frozenset(
         "data_center_meeting_position",
         "data_center_public_comment",
         "data_center_decision",
+        "data_center_hearing_verified",
         # question dashboard: place label, company named, nearby tracked site (#508), ~0.5 MB (#528)
         "decision_place_label",
         "decision_company_mention",
@@ -245,6 +248,23 @@ CIVIC_SERVING = frozenset(
         # data center companies (MDM satellite) and projects with their companies,
         # governments, figures and matched decisions / passages (#531)
         "mdm_organization_data_center",
+        # data center payroll jobs (BLS QCEW 518210) and the job sites cited with them (#1019); small
+        "data_center_employment",
+        "data_center_job_source",
+        # Jev's reading of meetings for the data center / short-term rental questions, with passages (#1032)
+        "meeting_policy_question_jev",
+        # short-term rental platform companies (MDM satellite) and where they are named (#1015); small
+        "mdm_organization_short_term_rental",
+        "short_term_rental_company_mention",
+        # the companies each topic names and where they are named (#1052); small
+        "topic_company",
+        "topic_company_mention",
+        # grants from the foundations tied to tracked companies, 990 amounts as filed (#1073); ~0.2 MB
+        "company_grant",
+        # office terms: who held which seat, when, and why they left (#1068); small
+        "person_government_term",
+        # Jev's reading of each data center meeting: public lean, official lean, the two map flags (#1117); small
+        "data_center_meeting_lean",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

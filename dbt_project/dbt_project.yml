@@ -26,6 +26,10 @@ on-run-start:
   - "{{ ensure_event_partitions('gold.event_topic') }}"
   - "{{ ensure_event_partitions('gold.event_bill') }}"
   - "{{ ensure_event_partitions('gold.event_organization') }}"
+  # bronze tables the data center hearing marts read; empty until the loaders run (#956)
+  - "{{ ensure_data_center_hearing_tables() }}"
+  # bronze tables of the open data center inventories; empty until the loader runs (#958)
+  - "{{ ensure_data_center_inventory_tables() }}"
 
 # Rebuild-proof the /search performance indexes. Models declare them in their dbt `indexes`
 # config (#938; built before the swap). If one still goes missing, its text-search leg

@@ -63,6 +63,15 @@ def _reset_limits(monkeypatch):
     chat.clear_chat_rate_limits()
 
 
+def _token(sub: str = "1") -> str:
+    from api.auth import create_access_token
+
+    return create_access_token({"sub": sub})
+
+
+_SIGNED_IN = {"Authorization": f"Bearer {_token()}"}
+
+
 @pytest.fixture
 def post(monkeypatch):
     def _post(
@@ -71,6 +80,7 @@ def post(monkeypatch):
         *,
         llm_text: str = "Based on the Madison meeting summary, …",
         llm: Any = None,
+        headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         async def pool():
             return _Pool(conn)
@@ -89,7 +99,8 @@ def post(monkeypatch):
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url="http://t"
             ) as c:
-                return await c.post(PATH, json=body)
+                # The chat requires sign-in (#1049): a signed-in user unless a test passes its own headers.
+                return await c.post(PATH, json=body, headers=_SIGNED_IN if headers is None else headers)
 
         return asyncio.run(go())
 
@@ -382,3 +393,57 @@ def test_the_combined_text_query_uses_parameter_numbers_only():
         "(plainto_tsquery('english', $3) && plainto_tsquery('english', $4))"
     )
     assert chat._chat_terms_tsquery_sql(1, 1, every=False) == "(plainto_tsquery('english', $1))"
+
+
+def _request(headers: dict[str, str] | None = None, ip: str = "203.0.113.7"):
+    from starlette.requests import Request
+
+    raw = [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()]
+    return Request({"type": "http", "headers": raw, "client": (ip, 1234), "method": "POST", "path": "/"})
+
+
+def test_visitor_key_is_the_user_when_signed_in() -> None:
+    """#1049: a signed-in user is one bucket, whatever device or cookie."""
+    token = _token("42")
+    a = chat._visitor_key(_request({"Authorization": f"Bearer {token}"}, ip="198.51.100.1"))
+    b = chat._visitor_key(_request({"Authorization": f"Bearer {token}", "Cookie": "on_chat_sid=x"}, ip="198.51.100.2"))
+    assert a == b == "user:42"
+
+
+def test_chat_requires_sign_in(post) -> None:
+    """#1049: no token, or a bad one, is a 401 and never reaches the model."""
+    conn = _Conn(rows=[_meeting_row()])
+    calls = {"n": 0}
+
+    def llm(system, user):
+        calls["n"] += 1
+        return ("x", "m", 1, 1, 0.0)
+
+    r = post(conn, {"question": "budget"}, headers={}, llm=llm)
+    assert r.status_code == 401 and "Sign in" in r.json()["detail"]
+    assert post(conn, {"question": "budget"}, headers={"Authorization": "Bearer not-a-token"}, llm=llm).status_code == 401
+    assert calls["n"] == 0
+
+
+def test_hourly_limit_per_user(monkeypatch) -> None:
+    monkeypatch.setattr(chat, "_MIN_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr(chat, "_BURST_PER_5MIN", 100)
+    monkeypatch.setattr(chat, "_RATE_PER_HOUR", 2)
+    chat._check_rate_limit("user:1")
+    chat._check_rate_limit("user:1")
+    with pytest.raises(chat.HTTPException) as e:
+        chat._check_rate_limit("user:1")
+    assert e.value.status_code == 429 and "Hourly" in e.value.detail
+    chat._check_rate_limit("user:2")
+
+
+def test_daily_cap_per_visitor(monkeypatch) -> None:
+    monkeypatch.setattr(chat, "_MIN_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr(chat, "_BURST_PER_5MIN", 100)
+    monkeypatch.setattr(chat, "_USER_PER_DAY", 2)
+    chat._check_rate_limit("user:7")
+    chat._check_rate_limit("user:7")
+    with pytest.raises(chat.HTTPException) as e:
+        chat._check_rate_limit("user:7")
+    assert "Daily" in e.value.detail
+    chat._check_rate_limit("user:8")  # someone else is unaffected

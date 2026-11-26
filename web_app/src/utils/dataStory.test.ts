@@ -5,10 +5,10 @@ import {
   SPEAKERS_NOT_RECORDED,
   STORY_CHARTS,
   VOTES_NOT_RECORDED,
-  challengePath,
   chartScopeLabel,
   contextSourceFor,
   landConcernNote,
+  overviewLean,
   positionFigures,
   positionsCaption,
   scopeQuery,
@@ -80,12 +80,11 @@ const ready: StoryStatus = Object.fromEntries(STORY_CHARTS.map((k) => [k, 'ready
 const BANNED = /\b(because|due to|driven by|good|bad|worrying|best|worst|should|problem|crisis|hates?|loves?|will|expected|likely)\b/i
 
 describe('story structure', () => {
-  it('opens on the question, then the place, and ends on the question again; a header is never a number', () => {
+  it('opens on overview, then voices, and ends on the question; a header is never a number', () => {
     expect(DATA_CENTER_STORY.map((s) => s.id)).toEqual([
-      'question',
-      'scope',
-      'voices',
       'overview',
+      'voices',
+      'scope',
       'sites',
       'projects',
       'jobs',
@@ -96,8 +95,9 @@ describe('story structure', () => {
       'gatherings',
       'verdict',
     ])
-    expect(DATA_CENTER_STORY.slice(0, 2).map((s) => s.kind)).toEqual(['question', 'scope'])
+    expect(DATA_CENTER_STORY.slice(0, 2).map((s) => s.kind)).toEqual(['overview', 'chart'])
     expect(DATA_CENTER_STORY[DATA_CENTER_STORY.length - 1]!.kind).toBe('verdict')
+    expect(DATA_CENTER_STORY.some((s) => s.id === 'question')).toBe(false)
     for (const s of DATA_CENTER_STORY) expect(s.eyebrow).toMatch(/^[A-Za-z]/)
     expect(new Set(DATA_CENTER_STORY.map((s) => s.id)).size).toBe(DATA_CENTER_STORY.length)
   })
@@ -106,24 +106,27 @@ describe('story structure', () => {
 describe('the screens around the record', () => {
   const q = { text: 'Should we allow new data centers?', place_text: 'Should {place} allow new data centers?' }
   const at = (id: string) => DATA_CENTER_STORY.find((s) => s.id === id)!
+  const legacyQuestion = { id: 'question', eyebrow: 'The question', chart: null, kind: 'question' as const }
   it('word the question for the place in scope', () => {
-    expect(screenText(at('question'), {}, {}, nat, q).headline).toBe('Should we allow new data centers?')
-    expect(screenText(at('question'), {}, {}, tus, q).headline).toBe('Should Tuscaloosa allow new data centers?')
+    expect(screenText(legacyQuestion, {}, {}, nat, q).headline).toBe('Should we allow new data centers?')
+    expect(screenText(legacyQuestion, {}, {}, tus, q).headline).toBe('Should Tuscaloosa allow new data centers?')
     expect(screenText(at('verdict'), {}, {}, al, q).headline).toBe("You've seen the record. Where do you stand now?")
     expect(screenText(at('verdict'), {}, {}, al, q).context).toBe('Should Alabama allow new data centers?')
     expect(screenText(at('scope'), {}, {}, nat, q).headline).toBe('Where?')
   })
   it('state no number and no question that was not loaded', () => {
-    for (const id of ['question', 'scope', 'verdict']) {
-      const t = screenText(at(id), {}, {}, nat)
+    for (const screen of [legacyQuestion, at('scope'), at('verdict')]) {
+      const t = screenText(screen, {}, {}, nat)
       expect(`${t.headline} ${t.context}`).not.toMatch(/\d/)
       expect(t.empty || t.failed).toBe(false)
     }
-    expect(screenText(at('question'), {}, {}, nat).headline).toBe('The question')
+    expect(screenText(legacyQuestion, {}, {}, nat).headline).toBe('The question')
   })
   it('finds a screen by its id, and an old link by the screen that replaced it', () => {
-    expect(storyScreenIndex(DATA_CENTER_STORY, 'question')).toBe(0)
-    expect(storyScreenIndex(DATA_CENTER_STORY, 'scope')).toBe(1)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'overview')).toBe(0)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'question')).toBe(0) // alias → overview (#950)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'voices')).toBe(1)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'scope')).toBe(2)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'verdict')).toBe(DATA_CENTER_STORY.length - 1)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'turn')).toBe(DATA_CENTER_STORY.length - 1)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'nope')).toBe(-1)
@@ -223,8 +226,8 @@ describe('empty, loading and failed screens', () => {
 describe('who spoke up', () => {
   const voices = DATA_CENTER_STORY.find((s) => s.id === 'voices')!
   const value = (res: never, key: string) => positionFigures(res)!.find((f) => f.key === key)!
-  it('comes right after the question and the place, and reads the positions data', () => {
-    expect(DATA_CENTER_STORY.indexOf(voices)).toBe(2)
+  it('comes right after the overview, and reads the positions data', () => {
+    expect(DATA_CENTER_STORY.indexOf(voices)).toBe(1)
     expect(voices.chart).toBe('positions')
     expect(voices.eyebrow).toBe('Who spoke up')
     expect(STORY_CHARTS).toContain('positions')
@@ -253,10 +256,14 @@ describe('who spoke up', () => {
     // the screen's line states no vote count; the figures carry "not recorded" and the reason
     expect(screenText(voices, { positions: res }, ready, al).context).toBe('2 more took no side. How often does it come up?')
   })
-  it('speakers with no public comment on record are not recorded; a real zero beside real counts stays zero', () => {
+  it('reviewed meetings with no speaker are a real 0, said plainly; nothing reviewed is not recorded (#1059)', () => {
     const none = positions({ speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0 })
-    for (const k of ['for', 'against', 'question']) expect(value(none, k)).toMatchObject({ value: null, reason: SPEAKERS_NOT_RECORDED })
+    const f = positionFigures(none, al)!
+    for (const k of ['for', 'against', 'question'])
+      expect(f.find((x) => x.key === k)).toMatchObject({ value: 0, reason: 'None of the 9 meetings reviewed in Alabama had a public speaker on a data center item.' })
     expect(value(none, 'votes_for').value).toBe(9)
+    const unreviewed = positions({ meetings_reviewed: 0, speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0 })
+    for (const k of ['for', 'against', 'question']) expect(value(unreviewed, k)).toMatchObject({ value: null, reason: SPEAKERS_NOT_RECORDED })
     expect(value(positions({ speakers_for: 0 }), 'for')).toMatchObject({ value: 0, reason: null })
   })
   it('gives no figures, and one quiet line, while the table is not loaded', () => {
@@ -324,10 +331,10 @@ describe('stats and links', () => {
   })
   it('keeps a state-level count honest under a city scope', () => {
     const state = storyStats(full, al)
-    expect(state.find((s) => s.key === 'sites')!.label).toBe('data center sites on record, from Epoch AI')
+    expect(state.find((s) => s.key === 'sites')!.label).toBe('data center sites on record, from Epoch AI and the US Data Center Registry')
     expect(statsScopeNote(state, al)).toBe('Counts for Alabama.')
     const city = storyStats(full, tus)
-    expect(city.find((s) => s.key === 'sites')!.label).toBe('data center sites on record in Alabama, from Epoch AI')
+    expect(city.find((s) => s.key === 'sites')!.label).toBe('data center sites on record in Alabama, from Epoch AI and the US Data Center Registry')
     expect(city.find((s) => s.key === 'meetings')!.label).toBe('meetings where a data center came up')
     expect(statsScopeNote(city, tus)).toContain('except sites')
     expect(statsScopeNote(city, tus)).toContain('Tuscaloosa, Alabama')
@@ -339,7 +346,6 @@ describe('stats and links', () => {
     expect(scopeQuery(tus)).toBe('?state=AL&city=Tuscaloosa')
     expect(scopeQuery(al)).toBe('?state=AL')
     expect(scopeQuery(nat)).toBe('')
-    expect(challengePath('data-centers', tus)).toBe('/challenge/data-centers?state=AL&city=Tuscaloosa')
     expect(storyScopeLabel(nat)).toBe('National')
     expect(storyScopeLabel(tus)).toBe('Tuscaloosa, Alabama')
   })
@@ -359,5 +365,36 @@ describe('decisions screen when the table is not loaded (#933)', () => {
     expect(t.context).toBe(DECISIONS_NOT_LOADED)
     expect(t.empty).toBe(false)
     expect(t.failed).toBe(false)
+  })
+})
+
+describe('overview headline at a place (#1115)', () => {
+  const overview = DATA_CENTER_STORY.find((s) => s.id === 'overview')!
+  const withSpeakers = (f: number, a: number, q = 0, n = 0): StoryData => ({
+    ...full,
+    positions: positions({ speakers_for: f, speakers_against: a, speakers_question: q, speakers_neutral: n }),
+  })
+  it('says the place pushed back when two thirds or more spoke against', () => {
+    const t = screenText(overview, withSpeakers(1, 11), ready, al)
+    expect(t.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
+    expect(t.context).toBe('A data center came up in 3 meetings. First, where are they?')
+  })
+  it('says the place welcomed them when two thirds or more spoke for', () => {
+    expect(screenText(overview, withSpeakers(8, 2, 2), ready, tus).headline).toBe(
+      'Tuscaloosa, Alabama welcomed data centers: 8 of 12 speakers spoke for them.',
+    )
+  })
+  it('says the place was split otherwise (the full fixture: 6 for, 14 against of 26)', () => {
+    expect(screenText(overview, full, ready, al).headline).toBe('Alabama was split: 6 spoke for and 14 against data centers.')
+  })
+  it('keeps the neutral count below the national minimum of speakers', () => {
+    const t = screenText(overview, withSpeakers(0, 9), ready, al)
+    expect(t.headline).toBe('A data center came up in 3 meetings in Alabama.')
+    expect(t.context).toBe('First, where are they?')
+    expect(overviewLean(withSpeakers(0, 9).positions as never, 'Alabama')).toBeNull()
+    expect(overviewLean(positions({}, false), 'Alabama')).toBeNull()
+  })
+  it('keeps the neutral count nationally', () => {
+    expect(screenText(overview, withSpeakers(1, 11), ready, nat).headline).toBe('A data center came up in 3 meetings nationally.')
   })
 })

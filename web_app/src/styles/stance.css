@@ -205,10 +205,36 @@
 }
 .stance-act {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   padding: 24px 44px 32px 16px;
   scroll-margin-top: calc(var(--hdr) + var(--top-h));
   border-bottom: 1px solid var(--rule);
+}
+.stance-stop {
+  min-height: calc(100svh - var(--hdr, 0px) - var(--top-h, 96px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 0 24px;
+  scroll-margin-top: calc(var(--hdr) + var(--top-h));
+}
+.stance-answers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(100%, 28rem);
+  margin-top: 1.5rem;
+}
+.stance-answers-stack .folio-btn {
+  min-height: 52px;
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  font-size: 16px;
+  font-weight: 600;
 }
 .stance-game[data-mode='pinned'] .stance-act {
   height: calc(100svh - var(--hdr) - var(--top-h));
@@ -581,73 +607,6 @@
   padding-left: 1.1rem;
 }
 
-/* Progress rail */
-.stance-rail {
-  position: fixed;
-  right: 6px;
-  top: 50%;
-  z-index: 30;
-  transform: translateY(-50%);
-  width: 24px;
-  height: min(52svh, 340px);
-}
-.stance-rail-line {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--rule);
-}
-.stance-rail-fill {
-  display: block;
-  width: 100%;
-  height: calc(var(--progress, var(--fallback, 0)) * 100%);
-  background: var(--ink);
-}
-.stance-rail ol {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-}
-.stance-rail-stop {
-  display: block;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  margin: -6px 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  position: relative;
-}
-.stance-rail-stop::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 11px;
-  height: 11px;
-  margin: -5.5px 0 0 -5.5px;
-  background: var(--paper);
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-  transition: transform var(--d-2) var(--ease-out), background-color var(--d-2) var(--ease-std);
-}
-.stance-rail-stop.is-answered::before {
-  background: var(--violet-ink);
-}
-.stance-rail-stop.is-active::before {
-  transform: scale(1.5);
-  background: var(--ink);
-}
 
 @media (min-width: 768px) {
   .stance-game[data-mode='stacked'] .stance-grid {
@@ -724,8 +683,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .stance-answer,
-  .stance-rail-stop::before {
+  .stance-answer {
     transition: none !important;
   }
   .stance-answer:hover:not(:disabled) {
@@ -918,6 +876,16 @@ a.stance-dot {
 .stance-nav {
   align-items: center;
 }
+/* #964: Back at the left, the primary Next at the right (like the hub's Start the story), on every screen width. */
+.stance-nav-split {
+  width: 100%;
+  justify-content: space-between;
+}
+.stance-nav-split .stance-next-end {
+  margin-left: auto;
+  min-width: 132px;
+  justify-content: center;
+}
 .stance-back {
   border-color: transparent;
   color: var(--ink-2);
@@ -984,8 +952,7 @@ a.stance-dot {
 .stance-link-card:focus-visible,
 .stance-next:focus-visible,
 .stance-back:focus-visible,
-.stance-dot:focus-visible,
-.stance-rail-stop:focus-visible {
+.stance-dot:focus-visible {
   outline: 3px solid var(--violet-ink);
   outline-offset: 2px;
 }
@@ -1004,10 +971,16 @@ a.stance-dot {
 }
 .stories-title {
   margin: 0;
-  font-size: clamp(40px, 6vw, 80px);
+  /* Keep the place/topic sentence to two lines (#954); shorter type so Start fits the first viewport (#962). */
+  font-size: clamp(22px, 3vw, 36px);
   font-weight: 300;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-wrap: balance;
 }
 .stories-scope {
   display: flex;
@@ -1036,10 +1009,37 @@ a.stance-dot {
 }
 .stories-card-title {
   margin: 0;
-  font-size: clamp(28px, 3.4vw, 44px);
+  font-size: clamp(18px, 2.2vw, 26px);
   font-weight: 300;
   letter-spacing: -0.03em;
-  line-height: 1.05;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-wrap: balance;
+}
+.stories-hub .stance-lede {
+  margin: 0;
+  font-size: clamp(14px, 1.2vw, 16px);
+  line-height: 1.45;
+  max-width: 40rem;
+}
+/* Compact key counts so the first viewport reaches Start (#962). */
+.stories-card .stance-stats {
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0 12px;
+  margin-top: 4px;
+}
+.stories-card .stance-stats > div {
+  padding: 6px 0 8px;
+}
+.stories-card .stance-stats dd {
+  font-size: clamp(20px, 2.4vw, 28px);
+}
+.stories-card .stance-note {
+  margin: 0;
+  font-size: 12px;
 }
 .stories-actions {
   display: flex;
@@ -1059,9 +1059,6 @@ a.stance-dot {
   min-height: 44px;
   text-decoration: none;
 }
-.stories-card .stance-stats {
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-}
 
 @media (max-width: 767px) {
   .stance-nav .folio-btn,
@@ -1071,9 +1068,6 @@ a.stance-dot {
   .stance-link-card,
   .stance-cover .folio-btn {
     min-height: 44px;
-  }
-  .stance-rail {
-    display: none;
   }
   .stance-act {
     padding-right: 16px;
@@ -1473,6 +1467,25 @@ select.stance-blank {
 }
 
 /* The sound switch in the top bar. */
+.stance-top-actions {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+/* Close (#1017): leaves the story for the home page. */
+.stance-close {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 26px;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--ink);
+}
 .stance-sound {
   margin-top: 0;
   display: inline-flex;
@@ -1482,6 +1495,12 @@ select.stance-blank {
 }
 .stance-sound[aria-pressed='false'] {
   color: var(--ink-2);
+}
+/* Phones: sound is set in the site menu (#1017), so the header keeps only Close. */
+@media (max-width: 767px) {
+  .stance-top-actions .stance-sound {
+    display: none;
+  }
 }
 @media (max-width: 767px) {
   .stance-sound {
@@ -1849,18 +1868,33 @@ select.stance-blank {
   color: var(--ink-2);
 }
 
-/* --- The hub card leads with the question ---------------------------------------------------------------------------- */
-.stories-card-title {
-  font-size: clamp(30px, 4.6vw, 60px);
-}
+/* --- The hub card: care-first hook + subtle Start pulse (#950 / #954 / #962) ----------------------------------------- */
 .stories-actions {
   align-items: center;
   gap: 10px 18px;
+  margin-top: 10px;
 }
 .folio .stories-actions a.stories-start {
   min-height: 52px;
   font-size: 16px;
   text-align: left;
+}
+@keyframes stories-start-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--folio-accent, #0d9488) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--folio-accent, #0d9488) 0%, transparent);
+  }
+}
+.folio .stories-actions a.stories-start-pulse {
+  animation: stories-start-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .folio .stories-actions a.stories-start-pulse {
+    animation: none;
+  }
 }
 .stories-second {
   display: inline-flex;
@@ -1875,7 +1909,7 @@ select.stance-blank {
     padding: 14px 14px 18px;
   }
   .stance-sentence.stories-title {
-    font-size: 26px;
+    font-size: 24px;
   }
   .folio .stories-actions a.stories-start {
     width: 100%;
@@ -1934,6 +1968,24 @@ html.stance-snap {
 }
 .stance-game[data-mode='snap'] .stance-keys {
   display: none;
+}
+/* Challenge (#969): tall acts with finding / question / reveal stops snap per stop, not per act. */
+.stance-game[data-mode='snap'][data-beats] .stance-act {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  scroll-snap-align: none;
+  scroll-snap-stop: normal;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-stop {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-grid,
+.stance-game[data-mode='snap'][data-beats] .stance-end-body {
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -2402,4 +2454,674 @@ html.stance-snap {
 /* The heading's closing "?" stays with the last blank (#930): on a wide screen it used to wrap onto a line alone. */
 .stance-nowrap {
   white-space: nowrap;
+}
+
+/*
+ * One look site-wide (#975): story and hub titles take the site's display face (Playfair Display, as on the home page),
+ * and the primary action is the same teal pill as the home page's buttons. Decision:
+ * web_docs/docs/development/site-look-and-navigation.md
+ */
+.stance-card-title,
+.stance-statement,
+.stance-cover-title,
+.stance-headline,
+.stance-sentence,
+.stories-title,
+.stories-card-title,
+.stance-video-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* `.folio *` squares every corner with !important; the primary action is the one exception. */
+.folio .stance-next,
+.folio .stance-ask-btn,
+.folio .stories-start,
+.folio .folio-btn[data-primary] {
+  border-radius: 999px !important;
+  font-weight: 700;
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+/* The hub lines up with the header and the home page: a centred 1180px column (#975). */
+@media (min-width: 761px) {
+  .folio.stories-hub {
+    padding-left: max(24px, calc((100% - 1180px) / 2 + 24px));
+    padding-right: max(24px, calc((100% - 1180px) / 2 + 24px));
+  }
+}
+
+/* Meeting recording in place (#972): a modal over a dimmed page; the player exists only while it is open. */
+.stance-video-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(18, 17, 22, 0.62);
+}
+.stance-video-dialog {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  padding: 16px;
+}
+.stance-video-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.stance-video-title {
+  margin: 0;
+  font-size: var(--t-h2);
+  line-height: 1.15;
+  font-weight: 500;
+}
+.stance-video-sub {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+  color: var(--ink-2);
+}
+.stance-video-close {
+  flex: none;
+}
+.stance-video-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--ink);
+}
+.stance-video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.stance-video-foot {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stance-video-backdrop {
+    transition: none;
+  }
+}
+
+/* Overview dot map (#970): the country in dots, each state shaded by its real meeting count. */
+.stance-map {
+  margin: 0 0 16px;
+}
+.stance-map-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.stance-map-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+}
+.stance-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.stance-map-stage {
+  position: relative;
+}
+/* The hovered county's newest meeting passage (#999, #1002), as a QuoteCard (#1108); at rest nothing shows. */
+.stance-map-card {
+  position: absolute;
+  left: 0;
+  bottom: 2%;
+  z-index: 2;
+  width: min(300px, 42%);
+}
+.stance-map-card.is-right {
+  left: auto;
+  right: 0;
+  bottom: auto;
+  top: 2%;
+}
+@media (max-width: 640px) {
+  .stance-map-card,
+  .stance-map-card.is-right {
+    position: relative;
+    inset: auto;
+    width: auto;
+    margin-top: 8px;
+  }
+}
+.stance-map-readout {
+  min-height: 1.4em;
+  margin: 4px 0 6px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.stance-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+}
+.stance-map-ramp {
+  display: inline-flex;
+}
+.stance-map-ramp span,
+.stance-map-none span {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+}
+.stance-map-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.stance-map-table {
+  margin-top: 8px;
+  font-size: 14px;
+}
+.stance-map-table summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.stance-map-table table {
+  margin-top: 6px;
+  border-collapse: collapse;
+}
+.stance-map-table th,
+.stance-map-table td {
+  padding: 2px 16px 2px 0;
+  text-align: left;
+}
+.stance-map-table td:last-child,
+.stance-map-table th:last-child {
+  text-align: right;
+}
+
+/*
+ * Story statements (#981): the statement a screen's record is about, Agree / Disagree / Not sure, then "Where you sit"
+ * on the line of readers' answers and, when the statement leans to one side, of the people who spoke at the meetings.
+ */
+.story-statement {
+  margin: 18px 0 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.story-statement .stance-ask {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--violet-ink);
+}
+.story-statement-text {
+  margin: 0 0 12px;
+  font-size: clamp(18px, 1.6vw, 22px);
+  line-height: 1.3;
+}
+.story-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.story-answers .stance-answer {
+  margin-top: 0;
+  min-width: 112px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.story-yours {
+  margin: 0;
+  font-size: 15px;
+}
+.story-yours .folio-link-btn {
+  margin-left: 6px;
+}
+.story-sit {
+  margin-top: 14px;
+}
+.story-sit-title {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.story-continuum {
+  margin: 0 0 14px;
+}
+.story-continuum-title {
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.story-continuum-bar {
+  position: relative;
+  display: flex;
+  height: 14px;
+  margin-top: 22px;
+  background: var(--neutral-data);
+}
+.story-continuum-seg {
+  display: block;
+  height: 100%;
+}
+.story-continuum-seg--agree,
+.story-continuum-seg--for {
+  background: var(--violet-ink);
+}
+.story-continuum-seg--disagree,
+.story-continuum-seg--against {
+  background: var(--vermilion);
+}
+.story-continuum-seg--unsure,
+.story-continuum-seg--middle {
+  background: var(--ink-3);
+}
+/* The reader: a marker above the bar, labelled "You" (the sentence under the bar says the same in words). */
+.story-continuum-you {
+  position: absolute;
+  top: -22px;
+  bottom: -4px;
+  width: 0;
+  border-left: 2px solid var(--ink);
+  transform: translateX(-1px);
+}
+.story-continuum-you > span {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  background: var(--ink);
+  color: var(--paper);
+  white-space: nowrap;
+}
+/* Near either end of the bar the label hangs inward, so it never runs off the bar. */
+.story-continuum-you.is-start > span {
+  left: 0;
+  transform: none;
+}
+.story-continuum-you.is-end > span {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.story-continuum-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+}
+.story-continuum-sentence {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-continuum-you {
+    transition: left var(--d-2, 240ms) var(--ease-out, ease-out);
+  }
+}
+
+/* The numbers behind the story's title (#993): the speaker counts or the meeting count it states. */
+.stance-title-basis {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* Payroll jobs on the jobs screen (#1019): BLS figures, then where jobs are tracked. */
+.stance-payroll {
+  margin: 0 0 16px;
+}
+.stance-payroll-head {
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.stance-payroll-rows {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.stance-payroll-rows li {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  background: #fff;
+}
+.stance-payroll-place {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.stance-payroll-n {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.stance-payroll-meta {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.stance-payroll-sources {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+}
+.stance-payroll-sources li {
+  display: grid;
+  gap: 2px;
+}
+.stance-payroll-desc {
+  font-style: italic;
+  color: var(--ink-2);
+}
+.stance-payroll-access {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* The quoted moment in the meeting video popup (#1036), as a QuoteCard without the image (#1108). */
+.stance-video-qcard {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Story progress and the next story (#1102) ----------------------------------------------------------------------- */
+/* A thin bar along the top of the story: its width is the share of screens reached. */
+.story-topbar {
+  position: fixed;
+  top: var(--hdr, 0px);
+  left: 0;
+  right: 0;
+  z-index: 45;
+  height: 3px;
+  pointer-events: none;
+  background: color-mix(in srgb, #0f766e 14%, transparent);
+}
+.story-topbar-fill {
+  display: block;
+  height: 100%;
+  background: #0f766e;
+  transform-origin: left center;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Numbered dots down the left edge, one per screen (wide screens). */
+.story-dots {
+  position: fixed;
+  left: 12px;
+  top: calc(50% + (var(--hdr, 0px) + var(--top-h, 96px)) / 2);
+  z-index: 30;
+  transform: translateY(-50%);
+}
+.story-dots ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.story-dot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, transform 200ms ease;
+}
+.story-dot.is-past {
+  border-color: color-mix(in srgb, #0f766e 55%, var(--paper));
+  color: #0f766e;
+}
+.story-dot.is-now {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #fff;
+  transform: scale(1.12);
+}
+.story-dot:hover {
+  border-color: #0f766e;
+}
+.story-dot:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+@media (min-width: 768px) {
+  /* Room for the dots at the left of every screen. */
+  .stance-game.stance-story[data-mode] .stance-act,
+  .stance-game.stance-story[data-mode] .stance-cover {
+    padding-left: 56px;
+  }
+}
+@media (max-width: 767px) {
+  .story-dots,
+  .story-topbar {
+    display: none;
+  }
+}
+
+/* The end of the story: a full-width card that fades in after the last screen and leads to the next story. */
+.story-next-card {
+  display: flex;
+  align-items: center;
+  min-height: 34svh;
+  padding: 40px 16px;
+  border-top: 1px solid var(--ink);
+  background: color-mix(in srgb, #0f766e 8%, var(--paper));
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 600ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.story-next-card.is-shown {
+  opacity: 1;
+  transform: none;
+}
+.folio .story-next-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 24px;
+  color: #fff;
+  background: #0f766e;
+  text-decoration: none;
+  border: 1px solid #0f766e;
+}
+.folio .story-next-link:hover {
+  color: #fff;
+  background: #115e59;
+}
+.story-next-link:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 3px;
+}
+.story-next-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.story-next-title {
+  font-size: clamp(24px, 3.4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.stance-story[data-mode='snap'] .story-next-card {
+  scroll-snap-align: end;
+}
+@media (min-width: 768px) {
+  .story-next-card {
+    padding: 56px 56px;
+  }
+}
+
+/* Phones: a bar fixed to the bottom with compact dots and one prominent Next. */
+.story-bottombar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .stance-story[data-sbar] {
+    --sbar-h: 64px;
+    padding-bottom: calc(var(--sbar-h) + env(safe-area-inset-bottom));
+  }
+  /* Each screen is one frame less the bar, so the bar never covers a screen's own controls. */
+  .stance-game.stance-story[data-sbar][data-mode='snap'] .stance-act,
+  .stance-game.stance-story[data-sbar][data-mode='snap'] .stance-cover {
+    height: calc(100svh - var(--hdr) - var(--top-h) - var(--sbar-h) - env(safe-area-inset-bottom));
+  }
+  /* The bar's Next stands in for each screen's own Next (Back and the answers stay in the screen). */
+  .stance-story[data-sbar] .stance-nav .stance-next-end {
+    display: none;
+  }
+  .story-bottombar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: var(--sbar-h, 64px);
+    box-sizing: border-box;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: var(--paper);
+    border-top: 1px solid var(--ink);
+    box-shadow: 0 -6px 18px color-mix(in srgb, var(--ink) 12%, transparent);
+  }
+  .story-bottombar-progress {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .story-bottombar-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .story-bottombar-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--rule);
+    transition: width 300ms ease, background-color 300ms ease;
+  }
+  .story-bottombar-dot.is-past {
+    background: color-mix(in srgb, #0f766e 55%, var(--paper));
+  }
+  .story-bottombar-dot.is-now {
+    width: 18px;
+    background: #0f766e;
+  }
+  .story-bottombar-left {
+    font-family: var(--font-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .folio .story-bottombar-next {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    margin: 0;
+    padding: 0 22px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    background: #0f766e;
+    border: 1px solid #0f766e;
+    text-decoration: none;
+  }
+}
+
+/* `.folio *` squares every corner; dots are round and the bar's Next is the primary action's pill. */
+.folio .story-dot,
+.folio .story-bottombar-dot {
+  border-radius: 999px !important;
+}
+.folio .story-bottombar-next {
+  border-radius: 999px !important;
+}
+.folio .story-bottombar-next:hover:not(:disabled) {
+  color: #fff;
+  background: #115e59;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-topbar-fill,
+  .story-dot,
+  .story-bottombar-dot {
+    transition: none;
+  }
+  /* The card still fades in, but nothing rises. */
+  .story-next-card {
+    transform: none;
+    transition: opacity 400ms ease;
+  }
+}
+.story-dots {
+  transition: opacity 250ms ease;
+}
+.story-dots.is-away {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }

@@ -13,6 +13,7 @@ import {
 } from '../components/meeting-chat/MeetingChatRuntime'
 import { MeetingChatSidebar } from '../components/meeting-chat/MeetingChatSidebar'
 import { MeetingChatThread } from '../components/meeting-chat/MeetingChatThread'
+import { useAuth } from '../contexts/AuthContext'
 
 function scopeLabel(scope: MeetingChatScope): string {
   if (scope.city && scope.state) {
@@ -27,7 +28,39 @@ function scopeLabel(scope: MeetingChatScope): string {
   return 'National'
 }
 
+/** The chat requires sign-in (#1049): it is a paid model call, throttled per user. */
+function SignInToChat({ scopeLabel: label }: { scopeLabel: string }) {
+  const { login } = useAuth()
+  const back = window.location.href
+  const providers: { id: string; name: string }[] = [
+    { id: 'google', name: 'Google' },
+    { id: 'facebook', name: 'Facebook' },
+    { id: 'github', name: 'GitHub' },
+  ]
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+      <h2 className="text-lg font-semibold text-slate-900">Sign in to ask about meetings</h2>
+      <p className="max-w-sm text-sm text-slate-600">
+        The chat answers questions from meeting records ({label}). Sign in to use it; you&apos;ll come straight back here.
+      </p>
+      <div className="flex flex-wrap justify-center gap-2">
+        {providers.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => login(p.id, back)}
+            className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          >
+            Continue with {p.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function MeetingChat() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [params] = useSearchParams()
   const scope: MeetingChatScope = {
     state: params.get('state') || undefined,
@@ -91,12 +124,18 @@ export default function MeetingChat() {
             </button>
             </div>
           </div>
+          {authLoading ? (
+            <p className="flex flex-1 items-center justify-center text-sm text-slate-500" role="status">Loading…</p>
+          ) : !isAuthenticated ? (
+            <SignInToChat scopeLabel={label} />
+          ) : (
           <div className="flex min-h-0 flex-1 flex-col-reverse sm:flex-row">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <MeetingChatThread />
             </div>
             <MeetingChatSidebar scopeLabel={label} />
           </div>
+          )}
         </div>
       </div>
     </MeetingChatRuntimeProvider>

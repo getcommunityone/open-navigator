@@ -17,6 +17,7 @@ where a tally was recorded. This page is the rule for what counts, and what the 
 - "About the data center item" means one of four things, all checked with the same data center words the rest of the site uses ([#932](https://github.com/getcommunityone/open-navigator/issues/932) added two).
 - Votes count only for decisions that are about a data center **and** recorded both a yes and a no count.
 - A figure with no data behind it is null in the table and the API, and reads "not recorded" on the page. It is never zero.
+- Speaker figures are the exception ([#1059](https://github.com/getcommunityone/open-navigator/issues/1059)). When meetings in scope were reviewed but none had a public speaker on a data center item, the page shows **0** and says so, for example "None of the 40 meetings reviewed in Georgia had a public speaker on a data center item." Only a place with no reviewed meeting reads "not recorded".
 
 ## The rule for a public comment
 
@@ -113,6 +114,12 @@ transcript), `speaker_role`, `stance_bucket`, `start_seconds`, `video_url`, the 
 `decision_headline`, the item the comment is on (a contested decision or an uncontested item). The headline is shown with the quote ("On: ..."), so a quote that
 does not itself say "data center" still shows why it is there.
 
+`speaker_display_name` (#1036) is the speaker's name as heard in the meeting, shortened to "First L." (for example
+"Audra T."), built by the `speaker_display_name` macro from the analysis's `speaker_id`. It is the first name alone when
+the slug has more than two name words (a middle name or a place could pass for a surname), and null when only a role was
+heard ("resident_2"). The full surname is never shown. The story shows it before the role ("Audra T., resident"), and
+the meeting video popup shows the quote and the speaker above the recording.
+
 `data_center_public_comment` was not in the issue's contract. It was added because the endpoint has to return quotes, the
 API may only read `public`, and the rule for which comments count must stay in dbt.
 
@@ -159,7 +166,7 @@ dot per decision in two groups: "Debated" and "Without debate" ([Data stories](.
 - `scope`: the filters applied (national, state or city), as every data center endpoint returns it.
 - `available`: false when the table is not in the database yet. Every total is then null.
 - `totals`: `meetings` (meetings with at least one counted speaker or one recorded tally), `meetings_reviewed` (all rows in scope), the four speaker counts, `decisions_with_tally`, `votes_for` and `votes_against` (null when `decisions_with_tally` is 0).
-- `quotes`: `for`, `against` and `question`, up to `limit` each (default 3, at most 10). Each has `public_comment_id`, `quote`, `speaker_role`, `jurisdiction_name`, `state_code`, `meeting_date`, `video_url`, `start_seconds`, `jump_url`, `decision_headline` and `match_basis`. Quotes are spread across meetings (one per meeting first), newest meeting first.
+- `quotes`: `for`, `against` and `question`, up to `limit` each (default 3, at most 10). Each has `public_comment_id`, `quote`, `speaker_role`, `speaker_display_name`, `jurisdiction_name`, `state_code`, `meeting_date`, `video_url`, `start_seconds`, `jump_url`, `decision_headline` and `match_basis`. Quotes are spread across meetings (one per meeting first), newest meeting first.
 
 `available` and `meetings_reviewed`, and the quote's `jump_url`, `decision_headline` and `match_basis`, are additions to the
 issue's contract.

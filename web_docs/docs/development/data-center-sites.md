@@ -12,13 +12,35 @@ their status and source. It is part of the
 
 ## In short
 
-- **Source:** [Epoch AI, AI data centers](https://epoch.ai/data/data-centers), CC BY 4.0. It's free to reuse with
-  credit, and every record and the page carry that credit.
-- **Coverage:** the largest AI data centers only. Epoch includes planned sites only once they are under construction
-  and likely to finish, so most sites still waiting on a vote aren't here yet.
-- **Status** is worked out from Epoch's dated rows: planned, under construction, or operating.
-- **A site Epoch stops listing stays visible** as "No longer listed by the source", with its last-seen date and last
-  known status. Nothing is labeled "cancelled", because Epoch publishes no such flag.
+- **Sources**, both CC BY 4.0 and credited on every row (`source`, `source_name`, `source_url`, `attribution`) and on
+  each card:
+  - [Epoch AI, AI data centers](https://epoch.ai/data/data-centers): the largest AI data centers, with street addresses.
+    Epoch includes planned sites only once they are under construction and likely to finish.
+  - [US Data Center Registry](https://suedatacenters.org/data-centers/data) (SueDataCenters.org, base data from
+    [Compute Atlas](https://www.compute-atlas.com)), since [#958](https://github.com/getcommunityone/open-navigator/issues/958):
+    about 2,300 US data centers with city, county, approximate coordinates and the registry's own status. Its crypto
+    mines are left out. It gives no primary source per record, only a source count, so these rows are registry records,
+    credited as such.
+- **One site, one row.** A registry record joins an Epoch site only when, in the same state, their names are equal once
+  normalised ("Google Cedar Rapids Data Center Campus" = "Google Cedar Rapids") and the pairing is one-to-one. Anything
+  else is its own site; a close-but-unequal name never merges. In a trial, a looser rule paired "Google New Albany" with
+  fifteen different New Albany facilities. `data_center_site_source` keeps every source record of a site, with its own
+  URL.
+- **Status:**
+  - Epoch: worked out from its dated rows (planned, under construction, or operating).
+  - Registry: its own word, mapped (operational → operating; proposed and permitted → planned; cancelled →
+    **cancelled**), with the word kept in `source_status`. "Cancelled" appears only where the registry publishes it.
+- **A site its source stops listing stays visible** as "No longer listed by the source", with its last-seen date and
+  last known status.
+- **Matching by name stays on Epoch sites for now.** Projects, agenda items, meeting mentions and the governments near a
+  site read `source = 'epoch'` only, so 2,300 more names can't produce false matches or fan out decisions. Widening
+  them is [#979](https://github.com/getcommunityone/open-navigator/issues/979).
+
+First load (25 Nov 2026):
+- Registry: 2,535 records, of which 2,307 are data centers. 24 joined an Epoch site and 2,283 became their own sites.
+- `data_center_site`: 2,379 sites. Epoch has 76 operating and 20 under construction. The registry adds 1,086
+  operating, 254 under construction, 796 planned and 147 cancelled.
+- Every downstream count that reads sites was unchanged by the import.
 
 <details>
 <summary>Where each piece lives</summary>

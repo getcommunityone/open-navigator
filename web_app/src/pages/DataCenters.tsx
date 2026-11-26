@@ -9,6 +9,8 @@ import {
   type CommunityEvent,
   type DataCenterProject,
   fetchDataCenterAgendaItems,
+  fetchDataCenterHearings,
+  type DataCenterHearing,
   fetchDataCenterMeetingMentions,
   fetchDataCenterSites,
   type DataCenterAgendaItem,
@@ -86,14 +88,9 @@ export default function DataCenters() {
           >
             Read the Data Center Story
           </Link>{' '}
-          <span className="text-gray-600">The records on this page as a scrolling story.</span>{' '}
-          <Link
-            to={`/challenge/data-centers${placeQuery}`}
-            className="font-medium text-primary-700 underline hover:text-primary-900"
-          >
-            Take the Data Center Challenge
-          </Link>{' '}
-          <span className="text-gray-600">Seven statements, and how people who played answered.</span>
+          <span className="text-gray-600">
+            The records on this page as a scrolling story, with a few statements to agree or disagree with along the way.
+          </span>
         </p>
 
         <ScopeControl
@@ -146,6 +143,7 @@ export default function DataCenters() {
           )}
         </section>
 
+        <HearingsSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
         <AgendaSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
 
         <MeetingMentionsSection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
@@ -159,6 +157,83 @@ export default function DataCenters() {
         <ApplySection rawState={rawState} cityName={cityName} scopeLabel={scope.label} />
       </div>
     </div>
+  )
+}
+
+/**
+ * "Hearings coming up" (#955): upcoming data center hearings whose OFFICIAL page (a government
+ * agenda, notice or project page) states the date together with the data center item. Leads from
+ * research lists that no official page backs up are never shown. Each card quotes the official
+ * page with the matched words highlighted (server ts_headline -> highlightSnippet, React-escaped)
+ * and links to it. Same ?state=&city= scope as the rest of the page.
+ */
+function HearingsSection({ rawState, cityName, scopeLabel }: { rawState?: string; cityName?: string; scopeLabel: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['data-centers', 'hearings', rawState ?? null, cityName ?? null],
+    queryFn: () => fetchDataCenterHearings({ state: rawState, city: cityName, when: 'upcoming' }),
+  })
+  // Not loaded, or nothing verified in scope: stay quiet; "On the agenda" below covers the place.
+  if (isLoading || data?.available === false || (!isError && (data?.items ?? []).length === 0)) return null
+  return (
+    <section aria-labelledby="hearings-heading" className="mt-6">
+      <h2 id="hearings-heading" className="mb-1 text-xl font-semibold text-gray-900">
+        Hearings coming up{data?.counts?.upcoming != null ? ` (${data.counts.upcoming})` : ''}
+      </h2>
+      <p className="mb-3 text-sm text-gray-600">
+        Upcoming data center hearings in {scopeLabel}, each listed on the government&apos;s own page, which is quoted and
+        linked. Dates can change; check the notice before you go.
+      </p>
+      {isError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Couldn&apos;t load hearings.{' '}
+          <button type="button" onClick={() => refetch()} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {(data?.items ?? []).map((h) => (
+            <HearingCard key={h.data_center_hearing_id} hearing={h} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function HearingCard({ hearing }: { hearing: DataCenterHearing }) {
+  const when = formatIsoDate(hearing.meeting_date)
+  const where = [hearing.jurisdiction_name, hearing.state_code].filter(Boolean).join(', ')
+  return (
+    <li className="rounded-lg border border-primary-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold text-gray-900" title="Body as named by the research lead; the quote below is the government's page">
+          {hearing.body_name || 'Hearing'}
+          {where && <span className="font-normal text-gray-600"> · {where}</span>}
+        </p>
+        <p className="text-sm font-semibold text-primary-700">
+          {when ?? 'Date not listed'}
+          {hearing.tentative && (
+            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">Tentative</span>
+          )}
+        </p>
+      </div>
+      {hearing.topic && (
+        <p className="mt-1 text-sm text-gray-700">
+          <span className="text-gray-500">From the research lead:</span> {hearing.topic}
+        </p>
+      )}
+      {hearing.evidence && (
+        <blockquote className="mt-2 line-clamp-6 border-l-4 border-primary-300 pl-3 text-sm text-gray-800">
+          {highlightSnippet(hearing.evidence)}
+        </blockquote>
+      )}
+      <div className="mt-2 text-xs">
+        <a href={hearing.source_url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-700 hover:underline">
+          Read the official notice{hearing.source_name ? ` (${hearing.source_name})` : ''}
+        </a>
+      </div>
+    </li>
   )
 }
 
@@ -442,7 +517,7 @@ function MeetingMentionCard({ passages }: { passages: DataCenterMeetingMention[]
 }
 
 /**
- * "Sites" (DC-4.1, #249): data center sites from Epoch AI (CC BY 4.0), with status and
+ * "Sites" (DC-4.1, #249; #958): data center sites from Epoch AI and the US Data Center Registry (both CC BY 4.0), with status and
  * source. Sites the source stopped listing stay, labeled. The source has no city field,
  * so this section narrows by state only, and its own label says which scope it shows
  * (CLAUDE.md, scope label rule) instead of borrowing the page's city.
@@ -462,17 +537,19 @@ function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: st
         Sites <span className="font-normal text-gray-400">· {sitesScope}</span>
       </h2>
       <p className="mb-2 text-sm text-gray-600">
-        Large AI data center sites tracked by Epoch AI, with each site&apos;s status. Sites the source stops listing
-        stay here, marked, so they don&apos;t quietly disappear.
+        Data center sites from open inventories: Epoch AI (the largest AI sites) and the US Data Center Registry. Each
+        site is credited to its own source. Sites a source stops listing stay here, marked, so they don&apos;t quietly
+        disappear.
       </p>
       {cityName && (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          This source doesn&apos;t give cities, so these are all tracked sites in {sitesScope}, not just {cityName}.
+          Sites are listed by state (Epoch AI gives no city), so these are all sites in {sitesScope}, not just {cityName}.
         </p>
       )}
       {counts && sites.length > 0 && (
         <p className="mb-3 text-xs text-gray-600">
           {counts.planned} planned · {counts.under_construction} under construction · {counts.operating} operating
+          {(counts.cancelled ?? 0) > 0 && ` · ${counts.cancelled} cancelled (per the registry)`}
           {counts.no_longer_listed > 0 && ` · ${counts.no_longer_listed} no longer listed`}
         </p>
       )}
@@ -500,10 +577,13 @@ function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: st
       )}
       {sites.length > 0 && (
         <p className="mt-2 text-xs text-gray-500">
-          Source:{' '}
-          <a href={sites[0].source_url} target="_blank" rel="noopener noreferrer" className="underline">
-            {sites[0].attribution}
-          </a>
+          {[...new Map(sites.map((s) => [s.source ?? 'epoch', s])).values()].map((s, i) => (
+            <span key={s.source ?? 'epoch'}>
+              {i > 0 && ' · '}
+              Source: {s.attribution}
+            </span>
+          ))}
+          . Each site links to its own record.
         </p>
       )}
     </section>
@@ -511,16 +591,19 @@ function SitesSection({ rawState, cityName }: { rawState?: string; cityName?: st
 }
 
 function SiteCard({ site }: { site: DataCenterSite }) {
-  const gone = site.status === 'no_longer_listed'
-  const place = [site.address, site.state_code && !site.address?.includes(site.state_code) ? site.state_code : null]
+  const gone = site.status === 'no_longer_listed' || site.status === 'cancelled'
+  const where = site.address ?? ([site.city, site.county && `${site.county} County`].filter(Boolean).join(', ') || null)
+  const place = [where, site.state_code && !where?.includes(site.state_code) ? site.state_code : null]
     .filter(Boolean)
     .join(', ')
   return (
     <li className={`rounded-lg border bg-white p-4 shadow-sm ${gone ? 'border-dashed border-gray-300 opacity-90' : 'border-gray-200'}`}>
       <p className="font-semibold text-gray-900">{site.site_name}</p>
-      {(site.owner || site.users) && (
+      {(site.owner || site.users || site.operator) && (
         <p className="text-sm text-gray-600">
-          {[site.owner && `Owner: ${site.owner}`, site.users && `Used by: ${site.users}`].filter(Boolean).join(' · ')}
+          {[site.owner && `Owner: ${site.owner}`, site.users && `Used by: ${site.users}`, site.operator && `Operator: ${site.operator}`]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       )}
       {place && <p className="text-xs text-gray-500">{place}</p>}
@@ -528,6 +611,15 @@ function SiteCard({ site }: { site: DataCenterSite }) {
         {siteStatusLabel(site.status, site.last_known_status, site.last_seen_on)}
       </p>
       {site.construction_note && <p className="mt-1 text-xs italic text-gray-600">“{site.construction_note}”</p>}
+      <p className="mt-2 text-xs text-gray-500">
+        {site.source_url ? (
+          <a href={site.source_url} target="_blank" rel="noopener noreferrer" className="underline">
+            {site.source_name}
+          </a>
+        ) : (
+          site.source_name
+        )}
+      </p>
     </li>
   )
 }

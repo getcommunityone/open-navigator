@@ -1,12 +1,18 @@
 import { useEffect, useRef } from 'react'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
-import type { DataCenterPositionsResponse } from '../../api/dataCenters'
+import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
+import PayrollJobsPanel from './PayrollJobsPanel'
 import PositionsBlock from './PositionsBlock'
 import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
+import StoryDotMap from './StoryDotMap'
+import StoryCountyMap from './StoryCountyMap'
+import StoryStatement from './StoryStatement'
+import type { ScreenStatement } from './useStoryStatements'
+import { speakerCounts } from '../../utils/stanceGame'
 
 interface Props {
   screen: StoryScreen
@@ -22,6 +28,8 @@ interface Props {
   /** Broaden the place: to the state (null when none is chosen) or to the whole country. */
   onBroaden: (stateCode: string | null, city: string | null) => void
   onRetry: () => void
+  /** The statement this screen asks (#981): Agree / Disagree / Not sure, then where the reader sits. */
+  stance?: ScreenStatement
 }
 
 /** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
@@ -63,6 +71,12 @@ export default function StoryScreenView(p: Props) {
   )
 
   const stats = screen.kind === 'overview' ? storyStats(p.data, scope) : []
+  // The Overview map (#970) needs the per-state counts; an older API without them keeps the dot chart.
+  const mentions = p.data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined
+  const byState = mentions?.counts?.by_state
+  const byPlace = mentions?.counts?.by_place
+  const jobsData = p.data['job-claims'] as JobClaimsResponse | null | undefined
+  const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
   return (
     <section
@@ -96,6 +110,15 @@ export default function StoryScreenView(p: Props) {
             </p>
           </div>
           {(text.empty || text.failed) && broaden}
+          {/* Asked only when the screen has a record to react to: no statement under "No data available". */}
+          {p.stance && !text.empty && !text.failed && (
+            <StoryStatement
+              s={p.stance}
+              scope={scope}
+              speakers={speakerCounts(p.data.positions as DataCenterPositionsResponse | null | undefined)}
+              id={`story-q-${screen.id}`}
+            />
+          )}
           <ScreenNav ref={nextRef} nextLabel={p.nextLabel} onNext={p.onNext} onPrev={p.onPrev} />
         </div>
         <div className="stance-right" ref={rightRef}>
@@ -113,7 +136,28 @@ export default function StoryScreenView(p: Props) {
           ) : screen.kind === 'overview' ? (
             stats.length > 0 ? (
               <>
-                {stats.some((s) => s.key === 'meetings') && (
+                {stats.some((s) => s.key === 'meetings') && scope.stateCode && byPlace && byPlace.length > 0 ? (
+                  // At state scope, the state's counties (#1039), like the Census map's state drill-down.
+                  <StoryCountyMap
+                    stateCode={scope.stateCode}
+                    scopeCity={scope.city ?? null}
+                    scopeLabel={storyScopeLabel(scope)}
+                    byPlace={byPlace}
+                    onPickState={(code) => p.onBroaden(code, null)}
+                    labelledBy={`story-h-${screen.id}`}
+                    passages={mentions?.items}
+                  />
+                ) : stats.some((s) => s.key === 'meetings') && byState ? (
+                  <StoryDotMap
+                    byState={byState}
+                    scopeStateCode={scope.stateCode ?? null}
+                    scopeCity={scope.city ?? null}
+                    scopeLabel={storyScopeLabel(scope)}
+                    onPickState={(code) => p.onBroaden(code, null)}
+                    labelledBy={`story-h-${screen.id}`}
+                    passages={mentions?.items}
+                  />
+                ) : stats.some((s) => s.key === 'meetings') && (
                   <ChartPanel
                     chartKey="meeting-mentions"
                     view="meetings"
@@ -133,16 +177,22 @@ export default function StoryScreenView(p: Props) {
                 {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}
               </p>
             )
+          ) : screen.chart === 'job-claims' && jobsData && noClaims ? (
+            // No claims on record: the screen shows actual payroll jobs and where jobs are tracked instead (#1019).
+            <PayrollJobsPanel data={jobsData} />
           ) : (
-            <ChartPanel
-              chartKey={String(screen.chart)}
-              round={p.index}
-              enabled
-              stateCode={scope.stateCode}
-              stateName={scope.stateName}
-              city={scope.city}
-              scopeLabel={chartScopeLabel(String(screen.chart), scope)}
-            />
+            <>
+              <ChartPanel
+                chartKey={String(screen.chart)}
+                round={p.index}
+                enabled
+                stateCode={scope.stateCode}
+                stateName={scope.stateName}
+                city={scope.city}
+                scopeLabel={chartScopeLabel(String(screen.chart), scope)}
+              />
+              {screen.chart === 'job-claims' && jobsData && <PayrollJobsPanel data={jobsData} />}
+            </>
           )}
         </div>
       </div>

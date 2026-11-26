@@ -47,18 +47,18 @@ sites as (
         site_name,
         state_code,
         nullif(btrim(regexp_replace(owner, '\s*\((speculative|likely)\)\s*$', '', 'i')), '') as owner_term
-    from {{ ref('data_center_site') }}
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch')
 ),
 
 -- Site and project names a passage can name; short names are skipped so a common word can't link.
 site_terms as (
     select data_center_site_id, state_code, site_name as term
-    from {{ ref('data_center_site') }}
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch')
     where state_code is not null and length(site_name) >= 6
     union
     select data_center_site_id, state_code,
            btrim(regexp_replace(project, '\s*\((speculative|likely)\)\s*$', '', 'i'))
-    from {{ ref('data_center_site') }}
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch')
     where state_code is not null
       and length(btrim(regexp_replace(project, '\s*\((speculative|likely)\)\s*$', '', 'i'))) >= 6
 ),

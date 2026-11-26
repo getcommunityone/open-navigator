@@ -61,3 +61,105 @@ export async function fetchTopicMeetings(
   const res = await api.get<TopicMeetingList>(`/topics/${topicId}/meetings`, { params })
   return res.data
 }
+
+export interface TopicStateCount {
+  state_code: string
+  state: string | null
+  meetings: number
+}
+
+export interface TopicStates {
+  topic_id: number
+  total_meetings: number
+  states: TopicStateCount[]
+  /** The newest matched meeting per state, with its verbatim passage. */
+  newest: TopicMeeting[]
+}
+
+/** Meetings per state for a curated topic, and each state's newest passage (#1013). */
+export async function fetchTopicStates(topicId: number, params: { state?: string } = {}): Promise<TopicStates> {
+  const res = await api.get<TopicStates>(`/topics/${topicId}/states`, { params })
+  return res.data
+}
+
+/** A company's newest mention: verbatim evidence with the matched words in <mark> (render with highlightSnippet). */
+export interface TopicCompanyMention {
+  mention_kind: string
+  title?: string | null
+  /** ISO yyyy-mm-dd or null. */
+  date?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  url?: string | null
+  evidence?: string | null
+}
+
+/** One company a topic names (#1052), with its real meeting and decision counts in scope. */
+export interface TopicCompany {
+  company_key: string
+  company_name: string
+  aliases: string[]
+  website_url?: string | null
+  /** The organization page id, when the company is in MDM. */
+  master_org_id?: string | null
+  meetings: number
+  decisions: number
+  newest?: TopicCompanyMention | null
+}
+
+export interface TopicCompanies {
+  topic_query_id: string
+  scope: { level: string; state_code?: string | null; city?: string | null }
+  companies: TopicCompany[]
+}
+
+/** `GET /api/topics/{queryId}/companies?state=&city=`: each company's meetings and decisions in scope, busiest first. */
+export async function fetchTopicCompanies(queryId: string, state?: string, city?: string | null): Promise<TopicCompanies> {
+  const params: Record<string, string> = {}
+  if (state) params.state = state
+  if (state && city) params.city = city
+  const res = await api.get<TopicCompanies>(`/topics/${encodeURIComponent(queryId)}/companies`, {
+    params: Object.keys(params).length ? params : undefined,
+  })
+  return res.data
+}
+
+/** One state's meetings for a topic, with its population when on record (#1125). */
+export interface CaptionStateCount {
+  state_code: string
+  state: string | null
+  meetings: number
+  population: number | null
+}
+
+/** The real counts behind a topic caption for one scope (#1125). Null means not on record, never zero. */
+export interface TopicCaptionFacts {
+  topic: string
+  topic_id: number
+  scope: { level: string; state_code: string | null; state: string | null; city: string | null }
+  meetings: number | null
+  /** Meetings per state for the whole country, largest first (never narrowed by the scope). */
+  states: CaptionStateCount[]
+  top_state: string | null
+  ratio_to_next: number | null
+  /** City scope: the place name the city matched, and meetings per place in the state. */
+  place: string | null
+  places: { name: string; meetings: number }[] | null
+  /** Counted speakers (data centers only). */
+  speakers: { for: number; against: number; question: number; neutral: number } | null
+  /** AI readings (Jev) of meeting transcripts: never counted speakers. */
+  lean_meetings: number | null
+  public_against_meetings: number | null
+  public_for_meetings: number | null
+  disagreement_meetings: number | null
+  disagreement_states: number | null
+}
+
+/** `GET /api/topics/{topic}/caption-facts?state=&city=` (#1125). */
+export async function fetchTopicCaptionFacts(topic: string, state?: string, city?: string | null): Promise<TopicCaptionFacts> {
+  const params: Record<string, string> = {}
+  if (state) params.state = state
+  if (state && city) params.city = city
+  const res = await api.get<TopicCaptionFacts>(`/topics/${encodeURIComponent(topic)}/caption-facts`, { params })
+  return res.data
+}

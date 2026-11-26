@@ -52,7 +52,7 @@ class TopicSummary(BaseModel):
 # keyword_stats is JSONB (returned as TEXT by this pool) — parsed below.
 #
 # $2 = optional 2-letter state code. $3 = optional city / jurisdiction ILIKE
-# pattern (e.g. '%Atlanta%'). When $3 is set, meeting_count and the existence
+# pattern (e.g. '%Atlanta%'); $4 = the bare city, to prefer an exact name match. When $3 is set, meeting_count and the existence
 # filter come from browse_entity_place_transcript_count (city grain, #590).
 # Otherwise: browse_transcript_count (national) or browse_entity_state_… ($2).
 _TOPICS_SQL = """
@@ -61,10 +61,14 @@ _TOPICS_SQL = """
            to_jsonb(t) ->> 'source' AS source,
            CASE
                 WHEN $3::text IS NOT NULL THEN (
+                    -- One place (#1026): "%Tuscaloosa%" also matches "Tuscaloosa City School District", and a
+                    -- scalar subquery with two rows errors. Prefer the exact city name ($4), then the most meetings.
                     SELECT p.transcript_count FROM browse_entity_place_transcript_count p
                     WHERE p.entity_type = 'topic' AND p.entity_id = t.topic_id::text
                       AND p.state_code = $2::text
                       AND p.jurisdiction_name ILIKE $3::text
+                    ORDER BY (lower(p.jurisdiction_name) = lower($4::text)) DESC, p.transcript_count DESC
+                    LIMIT 1
                 )
                 WHEN $2::text IS NULL THEN (
                     SELECT n.transcript_count FROM browse_transcript_count n
@@ -139,7 +143,9 @@ async def list_topics(
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("topics-query"):
-                    rows = await conn.fetch(_TOPICS_SQL, like, state_code, city_like)
+                    rows = await conn.fetch(
+                        _TOPICS_SQL, like, state_code, city_like, (city or '').strip() if city_like else None
+                    )
         except Exception as exc:  # noqa: BLE001
             logger.exception("topics list failed")
             span.record_exception(exc)
@@ -257,5 +263,85 @@ async def list_topic_meetings(
                     n_keyword_hits=r["n_keyword_hits"] or 0,
                 )
                 for r in rows
+            ],
+        )
+
+
+class TopicStateCount(BaseModel):
+    state_code: str
+    state: Optional[str] = None
+    # Distinct meetings (videos) in the state whose transcript matched the topic.
+    meetings: int
+
+
+class TopicStates(BaseModel):
+    topic_id: int
+    # Distinct meetings in scope (all states, or the one state asked for).
+    total_meetings: int
+    states: List[TopicStateCount]
+    # The newest matched meeting per state, with its verbatim passage (<mark>ed).
+    newest: List[TopicMeeting]
+
+
+_TOPIC_STATES_SQL = """
+    SELECT l.state_code, max(l.state) AS state, count(DISTINCT l.video_id) AS meetings
+    FROM topic_transcript_link l
+    WHERE l.topic_id = $1 AND l.state_code IS NOT NULL
+      AND ($2::text IS NULL OR l.state_code = $2::text)
+    GROUP BY l.state_code
+    ORDER BY meetings DESC, l.state_code
+"""
+
+_TOPIC_NEWEST_PER_STATE_SQL = """
+    SELECT DISTINCT ON (l.state_code)
+           l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
+           l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits
+    FROM topic_transcript_link l
+    WHERE l.topic_id = $1 AND l.state_code IS NOT NULL AND l.evidence_passage IS NOT NULL
+      AND ($2::text IS NULL OR l.state_code = $2::text)
+    ORDER BY l.state_code, l.event_date DESC NULLS LAST, l.n_keyword_hits DESC
+"""
+
+
+@router.get("/{topic_id}/states", response_model=TopicStates)
+async def topic_states(
+    topic_id: int = Path(..., description="Topic id (curated topics have meeting links)."),
+    state: Optional[str] = Query(None, description="Optional 2-letter state code."),
+) -> TopicStates:
+    """Meetings per state for a curated topic, and each state's newest matched passage (#1013): the data behind a
+    topic story's map and headline. Counts are distinct meetings; nothing is estimated."""
+    with tracer.start_as_current_span("topic-states") as span:
+        state_code = state.strip().upper() if state and state.strip() else None
+        span.set_attribute("topics.topic_id", topic_id)
+        span.set_attribute("topics.state", state_code or "")
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                counts = await conn.fetch(_TOPIC_STATES_SQL, topic_id, state_code)
+                newest = await conn.fetch(_TOPIC_NEWEST_PER_STATE_SQL, topic_id, state_code)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("topic states failed")
+            span.record_exception(exc)
+            raise HTTPException(status_code=503, detail="This topic's map is unavailable right now.") from exc
+        states = [TopicStateCount(state_code=r["state_code"], state=r["state"], meetings=int(r["meetings"])) for r in counts]
+        span.set_attribute("topics.states", len(states))
+        return TopicStates(
+            topic_id=topic_id,
+            total_meetings=sum(s.meetings for s in states),
+            states=states,
+            newest=[
+                TopicMeeting(
+                    video_id=r["video_id"],
+                    title=r["event_title"],
+                    date=r["event_date"].isoformat() if r["event_date"] else None,
+                    state_code=r["state_code"],
+                    state=r["state"],
+                    city=r["city"],
+                    jurisdiction_name=r["jurisdiction_name"],
+                    video_url=r["video_url"],
+                    excerpt=r["evidence_passage"],
+                    n_keyword_hits=r["n_keyword_hits"] or 0,
+                )
+                for r in newest
             ],
         )

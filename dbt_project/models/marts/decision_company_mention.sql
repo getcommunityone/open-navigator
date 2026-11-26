@@ -109,7 +109,7 @@ seed_names as (
 epoch_raw as (
     select btrim(regexp_replace(n.name, '\s*\((likely|speculative)\)\s*$', '', 'i')) as name,
            null::text as project_state_code, null::text as project_owner
-    from {{ ref('data_center_site') }} as s
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch') as s
     cross join lateral unnest(
         string_to_array(coalesce(s.owner, ''), ',') || string_to_array(coalesce(s.users, ''), ',')
     ) as n(name)
@@ -117,7 +117,7 @@ epoch_raw as (
     select btrim(regexp_replace(s.project, '\s*\((likely|speculative)\)\s*$', '', 'i')),
            s.state_code,
            nullif(btrim(regexp_replace(s.owner, '\s*\((likely|speculative)\)\s*$', '', 'i')), '')
-    from {{ ref('data_center_site') }} as s
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch') as s
     where nullif(btrim(s.project), '') is not null and s.state_code is not null
 ),
 

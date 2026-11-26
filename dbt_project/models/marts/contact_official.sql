@@ -116,17 +116,37 @@ photo_override as (
     from {{ ref('official_photo_override') }}
 ),
 
+-- Public contact emails copied from the official's own government page, and office corrections (#1062). Matched on
+-- name + state + jurisdiction so a same-named official elsewhere in the state isn't touched.
+contact_override as (
+    select
+        lower(trim(full_name)) as full_name_key,
+        state_code,
+        lower(trim(jurisdiction)) as jurisdiction_key,
+        nullif(trim(email), '') as email,
+        is_current,
+        source_url
+    from {{ ref('official_contact_override') }}
+),
+
 unioned as (
     select
         u.id, u.full_name, u.title, u.jurisdiction, u.state_code, u.state,
-        u.party, u.district, u.office, u.email, u.phone,
+        u.party, u.district, u.office,
+        coalesce(co.email, u.email)                           as email,
+        case when co.email is not null then co.source_url end as email_source_url,
+        u.phone,
         coalesce(u.photo_url, po.photo_url)                   as photo_url,
         coalesce(u.biography, po.biography)                   as biography,
-        u.is_current
+        coalesce(co.is_current, u.is_current)                 as is_current
     from unioned_raw u
     left join photo_override po
         on po.full_name_key = lower(trim(u.full_name))
        and po.state_code = u.state_code
+    left join contact_override co
+        on co.full_name_key = lower(trim(u.full_name))
+       and co.state_code = u.state_code
+       and co.jurisdiction_key = lower(trim(u.jurisdiction))
 )
 
 -- Resolve the jurisdiction's official website for LOCAL leaders only
@@ -140,7 +160,7 @@ unioned as (
 -- and require a non-null website. NULL for everyone who doesn't resolve.
 select
     u.id, u.full_name, u.title, u.jurisdiction, u.state_code, u.state,
-    u.party, u.district, u.office, u.email, u.phone, u.photo_url, u.biography, u.is_current,
+    u.party, u.district, u.office, u.email, u.email_source_url, u.phone, u.photo_url, u.biography, u.is_current,
     jw.website_url
 from unioned u
 left join lateral (

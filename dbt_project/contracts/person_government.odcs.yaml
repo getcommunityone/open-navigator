@@ -105,6 +105,11 @@ schema:
     customProperties:
     - property: redactedInPublic
       value: true
+  - id: email_sha256
+    name: email_sha256
+    logicalType: string
+    physicalType: text
+    description: Hex sha256 of lower(btrim(email)); NULL when email is NULL or blank. Kept in the public serving copy (the email is not) so the profile-claim API (#1062) can match a signed-in user's verified email to the official address without exposing it. Never returned to clients.
   - id: phone
     name: phone
     logicalType: string

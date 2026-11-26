@@ -3,6 +3,8 @@ import { useState } from 'react'
 /** One verbatim passage from a recorded public meeting. */
 export interface Passage {
   quote: string
+  /** "Audra T." (#1036): first name + last initial, or first name only; null when no name was heard. */
+  speakerName?: string | null
   speakerRole?: string | null
   jurisdictionName: string
   meetingDate?: string | null
@@ -42,7 +44,7 @@ export function SideColumn({ title, items }: { title: string; items: Passage[] }
       <ul className="stance-side-list">
         {shown.map((p, i) => {
           const href = passageLink(p)
-          const who = [p.speakerRole, p.jurisdictionName, p.meetingDate].filter(Boolean).join(' · ')
+          const who = [p.speakerName, p.speakerRole, p.jurisdictionName, p.meetingDate].filter(Boolean).join(' · ')
           return (
             <li key={`${p.jurisdictionName}-${p.meetingDate ?? ''}-${i}`}>
               <blockquote>“{p.quote}”</blockquote>

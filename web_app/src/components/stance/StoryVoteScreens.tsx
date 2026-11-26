@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import type { ChoiceMoment, ChoiceResults, ChoiceScopes, StanceQuestion } from '../../api/stance'
 import { PAUSE_NOTE, storyScopeLabel, type ScreenText, type StoryScope, type StoryScreen } from '../../utils/dataStory'
 import { answerChange, optionLabel, optionTone, questionText } from '../../utils/storyQuestion'
-import { cap, roundWord } from '../../utils/stanceGame'
 import ChoiceBars from './ChoiceBars'
 import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
@@ -161,10 +160,17 @@ export function QuestionScreen(p: ScreenProps) {
             </p>
           )}
         </div>
-        <div className="stance-nav">
+        <div className="stance-nav stance-nav-split">
           {said || !vote.question ? (
-            <button type="button" className="folio-btn stance-next" onClick={p.onNext} data-primary>
-              Next: {p.nextLabel} <span aria-hidden="true">→</span>
+            <button
+              type="button"
+              className="folio-btn stance-next stance-next-end"
+              onClick={p.onNext}
+              aria-label={`Next: ${p.nextLabel}`}
+              title={`Next: ${p.nextLabel}`}
+              data-primary
+            >
+              Next <span aria-hidden="true">→</span>
             </button>
           ) : (
             <button type="button" className="folio-link-btn stance-skip" onClick={p.onNext}>
@@ -217,9 +223,7 @@ interface VerdictProps extends ScreenProps {
   resultsFailed: boolean
   /** The answer after reading was given on this visit: the results land one after another. */
   fresh: boolean
-  links: { challenge: string; dataCenters: string; decisions: string }
-  /** How many statements the challenge has (from the pack), or null while it is unknown. */
-  statementCount: number | null
+  links: { dataCenters: string; decisions: string }
 }
 
 /**
@@ -272,13 +276,10 @@ export function VerdictScreen(p: VerdictProps) {
           )}
         </div>
         <div className="stance-nav">
-          {answered || !q ? (
-            <Link className="folio-btn stance-next" to={p.links.challenge} data-primary>
-              Take the Data Center Challenge <span aria-hidden="true">→</span>
-            </Link>
-          ) : (
-            <Link className="folio-link-btn stance-skip" to={p.links.challenge}>
-              Skip to the Data Center Challenge
+          {/* #981: the statements are asked in the story itself, so the story ends here, not at a separate challenge. */}
+          {(answered || !q) && (
+            <Link className="folio-btn stance-next" to={p.links.dataCenters} data-primary>
+              See every data center record <span aria-hidden="true">→</span>
             </Link>
           )}
           {p.onPrev && (
@@ -289,8 +290,7 @@ export function VerdictScreen(p: VerdictProps) {
         </div>
         {answered && (
           <p className="stance-note stance-after-links">
-            {p.statementCount ? `${cap(roundWord(p.statementCount))} statements people argued over in local meetings. ` : ''}
-            Or see <Link to={p.links.dataCenters}>every data center record</Link> or <Link to={p.links.decisions}>local decisions</Link> for{' '}
+            Or see <Link to={p.links.decisions}>local decisions</Link> for{' '}
             {label === 'National' ? 'the country' : label}.
           </p>
         )}

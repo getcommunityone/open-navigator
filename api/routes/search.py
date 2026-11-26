@@ -965,11 +965,32 @@ async def count_events(
             )
             ed_where_sql = " AND ".join(ed_where)
 
+            # #1007: meetings found only through a verbatim meeting passage (data_center_meeting_mention),
+            # the same third leg search_events_pg returns, so the tab total matches the list.
+            if has_query:
+                _match = f"plainto_tsquery('english', ${q_fts_idx})"
+            elif topic_idx:
+                _match = f"to_tsquery('english', ${topic_idx})"
+            else:
+                _match = None
+            dm_where_sql = search_postgres.meeting_passage_where(
+                match_sql=_match,
+                state_idx=state_idx,
+                city_idx=city_idx,
+                use_county=use_county,
+                county_names_lower_idx=county_names_lower_idx,
+            )
+            dm_count_sql = (
+                f"+ (SELECT count(DISTINCT dm.video_id) FROM data_center_meeting_mention dm WHERE {dm_where_sql})"
+                if dm_where_sql
+                else ""
+            )
             sql = f"""
                 SELECT
                     (SELECT count(*) FROM event_meeting em WHERE {em_where_sql})
                   + (SELECT count(DISTINCT ed.video_id)
                        FROM event_documents ed WHERE {ed_where_sql})
+                  {dm_count_sql}
             """
 
             pool = await search_postgres.get_db_pool()
@@ -1954,7 +1975,7 @@ async def unified_search(
             search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, city=city, limit=search_limit, county_fips=county_fips)))
 
         if 'meetings' in requested_types:
-            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery, county_fips=county_fips)))
+            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery, county_fips=county_fips, sort=sort)))
 
         if 'organizations' in requested_types:
             search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort, county_fips=county_fips)))
@@ -1990,12 +2011,12 @@ async def unified_search(
 
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)
-            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset, county_fips=county_fips)))
+            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset, county_fips=county_fips, sort=sort)))
 
         if 'meeting_documents' in requested_types:
             # Full-text search over official meeting documents — agenda / minutes /
             # attachments (public.event_meeting_document), filterable by document_type.
-            search_tasks.append(('meeting_documents', search_postgres.search_meeting_documents_pg(q, state, city=city, document_type=document_type, limit=search_limit, offset=search_offset)))
+            search_tasks.append(('meeting_documents', search_postgres.search_meeting_documents_pg(q, state, city=city, document_type=document_type, limit=search_limit, offset=search_offset, sort=sort)))
 
         if 'causes' in requested_types:
             # NTEE causes now come from public.tag (vocabulary='ntee'); the old
@@ -2038,8 +2059,10 @@ async def unified_search(
                 logger.info(f"🔎 {label} search returned {len(converted)} results")
                 all_results.extend(converted)
 
-        # Sort all results by score
-        all_results.sort(key=lambda x: x.score, reverse=True)
+        # Sort all results by score, except under a date sort (#1009): each type's query already ordered its rows
+        # by date, and the score (e.g. analyzed meetings 1.0, others 0.5) would undo that.
+        if not search_postgres.date_sort_direction(sort):
+            all_results.sort(key=lambda x: x.score, reverse=True)
         
         logger.info(f"📊 Total combined results: {len(all_results)}, applying pagination (offset={offset}, limit={limit})")
         

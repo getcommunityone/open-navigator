@@ -1,5 +1,6 @@
 // Pure helpers for the Data Center Challenge (#852) and the data stories (#884). Nothing here invents a number: every figure comes
 // from an API response, and missing or empty data gives null.
+import { youtubeVideoId } from '../lib/youtubeEmbed'
 import type {
   AreaConcernsResponse,
   CommunityEventsResponse,
@@ -12,8 +13,16 @@ import type {
   JobClaimsResponse,
 } from '../api/dataCenters'
 import type { GroupResult, StanceAnswer } from '../api/stance'
-import { communityEventKindLabel, concernLabel } from '../lib/dataCenterJobs'
+import { communityEventKindLabel, concernLabel, siteTotal } from '../lib/dataCenterJobs'
 import { largestRemainder } from './matrixMapMath'
+import { concernColor } from './houseTheme'
+
+
+/** The recording to play in place for a meeting passage (#972), when it is on YouTube. */
+function meetingVideo(videoUrl: string | null | undefined, start: number | null | undefined): Pick<Dot, 'video'> {
+  const videoId = youtubeVideoId(videoUrl)
+  return videoId ? { video: { videoId, start: start ?? null } } : {}
+}
 
 export type ChartKey =
   | 'positions'
@@ -119,14 +128,29 @@ export function findingJobClaims(res: JobClaimsResponse | null | undefined, plac
 export function findingSites(res: DataCenterSitesResponse | null | undefined, place?: string | null): string | null {
   const k = res?.counts
   if (!k) return null
-  const total = k.planned + k.under_construction + k.operating + k.no_longer_listed + k.status_not_published
+  const total = siteTotal(k)
   if (total <= 0) return null
   return `Of ${fmt(total)} data center ${total === 1 ? 'site' : 'sites'} on record ${where(place)}, ${fmt(k.operating)} ${k.operating === 1 ? 'is' : 'are'} operating, ${fmt(k.under_construction)} under construction and ${fmt(k.planned)} planned.`
 }
 
-/** The concern list that matches the scope: the area's own when a state is chosen, otherwise the national one. */
+/**
+ * The concern list that matches the scope: the area's own when a state is chosen, otherwise the national one. One row per
+ * concern: rows for the same concern (one per town, as the API sent before #1139) are merged, summing mentions and listing the
+ * towns once, so a label never repeats in a chart, legend or sentence.
+ */
 export function concernList(res: AreaConcernsResponse, place?: string | null) {
-  return place ? res.items : res.national
+  const list = (place ? res.items : res.national) ?? []
+  const byConcern = new Map<string, (typeof list)[number]>()
+  for (const c of list) {
+    const prev = byConcern.get(c.concern)
+    if (!prev) {
+      byConcern.set(c.concern, c)
+      continue
+    }
+    const towns = [...new Set([...(prev.jurisdictions ?? []), ...(c.jurisdictions ?? [])])].sort()
+    byConcern.set(c.concern, { ...prev, mention_count: prev.mention_count + c.mention_count, jurisdictions: towns })
+  }
+  return [...byConcern.values()]
 }
 
 export function findingConcerns(res: AreaConcernsResponse | null | undefined, place?: string | null): string | null {
@@ -242,6 +266,10 @@ export interface Dot {
   url: string | null
   /** How many records the dot stands for. Absent means one. Only a chart drawn from a count (no listed records) sets it. */
   weight?: number
+  /** A YouTube recording to play in place at the passage's moment (#972); only meeting passages with one set it. */
+  video?: { videoId: string; start: number | null }
+  /** The verbatim passage the dot stands for, matched words in <mark> (#1036): shown with the video. */
+  quote?: string | null
 }
 
 /** A stance a dot group stands for: it picks the group's colour and its shape, so colour is never the only signal. */
@@ -251,6 +279,8 @@ export interface DotGroup {
   key: string
   label: string
   tone?: DotTone
+  /** A fixed colour for this group (concerns, #1139); otherwise the colour follows the group's place in the list. */
+  color?: string
   /** Dots drawn for this group. */
   shown: number
   /** Real whole-scope count for this group when the endpoint returns one for this grouping, otherwise null. */
@@ -376,7 +406,7 @@ export function dotGroupHeading(g: {
   return g.shown < g.total ? `${head} · showing ${fmt(g.shown)}` : head
 }
 
-type GroupIn = { key: string; label: string; dots: Dot[]; total?: number | null; tone?: DotTone }
+type GroupIn = { key: string; label: string; dots: Dot[]; total?: number | null; tone?: DotTone; color?: string }
 
 function dotGroups(groups: GroupIn[], unit?: [string, string], ratio = false): { groups: DotGroup[]; grandTotal: number | null } {
   const live = groups.filter((g) => g.dots.length > 0 || (g.total ?? 0) > 0)
@@ -391,6 +421,7 @@ function dotGroups(groups: GroupIn[], unit?: [string, string], ratio = false): {
         key: g.key,
         label: g.label,
         ...(g.tone ? { tone: g.tone } : {}),
+        ...(g.color ? { color: g.color } : {}),
         dots: g.dots,
         shown,
         total,
@@ -411,7 +442,7 @@ function countChart(
   title: string,
   source: string,
   unit: [string, string],
-  groups: Array<{ key: string; label: string; count: number | null | undefined; tone?: DotTone }>,
+  groups: Array<{ key: string; label: string; count: number | null | undefined; tone?: DotTone; color?: string }>,
 ): DotsSpec | null {
   const live = groups.filter((g) => (g.count ?? 0) > 0)
   const sum = live.reduce((a, g) => a + (g.count ?? 0), 0)
@@ -419,7 +450,7 @@ function countChart(
   // Each group's left-over dot can take one more place than the division alone, so that room is kept free.
   const perDot = sum <= COUNT_DOT_CAP ? 1 : dotRatio(sum, COUNT_DOT_CAP - live.length)
   const { groups: g, grandTotal } = dotGroups(
-    live.map((x) => ({ key: x.key, label: x.label, tone: x.tone, total: x.count ?? 0, dots: countDots(x.key, x.count ?? 0, perDot, unit) })),
+    live.map((x) => ({ key: x.key, label: x.label, tone: x.tone, color: x.color, total: x.count ?? 0, dots: countDots(x.key, x.count ?? 0, perDot, unit) })),
     unit,
     true,
   )
@@ -511,24 +542,25 @@ export function chartSpec(
     case 'sites': {
       const res = data as DataCenterSitesResponse
       const k = res.counts
-      const on = k ? k.planned + k.under_construction + k.operating + k.no_longer_listed + k.status_not_published : null
-      const order = ['operating', 'under_construction', 'planned', 'no_longer_listed', '']
+      const on = k ? siteTotal(k) : null
+      const order = ['operating', 'under_construction', 'planned', 'cancelled', 'no_longer_listed', '']
       const names: Record<string, string> = {
         operating: 'Operating',
         under_construction: 'Under construction',
         planned: 'Planned',
+        cancelled: 'Cancelled (per the source)',
         no_longer_listed: 'No longer listed',
         '': 'Status not published',
       }
       const items = res.items ?? []
       return dots(
         CHART_TITLES.sites,
-        'Epoch AI data center sites, CC BY 4.0',
+        'Epoch AI and the US Data Center Registry (base data from Compute Atlas), CC BY 4.0',
         'data center site',
         order.map((st) => ({
           key: st || 'none',
           label: names[st]!,
-          total: k ? (st === '' ? k.status_not_published : k[st as 'operating' | 'planned' | 'under_construction' | 'no_longer_listed']) : null,
+          total: k ? (st === '' ? k.status_not_published : (k[st as 'operating' | 'planned' | 'under_construction' | 'cancelled' | 'no_longer_listed'] ?? 0)) : null,
           dots: items
             .filter((i) => (i.status ?? '') === st)
             .map((i) => ({
@@ -550,7 +582,7 @@ export function chartSpec(
         ['mention', 'mentions'],
         [...list]
           .sort((a, b) => b.mention_count - a.mention_count || a.concern.localeCompare(b.concern))
-          .map((c) => ({ key: c.concern, label: cap(concernLabel(c.concern)), count: c.mention_count })),
+          .map((c) => ({ key: c.concern, label: cap(concernLabel(c.concern)), count: c.mention_count, color: concernColor(c.concern) })),
       )
     }
     case 'meeting-mentions': {
@@ -574,6 +606,8 @@ export function chartSpec(
               place: joinPlace(m.jurisdiction_name, m.state_code),
               date: m.meeting_date ?? null,
               url: m.jump_url ?? m.video_url ?? null,
+              ...meetingVideo(m.video_url, m.start_seconds),
+              quote: m.evidence ?? null,
             })),
         })),
         res.counts?.passages ?? null,
@@ -722,6 +756,14 @@ export function roundBeat(state: { answered: boolean; asked: boolean; changing?:
   if (state.changing) return 'question'
   if (state.answered) return 'results'
   return state.asked ? 'question' : 'finding'
+}
+
+/** Scroll stop inside a challenge round (#969). `results` beat lands on the reveal stop. */
+export type RoundStop = 'finding' | 'question' | 'reveal'
+
+export function roundStop(beat: RoundBeat): RoundStop {
+  if (beat === 'results') return 'reveal'
+  return beat
 }
 
 /** Milliseconds the chart waits before it starts to draw, and how long the draw takes (the CSS animation uses the same). */

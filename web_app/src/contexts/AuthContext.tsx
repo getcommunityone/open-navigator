@@ -19,7 +19,8 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (provider: string) => void;
+  /** Start sign-in; `returnTo` (a URL on this site) is where it lands afterwards, the home page by default. */
+  login: (provider: string, returnTo?: string) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
@@ -108,9 +109,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const login = (provider: string) => {
-    // Redirect to OAuth endpoint
-    const redirectUri = encodeURIComponent(window.location.origin);
+  const login = (provider: string, returnTo?: string) => {
+    // Redirect to OAuth endpoint. The API only accepts a redirect on this site's origin, so returnTo can't leave it.
+    const back = returnTo && returnTo.startsWith(window.location.origin) ? returnTo : window.location.origin;
+    const redirectUri = encodeURIComponent(back);
     const authUrl = `${API_URL}/auth/login/${provider}?redirect_uri=${redirectUri}`;
     window.location.href = authUrl;
   };

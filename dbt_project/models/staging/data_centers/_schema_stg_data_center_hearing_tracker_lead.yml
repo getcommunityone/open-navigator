@@ -1,0 +1,85 @@
+version: 2
+
+# #956: data center hearing leads from the CC BY 4.0 trackers. Leads only, never served.
+
+models:
+  - name: stg_data_center_hearing_tracker_lead
+    description: >
+      One row per tracker record (Data Center Fights meetings, Siting Radar upcoming data center
+      items) that has a date, a state and a place read from its own words. source_kind is
+      'official' only when the cited URL is on a government host; those pages are fetched and
+      checked before anything is shown (data_center_hearing). Records naming no local place
+      are left out rather than guessed.
+    columns:
+      - name: lead_id
+        description: "'dcf-' or 'sr-' plus the tracker's record id. Primary key."
+        tests: [unique, not_null]
+      - name: tracker
+        description: "datacenterfights or sitingradar."
+        tests:
+          - accepted_values:
+              values: ['datacenterfights', 'sitingradar']
+      - name: record_id
+        description: "The tracker's own id."
+      - name: meeting_date
+        description: "The date the tracker gives."
+        tests: [not_null]
+      - name: jurisdiction_name
+        description: "The place, from the body (Data Center Fights) or `jurisdiction` (Siting Radar), without a leading 'City of' / 'Village of'; a trailing type word is kept (Kansas City, Hazle Township)."
+        tests: [not_null]
+      - name: state_code
+        description: "2-letter state code."
+        tests: [not_null]
+      - name: body_name
+        description: "The body as the tracker names it."
+      - name: topic
+        description: "The tracker's topic (Data Center Fights) or summary (Siting Radar). Never served: data_center_hearing nulls it for tracker leads."
+      - name: source_kind
+        description: "official (a .gov host, a locality .us name, or a government's subdomain of an agenda platform) or tracker (anything else: news, notice registries, a city site on .com)."
+        tests:
+          - accepted_values:
+              values: ['official', 'tracker']
+      - name: source_name
+        description: "Who the lead is credited to, with the CC BY attribution."
+      - name: source_url
+        description: "The URL the tracker cites for the meeting."
+      - name: census_geoid
+        description: "Siting Radar's Census GEOID for the place; null for Data Center Fights."
+      - name: attribution
+        description: "The credit the tracker's CC BY 4.0 license asks for."
+      - name: fetched_at
+        description: "When the tracker's file was fetched."
+
+unit_tests:
+  - name: dc_tracker_lead_place_and_official_host
+    description: "Place from the body's words; only government hosts are official; user-added, placeless, other-sector and dropped records are left out."
+    model: stg_data_center_hearing_tracker_lead
+    given:
+      - input: source('bronze', 'bronze_data_center_hearing_tracker_lead')
+        format: sql
+        rows: |
+          select 'datacenterfights'::text as tracker, 'old'::text as record_id, 'f'::text as feed_url, 'X'::text as attribution, '2026-11-01'::timestamptz as fetched_at,
+                 '{"date":"2026-12-01","state":"TX","body":"Dropped City Council","source":"https://x.gov"}'::jsonb as record
+          union all select 'datacenterfights', 'a', 'f', 'X', '2026-11-25', '{"date":"2026-12-07","state":"PA","body":"Hazle Township Board of Supervisors","source":"https://www.standardspeaker.com/x"}'::jsonb
+          union all select 'datacenterfights', 'b', 'f', 'X', '2026-11-25', '{"date":"2026-11-30","state":"MN","body":"Monticello City Council (special meeting)","source":"https://www.ci.monticello.mn.us/agenda"}'::jsonb
+          union all select 'datacenterfights', 'c', 'f', 'X', '2026-11-25', '{"date":"2026-12-03","state":"CO","body":"City of Denton Planning and Zoning Commission","source":"https://elbertcoco.api.civicclerk.com/x"}'::jsonb
+          union all select 'datacenterfights', 'd', 'f', 'X', '2026-11-25', '{"date":"2026-12-02","state":"AZ","body":"Arizona Corporation Commission","source":"https://azcc.gov/x"}'::jsonb
+          union all select 'datacenterfights', 'e', 'f', 'X', '2026-11-25', '{"date":"2026-12-03","state":"AZ","body":"Arizona Attorney General town hall","source":"https://x.com"}'::jsonb
+          union all select 'datacenterfights', 'g', 'f', 'X', '2026-11-25', '{"date":"2026-12-01","state":"FL","body":"Orange County Board of County Commissioners","source":"https://stopthedatacenter-orange.us/news"}'::jsonb
+          union all select 'datacenterfights', 'h', 'f', 'X', '2026-11-25', '{"date":"2026-12-01","state":"MO","body":"Kansas City Council","source":"https://x.gov:pw@evil.com/p"}'::jsonb
+          union all select 'datacenterfights', 'i', 'f', 'X', '2026-11-25', '{"date":"2026-12-01","state":"CO","body":"Board of County Commissioners of Weld County","source":"https://weld.gov/x"}'::jsonb
+          union all select 'datacenterfights', 'j', 'f', 'X', '2026-11-25', '{"date":"2026-12-01","state":"NC","body":"Avery County Board of Commissioners","source":"https://averycountync.gov/x","source_type":"user-added"}'::jsonb
+          union all select 'datacenterfights', 'k', 'f', 'X', '2026-11-25', '{"date":"2026-12-01","state":"NC","body":"Kings Mountain City Council","source":"https://www.cityofkm.com/x"}'::jsonb
+          union all select 'sitingradar', '1', 'f', 'X', '2026-11-25', '{"event_date":"2026-12-01","state":"MI","jurisdiction":"Village of Chesaning","body":"Village Council","sectors":"data_center","census_geoid":"2615140","source_url":"https://www.mipublicnotices.com/#/?noticeId=x"}'::jsonb
+          union all select 'sitingradar', '2', 'f', 'X', '2026-11-25', '{"event_date":"2026-12-01","state":"MI","jurisdiction":"Washington Township","body":"Planning Commission","sectors":"wind","source_url":"https://x.gov/"}'::jsonb
+          union all select 'sitingradar', '3', 'f', 'X', '2026-11-25', '{"event_date":"2027-01-12","state":"MI","jurisdiction":"Banks Township","body":"Planning Commission","sectors":"battery_storage|data_center","source_url":"https://bankstownshipmi.gov/x"}'::jsonb
+    expect:
+      rows:
+        - {lead_id: dcf-a, jurisdiction_name: Hazle Township, source_kind: tracker}
+        - {lead_id: dcf-b, jurisdiction_name: Monticello City, source_kind: official}
+        - {lead_id: dcf-c, jurisdiction_name: Denton, source_kind: official}
+        - {lead_id: dcf-g, jurisdiction_name: Orange County, source_kind: tracker}
+        - {lead_id: dcf-h, jurisdiction_name: Kansas City, source_kind: tracker}
+        - {lead_id: dcf-k, jurisdiction_name: Kings Mountain City, source_kind: tracker}
+        - {lead_id: sr-1, jurisdiction_name: Chesaning, source_kind: tracker}
+        - {lead_id: sr-3, jurisdiction_name: Banks Township, source_kind: official}

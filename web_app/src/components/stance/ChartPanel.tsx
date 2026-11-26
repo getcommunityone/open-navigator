@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchChartData } from '../../api/stance'
@@ -7,6 +7,8 @@ import { docsUrl } from '../../utils/docsLinks'
 import { GROUP_COLORS, HOUSE_STYLE } from '../../utils/houseTheme'
 import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
+import { youtubeThumbnail } from '../../lib/youtubeThumbnail'
+import MeetingVideoModal, { type MeetingVideo } from './MeetingVideoModal'
 
 interface Props {
   chartKey: string
@@ -40,19 +42,31 @@ export function useChartData(chartKey: string, enabled: boolean, stateCode: stri
   })
 }
 
-/** A group's colour: its stance tone (set in stance.css, with a shape of its own) or the next colour of the house theme. */
+/** A group's colour: its stance tone (set in stance.css, with a shape of its own), its own fixed colour, or the next colour of the house theme. */
 function dotLook(g: DotGroup, gi: number): { className: string; background: string | undefined } {
-  return g.tone ? { className: ` stance-dot--${g.tone}`, background: undefined } : { className: '', background: GROUP_COLORS[gi % GROUP_COLORS.length] }
+  if (g.tone) return { className: ` stance-dot--${g.tone}`, background: undefined }
+  return { className: '', background: g.color ?? GROUP_COLORS[gi % GROUP_COLORS.length] }
 }
 
 /**
  * One mark per real record (or per stated number of records), grouped under "Group · N records · P%". Roving focus: arrow
  * keys move between the dots. The dots appear one after another when the chart arrives (stance.css reads `--f`).
+ * A meeting dot with a YouTube recording (#972) previews its thumbnail in the tooltip and plays in a modal on click, Enter
+ * or Space; nothing loads from YouTube before that. Other dots open their source in a new tab as before.
  */
 export function Dots({ spec }: { spec: DotsSpec }) {
-  const { bind, tip } = useTooltip()
+  const { bind, tip, hide } = useTooltip()
   const [rove, setRove] = useState(0)
+  const [playing, setPlaying] = useState<{ video: MeetingVideo; from: number } | null>(null)
   const root = useRef<HTMLDivElement>(null)
+  const playingFrom = useRef<number | null>(null)
+  const closeVideo = useCallback(() => {
+    const from = playingFrom.current
+    playingFrom.current = null
+    setPlaying(null)
+    // Back to the dot the video came from, so keyboard users keep their place.
+    if (from != null) requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-dot="${from}"]`)?.focus())
+  }, [])
   const flat = useMemo(() => spec.groups.flatMap((g, gi) => g.dots.map((d) => ({ d, gi, label: g.label }))), [spec])
   const onKey = (e: KeyboardEvent) => {
     const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
@@ -66,6 +80,7 @@ export function Dots({ spec }: { spec: DotsSpec }) {
   let n = -1
   const total = flat.length
   return (
+    <>
     <div className="stance-dots" ref={root} data-keys-own onKeyDown={onKey}>
       {spec.groups.map((g, gi) => {
         const look = dotLook(g, gi)
@@ -79,9 +94,19 @@ export function Dots({ spec }: { spec: DotsSpec }) {
             {g.dots.map((d) => {
               n += 1
               const i = n
-              const info = { cat: g.label, val: d.title, sub: [d.place, d.date].filter(Boolean).join(' · ') || undefined }
-              const label = `${d.title}${d.place ? `, ${d.place}` : ''}${d.date ? `, ${d.date}` : ''}${d.url ? ' (opens the source)' : ''}`
+              const sub = [d.place, d.date].filter(Boolean).join(' · ') || undefined
+              const info = { cat: g.label, val: d.title, sub, thumb: d.video ? youtubeThumbnail(d.video.videoId, 'mqdefault') ?? undefined : undefined }
+              const label = `${d.title}${d.place ? `, ${d.place}` : ''}${d.date ? `, ${d.date}` : ''}${
+                d.video ? ' (plays the recording)' : d.url ? ' (opens the source)' : ''
+              }`
               const b = bind(info)
+              const play = d.video
+                ? () => {
+                    hide()
+                    playingFrom.current = i
+                    setPlaying({ video: { ...d.video!, title: d.title, sub, url: d.url, quote: d.quote ?? null, place: d.place, date: d.date }, from: i })
+                  }
+                : null
               const common = {
                 className: `stance-dot${look.className}${d.weight != null && d.weight < spec.perDot ? ' is-part' : ''}`,
                 'data-dot': i,
@@ -93,6 +118,21 @@ export function Dots({ spec }: { spec: DotsSpec }) {
                   setRove(i)
                   b.onFocus(e)
                 },
+                ...(play && {
+                  'aria-haspopup': 'dialog' as const,
+                  onClick: (e: MouseEvent) => {
+                    // A modifier click still opens YouTube in a tab, like any link.
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                    e.preventDefault()
+                    play()
+                  },
+                  onKeyDown: (e: KeyboardEvent) => {
+                    if (e.key === ' ') {
+                      e.preventDefault()
+                      play()
+                    }
+                  },
+                }),
               }
               return d.url ? (
                 <a key={d.id + i} role="listitem" href={d.url} target="_blank" rel="noopener noreferrer" {...common} />
@@ -106,8 +146,14 @@ export function Dots({ spec }: { spec: DotsSpec }) {
       })}
       {typeof document !== 'undefined' && createPortal(<div className="folio" style={HOUSE_STYLE}><Tooltip tip={tip} /></div>, document.body)}
       <p className="stance-note stance-hint-keys">Use the arrow keys to move between dots.</p>
-      {flat.some((x) => x.d.url) && <p className="stance-note stance-hint-touch">Tap a dot to open it.</p>}
+      {flat.some((x) => x.d.url) && (
+        <p className="stance-note stance-hint-touch">{flat.some((x) => x.d.video) ? 'Tap a dot to play the meeting.' : 'Tap a dot to open it.'}</p>
+      )}
     </div>
+    {/* Outside the dots' div: React portals bubble events up the React tree, so the dialog's keys must not reach the
+        dots' arrow-key handler and move focus behind the dialog. */}
+    <MeetingVideoModal video={playing?.video ?? null} onClose={closeVideo} />
+    </>
   )
 }
 
@@ -119,6 +165,7 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
   const fig = String(round).padStart(2, '0')
   const scope = scopeLabel ?? stateName ?? 'National'
   const hasLinks = Boolean(spec?.groups.some((g) => g.dots.some((d) => d.url)))
+  const hasVideos = Boolean(spec?.groups.some((g) => g.dots.some((d) => d.video)))
 
   return (
     <figure className="stance-figure" aria-label={spec?.title ?? 'Chart'}>
@@ -136,12 +183,12 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
       )}
       <figcaption className="folio-fig">
         <b>FIG. {fig}</b> — {spec ? `${spec.title}, ${scope}.` : `${scope}.`}
-        {spec && ` ${spec.dotMeans} ${hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`}
+        {spec && ` ${spec.dotMeans} ${hasVideos ? 'Hover or focus a dot to preview the meeting; select it to play the recording from the quoted moment.' : hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`}
         {spec && ` Source: ${spec.source}.`}
         {spec?.note && ` ${spec.note}`}
         {spec && chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'}
         {spec && stateName == null && ' National figures, because no state is chosen.'}{' '}
-        <a href={docsUrl('/guides/data-center-challenge#sources-and-limits')} target="_blank" rel="noopener noreferrer">
+        <a href={docsUrl('/guides/data-stories#sources-and-limits')} target="_blank" rel="noopener noreferrer">
           About this data
         </a>
       </figcaption>

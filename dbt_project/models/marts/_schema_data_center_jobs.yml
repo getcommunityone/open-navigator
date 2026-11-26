@@ -1,0 +1,122 @@
+version: 2
+
+models:
+  - name: data_center_employment
+    description: >
+      Data center payroll employment from the BLS Quarterly Census of Employment and Wages (#1019). One row per area
+      (national, state, county) per year, private ownership, NAICS 518210 (computing infrastructure, data processing,
+      web hosting: the industry BLS counts data center jobs under, broader than data centers alone). Annual averages
+      of employers' payroll filings. A withheld figure is NULL with disclosed = false, never 0.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: data_center_employment_id
+        description: "Primary key: md5(area_fips | year)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: area_fips
+        description: "QCEW area code: US000, SS000 (state), 5-digit county FIPS."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: area_level
+        description: "national, state or county."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['national', 'state', 'county']
+      - name: state_code
+        description: "2-letter state code (null for national)."
+        data_type: text
+      - name: state
+        description: "State name (null for national)."
+        data_type: text
+      - name: county_fips
+        description: "5-digit county FIPS (county rows only)."
+        data_type: text
+      - name: year
+        description: "Calendar year (integer)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: establishments
+        description: "Annual average establishments; null when withheld."
+        data_type: integer
+      - name: employment
+        description: "Annual average payroll employment; null when withheld."
+        data_type: integer
+      - name: total_annual_wages
+        description: "Total annual wages, dollars; null when withheld."
+        data_type: bigint
+      - name: avg_annual_pay
+        description: "Average annual pay, dollars; null when withheld."
+        data_type: integer
+      - name: employment_change_pct
+        description: "Over-the-year change in employment, percent; null when withheld."
+        data_type: numeric
+      - name: disclosed
+        description: "False when BLS withheld the figures to protect an employer."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: industry_code
+        description: "NAICS 518210."
+        data_type: text
+      - name: source_url
+        description: "The BLS open-data CSV the row came from."
+        data_type: text
+        constraints:
+          - type: not_null
+
+  - name: data_center_job_source
+    description: >
+      Where data center jobs are tracked (#1019), cited on the jobs screen: official statistics, job boards and
+      associations, with each site's own description (verbatim) and what its terms allow. Only bls-qcew is loaded;
+      boards whose terms forbid scraping are cited, never scraped.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: job_source_id
+        description: "Primary key: the seed's slug."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: name
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: url
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: kind
+        description: "official_statistics, job_board or association."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: description
+        description: "The site's own words, verbatim; null when none was read."
+        data_type: text
+      - name: description_source_url
+        data_type: text
+      - name: automated_access
+        description: "public_data, prohibited_by_terms or not_pulled."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: checked_on
+        description: "When the terms were read."
+        data_type: date

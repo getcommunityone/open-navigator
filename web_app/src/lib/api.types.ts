@@ -80,6 +80,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/meeting-kind-overrides/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upsert Meeting Kind Override
+         * @description Set or replace the human override for one video.
+         */
+        put: operations["upsert_meeting_kind_override_api_admin_meeting_kind_overrides__video_id__put"];
+        post?: never;
+        /**
+         * Delete Meeting Kind Override
+         * @description Clear the override so the screen kind is used again.
+         */
+        delete: operations["delete_meeting_kind_override_api_admin_meeting_kind_overrides__video_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/meeting-kind-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Meeting Kind Reviews
+         * @description Videos whose screen ``meeting_kind`` matches ``kind``, with override columns.
+         */
+        get: operations["list_meeting_kind_reviews_api_admin_meeting_kind_reviews_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/advocacy/email/{opportunity_id}": {
         parameters: {
             query?: never;
@@ -137,6 +181,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/batch-jobs/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Cohorts
+         * @description State-code lists for priority, data-center, and full-US launch cohorts.
+         */
+        get: operations["list_cohorts_api_batch_jobs_cohorts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/batch-jobs/failed-videos": {
         parameters: {
             query?: never;
@@ -151,6 +215,94 @@ export interface paths {
         get: operations["list_failed_videos_api_batch_jobs_failed_videos_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batch-jobs/failure-grid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Failure Grid Route
+         * @description Failed items for any stage, sortable and pageable (#800).
+         *
+         *     ``total`` equals the failed badge on the stage row for the same cohort and state when no ``q``
+         *     or ``group`` is set. The sort key comes from a fixed allow-list; no request text reaches SQL.
+         */
+        get: operations["failure_grid_route_api_batch_jobs_failure_grid_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batch-jobs/failure-reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Failure Reasons
+         * @description Failed videos for a stage, grouped by the reason stored in ``transcript_file_error`` (#792).
+         *
+         *     The group counts sum to ``total``, which is the number on the stage row's failed badge for the
+         *     same cohort and state.
+         */
+        get: operations["list_failure_reasons_api_batch_jobs_failure_reasons_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batch-jobs/failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Failures
+         * @description The failed videos behind one reason (paged).
+         */
+        get: operations["list_failures_api_batch_jobs_failures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batch-jobs/failures/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Failures Route
+         * @description Make the failed videos of one retryable group or reason due for the next caption fetch (#802).
+         *
+         *     Deletes nothing. The next Backfill (Transcripts row) fetches them. ``dry_run`` only counts.
+         */
+        post: operations["retry_failures_route_api_batch_jobs_failures_retry_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -389,6 +541,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Center Decisions
+         * @description The decisions local meetings took on data center items in the scope: debated ones and
+         *     ones taken up without debate (consent agenda), newest first, with the whole-scope counts.
+         *
+         *     ``votes_for`` / ``votes_against`` are given only when a debated decision's tally records
+         *     both sides; an item taken up without debate carries its vote as said in ``vote_text``.
+         *     ``available`` is false and every count null when the mart isn't loaded.
+         *
+         *     Example:
+         *         GET /api/data-centers/decisions?state=GA
+         */
+        get: operations["data_center_decisions_api_data_centers_decisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data-centers/hearings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Center Hearings
+         * @description Upcoming local government hearings on data centers whose official page (a government
+         *     agenda, notice or project page) states the date together with the data center item, each
+         *     with a verbatim excerpt and the link; ``tentative`` when the page says the date isn't final.
+         *     Leads that aren't backed by an official page are never returned. ``available`` is false, with null counts, when the table isn't loaded.
+         *
+         *     Example:
+         *         GET /api/data-centers/hearings?state=AZ&when=upcoming
+         */
+        get: operations["list_data_center_hearings_api_data_centers_hearings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/job-claims": {
         parameters: {
             query?: never;
@@ -436,6 +642,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Center Positions
+         * @description Who spoke for and against a data center item at local meetings, who asked a question,
+         *     and the votes where a tally was recorded, for the scope; plus a few of the speakers'
+         *     own words on each side, each linked to the moment in the recording.
+         *
+         *     Only comments about the data center item count (a comment on another item of the same
+         *     meeting never does). ``available`` is false and every total null when the mart isn't
+         *     loaded; ``votes_for`` / ``votes_against`` are null when ``decisions_with_tally`` is 0.
+         *
+         *     Example:
+         *         GET /api/data-centers/positions?state=AL&city=Tuscaloosa
+         */
+        get: operations["data_center_positions_api_data_centers_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/projects": {
         parameters: {
             query?: never;
@@ -470,8 +705,8 @@ export interface paths {
         };
         /**
          * List Data Center Sites
-         * @description Data center sites (Epoch AI, CC BY 4.0) with status and source; sites no longer
-         *     listed by the source stay in the list.
+         * @description Data center sites (Epoch AI and the US Data Center Registry, CC BY 4.0) with status and
+         *     source; sites no longer listed by their source stay in the list.
          *
          *     Example:
          *         GET /api/data-centers/sites?state=TX
@@ -661,6 +896,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/deployments/{job_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Deployment Step Result
+         * @description Counts and the items that were not loaded for one step of a run (#823).
+         *
+         *     Reads the step's ``<job_id>_<step>.result.json``. ``reasons`` and their counts always cover the
+         *     whole run; ``total`` and ``rows`` reflect the filters.
+         */
+        get: operations["deployment_step_result_api_deployments__job_id__result_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/deployments/{job_id}/stop": {
         parameters: {
             query?: never;
@@ -813,6 +1071,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/people/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Claim
+         * @description The signed-in user's claim on this official, or null.
+         */
+        get: operations["get_my_claim_api_people_claim_get"];
+        put?: never;
+        /**
+         * Claim Profile
+         * @description Claim an official's profile as the signed-in user.
+         */
+        post: operations["claim_profile_api_people_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/people/claim/{person_claim_id}/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Edit
+         * @description Store a proposed edit (or feedback) as pending, for the owner to approve.
+         */
+        post: operations["propose_edit_api_people_claim__person_claim_id__edits_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/school-districts": {
         parameters: {
             query?: never;
@@ -912,34 +1214,6 @@ export interface paths {
          * @description Get status of a running workflow.
          */
         get: operations["get_workflow_status_api_workflow__workflow_id__status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/{full_path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Serve React App
-         * @description Serve a real static file if one exists, else the React app (SPA routing).
-         *
-         *     Top-level public assets (e.g. /pdf/*, /communityone_logo.svg,
-         *     /robots.txt, /wikimedia/*) live in static_dir but are not under the
-         *     mounted /assets or /data trees. Without this file check they fall through
-         *     to index.html, so the browser loads the SPA into e.g. an <iframe
-         *     src="/pdf/..."> and React Router renders the NotFound (404) page instead
-         *     of the file. Vite's dev server serves these from public/ at the root, so
-         *     the gap only shows in production.
-         */
-        get: operations["serve_react_app__full_path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1088,6 +1362,11 @@ export interface components {
             is_dominant: boolean;
             /** Jurisdiction Name */
             jurisdiction_name?: string | null;
+            /**
+             * Jurisdictions
+             * @description Towns whose meeting records raised this concern, sorted (state and city scopes). Empty for national rows.
+             */
+            jurisdictions: string[];
             /** Last Meeting On */
             last_meeting_on?: string | null;
             /** Mention Count */
@@ -1306,6 +1585,38 @@ export interface components {
             /** State Code */
             state_code: string;
         };
+        /** ClaimIn */
+        ClaimIn: {
+            /** Person Id */
+            person_id: string;
+        };
+        /** ClaimOut */
+        ClaimOut: {
+            /** Created At */
+            created_at?: string | null;
+            /** Person Claim Id */
+            person_claim_id: number;
+            /** Person Id */
+            person_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "verified" | "rejected";
+            /** Updated At */
+            updated_at?: string | null;
+            /** Verified Via */
+            verified_via?: string | null;
+        };
+        /** CohortsResponse */
+        CohortsResponse: {
+            /** All */
+            all: string[];
+            /** Data Centers */
+            data_centers: string[];
+            /** Priority */
+            priority: string[];
+        };
         /** CommunityEvent */
         CommunityEvent: {
             /** City */
@@ -1475,6 +1786,152 @@ export interface components {
             items: components["schemas"]["DataCenterAgendaItem"][];
             scope: components["schemas"]["JobClaimScope"];
         };
+        /**
+         * DataCenterDecision
+         * @description One decision a local meeting took on a data center item, debated or not.
+         */
+        DataCenterDecision: {
+            /**
+             * Contested
+             * @description True: debated (a contested decision). False: taken up without debate (consent agenda).
+             */
+            contested: boolean;
+            /** Data Center Decision Id */
+            data_center_decision_id: string;
+            /**
+             * Decision Url
+             * @description Site path of the decision's page; contested decisions only.
+             */
+            decision_url?: string | null;
+            /** Headline */
+            headline?: string | null;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /** Meeting Date */
+            meeting_date?: string | null;
+            /** Outcome */
+            outcome?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Video Url */
+            video_url?: string | null;
+            /**
+             * Vote Text
+             * @description How an uncontested item passed, as said (voice vote, 5-0); never parsed into numbers.
+             */
+            vote_text?: string | null;
+            /**
+             * Votes Against
+             * @description Recorded no votes; null unless the tally records both sides.
+             */
+            votes_against?: number | null;
+            /**
+             * Votes For
+             * @description Recorded yes votes; null unless the tally records both sides.
+             */
+            votes_for?: number | null;
+        };
+        /**
+         * DataCenterDecisionCounts
+         * @description Whole-scope counts (not capped by ``limit``). Null when the mart isn't loaded.
+         */
+        DataCenterDecisionCounts: {
+            /** Contested */
+            contested?: number | null;
+            /**
+             * Meetings
+             * @description Meetings the decisions were taken in.
+             */
+            meetings?: number | null;
+            /** Uncontested */
+            uncontested?: number | null;
+        };
+        /** DataCenterDecisionsResponse */
+        DataCenterDecisionsResponse: {
+            /**
+             * Available
+             * @description False when the mart isn't in the database yet: counts are null, not zero.
+             * @default true
+             */
+            available: boolean;
+            counts?: components["schemas"]["DataCenterDecisionCounts"];
+            /** Items */
+            items?: components["schemas"]["DataCenterDecision"][];
+            scope: components["schemas"]["JobClaimScope"];
+        };
+        /**
+         * DataCenterHearing
+         * @description A data center hearing whose official government page states the date together with the data center item.
+         */
+        DataCenterHearing: {
+            /** Body Name */
+            body_name?: string | null;
+            /**
+             * Checked At
+             * @description When the official page was last read.
+             */
+            checked_at?: string | null;
+            /** Data Center Hearing Id */
+            data_center_hearing_id: string;
+            /**
+             * Evidence
+             * @description Verbatim excerpt of the official page; matched words in <mark>.
+             */
+            evidence?: string | null;
+            /**
+             * Is Upcoming
+             * @description The meeting is today or later.
+             */
+            is_upcoming: boolean;
+            /** Jurisdiction Id */
+            jurisdiction_id?: string | null;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /**
+             * Meeting Date
+             * Format: date
+             */
+            meeting_date: string;
+            /** Source Name */
+            source_name?: string | null;
+            /**
+             * Source Url
+             * @description The official page that states the hearing.
+             */
+            source_url: string;
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /**
+             * Tentative
+             * @description The page calls the date tentative, expected, not final or to be determined.
+             * @default false
+             */
+            tentative: boolean;
+            /** Topic */
+            topic?: string | null;
+        };
+        /** DataCenterHearingCounts */
+        DataCenterHearingCounts: {
+            /** Past */
+            past?: number | null;
+            /** Upcoming */
+            upcoming?: number | null;
+        };
+        /** DataCenterHearingsResponse */
+        DataCenterHearingsResponse: {
+            /**
+             * Available
+             * @description False when the table isn't loaded: counts are null, not zero.
+             * @default true
+             */
+            available: boolean;
+            counts?: components["schemas"]["DataCenterHearingCounts"];
+            /** Items */
+            items?: components["schemas"]["DataCenterHearing"][];
+            scope: components["schemas"]["JobClaimScope"];
+        };
         /** DataCenterMeetingMention */
         DataCenterMeetingMention: {
             /** Data Center Meeting Mention Id */
@@ -1504,8 +1961,18 @@ export interface components {
             match_terms?: string[];
             /** Meeting Date */
             meeting_date?: string | null;
+            /**
+             * Meeting Summary
+             * @description The meeting's AI summary from the record (event_meeting.meeting_summary, #1124); null when the meeting has none or isn't in event_meeting.
+             */
+            meeting_summary?: string | null;
             /** Meeting Title */
             meeting_title?: string | null;
+            /**
+             * Meeting Url
+             * @description The app route of the meeting page (/meetings/<event_meeting_id>); null when not on record.
+             */
+            meeting_url?: string | null;
             /** Passage Index */
             passage_index: number;
             /** Site Match Basis */
@@ -1515,6 +1982,16 @@ export interface components {
              * @description The tracked site discussed or nearby, if any.
              */
             site_name?: string | null;
+            /**
+             * Speaker Display Name
+             * @description "First L." of the person the record attributes the quoted words to (#1124): a counted public comment from the meeting's analysis whose verbatim quote is inside this excerpt. Null when no attribution exists (never guessed), or when two different speakers match.
+             */
+            speaker_display_name?: string | null;
+            /**
+             * Speaker Role
+             * @description That speaker's role as recorded; null with no speaker.
+             */
+            speaker_role?: string | null;
             /**
              * Start Seconds
              * @description Seconds into the recording; null when untimed.
@@ -1535,6 +2012,16 @@ export interface components {
          */
         DataCenterMeetingMentionCounts: {
             /**
+             * By Place
+             * @description Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map, and the real speaker sums for its meetings (#1106; 0 when none). Governments with none are left out.
+             */
+            by_place?: components["schemas"]["DataCenterMeetingMentionPlaceCount"][];
+            /**
+             * By State
+             * @description Meetings per state across the whole country (not narrowed by state or city), largest first (#970); states with none are left out.
+             */
+            by_state?: components["schemas"]["DataCenterMeetingMentionStateCount"][];
+            /**
              * Meetings
              * @default 0
              */
@@ -1550,12 +2037,95 @@ export interface components {
              */
             site_specific: number;
         };
+        /**
+         * DataCenterMeetingMentionPlaceCount
+         * @description Meetings for one government in the scoped state (#1039), placed on the county map by geoid or coordinates.
+         */
+        DataCenterMeetingMentionPlaceCount: {
+            /**
+             * Disagreement Meetings
+             * @description Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.
+             * @default 0
+             */
+            disagreement_meetings: number;
+            /** Geoid */
+            geoid?: string | null;
+            /** Jurisdiction Id */
+            jurisdiction_id: string;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /** Jurisdiction Type */
+            jurisdiction_type?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Meetings */
+            meetings: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.
+             * @default 0
+             */
+            public_against_meetings: number;
+            /**
+             * Speakers Against
+             * @default 0
+             */
+            speakers_against: number;
+            /**
+             * Speakers For
+             * @default 0
+             */
+            speakers_for: number;
+            /**
+             * Speakers Neutral
+             * @default 0
+             */
+            speakers_neutral: number;
+            /**
+             * Speakers Question
+             * @default 0
+             */
+            speakers_question: number;
+        };
+        /**
+         * DataCenterMeetingMentionStateCount
+         * @description Meetings in one state where a data center came up (distinct recordings).
+         */
+        DataCenterMeetingMentionStateCount: {
+            /** Meetings */
+            meetings: number;
+            /** State */
+            state?: string | null;
+            /** State Code */
+            state_code: string;
+        };
         /** DataCenterMeetingMentionsResponse */
         DataCenterMeetingMentionsResponse: {
             counts?: components["schemas"]["DataCenterMeetingMentionCounts"];
             /** Items */
             items: components["schemas"]["DataCenterMeetingMention"][];
             scope: components["schemas"]["JobClaimScope"];
+        };
+        /** DataCenterPositionsResponse */
+        DataCenterPositionsResponse: {
+            /**
+             * Available
+             * @description False when the mart isn't in the database yet: totals are null, not zero.
+             * @default true
+             */
+            available: boolean;
+            /**
+             * By State
+             * @description Speakers per state across the whole country (never narrowed by the scope), for the home map (#1087). Only states with at least one meeting in the mart; empty when the mart isn't loaded.
+             */
+            by_state?: components["schemas"]["PositionStateCount"][];
+            /** @description National totals of Jev's meeting readings for the home hero (#1122), never narrowed by the scope; null when data_center_meeting_lean (or a column) isn't in this database. */
+            lean_totals?: components["schemas"]["LeanTotals"] | null;
+            quotes?: components["schemas"]["PositionQuotes"];
+            scope: components["schemas"]["JobClaimScope"];
+            totals?: components["schemas"]["PositionTotals"];
         };
         /** DataCenterProject */
         DataCenterProject: {
@@ -1631,10 +2201,18 @@ export interface components {
             address?: string | null;
             /** Attribution */
             attribution: string;
+            /** Capacity Mw Operational */
+            capacity_mw_operational?: number | null;
+            /** Capacity Mw Planned */
+            capacity_mw_planned?: number | null;
+            /** City */
+            city?: string | null;
             /** Construction Note */
             construction_note?: string | null;
             /** Country */
             country?: string | null;
+            /** County */
+            county?: string | null;
             /** Data Center Site Id */
             data_center_site_id: string;
             /** First Seen On */
@@ -1644,30 +2222,51 @@ export interface components {
             /** It Power Mw */
             it_power_mw?: number | null;
             /** Last Known Status */
-            last_known_status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+            last_known_status?: ("planned" | "under_construction" | "operating" | "cancelled" | "no_longer_listed") | null;
             /** Last Seen On */
             last_seen_on?: string | null;
+            /** Latitude */
+            latitude?: number | null;
             /** License */
             license: string;
+            /** Longitude */
+            longitude?: number | null;
+            /** Operator */
+            operator?: string | null;
             /** Owner */
             owner?: string | null;
             /** Project */
             project?: string | null;
             /** Site Name */
             site_name: string;
+            /**
+             * Source
+             * @description Which inventory the row comes from (#958).
+             * @default epoch
+             * @enum {string}
+             */
+            source: "epoch" | "us_data_center_registry";
             /** Source Name */
             source_name: string;
-            /** Source Url */
-            source_url: string;
+            /**
+             * Source Status
+             * @description The registry's own status word; null for Epoch.
+             */
+            source_status?: string | null;
+            /**
+             * Source Url
+             * @description The source record or dataset page; null only if the table lacks one (#983).
+             */
+            source_url?: string | null;
             /** State */
             state?: string | null;
             /** State Code */
             state_code?: string | null;
             /**
              * Status
-             * @description Derived from Epoch's dated rows; null when Epoch has none for the site.
+             * @description Epoch: derived from its dated rows. Registry: its own status, mapped. Null when the source gives none.
              */
-            status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+            status?: ("planned" | "under_construction" | "operating" | "cancelled" | "no_longer_listed") | null;
             /** Status As Of */
             status_as_of?: string | null;
             /** Users */
@@ -1678,6 +2277,11 @@ export interface components {
          * @description Sites per status for the whole scope (before ``status`` and ``limit``): 0 means none.
          */
         DataCenterSiteCounts: {
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled: number;
             /**
              * No Longer Listed
              * @default 0
@@ -1725,6 +2329,11 @@ export interface components {
             dry_run: boolean;
             /** Finished At */
             finished_at?: string | null;
+            /**
+             * Group
+             * @default deploy
+             */
+            group: string;
             /** Job Id */
             job_id: string;
             /**
@@ -1777,6 +2386,10 @@ export interface components {
              * @default
              */
             cmd: string;
+            /** Counts */
+            counts?: {
+                [key: string]: number;
+            } | null;
             /**
              * Description
              * @default
@@ -1800,6 +2413,8 @@ export interface components {
             log: string;
             /** Note */
             note?: string | null;
+            /** Result */
+            result?: string | null;
             /** Started At */
             started_at?: string | null;
             /**
@@ -1824,6 +2439,37 @@ export interface components {
             enabled: boolean;
             /** Jobs */
             jobs?: components["schemas"]["DeploymentJobModel"][];
+        };
+        /** EditIn */
+        EditIn: {
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "title" | "biography" | "photo_url" | "feedback";
+            /** New Value */
+            new_value: string;
+        };
+        /** EditOut */
+        EditOut: {
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "title" | "biography" | "photo_url" | "feedback";
+            /** New Value */
+            new_value: string;
+            /** Person Claim Id */
+            person_claim_id: number;
+            /** Person Profile Edit Id */
+            person_profile_edit_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected";
         };
         /** FailedVideoRowModel */
         FailedVideoRowModel: {
@@ -1865,6 +2511,240 @@ export interface components {
              * @default false
              */
             truncated: boolean;
+        };
+        /** FailureGridColumn */
+        FailureGridColumn: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Sortable
+             * @default false
+             */
+            sortable: boolean;
+        };
+        /** FailureGridResponse */
+        FailureGridResponse: {
+            /** Cohort */
+            cohort: string;
+            /** Columns */
+            columns?: components["schemas"]["FailureGridColumn"][];
+            /**
+             * Error Column
+             * @default
+             */
+            error_column: string;
+            /** Rows */
+            rows?: components["schemas"]["FailureGridRow"][];
+            /** Stage */
+            stage: string;
+            /**
+             * State
+             * @default
+             */
+            state: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Where To Look
+             * @default
+             */
+            where_to_look: string;
+        };
+        /** FailureGridRow */
+        FailureGridRow: {
+            /**
+             * Advice
+             * @default
+             */
+            advice: string;
+            /**
+             * Channel Id
+             * @default
+             */
+            channel_id: string;
+            /**
+             * Channel Url
+             * @default
+             */
+            channel_url: string;
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /**
+             * Event Date
+             * @default
+             */
+            event_date: string;
+            /**
+             * Event Id
+             * @default
+             */
+            event_id: string;
+            /**
+             * Group
+             * @default
+             */
+            group: string;
+            /**
+             * Group Label
+             * @default
+             */
+            group_label: string;
+            /**
+             * Jurisdiction Id
+             * @default
+             */
+            jurisdiction_id: string;
+            /**
+             * Jurisdiction Name
+             * @default
+             */
+            jurisdiction_name: string;
+            /**
+             * Last Updated
+             * @default
+             */
+            last_updated: string;
+            /**
+             * Meeting Type
+             * @default
+             */
+            meeting_type: string;
+            /**
+             * Retryable
+             * @default false
+             */
+            retryable: boolean;
+            /**
+             * State Code
+             * @default
+             */
+            state_code: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Video Id
+             * @default
+             */
+            video_id: string;
+        };
+        /** FailureReasonGroup */
+        FailureReasonGroup: {
+            /** Advice */
+            advice: string;
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Reasons */
+            reasons?: components["schemas"]["FailureReasonItem"][];
+            /**
+             * Retryable
+             * @default false
+             */
+            retryable: boolean;
+        };
+        /** FailureReasonItem */
+        FailureReasonItem: {
+            /** Count */
+            count: number;
+            /**
+             * Example
+             * @default
+             */
+            example: string;
+            /** Example Video Id */
+            example_video_id?: string | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Reason Id
+             * @default
+             */
+            reason_id: string;
+        };
+        /** FailureReasonsResponse */
+        FailureReasonsResponse: {
+            /** Cohort */
+            cohort: string;
+            /** Groups */
+            groups?: components["schemas"]["FailureReasonGroup"][];
+            /** Stage */
+            stage: string;
+            /**
+             * State
+             * @default
+             */
+            state: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** FailureRow */
+        FailureRow: {
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /**
+             * Jurisdiction Id
+             * @default
+             */
+            jurisdiction_id: string;
+            /**
+             * Jurisdiction Name
+             * @default
+             */
+            jurisdiction_name: string;
+            /**
+             * State Code
+             * @default
+             */
+            state_code: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Video Id */
+            video_id: string;
+        };
+        /** FailureRowsResponse */
+        FailureRowsResponse: {
+            /**
+             * Reason Id
+             * @default
+             */
+            reason_id: string;
+            /** Rows */
+            rows?: components["schemas"]["FailureRow"][];
+            /** Stage */
+            stage: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1974,10 +2854,32 @@ export interface components {
         };
         /** JobClaimsResponse */
         JobClaimsResponse: {
+            /** Employment */
+            employment?: components["schemas"]["PayrollJobs"][];
             /** Items */
             items: components["schemas"]["JobClaim"][];
             scope: components["schemas"]["JobClaimScope"];
+            /** Sources */
+            sources?: components["schemas"]["JobSource"][];
             totals?: components["schemas"]["JobClaimTotals"];
+        };
+        /**
+         * JobSource
+         * @description A place data center jobs are tracked (#1019); job boards are cited, not scraped.
+         */
+        JobSource: {
+            /** Automated Access */
+            automated_access: string;
+            /** Description */
+            description?: string | null;
+            /** Description Source Url */
+            description_source_url?: string | null;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Url */
+            url: string;
         };
         /** JurisdictionRunModel */
         JurisdictionRunModel: {
@@ -2048,6 +2950,11 @@ export interface components {
              * @default true
              */
             dry_run: boolean;
+            /**
+             * Group
+             * @default deploy
+             */
+            group: string;
             /** Steps */
             steps?: string[];
         };
@@ -2077,6 +2984,8 @@ export interface components {
         };
         /** LaunchLogResponse */
         LaunchLogResponse: {
+            /** Blocker */
+            blocker?: string | null;
             /**
              * Current
              * @default
@@ -2099,6 +3008,13 @@ export interface components {
         };
         /** LaunchRequest */
         LaunchRequest: {
+            /**
+             * Cohort
+             * @default priority
+             */
+            cohort: string;
+            /** Full Filters */
+            full_filters?: string[];
             /**
              * N
              * @default 10
@@ -2144,17 +3060,26 @@ export interface components {
         /** LaunchStatusResponse */
         LaunchStatusResponse: {
             /**
+             * Auto Resume Note
+             * @default
+             */
+            auto_resume_note: string;
+            /**
+             * Billing Exhausted
+             * @default false
+             */
+            billing_exhausted: boolean;
+            /**
              * Busy
              * @default false
              */
             busy: boolean;
             /** Enabled */
             enabled: boolean;
-            /**
-             * Inactive Seconds
-             * @description Seconds since the most inactive live launch last progressed.
-             */
+            /** Inactive Seconds */
             inactive_seconds?: number | null;
+            /** Resumed Steps */
+            resumed_steps?: string[];
             /**
              * Running
              * @default 0
@@ -2169,22 +3094,282 @@ export interface components {
             /**
              * Vpn Down
              * @default false
-             * @description True when the newest launch log mentions Surfshark / VPN required.
              */
-            vpn_down?: boolean;
+            vpn_down: boolean;
             /**
              * Warning
              * @default
-             * @description Operator warning when a live launch is inactive or VPN appears down.
              */
-            warning?: string;
-            /** Resumed Steps */
-            resumed_steps?: string[];
+            warning: string;
+        };
+        /**
+         * LeanTotals
+         * @description National totals of Jev's meeting readings (#1122), from ``data_center_meeting_lean``. AI readings of the
+         *     transcripts, never counted speakers; never narrowed by the scope.
+         */
+        LeanTotals: {
             /**
-             * Auto Resume Note
-             * @default
+             * Disagreement Meetings
+             * @description Meetings where officials sided against the public (#1113 rule).
+             * @default 0
              */
-            auto_resume_note?: string;
+            disagreement_meetings: number;
+            /**
+             * Disagreement States
+             * @description States with at least one such meeting.
+             * @default 0
+             */
+            disagreement_states: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed.
+             * @default 0
+             */
+            public_against_meetings: number;
+            /**
+             * Public Against States
+             * @description States with at least one such meeting.
+             * @default 0
+             */
+            public_against_states: number;
+            /**
+             * Stopped Meetings
+             * @description Meetings whose data center outcome Jev read as tabled/deferred, denied or a moratorium.
+             * @default 0
+             */
+            stopped_meetings: number;
+        };
+        /** MeetingKindOverrideIn */
+        MeetingKindOverrideIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Override Kind
+             * @enum {string}
+             */
+            override_kind: "government_meeting" | "town_hall" | "government_other" | "not_government";
+        };
+        /** MeetingKindOverrideOut */
+        MeetingKindOverrideOut: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Overridden At
+             * Format: date-time
+             */
+            overridden_at: string;
+            /** Overridden By */
+            overridden_by?: string | null;
+            /** Override Kind */
+            override_kind: string;
+            /** Video Id */
+            video_id: string;
+        };
+        /** MeetingKindReviewItem */
+        MeetingKindReviewItem: {
+            /** Effective Kind */
+            effective_kind?: string | null;
+            /** Jurisdiction Id */
+            jurisdiction_id?: string | null;
+            /** Keep Score */
+            keep_score?: number | null;
+            /** Meeting Kind */
+            meeting_kind?: string | null;
+            /** Not Government P */
+            not_government_p?: number | null;
+            /** Override Kind */
+            override_kind?: string | null;
+            /** Override Note */
+            override_note?: string | null;
+            /** Screened At */
+            screened_at?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "transcript" | "meta";
+            /** State Code */
+            state_code?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Video Id */
+            video_id: string;
+            /** Youtube Url */
+            youtube_url: string;
+        };
+        /** MeetingKindReviewsResponse */
+        MeetingKindReviewsResponse: {
+            /** Items */
+            items: components["schemas"]["MeetingKindReviewItem"][];
+            /** Kind */
+            kind: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "transcript" | "meta";
+            /** Total */
+            total: number;
+        };
+        /**
+         * PayrollJobs
+         * @description BLS QCEW payroll employment for one area and year (#1019): NAICS 518210, private ownership. Counts are
+         *     employers' payroll filings (annual average). When BLS withheld a figure, ``disclosed`` is false and the figures
+         *     are null, never 0.
+         */
+        PayrollJobs: {
+            /** Area Level */
+            area_level: string;
+            /** Area Name */
+            area_name: string;
+            /** Avg Annual Pay */
+            avg_annual_pay?: number | null;
+            /** Disclosed */
+            disclosed: boolean;
+            /** Employment */
+            employment?: number | null;
+            /** Employment Change Pct */
+            employment_change_pct?: number | null;
+            /** Establishments */
+            establishments?: number | null;
+            /** Source Url */
+            source_url: string;
+            /** Year */
+            year: string;
+        };
+        /**
+         * PositionQuote
+         * @description One public speaker's own words on a data center item, with the moment in the recording.
+         */
+        PositionQuote: {
+            /**
+             * Decision Headline
+             * @description The item the comment is on (a contested decision or an uncontested item); null for general public comment.
+             */
+            decision_headline?: string | null;
+            /**
+             * Jump Url
+             * @description video_url at start_seconds; null when untimed.
+             */
+            jump_url?: string | null;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /**
+             * Match Basis
+             * @description Why the comment counts: its decision or uncontested item names a data center, its own words do, or another speaker on the same item does (#932).
+             */
+            match_basis?: ("data_center_decision" | "data_center_item" | "own_words" | "same_item") | null;
+            /** Meeting Date */
+            meeting_date?: string | null;
+            /** Public Comment Id */
+            public_comment_id: string;
+            /**
+             * Quote
+             * @description Verbatim from the transcript; rows without one are not returned.
+             */
+            quote: string;
+            /**
+             * Speaker Display Name
+             * @description "First L." (e.g. "Audra T."), first name only when ambiguous; null when no name was heard.
+             */
+            speaker_display_name?: string | null;
+            /** Speaker Role */
+            speaker_role?: string | null;
+            /** Start Seconds */
+            start_seconds?: number | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Video Url */
+            video_url?: string | null;
+        };
+        /** PositionQuotes */
+        PositionQuotes: {
+            /** Against */
+            against?: components["schemas"]["PositionQuote"][];
+            /** For */
+            for?: components["schemas"]["PositionQuote"][];
+            /** Question */
+            question?: components["schemas"]["PositionQuote"][];
+        };
+        /**
+         * PositionStateCount
+         * @description One state's sums from ``data_center_meeting_position`` (#1087).
+         */
+        PositionStateCount: {
+            /**
+             * Disagreement Meetings
+             * @description Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.
+             * @default 0
+             */
+            disagreement_meetings: number;
+            /**
+             * Meetings
+             * @description Meetings in the mart for the state (analysed, a data center came up).
+             * @default 0
+             */
+            meetings: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.
+             * @default 0
+             */
+            public_against_meetings: number;
+            /**
+             * Speakers Against
+             * @default 0
+             */
+            speakers_against: number;
+            /**
+             * Speakers For
+             * @default 0
+             */
+            speakers_for: number;
+            /**
+             * Speakers Neutral
+             * @default 0
+             */
+            speakers_neutral: number;
+            /**
+             * Speakers Question
+             * @default 0
+             */
+            speakers_question: number;
+            /** State Code */
+            state_code: string;
+        };
+        /**
+         * PositionTotals
+         * @description Whole-scope sums from ``data_center_meeting_position``. Every field is null when the
+         *     mart isn't loaded; ``votes_*`` are also null (never 0) when no decision recorded a tally.
+         */
+        PositionTotals: {
+            /**
+             * Decisions With Tally
+             * @description Data center decisions whose vote tally records both a yes and a no count.
+             */
+            decisions_with_tally?: number | null;
+            /**
+             * Meetings
+             * @description Meetings the counts come from: at least one counted speaker or one recorded tally.
+             */
+            meetings?: number | null;
+            /**
+             * Meetings Reviewed
+             * @description Analysed meetings in scope where a data center came up (the mart's rows).
+             */
+            meetings_reviewed?: number | null;
+            /** Speakers Against */
+            speakers_against?: number | null;
+            /** Speakers For */
+            speakers_for?: number | null;
+            /** Speakers Neutral */
+            speakers_neutral?: number | null;
+            /** Speakers Question */
+            speakers_question?: number | null;
+            /** Votes Against */
+            votes_against?: number | null;
+            /** Votes For */
+            votes_for?: number | null;
         };
         /** ProjectCompany */
         ProjectCompany: {
@@ -2231,6 +3416,62 @@ export interface components {
             title?: string | null;
             /** Video Url */
             video_url: string;
+        };
+        /** RetryFailuresRequest */
+        RetryFailuresRequest: {
+            /** Cohort */
+            cohort?: string | null;
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+            /** Group */
+            group?: string | null;
+            /** Reason Id */
+            reason_id?: string | null;
+            /**
+             * Stage
+             * @default transcripts
+             */
+            stage: string;
+            /** State */
+            state?: string | null;
+        };
+        /** RetryFailuresResponse */
+        RetryFailuresResponse: {
+            /**
+             * Already Due
+             * @default 0
+             */
+            already_due: number;
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+            /**
+             * Group
+             * @default
+             */
+            group: string;
+            /**
+             * Made Due
+             * @default 0
+             */
+            made_due: number;
+            /**
+             * Matched
+             * @default 0
+             */
+            matched: number;
+            /**
+             * Reason Id
+             * @default
+             */
+            reason_id: string;
+            /** Stage */
+            stage: string;
         };
         /** StageBreakdownEntry */
         StageBreakdownEntry: {
@@ -2296,12 +3537,92 @@ export interface components {
         StepDefModel: {
             /** Description */
             description: string;
+            /**
+             * Group
+             * @default deploy
+             */
+            group: string;
             /** Key */
             key: string;
             /** Label */
             label: string;
             /** Target */
             target: string;
+        };
+        /** StepResultItem */
+        StepResultItem: {
+            /** Detail */
+            detail?: string | null;
+            /**
+             * File
+             * @default
+             */
+            file: string;
+            /**
+             * Outcome
+             * @default
+             */
+            outcome: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Tier */
+            tier?: string | null;
+            /** Video Id */
+            video_id?: string | null;
+        };
+        /** StepResultReason */
+        StepResultReason: {
+            /**
+             * Advice
+             * @default
+             */
+            advice: string;
+            /** Count */
+            count: number;
+            /** Label */
+            label: string;
+            /** Outcome */
+            outcome: string;
+            /** Reason */
+            reason: string;
+        };
+        /** StepResultResponse */
+        StepResultResponse: {
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /** Counts */
+            counts?: {
+                [key: string]: number;
+            };
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+            /** Job Id */
+            job_id: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+            /** Reasons */
+            reasons?: components["schemas"]["StepResultReason"][];
+            /** Rows */
+            rows?: components["schemas"]["StepResultItem"][];
+            /** Step */
+            step: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** StopDeploymentResponse */
         StopDeploymentResponse: {
@@ -2380,6 +3701,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -2631,6 +3956,107 @@ export interface operations {
             };
         };
     };
+    upsert_meeting_kind_override_api_admin_meeting_kind_overrides__video_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingKindOverrideIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingKindOverrideOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_meeting_kind_override_api_admin_meeting_kind_overrides__video_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_meeting_kind_reviews_api_admin_meeting_kind_reviews_get: {
+        parameters: {
+            query?: {
+                source?: "transcript" | "meta";
+                kind?: string;
+                sort?: "not_government_p" | "keep_score" | "screened_at";
+                order?: "asc" | "desc";
+                state?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingKindReviewsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     generate_advocacy_email_api_advocacy_email__opportunity_id__post: {
         parameters: {
             query?: never;
@@ -2692,6 +4118,8 @@ export interface operations {
                 /** @description summary = aggregates + batch list (default); standard/full load jurisdiction payloads (slow) */
                 detail?: string;
                 batch_limit?: number;
+                /** @description Launch cohort; data_centers scopes stage_report to DC jurisdictions */
+                cohort?: string | null;
             };
             header?: never;
             path?: never;
@@ -2719,6 +4147,26 @@ export interface operations {
             };
         };
     };
+    list_cohorts_api_batch_jobs_cohorts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortsResponse"];
+                };
+            };
+        };
+    };
     list_failed_videos_api_batch_jobs_failed_videos_get: {
         parameters: {
             query?: {
@@ -2740,6 +4188,157 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FailedVideosListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    failure_grid_route_api_batch_jobs_failure_grid_get: {
+        parameters: {
+            query?: {
+                /** @description videos, transcripts, analyses_light, reports_light, analyses_full or reports_full */
+                stage?: string;
+                /** @description all | priority | data_centers */
+                cohort?: string | null;
+                /** @description 2-letter state code; omit for the whole cohort */
+                state?: string | null;
+                /** @description Text search over title, video id, jurisdiction and error */
+                q?: string | null;
+                /** @description Reason group key, e.g. rate_limit */
+                group?: string | null;
+                /** @description video_id, title, state_code, jurisdiction_name, error, last_updated, event_date or meeting_type */
+                sort?: string;
+                dir?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FailureGridResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_failure_reasons_api_batch_jobs_failure_reasons_get: {
+        parameters: {
+            query?: {
+                /** @description videos or transcripts (both count the same rows) */
+                stage?: string;
+                /** @description all | priority | data_centers */
+                cohort?: string | null;
+                /** @description 2-letter state code; omit for the whole cohort */
+                state?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FailureReasonsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_failures_api_batch_jobs_failures_get: {
+        parameters: {
+            query: {
+                /** @description A reason_id, as returned by /failure-reasons */
+                reason_id: string;
+                stage?: string;
+                cohort?: string | null;
+                state?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FailureRowsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_failures_route_api_batch_jobs_failures_retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryFailuresRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryFailuresResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2878,6 +4477,8 @@ export interface operations {
                 refresh_files?: boolean;
                 /** @description When true, refresh transcript counts from bronze each tick (heavier) */
                 enrich_bronze?: boolean;
+                /** @description Launch cohort; data_centers scopes stage_report to DC jurisdictions */
+                cohort?: string | null;
             };
             header?: never;
             path?: never;
@@ -3138,6 +4739,80 @@ export interface operations {
             };
         };
     };
+    data_center_decisions_api_data_centers_decisions_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+                /** @description Decisions to list, newest first. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataCenterDecisionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_data_center_hearings_api_data_centers_hearings_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+                /** @description Which meetings to list. */
+                when?: "upcoming" | "past" | "all";
+                /** @description Hearings to list. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataCenterHearingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_job_claims_api_data_centers_job_claims_get: {
         parameters: {
             query?: {
@@ -3215,6 +4890,42 @@ export interface operations {
             };
         };
     };
+    data_center_positions_api_data_centers_positions_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+                /** @description Quotes per side. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataCenterPositionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_data_center_projects_api_data_centers_projects_get: {
         parameters: {
             query?: {
@@ -3262,7 +4973,7 @@ export interface operations {
                 /** @description Accepted so a page's scope can be passed through; it can't narrow sites. */
                 city?: string | null;
                 /** @description Only sites with this status. */
-                status?: ("planned" | "under_construction" | "operating" | "no_longer_listed") | null;
+                status?: ("planned" | "under_construction" | "operating" | "cancelled" | "no_longer_listed") | null;
                 limit?: number;
             };
             header?: never;
@@ -3389,6 +5100,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description load or deploy; omit for everything */
+                group?: string | null;
             };
             header?: never;
             path?: never;
@@ -3502,6 +5215,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeploymentLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deployment_step_result_api_deployments__job_id__result_get: {
+        parameters: {
+            query: {
+                /** @description Step key whose counts and items to read. */
+                step: string;
+                /** @description Only items with this outcome: skipped or error. */
+                outcome?: string | null;
+                /** @description Only items with this reason. */
+                reason?: string | null;
+                /** @description Case-insensitive text found in the file, video id or detail. */
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepResultResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3752,6 +5507,105 @@ export interface operations {
             };
         };
     };
+    get_my_claim_api_people_claim_get: {
+        parameters: {
+            query: {
+                person_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_profile_api_people_claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    propose_edit_api_people_claim__person_claim_id__edits_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_claim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_school_districts_api_school_districts_get: {
         parameters: {
             query?: {
@@ -3919,37 +5773,6 @@ export interface operations {
             header?: never;
             path: {
                 workflow_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    serve_react_app__full_path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                full_path: string;
             };
             cookie?: never;
         };

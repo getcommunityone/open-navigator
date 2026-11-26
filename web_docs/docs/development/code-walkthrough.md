@@ -142,6 +142,10 @@ Moving Fast, Watch Next) are views over that score.
   unusual-pattern flags in [marts/item_flags.sql](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/marts/item_flags.sql).
 - Serves: `/api/lenses` ([lenses.py](https://github.com/getcommunityone/open-navigator/blob/main/api/routes/lenses.py)), which only reads the
   table: no scoring in the API.
+- The home page asks for `window=auto` until the reader picks a period. The API returns the narrowest window that has
+  decisions for the place, and its chip is highlighted. A place whose newest analysed decision is months old, such as
+  Alabama (newest 2026-06-10), opens on **Past year**, not an empty **Past month**
+  ([#1045](https://github.com/getcommunityone/open-navigator/issues/1045)).
 
 ## 9. Publish to Neon
 

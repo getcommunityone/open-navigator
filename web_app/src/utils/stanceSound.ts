@@ -62,13 +62,28 @@ export function cueNotes(cue: Cue, step = 0): CueNote[] {
 /** Seconds from the cue's start to the end of its last note. */
 export const cueLength = (cue: Cue, step = 0): number => Math.max(...cueNotes(cue, step).map((n) => n.start + n.duration))
 
-/** The saved setting, true when on or never set; storage that throws counts as the default. */
+/** Phones start with sound off (#1017): the setting lives in the menu there, not in the story's header. */
+const isPhone = (): boolean => {
+  try {
+    return window.matchMedia('(max-width: 767px)').matches
+  } catch {
+    return false
+  }
+}
+
+/** Fired on window when the setting changes, so a story and the site menu stay in step. */
+export const SOUND_EVENT = 'stance-sound-change'
+
+/** The saved setting; when never set, on except on a phone. Storage that throws counts as the default. */
 export function readSoundSetting(): boolean {
   try {
-    return window.localStorage.getItem(SOUND_KEY) !== 'off'
+    const v = window.localStorage.getItem(SOUND_KEY)
+    if (v === 'on') return true
+    if (v === 'off') return false
   } catch {
-    return true
+    /* blocked storage: fall through to the default */
   }
+  return !isPhone()
 }
 
 export function writeSoundSetting(on: boolean): void {
@@ -76,6 +91,11 @@ export function writeSoundSetting(on: boolean): void {
     window.localStorage.setItem(SOUND_KEY, on ? 'on' : 'off')
   } catch {
     /* storage can be blocked or full: the choice then lasts for this visit only */
+  }
+  try {
+    window.dispatchEvent(new CustomEvent(SOUND_EVENT, { detail: on }))
+  } catch {
+    /* no window (tests) */
   }
 }
 
@@ -145,26 +165,42 @@ export function createSoundBoard(opts: { attach?: boolean } = {}): SoundBoard {
   }
   if (opts.attach !== false) attach()
 
+  const schedule = (c: AudioContext, cue: Cue, step: number) => {
+    if (!master) return
+    const t0 = c.currentTime + 0.02
+    for (const n of cueNotes(cue, step)) {
+      const osc = c.createOscillator()
+      const env = c.createGain()
+      osc.type = n.type
+      osc.frequency.value = n.freq
+      env.gain.setValueAtTime(0.0001, t0 + n.start)
+      env.gain.linearRampToValueAtTime(0.9 * n.gain, t0 + n.start + 0.012)
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + n.start + n.duration)
+      osc.connect(env)
+      env.connect(master)
+      osc.start(t0 + n.start)
+      osc.stop(t0 + n.start + n.duration + 0.03)
+    }
+  }
+
   return {
     play(cue, step = 0) {
       if (!enabled) return
       const c = ensure()
       if (!c || !master) return
       try {
-        const t0 = c.currentTime + 0.02
-        for (const n of cueNotes(cue, step)) {
-          const osc = c.createOscillator()
-          const env = c.createGain()
-          osc.type = n.type
-          osc.frequency.value = n.freq
-          env.gain.setValueAtTime(0.0001, t0 + n.start)
-          env.gain.linearRampToValueAtTime(0.9 * n.gain, t0 + n.start + 0.012)
-          env.gain.exponentialRampToValueAtTime(0.0001, t0 + n.start + n.duration)
-          osc.connect(env)
-          env.connect(master)
-          osc.start(t0 + n.start)
-          osc.stop(t0 + n.start + n.duration + 0.03)
+        // A fresh AudioContext is often "suspended" until resume finishes; scheduling before that drops the cue (#966).
+        if (c.state === 'suspended') {
+          void c.resume().then(() => {
+            try {
+              schedule(c, cue, step)
+            } catch {
+              /* a cue that cannot play is not worth an error */
+            }
+          }).catch(() => {})
+          return
         }
+        schedule(c, cue, step)
       } catch {
         /* a cue that cannot play is not worth an error */
       }

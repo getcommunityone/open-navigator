@@ -1,0 +1,74 @@
+version: 2
+
+# #955 / #956: every data center hearing lead, curated and from trackers, one per meeting.
+
+models:
+  - name: int_data_center_hearing_lead
+    description: >
+      The curated seed (data_center_hearing_lead) plus the CC BY tracker leads
+      (stg_data_center_hearing_tracker_lead), one row per lead, all kept. Leads naming the same
+      meeting share meeting_key; lead_rank orders them (seed official, tracker official, other
+      seed, other tracker). fetch_hearing_sources fetches every official one, and
+      data_center_hearing keeps one per meeting, verified first. Leads only; nothing is served.
+    columns:
+      - name: lead_id
+        description: "Primary key: the seed's lead_id, or 'dcf-' / 'sr-' plus the tracker record id."
+        tests: [unique, not_null]
+      - name: meeting_key
+        description: "state | place without its type word | county or local | date. Leads of one meeting share it."
+        tests: [not_null]
+      - name: lead_rank
+        description: "1 = the best lead for its meeting_key (see the model)."
+        tests: [not_null]
+      - name: meeting_date
+        description: "The claimed meeting date."
+        tests: [not_null]
+      - name: jurisdiction_name
+        description: "The place as the lead names it."
+        tests: [not_null]
+      - name: state_code
+        description: "2-letter state code."
+        tests: [not_null]
+      - name: body_name
+        description: "The body as the lead names it."
+      - name: topic
+        description: "The lead's topic."
+      - name: source_kind
+        description: "official, tracker, news or none."
+        tests:
+          - accepted_values:
+              values: ['official', 'tracker', 'news', 'none']
+      - name: source_name
+        description: "Who the lead's source is credited to."
+      - name: source_url
+        description: "The source URL; only an official one can verify a hearing."
+      - name: lead_from
+        description: "Where the lead came from: the owner's list (owner_list_1 / owner_list_2), datacenterfights or sitingradar."
+      - name: census_geoid
+        description: "Census GEOID when the tracker gives one (Siting Radar)."
+      - name: attribution
+        description: "The CC BY credit for a tracker lead; null for a seed lead."
+
+unit_tests:
+  - name: dc_hearing_lead_keys_and_rank
+    description: "All leads kept; same meeting shares a key; county and town never share one; official first, then seed."
+    model: int_data_center_hearing_lead
+    given:
+      - input: ref('data_center_hearing_lead')
+        rows:
+          - {lead_id: seed-off, meeting_date: '2026-12-01', jurisdiction_name: Deer Park, state_code: TX, body_name: Council, topic: t, source_kind: official, source_name: s, source_url: 'https://x.gov/a', lead_from: owner_list_1}
+          - {lead_id: seed-none, meeting_date: '2026-12-07', jurisdiction_name: Hazle Township, state_code: PA, body_name: Board, topic: t, source_kind: none, source_name: null, source_url: null, lead_from: owner_list_2}
+          - {lead_id: wash-cty, meeting_date: '2026-12-07', jurisdiction_name: Washington County, state_code: PA, body_name: Board, topic: t, source_kind: none, source_name: null, source_url: null, lead_from: owner_list_2}
+      - input: ref('stg_data_center_hearing_tracker_lead')
+        rows:
+          - {lead_id: dcf-1, tracker: datacenterfights, meeting_date: '2026-12-01', jurisdiction_name: Deer Park City, state_code: TX, source_kind: official, source_url: 'https://y.gov/b'}
+          - {lead_id: dcf-2, tracker: datacenterfights, meeting_date: '2026-12-07', jurisdiction_name: Hazle Township, state_code: PA, source_kind: official, source_url: 'https://hazle.pa.us/x'}
+          - {lead_id: sr-9, tracker: sitingradar, meeting_date: '2026-12-07', jurisdiction_name: Washington Township, state_code: PA, source_kind: tracker, source_url: 'https://news.example/x'}
+    expect:
+      rows:
+        - {lead_id: seed-off, meeting_key: 'TX|deer park|local|2026-12-01', lead_rank: 1}
+        - {lead_id: dcf-1, meeting_key: 'TX|deer park|local|2026-12-01', lead_rank: 2}
+        - {lead_id: dcf-2, meeting_key: 'PA|hazle|local|2026-12-07', lead_rank: 1}
+        - {lead_id: seed-none, meeting_key: 'PA|hazle|local|2026-12-07', lead_rank: 2}
+        - {lead_id: wash-cty, meeting_key: 'PA|washington|county|2026-12-07', lead_rank: 1}
+        - {lead_id: sr-9, meeting_key: 'PA|washington|local|2026-12-07', lead_rank: 1}

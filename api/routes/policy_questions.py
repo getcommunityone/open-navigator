@@ -694,3 +694,110 @@ async def get_question_meetings(
             out.append(QuestionMeetingOut(**d))
         span.set_attribute("policy_question.meeting_count", len(out))
         return out
+
+
+# --- Jev's reading of meetings for a question (#1032) ---------------------------------------------------------------
+
+class JevMeetingOut(BaseModel):
+    """A meeting Jev (a classifier) read as debating the question, with its outcome reading and the verbatim passage."""
+
+    video_id: str
+    meeting_title: Optional[str] = None
+    meeting_date: Optional[Any] = None  # date — ISO-serialized
+    jurisdiction_name: Optional[str] = None
+    state_code: Optional[str] = None
+    # approved / denied / tabled_or_deferred / moratorium / discussed_no_action; null when none.
+    outcome: Optional[str] = None
+    outcome_p: Optional[float] = None
+    debated_p: Optional[float] = None
+    # Verbatim transcript passage, matched words in <mark> (render with highlightSnippet).
+    evidence: Optional[str] = None
+    jump_url: Optional[str] = None
+
+
+class JevQuestionOut(BaseModel):
+    # False when this database has no Jev reading for the question (the table is missing or the question isn't
+    # screened): the UI shows nothing rather than zeros.
+    available: bool
+    scope: ScopeOut
+    meetings: int = 0
+    debated: int = 0
+    outcomes: dict[str, int] = {}
+    items: List[JevMeetingOut] = []
+
+
+_JEV_COUNTS_SQL = f"""
+    select count(*) as meetings,
+           count(*) filter (where l.debated) as debated,
+           count(*) filter (where l.outcome = 'approved') as approved,
+           count(*) filter (where l.outcome = 'denied') as denied,
+           count(*) filter (where l.outcome = 'tabled_or_deferred') as tabled_or_deferred,
+           count(*) filter (where l.outcome = 'moratorium') as moratorium,
+           count(*) filter (where l.outcome = 'discussed_no_action') as discussed_no_action
+    from public.meeting_policy_question_jev l
+    where l.question_id = $1
+    {_SCOPE_WHERE.format(a="l")}
+"""
+
+_JEV_ITEMS_SQL = f"""
+    select video_id, meeting_title, meeting_date, jurisdiction_name, state_code, outcome,
+           outcome_p::float8 as outcome_p, debated_p::float8 as debated_p, evidence, video_url,
+           start_seconds::float8 as start_seconds
+    from public.meeting_policy_question_jev l
+    where l.question_id = $1
+    {_SCOPE_WHERE.format(a="l")}
+      and ($6::text is null or l.outcome = $6)
+    order by case when l.outcome in ('approved', 'denied', 'tabled_or_deferred', 'moratorium') then 0 else 1 end,
+             l.meeting_date desc nulls last, l.video_id
+    limit $4 offset $5
+"""
+
+_JEV_OUTCOMES = ("approved", "denied", "tabled_or_deferred", "moratorium", "discussed_no_action")
+
+
+@router.get("/{question_id}/jev", response_model=JevQuestionOut)
+async def get_question_jev(
+    question_id: str,
+    state: Optional[str] = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: Optional[str] = Query(None, description="City; case-insensitive match on city / jurisdiction name."),
+    outcome: Optional[str] = Query(None, description="Only meetings with this outcome reading."),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> JevQuestionOut:
+    """Meetings Jev read as debating the question, the outcome counts, and the newest meetings with their passage.
+
+    Jev is a classifier: these are readings with probabilities, not extracted decisions; the UI says so. Actions
+    (approved, denied, tabled, moratorium) come first, newest first."""
+    scope, state_code, city_param = _scope(state, city)
+    if outcome is not None and outcome not in _JEV_OUTCOMES:
+        raise HTTPException(status_code=422, detail=f"outcome must be one of {', '.join(_JEV_OUTCOMES)}")
+    with tracer.start_as_current_span("policy-question-jev") as span:
+        span.set_attribute("policy_question.id", question_id)
+        span.set_attribute("policy_question.scope", scope.level)
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            if not await conn.fetchval("select to_regclass('public.meeting_policy_question_jev') is not null"):
+                return JevQuestionOut(available=False, scope=scope)
+            c = await conn.fetchrow(_JEV_COUNTS_SQL, question_id, state_code, city_param)
+            rows = await conn.fetch(_JEV_ITEMS_SQL, question_id, state_code, city_param, limit, offset, outcome)
+        if not c or not c["meetings"]:
+            # Screened but nothing in this scope, or the question isn't screened: say which.
+            async with pool.acquire() as conn:
+                any_rows = await conn.fetchval(
+                    "select exists (select 1 from public.meeting_policy_question_jev where question_id = $1)", question_id
+                )
+            return JevQuestionOut(available=bool(any_rows), scope=scope)
+        items = []
+        for r in rows:
+            d = dict(r)
+            d["jump_url"] = jump_url(d.pop("video_url") or "", d.pop("start_seconds"))
+            items.append(JevMeetingOut(**d))
+        span.set_attribute("policy_question.jev_meetings", int(c["meetings"]))
+        return JevQuestionOut(
+            available=True,
+            scope=scope,
+            meetings=int(c["meetings"]),
+            debated=int(c["debated"]),
+            outcomes={k: int(c[k]) for k in _JEV_OUTCOMES},
+            items=items,
+        )

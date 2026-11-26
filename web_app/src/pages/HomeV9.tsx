@@ -18,9 +18,10 @@
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { getLaunchCounty } from '../lib/launchCounties'
 import MoneyGameModal from '../components/MoneyGameModal'
 import MoneyMovesTeaser from '../components/MoneyMovesTeaser'
@@ -34,13 +35,15 @@ import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 import { fetchMeetings, type MeetingCard } from '../api/meetings'
 import { highlightSnippet } from '../lib/highlight'
 import { LAUNCH_CITIES } from '../lib/launchCoverage'
+import HomeDataStories from '../components/home/HomeDataStories'
+import { STATE_CODES } from '../lib/usStates'
 
-const TEAL = '#0d9488'
-const TEAL_DARK = '#0f766e'
+// The brand teal, the same as the data stories' primary action and Tailwind's primary-600 (#975).
+const TEAL = '#0f766e'
+const TEAL_DARK = '#115e59'
 const INK = '#1c1917'
 
 const FONTS = `
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 .v9 .font-display { font-family: 'Playfair Display', Georgia, serif; }
 .v9 .font-body { font-family: 'Source Sans 3', system-ui, sans-serif; }
 .v9 .font-mono-x { font-family: 'IBM Plex Mono', monospace; }
@@ -59,6 +62,89 @@ html { scroll-behavior: smooth; }
 .v9 .v9-navlink:hover::after { width: 100%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.v9 .home-stories { background: #fff; border-bottom: 1px solid #e7e5e4; padding: 28px 24px 30px; }
+.v9 .home-stories-inner { max-width: 1180px; margin: 0 auto; }
+.v9 .home-story-card { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.2fr); gap: 28px; align-items: center; }
+.v9 .home-story-eyebrow { margin: 0; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; font-weight: 600; }
+.v9 .home-story-headline { font-size: clamp(40px, 5.6vw, 72px); font-weight: 800; line-height: 1.02; letter-spacing: -0.02em; margin: 8px 0 14px; color: #1c1917; }
+.v9 .home-story-subhead { margin: 0; font-size: clamp(16px, 1.5vw, 18px); line-height: 1.5; color: #44403c; max-width: 34em; }
+.v9 .home-story-basis { margin: 8px 0 0; font-size: 13px; color: #78716c; }
+.v9 .home-story-start { display: inline-block; background: #0f766e; color: #fff; border-radius: 999px; padding: 12px 24px; font-size: 16px; font-weight: 700; text-decoration: none; }
+.v9 .home-story-start:hover { background: #115e59; }
+.v9 .home-story-points { list-style: none; margin: 18px 0 0; padding: 0; }
+.v9 .home-story-point { display: flex; gap: 18px; align-items: flex-start; padding: 16px 0; border-top: 1px solid #e7e5e4; }
+.v9 .home-story-point:first-child { border-top: none; padding-top: 4px; }
+.v9 .home-story-point-icon { --hero-point-bg: #0f9d84; flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 999px; background: var(--hero-point-bg); color: #fff; }
+@media (max-width: 640px) { .v9 .home-story-point-icon { width: 48px; height: 48px; } .v9 .home-story-point-icon svg { width: 24px; height: 24px; } }
+.v9 .home-story-point-n { display: inline-block; min-width: 1.4em; margin-right: 6px; font-size: 22px; font-weight: 800; color: #0f9d84; }
+.v9 .home-story-point-title { margin: 6px 0 0; font-size: 19px; font-weight: 800; color: #1c1917; line-height: 1.3; }
+.v9 .home-story-point-line { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: #57534e; }
+.v9 .home-story-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.v9 .home-story-actions .home-story-start { padding: 14px 28px; font-size: 17px; text-align: center; }
+.v9 .home-story-next { display: inline-block; border: 1.5px solid #0f766e; color: #0f766e; background: #fff; border-radius: 999px; padding: 13px 24px; font-size: 16px; font-weight: 700; text-decoration: none; text-align: center; }
+.v9 .home-story-next:hover { background: #f0fdfa; }
+.v9 .home-story-map { position: relative; }
+.v9 .home-map-card { position: absolute; width: min(290px, 70%); background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; box-shadow: 0 10px 28px rgba(28,25,23,.12); padding: 14px 16px; margin: 0; z-index: 2; pointer-events: auto; }
+.v9 .home-topics { margin-top: 22px; border: 1px solid #e7e5e4; border-radius: 14px; background: #fff; }
+.v9 .home-topics-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px 0; }
+.v9 .home-topics-head p { margin: 0; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #44403c; font-weight: 600; border-bottom: 2px solid #0f766e; padding-bottom: 8px; }
+.v9 .home-topics-all { color: #1c1917; display: inline-flex; padding: 4px; }
+.v9 .home-topics-scroller { position: relative; }
+.v9 .home-topics-list { list-style: none; margin: 0; padding: 12px; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 0; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 12px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.v9 .home-topics-list::-webkit-scrollbar { display: none; }
+.v9 .home-topics-list li { scroll-snap-align: start; }
+.v9 .home-topics-list li + li { border-left: 1px solid #e7e5e4; }
+.v9 .home-topics-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 38px; height: 38px; border-radius: 50%; border: 1px solid #e7e5e4; background: #fff; color: #1c1917; box-shadow: 0 2px 6px rgba(28,25,23,.12); display: grid; place-items: center; cursor: pointer; padding: 0; transition: opacity .15s; }
+.v9 .home-topics-arrow.is-prev { left: 6px; }
+.v9 .home-topics-arrow.is-next { right: 6px; }
+.v9 .home-topics-arrow:hover:not(:disabled) { background: #f0fdfa; border-color: #0f766e; color: #0f766e; }
+.v9 .home-topics-arrow:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
+.v9 .home-topics-arrow:disabled { opacity: 0; pointer-events: none; }
+.v9 .home-topics-arrow[hidden] { display: none; }
+.v9 .home-topics-dots { display: flex; justify-content: center; gap: 4px; padding: 0 12px 12px; }
+.v9 .home-topics-dot { width: 22px; height: 22px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.v9 .home-topics-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #d6d3d1; transition: background .15s, width .15s; }
+.v9 .home-topics-dot.is-on::before { background: #0f766e; width: 20px; border-radius: 999px; }
+.v9 .home-topics-dot:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; border-radius: 999px; }
+@media (max-width: 639px) { .v9 .home-topics-arrow { display: none; } }
+@media (prefers-reduced-motion: reduce) { .v9 .home-topics-list { scroll-behavior: auto; } .v9 .home-topics-arrow, .v9 .home-topics-dot::before { transition: none; } }
+.v9 .home-topic { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; text-decoration: none; color: inherit; border-radius: 10px; }
+.v9 .home-topic:hover { background: #fafaf9; }
+.v9 button.home-topic { width: 100%; background: none; border: 0; font: inherit; text-align: left; cursor: pointer; }
+.v9 .home-topic.is-on { background: #f0fdfa; box-shadow: inset 0 0 0 2px #0f766e; }
+.v9 .home-topic-on { display: inline-block; align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 12px; font-weight: 700; }
+.v9 .home-topic.is-soon { cursor: default; }
+.v9 .home-topic.is-soon:hover { background: none; }
+.v9 .home-topic-soon { display: inline-block; align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: #f5f5f4; color: #57534e; font-size: 12px; font-weight: 600; }
+.v9 .home-topic-icon { flex: none; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; }
+.v9 .home-topic-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.v9 .home-topic-title { font-weight: 700; font-size: 15.5px; color: #1c1917; }
+.v9 .home-topic-blurb { font-size: 13.5px; color: #57534e; line-height: 1.4; }
+.v9 .home-topic-caption { color: #292524; font-weight: 500; }
+.v9 .home-topic-ai { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #78716c; font-weight: 600; }
+.v9 .home-topic-go { font-size: 13.5px; font-weight: 700; color: #0f766e; margin-top: 2px; }
+.v9 button.home-topic.is-soon { cursor: pointer; }
+.v9 button.home-topic.is-soon:hover { background: #fafaf9; }
+.v9 .home-topic.is-picked { background: #fafaf9; box-shadow: inset 0 0 0 2px #a8a29e; }
+.v9 .home-topic-companies { border-top: 1px solid #e7e5e4; padding: 14px 18px 16px; }
+.v9 .home-topic-companies h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #44403c; font-weight: 600; }
+.v9 .home-topic-companies-note { margin: 8px 0 0; font-size: 13.5px; color: #57534e; }
+.v9 .home-topic-companies-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.v9 .home-topic-company { border: 1px solid #e7e5e4; border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.v9 .home-topic-company-name { margin: 0; font-weight: 700; font-size: 15px; color: #1c1917; }
+.v9 .home-topic-company-name a { color: inherit; }
+.v9 .home-topic-company-brands { font-weight: 400; font-size: 13px; color: #78716c; }
+.v9 .home-topic-company-counts { margin: 4px 0 0; font-size: 13.5px; color: #44403c; }
+.v9 .home-topic-company-counts a { color: #0f766e; font-weight: 700; }
+.v9 .home-topic-company-quote { margin: 8px 0 0; padding-left: 10px; border-left: 2px solid #0f766e; font-size: 13.5px; font-style: italic; line-height: 1.45; color: #44403c; overflow-wrap: anywhere; }
+.v9 .home-topic-company-quote footer { font-style: normal; font-size: 12px; color: #78716c; margin-top: 4px; }
+.v9 .home-topic-company-quote a { color: #0f766e; }
+@media (max-width: 860px) {
+  .v9 .home-story-card { grid-template-columns: minmax(0, 1fr); }
+  .v9 .home-map-card { position: static; width: auto; margin-top: 8px; }
+  .v9 .home-story-actions { flex-direction: column; }
+  .v9 .home-story-actions a { display: block; width: 100%; box-sizing: border-box; }
+}
 @media (max-width: 760px) {
   .v9 .v9-nav { display: none; }
   .v9 .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
@@ -92,10 +178,12 @@ html { scroll-behavior: smooth; }
 @media (max-width: 640px) {
   /* Stack search: input + go on row 1; category + location on row 2. */
   .v9 .v9-search { flex-wrap: wrap; }
-  .v9 .v9-search-input { order: 1; flex: 1 1 calc(100% - 52px) !important; min-width: 0 !important; padding: 14px 16px !important; font-size: 16px !important; }
-  .v9 .v9-search-go { order: 2; flex: 0 0 52px !important; padding: 0 16px !important; font-size: 18px !important; }
-  .v9 .v9-search-cat { order: 3; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-right: 1px solid #e7e5e4 !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
-  .v9 .v9-search-level { order: 4; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-left: none !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
+  .v9 .v9-search-input { order: 1; flex: 1 1 0 !important; width: 0; box-sizing: border-box; min-width: 0 !important; padding: 14px 16px !important; font-size: 16px !important; }
+  .v9 .v9-search-go { order: 2; flex: 0 0 52px !important; box-sizing: border-box; padding: 0 !important; font-size: 18px !important; }
+  /* Row 2 starts after the field + button (#1030). */
+  .v9 .v9-search::after { content: ''; order: 2; flex-basis: 100%; height: 0; }
+  .v9 .v9-search-cat { order: 3; box-sizing: border-box; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-right: 1px solid #e7e5e4 !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
+  .v9 .v9-search-level { order: 4; box-sizing: border-box; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-left: none !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
 }
 `
 
@@ -206,6 +294,8 @@ interface LensBlock {
 interface LensesResp {
   lenses: LensBlock[]
   activity: LensActivity[]
+  /** The window the cards cover: the requested one, or what `auto` resolved to (#1045). */
+  window?: string
   location_label?: string
 }
 
@@ -438,10 +528,17 @@ function StepZeroImpact() {
 
 // ── Page ──────────────────────────────────────────────────────────────────
 export default function HomeV9() {
+  // Phones get a shorter search placeholder that fits beside the button (#1030).
+  const narrow = useMediaQuery('(max-width: 760px)')
   const navigate = useNavigate()
   const { location, setLocation } = useLocationContext()
-  const locState = location?.state || undefined
-  const locCity = location?.city || undefined
+  // A place carried in the address (?state=&city=, e.g. from a header tab on a scoped page) sets the whole page's
+  // scope, ahead of the saved location, without overwriting it (#975; CLAUDE.md: filters carry over via the URL).
+  const [urlParams, setUrlParams] = useSearchParams()
+  const urlState = (urlParams.get('state') ?? '').trim().toUpperCase()
+  const urlHasPlace = STATE_CODES.includes(urlState)
+  const locState = urlHasPlace ? urlState : location?.state || undefined
+  const locCity = urlHasPlace ? (urlParams.get('city') ?? '').trim() || undefined : location?.city || undefined
 
   // ── Location level — City / State / National ──
   // Restores the geography selector that used to live in the hero. Defaults to
@@ -536,17 +633,47 @@ export default function HomeV9() {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 220)
     return () => clearTimeout(t)
   }, [query])
-  const [when, setWhen] = useState(WHEN[0])
+  // null until the reader picks a window: the lenses ask for `auto`, the narrowest window that has decisions for the
+  // place, and the chip for the window the API resolved to is highlighted (#1045), so an Alabama reader whose newest
+  // analysed decision is months old isn't greeted by an empty "Past month".
+  const [pickedWhen, setWhen] = useState<(typeof WHEN)[number] | null>(null)
   const [showStrategicPlan, setShowStrategicPlan] = useState(false)
 
   // When arriving from another page via `/#how-it-works` (shared header nav),
   // scroll to the requested in-page section once it has rendered.
+  // The sections above load their data after this runs and grow, which would leave the section mid-screen (#975), so
+  // the scroll settles again a few times while the page fills in, and stops as soon as the reader scrolls, clicks,
+  // presses a key or navigates.
   useEffect(() => {
     const id = window.location.hash.replace('#', '')
-    if (id) {
-      requestAnimationFrame(() =>
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-      )
+    if (!id) return
+    let userMoved = false
+    const stop = () => {
+      userMoved = true
+    }
+    const opts = { passive: true } as const
+    window.addEventListener('wheel', stop, opts)
+    window.addEventListener('touchstart', stop, opts)
+    window.addEventListener('pointerdown', stop, opts)
+    window.addEventListener('keydown', stop)
+    window.addEventListener('hashchange', stop)
+    window.addEventListener('popstate', stop)
+    const settle = () => {
+      if (userMoved) return
+      const el = document.getElementById(id)
+      if (el && Math.abs(el.getBoundingClientRect().top - 72) > 8) el.scrollIntoView({ behavior: 'auto', block: 'start' })
+    }
+    const raf = requestAnimationFrame(settle)
+    const timers = [300, 800, 1500, 2500, 4000].map((ms) => window.setTimeout(settle, ms))
+    return () => {
+      cancelAnimationFrame(raf)
+      timers.forEach((t) => window.clearTimeout(t))
+      window.removeEventListener('wheel', stop)
+      window.removeEventListener('touchstart', stop)
+      window.removeEventListener('pointerdown', stop)
+      window.removeEventListener('keydown', stop)
+      window.removeEventListener('hashchange', stop)
+      window.removeEventListener('popstate', stop)
     }
   }, [])
 
@@ -567,15 +694,21 @@ export default function HomeV9() {
 
   // ── Real data ──
   const { data: lensesData } = useQuery<LensesResp>({
-    queryKey: ['home-v9-lenses', national, stateCode, city, when.window],
+    queryKey: ['home-v9-lenses', national, stateCode, city, pickedWhen?.window ?? 'auto'],
     queryFn: () => {
-      const params: Record<string, string> = { window: when.window }
+      const params: Record<string, string> = { window: pickedWhen?.window ?? 'auto' }
       if (!national && stateCode) params.state = stateCode
       if (!national && city) params.city = city
       return api.get('/lenses', { params }).then((r) => r.data)
     },
     staleTime: 5 * 60 * 1000,
   })
+  // The window the shown cards cover: the reader's pick, else what `auto` resolved to.
+  const when: { label: string; window: string } = pickedWhen ??
+    WHEN.find((w) => w.window === lensesData?.window) ??
+    (lensesData?.window === 'fiveyear'
+      ? { label: 'Past 5 years', window: 'fiveyear' }
+      : { label: 'Recent', window: lensesData?.window ?? 'auto' })
 
   // ── Recent meetings (REAL /api/meetings, sort=recent) ──
   // Fallback content for the Contested / Raised Eyebrows lenses: when this place
@@ -767,20 +900,17 @@ export default function HomeV9() {
       {/* ── Shared header (identical to the search page) ── */}
       <SiteHeader />
 
+      {/* ── Data stories first (#995): the conclusion, the quote map and the topics; the header's Data Stories tab. ── */}
+      <HomeDataStories stateCode={stateCode} city={city ?? null} />
+
       <main className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
         {/* ── Hero: thesis + search + trending ── */}
-        <section className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center' }}>
-          <h1
-            className="font-display"
-            style={{ fontSize: 'clamp(38px, 6.4vw, 60px)', fontWeight: 900, margin: 0, lineHeight: 1.05, letterSpacing: '-0.02em', color: INK }}
-          >
-            Every local decision, in one place.
-          </h1>
-          <div style={{ fontSize: 'clamp(16px, 2vw, 19px)', fontWeight: 500, color: '#57534e', maxWidth: 760, margin: '16px auto 0', lineHeight: 1.5 }}>
-            Search the meetings, votes, spending, and debates shaping your community.
-            <br />
-            Free, forever.
-          </div>
+        {/* The header's Search tab scrolls here (#975); results open on /search from this search. */}
+        <section id="search" className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center', scrollMarginTop: 72 }}>
+          {/* #995: the thesis ("Every local decision, in one place.") now closes the page, under Impact. */}
+          <h2 className="font-display" style={{ fontSize: 'clamp(28px, 4vw, 40px)', fontWeight: 800, margin: 0, lineHeight: 1.1, color: INK }}>
+            Search your community
+          </h2>
 
           {/* ── Launch-coverage note: live in four cities (ordered by content
               volume), each linking to its state-scoped search. ── */}
@@ -893,7 +1023,7 @@ export default function HomeV9() {
                   setSearchFocused(false)
                   setTimeout(() => setSuggestOpen(false), 140)
                 }}
-                placeholder="Search topics, people, organizations, or causes"
+                placeholder={narrow ? 'Search topics, people, causes…' : 'Search topics, people, organizations, or causes'}
                 style={{ flex: 1, border: 'none', outline: 'none', padding: '18px 20px', fontSize: 17, fontFamily: 'inherit', minWidth: 0 }}
               />
               <button
@@ -1190,6 +1320,18 @@ export default function HomeV9() {
                     onLocationFound={(loc) => {
                       setUncoveredPick(null)
                       setLocation(loc)
+                      // A place picked here replaces any place carried in the address.
+                      if (urlHasPlace) {
+                        setUrlParams(
+                          (prev) => {
+                            const next = new URLSearchParams(prev)
+                            next.delete('state')
+                            next.delete('city')
+                            return next
+                          },
+                          { replace: true },
+                        )
+                      }
                       levelPicked.current = false
                       setChangingLoc(false)
                     }}
@@ -1635,7 +1777,7 @@ export default function HomeV9() {
           const whenSelector = (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
               {WHEN.map((w) => (
-                <Chip key={w.label} active={when.label === w.label} onClick={() => setWhen(w)}>
+                <Chip key={w.label} active={!!lensesData && when.window === w.window} onClick={() => setWhen(w)}>
                   {w.label}
                 </Chip>
               ))}
@@ -1842,6 +1984,7 @@ export default function HomeV9() {
         </section>
       </main>
 
+
       {/* ── How It Works (ported from the original home page, restyled for v9).
           Header format matches the sibling "Our Impact" section: section name as
           the centered <h2>, no mono eyebrow. ── */}
@@ -1866,7 +2009,8 @@ export default function HomeV9() {
                 items: [
                   { kind: 'check', label: 'School Quality' },
                   { kind: 'check', label: 'Property Taxes' },
-                  { kind: 'check', label: 'Northport Schools' },
+                  // The reader's own place (#1047), never a hard-coded one.
+                  { kind: 'check', label: location?.city ? `${location.city} Schools` : 'Local Schools' },
                   { kind: 'check', label: 'Traffic & Roads' },
                   { kind: 'arrow', label: 'Why are my taxes rising?' },
                 ],
@@ -1981,6 +2125,18 @@ export default function HomeV9() {
             </button>
           </div>
         </div>
+      </section>
+
+      {/* ── The thesis, under Impact (#995). ── */}
+      <section className="v9-section-full" aria-labelledby="home-thesis-h" style={{ background: '#fff', borderTop: '1px solid #e7e5e4', padding: '52px 24px', textAlign: 'center' }}>
+        <h2 id="home-thesis-h" className="font-display" style={{ fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 900, margin: 0, lineHeight: 1.05, letterSpacing: '-0.02em', color: INK }}>
+          Every local decision, in one place.
+        </h2>
+        <p style={{ fontSize: 'clamp(16px, 2vw, 19px)', fontWeight: 500, color: '#57534e', maxWidth: 760, margin: '16px auto 0', lineHeight: 1.5 }}>
+          Search the meetings, votes, spending, and debates shaping your community.
+          <br />
+          Free, forever.
+        </p>
       </section>
 
       {/* Strategic Plan PDF — lightweight modal (real PDF in public/pdf). */}

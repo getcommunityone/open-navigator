@@ -71,6 +71,15 @@ select
     o.party,
     o.district,
     o.email,
+    o.email_source_url,
+    -- sha256 of the normalized official email (#1062). Survives into the public
+    -- serving copy (the email itself does not), so the API can verify a profile
+    -- claim by comparing the signed-in user's hashed email without ever seeing
+    -- the official's address.
+    case
+        when nullif(btrim(o.email), '') is null then cast(null as text)
+        else encode(sha256(convert_to(lower(btrim(o.email)), 'UTF8')), 'hex')
+    end                                                   as email_sha256,
     o.phone,
     o.photo_url,
     o.biography,

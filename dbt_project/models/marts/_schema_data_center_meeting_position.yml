@@ -192,6 +192,11 @@ models:
       - name: speaker_role
         description: "The capacity the speaker gave (Resident, Business owner, ...), as extracted; null when not said."
         data_type: text
+      - name: speaker_display_name
+        description: >
+          "First L." from the analysis's speaker_id (#1036): role words dropped; two name words -> "Audra T.", more ->
+          first name only, a role-only id -> null. Never the full surname.
+        data_type: text
       - name: stance_bucket
         description: "for / against / question / neutral; null when the stance is unknown (never counted as neutral)."
         data_type: text

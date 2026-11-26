@@ -231,6 +231,67 @@ seeds:
         tests:
           - not_null
 
+  - name: official_contact_override
+    config:
+      column_types:
+        full_name: text
+        state_code: text
+        jurisdiction: text
+        email: text
+        is_current: boolean
+        source_url: text
+        verified_on: date
+    description: >
+      An official's public contact email, copied verbatim (a mailto link) from their government's own page, and
+      corrections to whether they still hold office, each with the page it came from and the date it was checked (#1062).
+      Matched on full name + state + jurisdiction and coalesced in contact_official; never guessed from an address
+      pattern. Tuscaloosa pilot: six councilors' emails from tuscaloosa.com district pages; Kip Tyner marked no longer
+      in office (the council page carries "In Memory of Councilor Kip Tyner" and lists District 5 as vacant).
+      After editing: dbt seed --select official_contact_override && dbt build --select contact_official+
+    columns:
+      - name: full_name
+        tests: [not_null]
+      - name: state_code
+        tests: [not_null]
+      - name: jurisdiction
+        tests: [not_null]
+      - name: source_url
+        description: 'The government page the email (or the office change) appears on.'
+        tests: [not_null]
+      - name: verified_on
+        tests: [not_null]
+
+  - name: official_term
+    config:
+      column_types:
+        full_name: text
+        state_code: text
+        jurisdiction: text
+        role: text
+        district: text
+        start_date: date
+        start_year: integer
+        end_date: date
+        end_year: integer
+        end_reason: text
+        source_url: text
+        verified_on: date
+    description: >
+      Office terms stated on a government's own page (#1068): start and end (the day when the page gives one, else the
+      year), why the term ended, and leadership roles, each with the page and the date checked. 'died' only when the
+      official source says so. Tuscaloosa from tuscaloosa.com: Kip Tyner (District 5 from 1997; died 2026-09-18, the
+      city's memorial page), Lee Busby (District 4 from the October 2019 special election), Raevan Howard (President Pro
+      Tempore from 2026-09-29).
+    columns:
+      - name: full_name
+        tests: [not_null]
+      - name: role
+        tests: [not_null]
+      - name: source_url
+        tests: [not_null]
+      - name: verified_on
+        tests: [not_null]
+
   - name: official_photo_override
     # Pin text types: biography/source_url are often all-empty on first seed, which
     # otherwise infers to integer and breaks trim()/coalesce in downstream models.
@@ -393,6 +454,139 @@ seeds:
               config:
                 where: "source_kind = 'meeting_passage'"
 
+  - name: company_foundation
+    config:
+      column_types:
+        company_key: text
+        company_name: text
+        foundation_ein: text
+        foundation_name: text
+        relationship: text
+        source_url: text
+        source_excerpt: text
+        verified_on: date
+    description: >
+      Companies we track and the nonprofit foundations tied to them (#1073), so the foundation's IRS 990 Schedule I
+      grants (the grant mart) can be shown on the company's page. One row per (company_key, foundation_ein). A row is
+      added only when the foundation's EIN is a grantor in the grant mart AND a public source ties it to the company;
+      source_url / source_excerpt quote that source verbatim. relationship says how: founded_by_company (the company
+      started it; it is a separate 501(c)(3)), governed_by_company (its board is the company's executives), or
+      controls_company (the nonprofit controls the company, e.g. the OpenAI Foundation). The grant mart holds 990
+      public-charity filers only, so private foundations that file a 990-PF (Google Foundation, Motorola Solutions
+      Foundation, ...) cannot be linked yet. company_key matches topic_company.company_key; the company's
+      master_org_id is resolved from there in company_grant, not stored here. Never a guessed EIN.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [company_key, foundation_ein]
+    columns:
+      - name: company_key
+        description: "The company's slug in topic_company (data center, short-term rental or topic company)."
+        tests: [not_null]
+      - name: company_name
+        tests: [not_null]
+      - name: foundation_ein
+        description: "9-digit EIN, no dash, as grant.grantor_ein holds it. Unique: one company per foundation, so a grant has one company (company_grant's PK is grant_id)."
+        tests: [unique, not_null]
+      - name: foundation_name
+        tests: [not_null]
+      - name: relationship
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['founded_by_company', 'governed_by_company', 'controls_company']
+      - name: source_url
+        tests: [not_null]
+      - name: source_excerpt
+        description: "Verbatim sentence from source_url that ties the foundation to the company."
+        tests: [not_null]
+      - name: verified_on
+        description: "Date the source was read."
+        tests: [not_null]
+  - name: short_term_rental_companies
+    config:
+      column_types:
+        company_key: text
+        company_name: text
+        aliases: text
+        match_terms: text
+        roles: text
+        website_url: text
+        source_kind: text
+        source_url: text
+        source_excerpt: text
+    description: >
+      Curated short-term rental platform companies (#1015): Airbnb, Expedia Group (Vrbo, HomeAway) and Booking
+      Holdings (Booking.com). Each row enters the organization master as org_type 'company'
+      (stg_short_term_rental_companies__org -> mdm_organization) and gets a row in the
+      mdm_organization_short_term_rental satellite. match_terms ('|'-separated, lowercase) are the words that name
+      the company in a transcript or decision. Every row cites the company's own page (source_url) with a verbatim
+      source_excerpt. Add only real companies a source names; never a guessed website.
+    columns:
+      - name: company_key
+        description: "Stable slug (PK), e.g. airbnb."
+        tests: [unique, not_null]
+      - name: company_name
+        description: "The company's name as it is commonly written."
+        tests: [unique, not_null]
+      - name: aliases
+        description: "'|'-separated exact forms that name it (brands included, e.g. Vrbo)."
+      - name: match_terms
+        description: "'|'-separated lowercase full-text terms matched against transcripts and decisions."
+        tests: [not_null]
+      - name: roles
+        description: "'|'-separated roles; short_term_rental_platform."
+        tests: [not_null]
+      - name: website_url
+        description: "The company's own website."
+      - name: source_kind
+        description: "company_page: the company's own website."
+        tests: [not_null]
+      - name: source_url
+        description: "The page the excerpt is from."
+        tests: [not_null]
+      - name: source_excerpt
+        description: "Verbatim text from source_url."
+        tests: [not_null]
+  - name: data_center_job_sources
+    config:
+      column_types:
+        job_source_id: text
+        name: text
+        url: text
+        kind: text
+        description: text
+        description_source_url: text
+        automated_access: text
+        checked_on: date
+    description: >
+      Where data center jobs are tracked (#1019), cited on the jobs screen. kind: official_statistics, job_board or
+      association. description is the site's own words, verbatim from description_source_url (blank when none was
+      read). automated_access records what we found on checked_on: public_data (we load it), prohibited_by_terms
+      (its terms forbid scraping or automated access; cited only), not_pulled (cited only: no listings, republished
+      listings, or the board could not be read). Job listings are never scraped from a board whose terms forbid it.
+    columns:
+      - name: job_source_id
+        description: "Stable slug (PK)."
+        tests: [unique, not_null]
+      - name: name
+        tests: [not_null]
+      - name: url
+        tests: [not_null]
+      - name: kind
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['official_statistics', 'job_board', 'association']
+      - name: description
+        description: "The site's own words (verbatim)."
+      - name: description_source_url
+      - name: automated_access
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['public_data', 'prohibited_by_terms', 'not_pulled']
+      - name: checked_on
+        description: "When the terms and robots.txt were read."
   - name: data_center_companies
     config:
       column_types:
@@ -487,6 +681,39 @@ seeds:
       - name: note
         description: "Why a feed is disabled or blank, or what kind of feed it is."
 
+  - name: data_center_hearing_lead
+    config:
+      column_types:
+        lead_id: text
+        meeting_date: date
+        jurisdiction_name: text
+        state_code: text
+        body_name: text
+        topic: text
+        source_kind: text
+        source_name: text
+        source_url: text
+        lead_from: text
+    description: >
+      Leads on upcoming local government data center hearings (#955), one row per claimed
+      meeting, as collected from the owner's research lists (owner_list_1, owner_list_2, or both).
+      A lead is a CLAIM, never shown as fact: only a row whose source_url is an official
+      government page, fetched by ingestion.data_centers.fetch_hearing_sources and found to
+      state the date and a data center word, becomes a verified hearing in data_center_hearing.
+      source_kind: official (a government page), tracker (a third-party tracker named as the
+      source, no URL kept), news, or none. Tracking parameters (utm_*) are stripped from URLs.
+      body_name keeps the list's wording; "(as listed)" marks a body the list probably got wrong.
+    columns:
+      - name: lead_id
+        tests: [unique, not_null]
+      - name: meeting_date
+        tests: [not_null]
+      - name: state_code
+        tests: [not_null]
+      - name: source_kind
+        tests:
+          - accepted_values:
+              values: ['official', 'tracker', 'news', 'none']
   - name: data_center_projects
     config:
       column_types:

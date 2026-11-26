@@ -26,13 +26,22 @@ class _FakeConn:
         rows: list[dict[str, Any]] | None = None,
         error: Exception | None = None,
         totals: list[dict[str, Any]] | None = None,
+        payroll: list[dict[str, Any]] | None = None,
+        sources: list[dict[str, Any]] | None = None,
     ):
         self.rows = rows or []
         self.totals = totals or []
+        self.payroll = payroll or []
+        self.sources = sources or []
         self.error = error
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
+        # The payroll / job-source lookups (#1019), kept apart so claim-query assertions stay as they were.
+        self.side_calls: list[tuple[str, tuple[Any, ...]]] = []
 
     async def fetch(self, sql: str, *params: Any):
+        if "data_center_employment" in sql or "data_center_job_source" in sql:
+            self.side_calls.append((sql, params))
+            return self.payroll if "data_center_employment" in sql else self.sources
         self.calls.append((sql, params))
         if self.error is not None:
             raise self.error
@@ -369,6 +378,8 @@ def test_missing_relation_returns_empty_items_with_scope(make_client) -> None:
         },
         "totals": {"construction": 0, "operations": 0},
         "items": [],
+        "employment": [],
+        "sources": [],
     }
 
 
@@ -395,3 +406,30 @@ def test_limit_edges_are_accepted(make_client, limit) -> None:
     resp = make_client(conn).get(PATH, params={"limit": limit})
     assert resp.status_code == 200
     assert conn.calls[0][1][-1] == limit
+
+
+def test_payroll_jobs_and_sources_ride_along(make_client) -> None:
+    """#1019: the response carries BLS payroll jobs for the scope's state and the nation, and the cited job sites;
+    a withheld figure stays null."""
+    conn = _FakeConn(
+        rows=[],
+        payroll=[
+            {"area_level": "state", "area_name": "Alabama", "year": 2024, "employment": 3855, "establishments": 1420,
+             "avg_annual_pay": 98804, "employment_change_pct": 2.7, "disclosed": True,
+             "source_url": "https://data.bls.gov/cew/data/api/2024/a/industry/518210.csv"},
+            {"area_level": "national", "area_name": "United States", "year": 2024, "employment": None,
+             "establishments": None, "avg_annual_pay": None, "employment_change_pct": None, "disclosed": False,
+             "source_url": "https://data.bls.gov/cew/data/api/2024/a/industry/518210.csv"},
+        ],
+        sources=[
+            {"name": "Data Center JobHub", "url": "https://datacenterjobhub.com/", "kind": "job_board",
+             "description": None, "description_source_url": None, "automated_access": "prohibited_by_terms"},
+        ],
+    )
+    body = make_client(conn).get(PATH, params={"state": "AL"}).json()
+    assert body["employment"][0]["year"] == "2024"
+    assert body["employment"][0]["employment"] == 3855
+    assert body["employment"][1]["disclosed"] is False and body["employment"][1]["employment"] is None
+    assert body["sources"][0]["automated_access"] == "prohibited_by_terms"
+    payroll_sql, payroll_params = conn.side_calls[0]
+    assert "data_center_employment" in payroll_sql and payroll_params == ("AL",)

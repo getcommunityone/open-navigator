@@ -42,7 +42,9 @@
         to NULL. Officials' name/title/office/jurisdiction/party/district/photo/bio
         remain (public-figure role data). Column shape is preserved (NULL::text
         aliases) so API queries selecting email/phone keep working — they get NULL.
-        See projections[...] below.
+        `person_government.email_sha256` (a one-way hash of the email) IS kept so
+        the profile-claim API (#1062) can match a signed-in user's email without
+        reading the address. See projections[...] below.
 -#}
 {%- if not execute -%}{{ return('') }}{%- endif -%}
 
@@ -183,8 +185,10 @@
     'data_center_agenda_item':             "_s.state_code in {{states}}",
     'data_center_meeting_mention':         "_s.state_code in {{states}}",
     'data_center_meeting_position':        "_s.state_code in {{states}}",
+    'data_center_meeting_lean':            "_s.state_code in {{states}}",
     'data_center_public_comment':          "_s.state_code in {{states}}",
     'data_center_decision':                "_s.state_code in {{states}}",
+    'data_center_hearing_verified':        "_s.state_code in {{states}}",
     'decision_place_label':                "_s.state_code in {{states}}",
     'decision_nearby_data_center_site':    "_s.state_code in {{states}}",
     'decision_company_mention':
@@ -247,12 +251,20 @@
     'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
     'data_center_meeting_mention',
     'data_center_meeting_position', 'data_center_public_comment', 'data_center_decision',
+    'data_center_hearing_verified',
     'decision_place_label', 'decision_company_mention', 'decision_nearby_data_center_site',
     'recent_transcribed_meeting',
     'mdm_organization_data_center', 'data_center_project', 'data_center_project_company',
     'data_center_project_jurisdiction', 'data_center_project_figure', 'data_center_project_mention',
     'data_center_community_event', 'data_center_community_event_source',
-    'data_center_community_event_recording'
+    'data_center_community_event_recording',
+    'mdm_organization_short_term_rental', 'short_term_rental_company_mention',
+    'data_center_employment', 'data_center_job_source',
+    'meeting_policy_question_jev',
+    'topic_company', 'topic_company_mention',
+    'company_grant',
+    'person_government_term',
+    'data_center_meeting_lean'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
@@ -280,8 +292,8 @@
     'person_government':
         'select person_id, master_person_id, full_name, title, jurisdiction, '
         'jurisdiction_id, office, state_code, state, party, district, '
-        'null::text as email, null::text as phone, photo_url, biography, '
-        'website_url, is_current from gold.person_government',
+        'null::text as email, email_sha256, null::text as phone, photo_url, '
+        'biography, website_url, is_current from gold.person_government',
     'event_place_geocoded':
         'select * from gold.event_place_geocoded where latitude is not null',
     'event_decision':

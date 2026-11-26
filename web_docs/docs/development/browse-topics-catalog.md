@@ -18,10 +18,21 @@ Browse Topics (`/browse-topics`) and the **Topic** filter read one list: `GET /a
 | Water fluoridation | `water-fluoridation` | fluoridation, fluoride |
 | Short-term rentals | `short-term-rentals` | short-term rental, vacation rental, Airbnb, Vrbo |
 | Flock and license plate readers | `license-plate-readers` | license plate reader, license plate camera, Flock Safety, Flock camera, ALPR |
+| Guns | `guns` | firearm(s), gun violence, gun show, shooting range, gun range, gunshot(s), gunfire, ShotSpotter, concealed carry, ghost gun, assault weapon, gun store or shop, gun safety, gun owners ([#1051](https://github.com/getcommunityone/open-navigator/issues/1051)) |
+| Pickleball | `pickleball` | pickleball, pickle ball, pickleball court(s), pickleball players ([#1054](https://github.com/getcommunityone/open-navigator/issues/1054)) |
 
 A curated topic appears on the site after `dbt seed` and a build of `civicsearch_topic` and the models downstream of
 it (`dbt ls --select civicsearch_topic+`), followed by the usual publish. Search's "Try searching for" suggestions are
 data centers, short-term rentals, Flock cameras and license plate readers.
+
+Guns uses only phrases, never the bare word "gun", so "nail gun", "radar gun" and "begun" don't tag a meeting. One
+phrase is enough to tag a meeting, as for every curated topic. Some tags are incidental: a "firearms instructor" named
+while a new officer is introduced, for example. The quoted passage on each result shows which kind it is. The first
+local build tagged 7,684 transcripts in 50 states. On the home page, Guns is a **Coming soon** card, like Flock, and so is Pickleball.
+
+Two guide topics are also on the strip as **Coming soon**: **Starting a nonprofit** ([#1078](https://github.com/getcommunityone/open-navigator/issues/1078)) and **Insurance shopping** ([#1079](https://github.com/getcommunityone/open-navigator/issues/1079)). They aren't meeting topics, so they have no keywords, counts or companies until their guide or data lands.
+
+The home **Browse topics** row snaps card by card, with round previous and next arrows at its edges (hidden below 640px, where you swipe) and one progress dot per page of visible cards; a dot scrolls to its page, and reduced motion turns the smooth scroll off ([#1101](https://github.com/getcommunityone/open-navigator/issues/1101)).
 
 ## What the page shows
 
