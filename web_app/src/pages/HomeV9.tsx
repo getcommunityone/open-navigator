@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { getLaunchCounty } from '../lib/launchCounties'
 import MoneyGameModal from '../components/MoneyGameModal'
 import MoneyMovesTeaser from '../components/MoneyMovesTeaser'
@@ -128,10 +129,12 @@ html { scroll-behavior: smooth; }
 @media (max-width: 640px) {
   /* Stack search: input + go on row 1; category + location on row 2. */
   .v9 .v9-search { flex-wrap: wrap; }
-  .v9 .v9-search-input { order: 1; flex: 1 1 calc(100% - 52px) !important; min-width: 0 !important; padding: 14px 16px !important; font-size: 16px !important; }
-  .v9 .v9-search-go { order: 2; flex: 0 0 52px !important; padding: 0 16px !important; font-size: 18px !important; }
-  .v9 .v9-search-cat { order: 3; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-right: 1px solid #e7e5e4 !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
-  .v9 .v9-search-level { order: 4; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-left: none !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
+  .v9 .v9-search-input { order: 1; flex: 1 1 0 !important; width: 0; box-sizing: border-box; min-width: 0 !important; padding: 14px 16px !important; font-size: 16px !important; }
+  .v9 .v9-search-go { order: 2; flex: 0 0 52px !important; box-sizing: border-box; padding: 0 !important; font-size: 18px !important; }
+  /* Row 2 starts after the field + button (#1030). */
+  .v9 .v9-search::after { content: ''; order: 2; flex-basis: 100%; height: 0; }
+  .v9 .v9-search-cat { order: 3; box-sizing: border-box; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-right: 1px solid #e7e5e4 !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
+  .v9 .v9-search-level { order: 4; box-sizing: border-box; flex: 1 1 50% !important; min-width: 0 !important; max-width: 50%; border-left: none !important; border-bottom: 1px solid #e7e5e4 !important; padding: 10px 12px !important; font-size: 13px !important; overflow: hidden; text-overflow: ellipsis; }
 }
 `
 
@@ -474,6 +477,8 @@ function StepZeroImpact() {
 
 // ── Page ──────────────────────────────────────────────────────────────────
 export default function HomeV9() {
+  // Phones get a shorter search placeholder that fits beside the button (#1030).
+  const narrow = useMediaQuery('(max-width: 760px)')
   const navigate = useNavigate()
   const { location, setLocation } = useLocationContext()
   // A place carried in the address (?state=&city=, e.g. from a header tab on a scoped page) sets the whole page's
@@ -958,7 +963,7 @@ export default function HomeV9() {
                   setSearchFocused(false)
                   setTimeout(() => setSuggestOpen(false), 140)
                 }}
-                placeholder="Search topics, people, organizations, or causes"
+                placeholder={narrow ? 'Search topics, people, causes…' : 'Search topics, people, organizations, or causes'}
                 style={{ flex: 1, border: 'none', outline: 'none', padding: '18px 20px', fontSize: 17, fontFamily: 'inherit', minWidth: 0 }}
               />
               <button
