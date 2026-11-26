@@ -23,6 +23,7 @@ select
     c.match_basis::text                                         as match_basis,
     c.speaker_id::text                                          as speaker_id,
     c.speaker_role::text                                        as speaker_role,
+    {{ speaker_display_name('c.speaker_id', 'c.speaker_role') }}::text  as speaker_display_name,
     c.stance_bucket::text                                       as stance_bucket,
     c.stance_evidence::text                                     as quote,
     c.is_counted::boolean                                       as is_counted,
