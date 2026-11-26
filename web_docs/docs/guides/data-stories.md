@@ -85,19 +85,21 @@ The story's title, and the caption on each **Browse topics** tile on the home pa
 supports for the topic and the place in scope (`?state=&city=`), with the place and topic still clickable on the story. The
 caption picker (`web_app/src/utils/storyCaption.ts`) reads `GET /api/topics/{topic}/caption-facts` for exactly that scope
 and tries, in order:
-1. **Disagreement at volume.** "In [23] meetings across [America], officials backed [data centers] while the public pushed
-   back." (an AI reading of the transcripts, labelled **AI reading**), or a speaker split where both sides are substantial:
-   "[Place] is split on [topic]: 14 spoke for, 12 against."
-2. **Lopsided stance.** "[America] hates [data centers]." when the place's counted speakers pass the headline's gate
-   (against at least twice for, at least 10 speakers); otherwise, when the AI reading finds the public leaning one way in
-   enough meetings: "The public pushed back on [data centers] in 37 meetings in [Georgia]." (labelled **AI reading**).
+1. **"[America] hates [data centers]."** when the public was read as confidently against in enough meetings (an AI
+   reading: at least 50 nationally, 10 in a state, 3 in one place) or the counted speakers pass the headline's gate
+   (against at least twice for, at least 10 speakers). Only for topics where "against" has one direction.
+2. **"[America] is divided on [data centers]."** when officials sided against the public in at least 10 meetings (an AI
+   reading; the basis says "In 23 meetings across 10 states, officials backed data centers while the public pushed back
+   (AI reading).") or counted speakers split with both sides substantial.
 3. **Volume with state differences.** "[California] took up [short-term rentals] in 570 meetings, more than any other
-   state.", "...the 2nd most of any state.", "...the most per resident of any state." (population from `jurisdictions`), or
-   for a city "...more than any other place in Florida.".
+   state.", or for a near tie "California and North Carolina took up guns most: 659 and 585 meetings."; "...the 2nd most of
+   any state."; for a city "...more than any other place in Florida.". There is no per-resident claim: meeting coverage
+   varies too much by state.
 4. **Plain volume.** "[Florida] took up [short-term rentals] in 47 meetings."
 5. **The question**, when nothing is on record. Guides with no meeting record (starting a nonprofit, insurance) always
    show their question, and their tile keeps its blurb.
 
+The home story card uses the same title. No title or basis line ever states a zero.
 A small line under the title gives the numbers behind it, and says when coverage varies by state. Every number is a real
 count for the scope; missing data falls through to the next rule. Thresholds and the reasons for them:
 [Story captions](../development/story-captions.md).

@@ -192,7 +192,6 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
       </h1>
       {caption.basis && (
         <p className="mt-2 max-w-2xl text-sm text-stone-500">
-          {caption.ai && <span className="font-semibold text-stone-600">AI reading · </span>}
           {caption.basis}
         </p>
       )}

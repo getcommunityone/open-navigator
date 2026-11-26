@@ -2801,13 +2801,6 @@ html.stance-snap {
   font-size: 13px;
   color: var(--ink-2);
 }
-/* An AI reading (Jev) behind the title, labelled as one (#1125). */
-.stance-ai-label {
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 11px;
-}
 
 /* Payroll jobs on the jobs screen (#1019): BLS figures, then where jobs are tracked. */
 .stance-payroll {

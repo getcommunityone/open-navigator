@@ -1,40 +1,36 @@
-// The caption picker (#1125): the strongest true statement a topic's record supports for one scope (national, state or
-// city), for the story title on /stories/<topic> and the topic tile on the home Browse Topics strip.
+// The caption picker (#1125): the one title a topic's record supports for one scope (national, state or city), shared by
+// the story header on /stories/<topic>, the home story card and the home Browse Topics tiles.
 //
-// Rules, in order; each one needs its own real counts and otherwise falls through to the next (CLAUDE.md, No Fabricated
-// Data). The thresholds and the reasons for them: web_docs/docs/development/story-captions.md.
-//   1. disagreement: officials sided against the public (AI reading) at volume, or speakers split for and against.
-//   2. sentiment:    the story's existing speaker gate ("America hates data centers."), then the public's lean (AI reading).
-//   3. state_gap:    the place leads the other states (or places in its state) by meetings, or per resident.
-//   4. volume:       the place's meeting count.
-//   5. question:     the topic's question.
-// The place and the topic stay blanks in the template, as in `storyTitle`.
+// Rules, in order; each needs its own real counts and otherwise falls through to the next (CLAUDE.md, No Fabricated Data).
+// Thresholds and the reasons for them: web_docs/docs/development/story-captions.md.
+//   a. sentiment ("[Place] hates [topic]."): confident public-against meetings at volume (AI reading), or the story's
+//      counted-speaker gate. The AI's "for" and "mixed" labels are unreliable and never used, in a count or a ratio.
+//   b. disagreement ("[Place] is divided on [topic]."): officials sided against the public (AI reading) at volume, or
+//      counted speakers split for and against.
+//   c. state_gap: the place leads the other states (or places in its state) by meetings; a near tie names both.
+//   d. volume: the place's meeting count.
+//   e. question: the topic's question.
+// No caption or basis line ever states a zero ("0 spoke for"): a zero clause is left out (owner rule).
 import type { TopicCaptionFacts } from '../api/topics'
-import { STORIES, storyConclusion, storyScopeLabel, type StoryScope, type StoryTitlePart } from './dataStory'
+import { STORIES, storyScopeLabel, type StoryScope, type StoryTitlePart } from './dataStory'
 
 // --- thresholds (story-captions.md says why) -----------------------------------------------------------------------
 
-/** Rule 1: meetings where officials sided against the public (AI reading) before the split leads. */
+/** (a) Confident public-against meetings (AI reading) before "[Place] hates [topic]." leads, by scope level. */
+export const HATES_MIN_MEETINGS = { national: 50, state: 10, city: 3 } as const
+/** (b) Meetings where officials sided against the public (AI reading) before "[Place] is divided on [topic]." leads. */
 export const DISAGREEMENT_MIN_MEETINGS = 10
-/** Rule 1: speakers on each side before a for/against split leads. */
+/** (b) Counted speakers on each side before a for/against split reads as divided. */
 export const SPLIT_MIN_SPEAKERS_PER_SIDE = 10
-/** Rule 1: the smaller side's share of for + against before it counts as a split (not a lopsided stance). */
+/** (b) The smaller side's share of for + against before it counts as a split (not a lopsided stance). */
 export const SPLIT_MIN_MINORITY_SHARE = 0.35
-/** Rule 2 (AI reading): meetings where the public leaned one way before that leads. */
-export const PUBLIC_LEAN_MIN_MEETINGS = 20
-/** Rule 2 (AI reading): those meetings' share of all meetings read in scope. */
-export const PUBLIC_LEAN_MIN_SHARE = 0.25
-/** Rule 3 (national): the top state's meetings over the next state's. */
-export const STATE_GAP_MIN_RATIO = 1.5
-/** Rule 3: meetings the leading state (or a ranked state) needs. */
+/** (c) The top state's meetings over the next state's before it is named alone; below this the two are named together. */
+export const STATE_GAP_MIN_RATIO = 1.25
+/** (c) Meetings the leading state (or a ranked state) needs. */
 export const STATE_GAP_MIN_MEETINGS = 50
-/** Rule 3 (state scope): a state ranked this high or better is named by its rank. */
+/** (c) State scope: a state ranked this high or better is named by its rank. */
 export const STATE_RANK_MAX = 3
-/** Rule 3 (per resident): meetings a state needs before its rate per resident is compared. */
-export const PER_CAPITA_MIN_MEETINGS = 100
-/** Rule 3 (per resident): the leading rate over the next state's rate. */
-export const PER_CAPITA_MIN_RATIO = 1.5
-/** Rule 3 (city scope): meetings the place needs before it is ranked among its state's places. */
+/** (c) City scope: meetings the place needs before it is ranked among its state's places. */
 export const PLACE_GAP_MIN_MEETINGS = 10
 
 // --- per-topic copy ------------------------------------------------------------------------------------------------
@@ -46,9 +42,14 @@ export interface CaptionCopy {
   facts: string | null
   /** The volume verb: "[California] took up [short-term rentals] in 570 meetings." */
   verb: string
-  /** Rule 1 wording after "officials", when officials sided against the public; ends with the topic blank's tail. */
+  /**
+   * The (a) verb ("hates"), or absent when "against" has no clear direction for the topic (guns, short-term rentals,
+   * fluoridation: the public can be against the thing or against limits on it), so (a) is skipped.
+   */
+  hates?: string
+  /** (b) basis wording after "officials", when officials sided against the public, around the topic. */
   officials: { before: string; after: string }
-  /** The question (rule 5), with the place and topic blanks. */
+  /** The question (e), with the place and topic blanks. */
   question: StoryTitlePart[]
 }
 
@@ -62,6 +63,7 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     topic: 'data centers',
     facts: 'data-centers',
     verb: 'talked about',
+    hates: 'hates',
     officials: { before: 'backed ', after: ' while the public pushed back' },
     question: askMeetings,
   },
@@ -73,16 +75,18 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     question: ['Who gets to rent out a home in ', P, '? What meetings said about ', T, '.'],
   },
   flock: {
-    topic: 'Flock and plate-reader cameras',
+    topic: 'Flock and license plate readers',
     facts: 'flock',
     verb: 'weighed',
+    hates: 'hates',
     officials: sidedAgainst,
     question: ['Who is watching the roads in ', P, '? What meetings said about ', T, '.'],
   },
   'license-plate-readers': {
-    topic: 'license plate readers',
+    topic: 'Flock and license plate readers',
     facts: 'license-plate-readers',
     verb: 'weighed',
+    hates: 'hates',
     officials: sidedAgainst,
     question: askMeetings,
   },
@@ -97,6 +101,7 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     topic: 'pickleball',
     facts: 'pickleball',
     verb: 'brought up',
+    hates: 'hates',
     officials: sidedAgainst,
     question: ['Where do the courts go in ', P, '? What meetings said about ', T, '.'],
   },
@@ -138,9 +143,9 @@ export type CaptionKind = 'disagreement' | 'sentiment' | 'state_gap' | 'volume' 
 export interface Caption {
   kind: CaptionKind
   template: StoryTitlePart[]
-  /** How the place blank reads: "America", "Georgia", "Tuscaloosa, Alabama" (or the leading state, for a national state_gap). */
+  /** How the place blank reads: "America", "Georgia", "Tuscaloosa, Alabama" (or the leading state(s), for a national state_gap). */
   place: string
-  /** The line of real numbers under the caption; null for the question. */
+  /** The line of real numbers under the caption; null for the question. Never states a zero. */
   basis: string | null
   /** True when the caption rests on an AI reading of transcripts (Jev), not counted speakers: the UI labels it. */
   ai: boolean
@@ -155,6 +160,11 @@ function timesWord(ratio: number): string | null {
   if (n < 2) return null
   return n === 2 ? 'twice' : n === 3 ? 'three times' : n === 4 ? 'four times' : `${n} times`
 }
+/** "a, b and c", dropping empty parts. */
+function joinAnd(parts: string[]): string {
+  const p = parts.filter(Boolean)
+  return p.length <= 1 ? (p[0] ?? '') : `${p.slice(0, -1).join(', ')} and ${p[p.length - 1]}`
+}
 
 /** The facts answer the scope asked for (never a stale scope's numbers under the new label). */
 function factsMatchScope(facts: TopicCaptionFacts, scope: StoryScope): boolean {
@@ -164,13 +174,27 @@ function factsMatchScope(facts: TopicCaptionFacts, scope: StoryScope): boolean {
   return (facts.scope.city ?? '').toLowerCase() === wantCity
 }
 
+type Speakers = NonNullable<TopicCaptionFacts['speakers']>
+
+/** "Of 12 speakers on record at local meetings in Arizona, 11 spoke against." Zero clauses left out. */
+function speakerBasis(sp: Speakers, where: string): string {
+  const total = sp.for + sp.against + sp.question + sp.neutral
+  const parts = [
+    sp.against > 0 ? `${fmt(sp.against)} spoke against` : '',
+    sp.for > 0 ? `${fmt(sp.for)} spoke for` : '',
+    sp.question > 0 ? `${fmt(sp.question)} asked a question` : '',
+    sp.neutral > 0 ? `${fmt(sp.neutral)} took no side` : '',
+  ]
+  return `Of ${fmt(total)} ${total === 1 ? 'speaker' : 'speakers'} on record at local meetings ${where}, ${joinAnd(parts)}.`
+}
+
 /**
- * The strongest statement the record supports for `topicKey` (a `CAPTION_COPY` key) in `scope`. `facts` is the
- * caption-facts response for exactly that scope (null while loading or when it failed): with no facts the topic asks its
- * question. Every number in the result comes from `facts`.
+ * The one title the record supports for `topicKey` (a `CAPTION_COPY` key) in `scope`. `facts` is the caption-facts response
+ * for exactly that scope (null while loading or when it failed): with no facts the topic asks its question. Every number in
+ * the result comes from `facts`.
  */
 export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | undefined, scope: StoryScope): Caption {
-  const copy = CAPTION_COPY[topicKey] ?? {
+  const copy: CaptionCopy = CAPTION_COPY[topicKey] ?? {
     topic: topicKey.replace(/-/g, ' '),
     facts: topicKey,
     verb: 'talked about',
@@ -178,6 +202,7 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
     question: askMeetings,
   }
   const national = !scope.stateName
+  const level: keyof typeof HATES_MIN_MEETINGS = national ? 'national' : scope.city ? 'city' : 'state'
   const label = storyScopeLabel(scope)
   const place = national ? 'America' : label
   const where = national ? 'nationwide' : `in ${label}`
@@ -189,69 +214,59 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
     ai: false,
   }
   if (!copy.facts || !facts || !factsMatchScope(facts, scope)) return question
+  const sp = facts.speakers
+  const dis = facts.disagreement_meetings ?? 0
 
-  // 1. Disagreement at volume.
-  const dis = facts.disagreement_meetings
-  if (dis != null && dis >= DISAGREEMENT_MIN_MEETINGS) {
-    const across = scope.city ? 'in' : 'across'
-    const statesPart = national && (facts.disagreement_states ?? 0) > 1 ? `, in ${fmt(facts.disagreement_states!)} states` : ''
-    const against = facts.public_against_meetings
+  // (a) "[Place] hates [topic]."
+  if (copy.hates) {
+    const against = facts.public_against_meetings ?? 0
+    const story = STORIES[topicKey]
+    const gate = story?.conclusion
+    const total = sp ? sp.for + sp.against + sp.question + sp.neutral : 0
+    const speakersPass = Boolean(
+      gate && sp && gate.side === 'against' && total >= gate.minSpeakers && sp.against > 0 && sp.against >= gate.minRatio * sp.for,
+    )
+    const leanPasses = against >= HATES_MIN_MEETINGS[level]
+    if (leanPasses || speakersPass) {
+      const lean = leanPasses
+        ? `In ${meetingsWord(against)} ${where}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading).`
+        : ''
+      const counted = speakersPass && sp ? speakerBasis(sp, where) : ''
+      return {
+        kind: 'sentiment',
+        template: [P, ` ${copy.hates} `, T, '.'],
+        place,
+        basis: [lean, counted].filter(Boolean).join(' '),
+        ai: leanPasses,
+      }
+    }
+  }
+
+  // (b) "[Place] is divided on [topic]."
+  if (dis >= DISAGREEMENT_MIN_MEETINGS) {
+    const states = facts.disagreement_states ?? 0
+    const span = national ? (states > 1 ? ` across ${fmt(states)} states` : '') : ` ${where}`
     return {
       kind: 'disagreement',
-      template: [`In ${meetingsWord(dis)} ${across} `, P, `, officials ${copy.officials.before}`, T, `${copy.officials.after}.`],
+      template: [P, ' is divided on ', T, '.'],
       place,
-      basis:
-        `Jev (an AI classifier) read the transcripts of ${meetingsWord(facts.lean_meetings ?? 0)} ${where}: ` +
-        (against != null ? `the public leaned against in ${fmt(against)}; ` : '') +
-        `officials sided against the public in ${fmt(dis)}${statesPart}. A reading of what was said, not a vote count.`,
+      basis: `In ${meetingsWord(dis)}${span}, officials ${copy.officials.before}${copy.topic}${copy.officials.after} (AI reading).`,
       ai: true,
     }
   }
-  const sp = facts.speakers
   if (sp) {
     const lo = Math.min(sp.for, sp.against)
     const hi = Math.max(sp.for, sp.against)
     if (lo >= SPLIT_MIN_SPEAKERS_PER_SIDE && lo / (lo + hi) >= SPLIT_MIN_MINORITY_SHARE) {
-      return {
-        kind: 'disagreement',
-        template: [P, ' is split on ', T, `: ${fmt(sp.for)} spoke for, ${fmt(sp.against)} against.`],
-        place,
-        basis: `Counted speakers at local meetings ${where}: ${fmt(sp.for)} for, ${fmt(sp.against)} against, ${fmt(sp.question)} asked a question, ${fmt(sp.neutral)} took no side.`,
-        ai: false,
-      }
+      return { kind: 'disagreement', template: [P, ' is divided on ', T, '.'], place, basis: speakerBasis(sp, where), ai: false }
     }
   }
 
-  // 2. Lopsided stance: the story's existing speaker gate, then the public's lean (AI reading).
-  const story = STORIES[topicKey]
-  if (story?.conclusion && sp) {
-    const s = storyConclusion(story, sp, national ? undefined : `in ${label}`)
-    if (s) {
-      return { kind: 'sentiment', template: [P, ` ${story.conclusion.verb} `, T, '.'], place, basis: s.basis, ai: false }
-    }
-  }
-  const read = facts.lean_meetings ?? 0
-  const leans: { n: number | null; words: string; side: string }[] = [
-    { n: facts.public_against_meetings, words: 'pushed back on', side: 'against' },
-    { n: facts.public_for_meetings, words: 'spoke up for', side: 'for' },
-  ]
-  for (const l of leans) {
-    if (l.n != null && read > 0 && l.n >= PUBLIC_LEAN_MIN_MEETINGS && l.n / read >= PUBLIC_LEAN_MIN_SHARE) {
-      return {
-        kind: 'sentiment',
-        template: ['The public ', `${l.words} `, T, ` in ${meetingsWord(l.n)} in `, P, '.'],
-        place,
-        basis: `Jev (an AI classifier) read the transcripts of ${meetingsWord(read)} ${where}: the public leaned ${l.side} in ${fmt(l.n)} (${Math.round((100 * l.n) / read)}%). A reading of what was said, not a vote count.`,
-        ai: true,
-      }
-    }
-  }
-
-  // 3. Volume with state differences.
+  // (c) Volume with state differences.
   const gap = stateGap(copy, facts, scope)
   if (gap) return gap
 
-  // 4. Plain volume.
+  // (d) Plain volume.
   const m = facts.meetings ?? 0
   if (m > 0) {
     return {
@@ -262,23 +277,26 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
       ai: false,
     }
   }
-  // 5. The question.
+  // (e) The question.
   return question
 }
 
 const COVERAGE = 'Counted from local meeting recordings and transcripts on record; how many meetings are on record varies by state.'
 
 function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope): Caption | null {
-  const states = [...facts.states].sort((a, b) => b.meetings - a.meetings || a.state_code.localeCompare(b.state_code))
+  const states = facts.states.filter((s) => s.meetings > 0).sort((a, b) => b.meetings - a.meetings || a.state_code.localeCompare(b.state_code))
   const name = (s: { state: string | null; state_code: string }) => s.state ?? s.state_code
   const total = facts.meetings ?? 0
+  const lead = (n: number, next: number) => {
+    const times = timesWord(n / next)
+    return times ? `more than ${times} any other state` : 'more than any other state'
+  }
 
   // City scope: the place against the other places in its state.
   if (scope.city && scope.stateName) {
-    const places = facts.places ?? []
+    const places = (facts.places ?? []).filter((p) => p.meetings > 0)
     const mine = facts.place ? places.find((p) => p.name === facts.place) : undefined
-    const others = places.filter((p) => p !== mine)
-    const next = others[0]
+    const next = places.find((p) => p !== mine)
     if (!mine || mine.meetings < PLACE_GAP_MIN_MEETINGS || !next || mine.meetings <= next.meetings) return null
     return {
       kind: 'state_gap',
@@ -289,54 +307,50 @@ function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope
     }
   }
 
-  // Per resident: only states with a population on record and enough meetings to compare.
-  const rated = states
-    .filter((s) => s.population != null && s.population > 0 && s.meetings >= PER_CAPITA_MIN_MEETINGS)
-    .map((s) => ({ ...s, rate: (s.meetings / s.population!) * 1_000_000 }))
-    .sort((a, b) => b.rate - a.rate)
-  const perCapita = rated.length >= 2 && rated[0]!.rate >= PER_CAPITA_MIN_RATIO * rated[1]!.rate ? rated[0]! : null
-  const perCapitaCaption = (s: NonNullable<typeof perCapita>): Caption => ({
-    kind: 'state_gap',
-    template: [P, ` ${copy.verb} `, T, ` in ${meetingsWord(s.meetings)}, the most per resident of any state.`],
-    place: name(s),
-    basis: `${s.rate.toFixed(0)} meetings per million residents, against ${rated[1]!.rate.toFixed(0)} in ${name(rated[1]!)}, the next state with at least ${PER_CAPITA_MIN_MEETINGS} meetings. Population from the jurisdictions on record. ${COVERAGE}`,
-    ai: false,
-  })
-
   if (!scope.stateCode) {
     const [top, next] = states
-    if (top && next && top.meetings >= STATE_GAP_MIN_MEETINGS && top.meetings >= STATE_GAP_MIN_RATIO * next.meetings) {
-      const times = timesWord(top.meetings / next.meetings)
+    if (!top || !next || top.meetings < STATE_GAP_MIN_MEETINGS) return null
+    if (top.meetings >= STATE_GAP_MIN_RATIO * next.meetings) {
       return {
         kind: 'state_gap',
-        template: [P, ` ${copy.verb} `, T, ` in ${meetingsWord(top.meetings)}, ${times ? `more than ${times} any other state` : 'more than any other state'}.`],
+        template: [P, ` ${copy.verb} `, T, ` in ${meetingsWord(top.meetings)}, ${lead(top.meetings, next.meetings)}.`],
         place: name(top),
         basis: `Next: ${name(next)}, ${meetingsWord(next.meetings)}. Of ${meetingsWord(total)} nationwide. ${COVERAGE}`,
         ai: false,
       }
     }
-    return perCapita ? perCapitaCaption(perCapita) : null
+    // A near tie names both, and only when they lead the third state clearly enough to be a pair.
+    const third = states[2]
+    if (next.meetings >= STATE_GAP_MIN_MEETINGS && (!third || next.meetings > third.meetings)) {
+      const counts = top.meetings === next.meetings ? `${meetingsWord(top.meetings)} each` : `${fmt(top.meetings)} and ${meetingsWord(next.meetings)}`
+      return {
+        kind: 'state_gap',
+        template: [P, ` ${copy.verb} `, T, ` most: ${counts}.`],
+        place: `${name(top)} and ${name(next)}`,
+        basis: `${third ? `Next: ${name(third)}, ${meetingsWord(third.meetings)}. ` : ''}Of ${meetingsWord(total)} nationwide. ${COVERAGE}`,
+        ai: false,
+      }
+    }
+    return null
   }
 
   // State scope: the state's rank among the states.
   const idx = states.findIndex((s) => s.state_code === scope.stateCode)
   if (idx < 0) return null
   const mine = states[idx]!
-  if (mine.meetings < STATE_GAP_MIN_MEETINGS) return perCapita?.state_code === scope.stateCode ? perCapitaCaption(perCapita) : null
+  if (mine.meetings < STATE_GAP_MIN_MEETINGS) return null
   if (idx === 0) {
     const next = states[1]
     if (next && mine.meetings > next.meetings) {
-      const times = timesWord(mine.meetings / next.meetings)
       return {
         kind: 'state_gap',
-        template: [P, ` ${copy.verb} `, T, ` in ${meetingsWord(mine.meetings)}, ${times ? `more than ${times} any other state` : 'more than any other state'}.`],
+        template: [P, ` ${copy.verb} `, T, ` in ${meetingsWord(mine.meetings)}, ${lead(mine.meetings, next.meetings)}.`],
         place: storyScopeLabel(scope),
         basis: `Next: ${name(next)}, ${meetingsWord(next.meetings)}. ${COVERAGE}`,
         ai: false,
       }
     }
   }
-  if (perCapita?.state_code === scope.stateCode) return { ...perCapitaCaption(perCapita), place: storyScopeLabel(scope) }
   // Ranked 2nd or 3rd, and strictly ahead of the state below (a tie has no rank to state).
   const below = states[idx + 1]
   if (idx > 0 && idx + 1 <= STATE_RANK_MAX && states[idx - 1]!.meetings > mine.meetings && (!below || mine.meetings > below.meetings)) {

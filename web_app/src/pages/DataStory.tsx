@@ -503,7 +503,6 @@ export default function DataStory() {
           />
           {title.basis && (
             <p className="stance-title-basis">
-              {title.ai && <span className="stance-ai-label">AI reading · </span>}
               {title.basis}
             </p>
           )}

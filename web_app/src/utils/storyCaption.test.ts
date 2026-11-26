@@ -1,17 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { TopicCaptionFacts } from '../api/topics'
 import type { StoryScope } from './dataStory'
-import {
-  CAPTION_COPY,
-  DISAGREEMENT_MIN_MEETINGS,
-  PUBLIC_LEAN_MIN_MEETINGS,
-  captionText,
-  pickCaption,
-} from './storyCaption'
+import { CAPTION_COPY, DISAGREEMENT_MIN_MEETINGS, HATES_MIN_MEETINGS, captionText, pickCaption } from './storyCaption'
 
 // Test stand-ins: shapes of the caption-facts response, not warehouse figures.
 const nat: StoryScope = { stateName: null, city: null }
 const ga: StoryScope = { stateCode: 'GA', stateName: 'Georgia', city: null }
+const az: StoryScope = { stateCode: 'AZ', stateName: 'Arizona', city: null }
 const nc: StoryScope = { stateCode: 'NC', stateName: 'North Carolina', city: null }
 const or: StoryScope = { stateCode: 'OR', stateName: 'Oregon', city: null }
 const fl: StoryScope = { stateCode: 'FL', stateName: 'Florida', city: null }
@@ -27,7 +22,7 @@ const STATES = [
 
 function facts(over: Partial<TopicCaptionFacts> = {}, scope: StoryScope = nat): TopicCaptionFacts {
   return {
-    topic: 'short-term-rentals',
+    topic: 'x',
     topic_id: 1,
     scope: {
       level: scope.city ? 'city' : scope.stateCode ? 'state' : 'national',
@@ -51,98 +46,129 @@ function facts(over: Partial<TopicCaptionFacts> = {}, scope: StoryScope = nat): 
   }
 }
 
-describe('pickCaption', () => {
-  it('rule 1: officials sided against the public at volume, labelled as an AI reading', () => {
-    const c = pickCaption('data-centers', facts({ lean_meetings: 1800, public_against_meetings: 280, disagreement_meetings: 23, disagreement_states: 10 }), nat)
-    expect(c.kind).toBe('disagreement')
-    expect(c.ai).toBe(true)
-    expect(captionText(c, 'data centers')).toBe('In 23 meetings across America, officials backed data centers while the public pushed back.')
-    expect(c.basis).toContain('Jev (an AI classifier) read the transcripts of 1,800 meetings nationwide: the public leaned against in 280; officials sided against the public in 23, in 10 states.')
-  })
+const ZERO = /\b0 /
 
-  it('rule 1: a for/against speaker split where both sides are substantial', () => {
-    const c = pickCaption('data-centers', facts({ speakers: { for: 14, against: 12, question: 1, neutral: 2 } }), nat)
-    expect(c.kind).toBe('disagreement')
-    expect(c.ai).toBe(false)
-    expect(captionText(c, 'data centers')).toBe('America is split on data centers: 14 spoke for, 12 against.')
-  })
-
-  it('rule 1 falls through below the disagreement minimum', () => {
-    const c = pickCaption('data-centers', facts({ lean_meetings: 100, public_against_meetings: 5, disagreement_meetings: DISAGREEMENT_MIN_MEETINGS - 1 }), nat)
-    expect(c.kind).not.toBe('disagreement')
-  })
-
-  it('rule 2: the existing speaker gate keeps "America hates data centers."', () => {
-    const c = pickCaption('data-centers', facts({ speakers: { for: 3, against: 18, question: 1, neutral: 7 } }), nat)
+describe('pickCaption (a) hates', () => {
+  it('nationally: confident public-against meetings at volume, plus the counted speakers', () => {
+    const c = pickCaption(
+      'data-centers',
+      facts({ lean_meetings: 1828, public_against_meetings: 283, disagreement_meetings: 23, disagreement_states: 10, speakers: { for: 3, against: 18, question: 1, neutral: 7 } }),
+      nat,
+    )
     expect(c.kind).toBe('sentiment')
     expect(captionText(c, 'data centers')).toBe('America hates data centers.')
-    expect(c.basis).toBe('Of 29 speakers on record at local meetings, 18 spoke against and 3 spoke for.')
-  })
-
-  it('rule 2: the public lean (AI reading) at volume for a state', () => {
-    const c = pickCaption('data-centers', facts({ lean_meetings: 118, public_against_meetings: 37, disagreement_meetings: 0 }, ga), ga)
-    expect(c.kind).toBe('sentiment')
     expect(c.ai).toBe(true)
-    expect(captionText(c, 'data centers')).toBe('The public pushed back on data centers in 37 meetings in Georgia.')
-    expect(c.basis).toContain('(31%)')
+    expect(c.basis).toBe(
+      'In 283 meetings nationwide, Jev (an AI classifier) read the public as mostly against data centers (AI reading). Of 29 speakers on record at local meetings nationwide, 18 spoke against, 3 spoke for, 1 asked a question and 7 took no side.',
+    )
   })
 
-  it('rule 2: the public lean needs its minimum count and share', () => {
-    const few = pickCaption('data-centers', facts({ lean_meetings: 40, public_against_meetings: PUBLIC_LEAN_MIN_MEETINGS - 1 }, ga), ga)
-    expect(few.kind).not.toBe('sentiment')
-    const thin = pickCaption('data-centers', facts({ lean_meetings: 1000, public_against_meetings: 30 }, ga), ga)
-    expect(thin.kind).not.toBe('sentiment')
+  it('uses the scope thresholds: 50 national, 10 state, 3 city', () => {
+    expect(HATES_MIN_MEETINGS).toEqual({ national: 50, state: 10, city: 3 })
+    expect(pickCaption('data-centers', facts({ public_against_meetings: 49 }), nat).kind).not.toBe('sentiment')
+    const g = pickCaption('data-centers', facts({ public_against_meetings: 10, lean_meetings: 118 }, ga), ga)
+    expect(captionText(g, 'data centers')).toBe('Georgia hates data centers.')
+    const tus: StoryScope = { stateCode: 'AL', stateName: 'Alabama', city: 'Tuscaloosa' }
+    const t = pickCaption('data-centers', facts({ public_against_meetings: 3 }, tus), tus)
+    expect(captionText(t, 'data centers')).toBe('Tuscaloosa, Alabama hates data centers.')
+    expect(pickCaption('data-centers', facts({ public_against_meetings: 2 }, tus), tus).kind).not.toBe('sentiment')
   })
 
-  it('rule 3 national: the leading state by a clear ratio names the state', () => {
+  it('or the counted-speaker gate alone, never printing a zero side', () => {
+    const c = pickCaption('data-centers', facts({ speakers: { for: 0, against: 11, question: 1, neutral: 0 } }, az), az)
+    expect(captionText(c, 'data centers')).toBe('Arizona hates data centers.')
+    expect(c.ai).toBe(false)
+    expect(c.basis).toBe('Of 12 speakers on record at local meetings in Arizona, 11 spoke against and 1 asked a question.')
+    expect(c.basis).not.toMatch(ZERO)
+  })
+
+  it('ignores the unreliable "for" readings and skips topics where "against" has no clear direction', () => {
+    expect(pickCaption('data-centers', facts({ public_for_meetings: 500 }), nat).kind).not.toBe('sentiment')
+    expect(pickCaption('guns', facts({ public_against_meetings: 400 }), nat).kind).not.toBe('sentiment')
+    expect(captionText(pickCaption('pickleball', facts({ public_against_meetings: 60 }), nat), 'pickleball')).toBe('America hates pickleball.')
+  })
+})
+
+describe('pickCaption (b) divided', () => {
+  it('officials sided against the public at volume (AI reading)', () => {
+    const c = pickCaption('data-centers', facts({ lean_meetings: 1828, public_against_meetings: 20, disagreement_meetings: 23, disagreement_states: 10 }), nat)
+    expect(c.kind).toBe('disagreement')
+    expect(captionText(c, 'data centers')).toBe('America is divided on data centers.')
+    expect(c.basis).toBe('In 23 meetings across 10 states, officials backed data centers while the public pushed back (AI reading).')
+    expect(c.ai).toBe(true)
+  })
+
+  it('in a state, and for a topic without a "hates" verb', () => {
+    const c = pickCaption('guns', facts({ disagreement_meetings: 12, public_against_meetings: 40 }, ga), ga)
+    expect(captionText(c, 'guns')).toBe('Georgia is divided on guns.')
+    expect(c.basis).toBe('In 12 meetings in Georgia, officials sided against the public on guns (AI reading).')
+  })
+
+  it('or counted speakers split with both sides substantial', () => {
+    const c = pickCaption('data-centers', facts({ speakers: { for: 14, against: 12, question: 0, neutral: 2 } }), nat)
+    expect(captionText(c, 'data centers')).toBe('America is divided on data centers.')
+    expect(c.basis).toBe('Of 28 speakers on record at local meetings nationwide, 12 spoke against, 14 spoke for and 2 took no side.')
+  })
+
+  it('falls through below the minimum', () => {
+    expect(pickCaption('data-centers', facts({ disagreement_meetings: DISAGREEMENT_MIN_MEETINGS - 1 }), nat).kind).toBe('state_gap')
+  })
+})
+
+describe('pickCaption (c) state gap', () => {
+  it('national: the leading state by a clear ratio', () => {
     const c = pickCaption('short-term-rentals', facts(), nat)
-    expect(c.kind).toBe('state_gap')
     expect(c.place).toBe('California')
     expect(captionText(c, 'short-term rentals')).toBe('California took up short-term rentals in 570 meetings, more than any other state.')
     expect(c.basis).toContain('Next: North Carolina, 317 meetings')
   })
 
-  it('rule 3 national: "more than twice" only when the ratio is at least 2', () => {
+  it('national: "more than twice" only at a ratio of 2 or more', () => {
     const states = [
       { state_code: 'CA', state: 'California', meetings: 228, population: null },
       { state_code: 'WA', state: 'Washington', meetings: 105, population: null },
     ]
-    const c = pickCaption('license-plate-readers', facts({ states }), nat)
-    expect(captionText(c, 'license plate readers')).toBe('California weighed license plate readers in 228 meetings, more than twice any other state.')
+    expect(captionText(pickCaption('license-plate-readers', facts({ states }), nat), 'Flock and license plate readers')).toBe(
+      'California weighed Flock and license plate readers in 228 meetings, more than twice any other state.',
+    )
   })
 
-  it('rule 3 national: per resident when the raw lead is close and population is on record', () => {
+  it('national: a near tie names both states, and there is no per-resident claim', () => {
     const states = [
       { state_code: 'CA', state: 'California', meetings: 659, population: 39_000_000 },
       { state_code: 'NC', state: 'North Carolina', meetings: 585, population: 10_000_000 },
       { state_code: 'SD', state: 'South Dakota', meetings: 239, population: 900_000 },
     ]
     const c = pickCaption('guns', facts({ states }), nat)
-    expect(c.kind).toBe('state_gap')
-    expect(captionText(c, 'guns')).toBe('South Dakota took up guns in 239 meetings, the most per resident of any state.')
-    expect(c.basis).toContain('per million residents')
+    expect(captionText(c, 'guns')).toBe('California and North Carolina took up guns most: 659 and 585 meetings.')
+    expect(c.basis).not.toContain('resident')
   })
 
-  it('rule 3 national: no per-resident claim without population on record', () => {
-    const states = STATES.map((s) => ({ ...s, population: null })).map((s, i) => (i === 0 ? { ...s, meetings: 330 } : s))
-    const c = pickCaption('short-term-rentals', facts({ states }), nat)
-    expect(c.kind).toBe('volume')
+  it('national: an exact tie reads "each"', () => {
+    const states = [
+      { state_code: 'MI', state: 'Michigan', meetings: 60, population: null },
+      { state_code: 'WA', state: 'Washington', meetings: 60, population: null },
+      { state_code: 'CA', state: 'California', meetings: 37, population: null },
+    ]
+    expect(captionText(pickCaption('water-fluoridation', facts({ states }), nat), 'water fluoridation')).toBe(
+      'Michigan and Washington took up water fluoridation most: 60 meetings each.',
+    )
   })
 
-  it('rule 3 state: the top state, and a ranked state', () => {
-    const ca = pickCaption('short-term-rentals', facts({ meetings: 570 }, { stateCode: 'CA', stateName: 'California', city: null }), { stateCode: 'CA', stateName: 'California', city: null })
-    expect(captionText(ca, 'short-term rentals')).toBe('California took up short-term rentals in 570 meetings, more than any other state.')
-    const second = pickCaption('short-term-rentals', facts({ meetings: 317 }, nc), nc)
-    expect(captionText(second, 'short-term rentals')).toBe('North Carolina took up short-term rentals in 317 meetings, the 2nd most of any state.')
-    // Oregon leads per resident (268 per 4M), which outranks its 3rd place by raw count.
-    const perRes = pickCaption('short-term-rentals', facts({ meetings: 268 }, or), or)
-    expect(captionText(perRes, 'short-term rentals')).toBe('Oregon took up short-term rentals in 268 meetings, the most per resident of any state.')
-    const noPop = STATES.map((s) => ({ ...s, population: null }))
-    const third = pickCaption('short-term-rentals', facts({ meetings: 268, states: noPop }, or), or)
-    expect(captionText(third, 'short-term rentals')).toBe('Oregon took up short-term rentals in 268 meetings, the 3rd most of any state.')
+  it('state: the top state, and a ranked state', () => {
+    const ca: StoryScope = { stateCode: 'CA', stateName: 'California', city: null }
+    expect(captionText(pickCaption('short-term-rentals', facts({ meetings: 570 }, ca), ca), 'short-term rentals')).toBe(
+      'California took up short-term rentals in 570 meetings, more than any other state.',
+    )
+    expect(captionText(pickCaption('short-term-rentals', facts({ meetings: 317 }, nc), nc), 'short-term rentals')).toBe(
+      'North Carolina took up short-term rentals in 317 meetings, the 2nd most of any state.',
+    )
+    expect(captionText(pickCaption('short-term-rentals', facts({ meetings: 268 }, or), or), 'short-term rentals')).toBe(
+      'Oregon took up short-term rentals in 268 meetings, the 3rd most of any state.',
+    )
   })
 
-  it('rule 3 city: more than any other place in the state', () => {
+  it('city: more than any other place in the state', () => {
     const places = [
       { name: 'Orlando', meetings: 13 },
       { name: 'Titusville', meetings: 9 },
@@ -150,30 +176,42 @@ describe('pickCaption', () => {
     const c = pickCaption('short-term-rentals', facts({ meetings: 13, place: 'Orlando', places }, orl), orl)
     expect(captionText(c, 'short-term rentals')).toBe('Orlando, Florida took up short-term rentals in 13 meetings, more than any other place in Florida.')
   })
+})
 
-  it('rule 4: plain volume when no state difference stands out', () => {
+describe('pickCaption (d) volume and (e) question', () => {
+  it('plain volume when no state difference stands out', () => {
     const c = pickCaption('short-term-rentals', facts({ meetings: 40 }, fl), fl)
     expect(c.kind).toBe('volume')
     expect(captionText(c, 'short-term rentals')).toBe('Florida took up short-term rentals in 40 meetings.')
   })
 
-  it('rule 5: the question with no meetings, no facts, or a guide', () => {
+  it('the question with no meetings, no facts, or a guide', () => {
     expect(pickCaption('short-term-rentals', facts({ meetings: 0, states: [] }), nat).kind).toBe('question')
     expect(pickCaption('short-term-rentals', null, nat).kind).toBe('question')
     const guide = pickCaption('starting-a-nonprofit', facts(), fl)
-    expect(guide.kind).toBe('question')
     expect(captionText(guide, CAPTION_COPY['starting-a-nonprofit']!.topic)).toBe('What does it take to start a nonprofit in Florida?')
   })
 
   it('never uses facts for another scope than the one shown', () => {
-    // Facts for Georgia under a Florida label: the caption must not borrow them.
-    const c = pickCaption('data-centers', facts({ lean_meetings: 118, public_against_meetings: 37 }, ga), fl)
+    const c = pickCaption('data-centers', facts({ public_against_meetings: 37 }, ga), fl)
     expect(c.kind).toBe('question')
     expect(c.basis).toBeNull()
   })
 
   it('missing optional data falls through instead of reading as zero', () => {
-    const c = pickCaption('data-centers', facts({ speakers: null, disagreement_meetings: null, public_against_meetings: null }), nat)
-    expect(c.kind).toBe('state_gap')
+    expect(pickCaption('data-centers', facts({ speakers: null, disagreement_meetings: null, public_against_meetings: null }), nat).kind).toBe('state_gap')
+  })
+
+  it('no caption or basis states a zero', () => {
+    const cases: [string, TopicCaptionFacts, StoryScope][] = [
+      ['data-centers', facts({ public_against_meetings: 283, disagreement_meetings: 0, speakers: { for: 0, against: 18, question: 0, neutral: 0 } }), nat],
+      ['data-centers', facts({ disagreement_meetings: 11, disagreement_states: 0 }, ga), ga],
+      ['data-centers', facts({ speakers: { for: 12, against: 12, question: 0, neutral: 0 } }), nat],
+    ]
+    for (const [k, f, s] of cases) {
+      const c = pickCaption(k, f, s)
+      expect(captionText(c, 'x')).not.toMatch(ZERO)
+      expect(c.basis ?? '').not.toMatch(ZERO)
+    }
   })
 })
