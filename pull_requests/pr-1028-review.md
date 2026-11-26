@@ -52,3 +52,9 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- Data centers first and selected; a live topic switches the story card via ?story=. STR headline and map use real counts. Verified desktop and phone; tsc and build pass. Scans clean.
+
+Verdict stands: approve.
