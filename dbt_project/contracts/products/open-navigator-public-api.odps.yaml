@@ -410,3 +410,13 @@ outputPorts:
   contractId: open-navigator-public-data_center_community_event_recording
   type: table
   description: Possible recordings of company-hosted data center meetings (#532), from a YouTube search through the VPN guard.
+- name: mdm_organization_short_term_rental
+  version: 1.0.0
+  contractId: open-navigator-public-mdm_organization_short_term_rental
+  type: table
+  description: 'MDM satellite (#1015): short-term rental platform detail for organizations that are platform companies (Airbnb, Expedia Group / Vrbo, Booking Holdings).'
+- name: short_term_rental_company_mention
+  version: 1.0.0
+  contractId: open-navigator-public-short_term_rental_company_mention
+  type: table
+  description: Where a short-term rental platform is named (#1015).
