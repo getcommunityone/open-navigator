@@ -430,3 +430,8 @@ outputPorts:
   contractId: open-navigator-public-data_center_job_source
   type: table
   description: 'Where data center jobs are tracked (#1019), cited on the jobs screen: official statistics, job boards and associations, with each site''s own description (verbatim) and what its terms allow.'
+- name: meeting_policy_question_jev
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_policy_question_jev
+  type: table
+  description: Meetings Jev read as debating a policy question, and what happened (#1032).

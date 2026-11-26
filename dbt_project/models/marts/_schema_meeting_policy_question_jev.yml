@@ -1,0 +1,83 @@
+version: 2
+
+models:
+  - name: meeting_policy_question_jev
+    description: >
+      Meetings Jev read as debating a policy question, and what happened (#1032). One row per (meeting video, policy
+      question) for "Should we allow new data centers?" and "Should we allow short-term rentals?", kept when
+      P(debated) >= 0.5 or Jev read an action. outcome is a classifier's reading, not an extracted decision; evidence
+      is the verbatim passage (matched words in <mark>) that put the meeting in the cohort.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [question_id]
+        to: ref('policy_question')
+        to_columns: [question_id]
+    columns:
+      - name: meeting_policy_question_jev_id
+        description: "Primary key: md5(video_id | question_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: question_id
+        description: "FK -> policy_question.question_id."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: video_id
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: outcome_topic
+        description: "data-centers or short-term-rentals: which outcome Choice applies."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: debated_p
+        description: "Jev's P(the meeting debates the question)."
+        data_type: numeric
+      - name: debated
+        description: "debated_p >= 0.5."
+        data_type: boolean
+      - name: outcome
+        description: "Jev's reading of the item: approved, denied, tabled_or_deferred, moratorium, discussed_no_action; null when none."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['approved', 'denied', 'tabled_or_deferred', 'moratorium', 'discussed_no_action']
+      - name: outcome_p
+        description: "Jev's probability for that outcome."
+        data_type: numeric
+      - name: evidence
+        description: "Verbatim transcript passage, matched words in <mark>."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: start_seconds
+        description: "Where the passage starts in the recording, when known."
+        data_type: numeric
+      - name: meeting_title
+        data_type: text
+      - name: meeting_date
+        data_type: date
+      - name: jurisdiction_name
+        data_type: text
+      - name: city
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: state
+        data_type: text
+      - name: video_url
+        data_type: text
+      - name: question_version
+        description: "The Jev question set the row was screened with."
+        data_type: text
+      - name: screened_at
+        data_type: timestamp with time zone

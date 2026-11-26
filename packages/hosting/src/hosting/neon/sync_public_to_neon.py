@@ -251,6 +251,8 @@ CIVIC_SERVING = frozenset(
         # data center payroll jobs (BLS QCEW 518210) and the job sites cited with them (#1019); small
         "data_center_employment",
         "data_center_job_source",
+        # Jev's reading of meetings for the data center / short-term rental questions, with passages (#1032)
+        "meeting_policy_question_jev",
         # short-term rental platform companies (MDM satellite) and where they are named (#1015); small
         "mdm_organization_short_term_rental",
         "short_term_rental_company_mention",
