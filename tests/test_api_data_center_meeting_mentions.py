@@ -21,8 +21,9 @@ PATH = "/api/data-centers/meeting-mentions"
 
 
 class _Conn:
-    def __init__(self, rows=None, counts=None, error: Exception | None = None, by_state=None):
+    def __init__(self, rows=None, counts=None, error: Exception | None = None, by_state=None, by_place=None):
         self.rows = rows or []
+        self.by_place = by_place or []
         self.counts = counts or []
         self.by_state = by_state or []
         self.error = error
@@ -34,6 +35,8 @@ class _Conn:
             raise self.error
         if "GROUP BY m.state_code" in sql:
             return self.by_state
+        if "GROUP BY m.jurisdiction_id" in sql:
+            return self.by_place
         return self.counts if "AS passages" in sql and "LIMIT" not in sql else self.rows
 
 
@@ -97,7 +100,7 @@ def test_city_scope_counts_evidence_and_jump(get) -> None:
     assert body["scope"] == {
         "level": "city", "state_code": "NC", "state": "North Carolina", "city": "Charlotte", "jurisdiction_id": None,
     }
-    assert body["counts"] == {"passages": 30, "meetings": 1, "site_specific": 0, "by_state": []}
+    assert body["counts"] == {"passages": 30, "meetings": 1, "site_specific": 0, "by_state": [], "by_place": []}
     (item,) = body["items"]
     assert "<mark>data</mark>" in item["evidence"]
     assert item["jump_url"] == "https://www.youtube.com/watch?v=7VghnjHd_1w&t=7747s"
@@ -176,3 +179,22 @@ def test_counts_by_state_are_real_distinct_meetings_in_scope(get) -> None:
 def test_by_state_is_empty_not_missing_when_none(get) -> None:
     body = get(_Conn(counts=[{"passages": 0, "meetings": 0, "site_specific": 0}])).json()
     assert body["counts"]["by_state"] == []
+
+
+def test_by_place_only_at_state_scope_and_not_narrowed_by_city(get) -> None:
+    """#1039: the state's county map gets meetings per government in the state, never narrowed to the city."""
+    place = {
+        "jurisdiction_id": "columbia_13073", "jurisdiction_name": "Columbia County", "jurisdiction_type": "county",
+        "geoid": "13073", "latitude": 33.55, "longitude": -82.25, "meetings": 18,
+    }
+    conn = _Conn(by_place=[place])
+    body = get(conn, {"state": "GA", "city": "Columbus"}).json()
+    assert body["counts"]["by_place"] == [place]
+    sql, params = next(c for c in conn.calls if "GROUP BY m.jurisdiction_id" in c[0])
+    assert params == ("GA",)
+    assert "ILIKE" not in sql
+
+    conn = _Conn(by_place=[place])
+    body = get(conn).json()
+    assert body["counts"]["by_place"] == []
+    assert not any("GROUP BY m.jurisdiction_id" in c[0] for c in conn.calls)
