@@ -18,3 +18,14 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
 }
+
+/** An "Open meetings →" button for a popup written as an HTML string. Only a real
+ *  7-digit place GEOID gets one; anything else (a placeholder id, a missing value)
+ *  yields no button rather than a link to nothing. */
+export function meetingsButtonHtml(geoid: string | null | undefined): string {
+  if (!geoid || !/^\d{7}$/.test(geoid)) return ''
+  return (
+    `<a href="/jurisdiction/${encodeURIComponent(geoid)}/meetings" ` +
+    `style="display:block;margin-top:10px;padding:8px 12px;border-radius:6px;background:#0d9488;color:#fff;font-weight:600;font-size:13px;text-align:center;text-decoration:none">Open meetings →</a>`
+  )
+}
