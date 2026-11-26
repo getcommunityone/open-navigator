@@ -41,23 +41,24 @@ and then adds nothing to the daily total.
 
 `CHAT_DAILY_SPEND_CAP_USD` (default 1.00) still stops the chat for the day once the estimates add up to it.
 
-## Limits per person
+## Sign-in and limits per person
 
-The chat is throttled per person ([#1049](https://github.com/getcommunityone/open-navigator/issues/1049)). A message
-with a valid sign-in token counts against that user, across all their devices. A guest's messages count against their
-IP address alone, so clearing a cookie doesn't reset the allowance. Guests get lower limits, and a guest who reaches one
-is told that signing in raises it. The counters are kept in the API process's memory, so they reset when it restarts.
+The chat requires sign-in ([#1049](https://github.com/getcommunityone/open-navigator/issues/1049)). It is a paid model
+call, so the API answers a request without a valid sign-in token with 401 ("Sign in to use the meeting chat."), and it
+never reaches the model. The chat page shows **Continue with Google / Facebook / GitHub** to a visitor who isn't
+signed in, and sign-in returns them to the same chat URL, place filter included.
 
-| Variable | Applies to | Default |
+Each signed-in user is throttled as one person across all their devices. The counters are kept in the API process's
+memory, so they reset when it restarts.
+
+| Variable | Limit per signed-in user | Default |
 |---|---|---|
-| `CHAT_RATE_PER_HOUR` | signed-in user, per hour | 60 |
-| `CHAT_ANON_RATE_PER_HOUR` | guest (per IP), per hour | 20 |
-| `CHAT_USER_PER_DAY` | signed-in user, per UTC day | 200 |
-| `CHAT_ANON_PER_DAY` | guest (per IP), per UTC day | 40 |
-| `CHAT_BURST_PER_5MIN` | anyone, per 5 minutes | 20 |
-| `CHAT_MIN_INTERVAL_SECONDS` | anyone, between messages | 2 |
+| `CHAT_RATE_PER_HOUR` | per hour | 60 |
+| `CHAT_USER_PER_DAY` | per UTC day | 200 |
+| `CHAT_BURST_PER_5MIN` | per 5 minutes | 20 |
+| `CHAT_MIN_INTERVAL_SECONDS` | between messages | 2 |
 
-Telemetry records only whether a message came from a user or a guest, never the id.
+`CHAT_DAILY_SPEND_CAP_USD` still applies to the whole site. Telemetry doesn't record the user id.
 
 ## When it fails
 

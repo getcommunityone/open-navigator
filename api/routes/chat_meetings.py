@@ -33,11 +33,9 @@ from api.routes.search_postgres import (
 router = APIRouter(prefix="/chat", tags=["chat"])
 tracer = trace.get_tracer(__name__)
 
-# Per person (#1049): a signed-in user is one bucket across devices; a guest is one bucket per IP. Guests get less.
+# Per signed-in user (#1049): the chat requires sign-in, and each user is one bucket across devices.
 _RATE_PER_HOUR = int(os.environ.get("CHAT_RATE_PER_HOUR", "60"))
-_ANON_RATE_PER_HOUR = int(os.environ.get("CHAT_ANON_RATE_PER_HOUR", "20"))
 _USER_PER_DAY = int(os.environ.get("CHAT_USER_PER_DAY", "200"))
-_ANON_PER_DAY = int(os.environ.get("CHAT_ANON_PER_DAY", "40"))
 _BURST_PER_5MIN = int(os.environ.get("CHAT_BURST_PER_5MIN", "20"))
 _MIN_INTERVAL_SECONDS = float(os.environ.get("CHAT_MIN_INTERVAL_SECONDS", "2"))
 _DAILY_SPEND_CAP_USD = float(os.environ.get("CHAT_DAILY_SPEND_CAP_USD", "1.0"))
@@ -125,18 +123,15 @@ def _signed_in_user_id(request: Request) -> Optional[str]:
 
 
 def _visitor_key(request: Request) -> str:
-    """Who a chat message counts against (#1049): ``user:<id>`` when signed in, else ``anon:<hash of IP>``.
-
-    The IP alone, not IP + cookie, so clearing or changing a cookie doesn't reset a guest's allowance.
-    """
+    """Who a chat message counts against (#1049): ``user:<id>``. The chat requires sign-in, so no token is a 401."""
     user_id = _signed_in_user_id(request)
-    if user_id:
-        return f"user:{user_id}"
-    forwarded = request.headers.get("x-forwarded-for") or ""
-    ip = (forwarded.split(",")[0].strip() if forwarded else None) or (
-        request.client.host if request.client else "unknown"
-    )
-    return "anon:" + hashlib.sha256(ip.encode()).hexdigest()[:32]
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in to use the meeting chat.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return f"user:{user_id}"
 
 
 def _check_rate_limit(visitor: str) -> None:
@@ -156,23 +151,21 @@ def _check_rate_limit(visitor: str) -> None:
             _visitor_timestamps.pop(k, None)
             _visitor_last.pop(k, None)
 
-    guest = not visitor.startswith("user:")
-    sign_in = " Sign in for a higher limit." if guest else ""
     day = _utc_day_key()
     for k in [k for k in _visitor_daily if k != day]:
         _visitor_daily.pop(k, None)
     today = _visitor_daily.setdefault(day, {})
-    if today.get(visitor, 0) >= (_ANON_PER_DAY if guest else _USER_PER_DAY):
+    if today.get(visitor, 0) >= _USER_PER_DAY:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Daily chat limit reached. Try again tomorrow.{sign_in}",
+            detail="Daily chat limit reached. Try again tomorrow.",
         )
 
     history = [t for t in _visitor_timestamps.get(visitor, []) if now - t < _HOUR]
-    if len(history) >= (_ANON_RATE_PER_HOUR if guest else _RATE_PER_HOUR):
+    if len(history) >= _RATE_PER_HOUR:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Hourly chat limit reached. Try again later.{sign_in}",
+            detail="Hourly chat limit reached. Try again later.",
         )
     burst = [t for t in history if now - t < _FIVE_MIN]
     if len(burst) >= _BURST_PER_5MIN:
@@ -701,7 +694,6 @@ def _log_zero_result(question: str, *, mode: str, filters: dict) -> None:
 async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeetingsResponse:
     with tracer.start_as_current_span("chat.meetings") as span:
         visitor = _visitor_key(request)
-        span.set_attribute("chat.visitor_kind", visitor.split(":", 1)[0])  # no ids in telemetry
         _check_rate_limit(visitor)
         _check_spend_cap()
 
