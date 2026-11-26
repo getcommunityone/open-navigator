@@ -1071,6 +1071,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/people/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Claim
+         * @description The signed-in user's claim on this official, or null.
+         */
+        get: operations["get_my_claim_api_people_claim_get"];
+        put?: never;
+        /**
+         * Claim Profile
+         * @description Claim an official's profile as the signed-in user.
+         */
+        post: operations["claim_profile_api_people_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/people/claim/{person_claim_id}/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Edit
+         * @description Store a proposed edit (or feedback) as pending, for the owner to approve.
+         */
+        post: operations["propose_edit_api_people_claim__person_claim_id__edits_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/school-districts": {
         parameters: {
             query?: never;
@@ -1536,6 +1580,29 @@ export interface components {
             /** State Code */
             state_code: string;
         };
+        /** ClaimIn */
+        ClaimIn: {
+            /** Person Id */
+            person_id: string;
+        };
+        /** ClaimOut */
+        ClaimOut: {
+            /** Created At */
+            created_at?: string | null;
+            /** Person Claim Id */
+            person_claim_id: number;
+            /** Person Id */
+            person_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "verified" | "rejected";
+            /** Updated At */
+            updated_at?: string | null;
+            /** Verified Via */
+            verified_via?: string | null;
+        };
         /** CohortsResponse */
         CohortsResponse: {
             /** All */
@@ -1992,6 +2059,11 @@ export interface components {
              * @default true
              */
             available: boolean;
+            /**
+             * By State
+             * @description Speakers per state across the whole country (never narrowed by the scope), for the home map (#1087). Only states with at least one meeting in the mart; empty when the mart isn't loaded.
+             */
+            by_state?: components["schemas"]["PositionStateCount"][];
             quotes?: components["schemas"]["PositionQuotes"];
             scope: components["schemas"]["JobClaimScope"];
             totals?: components["schemas"]["PositionTotals"];
@@ -2308,6 +2380,37 @@ export interface components {
             enabled: boolean;
             /** Jobs */
             jobs?: components["schemas"]["DeploymentJobModel"][];
+        };
+        /** EditIn */
+        EditIn: {
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "title" | "biography" | "photo_url" | "feedback";
+            /** New Value */
+            new_value: string;
+        };
+        /** EditOut */
+        EditOut: {
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "title" | "biography" | "photo_url" | "feedback";
+            /** New Value */
+            new_value: string;
+            /** Person Claim Id */
+            person_claim_id: number;
+            /** Person Profile Edit Id */
+            person_profile_edit_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected";
         };
         /** FailedVideoRowModel */
         FailedVideoRowModel: {
@@ -3091,6 +3194,40 @@ export interface components {
             for?: components["schemas"]["PositionQuote"][];
             /** Question */
             question?: components["schemas"]["PositionQuote"][];
+        };
+        /**
+         * PositionStateCount
+         * @description One state's sums from ``data_center_meeting_position`` (#1087).
+         */
+        PositionStateCount: {
+            /**
+             * Meetings
+             * @description Meetings in the mart for the state (analysed, a data center came up).
+             * @default 0
+             */
+            meetings: number;
+            /**
+             * Speakers Against
+             * @default 0
+             */
+            speakers_against: number;
+            /**
+             * Speakers For
+             * @default 0
+             */
+            speakers_for: number;
+            /**
+             * Speakers Neutral
+             * @default 0
+             */
+            speakers_neutral: number;
+            /**
+             * Speakers Question
+             * @default 0
+             */
+            speakers_question: number;
+            /** State Code */
+            state_code: string;
         };
         /**
          * PositionTotals
@@ -5249,6 +5386,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_claim_api_people_claim_get: {
+        parameters: {
+            query: {
+                person_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_profile_api_people_claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    propose_edit_api_people_claim__person_claim_id__edits_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_claim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditOut"];
                 };
             };
             /** @description Validation Error */

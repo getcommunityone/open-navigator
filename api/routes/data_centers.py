@@ -1534,6 +1534,17 @@ class PositionQuotes(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class PositionStateCount(BaseModel):
+    """One state's sums from ``data_center_meeting_position`` (#1087)."""
+
+    state_code: str
+    speakers_for: int = 0
+    speakers_against: int = 0
+    speakers_question: int = 0
+    speakers_neutral: int = 0
+    meetings: int = Field(0, description="Meetings in the mart for the state (analysed, a data center came up).")
+
+
 class DataCenterPositionsResponse(BaseModel):
     scope: JobClaimScope
     available: bool = Field(
@@ -1541,6 +1552,11 @@ class DataCenterPositionsResponse(BaseModel):
     )
     totals: PositionTotals = Field(default_factory=PositionTotals)
     quotes: PositionQuotes = Field(default_factory=PositionQuotes)
+    by_state: list[PositionStateCount] = Field(
+        default_factory=list,
+        description="Speakers per state across the whole country (never narrowed by the scope), for the home map "
+        "(#1087). Only states with at least one meeting in the mart; empty when the mart isn't loaded.",
+    )
 
 
 def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[Any], str, list[Any]]:
@@ -1590,6 +1606,20 @@ def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[
     return totals_sql, params, quotes_sql, quote_params
 
 
+POSITION_BY_STATE_SQL = (
+    "SELECT p.state_code, "
+    "coalesce(sum(p.speakers_for), 0)::int AS speakers_for, "
+    "coalesce(sum(p.speakers_against), 0)::int AS speakers_against, "
+    "coalesce(sum(p.speakers_question), 0)::int AS speakers_question, "
+    "coalesce(sum(p.speakers_neutral), 0)::int AS speakers_neutral, "
+    "count(*)::int AS meetings "
+    "FROM data_center_meeting_position p WHERE p.state_code IS NOT NULL "
+    "GROUP BY p.state_code ORDER BY p.state_code"
+)
+"""Per-state speaker sums for the whole country (#1087): no scope parameters, so a state or city page's
+home map still shows every state. States with no row in the mart are simply absent."""
+
+
 @router.get("/positions", response_model=DataCenterPositionsResponse)
 async def data_center_positions(
     state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
@@ -1629,6 +1659,7 @@ async def data_center_positions(
                 with tracer.start_as_current_span("data-centers.positions.query"):
                     total_rows = await conn.fetch(totals_sql, *params)
                     quote_rows = await conn.fetch(quotes_sql, *quote_params)
+                    state_rows = await conn.fetch(POSITION_BY_STATE_SQL)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("positions.relation_missing", True)
             logger.warning("data-centers: 'data_center_meeting_position' isn't here yet ({}); unavailable", e)
@@ -1654,6 +1685,7 @@ async def data_center_positions(
             scope=applied,
             totals=totals,
             quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
+            by_state=[PositionStateCount(**dict(r)) for r in state_rows],
         )
 
 
