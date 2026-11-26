@@ -1,0 +1,80 @@
+version: 2
+
+models:
+  - name: person_government_term
+    description: >
+      Office terms (#1068): one row per (official, role, district, source, term). Sources: the official_term seed (terms
+      stated on the government's own page), OpenStates membership dates, and the officials roster snapshot (when we saw
+      a version of the roster row; first_seen_on / last_seen_on are observation dates, not term dates). end_reason is
+      'died' only when an official source says so.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [person_id]
+        to: ref('person_government')
+        to_columns: [person_id]
+    columns:
+      - name: person_government_term_id
+        description: 'Primary key: md5(person_id | role | district | term_source | start).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: person_id
+        description: 'FK to person_government.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: role
+        description: 'The seat or leadership role (City Councilor, City Council President, President Pro Tempore, …).'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: district
+        data_type: text
+      - name: jurisdiction
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: start_date
+        description: 'Term start, when the source states the day.'
+        data_type: date
+      - name: start_year
+        description: 'Term start year (from start_date, or stated alone).'
+        data_type: integer
+      - name: end_date
+        description: 'Term end, when the source states the day; null while serving.'
+        data_type: date
+      - name: end_year
+        data_type: integer
+      - name: end_reason
+        description: "term_ended, resigned, died, removed or unknown; null while serving. 'died' only from an official source."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['term_ended', 'resigned', 'died', 'removed', 'unknown']
+      - name: term_source
+        description: 'seed, openstates or roster_snapshot.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['seed', 'openstates', 'roster_snapshot']
+      - name: source_url
+        description: 'The government page that states the term (seed rows).'
+        data_type: text
+      - name: verified_on
+        description: 'When the source was checked (seed) or synced (OpenStates).'
+        data_type: date
+      - name: first_seen_on
+        description: 'roster_snapshot only: when we first saw this version of the roster row.'
+        data_type: date
+      - name: last_seen_on
+        description: 'roster_snapshot only: when this version stopped appearing; null if still current.'
+        data_type: date
