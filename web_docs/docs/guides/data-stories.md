@@ -89,17 +89,30 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
-### The title states the place's conclusion (#993)
+### The title states the place's strongest statement (#993, #1125)
 
-The story's title is a conclusion for the place in scope, with the place and topic still clickable. It uses the strongest
-claim the place's record supports:
-1. **"[America] hates [data centers]."** when that place's speakers on record pass the headline's gate (against at least
-   twice for, at least 10 speakers). The place reads "America" for the country, otherwise its name.
-2. **"[Washington] talked about [data centers] in 69 meetings."** otherwise, from the place's real meeting count.
-3. The question, **"What did local meetings in … say about …?"**, when nothing is on record.
+The story's title, and the caption on each **Browse topics** tile on the home page, is the strongest statement the record
+supports for the topic and the place in scope (`?state=&city=`), with the place and topic still clickable on the story. The
+caption picker (`web_app/src/utils/storyCaption.ts`) reads `GET /api/topics/{topic}/caption-facts` for exactly that scope
+and tries, in order:
+1. **"[America] hates [data centers]."** when the public was read as confidently against in enough meetings (an AI
+   reading: at least 50 nationally, 10 in a state, 3 in one place) or the counted speakers pass the headline's gate
+   (against at least twice for, at least 10 speakers). Only for topics where "against" has one direction.
+2. **"[America] is divided on [data centers]."** when officials sided against the public in at least 10 meetings (an AI
+   reading; the basis says "In 23 meetings across 10 states, officials backed data centers while the public pushed back
+   (AI reading).") or counted speakers split with both sides substantial.
+3. **Volume with state differences.** "[California] took up [short-term rentals] in 570 meetings, more than any other
+   state.", or for a near tie "California and North Carolina took up guns most: 659 and 585 meetings."; "...the 2nd most of
+   any state."; for a city "...more than any other place in Florida.". There is no per-resident claim: meeting coverage
+   varies too much by state.
+4. **Plain volume.** "[Florida] took up [short-term rentals] in 47 meetings."
+5. **The question**, when nothing is on record. Guides with no meeting record (starting a nonprofit, insurance) always
+   show their question, and their tile keeps its blurb.
 
-A small line under the title gives the numbers behind it. Most places have too few speakers with a recorded side for a
-sentiment, so they get the fact. On 25 Nov 2026, Washington had 0 speakers on record for or against.
+The home story card uses the same title. No title or basis line ever states a zero.
+A small line under the title gives the numbers behind it, and says when coverage varies by state. Every number is a real
+count for the scope; missing data falls through to the next rule. Thresholds and the reasons for them:
+[Story captions](../development/story-captions.md).
 
 ### Statements along the way (#981)
 

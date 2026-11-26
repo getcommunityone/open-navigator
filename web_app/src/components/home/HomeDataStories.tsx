@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
 import { STORIES, scopeQuery, storyScopeLabel } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
-import { useStoryConclusionState } from '../stance/useStoryConclusion'
+import { fetchTopicCaptionFacts } from '../../api/topics'
+import { CAPTION_COPY, captionText, pickCaption } from '../../utils/storyCaption'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import { fetchTopicStates } from '../../api/topics'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
@@ -33,7 +34,8 @@ function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) 
 
 /**
  * Home `#data-stories`, the top of the home page (#975, #985, #989, #995):
- * - the story's conclusion headline (gated on the national record; else its question), subtitle, basis and Start;
+ * - the story's title from the caption picker (#1125), the same template the story header uses, for the page's scope,
+ *   with its basis line and Start;
  * - a US map of small boxes in each state's shape (#1087), split by the real counts of speakers for, against, asking a
  *   question or taking no side where any are on record, each state linking to its story, and a card quoting one of the
  *   state's real passages, verbatim, with where and when it was said;
@@ -44,7 +46,15 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   const scope = { stateCode, stateName, city: stateCode ? city : null }
   const label = storyScopeLabel(scope)
   const q = scopeQuery(scope)
-  const { conclusion, pending } = useStoryConclusionState('data-centers')
+  // The title (#1125): the caption picker over the caption facts for this scope, shared with the story header.
+  const dcFacts = useQuery({
+    queryKey: ['caption-facts', 'data-centers', stateCode ?? '', scope.city ?? ''],
+    queryFn: () => fetchTopicCaptionFacts('data-centers', stateCode, scope.city),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const pending = dcFacts.isPending
+  const dcCaption = pickCaption('data-centers', dcFacts.data, scope)
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
@@ -192,13 +202,14 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
             <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
             {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}
             <h1 id="home-story-dc" className="font-display home-story-headline" aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
-              {conclusion ? conclusion.headline : STORY.question}
+              {dcCaption.kind === 'question' ? STORY.question : captionText(dcCaption, CAPTION_COPY['data-centers']!.topic)}
             </h1>
-            {conclusion && (
-              <>
-                <p className="home-story-subhead">{conclusion.subhead}</p>
-                <p className="home-story-basis">{conclusion.basis}</p>
-              </>
+            {/* The subhead speaks for the country, so it shows only with the national "hates" title. */}
+            {dcCaption.kind === 'sentiment' && !stateCode && STORY.conclusion && <p className="home-story-subhead">{STORY.conclusion.subhead}</p>}
+            {dcCaption.basis && (
+              <p className="home-story-basis">
+                {dcCaption.basis}
+              </p>
             )}
             {points.length > 0 && (
               <ol className="home-story-points" aria-label="What the record shows, nationally">
