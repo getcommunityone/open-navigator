@@ -36,7 +36,7 @@ import {
 } from '../utils/dataStory'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
-import { createSoundBoard } from '../utils/stanceSound'
+import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
 import { speakerCounts } from '../utils/stanceGame'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
@@ -116,6 +116,16 @@ export default function DataStory() {
     return () => board.dispose()
   }, [board])
   const [soundOn, setSoundOn] = useState(board.enabled)
+  // The site menu can switch sound too (on phones the header has no sound button, #1017).
+  useEffect(() => {
+    const on = (e: Event) => {
+      const next = Boolean((e as CustomEvent<boolean>).detail)
+      if (next !== board.enabled) board.setEnabled(next)
+      setSoundOn(next)
+    }
+    window.addEventListener(SOUND_EVENT, on)
+    return () => window.removeEventListener(SOUND_EVENT, on)
+  }, [board])
   const toggleSound = () => {
     const next = !soundOn
     board.setEnabled(next)
@@ -480,7 +490,15 @@ export default function DataStory() {
         stateName={stateName}
         city={city}
         current={screens[active]?.eyebrow ?? ''}
-        extra={<SoundToggle on={soundOn} onToggle={toggleSound} />}
+        extra={
+          <span className="stance-top-actions">
+            <SoundToggle on={soundOn} onToggle={toggleSound} />
+            {/* Close (#1017): back to the home page's stories, keeping the place. */}
+            <Link to={`/${scopeQuery(scope)}#data-stories`} className="folio-btn stance-close" aria-label="Close story" title="Close">
+              <span aria-hidden="true">×</span>
+            </Link>
+          </span>
+        }
         progress={<ProgressPips count={n} active={active} />}
         placeOpen={placeOpen}
         onPlaceOpenChange={setPlaceOpen}

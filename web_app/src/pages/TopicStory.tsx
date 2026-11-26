@@ -170,7 +170,18 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6">
-      <p className="font-mono text-xs uppercase tracking-widest text-teal-700">Data story · {def.title}</p>
+      <div className="flex items-start justify-between gap-4">
+        <p className="font-mono text-xs uppercase tracking-widest text-teal-700">Data story · {def.title}</p>
+        {/* Close (#1017): back to the home page's stories, keeping the place. */}
+        <Link
+          to={`/${stateCode ? `?state=${stateCode}` : ''}#data-stories`}
+          aria-label="Close story"
+          title="Close"
+          className="-mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-stone-300 bg-white text-2xl leading-none text-stone-800 hover:bg-stone-50"
+        >
+          <span aria-hidden="true">×</span>
+        </Link>
+      </div>
       <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-stone-900 sm:text-5xl" aria-busy={national.isPending || undefined}>
         {national.isError ? def.title : headline}
       </h1>
