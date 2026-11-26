@@ -19,6 +19,7 @@ Browse Topics (`/browse-topics`) and the **Topic** filter read one list: `GET /a
 | Short-term rentals | `short-term-rentals` | short-term rental, vacation rental, Airbnb, Vrbo |
 | Flock and license plate readers | `license-plate-readers` | license plate reader, license plate camera, Flock Safety, Flock camera, ALPR |
 | Guns | `guns` | firearm(s), gun violence, gun show, shooting range, gun range, gunshot(s), gunfire, ShotSpotter, concealed carry, ghost gun, assault weapon, gun store or shop, gun safety, gun owners ([#1051](https://github.com/getcommunityone/open-navigator/issues/1051)) |
+| Pickleball | `pickleball` | pickleball, pickle ball, pickleball court(s), pickleball players ([#1054](https://github.com/getcommunityone/open-navigator/issues/1054)) |
 
 A curated topic appears on the site after `dbt seed` and a build of `civicsearch_topic` and the models downstream of
 it (`dbt ls --select civicsearch_topic+`), followed by the usual publish. Search's "Try searching for" suggestions are
@@ -27,7 +28,7 @@ data centers, short-term rentals, Flock cameras and license plate readers.
 Guns uses only phrases, never the bare word "gun", so "nail gun", "radar gun" and "begun" don't tag a meeting. One
 phrase is enough to tag a meeting, as for every curated topic. Some tags are incidental: a "firearms instructor" named
 while a new officer is introduced, for example. The quoted passage on each result shows which kind it is. The first
-local build tagged 7,684 transcripts in 50 states. On the home page, Guns is a **Coming soon** card, like Flock.
+local build tagged 7,684 transcripts in 50 states. On the home page, Guns is a **Coming soon** card, like Flock, and so is Pickleball.
 
 ## What the page shows
 

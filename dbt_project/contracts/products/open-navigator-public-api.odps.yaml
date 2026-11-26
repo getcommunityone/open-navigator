@@ -435,3 +435,13 @@ outputPorts:
   contractId: open-navigator-public-meeting_policy_question_jev
   type: table
   description: Meetings Jev read as debating a policy question, and what happened (#1032).
+- name: topic_company
+  version: 1.0.0
+  contractId: open-navigator-public-topic_company
+  type: table
+  description: The companies each curated topic names (#1052).
+- name: topic_company_mention
+  version: 1.0.0
+  contractId: open-navigator-public-topic_company_mention
+  type: table
+  description: Where a topic's companies are named (#1052).
