@@ -1694,6 +1694,12 @@ class DataCenterPositionsResponse(BaseModel):
         description="National totals of Jev's meeting readings for the home hero (#1122), never narrowed by the "
         "scope; null when data_center_meeting_lean (or a column) isn't in this database.",
     )
+    scope_lean_totals: LeanTotals | None = Field(
+        None,
+        description="The same totals narrowed to the scope (#1134): the state, or the city as a case-insensitive "
+        "substring of the meeting's jurisdiction name, like the speaker totals. Equal to lean_totals nationally; null "
+        "when data_center_meeting_lean (or a column) isn't in this database.",
+    )
 
 
 def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[Any], str, list[Any]]:
@@ -1776,11 +1782,27 @@ LEAN_TOTALS_SQL = (
 under the current Jev question version."""
 
 
-async def _fetch_lean_totals(conn: Any) -> LeanTotals | None:
-    """``LEAN_TOTALS_SQL`` as a model, or None when data_center_meeting_lean (or a column) isn't in this database:
-    the hero then leaves its AI-reading points out, never a failure."""
+def build_scope_lean_totals_query(scope: JobClaimScope) -> tuple[str, list[Any]]:
+    """``LEAN_TOTALS_SQL`` narrowed to the scope (#1134): state code, then the city as an ILIKE substring of the
+    meeting's jurisdiction name (the speaker totals' rule). Nationally it is ``LEAN_TOTALS_SQL`` with no parameters."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"l.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"l.jurisdiction_name ILIKE ${len(params)}")
+    if not where:
+        return LEAN_TOTALS_SQL, []
+    return f"{LEAN_TOTALS_SQL} WHERE {' AND '.join(where)}", params
+
+
+async def _fetch_lean_totals(conn: Any, sql: str = LEAN_TOTALS_SQL, params: list[Any] | None = None) -> LeanTotals | None:
+    """``LEAN_TOTALS_SQL`` (or its scoped form) as a model, or None when data_center_meeting_lean (or a column) isn't
+    in this database: the hero then leaves its AI-reading points out, never a failure."""
     try:
-        rows = await conn.fetch(LEAN_TOTALS_SQL)
+        rows = await conn.fetch(sql, *(params or []))
     except asyncpg.exceptions.PostgresError as e:
         logger.warning("data-centers: data_center_meeting_lean unavailable ({}); lean_totals null", e)
         return None
@@ -1844,6 +1866,10 @@ async def data_center_positions(
                     state_rows = await conn.fetch(POSITION_BY_STATE_SQL)
                     state_lean = await _fetch_lean(conn, LEAN_BY_STATE_SQL)
                     lean_totals = await _fetch_lean_totals(conn)
+                    scope_sql, scope_params = build_scope_lean_totals_query(applied)
+                    scope_lean_totals = (
+                        await _fetch_lean_totals(conn, scope_sql, scope_params) if scope_params else lean_totals
+                    )
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("positions.relation_missing", True)
             logger.warning("data-centers: 'data_center_meeting_position' isn't here yet ({}); unavailable", e)
@@ -1871,6 +1897,7 @@ async def data_center_positions(
             quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
             by_state=merge_lean_by_state(state_rows, state_lean),
             lean_totals=lean_totals,
+            scope_lean_totals=scope_lean_totals,
         )
 
 

@@ -14,7 +14,7 @@ import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
 import { NextStoryCard, StoryBottomBar, StoryDots, StoryTopBar } from '../components/stance/StoryProgress'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
-import { QuestionScreen, ScopeScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
+import { QuestionScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
 import { actsMode, useActs, type Hold } from '../components/stance/useActs'
 import { useRecentWrites } from '../components/stance/useRecentWrites'
 import { useScreenKeys } from '../components/stance/useScreenKeys'
@@ -32,15 +32,17 @@ import {
   storyScreenIndex,
   type StoryScope,
   STORIES,
-  storyTitle,
+  storyTitleFor,
 } from '../utils/dataStory'
+import { fetchDataCenterPositions } from '../api/dataCenters'
+import { storyHeroPoints } from '../utils/heroPoints'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
-import { speakerCounts } from '../utils/stanceGame'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { nextStoryLink } from '../utils/storyNav'
+import { optionLabel, questionText } from '../utils/storyQuestion'
 
 // The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
 export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value, label: s.topic }))
@@ -79,6 +81,14 @@ export default function DataStory() {
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
+  // National AI-reading totals for the header's points (#1134); shares its cache with the home hero's conclusion query.
+  const nationalPositionsQ = useQuery({
+    queryKey: ['story-conclusion', 'positions', 'national'],
+    queryFn: () => fetchDataCenterPositions({}),
+    enabled: Boolean(story?.conclusion),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
   const packQ = useQuery({ queryKey: ['stance', 'pack', packId], queryFn: () => fetchStancePack(packId), enabled: Boolean(story), retry: 1 })
   const question = packQ.data?.question ?? null
   // A screen with nothing on record for the place is left out of the story once its data has loaded (#1002): no step,
@@ -142,10 +152,9 @@ export default function DataStory() {
   const [active, setActive] = useState(0)
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
   const [placeOpen, setPlaceOpen] = useState(false)
-  const [whereOpen, setWhereOpen] = useState(false)
   // The next-story card in view (#1102): the dots and the floating bar step aside so they don't sit over it or the footer.
   const [atEnd, setAtEnd] = useState(false)
-  const dialogOpen = placeOpen || whereOpen
+  const dialogOpen = placeOpen
   // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
   useIdleNudge({
     rootRef,
@@ -423,10 +432,15 @@ export default function DataStory() {
 
   const label = storyScopeLabel(scope)
   // #993: the title states the place's conclusion: the sentiment when its speakers back it, else the fact, else the question.
-  const title = storyTitle(story, scope, {
-    speakers: speakerCounts(data.positions as DataCenterPositionsResponse | null | undefined),
-    meetings: (data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined)?.counts?.meetings,
-  })
+  // #1134: the ONE title (shared with the home hero and the Overview), with its scoped subhead and numbered points.
+  const scopedPositions = data.positions as DataCenterPositionsResponse | null | undefined
+  const title = storyTitleFor(
+    story,
+    scope,
+    scopedPositions,
+    (data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined)?.counts?.meetings,
+  )
+  const points = storyHeroPoints(scope.stateName ? nationalPositionsQ.data : scopedPositions, scope.stateName ? scopedPositions : null, scope.stateName ? label : null)
   const links = {
     dataCenters: `/data-centers${scopeQuery(scope)}`,
     decisions: `/browse-topics${scopeQuery(scope)}`,
@@ -496,7 +510,20 @@ export default function DataStory() {
               },
             ]}
           />
+          {title.subhead && <p className="stance-title-subhead">{title.subhead}</p>}
           {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+          {points.length > 0 && (
+            <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
+              {points.map((pt) => (
+                <li key={pt.icon}>
+                  <span className="stance-title-point-n">{pt.n}</span>
+                  <span>
+                    <strong>{pt.title}</strong> {pt.line}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
           </>
         }
         stateCode={stateCode}
@@ -536,7 +563,6 @@ export default function DataStory() {
               onNext: () => goTo(i + 1),
             }
             if (s.kind === 'question') return <QuestionScreen key={s.id} {...common} vote={vote} />
-            if (s.kind === 'scope') return <ScopeScreen key={s.id} {...common} vote={vote} place={placeBlank(whereOpen, setWhereOpen)} />
             if (s.kind === 'verdict') {
               return (
                 <VerdictScreen
@@ -559,6 +585,8 @@ export default function DataStory() {
                 onBroaden={applyPlace}
                 onRetry={() => s.chart && refetch(s.chart)}
                 stance={statements.get(s.id)}
+                question={s.kind === 'overview' && question ? questionText(question, scope) : null}
+                said={s.kind === 'overview' ? optionLabel(question, before) : null}
               />
             )
           })}

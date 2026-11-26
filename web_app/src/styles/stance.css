@@ -2802,6 +2802,46 @@ html.stance-snap {
   color: var(--ink-2);
 }
 
+/* The title's scoped subhead and numbered points (#1134), the same copy as the home hero. */
+.stance-title-subhead {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  max-width: 44em;
+}
+.stance-title-points {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  max-width: 60em;
+}
+.stance-title-points li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.stance-title-points strong {
+  color: var(--ink);
+}
+.stance-title-point-n {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--teal, #0f766e);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 /* Payroll jobs on the jobs screen (#1019): BLS figures, then where jobs are tracked. */
 .stance-payroll {
   margin: 0 0 16px;

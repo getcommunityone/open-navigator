@@ -2100,6 +2100,8 @@ export interface components {
             lean_totals?: components["schemas"]["LeanTotals"] | null;
             quotes?: components["schemas"]["PositionQuotes"];
             scope: components["schemas"]["JobClaimScope"];
+            /** @description The same totals narrowed to the scope (#1134): the state, or the city as a case-insensitive substring of the meeting's jurisdiction name, like the speaker totals. Equal to lean_totals nationally; null when data_center_meeting_lean (or a column) isn't in this database. */
+            scope_lean_totals?: components["schemas"]["LeanTotals"] | null;
             totals?: components["schemas"]["PositionTotals"];
         };
         /** DataCenterProject */

@@ -9,7 +9,7 @@ describe('storyConclusion (#989)', () => {
   it('shows the headline with its basis while speakers against outnumber those for by 2:1', () => {
     const r = storyConclusion(story, c(18, 3))!
     expect(r.headline).toBe('America hates data centers.')
-    expect(r.basis).toBe('29 speakers counted by hand: 18 against, 3 for.')
+    expect(r.basis).toBe('29 speakers counted by hand: 18 against and 3 for.')
   })
   it('holds back the headline when the record does not back it', () => {
     expect(storyConclusion(story, c(10, 6))).toBeNull() // under 2:1
@@ -26,13 +26,13 @@ describe('storyConclusion (#989)', () => {
     const r = storyConclusion(story, { ...c(18, 3), states: 4 }, undefined, { against: 283, states: 32 })!
     expect(r.headline).toBe('America hates data centers.')
     expect(r.basis).toBe(
-      'The public leaned against data centers in 283 meetings across 32 states (AI reading of meetings). 29 speakers counted by hand in 4 states: 18 against, 3 for.',
+      'The public leaned against data centers in 283 meetings across 32 states (AI reading of meetings). 29 speakers counted by hand in 4 states: 18 against and 3 for.',
     )
   })
   it('passes on the meeting reading alone when the speakers do not back it', () => {
     const r = storyConclusion(story, c(2, 3), undefined, { against: 60, states: 9 })!
     expect(r.basis).toBe(
-      'The public leaned against data centers in 60 meetings across 9 states (AI reading of meetings). 13 speakers counted by hand: 2 against, 3 for.',
+      'The public leaned against data centers in 60 meetings across 9 states (AI reading of meetings). 13 speakers counted by hand: 3 for and 2 against.',
     )
     expect(storyConclusion(story, null, undefined, { against: 50, states: 1 })!.basis).toBe(
       'The public leaned against data centers in 50 meetings across 1 state (AI reading of meetings).',
@@ -42,7 +42,7 @@ describe('storyConclusion (#989)', () => {
     expect(storyConclusion(story, null, undefined, { against: 49, states: 20 })).toBeNull()
     expect(storyConclusion(story, c(10, 6), undefined, { against: 49 })).toBeNull()
     // Below the reading's gate, the speaker gate still carries it and the reading isn't stated.
-    expect(storyConclusion(story, c(18, 3), undefined, { against: 12, states: 3 })!.basis).toBe('29 speakers counted by hand: 18 against, 3 for.')
+    expect(storyConclusion(story, c(18, 3), undefined, { against: 12, states: 3 })!.basis).toBe('29 speakers counted by hand: 18 against and 3 for.')
   })
   it('uses the place gate and names the place', () => {
     const r = storyConclusion(story, null, 'in Arizona', { against: 14 })!

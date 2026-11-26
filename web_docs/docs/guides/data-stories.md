@@ -13,11 +13,11 @@ The home page opens on the Data stories section, with search second; the line "E
 
 Under the headline and its subtitle, the hero's left column lists up to three numbered points, each with a round teal icon, a bold title and a line with the real figure ([#1122](https://github.com/getcommunityone/open-navigator/issues/1122)). The titles are fixed; every figure is national and comes from `GET /api/data-centers/positions`:
 
-1. **"Communities are saying no."** The meetings (and states) where Jev read the public as mostly opposed (`lean_totals.public_against_meetings` / `public_against_states`), then "29 speakers counted by hand in 4 states: 18 against, 3 for." from the counted speakers in `totals`, with the number of states counted from `by_state` (states with any counted speaker), never hard-coded ([#1134](https://github.com/getcommunityone/open-navigator/issues/1134)).
+1. **"Communities are saying no."** The meetings (and states) where Jev read the public as mostly opposed (`lean_totals.public_against_meetings` / `public_against_states`), then (only when the meeting reading is missing) "29 speakers counted by hand in 4 states: 18 against and 3 for." from the counted speakers in `totals`, with the number of states counted from `by_state` (states with any counted speaker), never hard-coded ([#1134](https://github.com/getcommunityone/open-navigator/issues/1134)).
 2. **"Projects are being stopped."** The meetings whose data center outcome Jev read as tabled or deferred, denied or a moratorium (`lean_totals.stopped_meetings`).
 3. **"Officials don't always listen."** The meetings (and states) where officials sided against the public (`lean_totals.disagreement_meetings` / `disagreement_states`, the #1113 rule).
 
-Jev's figures are labelled "AI reading", because they are a classifier's reading of the transcript, not counted speakers. A point with no data (a 0, or `lean_totals` null because `data_center_meeting_lean` isn't loaded) is left out and the rest are renumbered; a sentence with no data is dropped from point 1. `lean_totals` is never narrowed by the page's place, so on a page scoped to a place every point starts **"Nationally:"** ([#1134](https://github.com/getcommunityone/open-navigator/issues/1134)). Under the points, a large pill **Start the story for [place] →** keeps the page's scope, and a second pill **Next story: Short-term rentals →** (from `nextStoryLink` in `storyNav.ts`) carries it too. On a phone the points stack above the map and both buttons are full width. The copy is built by the pure helper `web_app/src/utils/heroPoints.ts`, with tests; the map on the right is unchanged.
+Jev's figures are labelled "AI reading", because they are a classifier's reading of the transcript, not counted speakers. A point with no data (a 0, or `lean_totals` null because `data_center_meeting_lean` isn't loaded) is left out and the rest are renumbered; a sentence with no data is dropped from point 1. On a page scoped to a place, each point uses the place's own figure where it has one and otherwise the national figure, starting **"Nationally:"** ([#1134](https://github.com/getcommunityone/open-navigator/issues/1134), see below). Under the points, a large pill **Start the story for [place] →** keeps the page's scope, and a second pill **Next story: Short-term rentals →** (from `nextStoryLink` in `storyNav.ts`) carries it too. On a phone the points stack above the map and both buttons are full width. The copy is built by the pure helper `web_app/src/utils/heroPoints.ts`, with tests; the map on the right is unchanged.
 
 The home map is now drawn like the Explore map: each state is a grid of small square boxes in its own shape (Alaska and Hawaii where the Albers map puts them), not a pin ([#1087](https://github.com/getcommunityone/open-navigator/issues/1087)). Where speakers are on record, a state's boxes are split in bands by the real counts of those who **spoke against**, **spoke for**, **asked a question** or took **no side** (from `data_center_meeting_position`, served nationally as `by_state` on `GET /api/data-centers/positions`); a caption gives the number of speakers and states behind the split. A state with meetings but no speaker on record is one grey (**Meetings, no stance on record**) and a state with no meetings stays the empty tint, so no split is ever drawn without real counts. Hovering a box (tapping, on a phone) shows one of that state's real passages, cycling through them across its boxes, with the place, date, quote and the state's speaker counts; clicking opens that state's story. A data table under the map lists every state with its meetings and speaker counts and links to its story, for keyboard and screen readers. The short-term rentals card uses the same map without a split, shaded by meetings only. Each state's outline is drawn over its boxes, and a state with meetings but no recorded stance is grey, light to dark by its real meeting count ([#1103](https://github.com/getcommunityone/open-navigator/issues/1103)). The legend has four entries: Spoke against (red), Spoke for (green), No side (purple) and Meetings with no stance on record (grey, darker = more meetings). A speaker who only asked a question is drawn as No side, while hover cards still say "asked a question" ([#1110](https://github.com/getcommunityone/open-navigator/issues/1110)). Hovering shows a quote card ([#1108](https://github.com/getcommunityone/open-navigator/issues/1108)). It carries the meeting's own recording thumbnail with "Hear it at m:ss", the place and date, the quote verbatim and large, and a speaker row: an initials avatar (never a photo), the shortened name, the side, and only the role or item on record. The meeting video popup uses the same card without the image.
 
@@ -68,7 +68,6 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | --- | --- | --- | --- |
 | Opener | Overview | `overview` | A dot map of the country: each state's dots shaded by its real number of meetings where a data center came up, nationally (none stays grey). Hover or choose a state to read its count; clicking a state narrows the whole story to it (`?state=`). In a state or city scope that state stands out and the rest are muted but keep their own counts; clicking it again broadens (city → state → country), and **United States** goes straight to the country. A data table lists every state with a count. In a state or city scope the map is that state's counties instead, like the Census map's state drill-down, in the home box map's colours: where its governments have speakers on record, a county's dots are split in bands by the real counts of those who spoke against, for, asked a question or took no side; a county with meetings but no stance on record is grey, light to dark by its real meeting count; a county with none takes the empty colour, and the legend matches the home map's ([#1106](https://github.com/getcommunityone/open-navigator/issues/1106)). A county government counts by its geoid; a city, town or school district is placed by its coordinates and drawn as a ring. Hovering a county quotes one of its passages and gives its stance counts, and the data table lists counties with their governments. A government that can't be placed is named under the map, not shaded ([#1039](https://github.com/getcommunityone/open-navigator/issues/1039)). Each ring's government is named beside it in the Data Explorer's label style (dark text, white halo), largest meeting counts first, and a label that would overlap one already drawn is left out; a county government is named at its county's centre only when that spot is free. At a state or city scope the Overview headline says which way speakers leaned once at least as many are on record as the national headline needs (10): two thirds or more against reads "Arizona pushed back: 11 of 12 speakers spoke against data centers.", two thirds or more for reads "… welcomed data centers …", otherwise "… was split …"; the meeting count moves to the line under it, and with fewer speakers the neutral count stays ([#1115](https://github.com/getcommunityone/open-navigator/issues/1115)). On a phone the maps say **Tap** instead of **Hover**, and tapping a county selects it like hovering does ([#1057](https://github.com/getcommunityone/open-navigator/issues/1057)). Then the row of large real counts ([#970](https://github.com/getcommunityone/open-navigator/issues/970)) |
 | Who spoke up | Who spoke up | `voices` | The five figures, one dot per speaker, and up to three of the speakers' own words on each side, each linked to the moment in the recording |
-| The place | Where | `scope` | The place picker, with the United States chosen, and the question worded for the place |
 | Where they are | Sites | `sites` | Data center sites by status (one dot per site) |
 | What is proposed | Proposals | `projects` | Projects by status (one dot per project) |
 | What is promised | Promises | `jobs` | Jobs claims by phase (one dot per claim) |
@@ -79,35 +78,50 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
-### The home hero's headline and its basis (#1134)
+### One title for every view of the story (#1134)
 
-Nationally, the home hero (and the hub card) shows **America hates data centers.** when either gate passes: at least 50
-meetings where Jev read the public as mostly opposed with probability at least 0.7 (`lean_totals.public_against_meetings`),
-or the counted speakers' gate below. The basis line under it leads with the meeting reading, labelled as an AI reading,
-and gives the hand counts only with their scope, for example: "The public leaned against data centers in 283 meetings
-across 32 states (AI reading of meetings). 29 speakers counted by hand in 4 states: 18 against, 3 for." The gate and the
-sentence use the confident "against" count only: hand checks found "supported" and "mixed" readings unreliable, so no
-ratio against them is claimed (they are served as `public_for_meetings` / `public_mixed_meetings` for audit; see
-[Data center meeting lean](../development/data-center-meeting-lean.md)).
+The home hero, the story header and the story's Overview screen state the **same** title for the page's scope, from one
+function, `storyTitleFor` in `web_app/src/utils/dataStory.ts` (it builds on `storyTitle`). It reads the positions
+response for the scope: nationally `lean_totals` and the national speaker counts, for a place `scope_lean_totals` (the
+AI-reading totals narrowed by `state` and by `city` as a substring of the meeting's government name) and the place's own
+speakers. In order, the first that the record backs:
 
-With a place in scope (`/?state=AZ`), the hero's headline and basis are the place's own, built by `storyTitle` below, and
-never the national headline: the state's meeting reading (`by_state.public_against_meetings`, at least 10 meetings), or
-its counted speakers, gives "Arizona hates data centers." with the state's own counts; otherwise "Arizona talked about
-data centers in N meetings."; otherwise the question. At a city scope the meeting reading isn't at that grain, so only
-the city's speakers and meetings count. The national points underneath then say "Nationally:".
+1. **"[Place] is divided on [data centers]."** (a place only) when at least 6 speakers were counted by hand there and each
+   side is at least 30% of them.
+2. **"[America] hates [data centers]."** when the confident "public leaned against" meetings (probability at least 0.7)
+   reach the scope's gate (50 nationally, 10 for a state, 3 for a city or other single place), or the counted speakers
+   pass their gate (against at least twice for, at least 10 speakers).
+3. **"[Place] is divided on [data centers]."** (a place only) when it has a public-against meeting and a meeting where
+   officials sided against the public.
+4. **"[Washington] talked about [data centers] in 69 meetings."** from the place's real meeting count.
+5. The question, **"What did local meetings in … say about …?"**.
 
-### The title states the place's conclusion (#993)
+The country is never "divided". "Supported" and "mixed" readings are never evidence for either title: hand checks found
+them unreliable (they are served as `lean_totals.public_for_meetings` / `public_mixed_meetings` for audit). The reasons
+and thresholds: [Data center meeting lean](../development/data-center-meeting-lean.md#decision-one-title-hates-before-divided-1134).
 
-The story's title is a conclusion for the place in scope, with the place and topic still clickable. It uses the strongest
-claim the place's record supports:
-1. **"[America] hates [data centers]."** when that place's speakers on record pass the headline's gate (against at least
-   twice for, at least 10 speakers), or, where the caller passes it, the place's meeting reading passes its gate (#1134,
-   above). The place reads "America" for the country, otherwise its name.
-2. **"[Washington] talked about [data centers] in 69 meetings."** otherwise, from the place's real meeting count.
-3. The question, **"What did local meetings in … say about …?"**, when nothing is on record.
+Under the title, every view shows:
+- **a subhead about the scope only**: nationally the story's own line; for a place a sentence about that place (for
+  example "At local meetings in Arizona, the public has mostly spoken against data centers."), never a national claim;
+- **the basis line**, leading with the meeting reading labelled as an AI reading and giving hand counts only with their
+  scope, for example "The public leaned against data centers in 283 meetings across 32 states (AI reading of meetings).
+  29 speakers counted by hand in 4 states: 18 against and 3 for.";
+- **three numbered points** (`storyHeroPoints` in `heroPoints.ts`): each uses the place's own figure where it is above 0
+  ("14 meetings in Arizona where the public leaned against (AI reading).") and otherwise the national one, starting
+  **"Nationally:"**. Point 1 is the short form, so it never repeats the basis line word for word.
 
-A small line under the title gives the numbers behind it. Most places have too few speakers with a recorded side for a
-sentiment, so they get the fact. On 25 Nov 2026, Washington had 0 speakers on record for or against.
+On the Overview screen, a backed conclusion (divided or hates) is the headline and the meeting count moves to the line
+under it ("A data center came up in 71 meetings in Alabama. First, where are they?"); otherwise the Overview keeps its
+speaker-lean or meeting-count headline (#1115).
+
+### No zero clause in a title (#1134)
+
+A title or point never states a zero ("0 asked a question", "and none about operations jobs"). Zero clauses are dropped
+and the rest are joined plainly, larger side first where that reads better: "Of 6 people who spoke on a data center item
+at local meetings in Texas, 2 spoke for it and 1 against." Questions and speakers who took no side go in the line under
+the title, only when there are any ("3 took no side."). With no one for or against, the title says only how many spoke.
+Recorded votes and jobs claims follow the same rule ("Recorded votes: 5 for, in 1 decision."). The helper is
+`countClauses` in `web_app/src/utils/clauses.ts`.
 
 ### Statements along the way (#981)
 
@@ -144,7 +158,7 @@ An old link to `?screen=turn` opens the last screen. An old link to `?screen=que
 
 The story does **not** open on its question. After the overview and the rest of the record, the last screen says "You've seen the record. Where do you stand now?" and asks the topic question, worded for the place. The answers are **Yes**, **No** and **Pause for now**; one line under them says a pause is a moratorium (no new approvals until the rules are settled).
 
-A **Where?** screen sits after Who spoke up so you can narrow the place before the chart screens. The place picker also stays in the top sentence. **Next** from Where continues through the record.
+There is no separate **Where?** screen any more ([#1134](https://github.com/getcommunityone/open-navigator/issues/1134)): the place picker is in the title sentence, and the Overview shows the question worded for the place and your answer before reading, if you gave one. An old `?screen=scope` link opens the Overview.
 
 After you answer on the last screen it says whether your answer changed when a prior answer is on record ("You said No before. Now you say Pause for now.", "You said Yes both times.", or that you had no earlier answer). Then it shows how readers of the story answered for the country, your state and your community, as stacked bars: Yes in teal, No in amber, Pause for now in a neutral ink tone, each with its count and percentage written out and your own answer marked. Then it offers **See every data center record**.
 

@@ -2,15 +2,13 @@ import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
-import { STORIES, scopeQuery, speakerStateCount, stateLean, storyScopeLabel, storyTitle, storyTitleText } from '../../utils/dataStory'
-import { speakerCounts } from '../../utils/stanceGame'
+import { STORIES, scopeQuery, storyScopeLabel, storyTitleFor, storyTitleText } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
-import { useStoryConclusionState } from '../stance/useStoryConclusion'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import { fetchTopicStates } from '../../api/topics'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { Ban, Landmark, Quote, type LucideIcon } from 'lucide-react'
-import { heroPoints, type HeroPointIcon } from '../../utils/heroPoints'
+import { storyHeroPoints, type HeroPointIcon } from '../../utils/heroPoints'
 import { nextStoryLink } from '../../utils/storyNav'
 
 const POINT_ICONS: Record<HeroPointIcon, LucideIcon> = { quote: Quote, stop: Ban, scale: Landmark }
@@ -33,7 +31,7 @@ function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) 
 
 /**
  * Home `#data-stories`, the top of the home page (#975, #985, #989, #995):
- * - the story's conclusion headline (gated on the national record; else its question), subtitle, basis and Start;
+ * - the story's one title for the page's scope (storyTitleFor, #1134), its subtitle, basis, numbered points and Start;
  * - a US map of small boxes in each state's shape (#1087), split by the real counts of speakers for, against, asking a
  *   question or taking no side where any are on record, each state linking to its story, and a card quoting one of the
  *   state's real passages, verbatim, with where and when it was said;
@@ -44,7 +42,6 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   const scope = { stateCode, stateName, city: stateCode ? city : null }
   const label = storyScopeLabel(scope)
   const q = scopeQuery(scope)
-  const { conclusion, pending: nationalPending } = useStoryConclusionState('data-centers')
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
@@ -138,9 +135,8 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     }
     return out
   }, [national.data, speakers.data])
-  // A page scoped to a place gets the place's own title (#1134, CLAUDE.md scope label rule): its meeting reading (state
-  // grain only, from the national by_state), else its counted speakers, else its meeting count, else the question. The
-  // national headline is never shown over a place's Start button.
+  // The hero's title is the story's ONE title for the page's scope (#1134, CLAUDE.md scope label rule), from the same
+  // storyTitleFor the story header and Overview use: a place's own record on a place's page, never the national headline.
   const scopedPositions = useQuery({
     queryKey: ['home', 'hero', 'positions', stateCode, scope.city],
     queryFn: () => fetchDataCenterPositions({ state: stateCode, city: scope.city ?? undefined, limit: 1 }),
@@ -155,28 +151,15 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     staleTime: 5 * 60_000,
     retry: 1,
   })
-  const placeTitleParts = stateCode
-    ? storyTitle(STORY, scope, {
-        speakers: speakerCounts(scopedPositions.data),
-        meetings: scopedMentions.data?.counts?.meetings,
-        lean: scope.city ? null : stateLean(speakers.data, stateCode),
-      })
-    : null
-  const placeTitle = placeTitleParts ? { headline: storyTitleText(STORY, placeTitleParts), basis: placeTitleParts.basis } : null
-  const pending = stateCode
-    ? scopedPositions.isPending || scopedMentions.isPending || (!scope.city && speakers.isPending)
-    : nationalPending
-  // The three numbered points (#1122): national figures from the record, a point without data left out. On a place's page
-  // each line says "Nationally:" (#1134).
+  const titleParts = stateCode
+    ? storyTitleFor(STORY, scope, scopedPositions.data, scopedMentions.data?.counts?.meetings)
+    : storyTitleFor(STORY, scope, speakers.data, national.data?.counts?.meetings)
+  const title = { headline: storyTitleText(STORY, titleParts), subhead: titleParts.subhead, basis: titleParts.basis }
+  const pending = stateCode ? scopedPositions.isPending || scopedMentions.isPending : speakers.isPending || national.isPending
+  // The three numbered points (#1122): the place's own figures where it has them, else national ones marked "Nationally:".
   const points = useMemo(
-    () =>
-      speakers.data?.available
-        ? heroPoints(speakers.data.lean_totals, speakers.data.totals, {
-            speakerStates: speakerStateCount(speakers.data),
-            nationally: Boolean(stateCode),
-          })
-        : [],
-    [speakers.data, stateCode],
+    () => storyHeroPoints(speakers.data, stateCode ? scopedPositions.data : null, stateCode ? label : null),
+    [speakers.data, scopedPositions.data, stateCode, label],
   )
   const nextDc = nextStoryLink('data-centers', q)
 
@@ -222,18 +205,12 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
             <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
             {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}
             <h1 id="home-story-dc" className="font-display home-story-headline" aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
-              {placeTitle ? placeTitle.headline : conclusion ? conclusion.headline : STORY.question}
+              {title.headline}
             </h1>
-            {placeTitle ? (
-              placeTitle.basis && <p className="home-story-basis">{placeTitle.basis}</p>
-            ) : conclusion && (
-              <>
-                <p className="home-story-subhead">{conclusion.subhead}</p>
-                <p className="home-story-basis">{conclusion.basis}</p>
-              </>
-            )}
+            {!pending && title.subhead && <p className="home-story-subhead">{title.subhead}</p>}
+            {!pending && title.basis && <p className="home-story-basis">{title.basis}</p>}
             {points.length > 0 && (
-              <ol className="home-story-points" aria-label="What the record shows, nationally">
+              <ol className="home-story-points" aria-label={stateCode ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
                 {points.map((p) => {
                   const Icon = POINT_ICONS[p.icon]
                   return (

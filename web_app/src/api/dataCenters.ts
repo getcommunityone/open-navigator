@@ -62,6 +62,8 @@ export interface DataCenterPositionsResponse {
   by_state?: PositionStateCount[]
   /** National totals of Jev's meeting readings for the home hero (#1122); null when the lean table isn't loaded. */
   lean_totals?: Schemas['LeanTotals'] | null
+  /** The same AI-reading totals narrowed to the scope (#1134); equal to lean_totals nationally. */
+  scope_lean_totals?: Schemas['LeanTotals'] | null
 }
 
 /** Public speakers for and against a data center item, questions asked and recorded votes, for the scope (#930). */

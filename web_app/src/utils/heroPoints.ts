@@ -1,5 +1,8 @@
 // The home Data stories hero's numbered points (#1122): titles fixed, every figure from the API (CLAUDE.md, No Fabricated
 // Data). A point whose figure is missing or 0 is left out; nothing stands in for it.
+import type { DataCenterPositionsResponse } from '../api/dataCenters'
+import { countClauses } from './clauses'
+import { speakerStateCount } from './dataStory'
 
 /** National totals of Jev's meeting readings (`positions.lean_totals`); AI readings of transcripts, not counted speakers. */
 export interface HeroLeanTotals {
@@ -40,11 +43,39 @@ function meetingsAcross(meetings: number, states: number): string {
   return `in ${plural(meetings, 'meeting')}${states > 0 ? ` across ${plural(states, 'state')}` : ''}`
 }
 
+/** A place's own figures for the points (#1134): its scoped lean totals and speaker sums, and how its name reads. */
+export interface HeroPlace {
+  label: string
+  lean?: HeroLeanTotals | null
+  speakers?: HeroSpeakerTotals | null
+}
+
 export interface HeroPointsOptions {
   /** States with any hand-counted speaker (from positions `by_state`), so the hand count names its scope (#1134). */
   speakerStates?: number | null
-  /** True when the page is scoped to a place: every line then starts "Nationally:" so it isn't read as the place's (#1134). */
-  nationally?: boolean
+  /**
+   * The page's place (#1134): each point uses the place's own figure where it is above 0, otherwise the national figure
+   * prefixed "Nationally:" so it isn't read as the place's.
+   */
+  place?: HeroPlace | null
+}
+
+function speakerTotal(s: HeroSpeakerTotals | null | undefined): number {
+  return num(s?.speakers_for) + num(s?.speakers_against) + num(s?.speakers_question) + num(s?.speakers_neutral)
+}
+
+/** "29 speakers counted by hand in 4 states: 18 against and 3 for." with zero sides left out (#1134); null for none. */
+export function handCountLine(s: HeroSpeakerTotals | null | undefined, where: string): string | null {
+  const total = speakerTotal(s)
+  if (total < 1) return null
+  const sides = countClauses(
+    [
+      { n: num(s?.speakers_against), text: (n) => `${n.toLocaleString('en-US')} against` },
+      { n: num(s?.speakers_for), text: (n) => `${n.toLocaleString('en-US')} for` },
+    ],
+    { leadLarger: true },
+  )
+  return `${plural(total, 'speaker')} counted by hand${where}${sides ? `: ${sides}` : ''}.`
 }
 
 export function heroPoints(
@@ -53,42 +84,64 @@ export function heroPoints(
   opts: HeroPointsOptions = {},
 ): HeroPoint[] {
   const out: Omit<HeroPoint, 'n'>[] = []
+  const place = opts.place ?? null
+  const inPlace = place ? ` in ${place.label}` : ''
+  const nat = (line: string) => (place ? `Nationally: ${line}` : line)
 
+  // 1. Short, so it doesn't repeat the basis line under the title word for word (#1134).
+  const pAgainst = num(place?.lean?.public_against_meetings)
   const against = num(lean?.public_against_meetings)
-  const sAgainst = num(speakers?.speakers_against)
-  const sTotal = num(speakers?.speakers_for) + sAgainst + num(speakers?.speakers_question) + num(speakers?.speakers_neutral)
-  const parts: string[] = []
-  if (against > 0) {
-    parts.push(
-      `The public leaned against data centers ${meetingsAcross(against, num(lean?.public_against_states))} (AI reading of meetings).`,
-    )
-  }
-  if (sTotal >= 1) {
-    const states = num(opts.speakerStates)
-    parts.push(
-      `${plural(sTotal, 'speaker')} counted by hand${states > 0 ? ` in ${plural(states, 'state')}` : ''}: ` +
-        `${sAgainst.toLocaleString('en-US')} against, ${num(speakers?.speakers_for).toLocaleString('en-US')} for.`,
-    )
-  }
-  if (parts.length) out.push({ icon: 'quote', title: 'Communities are saying no.', line: parts.join(' ') })
+  const states = num(lean?.public_against_states)
+  const pHand = place ? handCountLine(place.speakers, inPlace) : null
+  const nHand = handCountLine(speakers, num(opts.speakerStates) > 0 ? ` in ${plural(num(opts.speakerStates), 'state')}` : '')
+  let line1: string | null = null
+  if (pAgainst > 0) line1 = `${plural(pAgainst, 'meeting')}${inPlace} where the public leaned against (AI reading).`
+  else if (pHand) line1 = pHand
+  else if (against > 0) line1 = nat(`${plural(against, 'meeting')}${states > 0 ? ` across ${plural(states, 'state')}` : ''} where the public leaned against (AI reading).`)
+  else if (nHand) line1 = nat(nHand)
+  if (line1) out.push({ icon: 'quote', title: 'Communities are saying no.', line: line1 })
 
+  const pStopped = num(place?.lean?.stopped_meetings)
   const stopped = num(lean?.stopped_meetings)
-  if (stopped > 0) {
+  if (pStopped > 0 || stopped > 0) {
     out.push({
       icon: 'stop',
       title: 'Projects are being stopped.',
-      line: `${plural(stopped, 'meeting')} tabled, denied or paused a data center (AI reading).`,
+      line:
+        pStopped > 0
+          ? `${plural(pStopped, 'meeting')}${inPlace} tabled, denied or paused a data center (AI reading).`
+          : nat(`${plural(stopped, 'meeting')} tabled, denied or paused a data center (AI reading).`),
     })
   }
 
+  const pDisagree = num(place?.lean?.disagreement_meetings)
   const disagree = num(lean?.disagreement_meetings)
-  if (disagree > 0) {
+  if (pDisagree > 0 || disagree > 0) {
     out.push({
       icon: 'scale',
       title: "Officials don't always listen.",
-      line: `Officials sided against the public ${meetingsAcross(disagree, num(lean?.disagreement_states))} (AI reading).`,
+      line:
+        pDisagree > 0
+          ? `Officials sided against the public in ${plural(pDisagree, 'meeting')}${inPlace} (AI reading).`
+          : nat(`Officials sided against the public ${meetingsAcross(disagree, num(lean?.disagreement_states))} (AI reading).`),
     })
   }
 
-  return out.map((p, i) => ({ ...p, n: i + 1, line: opts.nationally ? `Nationally: ${p.line}` : p.line }))
+  return out.map((p, i) => ({ ...p, n: i + 1 }))
+}
+
+/**
+ * The points for a page (#1134), shared by the home hero and the story header: national figures from the national
+ * positions response, and, on a place's page, the place's own from its scoped response (`scope_lean_totals`, `totals`).
+ */
+export function storyHeroPoints(
+  national: DataCenterPositionsResponse | null | undefined,
+  scoped: DataCenterPositionsResponse | null | undefined,
+  placeLabel: string | null,
+): HeroPoint[] {
+  if (!national?.available) return []
+  const place = placeLabel
+    ? { label: placeLabel, lean: scoped?.available ? scoped.scope_lean_totals : null, speakers: scoped?.available ? scoped.totals : null }
+    : null
+  return heroPoints(national.lean_totals, national.totals, { speakerStates: speakerStateCount(national), place })
 }
