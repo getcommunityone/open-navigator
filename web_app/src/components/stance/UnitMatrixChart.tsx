@@ -54,6 +54,8 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
     () => spec.groups.flatMap((g) => g.dots.map((d) => ({ d, nativeKey: g.key, group: g.label, facets: d.facets }))),
     [spec],
   )
+  // A narrower scope can leave fewer squares than the roving index: keep one square tabbable.
+  useEffect(() => setRove((r) => Math.min(r, Math.max(0, records.length - 1))), [records.length])
   const native = useMemo(() => spec.groups.map((g) => ({ key: g.key, label: g.label })), [spec])
   const nativeName = NATIVE_NAMES[chartKey]
   const options = useMemo(

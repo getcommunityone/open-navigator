@@ -5,7 +5,7 @@ Topic timeline and period comparison (#1140) — the data behind a story's Meeti
     Meetings per year that discussed the topic in the scope, the passages behind them (data centers only), all recorded
     meetings per year in the same scope (``recorded_meeting_year``) and the topic's share of them; plus a milestone
     track of dated events: meetings where officials approved, denied, tabled or adopted a moratorium (an AI reading,
-    ``data_center_meeting_lean.dc_outcome`` / ``topic_meeting_lean.outcome_group``), and state bills enacted
+    ``data_center_meeting_lean.dc_outcome`` / ``topic_meeting_lean.outcome``), and state bills enacted
     (``topic_legislation_bill``, read only when the relation exists).
 
 ``GET /api/topics/{topic}/period-compare?state=&from=&to=``
@@ -27,6 +27,7 @@ import re
 from datetime import date
 from typing import Any, Literal
 
+import asyncpg
 from fastapi import APIRouter, HTTPException, Path, Query
 from loguru import logger
 from opentelemetry import trace
@@ -60,13 +61,9 @@ DC_OUTCOME_KIND: dict[str, MilestoneKind] = {
     "tabled_or_deferred": "tabled",
     "moratorium": "moratorium",
 }
-#: topic_meeting_lean.outcome_group → milestone kind (other topics).
-TOPIC_OUTCOME_KIND: dict[str, MilestoneKind] = {
-    "advanced": "approved",
-    "blocked": "denied",
-    "tabled_or_deferred": "tabled",
-    "moratorium": "moratorium",
-}
+#: topic_meeting_lean.outcome → milestone kind (other topics; #1126/#1166 use the same outcome labels as data centers:
+#: approved, denied, tabled_or_deferred, moratorium, discussed_no_action, no_item).
+TOPIC_OUTCOME_KIND: dict[str, MilestoneKind] = dict(DC_OUTCOME_KIND)
 
 
 class TimelineScope(BaseModel):
@@ -191,7 +188,7 @@ def topic_years_sql(slug: str, topic_id: int | None, scope: TimelineScope) -> tu
         )
         return sql, params
     params.append(topic_id)
-    w = ["l.topic_id = $1", *_where(scope, "l.state_code", ("l.city", "l.jurisdiction_name"), params)]
+    w = ["l.topic_id = $1", *_where(scope, "l.state_code", ("l.jurisdiction_name",), params)]
     sql = (
         "SELECT extract(year FROM CASE WHEN l.event_date > current_date THEN NULL ELSE l.event_date END)::int AS y, "
         "count(DISTINCT l.video_id)::int AS meetings, NULL::int AS passages FROM topic_transcript_link l "
@@ -210,7 +207,7 @@ def recorded_years_sql(scope: TimelineScope) -> tuple[str, list[Any]]:
     return sql, params
 
 
-def milestones_sql(slug: str, scope: TimelineScope) -> tuple[str, list[Any]]:
+def milestones_sql(slug: str, scope: TimelineScope, topic_id: int | None = None) -> tuple[str, list[Any]]:
     """Meetings with an approval, denial, tabling or moratorium (an AI reading), newest last."""
     params: list[Any] = []
     if slug == DATA_CENTERS:
@@ -228,16 +225,15 @@ def milestones_sql(slug: str, scope: TimelineScope) -> tuple[str, list[Any]]:
             f"WHERE {' AND '.join(w)} ORDER BY l.meeting_date, l.video_id"
         )
         return sql, params
-    params.append(slug)
+    params.append(topic_id)
     w = [
-        "l.topic_slug = $1",
+        "l.topic_id = $1",
         "l.meeting_date IS NOT NULL",
-        "NOT coalesce(l.excluded_no_item, false)",
-        "l.outcome_group IN ('advanced', 'blocked', 'tabled_or_deferred', 'moratorium')",
+        "l.outcome IN ('approved', 'denied', 'tabled_or_deferred', 'moratorium')",
         *_where(scope, "l.state_code", ("l.jurisdiction_name",), params),
     ]
     sql = (
-        "SELECT l.meeting_date, l.outcome_group AS outcome, l.jurisdiction_name, l.state_code, l.video_id, "
+        "SELECT l.meeting_date, l.outcome, l.jurisdiction_name, l.state_code, l.video_id, "
         "t.event_title AS title, t.video_url FROM topic_meeting_lean l "
         "LEFT JOIN LATERAL (SELECT k.event_title, k.video_url FROM topic_transcript_link k "
         "WHERE k.video_id = l.video_id AND k.topic_id = l.topic_id LIMIT 1) t ON TRUE "
@@ -277,7 +273,10 @@ def period_sql(slug: str, topic_id: int | None, scope: TimelineScope, y0: int, y
         params.append(topic_id)
         tid = len(params)
         tkey = "l.jurisdiction_name" if grain == "place" else "l.state_code"
-        tw = [f"l.topic_id = ${tid}", "extract(year FROM l.event_date)::int IN ($1, $2)", f"{tkey} IS NOT NULL"]
+        tw = [
+            f"l.topic_id = ${tid}", "l.event_date <= current_date",
+            "extract(year FROM l.event_date)::int IN ($1, $2)", f"{tkey} IS NOT NULL",
+        ]
         if scope.state_code:
             params.append(scope.state_code)
             tw.append(f"l.state_code = ${len(params)}")
@@ -456,9 +455,14 @@ async def topic_timeline(
                     recorded = {int(r["y"]): int(r["recorded"]) for r in await conn.fetch(sql, *p)}
                 lean_rel = "data_center_meeting_lean" if slug == DATA_CENTERS else "topic_meeting_lean"
                 ms_rows: list[dict[str, Any]] = []
-                if await _exists(conn, lean_rel):
-                    sql, p = milestones_sql(slug, scope)
-                    ms_rows = [dict(r) for r in await conn.fetch(sql, *p)]
+                if await _exists(conn, lean_rel) and (slug == DATA_CENTERS or topic_id is not None):
+                    sql, p = milestones_sql(slug, scope, topic_id)
+                    try:
+                        ms_rows = [dict(r) for r in await conn.fetch(sql, *p)]
+                    except asyncpg.exceptions.PostgresError as e:
+                        # A serving copy whose lean table has another shape: the line still draws, without milestones.
+                        logger.warning("topic timeline: milestones unavailable for {} ({})", slug, e)
+                        span.set_attribute("milestones.unavailable", True)
                 bills_ok = topic_id is not None and await _exists(conn, "topic_legislation_bill")
                 bill_rows: list[dict[str, Any]] = []
                 # A bill is state-level: a city scope shows its state's bills only when asked at state scope.

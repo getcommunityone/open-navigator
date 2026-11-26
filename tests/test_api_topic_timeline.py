@@ -142,7 +142,7 @@ def test_other_topic_reads_topic_links_and_bills_when_present(monkeypatch) -> No
             "FROM topic_transcript_link l": [{"y": 2025, "meetings": 10, "passages": None}],
             "FROM recorded_meeting_year r": [{"y": 2025, "recorded": 100}],
             "FROM topic_meeting_lean l": [
-                {"meeting_date": date(2025, 5, 1), "outcome": "blocked", "jurisdiction_name": "Calgary", "state_code": "UT",
+                {"meeting_date": date(2025, 5, 1), "outcome": "denied", "jurisdiction_name": "Calgary", "state_code": "UT",
                  "video_id": "f1", "title": "Council", "video_url": None},
             ],
             "FROM topic_legislation_bill b": [
@@ -219,3 +219,27 @@ def test_period_compare_state_scope_groups_by_town(monkeypatch) -> None:
 def test_period_compare_rejects_reversed_years(monkeypatch) -> None:
     conn = _Conn({}, DC_TOPIC, ALL)
     assert _get(monkeypatch, conn, "/api/topics/data-centers/period-compare", {"from": 2026, "to": 2025}).status_code == 422
+
+
+def test_lean_table_of_another_shape_drops_milestones_not_the_line(monkeypatch) -> None:
+    import asyncpg
+
+    class _BadLean(_Conn):
+        async def fetch(self, sql: str, *params: Any):
+            if "FROM topic_meeting_lean l" in sql:
+                self.calls.append((sql, params))
+                raise asyncpg.exceptions.UndefinedColumnError('column l.outcome does not exist')
+            return await super().fetch(sql, *params)
+
+    conn = _BadLean(
+        {"FROM topic_transcript_link l": [{"y": 2025, "meetings": 4, "passages": None}]},
+        {"topic_id": 100002, "name": "Water fluoridation"},
+        {"topic_meeting_lean"},
+    )
+    r = _get(monkeypatch, conn, "/api/topics/water-fluoridation/timeline")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["years"][0]["meetings"] == 4
+    assert body["milestones"] == []
+    lean_sql, lean_params = next((s, p) for s, p in conn.calls if "FROM topic_meeting_lean l" in s)
+    assert "l.topic_id = $1" in lean_sql and lean_params[0] == 100002

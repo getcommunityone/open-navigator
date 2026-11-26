@@ -44,9 +44,11 @@ when a topic count is larger than its denominator (never capped to 100%).
   last year on record. A year with neither topic meetings nor recorded meetings is absent. `passages` is null for topics
   other than data centers (their links are one row per meeting).
 - `milestones: [{date, kind, place, state_code, title, url, video_id, source}]`, oldest first. `kind` is `approved`,
-  `denied`, `tabled`, `moratorium` (from `data_center_meeting_lean.dc_outcome`, or `topic_meeting_lean.outcome_group`
-  `advanced` / `blocked` / `tabled_or_deferred`, with `source: "ai_reading"`), or `bill_enacted` (from
-  `topic_legislation_bill` with `status = 'enacted'`, `source: "record"`). Rows flagged `excluded_no_item` are skipped.
+  `denied`, `tabled`, `moratorium` (from `data_center_meeting_lean.dc_outcome`, or `topic_meeting_lean.outcome`
+  for the topic's `topic_id`, both `approved` / `denied` / `tabled_or_deferred` / `moratorium`, with
+  `source: "ai_reading"`), or `bill_enacted` (from `topic_legislation_bill` with `status = 'enacted'`,
+  `source: "record"`). Data-center rows flagged `excluded_no_item` are skipped; `discussed_no_action` and `no_item` are
+  never milestones. If the lean table's shape doesn't match, the line still draws and the milestones are left out.
 - `undated_meetings`, `total_meetings`, `total_passages`, `coverage_available`, `bills_available`. A missing relation
   (`recorded_meeting_year`, a lean table, `topic_legislation_bill`) is checked with `to_regclass` and skipped, not a 500.
   `topic_legislation_bill` is gold-only today, so `bills_available` is false on the public serving path.

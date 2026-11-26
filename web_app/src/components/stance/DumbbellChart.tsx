@@ -48,11 +48,12 @@ export default function DumbbellChart({ topic, stateCode, scopeLabel, subject, i
   useEffect(() => {
     if (reduced) return setRevealed(true)
     const el = svgRef.current
+    if (!el && q.isLoading) return // wait for the rows, so the reveal plays when they arrive
     if (!el || typeof IntersectionObserver === 'undefined') return setRevealed(true)
     const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setRevealed(true), { threshold: 0.2 })
     io.observe(el)
     return () => io.disconnect()
-  }, [reduced, rows.length])
+  }, [reduced, rows.length, q.isLoading])
 
   if (q.isLoading || q.isError || !q.data) return null
   const d = q.data
