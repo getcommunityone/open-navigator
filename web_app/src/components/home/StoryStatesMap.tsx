@@ -226,7 +226,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               height={s}
               rx={s * 0.12}
               fill={colorOf(b)}
-              opacity={muted ? 0.45 : 1}
+              opacity={muted ? 0.7 : 1}
               stroke={i === hover ? '#1c1917' : undefined}
               strokeWidth={i === hover ? 1.5 : undefined}
               style={{ cursor: b.code ? 'pointer' : 'default' }}
