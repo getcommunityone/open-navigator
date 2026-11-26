@@ -62,3 +62,12 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review
+
+- Story #1062 under epic #1061; follow-up #1070 (owner review screen).
+- Scans: no secrets; no email or hash returned or logged (read person_claims.py logging); email stays redacted in public serving, only its sha256 is served (official addresses are public records anyway); no fabricated data.
+- Correctness: hmac.compare_digest; defensive to_jsonb read of email_sha256; edits pending; title/bio/photo only on verified claims; https-only photo; another user's claim -> 404.
+- Checks: pytest 10 passed (re-run by me), tsc clean, ODCS current, local dbt build passed after merging #1067.
+
+No blocking findings.
