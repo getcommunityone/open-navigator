@@ -5,6 +5,7 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
+import { isTouchOnly } from '../../utils/touchOnly'
 
 /** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
 export interface MapPassage {
@@ -194,7 +195,11 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
       </div>
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the select and the table. */}
       <p className="stance-map-readout">
-        {hover ? readout(hover) : 'Hover a state, or choose one, to see its count. Click a state to tell its story.'}
+        {hover
+          ? readout(hover)
+          : isTouchOnly()
+            ? 'Tap a state, or choose one, to tell its story.'
+            : 'Hover a state, or choose one, to see its count. Click a state to tell its story.'}
       </p>
       {max > 0 && (
         <div className="stance-map-legend" aria-hidden="true">

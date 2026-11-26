@@ -6,6 +6,7 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
 import type { MapPassage } from './StoryDotMap'
+import { isTouchOnly } from '../../utils/touchOnly'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
 export interface PlaceCount {
@@ -186,6 +187,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 fill={colorFor(n)}
                 opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
                 onMouseEnter={() => setHover(d.id)}
+                onClick={() => setHover(d.id)}
               />
             )
           })}
@@ -201,6 +203,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               strokeWidth={grid.step * 0.18}
               opacity={hover && hover !== g.county ? 0.3 : 1}
               onMouseEnter={() => setHover(g.county)}
+              onClick={() => setHover(g.county)}
             >
               <title>{`${g.place.jurisdiction_name ?? g.place.jurisdiction_id}: ${plural(g.place.meetings)}`}</title>
             </circle>
@@ -222,7 +225,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         )}
       </div>
       <p className="stance-map-readout">
-        {hover ? readout(hover) : 'Hover a county to see its count. Rings mark the cities, towns and school districts on record.'}
+        {hover ? readout(hover) : `${isTouchOnly() ? 'Tap' : 'Hover'} a county to see its count. Rings mark the cities, towns and school districts on record.`}
       </p>
       {max > 0 && (
         <div className="stance-map-legend" aria-hidden="true">
