@@ -8,17 +8,17 @@ import pytest
 from scrapers.meetings import doctext
 
 
-def test_select_covers_every_crawl_table_and_mirrors_the_staging_filter() -> None:
+def test_select_covers_every_crawl_table_and_follows_the_staging_view() -> None:
     sql = doctext.build_select_sql(with_jurisdiction=False)
     for table in doctext.SCRAPED_TABLES:
         assert f"FROM {table} s" in sql
     assert sql.count("UNION ALL") == len(doctext.SCRAPED_TABLES) - 1
     assert "school_districts" not in sql  # not published yet (geoid collisions with places)
-    assert "meeting_date_source <> 'manifest_year_only'" in sql
-    assert "suiteonemedia" in sql  # SuiteOne portals are owned by the SuiteOne scraper
+    # #1035: one rule: extract exactly what staging publishes (dates read from link text / file names included),
+    # rather than a copy of its filter that drifts.
+    assert "FROM staging.stg_scraped_meeting_documents g" in sql
+    assert "g.url_sha256 = s.url_sha256" in sql
     assert "t.extraction_method <> 'error'" in sql  # failed downloads are retried
-    assert "NOT LIKE 'suiteone:%%'" in sql  # psycopg2 turns %% into a literal %
-    assert "suiteone_listing" in sql
     assert "%(jurisdiction_id)s" not in sql
     assert "s.jurisdiction_id = %(jurisdiction_id)s" in doctext.build_select_sql(with_jurisdiction=True)
 
