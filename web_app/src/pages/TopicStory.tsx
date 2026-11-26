@@ -3,7 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { companySearchTerm } from '../utils/companySearchTerm'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
-import { fetchTopicMeetings, fetchTopicStates } from '../api/topics'
+import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStates } from '../api/topics'
+import { CAPTION_COPY, captionText, pickCaption } from '../utils/storyCaption'
 import { highlightSnippet } from '../lib/highlight'
 import { STATE_CODES } from '../lib/usStates'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
@@ -12,7 +13,7 @@ import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesM
 /**
  * A topic story (#1013): one curated topic's meetings, told from the transcript record. Everything shown is counted or
  * quoted from `topic_transcript_link` (meetings with a verbatim passage) and the decisions search for the topic. The
- * headline states only those counts; there is no sentiment claim without a positions record.
+ * headline is the caption picker's (#1125, utils/storyCaption): the strongest statement the scope's counts support.
  */
 interface TopicStoryDef {
   slug: string
@@ -90,13 +91,15 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     enabled: Boolean(def),
     staleTime: 5 * 60_000,
   })
-  const scoped = useMemo(() => {
-    const all = national.data
-    if (!all) return null
-    if (!stateCode) return { meetings: all.total_meetings, states: all.states.length }
-    const s = all.states.find((x) => x.state_code === stateCode)
-    return { meetings: s?.meetings ?? 0, states: s ? 1 : 0 }
-  }, [national.data, stateCode])
+
+  // The headline's facts (#1125), keyed on the scope so the label and the numbers move together.
+  const captionQ = useQuery({
+    queryKey: ['caption-facts', def?.slug, stateCode ?? ''],
+    queryFn: () => fetchTopicCaptionFacts(def!.slug, stateCode ?? undefined),
+    enabled: Boolean(def),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
 
   const quotes = useMemo(() => {
     const out = new Map<string, StateQuote[]>()
@@ -161,14 +164,12 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     )
   }
 
-  const headline =
-    scoped == null
-      ? def.title
-      : scoped.meetings === 0
-        ? `No meetings on record about ${def.subject.toLowerCase()} ${stateName ? `in ${stateName}` : 'yet'}.`
-        : stateName
-          ? `${def.subject} came up in ${fmt(scoped.meetings)} ${scoped.meetings === 1 ? 'meeting' : 'meetings'} in ${stateName}.`
-          : `${def.subject} came up in ${fmt(scoped.meetings)} meetings across ${fmt(scoped.states)} states.`
+  const caption = pickCaption(def.slug, captionQ.data, { stateCode: stateCode ?? undefined, stateName, city: null })
+  const headline = captionQ.isPending
+    ? def.title
+    : captionQ.isSuccess && captionQ.data.meetings === 0
+      ? `No meetings on record about ${def.subject.toLowerCase()} ${stateName ? `in ${stateName}` : 'yet'}.`
+      : captionText(caption, CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase())
   const items = meetings.data?.pages.flatMap((p) => p.items) ?? []
   const total = meetings.data?.pages[0]?.total ?? 0
 
@@ -186,9 +187,15 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
           <span aria-hidden="true">×</span>
         </Link>
       </div>
-      <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-stone-900 sm:text-5xl" aria-busy={national.isPending || undefined}>
-        {national.isError ? def.title : headline}
+      <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-stone-900 sm:text-5xl" aria-busy={captionQ.isPending || undefined}>
+        {headline}
       </h1>
+      {caption.basis && (
+        <p className="mt-2 max-w-2xl text-sm text-stone-500">
+          {caption.ai && <span className="font-semibold text-stone-600">AI reading · </span>}
+          {caption.basis}
+        </p>
+      )}
       <p className="mt-3 max-w-2xl text-stone-600">{def.lede}</p>
       <p className="mt-2 text-sm text-stone-500">Counted from local meeting recordings and transcripts that mention the topic.</p>
 
