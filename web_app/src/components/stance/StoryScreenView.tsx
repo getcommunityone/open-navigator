@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
-import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse } from '../../api/dataCenters'
+import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
+import PayrollJobsPanel from './PayrollJobsPanel'
 import PositionsBlock from './PositionsBlock'
 import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
@@ -72,6 +73,8 @@ export default function StoryScreenView(p: Props) {
   // The Overview map (#970) needs the per-state counts; an older API without them keeps the dot chart.
   const mentions = p.data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined
   const byState = mentions?.counts?.by_state
+  const jobsData = p.data['job-claims'] as JobClaimsResponse | null | undefined
+  const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
   return (
     <section
@@ -161,16 +164,22 @@ export default function StoryScreenView(p: Props) {
                 {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}
               </p>
             )
+          ) : screen.chart === 'job-claims' && jobsData && noClaims ? (
+            // No claims on record: the screen shows actual payroll jobs and where jobs are tracked instead (#1019).
+            <PayrollJobsPanel data={jobsData} />
           ) : (
-            <ChartPanel
-              chartKey={String(screen.chart)}
-              round={p.index}
-              enabled
-              stateCode={scope.stateCode}
-              stateName={scope.stateName}
-              city={scope.city}
-              scopeLabel={chartScopeLabel(String(screen.chart), scope)}
-            />
+            <>
+              <ChartPanel
+                chartKey={String(screen.chart)}
+                round={p.index}
+                enabled
+                stateCode={scope.stateCode}
+                stateName={scope.stateName}
+                city={scope.city}
+                scopeLabel={chartScopeLabel(String(screen.chart), scope)}
+              />
+              {screen.chart === 'job-claims' && jobsData && <PayrollJobsPanel data={jobsData} />}
+            </>
           )}
         </div>
       </div>

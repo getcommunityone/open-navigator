@@ -105,10 +105,42 @@ class JobClaimTotals(BaseModel):
     operations: int = 0
 
 
+class PayrollJobs(BaseModel):
+    """BLS QCEW payroll employment for one area and year (#1019): NAICS 518210, private ownership. Counts are
+    employers' payroll filings (annual average). When BLS withheld a figure, ``disclosed`` is false and the figures
+    are null, never 0."""
+
+    area_level: str
+    area_name: str
+    # Bare year as a string on the wire (CLAUDE.md, calendar years).
+    year: str
+    employment: int | None = None
+    establishments: int | None = None
+    avg_annual_pay: int | None = None
+    employment_change_pct: float | None = None
+    disclosed: bool
+    source_url: str
+
+
+class JobSource(BaseModel):
+    """A place data center jobs are tracked (#1019); job boards are cited, not scraped."""
+
+    name: str
+    url: str
+    kind: str
+    description: str | None = None
+    description_source_url: str | None = None
+    automated_access: str
+
+
 class JobClaimsResponse(BaseModel):
     scope: JobClaimScope
     totals: JobClaimTotals = Field(default_factory=JobClaimTotals)
     items: list[JobClaim]
+    # Actual payroll jobs for the scope's state (when scoped) and the nation, newest year (#1019).
+    employment: list[PayrollJobs] = Field(default_factory=list)
+    # Where data center jobs are tracked, for the screen's citations (#1019).
+    sources: list[JobSource] = Field(default_factory=list)
 
 
 _SELECT_SQL = """
@@ -211,6 +243,54 @@ def build_job_claims_query(scope: JobClaimScope, limit: int) -> tuple[str, list[
     return sql, params
 
 
+_PAYROLL_SQL = """
+    SELECT area_level, coalesce(state, 'United States') AS area_name, year, employment, establishments,
+           avg_annual_pay, employment_change_pct, disclosed, source_url
+    FROM data_center_employment
+    WHERE year = (SELECT max(year) FROM data_center_employment)
+      AND (area_level = 'national' OR (area_level = 'state' AND state_code = $1::text))
+    ORDER BY CASE area_level WHEN 'state' THEN 0 ELSE 1 END
+"""
+
+_JOB_SOURCES_SQL = """
+    SELECT name, url, kind, description, description_source_url, automated_access
+    FROM data_center_job_source
+    ORDER BY CASE kind WHEN 'official_statistics' THEN 0 WHEN 'job_board' THEN 1 ELSE 2 END, name
+"""
+
+
+async def _payroll_and_sources(scope: JobClaimScope) -> tuple[list[PayrollJobs], list[JobSource]]:
+    """The BLS payroll figures for the scope's state and the nation, and the cited job sites (#1019). A city scope
+    shows its state: QCEW has counties, but cities are not linked to their county here. Missing tables (a database
+    without the load) give empty lists, not an error."""
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            pay = await conn.fetch(_PAYROLL_SQL, scope.state_code)
+            src = await conn.fetch(_JOB_SOURCES_SQL)
+    except asyncpg.exceptions.UndefinedTableError:
+        return [], []
+    except Exception as e:  # noqa: BLE001 - the claims still answer without these
+        logger.warning("data-centers payroll/sources unavailable: {}", e)
+        return [], []
+    employment = [
+        PayrollJobs(
+            area_level=r["area_level"],
+            area_name=r["area_name"],
+            year=str(r["year"]),
+            employment=r["employment"],
+            establishments=r["establishments"],
+            avg_annual_pay=r["avg_annual_pay"],
+            employment_change_pct=float(r["employment_change_pct"]) if r["employment_change_pct"] is not None else None,
+            disclosed=bool(r["disclosed"]),
+            source_url=r["source_url"],
+        )
+        for r in pay
+    ]
+    sources = [JobSource(**dict(r)) for r in src]
+    return employment, sources
+
+
 @router.get("/job-claims", response_model=JobClaimsResponse)
 async def list_job_claims(
     state: str | None = Query(
@@ -255,7 +335,8 @@ async def list_job_claims(
                 "returning an empty list",
                 e,
             )
-            return JobClaimsResponse(scope=scope, items=[])
+            employment, sources = await _payroll_and_sources(scope)
+            return JobClaimsResponse(scope=scope, items=[], employment=employment, sources=sources)
         except Exception as e:  # noqa: BLE001 - any other DB failure is a 500
             span.record_exception(e)
             logger.error(
@@ -263,6 +344,7 @@ async def list_job_claims(
             )
             raise HTTPException(status_code=500, detail="Failed to load job claims")
 
+        employment, sources = await _payroll_and_sources(scope)
         items = [JobClaim(**dict(row)) for row in rows]
         totals = JobClaimTotals(
             **{
@@ -275,7 +357,7 @@ async def list_job_claims(
         logger.info(
             "🏗️ Data-center job claims -> {} rows (scope={})", len(items), scope.level
         )
-        return JobClaimsResponse(scope=scope, totals=totals, items=items)
+        return JobClaimsResponse(scope=scope, totals=totals, items=items, employment=employment, sources=sources)
 
 
 # --- Data center sites (DC-4.1, #249) -----------------------------------------

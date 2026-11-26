@@ -248,6 +248,9 @@ CIVIC_SERVING = frozenset(
         # data center companies (MDM satellite) and projects with their companies,
         # governments, figures and matched decisions / passages (#531)
         "mdm_organization_data_center",
+        # data center payroll jobs (BLS QCEW 518210) and the job sites cited with them (#1019); small
+        "data_center_employment",
+        "data_center_job_source",
         # short-term rental platform companies (MDM satellite) and where they are named (#1015); small
         "mdm_organization_short_term_rental",
         "short_term_rental_company_mention",

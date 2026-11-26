@@ -420,3 +420,13 @@ outputPorts:
   contractId: open-navigator-public-short_term_rental_company_mention
   type: table
   description: Where a short-term rental platform is named (#1015).
+- name: data_center_employment
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_employment
+  type: table
+  description: Data center payroll employment from the BLS Quarterly Census of Employment and Wages (#1019).
+- name: data_center_job_source
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_job_source
+  type: table
+  description: 'Where data center jobs are tracked (#1019), cited on the jobs screen: official statistics, job boards and associations, with each site''s own description (verbatim) and what its terms allow.'
