@@ -48,7 +48,28 @@ def test_retry_after_seconds_and_backoff(monkeypatch):
     assert sh.retry_after_seconds(_resp(429, {"Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT"}), 0) == 0  # in the past
 
 
+def test_429_moves_on_by_default_without_going_direct(monkeypatch, _env):
+    async def fake_direct(client, url, kwargs):
+        raise AssertionError("must not retry from another address")
+
+    monkeypatch.setattr(sh, "_direct_get", fake_direct)
+    monkeypatch.delenv("SCRAPE_429_MAX_RETRIES", raising=False)
+    gets = []
+
+    def handler(request):
+        gets.append(str(request.url))
+        return _resp(429)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await sh.async_get_with_vpn_bypass(client, URL)
+
+    assert asyncio.run(go()).status_code == 429
+    assert gets == [URL] and _env == []
+
+
 def test_429_backs_off_then_succeeds_without_going_direct(monkeypatch, _env):
+    monkeypatch.setenv("SCRAPE_429_MAX_RETRIES", "2")
     calls = {"normal": 0, "direct": 0}
 
     async def fake_direct(client, url, kwargs):

@@ -68,11 +68,13 @@ VPN as before.
 
 A 429 ("too many requests") is never retried from another address. That would ignore what the site asked
 ([#1081](https://github.com/getcommunityone/open-navigator/issues/1081),
-[Privacy and data ethics](./privacy-and-data-ethics.md)). The scraper waits instead, then retries on the same route:
+[Privacy and data ethics](./privacy-and-data-ethics.md)). By default the scraper gives the 429 back and moves on:
+discovery skips that site for now and logs `scrape_rate_limited_gave_up`. Setting `SCRAPE_429_MAX_RETRIES` above 0 makes
+it wait and retry on the same route instead:
 
 - it waits as long as the site's `Retry-After` header says (seconds or a date), or else an exponential back-off of
   `SCRAPE_429_BASE_SECONDS` × 2^attempt (default 5 s);
 - every wait is capped at `SCRAPE_429_MAX_WAIT_SECONDS` (default 120 s);
-- after `SCRAPE_429_MAX_RETRIES` tries (default 2) it gives up, returns the 429 and logs `scrape_rate_limited_gave_up`.
+- after `SCRAPE_429_MAX_RETRIES` tries (default 0) it gives up.
 
 A host normally reached outside the VPN is backed off on that route too; it never falls through to the VPN.

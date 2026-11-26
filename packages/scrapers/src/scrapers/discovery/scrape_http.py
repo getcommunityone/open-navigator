@@ -448,11 +448,11 @@ def retry_after_seconds(response: httpx.Response, attempt: int) -> float:
 
 
 async def _respect_429(response: httpx.Response, again, url: str) -> httpx.Response:
-    """On 429, wait as the site asks and retry the same way (same route), at most ``SCRAPE_429_MAX_RETRIES`` times.
-    Gives back the last response (still 429 if the site keeps refusing). Never switches route (#1081)."""
+    """On 429, give the 429 back and move on (default), or, when ``SCRAPE_429_MAX_RETRIES`` > 0, wait as the site asks
+    and retry the same way (same route) up to that many times. Never switches route (#1081)."""
     import asyncio
 
-    retries = int(_env_float("SCRAPE_429_MAX_RETRIES", 2))
+    retries = int(_env_float("SCRAPE_429_MAX_RETRIES", 0))  # default: move on, never hammer (#1081)
     attempt = 0
     while response.status_code == 429 and attempt < retries:
         wait = retry_after_seconds(response, attempt)
