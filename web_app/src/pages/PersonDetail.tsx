@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import api from '../lib/api'
+import ClaimProfile from '../components/ClaimProfile'
+import { isOfficialId } from '../api/personClaims'
 import { formatCityState, titleCaseCity } from '../utils/formatters'
 import {
   ArrowLeftIcon,
@@ -332,6 +334,9 @@ export default function PersonDetail() {
             </div>
           </div>
         )}
+
+        {/* "Is this you?" — officials can claim their profile (#1062). */}
+        {id && isOfficialId(id) && <ClaimProfile personId={id} />}
       </div>
     </div>
   )
