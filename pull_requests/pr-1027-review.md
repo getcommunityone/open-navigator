@@ -51,3 +51,9 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- Scalar city subquery now orders by exact name then most meetings, LIMIT 1. Verified 200 for AL/Tuscaloosa (was 503), other scopes unchanged; 14 topics tests pass. Scans clean.
+
+Verdict stands: approve.
