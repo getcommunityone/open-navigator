@@ -5,7 +5,6 @@ import { PAUSE_NOTE, storyScopeLabel, type ScreenText, type StoryScope, type Sto
 import { answerChange, optionLabel, optionTone, questionText } from '../../utils/storyQuestion'
 import ChoiceBars from './ChoiceBars'
 import KineticText from './KineticText'
-import ScreenNav from './ScreenNav'
 
 /** What the three vote screens share: the question, the reader's answers and how an answer is stored. */
 export interface VoteState {
@@ -178,41 +177,6 @@ export function QuestionScreen(p: ScreenProps) {
             </button>
           )}
         </div>
-      </div>
-    </Frame>
-  )
-}
-
-/** The second screen: where. The place picker sits in the sentence, and the question is worded for the place it shows. */
-export function ScopeScreen(p: ScreenProps & { place: ReactNode }) {
-  const { vote } = p
-  const [leftRef] = useOwnScroll()
-  const said = optionLabel(vote.question, vote.before)
-  return (
-    <Frame screen={p.screen} index={p.index} active={p.active} single className="stance-vote-scope">
-      <div className="stance-left" ref={leftRef}>
-        <div className="stance-head">
-          <h2 className="stance-headline stance-bigq" id={`story-h-${p.screen.id}`}>
-            <KineticText text={p.text.headline} />
-          </h2>
-          <p className="stance-lede">{p.text.context}</p>
-        </div>
-        <div className="stance-qblock">
-          <div className="stance-where">
-            <span>Show me</span> {p.place}
-          </div>
-          {vote.question && (
-            <p className="stance-statement" data-testid="scope-question">
-              {questionText(vote.question, p.scope)}
-            </p>
-          )}
-          {said && (
-            <p className="stance-yours">
-              You said <b>{said}</b>.
-            </p>
-          )}
-        </div>
-        <ScreenNav nextLabel={p.nextLabel} onNext={p.onNext} onPrev={p.onPrev} />
       </div>
     </Frame>
   )

@@ -2135,6 +2135,8 @@ export interface components {
             lean_totals?: components["schemas"]["LeanTotals"] | null;
             quotes?: components["schemas"]["PositionQuotes"];
             scope: components["schemas"]["JobClaimScope"];
+            /** @description The same totals narrowed to the scope (#1134): the state, or the city as a case-insensitive substring of the meeting's jurisdiction name, like the speaker totals. Equal to lean_totals nationally; null when data_center_meeting_lean (or a column) isn't in this database. */
+            scope_lean_totals?: components["schemas"]["LeanTotals"] | null;
             totals?: components["schemas"]["PositionTotals"];
         };
         /** DataCenterProject */
@@ -3142,6 +3144,24 @@ export interface components {
              * @default 0
              */
             public_against_states: number;
+            /**
+             * Public For Meetings
+             * @description Meetings where Jev read the public as mostly supportive (P >= 0.7) (#1134). Kept for audit: hand checks found 'supported' unreliable (development/data-center-meeting-lean.md), so the hero never uses it in a claim.
+             * @default 0
+             */
+            public_for_meetings: number;
+            /**
+             * Public Mixed Meetings
+             * @description Meetings where Jev read the public as mixed (P >= 0.7) (#1134). Kept for audit, like public_for.
+             * @default 0
+             */
+            public_mixed_meetings: number;
+            /**
+             * Public Spoke Meetings
+             * @description Meetings where Jev read the public as speaking on a data center at all (any lean but no_public_comment_on_data_center, P >= 0.7) (#1134).
+             * @default 0
+             */
+            public_spoke_meetings: number;
             /**
              * Stopped Meetings
              * @description Meetings whose data center outcome Jev read as tabled/deferred, denied or a moratorium.

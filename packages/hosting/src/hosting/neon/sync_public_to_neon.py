@@ -268,6 +268,9 @@ CIVIC_SERVING = frozenset(
         "person_government_term",
         # Jev's reading of each data center meeting: public lean, official lean, the two map flags (#1117); small
         "data_center_meeting_lean",
+        # Jev's reading of each topic meeting: public / official lean and the map flags (#1126); small, one row per
+        # meeting and topic
+        "topic_meeting_lean",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

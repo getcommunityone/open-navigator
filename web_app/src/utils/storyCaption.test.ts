@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TopicCaptionFacts } from '../api/topics'
 import type { StoryScope } from './dataStory'
-import { CAPTION_COPY, DISAGREEMENT_MIN_MEETINGS, HATES_MIN_MEETINGS, captionText, pickCaption } from './storyCaption'
+import { CAPTION_COPY, DISAGREEMENT_MIN_MEETINGS, HATES_MIN_MEETINGS, captionSubhead, captionText, pickCaption, type Caption } from './storyCaption'
 
 // Test stand-ins: shapes of the caption-facts response, not warehouse figures.
 const nat: StoryScope = { stateName: null, city: null }
@@ -52,14 +52,14 @@ describe('pickCaption (a) hates', () => {
   it('nationally: confident public-against meetings at volume, plus the counted speakers', () => {
     const c = pickCaption(
       'data-centers',
-      facts({ lean_meetings: 1828, public_against_meetings: 283, disagreement_meetings: 23, disagreement_states: 10, speakers: { for: 3, against: 18, question: 1, neutral: 7 } }),
+      facts({ lean_meetings: 1828, public_against_meetings: 283, public_against_states: 32, disagreement_meetings: 23, disagreement_states: 10, speakers: { for: 3, against: 18, question: 1, neutral: 7, states: 4 } }),
       nat,
     )
     expect(c.kind).toBe('sentiment')
     expect(captionText(c, 'data centers')).toBe('America hates data centers.')
     expect(c.ai).toBe(true)
     expect(c.basis).toBe(
-      'In 283 meetings nationwide, Jev (an AI classifier) read the public as mostly against data centers (AI reading). Of 29 speakers on record at local meetings nationwide, 18 spoke against, 3 spoke for, 1 asked a question and 7 took no side.',
+      'In 283 meetings across 32 states, Jev (an AI classifier) read the public as mostly against data centers (AI reading). 29 speakers counted by hand in 4 states: 18 against and 3 for.',
     )
   })
 
@@ -78,7 +78,7 @@ describe('pickCaption (a) hates', () => {
     const c = pickCaption('data-centers', facts({ speakers: { for: 0, against: 11, question: 1, neutral: 0 } }, az), az)
     expect(captionText(c, 'data centers')).toBe('Arizona hates data centers.')
     expect(c.ai).toBe(false)
-    expect(c.basis).toBe('Of 12 speakers on record at local meetings in Arizona, 11 spoke against and 1 asked a question.')
+    expect(c.basis).toBe('12 speakers counted by hand in Arizona: 11 against.')
     expect(c.basis).not.toMatch(ZERO)
   })
 
@@ -107,7 +107,7 @@ describe('pickCaption (b) divided', () => {
   it('or counted speakers split with both sides substantial', () => {
     const c = pickCaption('data-centers', facts({ speakers: { for: 14, against: 12, question: 0, neutral: 2 } }), nat)
     expect(captionText(c, 'data centers')).toBe('America is divided on data centers.')
-    expect(c.basis).toBe('Of 28 speakers on record at local meetings nationwide, 12 spoke against, 14 spoke for and 2 took no side.')
+    expect(c.basis).toBe('28 speakers counted by hand: 14 for and 12 against.')
   })
 
   it('falls through below the minimum', () => {
@@ -213,5 +213,23 @@ describe('pickCaption (d) volume and (e) question', () => {
       expect(captionText(c, 'x')).not.toMatch(ZERO)
       expect(c.basis ?? '').not.toMatch(ZERO)
     }
+  })
+})
+
+// #1134: the line under the caption speaks only for the caption's scope.
+describe('captionSubhead', () => {
+  const al = { stateCode: 'AL', stateName: 'Alabama', city: null }
+  const tus = { stateCode: 'AL', stateName: 'Alabama', city: 'Tuscaloosa' }
+  const cap = (kind: Caption['kind']): Caption => ({ kind, template: [], place: 'x', basis: null, ai: false })
+  it("uses the story's national subhead only for the national sentiment", () => {
+    expect(captionSubhead(cap('sentiment'), 'data-centers', { stateName: null, city: null })).toMatch(/^Public comments don't always match/)
+    expect(captionSubhead(cap('sentiment'), 'data-centers', al)).toBe('At local meetings in Alabama, the public has mostly spoken against data centers.')
+  })
+  it('names the place for every other kind, and nothing for the question', () => {
+    expect(captionSubhead(cap('volume'), 'data-centers', tus)).toBe('Where data centers came up at local meetings in Tuscaloosa, Alabama, in the words said there.')
+    expect(captionSubhead(cap('disagreement'), 'data-centers', al)).toBe(
+      "At local meetings in Alabama, the public and officials don't always land on the same side of data centers.",
+    )
+    expect(captionSubhead(cap('question'), 'data-centers', al)).toBeNull()
   })
 })

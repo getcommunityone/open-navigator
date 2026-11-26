@@ -30,6 +30,10 @@ interface Props {
   onRetry: () => void
   /** The statement this screen asks (#981): Agree / Disagree / Not sure, then where the reader sits. */
   stance?: ScreenStatement
+  /** Overview only (#1134): the story's question worded for the place, and the reader's answer before reading, which the
+   * retired Where screen used to show. */
+  question?: string | null
+  said?: string | null
 }
 
 /** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
@@ -109,6 +113,20 @@ export default function StoryScreenView(p: Props) {
               {text.context}
             </p>
           </div>
+          {(p.question || p.said) && (
+            <div className="stance-qblock">
+              {p.question && (
+                <p className="stance-statement" data-testid="scope-question">
+                  {p.question}
+                </p>
+              )}
+              {p.said && (
+                <p className="stance-yours">
+                  You said <b>{p.said}</b>.
+                </p>
+              )}
+            </div>
+          )}
           {(text.empty || text.failed) && broaden}
           {/* Asked only when the screen has a record to react to: no statement under "No data available". */}
           {p.stance && !text.empty && !text.failed && (

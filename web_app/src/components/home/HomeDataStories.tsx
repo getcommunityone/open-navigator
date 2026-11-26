@@ -5,12 +5,12 @@ import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../
 import { STORIES, scopeQuery, storyScopeLabel } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { fetchTopicCaptionFacts } from '../../api/topics'
-import { CAPTION_COPY, captionText, pickCaption } from '../../utils/storyCaption'
+import { CAPTION_COPY, captionSubhead, captionText, pickCaption } from '../../utils/storyCaption'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard from './HomeTopicStoryCard'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
-import { heroPoints } from '../../utils/heroPoints'
+import { storyHeroPoints } from '../../utils/heroPoints'
 import { HERO_POINT_GLYPHS } from './heroPointGlyphs'
 import { nextStoryLink } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
@@ -34,8 +34,8 @@ function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) 
 
 /**
  * Home `#data-stories`, the top of the home page (#975, #985, #989, #995):
- * - the story's title from the caption picker (#1125), the same template the story header uses, for the page's scope,
- *   with its basis line and Start;
+ * - the story's title from the caption picker (#1125), the same one the story header and Overview use, for the page's
+ *   scope, with its scoped subhead (#1134), basis line, numbered points and Start;
  * - a US map of small boxes in each state's shape (#1087), split by the real counts of speakers for, against, asking a
  *   question or taking no side where any are on record, each state linking to its story, and a card quoting one of the
  *   state's real passages, verbatim, with where and when it was said;
@@ -55,6 +55,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   })
   const pending = dcFacts.isPending
   const dcCaption = pickCaption('data-centers', dcFacts.data, scope)
+  const dcSubhead = captionSubhead(dcCaption, 'data-centers', scope)
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
@@ -127,10 +128,22 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     }
     return out
   }, [national.data, speakers.data, stateCode, scope.city])
-  // The three numbered points (#1122): national figures from the record, a point without data left out.
+  // The place's own positions (scope_lean_totals, totals) for the points (#1134).
+  const scopedPositions = useQuery({
+    queryKey: ['home', 'hero', 'positions', stateCode, scope.city],
+    queryFn: () => fetchDataCenterPositions({ state: stateCode, city: scope.city ?? undefined, limit: 1 }),
+    enabled: Boolean(stateCode),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  // The three numbered points (#1122): the place's own figures where it has them, else national ones marked "Nationally:".
   const points = useMemo(
-    () => (speakers.data?.available ? heroPoints(speakers.data.lean_totals, speakers.data.totals) : []),
-    [speakers.data],
+    // Held until the place's own figures settle, so a state scope never flashes "Nationally:" points first (#1134).
+    () =>
+      stateCode && scopedPositions.isPending
+        ? []
+        : storyHeroPoints(speakers.data, stateCode ? scopedPositions.data : null, stateCode ? label : null),
+    [speakers.data, scopedPositions.data, scopedPositions.isPending, stateCode, label],
   )
   const nextDc = nextStoryLink('data-centers', q, topicStories.live)
 
@@ -147,15 +160,15 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
             <h1 id="home-story-dc" className="font-display home-story-headline" aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
               {dcCaption.kind === 'question' ? STORY.question : captionText(dcCaption, CAPTION_COPY['data-centers']!.topic)}
             </h1>
-            {/* The subhead speaks for the country, so it shows only with the national "hates" title. */}
-            {dcCaption.kind === 'sentiment' && !stateCode && STORY.conclusion && <p className="home-story-subhead">{STORY.conclusion.subhead}</p>}
+            {/* The subhead speaks only for the caption's scope (#1134): never a national claim on a place's page. */}
+            {!pending && dcSubhead && <p className="home-story-subhead">{dcSubhead}</p>}
             {dcCaption.basis && (
               <p className="home-story-basis">
                 {dcCaption.basis}
               </p>
             )}
             {points.length > 0 && (
-              <ol className="home-story-points" aria-label="What the record shows, nationally">
+              <ol className="home-story-points" aria-label={stateCode ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
                 {points.map((p) => {
                   const Icon = HERO_POINT_GLYPHS[p.icon]
                   return (

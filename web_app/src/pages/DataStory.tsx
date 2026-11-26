@@ -13,7 +13,7 @@ import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
 import { NextStoryCard, StoryBottomBar, StoryDots, StoryTopBar } from '../components/stance/StoryProgress'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
-import { QuestionScreen, ScopeScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
+import { QuestionScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
 import { actsMode, useActs, type Hold } from '../components/stance/useActs'
 import { useRecentWrites } from '../components/stance/useRecentWrites'
 import { useScreenKeys } from '../components/stance/useScreenKeys'
@@ -32,14 +32,17 @@ import {
   type StoryScope,
   STORIES,
 } from '../utils/dataStory'
+import { fetchDataCenterPositions, type DataCenterPositionsResponse } from '../api/dataCenters'
+import { storyHeroPoints } from '../utils/heroPoints'
 import { fetchTopicCaptionFacts } from '../api/topics'
-import { pickCaption } from '../utils/storyCaption'
+import { captionSubhead, captionText, pickCaption } from '../utils/storyCaption'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { nextStoryLink } from '../utils/storyNav'
+import { optionLabel, questionText } from '../utils/storyQuestion'
 import { useTopicStories } from '../hooks/useTopicStories'
 
 // The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
@@ -89,12 +92,28 @@ export default function DataStory() {
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
+  // National AI-reading totals for the header's points (#1134); shares its cache with the home hero's conclusion query.
+  const nationalPositionsQ = useQuery({
+    queryKey: ['story-conclusion', 'positions', 'national'],
+    queryFn: () => fetchDataCenterPositions({}),
+    enabled: Boolean(story?.conclusion),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
   const packQ = useQuery({ queryKey: ['stance', 'pack', packId], queryFn: () => fetchStancePack(packId), enabled: Boolean(story), retry: 1 })
   const question = packQ.data?.question ?? null
   // A screen with nothing on record for the place is left out of the story once its data has loaded (#1002): no step,
-  // no pip, not reached by Next. Only chart screens drop (Overview, Where and the question screens stay); a screen still
+  // no pip, not reached by Next. Only chart screens drop (Overview and the question screens stay); a screen still
   // loading stays until known.
-  const allTexts = useMemo(() => allScreens.map((s) => screenText(s, data, status, scope, question)), [allScreens, data, status, scope, question])
+  // The Overview states the page's caption when it is a conclusion (#1134), the same one as the title and the home hero.
+  const overviewCaption = useMemo(() => {
+    const c = pickCaption(storyId, captionQ.data, scope)
+    return { kind: c.kind, text: captionText(c, story?.topic ?? storyId) }
+  }, [storyId, captionQ.data, scope, story])
+  const allTexts = useMemo(
+    () => allScreens.map((s) => screenText(s, data, status, scope, question, overviewCaption)),
+    [allScreens, data, status, scope, question, overviewCaption],
+  )
   const keep = allScreens.map((s, i) => s.kind !== 'chart' || !allTexts[i]!.empty)
   const keepKey = keep.join()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,10 +171,9 @@ export default function DataStory() {
   const [active, setActive] = useState(0)
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
   const [placeOpen, setPlaceOpen] = useState(false)
-  const [whereOpen, setWhereOpen] = useState(false)
   // The next-story card in view (#1102): the dots and the floating bar step aside so they don't sit over it or the footer.
   const [atEnd, setAtEnd] = useState(false)
-  const dialogOpen = placeOpen || whereOpen
+  const dialogOpen = placeOpen
   // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
   useIdleNudge({
     rootRef,
@@ -432,9 +450,13 @@ export default function DataStory() {
   }
 
   const label = storyScopeLabel(scope)
-  // #993 / #1125: the title is the strongest statement the place's record supports (utils/storyCaption: disagreement,
-  // sentiment, state differences, volume, then the question), from the caption facts for exactly this scope.
+  // #993 / #1125: the title is the strongest statement the place's record supports (utils/storyCaption), from the caption
+  // facts for exactly this scope; the home hero and the Overview state the same one. #1134: with its scoped subhead and
+  // numbered points (the place's own figures where it has them, else national ones marked "Nationally:").
   const title = pickCaption(storyId, captionQ.data, scope)
+  const subhead = captionSubhead(title, storyId, scope)
+  const scopedPositions = data.positions as DataCenterPositionsResponse | null | undefined
+  const points = storyHeroPoints(scope.stateName ? nationalPositionsQ.data : scopedPositions, scope.stateName ? scopedPositions : null, scope.stateName ? label : null)
   const links = {
     dataCenters: `/data-centers${scopeQuery(scope)}`,
     decisions: `/browse-topics${scopeQuery(scope)}`,
@@ -504,10 +526,19 @@ export default function DataStory() {
               },
             ]}
           />
-          {title.basis && (
-            <p className="stance-title-basis">
-              {title.basis}
-            </p>
+          {subhead && <p className="stance-title-subhead">{subhead}</p>}
+          {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+          {points.length > 0 && (
+            <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
+              {points.map((pt) => (
+                <li key={pt.icon}>
+                  <span className="stance-title-point-n">{pt.n}</span>
+                  <span>
+                    <strong>{pt.title}</strong> {pt.line}
+                  </span>
+                </li>
+              ))}
+            </ol>
           )}
           </>
         }
@@ -548,7 +579,6 @@ export default function DataStory() {
               onNext: () => goTo(i + 1),
             }
             if (s.kind === 'question') return <QuestionScreen key={s.id} {...common} vote={vote} />
-            if (s.kind === 'scope') return <ScopeScreen key={s.id} {...common} vote={vote} place={placeBlank(whereOpen, setWhereOpen)} />
             if (s.kind === 'verdict') {
               return (
                 <VerdictScreen
@@ -571,6 +601,8 @@ export default function DataStory() {
                 onBroaden={applyPlace}
                 onRetry={() => s.chart && refetch(s.chart)}
                 stance={statements.get(s.id)}
+                question={s.kind === 'overview' && question ? questionText(question, scope) : null}
+                said={s.kind === 'overview' ? optionLabel(question, before) : null}
               />
             )
           })}
