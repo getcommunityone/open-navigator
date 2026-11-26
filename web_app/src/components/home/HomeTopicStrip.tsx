@@ -1,28 +1,28 @@
 import { Link } from 'react-router-dom'
-import { Briefcase, Building2, ChevronRight, Droplet, Landmark, Megaphone, type LucideIcon } from 'lucide-react'
+import { Bike, Camera, ChevronRight, House, ScanLine, type LucideIcon } from 'lucide-react'
 
 interface Topic {
-  /** The story screen it opens. */
-  screen: string
+  key: string
   title: string
   blurb: string
   Icon: LucideIcon
   tint: string
   ink: string
+  /** The story it opens; absent while the story is coming soon. */
+  to?: string
 }
 
-// The story's own screens, as topics to browse (#995). Words only: every count lives on the screen it links to.
+// Browse topics (#1013): the other data stories, in the owner's order. Only stories that exist link; the rest say
+// "Coming soon" and are not links. Words only: every count lives in the story it opens.
 const TOPICS: Topic[] = [
-  { screen: 'voices', title: 'Public opposition', blurb: 'Who spoke for and against, in their own words.', Icon: Megaphone, tint: '#dcfce7', ink: '#15803d' },
-  { screen: 'projects', title: 'Data center projects', blurb: 'Proposed projects and where they stand.', Icon: Building2, tint: '#dbeafe', ink: '#1d4ed8' },
-  { screen: 'decisions', title: 'Local government responses', blurb: 'What councils and boards decided.', Icon: Landmark, tint: '#ede9fe', ink: '#6d28d9' },
-  { screen: 'concerns', title: 'Environment and resources', blurb: 'Water, power and land, as residents raised them.', Icon: Droplet, tint: '#ffedd5', ink: '#c2410c' },
-  { screen: 'jobs', title: 'Jobs and promises', blurb: 'The jobs claimed in meetings, construction and operations.', Icon: Briefcase, tint: '#ccfbf1', ink: '#0f766e' },
+  { key: 'str', title: 'Short-term rentals', blurb: 'Airbnb, VRBO and vacation rentals, in the words said at meetings.', Icon: House, tint: '#dcfce7', ink: '#15803d', to: '/stories/short-term-rentals' },
+  { key: 'flock', title: 'Flock', blurb: 'Flock Safety cameras and the contracts behind them.', Icon: Camera, tint: '#dbeafe', ink: '#1d4ed8' },
+  { key: 'lpr', title: 'License plate readers', blurb: 'Automated plate readers: who uses them and for what.', Icon: ScanLine, tint: '#ede9fe', ink: '#6d28d9' },
+  { key: 'bike', title: 'Bike lanes', blurb: 'Bike lanes and paths, as councils weigh them.', Icon: Bike, tint: '#ffedd5', ink: '#c2410c' },
 ]
 
-/** "Browse topics" under the home story (#995): each card opens that screen of the Data Center Story for the page's place. */
+/** "Browse topics" under the home story: each live card opens its story for the page's place (scope carried). */
 export default function HomeTopicStrip({ query }: { query: string }) {
-  const sep = query ? '&' : '?'
   return (
     <nav aria-labelledby="home-topics-h" className="home-topics">
       <div className="home-topics-head">
@@ -34,22 +34,39 @@ export default function HomeTopicStrip({ query }: { query: string }) {
         </Link>
       </div>
       <ul className="home-topics-list">
-        {TOPICS.map(({ screen, title, blurb, Icon, tint, ink }) => (
-          <li key={screen}>
-            <Link to={`/stories/data-centers${query}${sep}screen=${screen}`} className="home-topic">
-              <span className="home-topic-icon" style={{ background: tint, color: ink }} aria-hidden="true">
+        {TOPICS.map(({ key, title, blurb, Icon, tint, ink, to }) => {
+          const body = (
+            <>
+              <span className="home-topic-icon" style={{ background: tint, color: ink, opacity: to ? 1 : 0.55 }} aria-hidden="true">
                 <Icon size={26} strokeWidth={1.8} />
               </span>
               <span className="home-topic-text">
                 <span className="home-topic-title">{title}</span>
                 <span className="home-topic-blurb">{blurb}</span>
-                <span className="home-topic-go">
-                  Explore topic <span aria-hidden="true">→</span>
-                </span>
+                {to ? (
+                  <span className="home-topic-go">
+                    Explore topic <span aria-hidden="true">→</span>
+                  </span>
+                ) : (
+                  <span className="home-topic-soon">Coming soon</span>
+                )}
               </span>
-            </Link>
-          </li>
-        ))}
+            </>
+          )
+          return (
+            <li key={key}>
+              {to ? (
+                <Link to={`${to}${query}`} className="home-topic">
+                  {body}
+                </Link>
+              ) : (
+                <div className="home-topic is-soon" aria-disabled="true">
+                  {body}
+                </div>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </nav>
   )

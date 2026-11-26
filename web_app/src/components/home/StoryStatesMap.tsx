@@ -37,6 +37,8 @@ interface Props {
   highlight?: string | null
   /** Where a pin goes: the story for that state. */
   href: (stateCode: string) => string
+  /** What came up, for the captions ("a data center", "short-term rentals"); the data center story by default (#1013). */
+  subject?: string
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -56,7 +58,7 @@ function fmtDate(iso: string | null): string | null {
  * shows that state's newest meeting passage, verbatim, with the place, date and meeting; the page's (or top) state's card
  * shows at rest. A state with no meetings has no pin and a state with no passage no card: nothing is drawn from a guess.
  */
-export default function StoryStatesMap({ byState, quotes, highlight, href }: Props) {
+export default function StoryStatesMap({ byState, quotes, highlight, href, subject = 'a data center' }: Props) {
   const [hover, setHover] = useState<string | null>(null)
   const { data: topo, isError } = useQuery({
     queryKey: ['us-atlas-states-albers'],
@@ -94,7 +96,7 @@ export default function StoryStatesMap({ byState, quotes, highlight, href }: Pro
 
   return (
     <div style={{ position: 'relative' }} onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="group" aria-label="States where a data center came up in local meetings">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="group" aria-label={`States where ${subject} came up in local meetings`}>
         <g aria-hidden="true">
           {shapes.map((s) => (
             <path key={s.fips} d={s.d} fill={s.code === highlight ? '#ccfbf1' : '#f5f5f4'} stroke="#d6d3d1" strokeWidth={0.8} />
@@ -106,7 +108,7 @@ export default function StoryStatesMap({ byState, quotes, highlight, href }: Pro
             <Link
               key={m.fips}
               to={href(m.code!)}
-              aria-label={`${m.name}: ${fmt(m.n)} ${m.n === 1 ? 'meeting' : 'meetings'} where a data center came up. Open the story for ${m.name}.`}
+              aria-label={`${m.name}: ${fmt(m.n)} ${m.n === 1 ? 'meeting' : 'meetings'} where ${subject} came up. Open the story for ${m.name}.`}
               onMouseEnter={() => setHover(m.code)}
               onFocus={() => setHover(m.code)}
             >
@@ -144,8 +146,8 @@ export default function StoryStatesMap({ byState, quotes, highlight, href }: Pro
 
       <p className="mt-1 h-[2.75rem] overflow-hidden text-sm leading-snug text-stone-600" aria-live="off">
         {hover && shown
-          ? `${shown.name}: ${fmt(shown.n)} ${shown.n === 1 ? 'meeting' : 'meetings'} where a data center came up. Click to open its story.`
-          : `${pins.length} states with at least one meeting where a data center came up. Hover a pin to read what was said; click one to open that state's story.`}
+          ? `${shown.name}: ${fmt(shown.n)} ${shown.n === 1 ? 'meeting' : 'meetings'} where ${subject} came up. Click to open its story.`
+          : `${pins.length} states with at least one meeting where ${subject} came up. Hover a pin to read what was said; click one to open that state's story.`}
       </p>
     </div>
   )
