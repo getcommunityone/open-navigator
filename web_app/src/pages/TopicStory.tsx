@@ -14,6 +14,7 @@ import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesM
 import TimelineChart from '../components/stance/TimelineChart'
 import DumbbellChart from '../components/stance/DumbbellChart'
 import '../styles/folio.css'
+import { HOUSE_STYLE } from '../utils/houseTheme'
 
 /**
  * A topic story (#1013): one curated topic's meetings, told from the transcript record. Everything shown is counted or
@@ -244,7 +245,7 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
       </section>
 
       {/* Meetings over time (#1140): the trend line with its milestone track, and the period dumbbell, for every topic. */}
-      <section className="folio mx-auto mt-10 max-w-4xl rounded-xl p-4 sm:p-6" aria-labelledby="topic-timeline-h">
+      <section className="folio mx-auto mt-10 max-w-4xl rounded-xl p-4 sm:p-6" style={HOUSE_STYLE} aria-labelledby="topic-timeline-h">
         <h2 id="topic-timeline-h" className="font-serif text-2xl font-semibold" style={{ color: 'var(--ink)' }}>
           Meetings over time · {label}
         </h2>
