@@ -52,3 +52,9 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- CSS-only: popups cap at 90dvh where supported (90vh fallback). Phone-size check recorded in the PR. Scans clean.
+
+Verdict stands: approve.
