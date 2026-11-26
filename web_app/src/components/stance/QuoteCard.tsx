@@ -3,7 +3,7 @@ import { highlightSnippet } from '../../lib/highlight'
 import { clockTime } from '../../lib/youtubeEmbed'
 import type { Stance } from '../../utils/boxSplit'
 import { BOX_COLORS, STANCE_LABEL } from '../home/storyColors'
-import { initialsOf, playLabel, quoteDate, recordedRole } from './quoteCardUtils'
+import { aiSummary, initialsOf, playLabel, quoteDate, recordedRole } from './quoteCardUtils'
 import './QuoteCard.css'
 
 export interface QuoteCardProps {
@@ -31,6 +31,10 @@ export interface QuoteCardProps {
   url?: string | null
   /** Play in place (the caller's video popup) instead of opening `url`. */
   onPlay?: () => void
+  /** The meeting's AI summary from the record (#1124), clamped to about 3 lines and labelled; none → nothing shown. */
+  summary?: string | null
+  /** The meeting page in the app, with the scope already in its query (#1124); none → no link. */
+  analysisUrl?: string | null
   /** `card`: with the recording image; `header`: no image (the meeting video popup, which plays the video itself). */
   variant?: 'card' | 'header'
   className?: string
@@ -70,6 +74,8 @@ export default function QuoteCard({
   startSeconds,
   url,
   onPlay,
+  summary,
+  analysisUrl,
   variant = 'card',
   className,
   style,
@@ -84,6 +90,7 @@ export default function QuoteCard({
   const line = [roleShown, item ? `On: ${item}` : null].filter(Boolean).join(' · ')
   const showImage = variant === 'card' && Boolean(videoId)
   const label = playLabel(startSeconds)
+  const summaryShown = aiSummary(summary)
   const media = showImage ? (
     <>
       <img src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} alt={`Recording of the ${place} meeting`} loading="lazy" />
@@ -143,6 +150,17 @@ export default function QuoteCard({
                 {line && <span className="qcard-line">{line}</span>}
               </span>
             </figcaption>
+          )}
+          {summaryShown && (
+            <div className="qcard-summary">
+              <span className="qcard-summary-label">AI summary</span>
+              <p className="qcard-summary-text">{summaryShown}</p>
+            </div>
+          )}
+          {analysisUrl && (
+            <p className="qcard-analysis">
+              <a href={analysisUrl}>Open the meeting analysis →</a>
+            </p>
           )}
           {children}
         </div>

@@ -6,7 +6,7 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
-import { resolveVideoId, startFromUrl } from './quoteCardUtils'
+import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
 import { isTouchOnly } from '../../utils/touchOnly'
 
 /** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
@@ -22,6 +22,12 @@ export interface MapPassage {
   /** The recording's YouTube id and the passage's start, when known (#1108). */
   video_id?: string | null
   start_seconds?: number | null
+  /** The meeting's AI summary and its page in the app, when on record (#1124). */
+  meeting_summary?: string | null
+  meeting_url?: string | null
+  /** "First L." and role, only when the record attributes the quoted words to a person (#1124). */
+  speaker_display_name?: string | null
+  speaker_role?: string | null
 }
 
 export interface StateCount {
@@ -188,6 +194,10 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
           startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
           url={passage.jump_url ?? passage.video_url}
+          speakerName={passage.speaker_display_name ?? null}
+          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
+          summary={passage.meeting_summary ?? null}
+          analysisUrl={scopedMeetingHref(passage.meeting_url, { state: scopeStateCode, city: scopeCity })}
         />
       )}
       </div>
