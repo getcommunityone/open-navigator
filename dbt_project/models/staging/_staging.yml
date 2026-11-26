@@ -2177,6 +2177,27 @@ sources:
           - name: loaded_at
             description: "When the row was landed."
 
+      - name: bronze_transcript_screen_jev
+        description: >
+          Jev (TypeSafe) transcript screen, one row per video (PK video_id), latest question_version. Landed by
+          ``llm.typesafe.screen_transcripts`` (#661, #703, #1029). Classifier probabilities only; Jev writes no text.
+          #1029 adds dc_outcome / str_outcome (approved, denied, tabled_or_deferred, moratorium, discussed_no_action,
+          no item) with their probability maps, and question_probabilities ({policy-question slug: P(debated)}).
+        columns:
+          - name: video_id
+          - name: question_version
+          - name: model
+          - name: meeting_kind
+          - name: has_decisions_p
+          - name: mentions_data_center_p
+          - name: mentions_short_term_rentals_p
+          - name: dc_outcome
+          - name: dc_outcome_probabilities
+          - name: str_outcome
+          - name: str_outcome_probabilities
+          - name: question_probabilities
+          - name: screened_at
+
       - name: bronze_bls_qcew_industry
         description: >
           BLS Quarterly Census of Employment and Wages, annual averages for one industry (default NAICS 518210,
