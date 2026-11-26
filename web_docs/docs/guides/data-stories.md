@@ -52,7 +52,7 @@ The figures come from `GET /api/data-centers/positions?state=&city=&limit=`, whi
 
 ## The Data Center Story
 
-Twelve screens, in this order. Each has a short word as its header (never a number), and the progress rail names each stop after its screen. The id is what `?screen=` carries. The story opens on the record, not on the question (#950).
+Twelve screens, in this order. Each has a short word as its header (never a number), and each numbered dot down the left edge is named after its screen. The id is what `?screen=` carries. The story opens on the record, not on the question (#950).
 
 | Screen | Word | Id | What it shows |
 | --- | --- | --- | --- |
@@ -136,7 +136,7 @@ The engine is the one the challenge uses (`web_app/src/components/stance/useActs
 | Mode | When | What happens |
 | --- | --- | --- |
 | `pinned` | 768 pixels or wider, motion allowed | Each screen is pinned and scrubbed by the scroll: its word card slides in, the chart builds, the headline's words rise out of their masks one after another, and the screen dims and lifts as it leaves. The scroll glides to the next screen and one gesture never passes more than one. |
-| `snap` | Narrower than 768 pixels, motion allowed | Each screen is exactly one frame tall (`100svh` less the two bars) and the page uses the browser's own scroll snap with `scroll-snap-stop: always`, so a swipe lands on the next screen and stops there. As a screen arrives its headline's words rise out of their masks, its blocks rise in one after another and its chart draws; as it leaves they fade and lift; coming back plays the entrance again. |
+| `snap` | Narrower than 768 pixels, motion allowed | Each screen is exactly one frame tall (`100svh` less the two bars at the top and the story bar at the bottom) and the page uses the browser's own scroll snap with `scroll-snap-stop: always`, so a swipe lands on the next screen and stops there. As a screen arrives its headline's words rise out of their masks, its blocks rise in one after another and its chart draws; as it leaves they fade and lift; coming back plays the entrance again. |
 | `snap` with `data-fade` | **prefers-reduced-motion** on, at any width | One screen at a time, as on a phone. A screen cross-fades in when it arrives and its dots appear one after another. Only opacity changes: nothing slides, scales or drifts, and nothing loops. Moving on is a jump, not a glide. |
 
 Reduced motion is not only a setting people choose. On Android, battery saver and "Remove animations" both turn it on, so a phone in battery saver gets this version. Before #930 that version was a plain stacked page with nothing animated, which read as a page that was not working. The challenge still uses the plain `stacked` mode under reduced motion.
@@ -149,7 +149,20 @@ The story's motion is calm: rises, fades and a steady filled button, with no bou
 
 A strip of segments along the lower edge of the top bar has one segment per screen. The one in view fills, the ones behind it stay filled, and the words beside it say what is left ("Seven to go", "One to go", "Last one").
 
-Every screen has one primary action: the three answers on the question and the last screen (then **See every data center record** once you have answered), and **Next →** everywhere else. When that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, full width on a phone, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
+Every screen has one primary action: the three answers on the question and the last screen (then **See every data center record** once you have answered), and **Next →** everywhere else. On a wide screen, when that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
+
+### Story navigation: progress bar, numbered dots, the next story (#1102)
+
+The story shows how far you are and where it goes next ([#1102](https://github.com/getcommunityone/open-navigator/issues/1102)). None of this changes a screen or a map: every control below moves with the story's own screen navigation (the same `goTo` as **Next →** and the keys), so landing on a screen from the address (`?screen=`) works as before.
+
+| Where | What | Behaviour |
+| --- | --- | --- |
+| Wide screens (768 pixels or wider) | A thin teal bar fixed along the top of the story | Its width is the share of screens reached: the screen in view counts, so the last screen fills it. Decorative (hidden from screen readers). |
+| Wide screens | A column of small numbered dots on the left edge, one per screen in the story | The screen in view is filled teal (`#0f766e`), those behind it are outlined teal. Clicking a dot goes to that screen. Each dot's accessible name is its number and the screen's name ("3. Where"), and it is a `nav` named "Story screens" (it replaced the unnumbered rail on the right). The dots step aside while the next-story card is in view. |
+| After the last screen, every width | A full-width **Next story** card | It fades in as it comes into view (opacity and a short rise; opacity only under reduced motion). It reads "Next story: Short-term rentals →" while there is a following live story, and "All data stories →" (to `/stories`) at the end of the list; the list does not wrap. The link keeps the place (`?state=&city=`). Scrolling on past the last screen reaches it: the scroll no longer pulls back onto the last screen once you are past it. |
+| Phones (narrower than 768 pixels) | A bar fixed to the bottom of the window, above the safe area | Compact progress dots with "N to go", and one prominent **Next**: it goes to the next screen, and on the last screen it becomes **Next story** (or **All stories**). Each screen is shortened by the bar's height and the page has bottom padding of the same height, so the bar never covers a screen's controls. On phones it replaces the floating bar and each screen's own **Next →** (Back and the answers stay in the screen). |
+
+The order of live stories is the home page's: the stories registry (`STORIES` in `web_app/src/utils/dataStory.ts`), then the topic stories (`/stories/short-term-rentals`). Stories still "coming soon" are never linked. The pure helpers (next live story, the progress share, which dot is current) are in `web_app/src/utils/storyNav.ts`, with tests; the components are in `web_app/src/components/stance/StoryProgress.tsx`.
 
 ### Moving between screens
 
@@ -194,7 +207,7 @@ There are two kinds of dot chart, and the caption says which:
 
 ## Moving to the next screen
 
-When you stop on a screen that has a next step, the page draws your eye to it. After about six seconds with no scroll, tap or key, the main button gets a small cue: its arrow slides a few pixels and back and a light passes across it. If the button is not on screen, the bar at the bottom of the window is showing it, and the cue plays there. This is the same on the hub (**Start**), in the story (**Next →**) and in the challenge.
+When you stop on a screen that has a next step, the page draws your eye to it. After about six seconds with no scroll, tap or key, the main button gets a small cue: its arrow slides a few pixels and back and a light passes across it. If the button is not on screen, the bar at the bottom of the window is showing it, and the cue plays there. On a phone the story's own bottom bar (#1102) always shows **Next**, so the cue is not drawn on a phone story. This is the same on the hub (**Start**), in the story (**Next →**) and in the challenge.
 
 - The cue repeats about every eight seconds, at most three times, then it rests.
 - Anything you do (scroll, tap, type) starts the wait and the count again. So does arriving on a new screen, and there the wait begins only after the screen has finished arriving.
