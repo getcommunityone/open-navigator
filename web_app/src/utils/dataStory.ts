@@ -590,6 +590,28 @@ function gatheringsText(res: CommunityEventsResponse, scope: StoryScope): Screen
   }
 }
 
+/** The share of speakers one side needs before the overview says the place leaned that way (#1115). */
+export const OVERVIEW_LEAN_SHARE = 2 / 3
+
+/**
+ * The overview headline for a place from its speaker counts (#1115), or null when fewer speakers are on record than the
+ * national conclusion needs (`minSpeakers`). Counts are the scope's whole positions totals: speakers for, against, asking a
+ * question and taking no side. A side with at least two thirds of them leads; otherwise the place was split. These are
+ * counts of speakers at meetings, not a survey, and the sentence says only that.
+ */
+export function overviewLean(res: DataCenterPositionsResponse | null | undefined, place: string): string | null {
+  const c = speakerCounts(res)
+  const min = STORIES['data-centers']!.conclusion!.minSpeakers
+  if (!c || c.total < min) return null
+  if (c.against / c.total >= OVERVIEW_LEAN_SHARE) {
+    return `${place} pushed back: ${fmt(c.against)} of ${plural(c.total, 'speaker')} spoke against data centers.`
+  }
+  if (c.for / c.total >= OVERVIEW_LEAN_SHARE) {
+    return `${place} welcomed data centers: ${fmt(c.for)} of ${plural(c.total, 'speaker')} spoke for them.`
+  }
+  return `${place} was split: ${fmt(c.for)} spoke for and ${fmt(c.against)} against data centers.`
+}
+
 function overviewText(data: StoryData, scope: StoryScope): ScreenText {
   const stats = storyStats(data)
   const place = scope.stateName ? storyScopeLabel(scope) : null
@@ -599,6 +621,17 @@ function overviewText(data: StoryData, scope: StoryScope): ScreenText {
   const passages = byKey.get('passages')
   const agendas = byKey.get('agendas')
   // The opener's headline is always a claim from meeting records; sites and projects never lead it.
+  // At a state or city scope with enough speakers on record, the headline says which way they spoke (#1115) and the meeting
+  // count becomes the context line. Below the national conclusion's minimum the neutral count stays: nothing is overstated.
+  const lean = place ? overviewLean(data.positions as DataCenterPositionsResponse | null | undefined, place) : null
+  if (lean) {
+    return {
+      headline: lean,
+      context: meetings ? `A data center came up in ${plural(meetings, 'meeting')}. ${context}` : context,
+      empty: false,
+      failed: false,
+    }
+  }
   if (meetings) return { headline: `A data center came up in ${plural(meetings, 'meeting')} ${where(place)}.`, context, empty: false, failed: false }
   if (passages) return { headline: `Meeting passages that mention a data center ${where(place)} number ${fmt(passages)}.`, context, empty: false, failed: false }
   if (agendas) return { headline: `Meeting agendas that name a data center ${where(place)} number ${fmt(agendas)}.`, context, empty: false, failed: false }
