@@ -53,3 +53,10 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- The third leg runs only with a query or topic and is deduped on video_id against the analyzed and transcript legs. The snippet is a verbatim `ts_headline` of the passages. count_events uses the same `meeting_passage_where()`.
+- Read-only runs against the prod and local DBs are recorded in the PR. Scans are clean; docs page added.
+
+Verdict stands: approve.
