@@ -20,7 +20,7 @@ Issue: [#646](https://github.com/getcommunityone/open-navigator/issues/646).
 
 - **Banner** when the Jurisdictions tab is selected, or when Advanced →
   Jurisdictions is checked: **“Browse all places →”** links to `/jurisdictions`,
-  carrying `q`, `state`, and `jurisdiction_levels` when set.
+  carrying `q`, `state`, and the selected levels (as `levels`) when set.
 - **Empty state** when the Jurisdictions leg has **0 hits** and `q` is
   **non-empty**: name the query in the message and link to Places with the same
   `q`, `state`, and levels. Keep any “place-like” heuristic simple; the wording
@@ -37,7 +37,7 @@ Issue: [#646](https://github.com/getcommunityone/open-navigator/issues/646).
 |---|---|---|
 | Places browser | `web_app/src/pages/JurisdictionsSearch.tsx` | Level pills, map, chips; unchanged as the place browser |
 | Unified search | `web_app/src/pages/UnifiedSearch.tsx` | Banner + empty-state CTA |
-| Link helper | e.g. `web_app/src/lib/placesBrowseUrl.ts` | Build `/jurisdictions?q=&state=&jurisdiction_levels=` |
+| Link helper | e.g. `web_app/src/lib/placesBrowseUrl.ts` | Build `/jurisdictions?q=&state=&levels=` |
 
 ## Contract
 
@@ -46,7 +46,10 @@ Issue: [#646](https://github.com/getcommunityone/open-navigator/issues/646).
 Inputs: `q?: string`, `state?: string`, `jurisdiction_levels?: string` (comma list,
 same vocabulary as the API: `city`, `county`, `state`, `school_district`, …).
 
-Output: path `/jurisdictions` plus only the params that are non-empty. Does not
+Output: path `/jurisdictions` plus only the params that are non-empty. The input keeps the search API's name
+`jurisdiction_levels`, but the output parameter is **`levels`**: that is what the Places page reads
+(`JurisdictionsSearch.tsx`, `searchParams.get('levels')`), and it drops any value that isn't one of its own level ids,
+so a mismatched name or value silently loses the filter. Does not
 invent a city or level. Scope on Places must match these params (site-wide
 scope-label rule).
 
@@ -100,4 +103,3 @@ Tracked separately: [#647](https://github.com/getcommunityone/open-navigator/iss
 | **Tests covering current URL** | **None found** (no pytest/frontend assertion on this `url` string). |
 
 Do not fold #647 into #646 implementation unless both are explicitly scoped in one PR later; keep the handoff shippable without waiting on the URL fix, and vice versa.
-EOF
