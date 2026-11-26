@@ -76,3 +76,9 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- Pure removal of unused assets: no imports of the badge, helper or manifest remain. Build passes. data/cache untouched.
+
+Verdict stands: approve.
