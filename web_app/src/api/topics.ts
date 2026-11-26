@@ -61,3 +61,23 @@ export async function fetchTopicMeetings(
   const res = await api.get<TopicMeetingList>(`/topics/${topicId}/meetings`, { params })
   return res.data
 }
+
+export interface TopicStateCount {
+  state_code: string
+  state: string | null
+  meetings: number
+}
+
+export interface TopicStates {
+  topic_id: number
+  total_meetings: number
+  states: TopicStateCount[]
+  /** The newest matched meeting per state, with its verbatim passage. */
+  newest: TopicMeeting[]
+}
+
+/** Meetings per state for a curated topic, and each state's newest passage (#1013). */
+export async function fetchTopicStates(topicId: number, params: { state?: string } = {}): Promise<TopicStates> {
+  const res = await api.get<TopicStates>(`/topics/${topicId}/states`, { params })
+  return res.data
+}
