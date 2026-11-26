@@ -82,6 +82,7 @@ import { InfoHelpTrigger } from '../components/InfoHelpTrigger'
 import MapAddressSearch, { type MapAddressResult } from '../components/MapAddressSearch'
 import CensusMapLeftRail, { type CensusMapRailSection } from '../components/CensusMapLeftRail'
 import { censusMapPathPrefix, mapPathPlace, mapPathState, mapPathUs } from '../utils/dataExplorerPaths'
+import { MAP_POPUP_OPTIONS, escapeHtml } from '../lib/mapPopup'
 
 const STATES_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'
 const COUNTY_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json'
@@ -3424,7 +3425,7 @@ function CensusMapPage() {
                               metrics,
                               valueMode,
                             )
-                          layer.bindPopup(`<div><strong>${name}</strong><br/>${valueLine}${rankLine}</div>`)
+                          layer.bindPopup(`<div><strong>${escapeHtml(name)}</strong><br/>${valueLine}${rankLine}</div>`, MAP_POPUP_OPTIONS)
                           layer.on('mouseover', () => {
                             setCountyHover({ id: gid, name, value: disp })
                           })
@@ -3698,13 +3699,14 @@ function CensusMapPage() {
                             ? `<br/><span style="font-size:11px;color:#475569;">Ranked #${rk.rank} of ${rk.total}</span>`
                             : ''
                           layer.bindPopup(
-                            `<div><strong>${name}</strong><br/>${metricValueTooltipLine(
+                            `<div><strong>${escapeHtml(name)}</strong><br/>${metricValueTooltipLine(
                               currentMetricMeta?.label ?? metricSlug,
                               metricSlug,
                               disp,
                               metrics,
                               valueMode,
                             )}${rankLine}</div>`,
+                            MAP_POPUP_OPTIONS,
                           )
                           layer.on('mouseover', () => {
                             setPlaceHover({ id: gid7, name, value: disp })
