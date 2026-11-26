@@ -12,6 +12,7 @@ import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { Ban, Landmark, Quote, type LucideIcon } from 'lucide-react'
 import { heroPoints, type HeroPointIcon } from '../../utils/heroPoints'
 import { nextStoryLink } from '../../utils/storyNav'
+import { scopedMeetingHref } from '../stance/quoteCardUtils'
 
 const POINT_ICONS: Record<HeroPointIcon, LucideIcon> = { quote: Quote, stop: Ban, scale: Landmark }
 
@@ -143,10 +144,15 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         url: m.jump_url ?? m.video_url ?? null,
         videoId: m.video_id ?? null,
         startSeconds: m.start_seconds ?? null,
+        // Only when the record attributes the quoted words to a person (#1124): "First L." and the recorded role.
+        speakerName: m.speaker_display_name ?? null,
+        role: m.speaker_display_name ? (m.speaker_role ?? null) : null,
+        summary: m.meeting_summary ?? null,
+        analysisUrl: scopedMeetingHref(m.meeting_url, { state: stateCode ?? null, city: scope.city }),
       })
     }
     return out
-  }, [national.data, speakers.data])
+  }, [national.data, speakers.data, stateCode, scope.city])
   // The three numbered points (#1122): national figures from the record, a point without data left out.
   const points = useMemo(
     () => (speakers.data?.available ? heroPoints(speakers.data.lean_totals, speakers.data.totals) : []),

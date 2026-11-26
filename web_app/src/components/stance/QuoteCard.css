@@ -187,6 +187,42 @@ div.qcard-media {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.qcard-summary {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid #e7e5e4;
+}
+.qcard-summary-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+.qcard-summary-text {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #44403c;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qcard-analysis {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+.qcard-analysis a {
+  color: var(--qcard-teal);
+  font-weight: 600;
+  text-decoration: none;
+}
+.qcard-analysis a:hover,
+.qcard-analysis a:focus-visible {
+  text-decoration: underline;
+}
 .qcard--header .qcard-quote {
   font-size: 19px;
 }

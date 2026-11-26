@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initialsOf, playLabel, quoteDate, recordedRole, resolveVideoId, startFromUrl } from './quoteCardUtils'
+import { aiSummary, initialsOf, playLabel, quoteDate, recordedRole, resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
 
 describe('resolveVideoId (#1108)', () => {
   it('keeps a given id', () => {
@@ -71,5 +71,28 @@ describe('recordedRole', () => {
     expect(recordedRole('unknown')).toBeNull()
     expect(recordedRole('  ')).toBeNull()
     expect(recordedRole(null)).toBeNull()
+  })
+})
+
+describe('aiSummary (#1124)', () => {
+  it('trims and collapses spaces; empty is null', () => {
+    expect(aiSummary('  The board\n met.  ')).toBe('The board met.')
+    expect(aiSummary('   ')).toBeNull()
+    expect(aiSummary(null)).toBeNull()
+  })
+})
+
+describe('scopedMeetingHref (#1124)', () => {
+  it('carries the story scope into the meeting page link', () => {
+    expect(scopedMeetingHref('/meetings/12', { state: 'GA' })).toBe('/meetings/12?state=GA')
+    expect(scopedMeetingHref('/meetings/12', { state: 'GA', city: 'DeKalb County' })).toBe('/meetings/12?state=GA&city=DeKalb+County')
+    expect(scopedMeetingHref('/meetings/12', {})).toBe('/meetings/12')
+    expect(scopedMeetingHref('/meetings/12?t=30', { state: 'GA' })).toBe('/meetings/12?t=30&state=GA')
+  })
+  it('gives null with no route, or a route outside the app', () => {
+    expect(scopedMeetingHref(null, { state: 'GA' })).toBeNull()
+    expect(scopedMeetingHref('https://example.com/x', { state: 'GA' })).toBeNull()
+    expect(scopedMeetingHref('//example.com/x')).toBeNull()
+    expect(scopedMeetingHref('javascript:alert(1)')).toBeNull()
   })
 })
