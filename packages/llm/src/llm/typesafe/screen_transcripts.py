@@ -80,7 +80,52 @@ TOPIC_NOUL_KEYS: tuple[str, ...] = (
     "mentions_budget",
     "mentions_housing",
     "mentions_environment",
+    "mentions_short_term_rentals",
 )
+
+# Featured policy questions (public.policy_question, is_featured), #1029. The slug is ours; dbt maps it to the
+# registry's question_id by canonical_text. Asked in the same request: Jev prices the transcript, not the questions.
+POLICY_QUESTIONS: dict[str, dict[str, str]] = {
+    "allow_data_centers": {
+        "canonical_text": "Should we allow new data centers?",
+        "noul": "The meeting debates whether to allow, approve, rezone for, restrict or pause a data center",
+    },
+    "allow_short_term_rentals": {
+        "canonical_text": "Should we allow short-term rentals?",
+        "noul": "The meeting debates whether to allow, permit, regulate or restrict short-term rentals "
+        "(Airbnb, VRBO, vacation rentals)",
+    },
+    "build_bike_lanes": {
+        "canonical_text": "Should we build bike lanes and paths?",
+        "noul": "The meeting debates whether to build, fund or remove bike lanes, bike paths or greenway trails",
+    },
+    "license_plate_readers": {
+        "canonical_text": "Should police use automated license plate readers?",
+        "noul": "The meeting debates whether police should use automated license plate readers or Flock cameras",
+    },
+    "no_bid_contracts": {
+        "canonical_text": "Should the jurisdiction award no-bid contracts?",
+        "noul": "The meeting debates awarding a contract without competitive bidding (a no-bid or sole-source contract)",
+    },
+}
+
+
+def _outcomes(thing: str, none_key: str) -> dict[str, str]:
+    """The outcome choices for one kind of item (#1029)."""
+    return {
+        "approved": f"A {thing} item was approved, adopted or granted (permit, rezoning, ordinance, agreement)",
+        "denied": f"A {thing} item was denied, rejected or voted down",
+        "tabled_or_deferred": f"A {thing} item was tabled, deferred, continued or postponed to a later meeting",
+        "moratorium": f"A pause or moratorium on {thing}s was adopted or extended",
+        "discussed_no_action": f"A {thing} was discussed, but no vote or action on it was taken",
+        none_key: f"No {thing} was discussed",
+    }
+
+
+DC_OUTCOMES = _outcomes("data center", "no_data_center_item")
+STR_OUTCOMES = _outcomes("short-term rental", "no_short_term_rental_item")
+# Choice answers averaged across chunks and stored as <key> + <key>_probabilities (#1029).
+OUTCOME_KEYS: tuple[str, ...] = ("dc_outcome", "str_outcome")
 
 QUESTIONS: dict[str, dict[str, Any]] = {
     "meeting_kind": choice(
@@ -110,6 +155,13 @@ QUESTIONS: dict[str, dict[str, Any]] = {
         "The transcript discusses water, sewer, stormwater, electric power or utilities capacity, "
         "or an environmental impact / pollution concern (including data-center utilities)"
     ),
+    "mentions_short_term_rentals": noul(
+        "The transcript discusses short-term rentals: Airbnb, VRBO, vacation rentals, their permits, "
+        "registration, taxes, density limits or neighbors' complaints"
+    ),
+    "dc_outcome": choice("What happened to a data center item in this meeting", DC_OUTCOMES),
+    "str_outcome": choice("What happened to a short-term rental item in this meeting", STR_OUTCOMES),
+    **{f"q_{slug}": noul(spec["noul"]) for slug, spec in POLICY_QUESTIONS.items()},
 }
 
 # Changes whenever a question's wording changes, so a rewording can be rescreened.
@@ -130,6 +182,12 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
     mentions_budget_p           double precision,
     mentions_housing_p          double precision,
     mentions_environment_p      double precision,
+    mentions_short_term_rentals_p double precision,
+    dc_outcome                  text,
+    dc_outcome_probabilities    jsonb,
+    str_outcome                 text,
+    str_outcome_probabilities   jsonb,
+    question_probabilities      jsonb,
     chunk_count                 integer NOT NULL,
     chunks_screened             integer NOT NULL,
     transcript_chars            integer NOT NULL,
@@ -145,7 +203,13 @@ ALTER TABLE {TABLE}
     ADD COLUMN IF NOT EXISTS mentions_zoning_p double precision,
     ADD COLUMN IF NOT EXISTS mentions_budget_p double precision,
     ADD COLUMN IF NOT EXISTS mentions_housing_p double precision,
-    ADD COLUMN IF NOT EXISTS mentions_environment_p double precision
+    ADD COLUMN IF NOT EXISTS mentions_environment_p double precision,
+    ADD COLUMN IF NOT EXISTS mentions_short_term_rentals_p double precision,
+    ADD COLUMN IF NOT EXISTS dc_outcome text,
+    ADD COLUMN IF NOT EXISTS dc_outcome_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS str_outcome text,
+    ADD COLUMN IF NOT EXISTS str_outcome_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS question_probabilities jsonb
 """
 
 UPSERT_SQL = f"""
@@ -153,6 +217,8 @@ INSERT INTO {TABLE} (
     video_id, question_version, model, meeting_kind, meeting_kind_probabilities,
     has_decisions_p, mentions_data_center_p,
     mentions_zoning_p, mentions_budget_p, mentions_housing_p, mentions_environment_p,
+    mentions_short_term_rentals_p, dc_outcome, dc_outcome_probabilities, str_outcome, str_outcome_probabilities,
+    question_probabilities,
     chunk_count, chunks_screened,
     transcript_chars, input_tokens, answers, screened_at
 ) VALUES (
@@ -160,6 +226,8 @@ INSERT INTO {TABLE} (
     %(meeting_kind_probabilities)s, %(has_decisions_p)s, %(mentions_data_center_p)s,
     %(mentions_zoning_p)s, %(mentions_budget_p)s, %(mentions_housing_p)s,
     %(mentions_environment_p)s,
+    %(mentions_short_term_rentals_p)s, %(dc_outcome)s, %(dc_outcome_probabilities)s, %(str_outcome)s,
+    %(str_outcome_probabilities)s, %(question_probabilities)s,
     %(chunk_count)s, %(chunks_screened)s, %(transcript_chars)s, %(input_tokens)s,
     %(answers)s, %(screened_at)s
 )
@@ -174,6 +242,12 @@ ON CONFLICT (video_id) DO UPDATE SET
     mentions_budget_p = EXCLUDED.mentions_budget_p,
     mentions_housing_p = EXCLUDED.mentions_housing_p,
     mentions_environment_p = EXCLUDED.mentions_environment_p,
+    mentions_short_term_rentals_p = EXCLUDED.mentions_short_term_rentals_p,
+    dc_outcome = EXCLUDED.dc_outcome,
+    dc_outcome_probabilities = EXCLUDED.dc_outcome_probabilities,
+    str_outcome = EXCLUDED.str_outcome,
+    str_outcome_probabilities = EXCLUDED.str_outcome_probabilities,
+    question_probabilities = EXCLUDED.question_probabilities,
     chunk_count = EXCLUDED.chunk_count,
     chunks_screened = EXCLUDED.chunks_screened,
     transcript_chars = EXCLUDED.transcript_chars,
@@ -202,6 +276,13 @@ class ScreenResult:
     transcript_chars: int
     input_tokens: int | None
     answers: list[dict[str, Any]]
+    # #1029: short-term rental flag, the two outcome Choices and the policy-question Nouls.
+    mentions_short_term_rentals_p: float | None = None
+    dc_outcome: str | None = None
+    dc_outcome_probabilities: dict[str, float] | None = None
+    str_outcome: str | None = None
+    str_outcome_probabilities: dict[str, float] | None = None
+    question_probabilities: dict[str, float] | None = None
 
     def row(self, *, screened_at: datetime | None = None) -> dict[str, Any]:
         return {
@@ -216,6 +297,12 @@ class ScreenResult:
             "mentions_budget_p": self.mentions_budget_p,
             "mentions_housing_p": self.mentions_housing_p,
             "mentions_environment_p": self.mentions_environment_p,
+            "mentions_short_term_rentals_p": self.mentions_short_term_rentals_p,
+            "dc_outcome": self.dc_outcome,
+            "dc_outcome_probabilities": json.dumps(self.dc_outcome_probabilities) if self.dc_outcome_probabilities is not None else None,
+            "str_outcome": self.str_outcome,
+            "str_outcome_probabilities": json.dumps(self.str_outcome_probabilities) if self.str_outcome_probabilities is not None else None,
+            "question_probabilities": json.dumps(self.question_probabilities) if self.question_probabilities is not None else None,
             "chunk_count": self.chunk_count,
             "chunks_screened": self.chunks_screened,
             "transcript_chars": self.transcript_chars,
@@ -300,6 +387,22 @@ def aggregate(responses: Sequence[JevResponse]) -> dict[str, Any]:
     }
     for key in TOPIC_NOUL_KEYS:
         out[f"{key}_p"] = _max_noul(key)
+    # Outcome Choices (#1029): average each label across the chunks that answered.
+    for key in OUTCOME_KEYS:
+        sums: dict[str, float] = {}
+        n = 0
+        for resp in responses:
+            a = resp.answers.get(key)
+            if a and a.probabilities:
+                n += 1
+                for label, prob in a.probabilities.items():
+                    sums[label] = sums.get(label, 0.0) + prob
+        dist = {k: round(v / n, 4) for k, v in sums.items()} if n else {}
+        out[key] = max(dist, key=dist.get) if dist else None
+        out[f"{key}_probabilities"] = dist or None
+    # Policy questions (#1029): debated anywhere in the meeting, so the max over chunks.
+    questions = {slug: _max_noul(f"q_{slug}") for slug in POLICY_QUESTIONS}
+    out["question_probabilities"] = {k: v for k, v in questions.items() if v is not None} or None
     return out
 
 
@@ -348,12 +451,22 @@ def estimate_tokens(
     )
 
 
+# Meeting sets that can be screened together (#1029).
+COHORTS: dict[str, str] = {
+    # Transcripts that name a data center (verbatim passages in data_center_meeting_mention).
+    "data-centers": "t.video_id IN (SELECT video_id FROM public.data_center_meeting_mention)",
+    # Transcripts linked to the short-term rentals topic (topic_transcript_link, topic 100003).
+    "short-term-rentals": "t.video_id IN (SELECT video_id FROM public.topic_transcript_link WHERE topic_id = 100003)",
+}
+
+
 def select_sql(
     *,
     states: Iterable[str],
     jurisdiction_id: str,
     rescreen: bool,
     analyzed_only: bool = False,
+    cohorts: Iterable[str] = (),
 ) -> tuple[str, list[Any]]:
     """Captioned videos to screen, newest first. Already screened with the current
     questions are left out unless ``rescreen``.
@@ -371,6 +484,9 @@ def select_sql(
         params.append(jurisdiction_id)
     if analyzed_only:
         where.append("e.policy_analysis_at IS NOT NULL")
+    cohort_list = [c for c in cohorts if c]
+    if cohort_list:
+        where.append("(" + " OR ".join(COHORTS[c] for c in cohort_list) + ")")
     if not rescreen:
         where.append(
             f"NOT EXISTS (SELECT 1 FROM {TABLE} s WHERE s.video_id = t.video_id "
@@ -654,6 +770,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         jurisdiction_id=args.jurisdiction_id,
         rescreen=args.rescreen,
         analyzed_only=bool(getattr(args, "analyzed_only", False)),
+        cohorts=[c for part in (getattr(args, "cohort", None) or []) for c in part.split(",")],
     )
 
     conn = psycopg2.connect(database_url)
@@ -760,6 +877,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="State code(s), repeatable or comma-separated",
     )
     p.add_argument("--jurisdiction-id", default="")
+    p.add_argument(
+        "--cohort",
+        action="append",
+        default=None,
+        help=f"Only these meeting sets (repeatable or comma-separated): {', '.join(COHORTS)} (#1029)",
+    )
     p.add_argument(
         "--limit", type=int, default=100, help="Most videos to screen (default 100)"
     )
