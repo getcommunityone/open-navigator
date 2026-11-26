@@ -27,6 +27,7 @@ Usage::
     python -m llm.typesafe.screen_transcripts --state AL --limit 50 --dry-run
     python -m llm.typesafe.screen_transcripts --state AL --limit 50
     python -m llm.typesafe.screen_transcripts --jurisdiction-id tuscaloosa_0177256
+    python -m llm.typesafe.screen_transcripts --topic pickleball --limit 20 --dry-run   # #1126, see topic_lean
 """
 
 from __future__ import annotations
@@ -862,6 +863,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     if getattr(args, "calibrate", False):
         return run_calibrate(args)
+    if getattr(args, "topic", ""):
+        # #1126: the public / official lean on one curated topic, only for its linked meetings.
+        from llm.typesafe import topic_lean
+
+        return topic_lean.run(args)
 
     database_url = _database_url(args.database_url)
     states = [s for part in (args.state or []) for s in part.split(",")]
@@ -984,7 +990,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Only these meeting sets (repeatable or comma-separated): {', '.join(COHORTS)} (#1029)",
     )
     p.add_argument(
-        "--limit", type=int, default=100, help="Most videos to screen (default 100)"
+        "--topic",
+        default="",
+        help="Read how the public and officials leaned on a curated topic, for its linked meetings only (#1126): "
+        "short-term-rentals, license-plate-readers, guns, pickleball, water-fluoridation, bike-lanes, or all. "
+        "Lands in bronze.bronze_transcript_topic_lean_jev. Paid: run on the owner's go-ahead.",
+    )
+    p.add_argument("--topic-chunk-chars", type=int, default=0, help="Chunk size for --topic (default 40,000)")
+    p.add_argument("--topic-max-chunks", type=int, default=0, help="Most topic chunks read per meeting (default 3)")
+    p.add_argument(
+        "--limit", type=int, default=100, help="Most videos to screen (default 100; per topic with --topic)"
     )
     p.add_argument(
         "--rescreen", action="store_true", help="Screen again even if already screened"

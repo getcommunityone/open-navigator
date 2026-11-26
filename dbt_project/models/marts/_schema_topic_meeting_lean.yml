@@ -1,0 +1,85 @@
+version: 2
+
+models:
+  - name: topic_meeting_lean
+    description: >
+      Jev's AI reading of how the public and elected officials leaned on a curated topic, per meeting (#1126). One
+      row per (video_id, topic_id) for meetings linked to the topic with a reading under the topic's current
+      question version. A classifier's reading of the transcript, never counted speakers; nothing is tied to a
+      person. Feeds GET /api/topics/{topic_id}/state-map (#1127) and the topic caption facts (#1125).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [video_id, topic_id]
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [video_id, topic_id]
+    columns:
+      - name: video_id
+        description: 'The meeting video (with topic_id, the primary key).'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests: [not_null]
+      - name: topic_id
+        description: 'FK to civicsearch_topic: the curated topic read.'
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests: [not_null]
+      - name: state_code
+        description: "Two-letter state code of the meeting's place."
+        data_type: text
+      - name: state
+        description: 'Full state name.'
+        data_type: text
+      - name: jurisdiction_id
+        description: "The meeting's government, when resolved (event_youtube_with_jurisdiction)."
+        data_type: text
+      - name: jurisdiction_name
+        description: "The meeting's government name, as the topic link gives it."
+        data_type: text
+      - name: meeting_date
+        description: 'Meeting date, when known.'
+        data_type: date
+      - name: public_lean
+        description: 'mostly_opposed, mostly_supportive, mixed or did_not_speak (AI reading).'
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['mostly_opposed', 'mostly_supportive', 'mixed', 'did_not_speak']
+      - name: public_lean_p
+        description: "Jev's probability for public_lean."
+        data_type: numeric
+      - name: official_lean
+        description: 'The same labels for the elected officials (AI reading).'
+        data_type: text
+      - name: official_lean_p
+        description: "Jev's probability for official_lean."
+        data_type: numeric
+      - name: outcome
+        description: 'approved, denied, tabled_or_deferred, moratorium, discussed_no_action or no_item.'
+        data_type: text
+      - name: public_against
+        description: 'public_lean = mostly_opposed with P >= 0.7.'
+        data_type: boolean
+      - name: public_for
+        description: 'public_lean = mostly_supportive with P >= 0.7.'
+        data_type: boolean
+      - name: officials_sided_against_public
+        description: 'Public mostly opposed, officials mostly supportive, and the outcome not a denial or moratorium.'
+        data_type: boolean
+      - name: question_version
+        description: "Hash of the topic's Jev question wording."
+        data_type: text
+      - name: screened_at
+        description: 'When Jev read the meeting.'
+        data_type: timestamptz
