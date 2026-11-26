@@ -41,6 +41,14 @@ meeting discusses plate readers. Gating cut Axon from 743 meetings to 89, and th
 28. For data centers, the name must also be within about 250 characters of a data center phrase. A remaining false
 match ("Google them", Amazon's warehouse near a data center site) shows as such in the quote.
 
+The same nearness rule applies to the seeded topics' meetings ([#1155](https://github.com/getcommunityone/open-navigator/issues/1155)):
+the company must be named within about 250 characters of one of the topic's own keywords (`curated_topics.keywords`),
+either before or after, and the quote is taken from that passage. A tagged meeting that names The Picklr only as a
+landmark ("a new development right next to The Picklr") or Dill Dinkers in an aside about a building no longer counts
+toward pickleball. A company whose own phrase already holds a topic keyword ("flock safety", "pickleball kingdom")
+needs only its name, as the topic tagger counts that phrase too. Decisions keep the tagged-decision rule, since a
+decision's headline and statement are short and already about the topic.
+
 First local build (national meetings): Google 92, Meta 82, Microsoft 81, Amazon 73, QTS 23; Flock Safety 472, Axon 28,
 Motorola Solutions 24; SoundThinking (ShotSpotter) 200, Glock 46, Smith & Wesson 17; Chicken N Pickle 7; Airbnb 2,207,
 Expedia Group 439.
