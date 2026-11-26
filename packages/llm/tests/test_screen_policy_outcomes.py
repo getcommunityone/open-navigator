@@ -70,3 +70,18 @@ def test_public_lean_is_a_question_and_a_column() -> None:
     assert "dc_public_lean" in st.QUESTIONS
     assert set(st.DC_PUBLIC_LEAN) == {"mostly_opposed", "mostly_supported", "mixed", "no_public_comment_on_data_center"}
     assert "dc_public_lean" in st.UPSERT_SQL and "dc_public_lean" in st.ALTER_TOPIC_COLUMNS_SQL
+
+
+def test_official_lean_is_separate_from_the_public() -> None:
+    """#1113: officials and the public are asked separately, so disagreement can be shown."""
+    assert "dc_official_lean" in st.QUESTIONS
+    assert set(st.DC_OFFICIAL_LEAN) == {"mostly_supportive", "mostly_opposed", "divided", "no_official_position"}
+    pub = st.QUESTIONS["dc_public_lean"]["instructions"]
+    assert "not elected officials" in pub and "applicant" in pub and "server room" in pub
+    officials = _Resp({"dc_official_lean": _Ans(probabilities={
+        "mostly_supportive": 0.8, "divided": 0.1, "mostly_opposed": 0.05, "no_official_position": 0.05,
+    })})
+    quiet = _Resp({"dc_official_lean": _Ans(probabilities={"no_official_position": 0.9, "divided": 0.1})})
+    out = st.public_lean([quiet, officials], key="dc_official_lean", none_label=st.DC_OFFICIAL_NONE)
+    assert out["dc_official_lean"] == "mostly_supportive"
+    assert "dc_official_lean" in st.UPSERT_SQL
