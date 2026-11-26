@@ -261,6 +261,7 @@
     'data_center_employment', 'data_center_job_source',
     'meeting_policy_question_jev',
     'topic_company', 'topic_company_mention',
+    'company_grant',
     'person_government_term'
 ] -%}
 

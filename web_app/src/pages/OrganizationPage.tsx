@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import OrganizationFunding from '../components/OrganizationFunding'
 import { highlightSnippet } from '../lib/highlight'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 
@@ -222,6 +223,8 @@ export default function OrganizationPage() {
           )}
         </section>
       )}
+
+      <OrganizationFunding masterOrgId={o.master_org_id} isCompany={o.company_roles.length > 0 || o.org_type === 'company'} />
     </main>
   )
 }
