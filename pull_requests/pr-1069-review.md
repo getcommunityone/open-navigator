@@ -59,3 +59,12 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review
+
+- Story #1068 under epic #1061; contract change (first_seen_on/last_seen_on, term_source in PK) noted on the issue with a date.
+- Scans: no secrets; personal data limited to officials' public terms from government pages and OpenStates; 'died' only from the city's own memorial page; no fabricated dates (snapshot dates are labelled observation dates, never term dates).
+- Keys: PK + FK to person_government, contract enforced, accepted_values on end_reason/term_source.
+- Checks: local dbt seed/snapshot/build passed; ODCS current; dbt parse clean after rebuilding the seed schema merge.
+
+No blocking findings.
