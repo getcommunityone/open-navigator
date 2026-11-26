@@ -56,3 +56,12 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review
+
+- Story: Refs #1062 (claim flow follows); epic #1061 table in the body.
+- Scans: no secrets. Personal data: only official work addresses copied verbatim from the city's own pages (public records), each with source URL and verified date; the public serving projection still redacts email and phone, so nothing new is served. No fabricated data: no address is built from a pattern; missing stays null.
+- Correctness: the override joins on name + state + jurisdiction, so a same-named official elsewhere is untouched; is_current=false for Kip Tyner is sourced to the council page (District 5 vacant, memorial link). Local build of contact_official/person_government passed; ODCS contracts current.
+- Docs: official-contacts.md.
+
+No blocking findings.
