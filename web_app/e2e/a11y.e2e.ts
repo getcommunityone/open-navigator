@@ -5,7 +5,7 @@ import fs from 'node:fs'
 /**
  * Accessibility checks (#1146). Run against a dev server that is up:
  *   A11Y_BASE_URL=http://localhost:5173 npx playwright test
- * A11Y_REPORT=<file> writes each page's violations (id, impact, node count) as JSON.
+ * A11Y_REPORT=<file> writes each page's violations (id, impact, node count, a few examples) as JSON.
  */
 
 const PAGES = [
@@ -15,11 +15,15 @@ const PAGES = [
   { name: 'search', path: '/search?q=fluoride' },
 ]
 
-const report: Record<string, { id: string; impact: string | null | undefined; nodes: number }[]> = {}
+const report: Record<string, { id: string; impact: string | null | undefined; nodes: number; examples: { target: string; html: string; why: string }[] }[]> = {}
 
-test.afterAll(() => {
-  if (process.env.A11Y_REPORT) fs.writeFileSync(process.env.A11Y_REPORT, JSON.stringify(report, null, 2))
-})
+// Written after each page (a failing test restarts the worker, so an afterAll would lose the earlier pages).
+function saveReport() {
+  const file = process.env.A11Y_REPORT
+  if (!file) return
+  const prior = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
+  fs.writeFileSync(file, JSON.stringify({ ...prior, ...report }, null, 2))
+}
 
 async function settle(page: Page) {
   await page.waitForLoadState('domcontentloaded')
@@ -34,7 +38,13 @@ for (const p of PAGES) {
     await page.goto(p.path)
     await settle(page)
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']).analyze()
-    report[p.name] = results.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length }))
+    report[p.name] = results.violations.map((v) => ({
+      id: v.id,
+      impact: v.impact,
+      nodes: v.nodes.length,
+      examples: v.nodes.slice(0, Number(process.env.A11Y_EXAMPLES ?? 6)).map((n) => ({ target: n.target.join(' '), html: n.html.slice(0, 200), why: (n.failureSummary ?? '').slice(0, 300) })),
+    }))
+    saveReport()
     const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
     expect(
       blocking.map((v) => `${v.impact} ${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`),

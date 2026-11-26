@@ -148,19 +148,19 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
 
   if (!def && topicStories.pending) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-16" aria-busy="true">
+      <div className="mx-auto max-w-3xl px-4 py-16" aria-busy="true">
         <p className="text-stone-500">Loading the story…</p>
-      </main>
+      </div>
     )
   }
   if (!def) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-16">
+      <div className="mx-auto max-w-3xl px-4 py-16">
         <p className="text-stone-700">{topicStories.failed ? 'This story could not be loaded right now.' : "That story isn't available."}</p>
         <Link to="/stories" className="text-teal-700 underline">
           See all data stories
         </Link>
-      </main>
+      </div>
     )
   }
 
@@ -174,7 +174,7 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
   const total = meetings.data?.pages[0]?.total ?? 0
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6">
       <div className="flex items-start justify-between gap-4">
         <p className="font-mono text-xs uppercase tracking-widest text-teal-700">Data story · {def.title}</p>
         {/* Close (#1017): back to the home page's stories, keeping the place. */}
@@ -387,6 +387,6 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
           )}
         </section>
       </div>
-    </main>
+    </div>
   )
 }

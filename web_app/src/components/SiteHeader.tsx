@@ -186,13 +186,13 @@ export default function SiteHeader() {
       <div className="v9-header-inner" style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24, position: 'relative' }}>
         <Link
           to="/"
-          aria-label="Go to home"
           onClick={goHome}
           style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, textDecoration: 'none', color: INK }}
         >
           <div
             className="font-mono-x"
-            style={{ width: 38, height: 38, borderRadius: '50%', border: `2.5px solid ${TEAL}`, display: 'grid', placeItems: 'center', fontWeight: 800, color: TEAL, fontSize: 15 }}
+            aria-hidden="true"
+            style={{ width: 38, height: 38, borderRadius: '50%', border: `2.5px solid ${TEAL}`, display: 'grid', placeItems: 'center', fontWeight: 800, color: '#0f766e', fontSize: 15 }}
           >
             C1
           </div>

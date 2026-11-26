@@ -86,16 +86,16 @@ export default function OrganizationPage() {
     enabled: false,
   })
 
-  if (q.isPending) return <main className="mx-auto max-w-4xl px-4 py-12 text-stone-500">Loading…</main>
+  if (q.isPending) return <div className="mx-auto max-w-4xl px-4 py-12 text-stone-500">Loading…</div>
   if (q.isError) {
     const notFound = (q.error as { response?: { status?: number } })?.response?.status === 404
     return (
-      <main className="mx-auto max-w-4xl px-4 py-12">
+      <div className="mx-auto max-w-4xl px-4 py-12">
         <p className="text-stone-700">{notFound ? "That organization isn't in our records here." : 'This organization is unavailable right now.'}</p>
         <Link to="/search?types=organizations" className="mt-2 inline-block text-teal-700 underline">
           Search organizations
         </Link>
-      </main>
+      </div>
     )
   }
   const o = q.data
@@ -108,7 +108,7 @@ export default function OrganizationPage() {
   const brands = o.aliases.filter((a) => a !== o.name && !a.includes(','))
 
   return (
-    <main className="mx-auto max-w-4xl px-4 pb-16 pt-6 sm:px-6">
+    <div className="mx-auto max-w-4xl px-4 pb-16 pt-6 sm:px-6">
       <p className="font-mono text-xs uppercase tracking-widest text-teal-700">Organization</p>
       <h1 className="mt-2 font-serif text-3xl font-bold text-stone-900 sm:text-4xl">{o.name}</h1>
       {kind && <p className="mt-1 text-stone-600">{kind}</p>}
@@ -225,6 +225,6 @@ export default function OrganizationPage() {
       )}
 
       <OrganizationFunding masterOrgId={o.master_org_id} isCompany={o.company_roles.length > 0 || o.org_type === 'company'} />
-    </main>
+    </div>
   )
 }
