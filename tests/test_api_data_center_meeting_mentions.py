@@ -21,7 +21,12 @@ PATH = "/api/data-centers/meeting-mentions"
 
 
 class _Conn:
-    def __init__(self, rows=None, counts=None, error: Exception | None = None, by_state=None, by_place=None):
+    def __init__(
+        self, rows=None, counts=None, error: Exception | None = None, by_state=None, by_place=None,
+        lean=None, lean_error: Exception | None = None,
+    ):
+        self.lean = lean or []
+        self.lean_error = lean_error
         self.rows = rows or []
         self.by_place = by_place or []
         self.counts = counts or []
@@ -33,6 +38,10 @@ class _Conn:
         self.calls.append((sql, params))
         if self.error:
             raise self.error
+        if "data_center_meeting_lean" in sql:
+            if self.lean_error:
+                raise self.lean_error
+            return self.lean
         if "GROUP BY m.state_code" in sql:
             return self.by_state
         if "GROUP BY m.jurisdiction_id" in sql:
@@ -189,7 +198,10 @@ def test_by_place_only_at_state_scope_and_not_narrowed_by_city(get) -> None:
     }
     conn = _Conn(by_place=[place])
     body = get(conn, {"state": "GA", "city": "Columbus"}).json()
-    no_speakers = {"speakers_for": 0, "speakers_against": 0, "speakers_question": 0, "speakers_neutral": 0}
+    no_speakers = {
+        "speakers_for": 0, "speakers_against": 0, "speakers_question": 0, "speakers_neutral": 0,
+        "public_against_meetings": 0, "disagreement_meetings": 0,
+    }
     assert body["counts"]["by_place"] == [{**place, **no_speakers}]
     sql, params = next(c for c in conn.calls if "GROUP BY m.jurisdiction_id" in c[0])
     assert params == ("GA",)
@@ -210,7 +222,7 @@ def test_by_place_carries_real_speaker_sums_per_government(get) -> None:
     }
     conn = _Conn(by_place=[place])
     body = get(conn, {"state": "AZ"}).json()
-    assert body["counts"]["by_place"] == [place]
+    assert body["counts"]["by_place"] == [{**place, "public_against_meetings": 0, "disagreement_meetings": 0}]
     sql, params = next(c for c in conn.calls if "GROUP BY m.jurisdiction_id" in c[0])
     assert params == ("AZ",)
     assert "data_center_meeting_position" in sql
@@ -219,3 +231,40 @@ def test_by_place_carries_real_speaker_sums_per_government(get) -> None:
     assert "GROUP BY p.video_id" in sql
     assert "SELECT DISTINCT m.jurisdiction_id, m.video_id" in sql
     assert "LEFT JOIN sp ON sp.jurisdiction_id = m.jurisdiction_id" in sql
+
+
+_PLACES = [
+    {"jurisdiction_id": "a_1", "jurisdiction_name": "A County", "jurisdiction_type": "county", "geoid": "13001",
+     "latitude": None, "longitude": None, "meetings": 5},
+    {"jurisdiction_id": "b_2", "jurisdiction_name": "B", "jurisdiction_type": "city", "geoid": "1300002",
+     "latitude": None, "longitude": None, "meetings": 2},
+]
+
+
+def test_by_place_carries_jev_lean_counts(get) -> None:
+    """#1117: public-against and disagreement meetings per government, over the same filtered meeting set."""
+    lean = [{"jurisdiction_id": "a_1", "public_against_meetings": 3, "disagreement_meetings": 1}]
+    conn = _Conn(by_place=_PLACES, lean=lean)
+    body = get(conn, {"state": "GA", "city": "B"}).json()
+    by_id = {p["jurisdiction_id"]: p for p in body["counts"]["by_place"]}
+    assert (by_id["a_1"]["public_against_meetings"], by_id["a_1"]["disagreement_meetings"]) == (3, 1)
+    assert (by_id["b_2"]["public_against_meetings"], by_id["b_2"]["disagreement_meetings"]) == (0, 0)
+    sql, params = next(c for c in conn.calls if "data_center_meeting_lean" in c[0])
+    assert params == ("GA",)  # the state only: never narrowed to the city
+    assert "ILIKE" not in sql
+    assert "l.public_against" in sql and "l.officials_sided_against_public" in sql
+    # Only the two reliable readings: supported / mixed leans are never read.
+    assert "mostly_supported" not in sql and "mixed" not in sql
+
+
+def test_by_place_lean_missing_table_is_zero_not_a_failure(get) -> None:
+    err = asyncpg.exceptions.UndefinedTableError("relation \"data_center_meeting_lean\" does not exist")
+    resp = get(_Conn(by_place=_PLACES, lean_error=err), {"state": "GA"})
+    assert resp.status_code == 200, resp.text
+    assert all(p["public_against_meetings"] == 0 and p["disagreement_meetings"] == 0 for p in resp.json()["counts"]["by_place"])
+
+
+def test_no_lean_query_without_a_state(get) -> None:
+    conn = _Conn(by_place=_PLACES)
+    get(conn)
+    assert not any("data_center_meeting_lean" in c[0] for c in conn.calls)
