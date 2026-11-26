@@ -20,6 +20,8 @@ interface TopicStoryDef {
   /** "Short-term rentals came up in …": the noun phrase the headline leads with. */
   subject: string
   lede: string
+  /** The API listing the platform companies this story names (#1015), when it has one. */
+  companiesPath?: string
 }
 
 const TOPIC_STORIES: Record<string, TopicStoryDef> = {
@@ -29,6 +31,7 @@ const TOPIC_STORIES: Record<string, TopicStoryDef> = {
     title: 'Short-term rentals',
     subject: 'Short-term rentals',
     lede: 'Airbnb, VRBO and vacation rentals: where local governments are talking about them, in the words said at the meeting.',
+    companiesPath: '/short-term-rentals/companies',
   },
 }
 
@@ -37,6 +40,16 @@ const fmtDate = (d?: string | null) => {
   if (!d) return null
   const t = new Date(`${d.slice(0, 10)}T12:00:00`)
   return Number.isNaN(t.getTime()) ? null : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+interface PlatformCompany {
+  master_org_id: string
+  company_name: string
+  aliases: string[]
+  website_url: string | null
+  meetings: number
+  decisions: number
+  newest: { title: string | null; date: string | null; jurisdiction_name: string | null; state_code: string | null; url: string | null; evidence: string | null } | null
 }
 
 interface DecisionResult {
@@ -124,6 +137,15 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     enabled: Boolean(def),
   })
 
+  // The platform companies named in this scope's meetings and decisions (#1015).
+  const companies = useQuery({
+    queryKey: ['topic-story', def?.topicId, 'companies', stateCode ?? ''],
+    queryFn: async () =>
+      ((await api.get(def!.companiesPath!, { params: stateCode ? { state: stateCode } : {} })).data?.companies ?? []) as PlatformCompany[],
+    enabled: Boolean(def?.companiesPath),
+    staleTime: 5 * 60_000,
+  })
+
   if (!def) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-16">
@@ -194,6 +216,68 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
           />
         )}
       </section>
+
+      {def.companiesPath && (
+        <section className="mt-10" aria-labelledby="topic-companies-h">
+          <h2 id="topic-companies-h" className="font-serif text-2xl font-semibold text-stone-900">
+            Companies named
+          </h2>
+          <p className="mt-1 text-sm text-stone-500">
+            The rental platforms named in {label === 'National' ? 'these' : `${label}'s`} meetings and decisions, counted from the record.
+          </p>
+          {companies.isError ? (
+            <p className="mt-4 text-sm text-stone-500">Companies could not be loaded right now.</p>
+          ) : companies.isPending ? (
+            <p className="mt-4 text-sm text-stone-500">Loading companies…</p>
+          ) : (
+            <ul className="mt-4 grid gap-4 sm:grid-cols-3">
+              {companies.data!.map((c) => {
+                const brands = c.aliases.filter((a) => a !== c.company_name && !a.includes(','))
+                return (
+                  <li key={c.master_org_id} className="rounded-xl border border-stone-200 bg-white p-4">
+                    <p className="text-base font-semibold text-stone-900">
+                      <Link to={`/organizations/${encodeURIComponent(c.master_org_id)}`} className="hover:text-teal-700">
+                        {c.company_name}
+                      </Link>
+                    </p>
+                    {brands.length > 0 && <p className="text-xs text-stone-500">{brands.join(', ')}</p>}
+                    {c.meetings + c.decisions === 0 ? (
+                      <p className="mt-2 text-sm text-stone-500">Not named in {label === 'National' ? 'any meeting on record' : `${label}'s meetings on record`}.</p>
+                    ) : (
+                      <p className="mt-2 text-sm text-stone-700">
+                        <Link to={`/search?q=${encodeURIComponent(brands[0] ?? c.company_name)}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`} className="font-semibold text-teal-700">
+                          {fmt(c.meetings)} {c.meetings === 1 ? 'meeting' : 'meetings'}
+                        </Link>
+                        {' · '}
+                        {fmt(c.decisions)} {c.decisions === 1 ? 'decision' : 'decisions'}
+                      </p>
+                    )}
+                    {c.newest?.evidence && (
+                      <blockquote className="mt-2 border-l-2 border-teal-600 pl-3 text-sm italic leading-relaxed text-stone-700">
+                        “{highlightSnippet(c.newest.evidence)}”
+                        <footer className="mt-1 not-italic text-xs text-stone-500">
+                          {[c.newest.jurisdiction_name, c.newest.state_code].filter(Boolean).join(', ')}
+                          {fmtDate(c.newest.date) ? ` · ${fmtDate(c.newest.date)}` : ''}
+                          {c.newest.url && (
+                            <>
+                              {' · '}
+                              {c.newest.url.startsWith('/') ? (
+                                <Link to={c.newest.url} className="text-teal-700">Open</Link>
+                              ) : (
+                                <a href={c.newest.url} target="_blank" rel="noopener noreferrer" className="text-teal-700">Watch ↗</a>
+                              )}
+                            </>
+                          )}
+                        </footer>
+                      </blockquote>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section aria-labelledby="topic-meetings-h">

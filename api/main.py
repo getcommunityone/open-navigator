@@ -358,6 +358,8 @@ from api.routes import efile990 as efile990_routes
 from api.routes import lenses as lenses_routes
 from api.routes import money_flow as money_flow_routes
 from api.routes import topics as topics_routes
+from api.routes import short_term_rentals as short_term_rentals_routes
+from api.routes import organizations as organizations_routes
 from api.routes import money_and_talk as money_and_talk_routes
 from api.routes import grandkid_outlook as grandkid_outlook_routes
 from api.routes import local_finance as local_finance_routes
@@ -405,6 +407,10 @@ app.include_router(lenses_routes.router)
 app.include_router(money_flow_routes.router)
 # Prefix ("/api/topics") baked into the router — include with NO extra prefix.
 app.include_router(topics_routes.router)
+# Prefix ("/api/short-term-rentals") baked into the router (#1015).
+app.include_router(short_term_rentals_routes.router)
+# Prefix ("/api/organizations") baked into the router (#1015): the organization page.
+app.include_router(organizations_routes.router)
 # Prefix ("/api/money-and-talk") baked into the router — include with NO extra prefix.
 app.include_router(money_and_talk_routes.router)
 # Prefix ("/api/grandkid-outlook") baked into the router — include with NO extra prefix.

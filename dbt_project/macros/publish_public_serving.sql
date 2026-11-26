@@ -254,7 +254,8 @@
     'mdm_organization_data_center', 'data_center_project', 'data_center_project_company',
     'data_center_project_jurisdiction', 'data_center_project_figure', 'data_center_project_mention',
     'data_center_community_event', 'data_center_community_event_source',
-    'data_center_community_event_recording'
+    'data_center_community_event_recording',
+    'mdm_organization_short_term_rental', 'short_term_rental_company_mention'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

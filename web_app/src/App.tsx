@@ -154,6 +154,7 @@ function RouteChangeTracer() {
 // The challenge and the story pull in gsap and lenis, so they load on their own route chunks and no other page pays for them.
 const DataStory = lazy(() => import('./pages/DataStory'))
 const TopicStory = lazy(() => import('./pages/TopicStory'))
+const OrganizationPage = lazy(() => import('./pages/OrganizationPage'))
 const DataStories = lazy(() => import('./pages/DataStories'))
 
 /**
@@ -225,6 +226,15 @@ function App() {
           element={
             <LazyRouteBoundary name="Data story">
               <DataStory />
+            </LazyRouteBoundary>
+          }
+        />
+        {/* Organization page (#1015). */}
+        <Route
+          path="organizations/:masterOrgId"
+          element={
+            <LazyRouteBoundary name="Organization">
+              <OrganizationPage />
             </LazyRouteBoundary>
           }
         />

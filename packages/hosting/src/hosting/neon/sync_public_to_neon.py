@@ -248,6 +248,9 @@ CIVIC_SERVING = frozenset(
         # data center companies (MDM satellite) and projects with their companies,
         # governments, figures and matched decisions / passages (#531)
         "mdm_organization_data_center",
+        # short-term rental platform companies (MDM satellite) and where they are named (#1015); small
+        "mdm_organization_short_term_rental",
+        "short_term_rental_company_mention",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

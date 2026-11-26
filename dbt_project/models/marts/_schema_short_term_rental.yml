@@ -1,0 +1,144 @@
+version: 2
+
+models:
+  - name: mdm_organization_short_term_rental
+    description: >
+      MDM satellite (#1015): short-term rental platform detail for organizations that are platform companies
+      (Airbnb, Expedia Group / Vrbo, Booking Holdings). One row per master_org_id (PK and FK to mdm_organization),
+      1:1 with the short_term_rental_companies seed. Aliases, match terms, roles, website and the source (URL +
+      verbatim excerpt from the company's own page).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: master_org_id
+        description: 'Primary key and FK: the organization master row the company resolved to.'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: company_key
+        description: "The seed's stable slug."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests: [unique]
+      - name: company_name
+        description: "The company's name."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: aliases
+        description: 'Exact forms that name the company, brands included.'
+        data_type: text[]
+      - name: match_terms
+        description: 'Lowercase full-text terms matched against transcripts and decisions.'
+        data_type: text[]
+      - name: roles
+        description: 'short_term_rental_platform.'
+        data_type: text[]
+      - name: website_url
+        description: "The company's own website."
+        data_type: text
+      - name: source_kind
+        description: "company_page."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_url
+        description: 'Where the excerpt comes from.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_excerpt
+        description: 'Verbatim text from source_url.'
+        data_type: text
+        constraints:
+          - type: not_null
+
+  - name: short_term_rental_company_mention
+    description: >
+      Where a short-term rental platform is named (#1015). Grain: one row per (company, meeting video) whose
+      transcript names it, and one row per (company, decision) whose record names it (mention_kind). evidence is
+      a verbatim ts_headline of the record with the matched terms in <mark>.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization_short_term_rental')
+        to_columns: [master_org_id]
+    columns:
+      - name: mention_id
+        description: "Primary key: md5(company_key | mention_kind | event_decision_id or video_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: master_org_id
+        description: 'FK -> mdm_organization_short_term_rental.master_org_id (the company).'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: company_key
+        description: "The company's slug."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: company_name
+        description: "The company's name."
+        data_type: text
+      - name: mention_kind
+        description: "'meeting' (a transcript names it) or 'decision' (a decision record names it)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['meeting', 'decision']
+      - name: video_id
+        description: 'The meeting video (the decision''s meeting, when known).'
+        data_type: text
+      - name: event_decision_id
+        description: >
+          The decision, for mention_kind 'decision'. FK -> event_decision.event_decision_id, asserted by the
+          relationships test (event_decision is partitioned, as in event_decision_place).
+        data_type: text
+        tests:
+          - relationships:
+              arguments:
+                to: ref('event_decision')
+                field: event_decision_id
+      - name: title
+        description: 'Meeting title, or the decision headline.'
+        data_type: text
+      - name: event_date
+        description: 'Meeting date (the decision''s meeting date); null when not known.'
+        data_type: date
+      - name: jurisdiction_name
+        description: 'Where.'
+        data_type: text
+      - name: state_code
+        description: '2-letter state code.'
+        data_type: text
+      - name: state
+        description: 'State name.'
+        data_type: text
+      - name: url
+        description: 'The meeting recording, or /decisions/<id>.'
+        data_type: text
+      - name: evidence
+        description: 'Verbatim passage with the matched terms in <mark>.'
+        data_type: text
