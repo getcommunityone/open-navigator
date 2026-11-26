@@ -50,3 +50,11 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review
+
+- Scans: no secrets, no fabricated data, no personal data, no data changes.
+- Correctness: the item reads the reader's own city from the location context, else Local Schools; no place is hard-coded. tsc clean.
+- Docs: no governed page describes this card.
+
+No blocking findings.
