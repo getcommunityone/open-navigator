@@ -21,6 +21,18 @@ import { apiBaseUrl } from '../../lib/api'
 import { withSpan } from '../../instrumentation'
 import { chatErrorMessage } from '../../utils/chatError'
 
+/** The chat is throttled per signed-in user, or per IP for guests (#1049), so send the sign-in token when there is one. */
+function chatHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  try {
+    const token = localStorage.getItem('auth_token')
+    if (token) headers.Authorization = `Bearer ${token}`
+  } catch {
+    // Storage blocked: chat as a guest.
+  }
+  return headers
+}
+
 export type MeetingChatCitation = {
   title: string
   place: string
@@ -247,7 +259,7 @@ export function MeetingChatRuntimeProvider({
           try {
             const res = await fetch(`${apiBaseUrl}/chat/meetings`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: chatHeaders(),
               signal: controller.signal,
               body: JSON.stringify({
                 question: input,

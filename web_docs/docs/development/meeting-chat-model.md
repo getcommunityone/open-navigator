@@ -41,6 +41,25 @@ and then adds nothing to the daily total.
 
 `CHAT_DAILY_SPEND_CAP_USD` (default 1.00) still stops the chat for the day once the estimates add up to it.
 
+## Sign-in and limits per person
+
+The chat requires sign-in ([#1049](https://github.com/getcommunityone/open-navigator/issues/1049)). It is a paid model
+call, so the API answers a request without a valid sign-in token with 401 ("Sign in to use the meeting chat."), and it
+never reaches the model. The chat page shows **Continue with Google / Facebook / GitHub** to a visitor who isn't
+signed in, and sign-in returns them to the same chat URL, place filter included.
+
+Each signed-in user is throttled as one person across all their devices. The counters are kept in the API process's
+memory, so they reset when it restarts.
+
+| Variable | Limit per signed-in user | Default |
+|---|---|---|
+| `CHAT_RATE_PER_HOUR` | per hour | 60 |
+| `CHAT_USER_PER_DAY` | per UTC day | 200 |
+| `CHAT_BURST_PER_5MIN` | per 5 minutes | 20 |
+| `CHAT_MIN_INTERVAL_SECONDS` | between messages | 2 |
+
+`CHAT_DAILY_SPEND_CAP_USD` still applies to the whole site. Telemetry doesn't record the user id.
+
 ## When it fails
 
 The API log line `chat model call failed (<error type>): …` names the cause:
