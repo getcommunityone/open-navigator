@@ -113,7 +113,7 @@ schema:
     name: content_tsv
     logicalType: string
     physicalType: tsvector
-    description: Stored full-text search vector over content + meeting_title + body_name, so search ranks/matches without recomputing to_tsvector. Backed by a GIN index (see model post_hook).
+    description: Stored full-text search vector over content + meeting_title + body_name, so search ranks/matches without recomputing to_tsvector. Backed by a GIN index (see the model's indexes config).
   - id: source
     name: source
     logicalType: string

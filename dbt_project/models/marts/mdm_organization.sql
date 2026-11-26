@@ -1,11 +1,13 @@
 {{
   config(
     materialized='table',
-    post_hook=[
-      "CREATE INDEX IF NOT EXISTS mdm_organization_org_name_fts_idx ON {{ this }} USING gin (to_tsvector('english', org_name))",
-      "CREATE INDEX IF NOT EXISTS mdm_organization_org_name_norm_idx ON {{ this }} (org_name_norm)",
-      "CREATE INDEX IF NOT EXISTS mdm_organization_state_code_idx ON {{ this }} (state_code)"
-    ]
+    pre_hook=["{{ swap_guard() }}"],
+    indexes=[
+      {'columns': ["to_tsvector('english', org_name)"], 'type': 'gin'},
+      {'columns': ["org_name_norm"], 'type': 'btree'},
+      {'columns': ["state_code"], 'type': 'btree'}
+    ],
+    post_hook=["{{ swap_guard_check() }}"]
   )
 }}
 
@@ -13,7 +15,7 @@
     Mart (MDM Layer 5): one golden record per resolved organization, with a
     canonical org_type. Canonical public org table.
 
-    Indexes (post_hook): a GIN FTS index on org_name for org search; a btree on
+    Indexes (dbt `indexes` config, #938): a GIN FTS index on org_name for org search; a btree on
     org_name_norm that both orders org browse/name-sort results (index scan instead
     of a 3.6M-row sort) and powers the person-search anti-join keeping
     officer-derived org names (e.g. CareQuest Institute) out of People results; and

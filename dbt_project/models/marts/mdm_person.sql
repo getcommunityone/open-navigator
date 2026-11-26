@@ -6,10 +6,7 @@
       {'columns': ['master_person_id'], 'type': 'btree'},
       {'columns': ['full_name gin_trgm_ops'], 'type': 'gin'}
     ],
-    pre_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "{{ swap_guard() }}"
-    ],
+    pre_hook=["{{ swap_guard() }}"],
     post_hook=[
       "{{ swap_guard_check() }}"
     ]

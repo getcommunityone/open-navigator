@@ -2,9 +2,8 @@
   content_tsv GIN index: mirrors event_documents. The index is on the STORED
   content_tsv column (not an expression index), so both the @@ full-text match
   and the ts_rank() ordering read precomputed lexemes rather than recomputing
-  to_tsvector over the document body for every match. Created via post_hook
-  (the indexes=[] config below can't express a GIN-on-tsvector cleanly here),
-  skipped on the neon target.
+  to_tsvector over the document body for every match. Declared in the indexes
+  config below (#938), skipped on the neon target.
 
   content/content_tsv ARE populated: bronze.bronze_meeting_document_text holds
   EXTRACTED PDF body text (scrapers.suiteone.doctext for SuiteOne docs,
@@ -18,17 +17,14 @@
     materialized='table',
     tags=['marts', 'meetings', 'documents', 'suiteone', 'scraped_meetings', 'production'],
     unique_key='event_meeting_document_id',
-    indexes=[
-      {'columns': ['event_meeting_id'], 'type': 'btree'},
-      {'columns': ['jurisdiction_id'], 'type': 'btree'},
-      {'columns': ['census_geoid'], 'type': 'btree'},
-      {'columns': ['document_type'], 'type': 'btree'},
-      {'columns': ['doc_date'], 'type': 'btree'}
-    ],
-    post_hook=(
+    indexes=(
       [
-        "CREATE INDEX IF NOT EXISTS event_meeting_document_content_tsv_idx ON {{ this }} USING gin (content_tsv)"
-      ] if target.name != 'neon' else []
+        {'columns': ['event_meeting_id'], 'type': 'btree'},
+        {'columns': ['jurisdiction_id'], 'type': 'btree'},
+        {'columns': ['census_geoid'], 'type': 'btree'},
+        {'columns': ['document_type'], 'type': 'btree'},
+        {'columns': ['doc_date'], 'type': 'btree'}
+      ] + ([{'columns': ['content_tsv'], 'type': 'gin'}] if target.name != 'neon' else [])
     )
   )
 }}
@@ -314,7 +310,7 @@ select
     -- Precomputed full-text vector stored alongside the text so the search API
     -- ts_rank()s without recomputing to_tsvector per match. Covers the extracted
     -- PDF body plus the title/body metadata in one predicate (so text-less
-    -- attachments still match on title/body). Indexed by the GIN post_hook.
+    -- attachments still match on title/body). Indexed by the content_tsv GIN index.
     to_tsvector(
         'english',
         coalesce(content, '') || ' ' || coalesce(meeting_title, '') || ' ' || coalesce(body_name, '')
