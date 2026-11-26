@@ -25,14 +25,18 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
-from api.routes.search_postgres import STATE_NAME_TO_CODE, get_db_pool, normalize_state_input
+from api.routes.search_postgres import (
+    STATE_NAME_TO_CODE,
+    get_db_pool,
+    normalize_state_input,
+)
 
 router = APIRouter(prefix="/api/topics", tags=["topics"])
 tracer = trace.get_tracer(__name__)
@@ -67,21 +71,21 @@ TOPIC_OUTCOME_KIND: dict[str, MilestoneKind] = {
 
 class TimelineScope(BaseModel):
     level: Literal["national", "state", "city"]
-    state_code: Optional[str] = None
-    state: Optional[str] = None
-    city: Optional[str] = None
+    state_code: str | None = None
+    state: str | None = None
+    city: str | None = None
 
 
 class TimelineYear(BaseModel):
     year: str = Field(..., description="Calendar year, as a string.")
     meetings: int = Field(..., description="Distinct meetings in the scope that year whose transcript discussed the topic.")
-    passages: Optional[int] = Field(
+    passages: int | None = Field(
         None, description="Quoted passages behind those meetings (data centers only; null for other topics)."
     )
-    all_recorded_meetings: Optional[int] = Field(
+    all_recorded_meetings: int | None = Field(
         None, description="All recorded (transcribed) meetings in the scope that year; null when not known."
     )
-    share: Optional[float] = Field(
+    share: float | None = Field(
         None, description="meetings / all_recorded_meetings (0–1), or null when it can't be computed."
     )
 
@@ -89,11 +93,11 @@ class TimelineYear(BaseModel):
 class TimelineMilestone(BaseModel):
     date: str = Field(..., description="ISO date of the meeting or the bill's latest action.")
     kind: MilestoneKind
-    place: Optional[str] = None
-    state_code: Optional[str] = None
-    title: Optional[str] = None
-    url: Optional[str] = None
-    video_id: Optional[str] = None
+    place: str | None = None
+    state_code: str | None = None
+    title: str | None = None
+    url: str | None = None
+    video_id: str | None = None
     source: Literal["ai_reading", "record"] = Field(
         ..., description="ai_reading: a classifier's reading of the meeting transcript; record: an official record (a bill)."
     )
@@ -101,12 +105,12 @@ class TimelineMilestone(BaseModel):
 
 class TopicTimelineResponse(BaseModel):
     topic: str
-    topic_name: Optional[str] = None
+    topic_name: str | None = None
     scope: TimelineScope
     years: list[TimelineYear]
     undated_meetings: int = Field(0, description="Topic meetings in the scope with no usable date (not on the line).")
     total_meetings: int = Field(0, description="Distinct topic meetings in the scope, dated or not.")
-    total_passages: Optional[int] = None
+    total_passages: int | None = None
     milestones: list[TimelineMilestone]
     coverage_available: bool = Field(..., description="False when recorded_meeting_year can't be read (no share series).")
     bills_available: bool = Field(..., description="False when topic_legislation_bill is not in the database yet.")
@@ -138,12 +142,12 @@ class PeriodCompareResponse(BaseModel):
 # --- scope -----------------------------------------------------------------------------------------------------------
 
 
-def _clean(v: Optional[str]) -> Optional[str]:
+def _clean(v: str | None) -> str | None:
     s = (v or "").strip()
     return s or None
 
 
-def build_scope(state: Optional[str], city: Optional[str]) -> TimelineScope:
+def build_scope(state: str | None, city: str | None) -> TimelineScope:
     code = normalize_state_input(_clean(state))
     c = _clean(city) if code else None  # a city needs its state; a lone city is not a scope we can apply
     return TimelineScope(
@@ -175,7 +179,7 @@ def _where(scope: TimelineScope, state_col: str, place_cols: tuple[str, ...], pa
 # --- SQL builders (pure, unit-tested) --------------------------------------------------------------------------------
 
 
-def topic_years_sql(slug: str, topic_id: Optional[int], scope: TimelineScope) -> tuple[str, list[Any]]:
+def topic_years_sql(slug: str, topic_id: int | None, scope: TimelineScope) -> tuple[str, list[Any]]:
     """Per-year distinct topic meetings (and passages for data centers); year NULL = undated."""
     params: list[Any] = []
     if slug == DATA_CENTERS:
@@ -255,7 +259,7 @@ def bills_sql(topic_id: int, scope: TimelineScope) -> tuple[str, list[Any]]:
     return sql, params
 
 
-def period_sql(slug: str, topic_id: Optional[int], scope: TimelineScope, y0: int, y1: int) -> tuple[str, list[Any], str]:
+def period_sql(slug: str, topic_id: int | None, scope: TimelineScope, y0: int, y1: int) -> tuple[str, list[Any], str]:
     """Topic meetings and recorded meetings per key for the two years. key = state (national) or government (state)."""
     grain = "place" if scope.state_code else "state"
     params: list[Any] = [y0, y1]
@@ -301,21 +305,21 @@ def period_sql(slug: str, topic_id: Optional[int], scope: TimelineScope, y0: int
 # --- shaping (pure, unit-tested) -------------------------------------------------------------------------------------
 
 
-def _share(n: int, d: Optional[int]) -> Optional[float]:
+def _share(n: int, d: int | None) -> float | None:
     if d is None or d <= 0 or n > d:
         return None
     return round(n / d, 6)
 
 
 def shape_years(
-    topic_rows: list[dict[str, Any]], recorded: Optional[dict[int, int]]
-) -> tuple[list[TimelineYear], int, int, Optional[int]]:
+    topic_rows: list[dict[str, Any]], recorded: dict[int, int] | None
+) -> tuple[list[TimelineYear], int, int, int | None]:
     """Years from the first year the topic came up to the last year on record. A year with no recorded meetings and
     no topic meetings is left out (a gap). Returns (years, undated, total meetings, total passages)."""
     by_year: dict[int, dict[str, Any]] = {}
     undated = 0
     total_m = 0
-    passages: Optional[int] = None
+    passages: int | None = None
     for r in topic_rows:
         m = int(r["meetings"] or 0)
         total_m += m
@@ -410,7 +414,7 @@ def shape_period_rows(rows: list[dict[str, Any]], grain: str) -> tuple[list[Peri
 # --- routes ----------------------------------------------------------------------------------------------------------
 
 
-async def _topic(conn, slug: str) -> tuple[Optional[int], Optional[str]]:
+async def _topic(conn, slug: str) -> tuple[int | None, str | None]:
     row = await conn.fetchrow("SELECT topic_id, name FROM civicsearch_topic WHERE query_id = $1 LIMIT 1", slug)
     if row is None:
         if slug == DATA_CENTERS:
@@ -426,8 +430,8 @@ async def _exists(conn, rel: str) -> bool:
 @router.get("/{topic}/timeline", response_model=TopicTimelineResponse)
 async def topic_timeline(
     topic: str = Path(..., description="Topic slug (civicsearch_topic.query_id), e.g. data-centers."),
-    state: Optional[str] = Query(None, description="2-letter state code (or full name)."),
-    city: Optional[str] = Query(None, description="City; case-insensitive substring of the government's name. Needs state."),
+    state: str | None = Query(None, description="2-letter state code (or full name)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the government's name. Needs state."),
 ) -> TopicTimelineResponse:
     """Meetings per year for a topic and scope, the share of all recorded meetings, and the milestone track.
 
@@ -446,7 +450,7 @@ async def topic_timeline(
                 sql, p = topic_years_sql(slug, topic_id, scope)
                 topic_rows = [dict(r) for r in await conn.fetch(sql, *p)]
                 coverage = await _exists(conn, "recorded_meeting_year")
-                recorded: Optional[dict[int, int]] = None
+                recorded: dict[int, int] | None = None
                 if coverage:
                     sql, p = recorded_years_sql(scope)
                     recorded = {int(r["y"]): int(r["recorded"]) for r in await conn.fetch(sql, *p)}
@@ -463,7 +467,7 @@ async def topic_timeline(
                     bill_rows = [dict(r) for r in await conn.fetch(sql, *p)]
         except HTTPException:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("topic timeline failed")
             span.record_exception(exc)
             raise HTTPException(status_code=503, detail="This topic's timeline is unavailable right now.") from exc
@@ -480,9 +484,9 @@ async def topic_timeline(
 @router.get("/{topic}/period-compare", response_model=PeriodCompareResponse)
 async def topic_period_compare(
     topic: str = Path(..., description="Topic slug, e.g. data-centers."),
-    state: Optional[str] = Query(None, description="2-letter state code: rows become the state's governments."),
-    from_year: Optional[int] = Query(None, alias="from", ge=1990, le=2100, description="Earlier year (default: last year)."),
-    to_year: Optional[int] = Query(None, alias="to", ge=1990, le=2100, description="Later year (default: this year)."),
+    state: str | None = Query(None, description="2-letter state code: rows become the state's governments."),
+    from_year: int | None = Query(None, alias="from", ge=1990, le=2100, description="Earlier year (default: last year)."),
+    to_year: int | None = Query(None, alias="to", ge=1990, le=2100, description="Later year (default: this year)."),
 ) -> PeriodCompareResponse:
     """The topic's share of recorded meetings in two years, per state (national) or per government (state scope).
 
@@ -508,7 +512,7 @@ async def topic_period_compare(
                     rows = [dict(r) for r in await conn.fetch(sql, *p)]
         except HTTPException:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("topic period compare failed")
             span.record_exception(exc)
             raise HTTPException(status_code=503, detail="This comparison is unavailable right now.") from exc

@@ -203,7 +203,7 @@ def test_period_compare_hides_thin_rows_and_documents_thresholds(monkeypatch) ->
     assert [row["label"] for row in body["rows"]] == ["Virginia", "Texas"]
     tx = body["rows"][1]
     assert tx["earlier_share"] == round(4 / 271, 6) and tx["later_share"] == round(38 / 509, 6)
-    sql, params = next((s, p) for s, p in conn.calls if "WITH t AS" in s)
+    _sql, params = next((s, p) for s, p in conn.calls if "WITH t AS" in s)
     assert params[:2] == (2025, 2026)
 
 
