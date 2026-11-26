@@ -261,6 +261,8 @@ interface LensBlock {
 interface LensesResp {
   lenses: LensBlock[]
   activity: LensActivity[]
+  /** The window the cards cover: the requested one, or what `auto` resolved to (#1045). */
+  window?: string
   location_label?: string
 }
 
@@ -598,7 +600,10 @@ export default function HomeV9() {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 220)
     return () => clearTimeout(t)
   }, [query])
-  const [when, setWhen] = useState(WHEN[0])
+  // null until the reader picks a window: the lenses ask for `auto`, the narrowest window that has decisions for the
+  // place, and the chip for the window the API resolved to is highlighted (#1045), so an Alabama reader whose newest
+  // analysed decision is months old isn't greeted by an empty "Past month".
+  const [pickedWhen, setWhen] = useState<(typeof WHEN)[number] | null>(null)
   const [showStrategicPlan, setShowStrategicPlan] = useState(false)
 
   // When arriving from another page via `/#how-it-works` (shared header nav),
@@ -656,15 +661,21 @@ export default function HomeV9() {
 
   // ── Real data ──
   const { data: lensesData } = useQuery<LensesResp>({
-    queryKey: ['home-v9-lenses', national, stateCode, city, when.window],
+    queryKey: ['home-v9-lenses', national, stateCode, city, pickedWhen?.window ?? 'auto'],
     queryFn: () => {
-      const params: Record<string, string> = { window: when.window }
+      const params: Record<string, string> = { window: pickedWhen?.window ?? 'auto' }
       if (!national && stateCode) params.state = stateCode
       if (!national && city) params.city = city
       return api.get('/lenses', { params }).then((r) => r.data)
     },
     staleTime: 5 * 60 * 1000,
   })
+  // The window the shown cards cover: the reader's pick, else what `auto` resolved to.
+  const when: { label: string; window: string } = pickedWhen ??
+    WHEN.find((w) => w.window === lensesData?.window) ??
+    (lensesData?.window === 'fiveyear'
+      ? { label: 'Past 5 years', window: 'fiveyear' }
+      : { label: 'Recent', window: lensesData?.window ?? 'auto' })
 
   // ── Recent meetings (REAL /api/meetings, sort=recent) ──
   // Fallback content for the Contested / Raised Eyebrows lenses: when this place
@@ -1733,7 +1744,7 @@ export default function HomeV9() {
           const whenSelector = (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
               {WHEN.map((w) => (
-                <Chip key={w.label} active={when.label === w.label} onClick={() => setWhen(w)}>
+                <Chip key={w.label} active={!!lensesData && when.window === w.window} onClick={() => setWhen(w)}>
                   {w.label}
                 </Chip>
               ))}
@@ -1965,7 +1976,8 @@ export default function HomeV9() {
                 items: [
                   { kind: 'check', label: 'School Quality' },
                   { kind: 'check', label: 'Property Taxes' },
-                  { kind: 'check', label: 'Northport Schools' },
+                  // The reader's own place (#1047), never a hard-coded one.
+                  { kind: 'check', label: location?.city ? `${location.city} Schools` : 'Local Schools' },
                   { kind: 'check', label: 'Traffic & Roads' },
                   { kind: 'arrow', label: 'Why are my taxes rising?' },
                 ],
