@@ -9,6 +9,9 @@ import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
 import { youtubeThumbnail } from '../../lib/youtubeThumbnail'
 import MeetingVideoModal, { type MeetingVideo } from './MeetingVideoModal'
+import UnitMatrixChart from './UnitMatrixChart'
+import TimelineChart from './TimelineChart'
+import DumbbellChart from './DumbbellChart'
 
 interface Props {
   chartKey: string
@@ -26,7 +29,12 @@ interface Props {
   emptyExtra?: ReactNode
   /** Draw the dataset another way (`meetings`: the meeting passages' data as one dot per meeting). */
   view?: 'meetings'
+  /** The topic slug behind the meetings timeline (#1140); the data-center story's charts are `data-centers`. */
+  topic?: string
 }
+
+/** Record charts drawn as a unit matrix (#1140): one square per listed record, regrouped by real fields. */
+const MATRIX_CHARTS = new Set(['meeting-mentions', 'agenda-items', 'decisions', 'job-claims'])
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 
@@ -157,7 +165,7 @@ export function Dots({ spec }: { spec: DotsSpec }) {
 }
 
 /** The chart for one round: one simple figure from the dataset the statement names, its FIG. caption and data table. */
-export default function ChartPanel({ chartKey, round, enabled, stateCode, stateName, city, scopeLabel, emptyExtra, view }: Props) {
+export default function ChartPanel({ chartKey, round, enabled, stateCode, stateName, city, scopeLabel, emptyExtra, view, topic = 'data-centers' }: Props) {
   const q = useChartData(chartKey, enabled, stateCode, city)
   const spec = useMemo(() => chartSpec(chartKey, q.data, stateName, view), [chartKey, q.data, stateName, view])
   const [open, setOpen] = useState(false)
@@ -165,9 +173,19 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
   const scope = scopeLabel ?? stateName ?? 'National'
   const hasLinks = Boolean(spec?.groups.some((g) => g.dots.some((d) => d.url)))
   const hasVideos = Boolean(spec?.groups.some((g) => g.dots.some((d) => d.video)))
+  const matrix = Boolean(spec && MATRIX_CHARTS.has(chartKey) && !view && spec.perDot === 1)
+  /** The caption names the mark drawn: a square in the unit matrix, a dot otherwise. */
+  const mark = (t: string) => (matrix ? t.replace(/\bdots?\b/g, (w) => (w === 'dot' ? 'square' : 'squares')) : t)
 
   return (
     <figure className="stance-figure" aria-label={spec?.title ?? 'Chart'}>
+      {/* The Meetings screen (#1140): the trend line with its milestone track, and the period dumbbell, above the squares. */}
+      {chartKey === 'meeting-mentions' && !view && enabled && (
+        <>
+          <TimelineChart topic={topic} stateCode={stateCode} city={city} scopeLabel={scope} subject="data centers" idBase={`stance-${round}`} />
+          {!city && <DumbbellChart topic={topic} stateCode={stateCode} scopeLabel={scope} subject="data centers" idBase={`stance-${round}`} />}
+        </>
+      )}
       {q.isLoading && enabled ? (
         <p className="folio-muted" role="status">
           Loading chart…
@@ -177,12 +195,14 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
           <p>{q.isError ? 'This chart could not be loaded right now.' : 'No data available for this chart'}</p>
           {emptyExtra}
         </div>
+      ) : matrix ? (
+        <UnitMatrixChart spec={spec} chartKey={chartKey} placeGrain={stateCode ? 'town' : 'state'} idBase={`stance-${round}`} scopeLabel={scope} />
       ) : (
         <Dots spec={spec} />
       )}
       <figcaption className="folio-fig">
         <b>FIG. {fig}</b> — {spec ? `${spec.title}, ${scope}.` : `${scope}.`}
-        {spec && ` ${spec.dotMeans} ${hasVideos ? 'Hover or focus a dot to preview the meeting; select it to play the recording from the quoted moment.' : hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`}
+        {spec && mark(` ${spec.dotMeans} ${hasVideos ? 'Hover or focus a dot to preview the meeting; select it to play the recording from the quoted moment.' : hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`)}
         {spec && ` Source: ${spec.source}.`}
         {spec?.note && ` ${spec.note}`}
         {spec && chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'}

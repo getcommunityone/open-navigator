@@ -1929,6 +1929,16 @@ export interface components {
         };
         /** DataCenterMeetingMention */
         DataCenterMeetingMention: {
+            /**
+             * Ai Outcome
+             * @description AI reading (#1140, data_center_meeting_lean.dc_outcome) of what officials did with the item: approved, denied, tabled_or_deferred, moratorium or discussed_no_action. Null when not screened or no item.
+             */
+            ai_outcome?: string | null;
+            /**
+             * Ai Public Lean
+             * @description AI reading of how the public leaned at that meeting (data_center_meeting_lean.public_lean): mostly_opposed, mostly_supported, mixed or no_public_comment_on_data_center. Null when not screened.
+             */
+            ai_public_lean?: string | null;
             /** Data Center Meeting Mention Id */
             data_center_meeting_mention_id: string;
             /** Data Center Site Id */

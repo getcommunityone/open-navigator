@@ -1,0 +1,77 @@
+/* #1140: unit matrix, trend line + milestone track, period dumbbell. Ported from the reference's §4.1, §4.3 and §4.5,
+   on the story's folio tokens (--ink, --violet, --vermilion, --rule …). */
+
+.sc-block { margin-bottom: 20px; }
+.sc-block + .sc-block { padding-top: 16px; border-top: 1px solid var(--rule); }
+.sc-h { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0 0 6px; line-height: 1.3; }
+.sc-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.sc-note { font-size: var(--t-label, 13px); line-height: 1.45; color: var(--ink-2); margin: 6px 0 0; max-width: 62ch; }
+.sc-note b { color: var(--ink); font-weight: 600; }
+.sc-micro { font-family: var(--font-mono); font-size: var(--t-micro, 11px); fill: var(--ink-3); }
+.sc-label { font-family: var(--font-sans); font-size: 12px; font-weight: 500; fill: var(--ink); }
+.sc-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.sc-svg :focus { outline: none; }
+.sc-svg :focus-visible > .sc-ring,
+.sc-svg .sc-focusable:focus-visible { outline: 2px solid var(--violet-ink); outline-offset: 2px; }
+
+/* Unit matrix */
+.sc-sq {
+  transition: transform var(--d-3, 600ms) var(--ease-in-out), fill var(--d-2, 240ms) var(--ease-std), opacity var(--d-2, 240ms) var(--ease-out);
+  cursor: pointer;
+}
+.sc-sq:focus-visible { outline: 2px solid var(--violet-ink); outline-offset: 1px; }
+.sc-matrix:not(.is-revealed) .sc-sq { opacity: 0; }
+.sc-tone-approved { fill: var(--violet); }
+.sc-tone-denied, .sc-tone-against { fill: var(--vermilion); }
+.sc-tone-tabled { fill: var(--ink-3); }
+.sc-tone-moratorium, .sc-tone-mixed { fill: var(--magenta); }
+.sc-tone-no_action, .sc-tone-no_side { fill: var(--neutral-data); }
+.sc-tone-for { fill: var(--violet); }
+/* Records without the field ("Date not given", "Not screened"): an outlined square, never mistaken for a real group. */
+.sc-tone-none { fill: var(--paper-raised); stroke: var(--ink-3); stroke-width: 1; }
+
+/* Trend line */
+.sc-line { fill: none; stroke: var(--violet); stroke-width: 2; stroke-dasharray: 1; stroke-dashoffset: 0; }
+.sc-line.is-drawing { animation: sc-draw var(--d-4, 900ms) var(--ease-out) both; }
+@keyframes sc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.sc-pt { fill: var(--violet); cursor: pointer; }
+.sc-end { font-size: 22px; font-weight: 500; letter-spacing: -0.015em; fill: var(--ink); }
+
+/* Milestone track */
+.sc-ms { cursor: pointer; }
+.sc-ms rect.sc-ms-sq { fill: var(--ink); opacity: 0.75; transition: fill var(--d-1, 120ms) var(--ease-std); }
+.sc-ms[aria-pressed='true'] rect.sc-ms-sq { fill: var(--vermilion); opacity: 1; }
+.sc-ms:focus-visible rect.sc-ms-sq { outline: 2px solid var(--violet-ink); outline-offset: 2px; }
+.sc-detail { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ink); }
+.sc-detail-date { font-family: var(--font-mono); font-size: var(--t-micro, 11px); color: var(--violet-ink); margin-bottom: 4px; }
+.sc-detail-title { font-size: 18px; font-weight: 500; line-height: 1.25; letter-spacing: -0.01em; color: var(--ink); margin: 0 0 6px; }
+.sc-detail-body { font-size: 14px; line-height: 1.5; color: var(--ink-2); margin: 0 0 6px; max-width: 46ch; }
+.sc-detail a { color: var(--violet-ink); font-weight: 500; }
+.sc-tag { display: inline-block; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+  border: 1px solid var(--rule); padding: 1px 5px; margin-left: 6px; color: var(--ink-2); vertical-align: 1px; }
+
+.sc-taplist { display: grid; grid-template-columns: 1fr; margin-top: 8px; border-top: 1px solid var(--rule); }
+.sc-tapbtn { appearance: none; background: transparent; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+  padding: 8px 4px; display: grid; grid-template-columns: 12px 84px 1fr; align-items: center; gap: 8px; text-align: left;
+  cursor: pointer; font-family: var(--font-sans); color: var(--ink-2); min-height: 44px; font-size: 14px; }
+.sc-tapbtn[aria-pressed='true'] { color: var(--ink); background: var(--paper-raised); }
+.sc-tapsq { width: 10px; height: 10px; background: var(--ink); display: block; }
+.sc-tapbtn[aria-pressed='true'] .sc-tapsq { background: var(--vermilion); }
+.sc-tapdate { font-family: var(--font-mono); font-size: var(--t-micro, 11px); color: var(--ink-3); }
+
+/* Dumbbell */
+.sc-row { transition: transform var(--d-3, 600ms) var(--ease-in-out); cursor: pointer; }
+.sc-row:focus-visible .sc-row-hit { stroke: var(--violet-ink); stroke-width: 2; }
+.sc-bar { stroke-width: 2; transition: transform var(--d-3, 600ms) var(--ease-out); }
+.sc-up { stroke: var(--violet); }
+.sc-down { stroke: var(--vermilion); }
+.sc-delta-up { fill: var(--violet-ink); font-size: 13px; font-weight: 500; }
+.sc-delta-down { fill: var(--vermilion-ink); font-size: 13px; font-weight: 500; }
+.sc-dot-early { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
+.sc-dot-late { fill: var(--violet); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq { transition: none !important; }
+  .sc-line.is-drawing { animation: none; }
+  .sc-matrix:not(.is-revealed) .sc-sq { opacity: 1; }
+}

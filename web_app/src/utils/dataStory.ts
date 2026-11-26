@@ -516,8 +516,22 @@ function meetingsText(res: DataCenterMeetingMentionsResponse, scope: StoryScope)
   const meetings = res.counts?.meetings ?? 0
   if (items.length === 0 && passages <= 0) return null
   const place = placeFor('meeting-mentions', scope)
+  // The timeline's year (#1140): only from a complete list, so "most of them" is a real count of distinct meetings.
+  const byYearMeetings = new Map<string, Set<string>>()
+  if (passages > 0 && items.length >= passages) {
+    for (const m of items) {
+      const y = yearOf(m.meeting_date)
+      if (y) byYearMeetings.set(y, (byYearMeetings.get(y) ?? new Set()).add(m.video_id))
+    }
+  }
+  const ranked = [...byYearMeetings.entries()].sort((a, b) => b[1].size - a[1].size || b[0].localeCompare(a[0]))
+  const peak = ranked[0]
+  const tied = ranked.length > 1 && ranked[1]![1].size === peak![1].size
+  const peakPhrase = peak && byYearMeetings.size > 1 && !tied ? (peak[1].size * 2 > meetings ? `most of them in ${peak[0]}` : `the most in ${peak[0]}`) : null
   const headline =
-    meetings > 0 && passages > 0
+    meetings > 0 && passages > 0 && peakPhrase
+      ? `Data centers came up in ${plural(meetings, 'meeting')} ${where(place)}, ${peakPhrase} (${plural(passages, 'quoted passage')}).`
+      : meetings > 0 && passages > 0
       ? `A data center came up in ${plural(meetings, 'meeting')} ${where(place)}, in ${plural(passages, 'quoted passage')}.`
       : passages > 0
         ? `Meeting passages that mention a data center ${where(place)} number ${fmt(passages)}.`
