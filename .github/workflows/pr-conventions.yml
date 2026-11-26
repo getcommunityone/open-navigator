@@ -1,6 +1,8 @@
 # PR conventions + automated written review (#225, #648).
 # Job order: write pull_requests/pr-<n>-review.md (same-repo only), then check
 # branch / Closes / issue parts / review file + verdict.
+# PR title, branch and author reach the shell through env vars, never ${{ }} inside run:
+# (a quote in a title ended the argument, and anyone opening a PR picks the title; #895).
 name: PR conventions
 
 on:
@@ -29,7 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ref="${{ github.head_ref }}"
+          ref="$GITHUB_HEAD_REF"
           case "$ref" in
             dependabot/*|renovate/*|kaggle-results/*)
               echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -66,21 +68,27 @@ jobs:
 
       - name: Fetch base for diff
         if: steps.guard.outputs.skip != 'true'
-        run: git fetch origin "${{ github.base_ref }}" --depth=200
+        run: git fetch origin "$GITHUB_BASE_REF" --depth=200
 
       - name: Write review if missing or stale
         if: steps.guard.outputs.skip != 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        # --flag="$VAR" keeps a title that starts with "-" a value, not an option.
         run: |
           python .github/scripts/auto_pr_review.py \
-            --pr "${{ github.event.pull_request.number }}" \
-            --base "origin/${{ github.base_ref }}" \
+            --pr "$PR_NUMBER" \
+            --base "origin/$BASE_REF" \
             --head HEAD \
-            --title "${{ github.event.pull_request.title }}" \
-            --branch "${{ github.head_ref }}" \
-            --author "${{ github.event.pull_request.user.login }}"
+            --title="$PR_TITLE" \
+            --branch="$PR_BRANCH" \
+            --author="$PR_AUTHOR"
 
       - name: Commit and push review file
         if: steps.guard.outputs.skip != 'true'
@@ -93,7 +101,7 @@ jobs:
             exit 0
           fi
           git commit -m "docs(pr-${{ github.event.pull_request.number }}): auto-write rubric review [skip review]"
-          git push origin "HEAD:${{ github.head_ref }}"
+          git push origin "HEAD:$GITHUB_HEAD_REF"
 
   pr-conventions:
     name: PR conventions (linked issue)

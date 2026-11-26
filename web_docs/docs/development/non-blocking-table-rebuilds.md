@@ -46,10 +46,7 @@ For a large `table` model:
       {'columns': ['state_code'], 'type': 'btree'},
       {'columns': ['full_name gin_trgm_ops'], 'type': 'gin'}   -- operator classes pass through as written
     ],
-    pre_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "{{ swap_guard() }}"
-    ],
+    pre_hook=["{{ swap_guard() }}"],
     post_hook=[
       "{{ swap_guard_check() }}"
     ]
@@ -60,15 +57,34 @@ For a large `table` model:
 - **Indexes go in `indexes`, never in a post_hook.** dbt builds them on the tmp table before the swap, under a generated
   name, so they never collide with the backup's and never build under the lock.
 - **`swap_guard()`** (`dbt_project/macros/swap_guard.sql`) is an in-transaction pre-hook. It does three things:
-  - It sets `SET LOCAL lock_timeout = '10s'`, so a swap that can't get its lock rolls back fast (the old table keeps
-    serving) instead of queuing every reader.
   - It takes `pg_try_advisory_xact_lock` on the relation, so a second build of the same model fails immediately with
     "swap_guard: another build of … is running".
   - It records the transaction id.
+  - It records the rename timeout (10s) as a transaction-local setting.
+
+  The project's **`postgres__rename_relation`** (same file) applies that timeout immediately before each `ALTER TABLE …
+  RENAME`. A swap that can't get its lock then rolls back fast (the old table keeps serving) instead of queuing every
+  reader. The timeout covers only the renames, not the build. A model with contract foreign keys creates its tmp table
+  with `references <parent>`, which waits for sibling models building against the same parent. A timeout over the whole
+  build would fail them for nothing, as review of #938 pointed out. Outside a guarded transaction the setting is empty,
+  and the override is exactly dbt's own rename.
 
   All of this ends at the swap's COMMIT, so none of it applies to the backup drop or to other models.
-- **`swap_guard_check()`** is an in-transaction post-hook that runs after the renames and before COMMIT. It fails the build
-  if the swap didn't run in the transaction `swap_guard()` started.
+- **`swap_guard_check()`** must be the **first** post-hook. It runs right after the renames, before COMMIT, and does two
+  things:
+  - It fails the build if the swap didn't run in the transaction `swap_guard()` started.
+  - It ends the rename timeout (`lock_timeout` back to default, the setting cleared), so nothing after the renames
+    inherits it.
+- **Statements that lock other tables go in after-commit post-hooks:** `{'sql': "ALTER TABLE … ADD CONSTRAINT … FOREIGN
+  KEY …", 'transaction': false}`. A foreign key needs a lock on the parent table, which a parallel model may hold for
+  many minutes (`grant`'s build holds `mdm_organization` for 20-30). Inside the swap transaction the `ALTER` waits while
+  still holding the swapped table's exclusive lock, so every reader waits too. After commit it holds only a lock that
+  doesn't block reads.
+
+  In #938's builds, `mdm_bridge_org_jurisdiction`'s in-transaction `ADD CONSTRAINT … REFERENCES mdm_organization` waited
+  on `grant` and timed out twice. The four bridge models' foreign keys are now after-commit hooks.
+- **`pg_trgm`** is created once per invocation in `on-run-start` (`dbt_project.yml`). Trigram indexes now build before
+  any hook, so a per-model hook would come too late on a fresh warehouse.
 - **No before-begin hooks** (`{'sql': ..., 'transaction': false}` in `pre_hook`) on these models. dbt sends a literal
   `commit;` before those, and psycopg2 then never opens another transaction on that connection. Every later statement
   autocommits, including the two renames, so they stop being atomic, and `SET LOCAL` and transaction locks end with
@@ -79,6 +95,8 @@ For a large `table` model:
   `swap_guard_check()` now catches this. An after-commit post-hook (`'transaction': false` in `post_hook`) is harmless.
 - **`ensure_search_indexes`** finds an index by definition when its entry has a `match` key, so it counts the config index
   (generated name) as present instead of building a duplicate. Only valid, non-partial indexes count.
+- **Incremental models** (`grant_opportunity`): dbt builds `indexes` only when the table is first created or
+  full-refreshed. An index added to the config later appears only after `--full-refresh`.
 
 ## Primary keys added in hooks (#941)
 
@@ -110,7 +128,29 @@ trade-off, since the alternative was freezing every reader for as long as the bl
 
 ## Other models
 
-About 30 other models still build named indexes in post_hooks, including `grant`, `mdm_organization`, `contact_official`,
-`event_documents` and `jurisdictions`. They have the same lock and vanishing-index problems in proportion to their size.
-Moving them to this pattern is
-[#938](https://github.com/getcommunityone/open-navigator/issues/938).
+[#938](https://github.com/getcommunityone/open-navigator/issues/938) moved every other model's index hooks into `indexes`
+config (29 files), plus `event_uncontested_item`'s unnamed one. It also gave `swap_guard` to the largest tables:
+
+| Model | Size |
+|---|---|
+| `event_documents` | 8.5 GB |
+| `grant` | 4.1 GB |
+| `mdm_organization` | 2.2 GB |
+| `mdm_bridge_org_jurisdiction` | 1.7 GB |
+| `mdm_bridge_person_jurisdiction` | 1.5 GB |
+| `bills` | 0.8 GB |
+| `mdm_organization_nonprofit` | 0.7 GB |
+
+`event_documents`' `ANALYZE` became an after-commit post-hook, so it no longer runs under the swap's lock. No model in
+`dbt_project/models` builds an index in a hook any more.
+
+## Still open: views over a rebuilt table
+
+The swap is atomic and short, but dbt then runs `drop table … __dbt_backup cascade`. Views are bound to the old table's
+OID, so the views over it (the `public` serving views, and dbt view models) are dropped with it:
+- the `public` ones come back only when `publish_public_serving` runs at the end of the run;
+- unselected dbt view models don't come back at all after a selected run.
+
+Readers of `public` views can therefore still get "relation does not exist" while a rebuild runs. That is
+[#940](https://github.com/getcommunityone/open-navigator/issues/940). Until it's fixed, after a selected run, recreate the
+views with `./scripts/dbt.sh run --select config.materialized:view`.

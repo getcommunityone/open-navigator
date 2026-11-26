@@ -87,7 +87,7 @@ chromadb>=0.4.0
 qdrant-client>=1.7.0
 
 # API & Web Framework
-fastapi==0.109.0
+fastapi==0.136.3
 uvicorn[standard]==0.25.0
 pydantic[email]>=2.10,<3
 python-multipart==0.0.32
@@ -103,7 +103,7 @@ opentelemetry-instrumentation-psycopg2==0.66b2
 opentelemetry-instrumentation-sqlalchemy==0.66b2
 
 # Authentication & OAuth
-python-jose[cryptography]==3.5.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 algo confusion + CVE-2024-33664 JWT bomb)
+PyJWT[crypto]>=2.15.1  # JWT tokens (replaces python-jose: GHSA-3qf3-8w2g-rqmx has no fixed release; #1152)
 passlib[bcrypt]==1.7.4            # Password hashing
 itsdangerous==2.1.2                # Secure tokens
 psycopg2-binary==2.9.9             # PostgreSQL driver

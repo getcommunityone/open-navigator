@@ -450,6 +450,16 @@ outputPorts:
   contractId: open-navigator-public-company_grant
   type: table
   description: Grants from the foundations tied to the companies we track (#1073).
+- name: business
+  version: 1.0.0
+  contractId: open-navigator-public-business
+  type: table
+  description: 'The businesses that meetings and decisions name (#1089, #1088).'
+- name: business_mention
+  version: 1.0.0
+  contractId: open-navigator-public-business_mention
+  type: table
+  description: Where a meeting or decision names a business (#1089).
 - name: person_government_term
   version: 1.0.0
   contractId: open-navigator-public-person_government_term

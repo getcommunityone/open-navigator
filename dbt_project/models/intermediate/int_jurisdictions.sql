@@ -1,10 +1,10 @@
 {{
   config(
     materialized='table',
-    tags=['intermediate', 'jurisdictions'],
-    post_hook=[
-      "create index if not exists {{ this.name }}_state_type_geoid_idx on {{ this }} (state_code, jurisdiction_type, geoid)"
-    ]
+    indexes=[
+      {'columns': ["state_code, jurisdiction_type, geoid"], 'type': 'btree'}
+    ],
+    tags=['intermediate', 'jurisdictions']
   )
 }}
 

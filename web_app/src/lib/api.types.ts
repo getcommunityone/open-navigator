@@ -1362,6 +1362,11 @@ export interface components {
             is_dominant: boolean;
             /** Jurisdiction Name */
             jurisdiction_name?: string | null;
+            /**
+             * Jurisdictions
+             * @description Towns whose meeting records raised this concern, sorted (state and city scopes). Empty for national rows.
+             */
+            jurisdictions: string[];
             /** Last Meeting On */
             last_meeting_on?: string | null;
             /** Mention Count */

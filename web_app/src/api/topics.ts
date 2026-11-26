@@ -82,6 +82,33 @@ export async function fetchTopicStates(topicId: number, params: { state?: string
   return res.data
 }
 
+/** One state's meetings and the AI reading of them (#1127): distinct meetings, never counted speakers. */
+export interface TopicStanceStateCount {
+  state_code: string
+  state: string | null
+  meetings: number
+  lean_meetings: number
+  public_against_meetings: number
+  public_for_meetings: number
+  /** Read as mixed: the public neither mostly for nor mostly against. */
+  no_side_meetings: number
+  /** The public mostly opposed while officials mostly supported it. */
+  disagreement_meetings: number
+}
+
+export interface TopicStanceMap {
+  topic_id: number
+  /** False until the AI reading (`topic_meeting_lean`, #1126) has this topic: the map shows meetings only. */
+  available: boolean
+  by_state: TopicStanceStateCount[]
+}
+
+/** Meetings per state with the AI reading behind a topic story's four-colour box map (#1127). */
+export async function fetchTopicStanceMap(topicId: number, params: { state?: string } = {}): Promise<TopicStanceMap> {
+  const res = await api.get<TopicStanceMap>(`/topics/${topicId}/state-map`, { params })
+  return res.data
+}
+
 /** A company's newest mention: verbatim evidence with the matched words in <mark> (render with highlightSnippet). */
 export interface TopicCompanyMention {
   mention_kind: string

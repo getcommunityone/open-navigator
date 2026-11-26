@@ -16,3 +16,17 @@ export const HOUSE_STYLE = HOUSE_THEME.vars as unknown as CSSProperties
  * paper) so every group stays distinguishable. Groups beyond the sixth reuse the list; each group also has its own heading.
  */
 export const GROUP_COLORS: readonly string[] = [0, 1, 2, 3, 4, 6].map((i) => HOUSE_THEME.seg[i]!)
+
+/**
+ * One colour per concern (#1139), fixed by the concern rather than by its place in the list, so water is the same colour in
+ * every state and nationally. The order follows the national ranking; the seventh takes the theme's dark ochre ink (the pale
+ * tints would vanish on the paper) so no two concerns share a colour. A concern outside this list falls back to the neutral.
+ */
+const CONCERN_ORDER = ['traffic', 'water', 'land', 'noise', 'pollution', 'taxes', 'electricity'] as const
+const CONCERN_COLORS: readonly string[] = [...GROUP_COLORS, HOUSE_THEME.vars['--vermilion-ink'] ?? HOUSE_THEME.neutral]
+
+/** The fixed colour of a concern key. */
+export function concernColor(concern: string): string {
+  const i = (CONCERN_ORDER as readonly string[]).indexOf(concern)
+  return i >= 0 ? CONCERN_COLORS[i]! : (HOUSE_THEME.seg[8] ?? HOUSE_THEME.neutral)
+}

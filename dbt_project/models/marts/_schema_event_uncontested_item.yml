@@ -13,10 +13,10 @@ models:
       contract:
         enforced: true
       tags: ['marts', 'event-extraction', 'ai', 'serving']
-      post_hook:
-        # unnamed on purpose: a fixed name collides with the old table's index during dbt's
-        # rename swap, so "if not exists" skipped it on every other build (#932 review)
-        - "create index on {{ this }} (event_meeting_id, item_id)"
+      indexes:
+        # in `indexes`, built on the tmp table before the swap (#938)
+        - columns: ["event_meeting_id", "item_id"]
+          type: btree
     constraints:
       - type: foreign_key
         columns: [event_meeting_id]

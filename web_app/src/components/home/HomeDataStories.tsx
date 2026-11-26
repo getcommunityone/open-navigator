@@ -10,12 +10,11 @@ import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard from './HomeTopicStoryCard'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
-import { Ban, Landmark, Quote, type LucideIcon } from 'lucide-react'
-import { heroPoints, type HeroPointIcon } from '../../utils/heroPoints'
+import { heroPoints } from '../../utils/heroPoints'
+import { HERO_POINT_GLYPHS } from './heroPointGlyphs'
 import { nextStoryLink } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
 
-const POINT_ICONS: Record<HeroPointIcon, LucideIcon> = { quote: Quote, stop: Ban, scale: Landmark }
 
 interface Props {
   /** The home page's place, so the Start button and the topic links carry it (CLAUDE.md, scope label rule). */
@@ -158,15 +157,16 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
             {points.length > 0 && (
               <ol className="home-story-points" aria-label="What the record shows, nationally">
                 {points.map((p) => {
-                  const Icon = POINT_ICONS[p.icon]
+                  const Icon = HERO_POINT_GLYPHS[p.icon]
                   return (
                     <li key={p.icon} className="home-story-point">
                       <span className="home-story-point-icon" aria-hidden="true">
-                        <Icon size={20} strokeWidth={2.2} />
+                        <Icon width={28} height={28} />
                       </span>
                       <div>
-                        <p className="home-story-point-n font-mono-x">{p.n}</p>
-                        <p className="home-story-point-title">“{p.title}”</p>
+                        <p className="home-story-point-title">
+                          <span className="home-story-point-n">{p.n}</span>“{p.title}”
+                        </p>
                         <p className="home-story-point-line">{p.line}</p>
                       </div>
                     </li>
