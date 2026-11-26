@@ -1539,6 +1539,25 @@ select.stance-blank {
 }
 
 /* The sound switch in the top bar. */
+.stance-top-actions {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+/* Close (#1017): leaves the story for the home page. */
+.stance-close {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 26px;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--ink);
+}
 .stance-sound {
   margin-top: 0;
   display: inline-flex;

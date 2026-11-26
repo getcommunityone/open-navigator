@@ -480,7 +480,15 @@ export default function DataStory() {
         stateName={stateName}
         city={city}
         current={screens[active]?.eyebrow ?? ''}
-        extra={<SoundToggle on={soundOn} onToggle={toggleSound} />}
+        extra={
+          <span className="stance-top-actions">
+            <SoundToggle on={soundOn} onToggle={toggleSound} />
+            {/* Close (#1017): back to the home page's stories, keeping the place. */}
+            <Link to={`/${scopeQuery(scope)}#data-stories`} className="folio-btn stance-close" aria-label="Close story" title="Close">
+              <span aria-hidden="true">×</span>
+            </Link>
+          </span>
+        }
         progress={<ProgressPips count={n} active={active} />}
         placeOpen={placeOpen}
         onPlaceOpenChange={setPlaceOpen}
