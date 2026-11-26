@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, toFeats } from '../../lib/dotMatrix'
+import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
 import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
@@ -66,6 +66,16 @@ export const BOX_COLORS: Record<Stance | 'meetings' | 'none', string> = {
   meetings: '#9AA5A9',
   none: HOUSE_THEME.neutral,
 }
+/** States with meetings but no stance on record, light to dark by their real meeting count (#1103). */
+export const MEETING_GREYS = ['#D2D8DA', '#B3BCC0', '#8F9A9F', '#6B777D'] as const
+
+/** An SVG path for a state's outline (albers coordinates, as drawn by us-atlas). */
+export function featPath(f: Feat): string {
+  return f.polys
+    .map((rings) => rings.map((ring) => 'M' + ring.map(([x, y]) => `${x!.toFixed(1)},${y!.toFixed(1)}`).join('L') + 'Z').join(''))
+    .join('')
+}
+
 /** Without stance data (the rentals story) a state with meetings is one teal. */
 const MEETINGS_ONLY = HOUSE_THEME.seg[0]!
 
@@ -157,6 +167,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   if (!grid || !boxes || byState == null) return <p className="text-sm text-stone-500" role="status">Loading the map…</p>
 
   const meetings = new Map(byState.map((s) => [s.state_code, s.meetings]))
+  const maxMeetings = Math.max(0, ...byState.map((s) => s.meetings))
   const hasStance = stance != null
   const split = (stance ?? []).filter((s) => speakersOf(s) > 0)
   const speakersTotal = split.reduce((n, s) => n + speakersOf(s), 0)
@@ -164,7 +175,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const colorOf = (b: Box): string => {
     if (!b.code) return BOX_COLORS.none
     if (b.side) return BOX_COLORS[b.side]
-    if ((meetings.get(b.code) ?? 0) > 0) return hasStance ? BOX_COLORS.meetings : MEETINGS_ONLY
+    const n = meetings.get(b.code) ?? 0
+    if (n > 0) return hasStance ? meetingColor(n, maxMeetings, MEETING_GREYS, BOX_COLORS.meetings) : MEETINGS_ONLY
     return BOX_COLORS.none
   }
 
@@ -235,6 +247,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             />
           )
         })}
+        {/* State outlines over the boxes (#1103), so neighbouring states read as separate shapes. */}
+        <g fill="none" stroke="#57534e" strokeOpacity={0.55} strokeWidth={0.8} strokeLinejoin="round" pointerEvents="none">
+          {grid.feats.map((f) => (
+            <path key={f.id} d={featPath(f)} />
+          ))}
+        </g>
       </svg>
 
       {shown && shownCode && quote && (
@@ -287,8 +305,16 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             </li>
           ))}
         <li className="inline-flex items-center gap-1">
-          <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: hasStance ? BOX_COLORS.meetings : MEETINGS_ONLY, display: 'inline-block' }} />
-          {hasStance ? 'Meetings, no stance on record' : `Meetings where ${subject} came up`}
+          {hasStance ? (
+            <span aria-hidden="true" style={{ display: 'inline-flex', gap: 1 }}>
+              {MEETING_GREYS.map((c) => (
+                <span key={c} style={{ width: 10, height: 10, borderRadius: 2, background: c, display: 'inline-block' }} />
+              ))}
+            </span>
+          ) : (
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: MEETINGS_ONLY, display: 'inline-block' }} />
+          )}
+          {hasStance ? 'Meetings, no stance on record (darker = more meetings)' : `Meetings where ${subject} came up`}
         </li>
         <li className="inline-flex items-center gap-1">
           <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 2, background: BOX_COLORS.none, display: 'inline-block' }} />
