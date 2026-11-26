@@ -61,4 +61,6 @@ None.
 Run locally: `node e2e/story-nav.check.mjs` (before: 11 screens out of line; after: all line up, both paths), `npx vitest run` story/stance tests (21 files, 245 passed), `npx tsc --noEmit` clean, `npm run build` passed.
 
 ## Verdict
+After main moved (#1164), main was merged in (a20c0b83) and the dropped `ScreenNav` import restored (cc351f76); the check re-run on the merged tree: 11 screens per path (main dropped one), all line up; vitest 20 files / 255 passed; build passed.
+
 approve-with-nits. Nothing blocking; merge once required CI is green.
