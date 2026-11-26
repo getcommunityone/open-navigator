@@ -5,7 +5,7 @@ title: "feat(topics): Companies named for every topic (data centers, plate reade
 author: jcbowyer
 reviewed_at: 2026-11-26
 reviewer: github-actions
-head_sha: cb1d45a53b81269fed4031f299ae98072436f39f
+head_sha: 37d9e1f66495ba926ab0a6ff2cad4844c94832d0
 verdict: approve
 ---
 
@@ -20,12 +20,16 @@ Automated review (#648) for PR #1056 on `feat/1052-topic-companies`. Heuristic r
 
 - `api/main.py`
 - `api/routes/topic_companies.py`
+- `dbt_project/contracts/products/open-navigator-public-api.odps.yaml`
+- `dbt_project/contracts/topic_company.odcs.yaml`
+- `dbt_project/contracts/topic_company_mention.odcs.yaml`
 - `dbt_project/macros/publish_public_serving.sql`
 - `dbt_project/models/marts/_schema_topic_company.yml`
 - `dbt_project/models/marts/topic_company.sql`
 - `dbt_project/models/marts/topic_company_mention.sql`
 - `dbt_project/seeds/topic_companies.csv`
 - `packages/hosting/src/hosting/neon/sync_public_to_neon.py`
+- `pull_requests/pr-1056-review.md`
 - `tests/test_api_topic_companies.py`
 - `web_app/src/api/topics.ts`
 - `web_app/src/components/home/HomeDataStories.tsx`
@@ -36,7 +40,7 @@ Automated review (#648) for PR #1056 on `feat/1052-topic-companies`. Heuristic r
 
 ## CI Status
 
-See the PR checks on `cb1d45a53b81`.
+See the PR checks on `37d9e1f66495`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
@@ -64,13 +68,3 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
-
-## Agent review
-
-- Issue and branch: feat/1052-topic-companies, Closes #1052; pickleball scope added by a dated issue comment.
-- Scans: no secrets, no personal data, no deletions. No fabricated data: counts are distinct meetings/decisions from topic_company_mention; every row needs a <mark> excerpt; companies never named in scope get no number.
-- Keys: topic_company PK + FK to civicsearch_topic; topic_company_mention PK + FK to topic_company (contract enforced).
-- Correctness: seeded topics are gated to topic-tagged meetings/decisions; surname-like brands need product phrases; data center names need a data-center phrase within 250 characters; content_tsv (stored, indexed) replaces per-row to_tsvector (15 min -> 38 s). API binds topic/state/city as parameters; missing tables return an empty list; other errors 503. Scope label in the panel heading matches the page filter.
-- Checks: 4 API tests pass; ruff clean on new files; tsc clean; browser check at /?state=AL. Docs: topic-companies.md.
-
-No blocking findings.
