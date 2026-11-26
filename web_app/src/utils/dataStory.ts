@@ -99,11 +99,6 @@ export interface StoryConclusion {
    * single-place (city) gates, since a place has far fewer meetings.
    */
   minLeanMeetings?: { national: number; state: number; city: number }
-  /**
-   * The "divided" title for a place (#1134): hand-counted speakers of at least `minSpeakers` with each side at least
-   * `minShare` of them. Never from the AI "supported"/"mixed" readings.
-   */
-  divided?: { verb: string; minSpeakers: number; minShare: number }
 }
 
 /** Jev's confident readings for the scope (#1134): AI readings of meetings, not counted speakers. */
@@ -143,7 +138,6 @@ export const STORIES: Record<string, StoryEntry> = {
       minRatio: 2,
       minSpeakers: 10,
       minLeanMeetings: { national: 50, state: 10, city: 3 },
-      divided: { verb: 'is divided on', minSpeakers: 6, minShare: 0.3 },
     },
   },
 }
@@ -223,135 +217,10 @@ export function nationalLean(res: DataCenterPositionsResponse | null | undefined
   return { against: t.public_against_meetings ?? 0, states: t.public_against_states ?? 0, disagreement: t.disagreement_meetings ?? 0 }
 }
 
-/** The scope's own meeting reading from positions `scope_lean_totals` (#1134), or null when it isn't served. */
-export function scopeLean(res: DataCenterPositionsResponse | null | undefined): StoryLean | null {
-  const t = res?.available ? res.scope_lean_totals : null
-  if (!t) return null
-  return { against: t.public_against_meetings ?? 0, disagreement: t.disagreement_meetings ?? 0 }
-}
-
 /** States with at least one hand-counted speaker in positions `by_state` (#1134), counted from the data. */
 export function speakerStateCount(res: DataCenterPositionsResponse | null | undefined): number {
   const rows = res?.available ? (res.by_state ?? []) : []
   return rows.filter((r) => (r.speakers_for ?? 0) + (r.speakers_against ?? 0) + (r.speakers_question ?? 0) + (r.speakers_neutral ?? 0) > 0).length
-}
-
-/** A storyTitle template as plain text: the place blank reads `place`, the topic blank the story's topic. */
-export function storyTitleText(story: StoryEntry, t: { template: StoryTitlePart[]; place: string }): string {
-  return t.template.map((part) => (typeof part === 'string' ? part : part.blank === 'place' ? t.place : story.topic)).join('')
-}
-
-export interface StoryTitle {
-  kind: 'sentiment' | 'divided' | 'fact' | 'question'
-  template: StoryTitlePart[]
-  place: string
-  /** The line of numbers under the title; null for the question. */
-  basis: string | null
-  /** The line under the title, about the scope only (no national claim on a place's page, #1134); null for the question. */
-  subhead: string | null
-}
-
-/**
- * The story's title for its place (#993, #1134), the ONE title the home hero, the story header and the Overview share:
- * the strongest conclusion the place's record supports, with the place and topic as blanks. In order:
- * (1) a place whose hand-counted speakers are split (at least 6, each side at least 30%) "[is divided on] [data centers]";
- * (2) the sentiment "[America] hates [data centers]." when the meeting reading or the speakers pass the gate;
- * (3) a place with a public-against meeting and a meeting where officials sided against the public "is divided on";
- * (4) the fact "[Washington] talked about [data centers] in 69 meetings."; (5) the question. "Divided" is only for a
- * place, never the country. Decision: development/data-center-meeting-lean.md.
- */
-export function storyTitle(
-  story: StoryEntry,
-  scope: StoryScope,
-  record: {
-    speakers: SpeakerCounts | null | undefined
-    meetings: number | null | undefined
-    /** The scope's confident readings (#1134); omit where the reading isn't served. */
-    lean?: StoryLean | null
-  },
-): StoryTitle {
-  const label = storyScopeLabel(scope)
-  const national = !scope.stateName
-  const level: StoryLevel = national ? 'national' : scope.city ? 'city' : 'state'
-  const placePhrase = national ? undefined : `in ${label}`
-  const place = national ? 'America' : label
-  const c = story.conclusion
-  const sp = record.speakers
-  const lean = record.lean
-  const against = lean?.against ?? 0
-  const leanSentence = against > 0 ? `The public leaned against ${story.topic} in ${pluralN(against, 'meeting')} ${placePhrase} (AI reading of meetings).` : null
-  const divided = (basis: (string | null)[], subhead: string): StoryTitle => ({
-    kind: 'divided',
-    template: [{ blank: 'place' }, ` ${c!.divided!.verb} `, { blank: 'topic' }, '.'],
-    place,
-    basis: basis.filter(Boolean).join(' '),
-    subhead,
-  })
-  // (1) Hand-counted speakers on both sides: the most direct evidence of a split, so it comes first.
-  if (!national && c?.divided && sp) {
-    const total = speakerTotal(sp)
-    const d = c.divided
-    if (total >= d.minSpeakers && sp.for / total >= d.minShare && sp.against / total >= d.minShare) {
-      return divided([leanSentence, handCountSentence(sp, c.side, placePhrase)], `Speakers at local meetings ${placePhrase} lined up on both sides of ${story.topic}.`)
-    }
-  }
-  // (2) The sentiment.
-  const sentiment = storyConclusion(story, sp, placePhrase, lean, level)
-  if (sentiment && c) {
-    return {
-      kind: 'sentiment',
-      template: [{ blank: 'place' }, ` ${c.verb} `, { blank: 'topic' }, '.'],
-      place,
-      basis: sentiment.basis,
-      subhead: national ? sentiment.subhead : `At local meetings ${placePhrase}, the public has mostly spoken against ${story.topic}.`,
-    }
-  }
-  // (3) The public leaned against and officials sided against the public: a split between the two.
-  const disagree = lean?.disagreement ?? 0
-  if (!national && c?.divided && against > 0 && disagree > 0) {
-    return divided(
-      [
-        `The public leaned against ${story.topic} in ${pluralN(against, 'meeting')} ${placePhrase}, and officials sided against the public in ${pluralN(disagree, 'meeting')} (AI reading of meetings).`,
-        sp ? handCountSentence(sp, c.side, placePhrase) : null,
-      ],
-      `The public leaned against ${story.topic}, but officials sided against the public.`,
-    )
-  }
-  const m = record.meetings ?? 0
-  if (m > 0) {
-    return {
-      kind: 'fact',
-      template: [{ blank: 'place' }, ' talked about ', { blank: 'topic' }, ` in ${pluralN(m, 'meeting')}.`],
-      place,
-      basis: 'Counted from local meeting recordings and transcripts. Not enough speakers on record here to say which way they lean.',
-      subhead: `Where ${story.topic} came up at local meetings${placePhrase ? ` ${placePhrase}` : ''}, in the words said there.`,
-    }
-  }
-  return {
-    kind: 'question',
-    template: ['What did local meetings in ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?'],
-    place: storyPlaceDisplay(scope),
-    basis: null,
-    subhead: null,
-  }
-}
-
-
-/**
- * The shared title from a positions response and a meeting count (#1134): the home hero, the story header and the
- * Overview all call this, so a place gets one title everywhere. Nationally it reads `lean_totals` and counts the states
- * with hand-counted speakers; for a place it reads `scope_lean_totals` and the place's own speakers.
- */
-export function storyTitleFor(
-  story: StoryEntry,
-  scope: StoryScope,
-  positions: DataCenterPositionsResponse | null | undefined,
-  meetings: number | null | undefined,
-): StoryTitle {
-  const national = !scope.stateName
-  const c = speakerCounts(positions)
-  const speakers = c ? { ...c, states: national ? speakerStateCount(positions) : null } : null
-  return storyTitle(story, scope, { speakers, meetings, lean: national ? nationalLean(positions) : scopeLean(positions) })
 }
 
 /** Screen ids that were renamed: an old link still lands on the screen that replaced it. */
@@ -804,7 +673,7 @@ export function overviewLean(res: DataCenterPositionsResponse | null | undefined
   return `${place} was split: ${fmt(c.for)} spoke for and ${fmt(c.against)} against data centers.`
 }
 
-function overviewText(data: StoryData, scope: StoryScope): ScreenText {
+function overviewText(data: StoryData, scope: StoryScope, caption?: ScreenCaption | null): ScreenText {
   const stats = storyStats(data)
   const place = scope.stateName ? storyScopeLabel(scope) : null
   const byKey = new Map(stats.map((s) => [s.key, s.value]))
@@ -815,16 +684,10 @@ function overviewText(data: StoryData, scope: StoryScope): ScreenText {
   // The opener's headline is always a claim from meeting records; sites and projects never lead it.
   // At a state or city scope with enough speakers on record, the headline says which way they spoke (#1115) and the meeting
   // count becomes the context line. Below the national conclusion's minimum the neutral count stays: nothing is overstated.
-  // The Overview states the same title as the header and the home hero (#1134) when the record backs a conclusion.
-  const title = storyTitleFor(
-    STORIES['data-centers']!,
-    scope,
-    data.positions as DataCenterPositionsResponse | null | undefined,
-    (data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined)?.counts?.meetings,
-  )
-  if (title.kind === 'sentiment' || title.kind === 'divided') {
+  // The Overview states the same title as the header and the home hero (#1125, #1134) when the record backs a conclusion.
+  if (caption && (caption.kind === 'sentiment' || caption.kind === 'disagreement')) {
     return {
-      headline: storyTitleText(STORIES['data-centers']!, title),
+      headline: caption.text,
       context: meetings ? `A data center came up in ${plural(meetings, 'meeting')}${place ? ` in ${place}` : ''}. ${context}` : context,
       empty: false,
       failed: false,
@@ -855,12 +718,20 @@ function overviewText(data: StoryData, scope: StoryScope): ScreenText {
 export const PAUSE_NOTE = 'A pause is a moratorium: no new approvals until the rules are settled.'
 
 /** Headline and context for one screen. Loading and failed screens get a neutral description, never a number. */
+/** The caption's kind and its plain sentence, for the Overview (#1134); from pickCaption + captionText. */
+export interface ScreenCaption {
+  kind: string
+  text: string
+}
+
 export function screenText(
   screen: StoryScreen,
   data: StoryData,
   status: StoryStatus,
   scope: StoryScope,
   question?: Pick<StanceQuestion, 'text' | 'place_text'> | null,
+  /** The page's caption (utils/storyCaption, #1125): the Overview states it when it is a conclusion (#1134). */
+  caption?: ScreenCaption | null,
 ): ScreenText {
   // The three screens around the record carry the story's question, worded for the place in scope.
   if (screen.kind === 'question') {
@@ -885,7 +756,7 @@ export function screenText(
     if (keys.every((k) => status[k] === 'error')) {
       return { headline: 'Data centers in the public record', context: 'The records could not be loaded right now.', empty: false, failed: true }
     }
-    return overviewText(data, scope)
+    return overviewText(data, scope, caption)
   }
   const key = screen.chart!
   const st = status[key] ?? 'loading'

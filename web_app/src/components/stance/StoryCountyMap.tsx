@@ -16,7 +16,7 @@ import {
 } from '../home/storyColors'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
-import { resolveVideoId, startFromUrl } from './quoteCardUtils'
+import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
 import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly } from '../../utils/touchOnly'
 
@@ -368,6 +368,10 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
             startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
             url={passage.jump_url ?? passage.video_url}
+            speakerName={passage.speaker_display_name ?? null}
+            role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
+            summary={passage.meeting_summary ?? null}
+            analysisUrl={scopedMeetingHref(passage.meeting_url, { state: stateCode, city: scopeCity })}
           />
         )}
       </div>

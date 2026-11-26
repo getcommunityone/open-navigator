@@ -2,14 +2,17 @@ import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
-import { STORIES, scopeQuery, storyScopeLabel, storyTitleFor, storyTitleText } from '../../utils/dataStory'
+import { STORIES, scopeQuery, storyScopeLabel } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
+import { fetchTopicCaptionFacts } from '../../api/topics'
+import { CAPTION_COPY, captionSubhead, captionText, pickCaption } from '../../utils/storyCaption'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import { fetchTopicStates } from '../../api/topics'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { Ban, Landmark, Quote, type LucideIcon } from 'lucide-react'
 import { storyHeroPoints, type HeroPointIcon } from '../../utils/heroPoints'
 import { nextStoryLink } from '../../utils/storyNav'
+import { scopedMeetingHref } from '../stance/quoteCardUtils'
 
 const POINT_ICONS: Record<HeroPointIcon, LucideIcon> = { quote: Quote, stop: Ban, scale: Landmark }
 
@@ -31,7 +34,8 @@ function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) 
 
 /**
  * Home `#data-stories`, the top of the home page (#975, #985, #989, #995):
- * - the story's one title for the page's scope (storyTitleFor, #1134), its subtitle, basis, numbered points and Start;
+ * - the story's title from the caption picker (#1125), the same one the story header and Overview use, for the page's
+ *   scope, with its scoped subhead (#1134), basis line, numbered points and Start;
  * - a US map of small boxes in each state's shape (#1087), split by the real counts of speakers for, against, asking a
  *   question or taking no side where any are on record, each state linking to its story, and a card quoting one of the
  *   state's real passages, verbatim, with where and when it was said;
@@ -42,6 +46,16 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   const scope = { stateCode, stateName, city: stateCode ? city : null }
   const label = storyScopeLabel(scope)
   const q = scopeQuery(scope)
+  // The title (#1125): the caption picker over the caption facts for this scope, shared with the story header.
+  const dcFacts = useQuery({
+    queryKey: ['caption-facts', 'data-centers', stateCode ?? '', scope.city ?? ''],
+    queryFn: () => fetchTopicCaptionFacts('data-centers', stateCode, scope.city),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const pending = dcFacts.isPending
+  const dcCaption = pickCaption('data-centers', dcFacts.data, scope)
+  const dcSubhead = captionSubhead(dcCaption, 'data-centers', scope)
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
@@ -131,12 +145,16 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         url: m.jump_url ?? m.video_url ?? null,
         videoId: m.video_id ?? null,
         startSeconds: m.start_seconds ?? null,
+        // Only when the record attributes the quoted words to a person (#1124): "First L." and the recorded role.
+        speakerName: m.speaker_display_name ?? null,
+        role: m.speaker_display_name ? (m.speaker_role ?? null) : null,
+        summary: m.meeting_summary ?? null,
+        analysisUrl: scopedMeetingHref(m.meeting_url, { state: stateCode ?? null, city: scope.city }),
       })
     }
     return out
-  }, [national.data, speakers.data])
-  // The hero's title is the story's ONE title for the page's scope (#1134, CLAUDE.md scope label rule), from the same
-  // storyTitleFor the story header and Overview use: a place's own record on a place's page, never the national headline.
+  }, [national.data, speakers.data, stateCode, scope.city])
+  // The place's own positions (scope_lean_totals, totals) for the points (#1134).
   const scopedPositions = useQuery({
     queryKey: ['home', 'hero', 'positions', stateCode, scope.city],
     queryFn: () => fetchDataCenterPositions({ state: stateCode, city: scope.city ?? undefined, limit: 1 }),
@@ -144,18 +162,6 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     staleTime: 5 * 60_000,
     retry: 1,
   })
-  const scopedMentions = useQuery({
-    queryKey: ['home', 'hero', 'meeting-mentions', stateCode, scope.city],
-    queryFn: () => fetchDataCenterMeetingMentions({ state: stateCode, city: scope.city ?? undefined, limit: 1 }),
-    enabled: Boolean(stateCode),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  })
-  const titleParts = stateCode
-    ? storyTitleFor(STORY, scope, scopedPositions.data, scopedMentions.data?.counts?.meetings)
-    : storyTitleFor(STORY, scope, speakers.data, national.data?.counts?.meetings)
-  const title = { headline: storyTitleText(STORY, titleParts), subhead: titleParts.subhead, basis: titleParts.basis }
-  const pending = stateCode ? scopedPositions.isPending || scopedMentions.isPending : speakers.isPending || national.isPending
   // The three numbered points (#1122): the place's own figures where it has them, else national ones marked "Nationally:".
   const points = useMemo(
     () => storyHeroPoints(speakers.data, stateCode ? scopedPositions.data : null, stateCode ? label : null),
@@ -205,10 +211,15 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
             <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
             {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}
             <h1 id="home-story-dc" className="font-display home-story-headline" aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
-              {title.headline}
+              {dcCaption.kind === 'question' ? STORY.question : captionText(dcCaption, CAPTION_COPY['data-centers']!.topic)}
             </h1>
-            {!pending && title.subhead && <p className="home-story-subhead">{title.subhead}</p>}
-            {!pending && title.basis && <p className="home-story-basis">{title.basis}</p>}
+            {/* The subhead speaks only for the caption's scope (#1134): never a national claim on a place's page. */}
+            {!pending && dcSubhead && <p className="home-story-subhead">{dcSubhead}</p>}
+            {dcCaption.basis && (
+              <p className="home-story-basis">
+                {dcCaption.basis}
+              </p>
+            )}
             {points.length > 0 && (
               <ol className="home-story-points" aria-label={stateCode ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
                 {points.map((p) => {

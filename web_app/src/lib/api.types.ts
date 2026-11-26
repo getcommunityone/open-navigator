@@ -1956,8 +1956,18 @@ export interface components {
             match_terms?: string[];
             /** Meeting Date */
             meeting_date?: string | null;
+            /**
+             * Meeting Summary
+             * @description The meeting's AI summary from the record (event_meeting.meeting_summary, #1124); null when the meeting has none or isn't in event_meeting.
+             */
+            meeting_summary?: string | null;
             /** Meeting Title */
             meeting_title?: string | null;
+            /**
+             * Meeting Url
+             * @description The app route of the meeting page (/meetings/<event_meeting_id>); null when not on record.
+             */
+            meeting_url?: string | null;
             /** Passage Index */
             passage_index: number;
             /** Site Match Basis */
@@ -1967,6 +1977,16 @@ export interface components {
              * @description The tracked site discussed or nearby, if any.
              */
             site_name?: string | null;
+            /**
+             * Speaker Display Name
+             * @description "First L." of the person the record attributes the quoted words to (#1124): a counted public comment from the meeting's analysis whose verbatim quote is inside this excerpt. Null when no attribution exists (never guessed), or when two different speakers match.
+             */
+            speaker_display_name?: string | null;
+            /**
+             * Speaker Role
+             * @description That speaker's role as recorded; null with no speaker.
+             */
+            speaker_role?: string | null;
             /**
              * Start Seconds
              * @description Seconds into the recording; null when untimed.

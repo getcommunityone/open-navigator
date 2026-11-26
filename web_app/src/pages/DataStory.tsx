@@ -4,7 +4,6 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import '../styles/folio.css'
 import '../styles/stance.css'
 import { errorStatus, fetchChoiceResults, fetchStancePack, postStanceChoice, type ChoiceMoment, type ChoiceResults } from '../api/stance'
-import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse } from '../api/dataCenters'
 import FloatingNext from '../components/stance/FloatingNext'
 import ProgressPips from '../components/stance/ProgressPips'
 import PlaceControl from '../components/stance/PlaceControl'
@@ -32,10 +31,11 @@ import {
   storyScreenIndex,
   type StoryScope,
   STORIES,
-  storyTitleFor,
 } from '../utils/dataStory'
-import { fetchDataCenterPositions } from '../api/dataCenters'
+import { fetchDataCenterPositions, type DataCenterPositionsResponse } from '../api/dataCenters'
 import { storyHeroPoints } from '../utils/heroPoints'
+import { fetchTopicCaptionFacts } from '../api/topics'
+import { captionSubhead, captionText, pickCaption } from '../utils/storyCaption'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
@@ -78,6 +78,14 @@ export default function DataStory() {
 
   const allScreens = useMemo(() => story?.screens ?? [], [story])
   const { data, status, refetch } = useStoryData(stateCode, city)
+  // The caption's facts (#1125), keyed on the scope so the label and the numbers move together.
+  const captionQ = useQuery({
+    queryKey: ['caption-facts', storyId, stateCode ?? '', city ?? ''],
+    queryFn: () => fetchTopicCaptionFacts(storyId, stateCode, city),
+    enabled: Boolean(story),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
@@ -92,9 +100,17 @@ export default function DataStory() {
   const packQ = useQuery({ queryKey: ['stance', 'pack', packId], queryFn: () => fetchStancePack(packId), enabled: Boolean(story), retry: 1 })
   const question = packQ.data?.question ?? null
   // A screen with nothing on record for the place is left out of the story once its data has loaded (#1002): no step,
-  // no pip, not reached by Next. Only chart screens drop (Overview, Where and the question screens stay); a screen still
+  // no pip, not reached by Next. Only chart screens drop (Overview and the question screens stay); a screen still
   // loading stays until known.
-  const allTexts = useMemo(() => allScreens.map((s) => screenText(s, data, status, scope, question)), [allScreens, data, status, scope, question])
+  // The Overview states the page's caption when it is a conclusion (#1134), the same one as the title and the home hero.
+  const overviewCaption = useMemo(() => {
+    const c = pickCaption(storyId, captionQ.data, scope)
+    return { kind: c.kind, text: captionText(c, story?.topic ?? storyId) }
+  }, [storyId, captionQ.data, scope, story])
+  const allTexts = useMemo(
+    () => allScreens.map((s) => screenText(s, data, status, scope, question, overviewCaption)),
+    [allScreens, data, status, scope, question, overviewCaption],
+  )
   const keep = allScreens.map((s, i) => s.kind !== 'chart' || !allTexts[i]!.empty)
   const keepKey = keep.join()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -431,15 +447,12 @@ export default function DataStory() {
   }
 
   const label = storyScopeLabel(scope)
-  // #993: the title states the place's conclusion: the sentiment when its speakers back it, else the fact, else the question.
-  // #1134: the ONE title (shared with the home hero and the Overview), with its scoped subhead and numbered points.
+  // #993 / #1125: the title is the strongest statement the place's record supports (utils/storyCaption), from the caption
+  // facts for exactly this scope; the home hero and the Overview state the same one. #1134: with its scoped subhead and
+  // numbered points (the place's own figures where it has them, else national ones marked "Nationally:").
+  const title = pickCaption(storyId, captionQ.data, scope)
+  const subhead = captionSubhead(title, storyId, scope)
   const scopedPositions = data.positions as DataCenterPositionsResponse | null | undefined
-  const title = storyTitleFor(
-    story,
-    scope,
-    scopedPositions,
-    (data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined)?.counts?.meetings,
-  )
   const points = storyHeroPoints(scope.stateName ? nationalPositionsQ.data : scopedPositions, scope.stateName ? scopedPositions : null, scope.stateName ? label : null)
   const links = {
     dataCenters: `/data-centers${scopeQuery(scope)}`,
@@ -510,7 +523,7 @@ export default function DataStory() {
               },
             ]}
           />
-          {title.subhead && <p className="stance-title-subhead">{title.subhead}</p>}
+          {subhead && <p className="stance-title-subhead">{subhead}</p>}
           {title.basis && <p className="stance-title-basis">{title.basis}</p>}
           {points.length > 0 && (
             <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>

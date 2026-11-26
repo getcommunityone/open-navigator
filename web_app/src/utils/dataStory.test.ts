@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   DATA_CENTER_STORY,
-  STORIES,
-  storyTitleFor,
-  storyTitleText,
   POSITIONS_NOT_LOADED,
   SPEAKERS_NOT_RECORDED,
   STORY_CHARTS,
@@ -147,10 +144,7 @@ describe('screenText on a full fixture', () => {
         const t = screenText(s, full, ready, sc)
         expect(t.headline.length).toBeGreaterThan(10)
         expect(t.context.length).toBeGreaterThan(5)
-        // The Overview may state the story's conclusion title, the one shared with the header and home hero (#1134).
-        if (s.kind === 'overview') {
-          expect(t.headline).toBe(storyTitleText(STORIES['data-centers']!, storyTitleFor(STORIES['data-centers']!, sc, full.positions as never, 3)))
-        } else expect(t.headline).not.toMatch(BANNED)
+        expect(t.headline).not.toMatch(BANNED)
         expect(t.context).not.toMatch(BANNED)
         expect(`${t.headline} ${t.context}`).not.toMatch(BUILT)
         expect(t.headline).not.toMatch(/^\d/)
@@ -379,24 +373,30 @@ describe('overview headline at a place (#1115)', () => {
     positions: positions({ speakers_for: f, speakers_against: a, speakers_question: q, speakers_neutral: n }),
   })
   it('says the place pushed back when two thirds or more spoke against', () => {
-    // #1134: the Overview states the shared conclusion title when the record backs it.
     const t = screenText(overview, withSpeakers(1, 11), ready, al)
-    expect(t.headline).toBe('Alabama hates data centers.')
-    expect(t.context).toBe('A data center came up in 3 meetings in Alabama. First, where are they?')
+    expect(t.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
+    expect(t.context).toBe('A data center came up in 3 meetings. First, where are they?')
   })
   it('says the place welcomed them when two thirds or more spoke for', () => {
     expect(screenText(overview, withSpeakers(8, 2, 2), ready, tus).headline).toBe(
       'Tuscaloosa, Alabama welcomed data centers: 8 of 12 speakers spoke for them.',
     )
   })
-  it('states the conclusion for the full fixture (6 for, 14 against of 26: the 2:1 gate passes, 23% for is no split)', () => {
-    expect(screenText(overview, full, ready, al).headline).toBe('Alabama hates data centers.')
+  it('says the place was split otherwise (the full fixture: 6 for, 14 against of 26)', () => {
+    expect(screenText(overview, full, ready, al).headline).toBe('Alabama was split: 6 spoke for and 14 against data centers.')
   })
   it('says the place was split when no conclusion is backed (3 for, 5 against, 4 asked)', () => {
     expect(screenText(overview, withSpeakers(3, 5, 4), ready, al).headline).toBe('Alabama was split: 3 spoke for and 5 against data centers.')
   })
-  it('a split speaker count (each side at least 30%) is "divided"', () => {
-    expect(screenText(overview, withSpeakers(5, 6, 1), ready, al).headline).toBe('Alabama is divided on data centers.')
+  // #1134: the Overview states the page's caption (the title) when it is a conclusion; otherwise its own headline.
+  it("states the page's caption when it is a conclusion, with the meeting count under it", () => {
+    const hates = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'sentiment', text: 'Alabama hates data centers.' })
+    expect(hates.headline).toBe('Alabama hates data centers.')
+    expect(hates.context).toBe('A data center came up in 3 meetings in Alabama. First, where are they?')
+    const divided = screenText(overview, full, ready, tus, null, { kind: 'disagreement', text: 'Tuscaloosa, Alabama is divided on data centers.' })
+    expect(divided.headline).toBe('Tuscaloosa, Alabama is divided on data centers.')
+    const volume = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'volume', text: 'Alabama talked about data centers in 3 meetings.' })
+    expect(volume.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
   })
   it('keeps the neutral count below the national minimum of speakers', () => {
     const t = screenText(overview, withSpeakers(0, 9), ready, al)
@@ -406,8 +406,7 @@ describe('overview headline at a place (#1115)', () => {
     expect(overviewLean(positions({}, false), 'Alabama')).toBeNull()
   })
   it('keeps the neutral count nationally', () => {
-    expect(screenText(overview, withSpeakers(0, 9), ready, nat).headline).toBe('A data center came up in 3 meetings nationally.')
-    expect(screenText(overview, withSpeakers(1, 11), ready, nat).headline).toBe('America hates data centers.')
+    expect(screenText(overview, withSpeakers(1, 11), ready, nat).headline).toBe('A data center came up in 3 meetings nationally.')
   })
 })
 

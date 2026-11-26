@@ -70,21 +70,14 @@ meetings)." The confident for, mixed and spoke counts are served on positions `l
 (`public_for_meetings`, `public_mixed_meetings`, `public_spoke_meetings`, same p ≥ 0.7) for audit only. On 26 Nov 2026
 they were 14, 7 and 304 nationally; the 1,449 confident "no public comment" meetings are not counted as spoke.
 
-## Decision: one title, hates before divided (#1134)
+## Decision: one title from the caption picker (#1134, #1125)
 
-A place gets exactly one title, from `storyTitleFor` (home hero, story header and Overview share it), in this order:
-
-1. **Divided, from counted speakers**: at least 6 hand-counted speakers with each side at least 30% of them. Counted
-   speakers are the most direct evidence of a split, so this comes first, ahead of an AI reading of the same place.
-2. **Hates**: the meeting-reading gate above, or the speaker gate (against at least twice for, at least 10 speakers).
-3. **Divided, from officials**: at least one confident public-against meeting and at least one meeting where officials
-   sided against the public (`officials_sided_against_public`). It comes after "hates": when the public's opposition
-   passes the gate, the headline says so and the officials' meetings are stated in point 3 instead.
-4. Otherwise the meeting count, then the question.
-
-"Divided" is never used for the country, and never rests on the "supported" or "mixed" readings. On 26 Nov 2026 no
-Alabama place reached a conclusion: the state had 6 confident public-against meetings (under 10) and no officials-sided
-meeting, and Tuscaloosa had none, so both read "talked about data centers in N meetings".
+The title for every view of the story (home hero, story header, Overview) comes from one function, `pickCaption`
+(`web_app/src/utils/storyCaption.ts`; thresholds in [Story captions](story-captions.md)): "hates" first (the gates
+above, or the speaker gate), then "is divided on" (officials sided against the public in at least 10 meetings, or counted
+speakers split with both sides substantial), then volume and the question. A place gets exactly one title. "Divided" and
+"hates" never rest on the "supported" or "mixed" readings. On 26 Nov 2026 no Alabama scope reached a conclusion: the
+state had 6 confident public-against meetings (under 10) and no officials-sided meeting, and Tuscaloosa had none.
 
 ## Limits
 

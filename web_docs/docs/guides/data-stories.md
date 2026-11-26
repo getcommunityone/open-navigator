@@ -23,6 +23,16 @@ The home map is now drawn like the Explore map: each state is a grid of small sq
 
 Beyond counted speakers, both maps show an **AI reading** of each data center meeting ([#1117](https://github.com/getcommunityone/open-navigator/issues/1117)). Jev, a classifier, read every meeting's transcript for how members of the public and elected officials leaned (`data_center_meeting_lean`, served as `public_against_meetings` and `disagreement_meetings` on positions `by_state` and meeting-mentions `by_place`). A state or county with no counted speakers but at least one meeting where the public mostly opposed a data center (probability at least 0.7) is a lighter red, labelled **Public leaned against (AI reading of meetings)**; counted speakers keep their own colours. Where Jev read the public as opposed and officials as supportive, and the meeting wasn't a moratorium, a denial or an approval of rules (**officials sided against the public**), the map draws nothing extra (the owner preferred no dark outlines); it is stated in the hover card, the readout and the data table. The hover card and readout add a line such as "AI reading: the public leaned against in 2 meetings; officials sided against the public in 2 meetings." only when a count is above 0, and the data tables add both columns. "Supported" and "mixed" readings are never shown, because hand checks found them unreliable. The state drill-down also draws each county's border as a thin line over its dots, and it tells towns from counties the way printed maps do: towns and cities stay dark and bold beside their ring, while county governments are small, uppercase, letter-spaced grey text at the county's centre ("FAYETTE COUNTY"), placed after the towns. Method and limits: [Data center meeting lean](../development/data-center-meeting-lean.md). On a phone, one tap on a state opens its story ([#1120](https://github.com/getcommunityone/open-navigator/issues/1120)); there is no hover there, so the quote card is a desktop affordance.
 
+### What a meeting quote card shows (#1124)
+
+A meeting passage's card on the story maps (the national dot map, the state's county map and the home map) adds three things from the record, each left out when the record has nothing ([#1124](https://github.com/getcommunityone/open-navigator/issues/1124)):
+
+- **AI summary.** The meeting's own AI summary (`event_meeting.meeting_summary`), labelled "AI summary" and clamped to about three lines. It is shown as plain, escaped text. A meeting with no summary shows no block.
+- **Open the meeting analysis →.** A link to the meeting page (`/meetings/<event_meeting_id>`), which has "How this summary was made". The link keeps the story's scope (`?state=&city=`). A recording that is not in `event_meeting` has no link.
+- **The speaker, only when on record.** The card names a speaker as "First L.", with the recorded role, only when a counted public comment from the same meeting (`data_center_public_comment`) has a name and its whole verbatim quote (20 characters or more) is inside the passage's excerpt. If two different speakers match, no name is shown. There is no guess from timing. Otherwise the card keeps "In the meeting · `<title>`". The API also shortens any fuller name to "First L." (AGENTS.md, Privacy).
+
+The fields come from `GET /api/data-centers/meeting-mentions` as nullable `meeting_summary`, `meeting_url`, `speaker_display_name` and `speaker_role`. Each lookup is optional, so a database without `event_meeting` or `data_center_public_comment` leaves them null and the passages are still served. On the local warehouse (2026-11-26), 645 of 6,323 passages have a summary and 647 have a meeting page. Only 3 passages have a named speaker, because the public comment mart has 29 named comments and none of them has a timestamp. No transcript segment in `event_documents` carries a diarized speaker. More names need diarized transcripts (WhisperX speaker turns at each passage's start) or timed public comments.
+
 ## Which topics get a story
 
 A story or a challenge needs meeting recordings or transcripts behind it. Figure-only data, such as census measures, is shown under Explore. Today that means data centers. Within a story, a screen whose figures are not from recordings or transcripts (for the Data Center Story, sites on record and projects on record) is marked "For context" with its source named, and is never the story's headline claim. The opener's large counts lead with the transcript-based ones and show counts from other sources after them with their source.
@@ -78,41 +88,53 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
-### One title for every view of the story (#1134)
+### The title states the place's strongest statement (#993, #1125)
 
-The home hero, the story header and the story's Overview screen state the **same** title for the page's scope, from one
-function, `storyTitleFor` in `web_app/src/utils/dataStory.ts` (it builds on `storyTitle`). It reads the positions
-response for the scope: nationally `lean_totals` and the national speaker counts, for a place `scope_lean_totals` (the
-AI-reading totals narrowed by `state` and by `city` as a substring of the meeting's government name) and the place's own
-speakers. In order, the first that the record backs:
+The story's title, and the caption on each **Browse topics** tile on the home page, is the strongest statement the record
+supports for the topic and the place in scope (`?state=&city=`), with the place and topic still clickable on the story. The
+caption picker (`web_app/src/utils/storyCaption.ts`) reads `GET /api/topics/{topic}/caption-facts` for exactly that scope
+and tries, in order:
+1. **"[America] hates [data centers]."** when the public was read as confidently against in enough meetings (an AI
+   reading: at least 50 nationally, 10 in a state, 3 in one place) or the counted speakers pass the headline's gate
+   (against at least twice for, at least 10 speakers). Only for topics where "against" has one direction.
+2. **"[America] is divided on [data centers]."** when officials sided against the public in at least 10 meetings (an AI
+   reading; the basis says "In 23 meetings across 10 states, officials backed data centers while the public pushed back
+   (AI reading).") or counted speakers split with both sides substantial.
+3. **Volume with state differences.** "[California] took up [short-term rentals] in 570 meetings, more than any other
+   state.", or for a near tie "California and North Carolina took up guns most: 659 and 585 meetings."; "...the 2nd most of
+   any state."; for a city "...more than any other place in Florida.". There is no per-resident claim: meeting coverage
+   varies too much by state.
+4. **Plain volume.** "[Florida] took up [short-term rentals] in 47 meetings."
+5. **The question**, when nothing is on record. Guides with no meeting record (starting a nonprofit, insurance) always
+   show their question, and their tile keeps its blurb.
 
-1. **"[Place] is divided on [data centers]."** (a place only) when at least 6 speakers were counted by hand there and each
-   side is at least 30% of them.
-2. **"[America] hates [data centers]."** when the confident "public leaned against" meetings (probability at least 0.7)
-   reach the scope's gate (50 nationally, 10 for a state, 3 for a city or other single place), or the counted speakers
-   pass their gate (against at least twice for, at least 10 speakers).
-3. **"[Place] is divided on [data centers]."** (a place only) when it has a public-against meeting and a meeting where
-   officials sided against the public.
-4. **"[Washington] talked about [data centers] in 69 meetings."** from the place's real meeting count.
-5. The question, **"What did local meetings in … say about …?"**.
+The home story card uses the same title. No title or basis line ever states a zero.
+A small line under the title gives the numbers behind it, and says when coverage varies by state. Every number is a real
+count for the scope; missing data falls through to the next rule. Thresholds and the reasons for them:
+[Story captions](../development/story-captions.md).
 
-The country is never "divided". "Supported" and "mixed" readings are never evidence for either title: hand checks found
-them unreliable (they are served as `lean_totals.public_for_meetings` / `public_mixed_meetings` for audit). The reasons
-and thresholds: [Data center meeting lean](../development/data-center-meeting-lean.md#decision-one-title-hates-before-divided-1134).
+### One title, with a scoped subhead and numbered points (#1134)
 
-Under the title, every view shows:
-- **a subhead about the scope only**: nationally the story's own line; for a place a sentence about that place (for
-  example "At local meetings in Arizona, the public has mostly spoken against data centers."), never a national claim;
-- **the basis line**, leading with the meeting reading labelled as an AI reading and giving hand counts only with their
-  scope, for example "The public leaned against data centers in 283 meetings across 32 states (AI reading of meetings).
-  29 speakers counted by hand in 4 states: 18 against and 3 for.";
-- **three numbered points** (`storyHeroPoints` in `heroPoints.ts`): each uses the place's own figure where it is above 0
-  ("14 meetings in Arizona where the public leaned against (AI reading).") and otherwise the national one, starting
-  **"Nationally:"**. Point 1 is the short form, so it never repeats the basis line word for word.
+The home hero, the story header and the story's Overview screen state the **same** caption for the page's scope, from
+`pickCaption`. On the Overview, a conclusion caption ("hates" or "is divided on") is the headline and the meeting count
+moves to the line under it ("A data center came up in 71 meetings in Alabama. First, where are they?"); otherwise the
+Overview keeps its speaker-lean or meeting-count headline (#1115). Hand counts in a basis always name their scope: "29
+speakers counted by hand in 4 states: 18 against and 3 for." (`speakers.states` on caption-facts), never "nationwide".
 
-On the Overview screen, a backed conclusion (divided or hates) is the headline and the meeting count moves to the line
-under it ("A data center came up in 71 meetings in Alabama. First, where are they?"); otherwise the Overview keeps its
-speaker-lean or meeting-count headline (#1115).
+Under the title, the hero and the story header both show:
+- **a subhead about the caption's scope only** (`captionSubhead` in `storyCaption.ts`): the story's national line only
+  with the national "hates" caption; for a place a sentence about that place (for example "At local meetings in Arizona,
+  the public has mostly spoken against data centers."), never a national claim;
+- **the basis line** from the caption;
+- **three numbered points** (`storyHeroPoints` in `heroPoints.ts`, from `GET /api/data-centers/positions`): each uses
+  the place's own figure where it is above 0 (`scope_lean_totals`, the AI-reading totals narrowed by `state` and by `city`
+  as a substring of the meeting's government name: "6 meetings in Alabama where the public leaned against (AI reading).")
+  and otherwise the national one (`lean_totals`), starting **"Nationally:"**. Point 1 is a short form, so it doesn't
+  repeat the basis line word for word.
+
+"Supported" and "mixed" readings are never evidence for a title: hand checks found them unreliable (served as
+`lean_totals.public_for_meetings` / `public_mixed_meetings` for audit; see
+[Data center meeting lean](../development/data-center-meeting-lean.md)).
 
 ### No zero clause in a title (#1134)
 
