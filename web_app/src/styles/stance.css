@@ -1568,6 +1568,12 @@ select.stance-blank {
 .stance-sound[aria-pressed='false'] {
   color: var(--ink-2);
 }
+/* Phones: sound is set in the site menu (#1017), so the header keeps only Close. */
+@media (max-width: 767px) {
+  .stance-top-actions .stance-sound {
+    display: none;
+  }
+}
 @media (max-width: 767px) {
   .stance-sound {
     min-height: 44px;

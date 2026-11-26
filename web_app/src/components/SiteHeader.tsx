@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
 import { DATA_EXPLORER_MAP_BASE } from '../utils/dataExplorerPaths'
 import { DOCS_INTRO } from '../utils/docsLinks'
+import { SOUND_EVENT, readSoundSetting, writeSoundSetting } from '../utils/stanceSound'
 
 const DATA_EXPLORER_ENTRY = `${DATA_EXPLORER_MAP_BASE}/us/2024/median_household_income`
 
@@ -52,11 +53,13 @@ const HEADER_CSS = `
 .site-header .v9-navlink.active { color: ${TEAL_DARK}; }
 .site-header .v9-navlink.active::after { width: 100%; }
 .site-header .v9-nav { display: flex; gap: 22px; margin-left: auto; align-items: center; }
+.site-header .v9-nav-sound { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
   .site-header .v9-nav { display: none; }
   .site-header .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
   .site-header .v9-burger { display: grid; margin-left: auto; }
+  .site-header .v9-nav.open .v9-nav-sound { display: block; text-align: center; }
   .site-header .v9-brand-sub { display: none; }
   .site-header .v9-header-inner { padding-left: 16px !important; padding-right: 16px !important; gap: 12px !important; }
 }
@@ -71,6 +74,13 @@ export default function SiteHeader() {
   const navigate = useNavigate()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  // Story sound lives here on phones (#1017): the story header drops its sound button below 768px.
+  const [soundOn, setSoundOn] = useState(() => readSoundSetting())
+  useEffect(() => {
+    const on = (e: Event) => setSoundOn(Boolean((e as CustomEvent<boolean>).detail))
+    window.addEventListener(SOUND_EVENT, on)
+    return () => window.removeEventListener(SOUND_EVENT, on)
+  }, [])
   const [showLoginMenu, setShowLoginMenu] = useState(false)
   // Which in-page section is currently active, so its nav link stays highlighted
   // after a click and as the user scrolls through it.
@@ -218,6 +228,18 @@ export default function SiteHeader() {
               {label}
             </button>
           ))}
+
+          {/* Phone menu only, on a story: the sound setting (#1017). */}
+          {location.pathname.startsWith('/stories/') && (
+            <button
+              type="button"
+              className="v9-navlink v9-nav-sound"
+              aria-pressed={soundOn}
+              onClick={() => writeSoundSetting(!soundOn)}
+            >
+              Story sound: {soundOn ? 'On' : 'Off'}
+            </button>
+          )}
 
           {/* Register / Login — auth-aware */}
           {authLoading ? (

@@ -62,13 +62,28 @@ export function cueNotes(cue: Cue, step = 0): CueNote[] {
 /** Seconds from the cue's start to the end of its last note. */
 export const cueLength = (cue: Cue, step = 0): number => Math.max(...cueNotes(cue, step).map((n) => n.start + n.duration))
 
-/** The saved setting, true when on or never set; storage that throws counts as the default. */
+/** Phones start with sound off (#1017): the setting lives in the menu there, not in the story's header. */
+const isPhone = (): boolean => {
+  try {
+    return window.matchMedia('(max-width: 767px)').matches
+  } catch {
+    return false
+  }
+}
+
+/** Fired on window when the setting changes, so a story and the site menu stay in step. */
+export const SOUND_EVENT = 'stance-sound-change'
+
+/** The saved setting; when never set, on except on a phone. Storage that throws counts as the default. */
 export function readSoundSetting(): boolean {
   try {
-    return window.localStorage.getItem(SOUND_KEY) !== 'off'
+    const v = window.localStorage.getItem(SOUND_KEY)
+    if (v === 'on') return true
+    if (v === 'off') return false
   } catch {
-    return true
+    /* blocked storage: fall through to the default */
   }
+  return !isPhone()
 }
 
 export function writeSoundSetting(on: boolean): void {
@@ -76,6 +91,11 @@ export function writeSoundSetting(on: boolean): void {
     window.localStorage.setItem(SOUND_KEY, on ? 'on' : 'off')
   } catch {
     /* storage can be blocked or full: the choice then lasts for this visit only */
+  }
+  try {
+    window.dispatchEvent(new CustomEvent(SOUND_EVENT, { detail: on }))
+  } catch {
+    /* no window (tests) */
   }
 }
 
