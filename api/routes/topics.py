@@ -52,7 +52,7 @@ class TopicSummary(BaseModel):
 # keyword_stats is JSONB (returned as TEXT by this pool) — parsed below.
 #
 # $2 = optional 2-letter state code. $3 = optional city / jurisdiction ILIKE
-# pattern (e.g. '%Atlanta%'). When $3 is set, meeting_count and the existence
+# pattern (e.g. '%Atlanta%'); $4 = the bare city, to prefer an exact name match. When $3 is set, meeting_count and the existence
 # filter come from browse_entity_place_transcript_count (city grain, #590).
 # Otherwise: browse_transcript_count (national) or browse_entity_state_… ($2).
 _TOPICS_SQL = """
@@ -61,10 +61,14 @@ _TOPICS_SQL = """
            to_jsonb(t) ->> 'source' AS source,
            CASE
                 WHEN $3::text IS NOT NULL THEN (
+                    -- One place (#1026): "%Tuscaloosa%" also matches "Tuscaloosa City School District", and a
+                    -- scalar subquery with two rows errors. Prefer the exact city name ($4), then the most meetings.
                     SELECT p.transcript_count FROM browse_entity_place_transcript_count p
                     WHERE p.entity_type = 'topic' AND p.entity_id = t.topic_id::text
                       AND p.state_code = $2::text
                       AND p.jurisdiction_name ILIKE $3::text
+                    ORDER BY (lower(p.jurisdiction_name) = lower($4::text)) DESC, p.transcript_count DESC
+                    LIMIT 1
                 )
                 WHEN $2::text IS NULL THEN (
                     SELECT n.transcript_count FROM browse_transcript_count n
@@ -139,7 +143,9 @@ async def list_topics(
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("topics-query"):
-                    rows = await conn.fetch(_TOPICS_SQL, like, state_code, city_like)
+                    rows = await conn.fetch(
+                        _TOPICS_SQL, like, state_code, city_like, (city or '').strip() if city_like else None
+                    )
         except Exception as exc:  # noqa: BLE001
             logger.exception("topics list failed")
             span.record_exception(exc)

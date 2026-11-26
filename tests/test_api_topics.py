@@ -92,7 +92,7 @@ def test_topic_list_carries_source_and_scoped_meeting_count(get):
     assert body[1]["keywords"] == ["data center", "hyperscale"]
     sql, params = conn.calls[0]
     # state is normalized and drives the per-state count + existence filter; no city
-    assert params == (None, "GA", None)
+    assert params == (None, "GA", None, None)
     assert "browse_entity_state_transcript_count" in sql
     assert "to_jsonb(t) ->> 'source'" in sql
 
@@ -106,7 +106,7 @@ def test_every_topic_gets_the_scoped_count_not_only_curated_ones(get):
     body = get(conn, "/api/topics", {"state": "al"}).json()
     assert body[0]["source"] == "civicsearch" and body[0]["meeting_count"] == 193
     sql, params = conn.calls[0]
-    assert params == (None, "AL", None)
+    assert params == (None, "AL", None, None)
     count_expr = sql[sql.index("CASE"):sql.index("END AS meeting_count")]
     assert "browse_entity_state_transcript_count" in count_expr
     assert "browse_transcript_count n" in count_expr
@@ -122,9 +122,21 @@ def test_topic_list_city_grain_uses_place_transcript_counts(get):
     body = get(conn, "/api/topics", {"state": "ga", "city": "Atlanta"}).json()
     assert body[0]["meeting_count"] == 101
     sql, params = conn.calls[0]
-    assert params == (None, "GA", "%Atlanta%")
+    assert params == (None, "GA", "%Atlanta%", "Atlanta")
     assert "browse_entity_place_transcript_count" in sql
     assert "jurisdiction_name ILIKE $3" in sql
+
+
+def test_topic_list_city_count_picks_one_place(get):
+    """#1026: '%Tuscaloosa%' also matches 'Tuscaloosa City School District'. The scalar count subquery must return
+    one row (else Postgres errors and the list 503s): it prefers the exact city name, then the most meetings."""
+    conn = _Conn(rows=[])
+    get(conn, "/api/topics", {"state": "AL", "city": "Tuscaloosa"})
+    sql, params = conn.calls[0]
+    assert params == (None, "AL", "%Tuscaloosa%", "Tuscaloosa")
+    count_expr = sql.split("AS meeting_count")[0]
+    assert "ORDER BY (lower(p.jurisdiction_name) = lower($4::text)) DESC" in count_expr
+    assert "LIMIT 1" in count_expr
 
 
 def test_topic_list_query_failure_is_503_not_an_empty_list(get):
