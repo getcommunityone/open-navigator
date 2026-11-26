@@ -328,7 +328,8 @@ def is_scrape_transport_or_vpn_failure(
 ) -> bool:
     """True when a one-shot direct-egress retry is worth trying."""
     if status_code is not None:
-        if status_code in (407, 502, 503, 504, 403, 429):
+        # 429 is not here (#1081): "too many requests" means slow down, never try from another address.
+        if status_code in (407, 502, 503, 504, 403):
             return True
     if exc is None:
         return False
@@ -414,6 +415,56 @@ def make_scrape_async_client(
     return httpx.AsyncClient(**kw)
 
 
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float((os.getenv(name) or "").strip() or default)
+    except ValueError:
+        return default
+
+
+def retry_after_seconds(response: httpx.Response, attempt: int) -> float:
+    """How long to wait after a 429 (#1081): the site's Retry-After (seconds or an HTTP date) when it sends one,
+    else an exponential back-off (``SCRAPE_429_BASE_SECONDS`` x 2^attempt). Capped at ``SCRAPE_429_MAX_WAIT_SECONDS``."""
+    cap = _env_float("SCRAPE_429_MAX_WAIT_SECONDS", 120.0)
+    raw = (response.headers.get("retry-after") or "").strip()
+    wait: Optional[float] = None
+    if raw:
+        try:
+            wait = float(raw)
+        except ValueError:
+            try:
+                from email.utils import parsedate_to_datetime
+                from datetime import datetime, timezone
+
+                when = parsedate_to_datetime(raw)
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                wait = (when - datetime.now(timezone.utc)).total_seconds()
+            except (TypeError, ValueError, IndexError, OverflowError):
+                wait = None
+    if wait is None:
+        wait = _env_float("SCRAPE_429_BASE_SECONDS", 5.0) * (2 ** attempt)
+    return max(0.0, min(wait, cap))
+
+
+async def _respect_429(response: httpx.Response, again, url: str) -> httpx.Response:
+    """On 429, give the 429 back and move on (default), or, when ``SCRAPE_429_MAX_RETRIES`` > 0, wait as the site asks
+    and retry the same way (same route) up to that many times. Never switches route (#1081)."""
+    import asyncio
+
+    retries = int(_env_float("SCRAPE_429_MAX_RETRIES", 0))  # default: move on, never hammer (#1081)
+    attempt = 0
+    while response.status_code == 429 and attempt < retries:
+        wait = retry_after_seconds(response, attempt)
+        logger.info("scrape_rate_limited url={!r} attempt={} wait_s={:.1f}", url, attempt + 1, wait)
+        await asyncio.sleep(wait)
+        response = await again()
+        attempt += 1
+    if response.status_code == 429:
+        logger.warning("scrape_rate_limited_gave_up url={!r} after {} retries", url, retries)
+    return response
+
+
 async def _direct_get(
     client: httpx.AsyncClient,
     url: str,
@@ -453,6 +504,9 @@ async def async_get_with_vpn_bypass(
     if prefers_direct(url):
         try:
             direct = await _direct_get(client, url, kwargs)
+            if direct.status_code == 429:
+                # Rate-limited on the route this host uses: back off there, never fall through to another route.
+                return await _respect_429(direct, lambda: _direct_get(client, url, kwargs), url)
             # A host saved in an earlier run must not be stuck outside the VPN once the
             # direct route starts failing (#767): an error or a block page falls through.
             if direct.status_code < 400 and not looks_blocked_or_partial(direct):
@@ -479,6 +533,9 @@ async def async_get_with_vpn_bypass(
         if bypass_resp.status_code < 400:
             remember_direct_host(url)
         return bypass_resp
+
+    if response.status_code == 429:
+        return await _respect_429(response, lambda: client.get(url, **kwargs), url)
 
     if is_scrape_transport_or_vpn_failure(status_code=response.status_code):
         logger.info(

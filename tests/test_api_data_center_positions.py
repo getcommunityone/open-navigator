@@ -22,9 +22,10 @@ PATH = "/api/data-centers/positions"
 
 
 class _Conn:
-    def __init__(self, totals=None, quotes=None, error: Exception | None = None):
+    def __init__(self, totals=None, quotes=None, by_state=None, error: Exception | None = None):
         self.totals = totals or []
         self.quotes = quotes or []
+        self.by_state = by_state or []
         self.error = error
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
 
@@ -32,6 +33,8 @@ class _Conn:
         self.calls.append((sql, params))
         if self.error:
             raise self.error
+        if "GROUP BY p.state_code" in sql:
+            return self.by_state
         return self.totals if "FROM data_center_meeting_position" in sql else self.quotes
 
 
@@ -177,6 +180,7 @@ def test_missing_mart_is_unavailable_not_zero(get) -> None:
     assert body["available"] is False and body["scope"]["state_code"] == "AL"
     assert all(v is None for v in body["totals"].values())
     assert body["quotes"] == {"for": [], "against": [], "question": []}
+    assert body["by_state"] == []
 
 
 def test_limit_is_bounded(get) -> None:
@@ -186,3 +190,26 @@ def test_limit_is_bounded(get) -> None:
 
 def test_other_errors_are_500(get) -> None:
     assert get(_Conn(error=RuntimeError("boom"))).status_code == 500
+
+
+def _state(code: str, **kw) -> dict[str, Any]:
+    base = dict(state_code=code, speakers_for=0, speakers_against=0, speakers_question=0, speakers_neutral=0, meetings=1)
+    base.update(kw)
+    return base
+
+
+def test_by_state_is_national_even_on_a_scoped_page(get) -> None:
+    # #1087: the home map needs every state's split, so the per-state query never takes the scope.
+    rows = [_state("AZ", speakers_against=11, speakers_question=1, meetings=3), _state("TX", speakers_for=2, meetings=2)]
+    conn = _Conn(totals=[_totals()], by_state=rows)
+    resp = get(conn, {"state": "AL", "city": "Testville"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["by_state"] == rows
+    (sql, params) = next(c for c in conn.calls if "GROUP BY p.state_code" in c[0])
+    assert params == ()
+    assert "$1" not in sql and "ILIKE" not in sql
+    assert "FROM data_center_meeting_position" in sql and "p.state_code IS NOT NULL" in sql
+
+
+def test_by_state_defaults_to_empty(get) -> None:
+    assert get(_Conn(totals=[_totals()])).json()["by_state"] == []
