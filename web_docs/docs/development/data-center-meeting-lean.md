@@ -43,7 +43,7 @@ The API sums them per state (positions `by_state`, national, never narrowed by t
 counts are 0 and nothing fails.
 
 On the maps, an area with **no counted speakers** and at least one public-against meeting is a lighter tint of the
-Spoke against red; an area with a disagreement meeting gets a heavy dark outline. Counted speakers always win the fill.
+Spoke against red; disagreement meetings are not drawn on the map (no outlines, at the owner's request) but are stated in the hover card, readout and data table. Counted speakers always win the fill.
 
 ## Hand checks (#1113)
 

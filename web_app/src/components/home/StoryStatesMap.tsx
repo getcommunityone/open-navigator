@@ -202,9 +202,6 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const leanStates = (stance ?? []).filter((s) => (s.public_against_meetings ?? 0) > 0 && speakersOf(s) === 0)
   const disagreeStates = (stance ?? []).filter((s) => hasDisagreement(s))
   const hasLean = hasStance && (leanStates.length > 0 || disagreeStates.length > 0)
-  const disagreeFips = new Set(
-    disagreeStates.map((s) => Object.entries(STATE_FIPS_TO_CODE).find(([, c]) => c === s.state_code)?.[0]).filter(Boolean),
-  )
 
   const shown = hover != null ? boxes[hover] : undefined
   const shownCode = shown?.code ?? null
@@ -235,7 +232,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       ? ` In ${plural(leanStates.length, 'other state', 'other states')} an AI reading of the meetings found the public leaned against: ${leanStates.map((s) => stateName(s.state_code)).join(', ')}.`
       : '') +
     (disagreeStates.length
-      ? ` Outlined: ${plural(disagreeStates.length, 'state', 'states')} where the AI reading found officials sided against the public: ${disagreeStates.map((s) => stateName(s.state_code)).join(', ')}.`
+      ? ` In ${plural(disagreeStates.length, 'state', 'states')} the AI reading found officials sided against the public (see the data table): ${disagreeStates.map((s) => stateName(s.state_code)).join(', ')}.`
       : '') +
     ' The data table below lists every state; its links open each state’s story.'
 
@@ -281,16 +278,6 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             <path key={f.id} d={featPath(f)} />
           ))}
         </g>
-        {/* #1117: a heavier outline where the AI reading found officials sided against the public. */}
-        {disagreeFips.size > 0 && (
-          <g fill="none" stroke={DISAGREEMENT_STROKE} strokeWidth={2} strokeLinejoin="round" pointerEvents="none">
-            {grid.feats
-              .filter((f) => disagreeFips.has(f.id))
-              .map((f) => (
-                <path key={f.id} d={featPath(f)} />
-              ))}
-          </g>
-        )}
       </svg>
 
       {shown && shownCode && quote && (
@@ -355,15 +342,6 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           )}
           {hasStance ? 'Meetings, no stance on record (darker = more meetings)' : `Meetings where ${subject} came up`}
         </li>
-        {hasLean && disagreeStates.length > 0 && (
-          <li className="inline-flex items-center gap-1">
-            <span
-              aria-hidden="true"
-              style={{ width: 10, height: 10, borderRadius: 2, border: `2px solid ${DISAGREEMENT_STROKE}`, boxSizing: 'border-box', display: 'inline-block' }}
-            />
-            {DISAGREEMENT_LABEL}
-          </li>
-        )}
       </ul>
       {hasStance && (
         <p className="mt-1 text-xs text-stone-500">

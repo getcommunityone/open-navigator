@@ -7,8 +7,6 @@ import { HOUSE_THEME } from '../../utils/houseTheme'
 import { dotSides, speakersOf, sumStances, type StanceCounts } from '../../utils/boxSplit'
 import { BOX_COLORS, LEGEND_LABEL, LEGEND_STANCES, MEETING_GREYS, featPath, stanceLine } from '../home/StoryStatesMap'
 import {
-  DISAGREEMENT_LABEL,
-  DISAGREEMENT_STROKE,
   PUBLIC_AGAINST_COLOR,
   PUBLIC_AGAINST_LABEL,
   hasDisagreement,
@@ -280,7 +278,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           viewBox={vb}
           className="stance-map-svg"
           role="img"
-          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where an AI reading of the meetings found the public leaned against.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} outlined where the AI reading found officials sided against the public.` : ''}`}
+          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where an AI reading of the meetings found the public leaned against.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where the AI reading found officials sided against the public (see the data table).` : ''}`}
         >
           {grid.dots.map((d, i) => {
             const n = counts.get(d.id)
@@ -359,16 +357,6 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               </text>
             ))}
           </g>
-          {/* #1117: on top of the labels, a heavier outline where the AI reading found officials sided against the public. */}
-          {disagreeCounties.size > 0 && (
-            <g fill="none" stroke={DISAGREEMENT_STROKE} strokeWidth={grid.step * 0.4} strokeLinejoin="round" pointerEvents="none">
-              {grid.feats
-                .filter((f) => disagreeCounties.has(f.id))
-                .map((f) => (
-                  <path key={f.id} d={featPath(f)} />
-                ))}
-            </g>
-          )}
         </svg>
         {passage && (
           <QuoteCard
@@ -406,11 +394,6 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               </span>
               Meetings, no stance on record (darker = more meetings)
             </span>
-            {disagreeCounties.size > 0 && (
-              <span className="stance-map-none">
-                <span style={{ background: 'transparent', border: `2px solid ${DISAGREEMENT_STROKE}`, boxSizing: 'border-box' }} /> {DISAGREEMENT_LABEL}
-              </span>
-            )}
           </div>
           <p className="stance-note">
             {stances.size > 0
