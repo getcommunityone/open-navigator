@@ -5,7 +5,7 @@ title: "feat(data): short-term rental platforms as organizations, linked to meet
 author: jcbowyer
 reviewed_at: 2026-11-26
 reviewer: github-actions
-head_sha: e92ef1958bf284de9c24ba8298d8c716b7c12fa9
+head_sha: 709c5a165a73d6fb2ca5066d190575ad8b610428
 verdict: approve
 ---
 
@@ -22,6 +22,9 @@ Automated review (#648) for PR #1016 on `feat/1015-str-companies`. Heuristic rub
 - `api/routes/organizations.py`
 - `api/routes/search_postgres.py`
 - `api/routes/short_term_rentals.py`
+- `dbt_project/contracts/mdm_organization_short_term_rental.odcs.yaml`
+- `dbt_project/contracts/products/open-navigator-public-api.odps.yaml`
+- `dbt_project/contracts/short_term_rental_company_mention.odcs.yaml`
 - `dbt_project/macros/publish_public_serving.sql`
 - `dbt_project/models/intermediate/int_organizations__unioned.sql`
 - `dbt_project/models/marts/_schema_short_term_rental.yml`
@@ -32,6 +35,7 @@ Automated review (#648) for PR #1016 on `feat/1015-str-companies`. Heuristic rub
 - `dbt_project/seeds/schema.yml`
 - `dbt_project/seeds/short_term_rental_companies.csv`
 - `packages/hosting/src/hosting/neon/sync_public_to_neon.py`
+- `pull_requests/pr-1016-review.md`
 - `web_app/src/App.tsx`
 - `web_app/src/pages/OrganizationPage.tsx`
 - `web_app/src/pages/TopicStory.tsx`
@@ -39,7 +43,7 @@ Automated review (#648) for PR #1016 on `feat/1015-str-companies`. Heuristic rub
 
 ## CI Status
 
-See the PR checks on `e92ef1958bf2`.
+See the PR checks on `709c5a165a73`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
@@ -67,11 +71,3 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
-
-## Agent review (Claude Code)
-
-- The dbt build ran locally: 28 tests passed and no search indexes are missing. The Airbnb.org nonprofit stays separate (different normalized name).
-- Every company row cites its own site verbatim, and every mention quotes the record verbatim. Nothing is fabricated. PK/FK declared; the decision FK is checked by a relationships test.
-- Browser checks are recorded in the PR. Scans clean; docs page added.
-
-Verdict stands: approve.
