@@ -19,6 +19,16 @@ only, mandatory scans), with this repository's rules from `CLAUDE.md` and `AGENT
    - **Personal data:** a user's address, location or other personal data stored or logged when the feature only
      needs it for the moment (the "no data stored" promise), or private personal information added to the
      warehouse. 🔴 Blocking. Public records (officials, meetings, votes) are fine.
+   - **Privacy and data ethics** (`AGENTS.md`, #1080). Each of these is 🔴 Blocking:
+     - a private person enriched beyond the public record (home address, workplace, church, school, family,
+       personal email);
+     - sensitive traits (health, religion, ethnicity, immigration, sexual orientation, criminal history, finances,
+       precise location) tied to an identifiable private person, including by an AI prompt that asks for them;
+     - a child or student named, quoted or tagged;
+     - a scraper that logs in, disguises its identity, rotates proxies to beat a block, retries a 429 without
+       backing off, or collects where the site's terms forbid it;
+     - code that emails or messages people who didn't ask;
+     - user identities logged next to emails, tokens, exact locations or chat text.
    - **Destructive or bulky data changes:** anything deleting `data/cache/`, large raw files committed (logs, parquet
      dumps, caches), or warehouse tables changed outside dbt. 🔴 Blocking for deletions, 🟡 for bulk.
 3. **Reviewer.** A read-only reviewer reads the range with this rubric, `AGENTS.md` and `CLAUDE.md` as the

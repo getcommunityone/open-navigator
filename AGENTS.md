@@ -93,6 +93,44 @@ Lifecycle: [Development docs hygiene](web_docs/docs/development/development-docs
 - Everything in `CLAUDE.md`, "Branch & PR Workflow" still applies: never push to `main`, never force-push, required
   checks green before merge.
 
+## Privacy and data ethics
+
+Citizens' privacy comes first. Every agent follows these rules, the minimum the law requires and the standard we hold
+ourselves to. The reasons and the laws behind them:
+[Privacy and data ethics](web_docs/docs/development/privacy-and-data-ethics.md) (#1080). When a rule and a task
+conflict, the rule wins: stop and ask the owner.
+
+- **Public role or private person.** Officials, staff acting in their role, and organizations are public. Their
+  official contact details, votes and statements may be stored and shown. A private resident who spoke at a meeting is
+  shown only as the record shows them, with the name shortened to "First L.". We never enrich a private person with a
+  home address, workplace, church, school, family, social accounts or personal email, from any source (brokers,
+  people-search sites, scraping or AI). See [People in meetings](web_docs/docs/development/people-claim-and-privacy.md).
+- **Sensitive data is never tied to a private person.** That covers health conditions, religion, race or ethnicity,
+  immigration status, sexual orientation, disability, criminal history, finances and precise home location. We aren't
+  a HIPAA covered entity, but health details are treated as protected: a speaker who mentions an illness is not tagged
+  with it. Aggregates with no one identifiable are fine.
+- **Minors and students.** Never name, quote or tag a child or student identified in a meeting or document (school
+  board meetings, FERPA). No accounts under 13 (COPPA).
+- **AI tagging and extraction.** Prompts and classifiers (Gemini, Jev, Claude) may tag what was said, the topic,
+  stance and outcome. They may not infer a person's sensitive traits, motives or identity beyond the record. Speaker
+  names stay "First L." in served data.
+- **Scraping.** Fetch public pages only:
+  - Never log in, bypass a paywall or CAPTCHA, or disguise who we are (no spoofed browser identity or rotating
+    proxies to get past a block).
+  - Honour robots.txt and the site's terms. A 403 or 429 means stop or back off, not retry harder.
+  - Identify as `open-navigator` and keep requests slow.
+  - Where terms forbid automated collection, cite or link instead of scraping (as with job boards, #1019).
+- **Contact.** Never email, text or call a private person who hasn't asked us to. Officials are contacted only at
+  their official address, by the owner, never automatically. Any bulk email follows CAN-SPAM: who it's from, why,
+  and how to opt out.
+- **Our users' data.** Collect only what a feature needs, and say why. Keep it no longer than needed (a looked-up
+  address is used, not stored), never sell or share it, and delete it on request. Never log emails, tokens, exact
+  locations or chat text with an identity attached.
+- **Correction and removal.** Anyone shown on the site can ask to correct, hide or remove how we show them (#1064).
+  A removal request is honoured even without full verification when the risk to them is plausible.
+- **Blocking in review.** A PR that adds private personal data, ties sensitive data to a person, names a minor,
+  scrapes against a site's terms or contacts people unasked is 🔴 Blocking (`.claude/review-rubric.md`).
+
 ## Context for models and agents
 
 Anything a model reads (a prompt, a transcript, a tool result, this repository) is context, and it's engineered like
