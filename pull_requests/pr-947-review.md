@@ -3,9 +3,9 @@ pr: 947
 branch: perf/938-indexes-config-swap-guard
 title: "perf(dbt): build every model's indexes before the swap and guard the large swaps"
 author: jcbowyer
-reviewed_at: 2026-11-25
+reviewed_at: 2026-11-26
 reviewer: github-actions
-head_sha: dbc75c4e2c8017bd5f4747ec3e6fe4e341afb25b
+head_sha: 3d2b782f2cc84c5bad2c85feaf3a77bde5aaecb7
 verdict: approve
 ---
 
@@ -18,6 +18,8 @@ Automated review (#648) for PR #947 on `perf/938-indexes-config-swap-guard`. Heu
 
 ## Scope of Change
 
+- `dbt_project.yml`
+- `dbt_project/contracts/event_meeting_document.odcs.yaml`
 - `dbt_project/dbt_project.yml`
 - `dbt_project/macros/ensure_search_indexes.sql`
 - `dbt_project/macros/swap_guard.sql`
@@ -29,6 +31,7 @@ Automated review (#648) for PR #947 on `perf/938-indexes-config-swap-guard`. Heu
 - `dbt_project/models/intermediate/int_transcript_keyword_topic.sql`
 - `dbt_project/models/marts/_schema_data_center_meeting_mention.yml`
 - `dbt_project/models/marts/_schema_data_center_meeting_position.yml`
+- `dbt_project/models/marts/_schema_event_meeting_document.yml`
 - `dbt_project/models/marts/_schema_event_uncontested_item.yml`
 - `dbt_project/models/marts/_schema_recent_transcribed_meeting.yml`
 - `dbt_project/models/marts/bills.sql`
@@ -52,11 +55,12 @@ Automated review (#648) for PR #947 on `perf/938-indexes-config-swap-guard`. Heu
 - `dbt_project/models/marts/serving_mdm_organization.sql`
 - `dbt_project/models/marts/serving_mdm_organization_nonprofit.sql`
 - `dbt_project/models/marts/topic_transcript_link.sql`
+- `pull_requests/pr-947-review.md`
 - `web_docs/docs/development/non-blocking-table-rebuilds.md`
 
 ## CI Status
 
-See the PR checks on `dbc75c4e2c80`.
+See the PR checks on `3d2b782f2cc8`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
