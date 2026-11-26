@@ -80,6 +80,9 @@ html { scroll-behavior: smooth; }
 .v9 .home-topics-list li + li { border-left: 1px solid #e7e5e4; }
 .v9 .home-topic { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; text-decoration: none; color: inherit; border-radius: 10px; }
 .v9 .home-topic:hover { background: #fafaf9; }
+.v9 button.home-topic { width: 100%; background: none; border: 0; font: inherit; text-align: left; cursor: pointer; }
+.v9 .home-topic.is-on { background: #f0fdfa; box-shadow: inset 0 0 0 2px #0f766e; }
+.v9 .home-topic-on { display: inline-block; align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 12px; font-weight: 700; }
 .v9 .home-topic.is-soon { cursor: default; }
 .v9 .home-topic.is-soon:hover { background: none; }
 .v9 .home-topic-soon { display: inline-block; align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: #f5f5f4; color: #57534e; font-size: 12px; font-weight: 600; }

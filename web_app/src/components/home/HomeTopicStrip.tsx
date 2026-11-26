@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom'
-import { Bike, Camera, ChevronRight, House, ScanLine, type LucideIcon } from 'lucide-react'
+import { Bike, Camera, ChevronRight, House, ScanLine, Server, type LucideIcon } from 'lucide-react'
+
+/** The live home stories the strip can select (#1025). */
+export type HomeStoryKey = 'data-centers' | 'short-term-rentals'
 
 interface Topic {
   key: string
@@ -8,21 +11,30 @@ interface Topic {
   Icon: LucideIcon
   tint: string
   ink: string
-  /** The story it opens; absent while the story is coming soon. */
-  to?: string
+  /** The home story it selects; absent while the story is coming soon. */
+  story?: HomeStoryKey
 }
 
-// Browse topics (#1013): the other data stories, in the owner's order. Only stories that exist link; the rest say
-// "Coming soon" and are not links. Words only: every count lives in the story it opens.
+// Browse topics (#1013, #1025), in the owner's order: Data centers (the default story above), Short-term rentals, then
+// the stories still to come. A live card selects the story shown above it; the rest say "Coming soon" and do nothing.
 const TOPICS: Topic[] = [
-  { key: 'str', title: 'Short-term rentals', blurb: 'Airbnb, VRBO and vacation rentals, in the words said at meetings.', Icon: House, tint: '#dcfce7', ink: '#15803d', to: '/stories/short-term-rentals' },
+  { key: 'dc', title: 'Data centers', blurb: 'Who spoke up, the sites and projects, and what was decided.', Icon: Server, tint: '#ccfbf1', ink: '#0f766e', story: 'data-centers' },
+  { key: 'str', title: 'Short-term rentals', blurb: 'Airbnb, VRBO and vacation rentals, in the words said at meetings.', Icon: House, tint: '#dcfce7', ink: '#15803d', story: 'short-term-rentals' },
   { key: 'flock', title: 'Flock', blurb: 'Flock Safety cameras and the contracts behind them.', Icon: Camera, tint: '#dbeafe', ink: '#1d4ed8' },
   { key: 'lpr', title: 'License plate readers', blurb: 'Automated plate readers: who uses them and for what.', Icon: ScanLine, tint: '#ede9fe', ink: '#6d28d9' },
   { key: 'bike', title: 'Bike lanes', blurb: 'Bike lanes and paths, as councils weigh them.', Icon: Bike, tint: '#ffedd5', ink: '#c2410c' },
 ]
 
-/** "Browse topics" under the home story: each live card opens its story for the page's place (scope carried). */
-export default function HomeTopicStrip({ query }: { query: string }) {
+interface Props {
+  /** The page's place (?state=&city=), carried by the "all stories" link. */
+  query: string
+  /** The story shown above the strip. */
+  selected: HomeStoryKey
+  onSelect: (story: HomeStoryKey) => void
+}
+
+/** "Browse topics" under the home story: picks which story the card above shows (Data centers by default). */
+export default function HomeTopicStrip({ query, selected, onSelect }: Props) {
   return (
     <nav aria-labelledby="home-topics-h" className="home-topics">
       <div className="home-topics-head">
@@ -34,31 +46,34 @@ export default function HomeTopicStrip({ query }: { query: string }) {
         </Link>
       </div>
       <ul className="home-topics-list">
-        {TOPICS.map(({ key, title, blurb, Icon, tint, ink, to }) => {
+        {TOPICS.map(({ key, title, blurb, Icon, tint, ink, story }) => {
+          const on = story != null && story === selected
           const body = (
             <>
-              <span className="home-topic-icon" style={{ background: tint, color: ink, opacity: to ? 1 : 0.55 }} aria-hidden="true">
+              <span className="home-topic-icon" style={{ background: tint, color: ink, opacity: story ? 1 : 0.55 }} aria-hidden="true">
                 <Icon size={26} strokeWidth={1.8} />
               </span>
               <span className="home-topic-text">
                 <span className="home-topic-title">{title}</span>
                 <span className="home-topic-blurb">{blurb}</span>
-                {to ? (
-                  <span className="home-topic-go">
-                    Explore topic <span aria-hidden="true">→</span>
-                  </span>
-                ) : (
+                {!story ? (
                   <span className="home-topic-soon">Coming soon</span>
+                ) : on ? (
+                  <span className="home-topic-on">Showing above</span>
+                ) : (
+                  <span className="home-topic-go">
+                    Show this story <span aria-hidden="true">→</span>
+                  </span>
                 )}
               </span>
             </>
           )
           return (
             <li key={key}>
-              {to ? (
-                <Link to={`${to}${query}`} className="home-topic">
+              {story ? (
+                <button type="button" className={'home-topic' + (on ? ' is-on' : '')} aria-pressed={on} onClick={() => onSelect(story)}>
                   {body}
-                </Link>
+                </button>
               ) : (
                 <div className="home-topic is-soon" aria-disabled="true">
                   {body}
