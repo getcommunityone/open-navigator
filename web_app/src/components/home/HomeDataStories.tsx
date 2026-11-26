@@ -16,12 +16,21 @@ interface Props {
 }
 
 const STORY = STORIES['data-centers']!
+/** A state's map passages, in order (speakers' own words first, then meeting passages, newest first), at most this many. */
+const QUOTES_PER_STATE = 12
+
+function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) {
+  const list = out.get(code)
+  if (!list) out.set(code, [q])
+  else if (list.length < QUOTES_PER_STATE) list.push(q)
+}
 
 /**
  * Home `#data-stories`, the top of the home page (#975, #985, #989, #995):
  * - the story's conclusion headline (gated on the national record; else its question), subtitle, basis and Start;
- * - a US map with a pin per state that discussed data centers, each linking to that state's story, and a card quoting the
- *   state's newest meeting passage, verbatim, with where and when it was said;
+ * - a US map of small boxes in each state's shape (#1087), split by the real counts of speakers for, against, asking a
+ *   question or taking no side where any are on record, each state linking to its story, and a card quoting one of the
+ *   state's real passages, verbatim, with where and when it was said;
  * - Browse topics: picks the story the card shows (Data centers by default, Short-term rentals; others coming soon), #1025.
  */
 export default function HomeDataStories({ stateCode, city = null }: Props) {
@@ -53,10 +62,10 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     retry: 1,
   })
   const strQuotes = useMemo(() => {
-    const out = new Map<string, StateQuote>()
+    const out = new Map<string, StateQuote[]>()
     for (const m of str.data?.newest ?? []) {
       if (!m.state_code || !m.excerpt) continue
-      out.set(m.state_code, {
+      pushQuote(out, m.state_code, {
         place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
         text: m.excerpt,
         date: m.date ?? null,
@@ -89,12 +98,12 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     retry: 1,
   })
   const quotes = useMemo(() => {
-    const out = new Map<string, StateQuote>()
+    const out = new Map<string, StateQuote[]>()
     const sides = speakers.data?.quotes
     for (const side of ['against', 'for', 'question'] as const) {
       for (const sq of sides?.[side] ?? []) {
-        if (!sq.state_code || out.has(sq.state_code) || !sq.quote) continue
-        out.set(sq.state_code, {
+        if (!sq.state_code || !sq.quote) continue
+        pushQuote(out, sq.state_code, {
           place: [sq.jurisdiction_name, sq.state_code].filter(Boolean).join(', '),
           side,
           who: [sq.speaker_display_name, sq.speaker_role].filter(Boolean).join(' · ') || null,
@@ -106,8 +115,8 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
       }
     }
     for (const m of national.data?.items ?? []) {
-      if (!m.state_code || out.has(m.state_code) || !m.evidence) continue
-      out.set(m.state_code, {
+      if (!m.state_code || !m.evidence) continue
+      pushQuote(out, m.state_code, {
         place: [m.jurisdiction_name, m.state_code].filter(Boolean).join(', '),
         text: m.evidence,
         date: m.meeting_date ?? null,
@@ -182,6 +191,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
               <StoryStatesMap
                 byState={national.data?.counts?.by_state}
                 quotes={quotes}
+                stance={speakers.data?.available ? (speakers.data.by_state ?? []) : undefined}
                 highlight={stateCode ?? null}
                 href={(code) => `/stories/data-centers?state=${encodeURIComponent(code)}`}
               />

@@ -1,16 +1,23 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { geoPath } from 'd3-geo'
-import { feature } from 'topojson-client'
-import { STATES_ALBERS_TOPO, fetchTopo } from '../../lib/dotMatrix'
+import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, toFeats } from '../../lib/dotMatrix'
 import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
+import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
+import { HOUSE_THEME } from '../../utils/houseTheme'
+import { isTouchOnly } from '../../utils/touchOnly'
+import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
 
 export interface StateMarker {
   state_code: string
   state?: string | null
   meetings: number
+}
+
+/** One state's real speaker counts (positions `by_state`, #1087). */
+export interface StateStance extends StanceCounts {
+  state_code: string
 }
 
 /** One real meeting passage for a state's card: verbatim, with where and when it was said. */
@@ -31,19 +38,43 @@ export interface StateQuote {
 interface Props {
   /** Real meetings per state (meeting-mentions `counts.by_state`); null while loading. */
   byState: StateMarker[] | null | undefined
-  /** The newest passage per state, by state code. A state without one has no card. */
-  quotes?: Map<string, StateQuote>
-  /** The state the page is scoped to, drawn stronger. */
+  /** Each state's real passages, by state code (speakers' own words first, then meeting passages). Its boxes cycle through
+   *  them; a state without one has no card. */
+  quotes?: Map<string, StateQuote[]>
+  /** Real speaker counts per state, national (#1087). Absent (the rentals story): boxes show meetings only. */
+  stance?: StateStance[] | null
+  /** The state the page is scoped to: its boxes at full strength, the rest muted. */
   highlight?: string | null
-  /** Where a pin goes: the story for that state. */
+  /** Where a state's boxes go: the story for that state. */
   href: (stateCode: string) => string
   /** What came up, for the captions ("a data center", "short-term rentals"); the data center story by default (#1013). */
   subject?: string
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
-const W = 975
-const H = 610
+const plural = (n: number, one: string, many: string) => `${fmt(n)} ${n === 1 ? one : many}`
+const W = NATIONAL_BBOX[2]
+const H = NATIONAL_BBOX[3]
+const COLS = 80
+
+/** Box colours: the house theme's segment colours (no red/green pair), a grey for meetings without a stance, the empty tint. */
+export const BOX_COLORS: Record<Stance | 'meetings' | 'none', string> = {
+  against: HOUSE_THEME.seg[3]!, // muted red
+  for: HOUSE_THEME.seg[0]!, // teal
+  question: HOUSE_THEME.seg[2]!, // blue
+  neutral: HOUSE_THEME.seg[6]!, // plum
+  meetings: '#9AA5A9',
+  none: HOUSE_THEME.neutral,
+}
+/** Without stance data (the rentals story) a state with meetings is one teal. */
+const MEETINGS_ONLY = HOUSE_THEME.seg[0]!
+
+const STANCE_LABEL: Record<Stance, string> = {
+  against: 'Spoke against',
+  for: 'Spoke for',
+  question: 'Asked a question',
+  neutral: 'No side',
+}
 
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null
@@ -51,83 +82,167 @@ function fmtDate(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function stanceLine(s: StanceCounts | undefined): string | null {
+  if (!s || speakersOf(s) === 0) return null
+  return STANCE_ORDER.filter((k) => stanceCount(s, k) > 0)
+    .map((k) => `${fmt(stanceCount(s, k))} ${STANCE_LABEL[k].toLowerCase()}`)
+    .join(' · ')
+}
+
+interface Box {
+  x: number
+  y: number
+  code: string | null
+  /** Index among its state's boxes, sorted left to right. */
+  rank: number
+  side: Stance | null
+  /** Index among its state's boxes in the same side's band. */
+  bandRank: number
+}
 
 /**
- * The home page's story map (#985, #995): the US in outline, one pin per state where a data center came up in at least one
- * meeting (a little larger where there were more), each a link to the story for that state. Hovering or focusing a pin
- * shows that state's newest meeting passage, verbatim, with the place, date and meeting; the page's (or top) state's card
- * shows at rest. A state with no meetings has no pin and a state with no passage no card: nothing is drawn from a guess.
+ * The home page's story map (#985, #995, #1087): the country as a grid of small square boxes in each state's shape (the
+ * Explore map's geometry). Where speakers are on record, a state's boxes are split in bands by the real counts of those who
+ * spoke against, for, asked a question or took no side; a state with meetings but no speaker on record is one grey; a state
+ * with none is the empty tint. Hovering (tapping, on a phone) a box shows one of that state's real passages, cycling through
+ * them across its boxes; clicking opens that state's story. Nothing is drawn from a guess: no counts, no split.
  */
-export default function StoryStatesMap({ byState, quotes, highlight, href, subject = 'a data center' }: Props) {
-  const [hover, setHover] = useState<string | null>(null)
+export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center' }: Props) {
+  const navigate = useNavigate()
+  const [hover, setHover] = useState<number | null>(null)
+  const touch = isTouchOnly()
   const { data: topo, isError } = useQuery({
     queryKey: ['us-atlas-states-albers'],
     queryFn: () => fetchTopo(STATES_ALBERS_TOPO),
     staleTime: 1000 * 60 * 60,
   })
-  const shapes = useMemo(() => {
+  const grid = useMemo(() => {
     if (!topo) return null
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const t = topo as any
-    const fc = feature(t, t.objects.states) as unknown as { features: Array<{ id?: string | number; properties?: { name?: string } }> }
-    const path = geoPath()
-    return fc.features
-      .filter((f) => String(f.id ?? '').padStart(2, '0') !== '72')
-      .map((f) => {
-        const fips = String(f.id ?? '').padStart(2, '0')
-        return { fips, code: STATE_FIPS_TO_CODE[fips] ?? null, name: f.properties?.name ?? fips, d: path(f as never) ?? '', c: path.centroid(f as never) }
-      })
+    const feats = toFeats(topo, 'states').filter((f) => f.id !== '72')
+    const { dots, step } = dotsFor(feats, NATIONAL_BBOX, COLS)
+    // A state too small for a grid point (DC, at this grid) still gets one box, at its centre.
+    const seen = new Set(dots.map((d) => d.id))
+    for (const f of feats) {
+      if (!seen.has(f.id)) dots.push({ x: (f.bbox[0] + f.bbox[2]) / 2, y: (f.bbox[1] + f.bbox[3]) / 2, id: f.id })
+    }
+    return { feats, dots, step }
   }, [topo])
 
-  if (isError) return <p className="text-sm text-stone-500">The map could not be loaded.</p>
-  if (!shapes || byState == null) return <p className="text-sm text-stone-500" role="status">Loading the map…</p>
+  const stanceBy = useMemo(() => new Map((stance ?? []).map((s) => [s.state_code, s])), [stance])
+  const boxes = useMemo<Box[] | null>(() => {
+    if (!grid) return null
+    const byFips = new Map<string, typeof grid.dots>()
+    for (const d of grid.dots) {
+      const list = byFips.get(d.id)
+      if (list) list.push(d)
+      else byFips.set(d.id, [d])
+    }
+    const out: Box[] = []
+    for (const [fips, ds] of byFips) {
+      const code = STATE_FIPS_TO_CODE[fips] ?? null
+      // Left to right, then top to bottom, so each side fills one contiguous band of the state.
+      const sorted = [...ds].sort((a, b) => a.x - b.x || a.y - b.y)
+      const sides = bandSides(code ? stanceBy.get(code) : undefined, sorted.length)
+      const seen: Partial<Record<Stance, number>> = {}
+      sorted.forEach((d, rank) => {
+        const side = sides[rank] ?? null
+        const bandRank = side ? (seen[side] = (seen[side] ?? -1) + 1) : rank
+        out.push({ x: d.x, y: d.y, code, rank, side, bandRank })
+      })
+    }
+    return out
+  }, [grid, stanceBy])
 
-  const counts = new Map(byState.map((s) => [s.state_code, s.meetings]))
-  const max = Math.max(1, ...byState.map((s) => s.meetings))
-  const r = (n: number) => 5 + 6 * Math.sqrt(n / max)
-  const pins = shapes
-    .filter((s) => s.code && (counts.get(s.code) ?? 0) > 0)
-    .map((s) => ({ ...s, n: counts.get(s.code!)! }))
-    .sort((a, b) => b.n - a.n)
-  // The card shows only while a pin is hovered or focused; at rest the map is just the map (owner, #1002).
-  const shown = hover ? pins.find((p) => p.code === hover) : undefined
-  const quote = shown ? quotes?.get(shown.code!) : undefined
-  const left = shown ? (shown.c[0] / W) * 100 : 0
+  if (isError) return <p className="text-sm text-stone-500">The map could not be loaded.</p>
+  if (!grid || !boxes || byState == null) return <p className="text-sm text-stone-500" role="status">Loading the map…</p>
+
+  const meetings = new Map(byState.map((s) => [s.state_code, s.meetings]))
+  const hasStance = stance != null
+  const split = (stance ?? []).filter((s) => speakersOf(s) > 0)
+  const speakersTotal = split.reduce((n, s) => n + speakersOf(s), 0)
+  const stateName = (code: string) => byState.find((s) => s.state_code === code)?.state ?? STATE_CODE_TO_NAME[code] ?? code
+  const colorOf = (b: Box): string => {
+    if (!b.code) return BOX_COLORS.none
+    if (b.side) return BOX_COLORS[b.side]
+    if ((meetings.get(b.code) ?? 0) > 0) return hasStance ? BOX_COLORS.meetings : MEETINGS_ONLY
+    return BOX_COLORS.none
+  }
+
+  const listed = [...new Set([...byState.filter((s) => s.meetings > 0).map((s) => s.state_code), ...split.map((s) => s.state_code)])]
+    .map((code) => ({ code, name: stateName(code), meetings: meetings.get(code) ?? 0, st: stanceBy.get(code) }))
+    .sort((a, b) => speakersOf(b.st) - speakersOf(a.st) || b.meetings - a.meetings || a.name.localeCompare(b.name))
+  const withMeetings = byState.filter((s) => s.meetings > 0).length
+
+  const shown = hover != null ? boxes[hover] : undefined
+  const shownCode = shown?.code ?? null
+  // The card: one of the state's passages, cycling across its boxes (box index mod passages). A box in a side's band shows
+  // that side's own words when the state has some; otherwise the state's passages in turn.
+  let quote: StateQuote | undefined
+  if (shown && shownCode) {
+    const all = quotes?.get(shownCode) ?? []
+    const own = shown.side ? all.filter((q) => q.side === shown.side) : []
+    if (own.length) quote = own[shown.bandRank % own.length]
+    else if (all.length) quote = all[shown.rank % all.length]
+  }
+  const shownStance = shownCode ? stanceLine(stanceBy.get(shownCode)) : null
+  const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
+  const left = shown ? (shown.x / W) * 100 : 0
+  const size = grid.step * 0.8
+  const pad = 4
+
+  const summary =
+    `Map of the United States drawn as small boxes in each state's shape. ${plural(withMeetings, 'state has', 'states have')} at least one meeting where ${subject} came up.` +
+    (hasStance && split.length
+      ? ` In ${plural(split.length, 'state', 'states')} the boxes are split by ${plural(speakersTotal, 'speaker', 'speakers')} on record: ` +
+        split.map((s) => `${stateName(s.state_code)}, ${stanceLine(s)}`).join('; ') +
+        '.'
+      : '') +
+    ' The data table below lists every state; its links open each state’s story.'
+
+  const onBox = (i: number) => {
+    const b = boxes[i]
+    if (!b?.code) return
+    // On a phone the first tap shows the card (there is no hover); a second tap on the same state opens its story.
+    if (touch && shownCode !== b.code) {
+      setHover(i)
+      return
+    }
+    navigate(href(b.code))
+  }
 
   return (
     <div style={{ position: 'relative' }} onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="group" aria-label={`States where ${subject} came up in local meetings`}>
-        <g aria-hidden="true">
-          {shapes.map((s) => (
-            <path key={s.fips} d={s.d} fill={s.code === highlight ? '#ccfbf1' : '#f5f5f4'} stroke="#d6d3d1" strokeWidth={0.8} />
-          ))}
-        </g>
-        {pins.map((m) => {
-          const on = m.code === shown?.code
+      <svg viewBox={`${-pad} ${-pad} ${W + pad * 2} ${H + pad * 2}`} className="block h-auto w-full" role="img" aria-label={summary}>
+        {boxes.map((b, i) => {
+          const muted = shownCode ? b.code !== shownCode : !!highlight && b.code !== highlight
+          const on = (meetings.get(b.code ?? '') ?? 0) > 0 || !!b.side
+          const s = on ? size : size * 0.6
           return (
-            <Link
-              key={m.fips}
-              to={href(m.code!)}
-              aria-label={`${m.name}: ${fmt(m.n)} ${m.n === 1 ? 'meeting' : 'meetings'} where ${subject} came up. Open the story for ${m.name}.`}
-              onMouseEnter={() => setHover(m.code)}
-              onFocus={() => setHover(m.code)}
-            >
-              <title>{`${m.name}: ${fmt(m.n)} ${m.n === 1 ? 'meeting' : 'meetings'}`}</title>
-              <circle cx={m.c[0]} cy={m.c[1]} r={r(m.n) + 4} fill="#fff" stroke="#0f766e" strokeWidth={on ? 3 : 2} style={{ cursor: 'pointer' }} />
-              <circle cx={m.c[0]} cy={m.c[1]} r={Math.max(2.5, r(m.n) - 2)} fill="#0f766e" fillOpacity={on || m.code === highlight ? 1 : 0.75} />
-            </Link>
+            <rect
+              key={i}
+              x={b.x - s / 2}
+              y={b.y - s / 2}
+              width={s}
+              height={s}
+              rx={s * 0.12}
+              fill={colorOf(b)}
+              opacity={muted ? 0.45 : 1}
+              stroke={i === hover ? '#1c1917' : undefined}
+              strokeWidth={i === hover ? 1.5 : undefined}
+              style={{ cursor: b.code ? 'pointer' : 'default' }}
+              onMouseEnter={touch ? undefined : () => setHover(i)}
+              onClick={() => onBox(i)}
+            />
           )
         })}
       </svg>
 
-      {shown && quote && (
-        // At the top of the map, on the side away from the pin, so it never covers the pin it describes or runs off the map.
+      {shown && shownCode && quote && (
+        // At the top of the map, on the side away from the box, so it never covers the box it describes.
         <figure className="home-map-card" style={left < 55 ? { right: 0, top: '2%' } : { left: 0, top: '2%' }}>
           <figcaption style={{ fontWeight: 700, fontSize: 15, color: '#1c1917', margin: '0 0 2px' }}>{quote.place}</figcaption>
           <p style={{ margin: '0 0 6px', fontSize: 12, color: '#57534e' }}>
-            {quote.side
-              ? `${quote.side === 'against' ? 'Spoke against' : quote.side === 'for' ? 'Spoke for' : 'Asked a question'}${quote.who ? ` · ${quote.who}` : ''}`
-              : 'In the meeting'}
+            {quote.side ? `${STANCE_LABEL[quote.side]}${quote.who ? ` · ${quote.who}` : ''}` : 'In the meeting'}
           </p>
           <blockquote style={{ margin: 0, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.45, color: '#44403c' }}>
             “{highlightSnippet(excerptAroundMark(quote.text))}”
@@ -141,14 +256,94 @@ export default function StoryStatesMap({ byState, quotes, highlight, href, subje
               </a>
             )}
           </p>
+          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#57534e' }}>
+            {stateName(shownCode)}: {plural(shownMeetings, 'meeting', 'meetings')}
+            {shownStance ? ` · ${shownStance}` : hasStance ? ' · no stance on record' : ''}
+          </p>
+          {touch && (
+            <p style={{ margin: '6px 0 0', fontSize: 13 }}>
+              <Link to={href(shownCode)} style={{ color: '#0f766e', fontWeight: 600 }}>
+                Open the story for {stateName(shownCode)} →
+              </Link>
+            </p>
+          )}
         </figure>
       )}
 
-      <p className="mt-1 h-[2.75rem] overflow-hidden text-sm leading-snug text-stone-600" aria-live="off">
-        {hover && shown
-          ? `${shown.name}: ${fmt(shown.n)} ${shown.n === 1 ? 'meeting' : 'meetings'} where ${subject} came up. Click to open its story.`
-          : `${pins.length} states with at least one meeting where ${subject} came up. Hover a pin to read what was said; click one to open that state's story.`}
+      {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
+      <p className="mt-1 min-h-[2.75rem] text-sm leading-snug text-stone-600" aria-live="off">
+        {shown && shownCode
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? '; no stance on record' : ''}. ${touch ? 'Tap again to open its story.' : 'Click to open its story.'}`
+          : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to read what was said; tap again to open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
+
+      <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>
+        {hasStance &&
+          split.length > 0 &&
+          STANCE_ORDER.map((k) => (
+            <li key={k} className="inline-flex items-center gap-1">
+              <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: BOX_COLORS[k], display: 'inline-block' }} />
+              {STANCE_LABEL[k]}
+            </li>
+          ))}
+        <li className="inline-flex items-center gap-1">
+          <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: hasStance ? BOX_COLORS.meetings : MEETINGS_ONLY, display: 'inline-block' }} />
+          {hasStance ? 'Meetings, no stance on record' : `Meetings where ${subject} came up`}
+        </li>
+        <li className="inline-flex items-center gap-1">
+          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 2, background: BOX_COLORS.none, display: 'inline-block' }} />
+          No meetings on record
+        </li>
+      </ul>
+      {hasStance && (
+        <p className="mt-1 text-xs text-stone-500">
+          {split.length > 0
+            ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
+            : 'No speaker positions on record yet; states show meetings only.'}
+        </p>
+      )}
+
+      <details className="mt-2 text-sm text-stone-700">
+        <summary className="cursor-pointer text-stone-600">Show data table</summary>
+        {listed.length === 0 ? (
+          <p className="mt-1 text-stone-500">No meetings on record.</p>
+        ) : (
+          <div className="mt-1 max-h-64 overflow-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr>
+                  <th scope="col" className="py-1 pr-2">State</th>
+                  <th scope="col" className="py-1 pr-2">Meetings</th>
+                  {hasStance &&
+                    STANCE_ORDER.map((k) => (
+                      <th key={k} scope="col" className="py-1 pr-2">
+                        {STANCE_LABEL[k]}
+                      </th>
+                    ))}
+                </tr>
+              </thead>
+              <tbody>
+                {listed.map((r) => (
+                  <tr key={r.code} className="border-t border-stone-200">
+                    <td className="py-1 pr-2">
+                      <Link to={href(r.code)} className="text-teal-800 underline">
+                        {r.name}
+                      </Link>
+                    </td>
+                    <td className="py-1 pr-2">{fmt(r.meetings)}</td>
+                    {hasStance &&
+                      STANCE_ORDER.map((k) => (
+                        <td key={k} className="py-1 pr-2">
+                          {r.st ? fmt(stanceCount(r.st, k)) : '—'}
+                        </td>
+                      ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </details>
     </div>
   )
 }

@@ -99,10 +99,12 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
   }, [national.data, stateCode])
 
   const quotes = useMemo(() => {
-    const out = new Map<string, StateQuote>()
+    const out = new Map<string, StateQuote[]>()
     for (const m of national.data?.newest ?? []) {
       if (!m.state_code || !m.excerpt) continue
-      out.set(m.state_code, {
+      const list = out.get(m.state_code) ?? []
+      if (!out.has(m.state_code)) out.set(m.state_code, list)
+      list.push({
         place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
         text: m.excerpt,
         date: m.date ?? null,
