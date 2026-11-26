@@ -71,6 +71,17 @@ html { scroll-behavior: smooth; }
 .v9 .home-story-basis { margin: 8px 0 0; font-size: 13px; color: #78716c; }
 .v9 .home-story-start { display: inline-block; background: #0f766e; color: #fff; border-radius: 999px; padding: 12px 24px; font-size: 16px; font-weight: 700; text-decoration: none; }
 .v9 .home-story-start:hover { background: #115e59; }
+.v9 .home-story-points { list-style: none; margin: 18px 0 0; padding: 0; }
+.v9 .home-story-point { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-top: 1px solid #e7e5e4; }
+.v9 .home-story-point:first-child { border-top: none; padding-top: 4px; }
+.v9 .home-story-point-icon { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 999px; background: #0f766e; color: #fff; }
+.v9 .home-story-point-n { margin: 0; font-size: 12px; font-weight: 700; color: #0f766e; }
+.v9 .home-story-point-title { margin: 1px 0 0; font-size: 16.5px; font-weight: 800; color: #1c1917; line-height: 1.3; }
+.v9 .home-story-point-line { margin: 3px 0 0; font-size: 14px; line-height: 1.45; color: #57534e; }
+.v9 .home-story-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.v9 .home-story-actions .home-story-start { padding: 14px 28px; font-size: 17px; text-align: center; }
+.v9 .home-story-next { display: inline-block; border: 1.5px solid #0f766e; color: #0f766e; background: #fff; border-radius: 999px; padding: 13px 24px; font-size: 16px; font-weight: 700; text-decoration: none; text-align: center; }
+.v9 .home-story-next:hover { background: #f0fdfa; }
 .v9 .home-story-map { position: relative; }
 .v9 .home-map-card { position: absolute; width: min(290px, 70%); background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; box-shadow: 0 10px 28px rgba(28,25,23,.12); padding: 14px 16px; margin: 0; z-index: 2; pointer-events: auto; }
 .v9 .home-topics { margin-top: 22px; border: 1px solid #e7e5e4; border-radius: 14px; background: #fff; }
@@ -128,6 +139,8 @@ html { scroll-behavior: smooth; }
 @media (max-width: 860px) {
   .v9 .home-story-card { grid-template-columns: minmax(0, 1fr); }
   .v9 .home-map-card { position: static; width: auto; margin-top: 8px; }
+  .v9 .home-story-actions { flex-direction: column; }
+  .v9 .home-story-actions a { display: block; width: 100%; box-sizing: border-box; }
 }
 @media (max-width: 760px) {
   .v9 .v9-nav { display: none; }

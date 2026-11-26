@@ -60,6 +60,8 @@ export interface DataCenterPositionsResponse {
   quotes: { for: PositionQuote[]; against: PositionQuote[]; question: PositionQuote[] }
   /** Speakers per state across the country (#1087); empty when the table isn't loaded. Optional for older servers. */
   by_state?: PositionStateCount[]
+  /** National totals of Jev's meeting readings for the home hero (#1122); null when the lean table isn't loaded. */
+  lean_totals?: Schemas['LeanTotals'] | null
 }
 
 /** Public speakers for and against a data center item, questions asked and recorded votes, for the scope (#930). */

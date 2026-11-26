@@ -24,8 +24,9 @@ PATH = "/api/data-centers/positions"
 class _Conn:
     def __init__(
         self, totals=None, quotes=None, by_state=None, error: Exception | None = None,
-        lean=None, lean_error: Exception | None = None,
+        lean=None, lean_error: Exception | None = None, lean_totals=None,
     ):
+        self.lean_totals = lean_totals or []
         self.lean = lean or []
         self.lean_error = lean_error
         self.totals = totals or []
@@ -41,7 +42,7 @@ class _Conn:
         if "data_center_meeting_lean" in sql:
             if self.lean_error:
                 raise self.lean_error
-            return self.lean
+            return self.lean_totals if "AS stopped_meetings" in sql else self.lean
         if "GROUP BY p.state_code" in sql:
             return self.by_state
         return self.totals if "FROM data_center_meeting_position" in sql else self.quotes
@@ -238,7 +239,7 @@ def test_by_state_carries_jev_lean_counts_nationally(get) -> None:
     assert [s["state_code"] for s in body["by_state"]] == ["AZ", "GA"]
     assert by["AZ"]["speakers_against"] == 11 and by["AZ"]["public_against_meetings"] == 2
     assert by["GA"] == {**_state("GA", meetings=0), "public_against_meetings": 9, "disagreement_meetings": 2}
-    (sql, params) = next(c for c in conn.calls if "data_center_meeting_lean" in c[0])
+    (sql, params) = next(c for c in conn.calls if "GROUP BY l.state_code" in c[0])
     assert params == () and "$1" not in sql
     assert "mostly_supported" not in sql and "mixed" not in sql
 
@@ -250,3 +251,38 @@ def test_by_state_lean_missing_table_is_zero_not_a_failure(get) -> None:
     assert resp.status_code == 200, resp.text
     assert resp.json()["available"] is True
     assert resp.json()["by_state"] == [{**rows[0], "public_against_meetings": 0, "disagreement_meetings": 0}]
+
+
+def _lean_totals(**kw) -> dict[str, Any]:
+    base = dict(
+        public_against_meetings=12, public_against_states=5, stopped_meetings=4,
+        disagreement_meetings=3, disagreement_states=2,
+    )
+    base.update(kw)
+    return base
+
+
+def test_lean_totals_are_national_even_on_a_scoped_page(get) -> None:
+    """#1122: the home hero's AI-reading totals never take the scope."""
+    conn = _Conn(totals=[_totals()], lean_totals=[_lean_totals()])
+    resp = get(conn, {"state": "AL", "city": "Testville"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["lean_totals"] == _lean_totals()
+    (sql, params) = next(c for c in conn.calls if "AS stopped_meetings" in c[0])
+    assert params == () and "$1" not in sql and "ILIKE" not in sql
+    assert "'tabled_or_deferred', 'denied', 'moratorium'" in sql
+    assert "l.public_against" in sql and "l.officials_sided_against_public" in sql
+
+
+def test_lean_totals_null_when_table_missing(get) -> None:
+    err = asyncpg.exceptions.UndefinedTableError("relation \"data_center_meeting_lean\" does not exist")
+    resp = get(_Conn(totals=[_totals()], lean_error=err))
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["available"] is True
+    assert resp.json()["lean_totals"] is None
+
+
+def test_lean_totals_null_values_become_zero(get) -> None:
+    row = _lean_totals(stopped_meetings=None)
+    body = get(_Conn(totals=[_totals()], lean_totals=[row])).json()
+    assert body["lean_totals"]["stopped_meetings"] == 0
