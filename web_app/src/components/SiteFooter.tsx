@@ -177,7 +177,17 @@ export default function SiteFooter() {
         </div>
 
         <span style={{ fontSize: 12.5, color: MUTED }}>
-          CommunityOne · a 501(c)(3) nonprofit · Tuscaloosa, Alabama
+          CommunityOne Navigator · a 501(c)(3) nonprofit ·{' '}
+          {/* The public record of the EIN (#1084): donors and partners can verify the charity. */}
+          <a
+            href="https://projects.propublica.org/nonprofits/organizations/422467803"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'inherit', textDecoration: 'underline' }}
+          >
+            EIN 42-2467803
+          </a>{' '}
+          · Tuscaloosa, Alabama
         </span>
       </div>
     </footer>

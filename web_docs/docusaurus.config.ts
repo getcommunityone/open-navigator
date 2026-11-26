@@ -312,7 +312,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Community One. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} CommunityOne Navigator, a 501(c)(3) nonprofit, EIN 42-2467803. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,
