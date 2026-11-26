@@ -67,3 +67,11 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- The dbt build ran locally: 28 tests passed and no search indexes are missing. The Airbnb.org nonprofit stays separate (different normalized name).
+- Every company row cites its own site verbatim, and every mention quotes the record verbatim. Nothing is fabricated. PK/FK declared; the decision FK is checked by a relationships test.
+- Browser checks are recorded in the PR. Scans clean; docs page added.
+
+Verdict stands: approve.
