@@ -110,6 +110,7 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
         date: m.date ?? null,
         meeting: m.title ?? null,
         url: m.video_url ?? null,
+        videoId: m.video_id ?? null,
       })
     }
     return out

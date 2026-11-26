@@ -6,7 +6,9 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { dotSides, speakersOf, sumStances, type StanceCounts } from '../../utils/boxSplit'
 import { BOX_COLORS, LEGEND_LABEL, LEGEND_STANCES, MEETING_GREYS, stanceLine } from '../home/StoryStatesMap'
-import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
+import { excerptAroundMark } from '../../lib/highlight'
+import QuoteCard from './QuoteCard'
+import { resolveVideoId, startFromUrl } from './quoteCardUtils'
 import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly } from '../../utils/touchOnly'
 
@@ -42,11 +44,6 @@ interface Props {
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 const plural = (n: number) => `${fmt(n)} ${n === 1 ? 'meeting' : 'meetings'}`
-const fmtDate = (d?: string | null) => {
-  if (!d) return null
-  const t = new Date(`${d.slice(0, 10)}T12:00:00`)
-  return Number.isNaN(t.getTime()) ? null : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 const FIPS_OF_CODE: Record<string, string> = Object.fromEntries(Object.entries(STATE_FIPS_TO_CODE).map(([f, c]) => [c, f]))
 const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
 
@@ -244,18 +241,16 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           ))}
         </svg>
         {passage && (
-          <figure className={cardSide}>
-            <figcaption className="stance-map-card-place">{[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}</figcaption>
-            <blockquote>“{highlightSnippet(excerptAroundMark(passage.evidence ?? ''))}”</blockquote>
-            <p className="stance-map-card-meta">
-              {fmtDate(passage.meeting_date) && <span>{fmtDate(passage.meeting_date)}</span>}
-              {(passage.jump_url ?? passage.video_url) && (
-                <a href={(passage.jump_url ?? passage.video_url)!} target="_blank" rel="noopener noreferrer">
-                  Hear it ↗
-                </a>
-              )}
-            </p>
-          </figure>
+          <QuoteCard
+            className={cardSide}
+            place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
+            date={passage.meeting_date}
+            quote={excerptAroundMark(passage.evidence ?? '')}
+            meeting={passage.meeting_title}
+            videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
+            startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
+            url={passage.jump_url ?? passage.video_url}
+          />
         )}
       </div>
       <p className="stance-map-readout">
