@@ -231,8 +231,37 @@ seeds:
         tests:
           - not_null
 
-  - name: official_term
   - name: official_contact_override
+    config:
+      column_types:
+        full_name: text
+        state_code: text
+        jurisdiction: text
+        email: text
+        is_current: boolean
+        source_url: text
+        verified_on: date
+    description: >
+      An official's public contact email, copied verbatim (a mailto link) from their government's own page, and
+      corrections to whether they still hold office, each with the page it came from and the date it was checked (#1062).
+      Matched on full name + state + jurisdiction and coalesced in contact_official; never guessed from an address
+      pattern. Tuscaloosa pilot: six councilors' emails from tuscaloosa.com district pages; Kip Tyner marked no longer
+      in office (the council page carries "In Memory of Councilor Kip Tyner" and lists District 5 as vacant).
+      After editing: dbt seed --select official_contact_override && dbt build --select contact_official+
+    columns:
+      - name: full_name
+        tests: [not_null]
+      - name: state_code
+        tests: [not_null]
+      - name: jurisdiction
+        tests: [not_null]
+      - name: source_url
+        description: 'The government page the email (or the office change) appears on.'
+        tests: [not_null]
+      - name: verified_on
+        tests: [not_null]
+
+  - name: official_term
     config:
       column_types:
         full_name: text
@@ -259,26 +288,6 @@ seeds:
       - name: role
         tests: [not_null]
       - name: source_url
-        email: text
-        is_current: boolean
-        source_url: text
-        verified_on: date
-    description: >
-      An official's public contact email, copied verbatim (a mailto link) from their government's own page, and
-      corrections to whether they still hold office, each with the page it came from and the date it was checked (#1062).
-      Matched on full name + state + jurisdiction and coalesced in contact_official; never guessed from an address
-      pattern. Tuscaloosa pilot: six councilors' emails from tuscaloosa.com district pages; Kip Tyner marked no longer
-      in office (the council page carries "In Memory of Councilor Kip Tyner" and lists District 5 as vacant).
-      After editing: dbt seed --select official_contact_override && dbt build --select contact_official+
-    columns:
-      - name: full_name
-        tests: [not_null]
-      - name: state_code
-        tests: [not_null]
-      - name: jurisdiction
-        tests: [not_null]
-      - name: source_url
-        description: 'The government page the email (or the office change) appears on.'
         tests: [not_null]
       - name: verified_on
         tests: [not_null]
