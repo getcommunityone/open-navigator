@@ -3,7 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { companySearchTerm } from '../utils/companySearchTerm'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
-import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStates } from '../api/topics'
+import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
+import { topicStanceForMap } from '../utils/topicStance'
 import { CAPTION_COPY, captionText, pickCaption } from '../utils/storyCaption'
 import { useTopicStories } from '../hooks/useTopicStories'
 import { highlightSnippet } from '../lib/highlight'
@@ -73,6 +74,16 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     enabled: Boolean(def),
     staleTime: 5 * 60_000,
   })
+
+  // The four-colour split (#1127): the AI reading of each state's meetings, national like the map. Until the reading
+  // exists (#1126) the map is grey with a note; a failed request leaves the plain meetings map, claiming no stance.
+  const stanceQ = useQuery({
+    queryKey: ['topic-story', def?.topicId, 'state-map'],
+    queryFn: () => fetchTopicStanceMap(def!.topicId),
+    enabled: Boolean(def),
+    staleTime: 5 * 60_000,
+  })
+  const stance = useMemo(() => topicStanceForMap(stanceQ.data), [stanceQ.data])
 
   // The headline's facts (#1125), keyed on the scope so the label and the numbers move together.
   const captionQ = useQuery({
@@ -223,6 +234,8 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
             highlight={stateCode}
             href={(code) => `/stories/${def.slug}?state=${encodeURIComponent(code)}`}
             subject={def.subject.toLowerCase()}
+            stance={stance}
+            stanceUnit="meetings"
           />
         )}
       </section>

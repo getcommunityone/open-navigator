@@ -79,7 +79,12 @@ interface Props {
   href: (stateCode: string) => string
   /** What came up, for the captions ("a data center", "short-term rentals"); the data center story by default (#1013). */
   subject?: string
+  /** What `stance` counts (#1127): speakers on record (data centers, the default) or meetings as the AI read them
+   *  (`topic_meeting_lean`, the other topic stories). Only the words change; the colours and bands are the same. */
+  stanceUnit?: StanceUnit
 }
+
+export type StanceUnit = 'speakers' | 'meetings'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 const plural = (n: number, one: string, many: string) => `${fmt(n)} ${n === 1 ? one : many}`
@@ -108,13 +113,37 @@ export const LEGEND_LABEL: Record<(typeof LEGEND_STANCES)[number], string> = {
   for: 'Spoke for',
   neutral: 'No side',
 }
+/** The same four entries when the split counts meetings by the AI reading (#1127). */
+export const AI_LEGEND_LABEL: Record<(typeof LEGEND_STANCES)[number], string> = {
+  against: 'Public leaned against',
+  for: 'Public leaned for',
+  neutral: 'Mixed',
+}
+/** Column and line words for an AI-read meeting split; a meeting reading has no "asked a question". */
+const AI_STANCE_LABEL: Record<Stance, string> = {
+  against: 'Public leaned against',
+  for: 'Public leaned for',
+  question: 'Asked a question',
+  neutral: 'Mixed',
+}
+const AI_LINE_WORD: Record<Stance, string> = {
+  against: 'leaned against',
+  for: 'leaned for',
+  question: 'asked a question',
+  neutral: 'mixed',
+}
 
-/** The real speaker counts as one line ("3 spoke against · 1 asked a question"), or null with none on record. */
-export function stanceLine(s: StanceCounts | undefined): string | null {
+/** The real speaker counts as one line ("3 spoke against · 1 asked a question"), or null with none on record. With
+ *  `unit` 'meetings' the counts are meetings as the AI read them: "AI reading: 3 meetings leaned against · 1 leaned for". */
+export function stanceLine(s: StanceCounts | undefined, unit: StanceUnit = 'speakers'): string | null {
   if (!s || speakersOf(s) === 0) return null
-  return STANCE_ORDER.filter((k) => stanceCount(s, k) > 0)
-    .map((k) => `${fmt(stanceCount(s, k))} ${STANCE_LABEL[k].toLowerCase()}`)
-    .join(' · ')
+  const keys = STANCE_ORDER.filter((k) => stanceCount(s, k) > 0)
+  if (unit === 'meetings') {
+    const total = speakersOf(s)
+    const parts = keys.map((k) => `${fmt(stanceCount(s, k))} ${AI_LINE_WORD[k]}`)
+    return `AI reading of ${plural(total, 'meeting', 'meetings')}: ${parts.join(' · ')}`
+  }
+  return keys.map((k) => `${fmt(stanceCount(s, k))} ${STANCE_LABEL[k].toLowerCase()}`).join(' · ')
 }
 
 interface Box {
@@ -135,7 +164,8 @@ interface Box {
  * with none is the empty tint. Hovering (tapping, on a phone) a box shows one of that state's real passages, cycling through
  * them across its boxes; clicking opens that state's story. Nothing is drawn from a guess: no counts, no split.
  */
-export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center' }: Props) {
+export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers' }: Props) {
+  const byMeetings = stanceUnit === 'meetings'
   const navigate = useNavigate()
   const [hover, setHover] = useState<number | null>(null)
   const touch = isTouchOnly()
@@ -203,9 +233,10 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     .sort((a, b) => speakersOf(b.st) - speakersOf(a.st) || b.meetings - a.meetings || a.name.localeCompare(b.name))
   const withMeetings = byState.filter((s) => s.meetings > 0).length
   // #1117: Jev's reading, only where it is served (public against at P >= 0.7; the refined disagreement rule).
-  const leanStates = (stance ?? []).filter((s) => (s.public_against_meetings ?? 0) > 0 && speakersOf(s) === 0)
+  const leanStates = byMeetings ? [] : (stance ?? []).filter((s) => (s.public_against_meetings ?? 0) > 0 && speakersOf(s) === 0)
   const disagreeStates = (stance ?? []).filter((s) => hasDisagreement(s))
   const hasLean = hasStance && (leanStates.length > 0 || disagreeStates.length > 0)
+  const tableStances = byMeetings ? STANCE_ORDER.filter((k) => k !== 'question') : STANCE_ORDER
 
   const shown = hover != null ? boxes[hover] : undefined
   const shownCode = shown?.code ?? null
@@ -218,7 +249,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     if (own.length) quote = own[shown.bandRank % own.length]
     else if (all.length) quote = all[shown.rank % all.length]
   }
-  const shownStance = shownCode ? stanceLine(stanceBy.get(shownCode)) : null
+  const shownStance = shownCode ? stanceLine(stanceBy.get(shownCode), stanceUnit) : null
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
   const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
   const left = shown ? (shown.x / W) * 100 : 0
@@ -228,8 +259,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const summary =
     `Map of the United States drawn as small boxes in each state's shape. ${plural(withMeetings, 'state has', 'states have')} at least one meeting where ${subject} came up.` +
     (hasStance && split.length
-      ? ` In ${plural(split.length, 'state', 'states')} the boxes are split by ${plural(speakersTotal, 'speaker', 'speakers')} on record: ` +
-        split.map((s) => `${stateName(s.state_code)}, ${stanceLine(s)}`).join('; ') +
+      ? ` In ${plural(split.length, 'state', 'states')} the boxes are split by ${byMeetings ? `an AI reading of ${plural(speakersTotal, 'meeting', 'meetings')}` : `${plural(speakersTotal, 'speaker', 'speakers')} on record`}: ` +
+        split.map((s) => `${stateName(s.state_code)}, ${stanceLine(s, stanceUnit)}`).join('; ') +
         '.'
       : '') +
     (leanStates.length
@@ -302,7 +333,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         >
           <p style={{ margin: '10px 0 0', paddingTop: 8, borderTop: '1px solid #e7e5e4', fontSize: 12, color: '#57534e' }}>
             {stateName(shownCode)}: {plural(shownMeetings, 'meeting', 'meetings')}
-            {shownStance ? ` · ${shownStance}` : hasStance ? ' · no stance on record' : ''}
+            {shownStance ? ` · ${shownStance}` : hasStance ? (byMeetings ? ' · no AI reading yet' : ' · no stance on record') : ''}
           </p>
           {shownLean && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#57534e' }}>{shownLean}</p>}
           {touch && (
@@ -318,7 +349,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.75rem] text-sm leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? '; no stance on record' : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap to open its story.' : 'Click to open its story.'}`
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? '; no AI reading yet' : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap to open its story.' : 'Click to open its story.'}`
           : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
 
@@ -328,7 +359,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           LEGEND_STANCES.map((k) => (
             <li key={k} className="inline-flex items-center gap-1">
               <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: BOX_COLORS[k], display: 'inline-block' }} />
-              {LEGEND_LABEL[k]}
+              {(byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k]}
             </li>
           ))}
         {hasLean && leanStates.length > 0 && (
@@ -343,15 +374,23 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           ) : (
             <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: MEETINGS_ONLY, display: 'inline-block' }} />
           )}
-          {hasStance ? 'Meetings, no stance on record (darker = more meetings)' : `Meetings where ${subject} came up`}
+          {hasStance
+            ? byMeetings
+              ? 'Meetings, no AI reading yet (darker = more meetings)'
+              : 'Meetings, no stance on record (darker = more meetings)'
+            : `Meetings where ${subject} came up`}
         </li>
       </ul>
       {hasStance && (
         <p className="mt-1 text-xs text-stone-500">
-          {split.length > 0
-            ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
-            : 'No speaker positions on record yet; states show meetings only.'}
-          {hasLean ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
+          {byMeetings
+            ? split.length > 0
+              ? `Split by an AI reading of ${plural(speakersTotal, 'meeting', 'meetings')} in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
+              : 'No AI reading of these meetings yet; states show meetings only.'
+            : split.length > 0
+              ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
+              : 'No speaker positions on record yet; states show meetings only.'}
+          {hasLean || (byMeetings && split.length > 0) ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
         </p>
       )}
 
@@ -367,14 +406,14 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                   <th scope="col" className="py-1 pr-2">State</th>
                   <th scope="col" className="py-1 pr-2">Meetings</th>
                   {hasStance &&
-                    STANCE_ORDER.map((k) => (
+                    tableStances.map((k) => (
                       <th key={k} scope="col" className="py-1 pr-2">
-                        {STANCE_LABEL[k]}
+                        {(byMeetings ? AI_STANCE_LABEL : STANCE_LABEL)[k]}
                       </th>
                     ))}
                   {hasLean && (
                     <>
-                      <th scope="col" className="py-1 pr-2">AI: public leaned against</th>
+                      {!byMeetings && <th scope="col" className="py-1 pr-2">AI: public leaned against</th>}
                       <th scope="col" className="py-1 pr-2">AI: officials sided against the public</th>
                     </>
                   )}
@@ -390,14 +429,14 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                     </td>
                     <td className="py-1 pr-2">{fmt(r.meetings)}</td>
                     {hasStance &&
-                      STANCE_ORDER.map((k) => (
+                      tableStances.map((k) => (
                         <td key={k} className="py-1 pr-2">
                           {r.st && (speakersOf(r.st) > 0 || (r.st.meetings ?? 1) > 0) ? fmt(stanceCount(r.st, k)) : '—'}
                         </td>
                       ))}
                     {hasLean && (
                       <>
-                        <td className="py-1 pr-2">{fmt(r.st?.public_against_meetings ?? 0)}</td>
+                        {!byMeetings && <td className="py-1 pr-2">{fmt(r.st?.public_against_meetings ?? 0)}</td>}
                         <td className="py-1 pr-2">{fmt(r.st?.disagreement_meetings ?? 0)}</td>
                       </>
                     )}
