@@ -52,6 +52,8 @@ listed there.
 - `GET /api/short-term-rentals/companies?state=` returns each company's meeting and decision counts and its newest
   mention.
 - The short-term rentals story has a **Companies named** row with those counts, a link to search for the brand, and
-  the newest quote.
+  the newest quote. The link searches the name marked in that quote, the one actually said (for example "VRBO" for
+  Expedia Group, not its first alias "HomeAway", which no meeting says), and the company name when there's no quote
+  ([#1043](https://github.com/getcommunityone/open-navigator/issues/1043)).
 
 Both tables are on the public serving list and the prod copy's allow-list.

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { companySearchTerm } from '../utils/companySearchTerm'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopicMeetings, fetchTopicStates } from '../api/topics'
@@ -256,7 +257,7 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
                       <p className="mt-2 text-sm text-stone-500">Not named in {label === 'National' ? 'any meeting on record' : `${label}'s meetings on record`}.</p>
                     ) : (
                       <p className="mt-2 text-sm text-stone-700">
-                        <Link to={`/search?q=${encodeURIComponent(brands[0] ?? c.company_name)}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`} className="font-semibold text-teal-700">
+                        <Link to={`/search?q=${encodeURIComponent(companySearchTerm(c.company_name, c.newest?.evidence))}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`} className="font-semibold text-teal-700">
                           {fmt(c.meetings)} {c.meetings === 1 ? 'meeting' : 'meetings'}
                         </Link>
                         {' · '}
