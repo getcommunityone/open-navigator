@@ -119,6 +119,8 @@ html { scroll-behavior: smooth; }
 .v9 .home-topic-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .v9 .home-topic-title { font-weight: 700; font-size: 15.5px; color: #1c1917; }
 .v9 .home-topic-blurb { font-size: 13.5px; color: #57534e; line-height: 1.4; }
+.v9 .home-topic-caption { color: #292524; font-weight: 500; }
+.v9 .home-topic-ai { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #78716c; font-weight: 600; }
 .v9 .home-topic-go { font-size: 13.5px; font-weight: 700; color: #0f766e; margin-top: 2px; }
 .v9 button.home-topic.is-soon { cursor: pointer; }
 .v9 button.home-topic.is-soon:hover { background: #fafaf9; }

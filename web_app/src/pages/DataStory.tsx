@@ -4,7 +4,6 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import '../styles/folio.css'
 import '../styles/stance.css'
 import { errorStatus, fetchChoiceResults, fetchStancePack, postStanceChoice, type ChoiceMoment, type ChoiceResults } from '../api/stance'
-import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse } from '../api/dataCenters'
 import FloatingNext from '../components/stance/FloatingNext'
 import ProgressPips from '../components/stance/ProgressPips'
 import PlaceControl from '../components/stance/PlaceControl'
@@ -32,12 +31,12 @@ import {
   storyScreenIndex,
   type StoryScope,
   STORIES,
-  storyTitle,
 } from '../utils/dataStory'
+import { fetchTopicCaptionFacts } from '../api/topics'
+import { pickCaption } from '../utils/storyCaption'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
-import { speakerCounts } from '../utils/stanceGame'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { nextStoryLink } from '../utils/storyNav'
@@ -76,6 +75,14 @@ export default function DataStory() {
 
   const allScreens = useMemo(() => story?.screens ?? [], [story])
   const { data, status, refetch } = useStoryData(stateCode, city)
+  // The caption's facts (#1125), keyed on the scope so the label and the numbers move together.
+  const captionQ = useQuery({
+    queryKey: ['caption-facts', storyId, stateCode ?? '', city ?? ''],
+    queryFn: () => fetchTopicCaptionFacts(storyId, stateCode, city),
+    enabled: Boolean(story),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
@@ -422,11 +429,9 @@ export default function DataStory() {
   }
 
   const label = storyScopeLabel(scope)
-  // #993: the title states the place's conclusion: the sentiment when its speakers back it, else the fact, else the question.
-  const title = storyTitle(story, scope, {
-    speakers: speakerCounts(data.positions as DataCenterPositionsResponse | null | undefined),
-    meetings: (data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined)?.counts?.meetings,
-  })
+  // #993 / #1125: the title is the strongest statement the place's record supports (utils/storyCaption: disagreement,
+  // sentiment, state differences, volume, then the question), from the caption facts for exactly this scope.
+  const title = pickCaption(storyId, captionQ.data, scope)
   const links = {
     dataCenters: `/data-centers${scopeQuery(scope)}`,
     decisions: `/browse-topics${scopeQuery(scope)}`,
@@ -496,7 +501,11 @@ export default function DataStory() {
               },
             ]}
           />
-          {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+          {title.basis && (
+            <p className="stance-title-basis">
+              {title.basis}
+            </p>
+          )}
           </>
         }
         stateCode={stateCode}
