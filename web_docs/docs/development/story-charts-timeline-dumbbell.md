@@ -13,11 +13,11 @@ story's per-year dot blocks. They are ported as React components fed only by the
 
 | Reference | Component | Where |
 | --- | --- | --- |
-| 05 Scroll timeline | `web_app/src/components/stance/TimelineChart.tsx` | Meetings screen, top |
-| 03 Dumbbell comparison | `web_app/src/components/stance/DumbbellChart.tsx` | Meetings screen, under the timeline (national and state scope) |
+| 05 Scroll timeline | `web_app/src/components/stance/TimelineChart.tsx` | Data-center story: Meetings screen, top. Every other topic story (`TopicStory.tsx`): "Meetings over time", under the map |
+| 03 Dumbbell comparison | `web_app/src/components/stance/DumbbellChart.tsx` | Under the timeline, in both places (national and state scope) |
 | 01 Unit matrix | `web_app/src/components/stance/UnitMatrixChart.tsx` | Meetings screen (passages), decisions, agendas, jobs claims |
 
-All three are dispatched from `ChartPanel.tsx`, use the story's folio tokens (`--ink`, `--violet`, `--vermilion`,
+On the data-center story all three are dispatched from `ChartPanel.tsx`; topic stories (`web_app/src/pages/TopicStory.tsx`) draw the timeline and dumbbell with the topic's slug inside a `.folio` block. All three use the story's folio tokens (`--ink`, `--violet`, `--vermilion`,
 `--rule` …, re-themed by the house theme) through `storyCharts.css`, and turn off their motion under
 `prefers-reduced-motion`. Pure logic lives in `web_app/src/utils/storyTimeline.ts` and `web_app/src/utils/unitMatrix.ts`,
 with vitest suites beside them.

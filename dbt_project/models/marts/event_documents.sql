@@ -1,5 +1,5 @@
 {#
-  post_hook GIN index rationale: gold carries TWO FTS GIN indexes on the body.
+  GIN index rationale (declared in `indexes`, #938): gold carries TWO FTS GIN indexes on the body.
   * event_documents_content_tsv_idx is on the STORED content_tsv column. gold is
     the private warehouse and not size-constrained, so we keep the materialized
     vector + its index for any consumer that still ts_rank()s off content_tsv.
@@ -31,21 +31,25 @@
     materialized='table',
     tags=['marts', 'events', 'documents', 'transcripts', 'production'],
     unique_key='event_document_id',
-    indexes=[
-      {'columns': ['event_id'], 'type': 'btree'},
-      {'columns': ['document_type'], 'type': 'btree'},
-      {'columns': ['video_id'], 'type': 'btree'},
-      {'columns': ['state_code'], 'type': 'btree'},
-      {'columns': ['event_date'], 'type': 'btree'}
-    ],
-    post_hook=(
+    indexes=(
       [
-        "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)",
-        "CREATE INDEX IF NOT EXISTS event_documents_content_fts_idx ON {{ this }} USING gin (to_tsvector('english', content))",
-        "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-        "CREATE INDEX IF NOT EXISTS event_documents_event_title_trgm_idx ON {{ this }} USING gin (event_title gin_trgm_ops)",
-        "ANALYZE {{ this }}"
-      ] if target.name != 'neon' else []
+        {'columns': ['event_id'], 'type': 'btree'},
+        {'columns': ['document_type'], 'type': 'btree'},
+        {'columns': ['video_id'], 'type': 'btree'},
+        {'columns': ['state_code'], 'type': 'btree'},
+        {'columns': ['event_date'], 'type': 'btree'}
+      ] + (
+        [
+          {'columns': ['content_tsv'], 'type': 'gin'},
+          {'columns': ["to_tsvector('english', content)"], 'type': 'gin'},
+          {'columns': ['event_title gin_trgm_ops'], 'type': 'gin'}
+        ] if target.name != 'neon' else []
+      )
+    ),
+    pre_hook=["{{ swap_guard() }}"],
+    post_hook=(
+      ["{{ swap_guard_check() }}"]
+      + ([{'sql': "ANALYZE {{ this }}", 'transaction': false}] if target.name != 'neon' else [])
     )
   )
 }}
@@ -223,7 +227,7 @@ SELECT
     -- Neon serving slim: full transcript text is the single largest cost on Neon
     -- (~559 MB for the national document set). On the `neon` target we DROP the
     -- full `content` and the precomputed `content_tsv` (and skip its GIN index,
-    -- see post_hook), keeping only a capped excerpt. National document full-text
+    -- see the indexes config), keeping only a capped excerpt. National document full-text
     -- search is therefore disabled on Neon — search_documents_pg returns empty
     -- (content_tsv IS NULL) rather than erroring. dev keeps the full content/FTS.
     NULL::text                                             AS content,
@@ -234,7 +238,7 @@ SELECT
     LEFT(raw_text, 300)                                    AS content_excerpt,
     -- Precomputed full-text vector stored alongside the raw text so the search
     -- API can ts_rank() without recomputing to_tsvector over every match.
-    -- Indexed by the content_tsv GIN index (see post_hook).
+    -- Indexed by the content_tsv GIN index (see the indexes config).
     to_tsvector('english', raw_text)                       AS content_tsv,
 {% endif %}
     LENGTH(raw_text)                                       AS content_length,

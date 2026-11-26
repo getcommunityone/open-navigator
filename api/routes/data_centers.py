@@ -687,6 +687,13 @@ class AreaConcern(BaseModel):
     is_dominant: bool
     jurisdiction_name: str | None = None
     last_meeting_on: date | None = None
+    jurisdictions: list[str] = Field(
+        ...,
+        description=(
+            "Towns whose meeting records raised this concern, sorted (state and city scopes). "
+            "Empty for national rows."
+        ),
+    )
 
 
 class AreaConcernsResponse(BaseModel):
@@ -696,13 +703,19 @@ class AreaConcernsResponse(BaseModel):
 
 
 def build_concerns_queries(scope: JobClaimScope) -> tuple[str | None, list[Any], str]:
-    """(area SQL or None when national, params, national SQL)."""
-    columns = (
-        "concern, mention_count, objection_count, share, concern_rank, is_dominant, "
-        "jurisdiction_name, last_meeting_on"
-    )
+    """(area SQL or None when national, params, national SQL).
+
+    The mart has only ``jurisdiction`` and ``national`` rows, so a state or city scope is
+    rolled up here to one row per concern (#1139): mentions summed across the scope's towns,
+    ``share`` recomputed over the scope's total mentions, ``concern_rank`` re-ranked,
+    ``objection_count`` the scope's objections (each town's total counted once),
+    ``is_dominant`` the mart's rule (rank 1 with at least 3 mentions), and the towns listed
+    in ``jurisdictions``. ``jurisdiction_name`` is set only when one town raised it.
+    """
     national_sql = (
-        f"SELECT {columns} FROM area_concern WHERE area_level = 'national' "
+        "SELECT concern, mention_count, objection_count, share, concern_rank, is_dominant, "
+        "jurisdiction_name, last_meeting_on, ARRAY[]::text[] AS jurisdictions "
+        "FROM area_concern WHERE area_level = 'national' "
         "ORDER BY concern_rank, concern"
     )
     if not scope.state_code and not scope.city:
@@ -716,8 +729,28 @@ def build_concerns_queries(scope: JobClaimScope) -> tuple[str | None, list[Any],
         params.append(f"%{scope.city}%")
         where.append(f"jurisdiction_name ILIKE ${len(params)}")
     area_sql = (
-        f"SELECT {columns} FROM area_concern WHERE {' AND '.join(where)} "
-        "ORDER BY jurisdiction_name, concern_rank, concern"
+        "WITH scoped AS ("
+        "  SELECT state_code, jurisdiction_name, concern, mention_count, objection_count, last_meeting_on"
+        f"  FROM area_concern WHERE {' AND '.join(where)}"
+        "), scope_objections AS ("
+        "  SELECT coalesce(sum(objection_count), 0)::int AS n"
+        "  FROM (SELECT DISTINCT state_code, jurisdiction_name, objection_count FROM scoped) AS towns"
+        "), by_concern AS ("
+        "  SELECT concern, sum(mention_count)::int AS mention_count, max(last_meeting_on) AS last_meeting_on,"
+        "    coalesce(array_agg(DISTINCT jurisdiction_name ORDER BY jurisdiction_name)"
+        "      FILTER (WHERE jurisdiction_name IS NOT NULL), ARRAY[]::text[]) AS jurisdictions"
+        "  FROM scoped GROUP BY concern"
+        "), ranked AS ("
+        "  SELECT c.*, o.n AS objection_count,"
+        "    (c.mention_count::double precision / nullif(sum(c.mention_count) OVER (), 0)) AS share,"
+        "    rank() OVER (ORDER BY c.mention_count DESC)::int AS concern_rank"
+        "  FROM by_concern AS c CROSS JOIN scope_objections AS o"
+        ") "
+        "SELECT concern, mention_count, objection_count, share, concern_rank, "
+        "(concern_rank = 1 AND mention_count >= 3) AS is_dominant, "
+        "CASE WHEN cardinality(jurisdictions) = 1 THEN jurisdictions[1] END AS jurisdiction_name, "
+        "last_meeting_on, jurisdictions "
+        "FROM ranked ORDER BY concern_rank, concern"
     )
     return area_sql, params, national_sql
 

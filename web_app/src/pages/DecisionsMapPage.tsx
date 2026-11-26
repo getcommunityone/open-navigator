@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
+import { MAP_POPUP_OPTIONS } from '../lib/mapPopup'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
@@ -240,7 +241,7 @@ export default function DecisionsMapPage() {
                 weight: 2,
               }}
             >
-              <Popup>
+              <Popup {...MAP_POPUP_OPTIONS}>
                 <div className="min-w-[260px] p-1">
                   <h4 className="font-bold text-gray-900">
                     {p.headline || 'Untitled decision'}

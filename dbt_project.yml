@@ -24,6 +24,11 @@ snapshot-paths: ["dbt_project/snapshots"]
 target-path: "dbt_project/target"
 packages-install-path: "dbt_project/dbt_packages"
 
+# pg_trgm before any model builds: trigram indexes are declared in models' `indexes` config,
+# built before any hook (#938). Same line as dbt_project/dbt_project.yml.
+on-run-start:
+  - "create extension if not exists pg_trgm"
+
 clean-targets:
   - "dbt_project/target"
   - "dbt_project/dbt_packages"

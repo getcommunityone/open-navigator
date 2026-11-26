@@ -16,6 +16,7 @@ import type {
 import type { GroupResult, StanceAnswer } from '../api/stance'
 import { communityEventKindLabel, concernLabel, siteTotal } from '../lib/dataCenterJobs'
 import { largestRemainder } from './matrixMapMath'
+import { concernColor } from './houseTheme'
 
 
 /** The recording to play in place for a meeting passage (#972), when it is on YouTube. */
@@ -133,9 +134,24 @@ export function findingSites(res: DataCenterSitesResponse | null | undefined, pl
   return `Of ${fmt(total)} data center ${total === 1 ? 'site' : 'sites'} on record ${where(place)}, ${fmt(k.operating)} ${k.operating === 1 ? 'is' : 'are'} operating, ${fmt(k.under_construction)} under construction and ${fmt(k.planned)} planned.`
 }
 
-/** The concern list that matches the scope: the area's own when a state is chosen, otherwise the national one. */
+/**
+ * The concern list that matches the scope: the area's own when a state is chosen, otherwise the national one. One row per
+ * concern: rows for the same concern (one per town, as the API sent before #1139) are merged, summing mentions and listing the
+ * towns once, so a label never repeats in a chart, legend or sentence.
+ */
 export function concernList(res: AreaConcernsResponse, place?: string | null) {
-  return place ? res.items : res.national
+  const list = (place ? res.items : res.national) ?? []
+  const byConcern = new Map<string, (typeof list)[number]>()
+  for (const c of list) {
+    const prev = byConcern.get(c.concern)
+    if (!prev) {
+      byConcern.set(c.concern, c)
+      continue
+    }
+    const towns = [...new Set([...(prev.jurisdictions ?? []), ...(c.jurisdictions ?? [])])].sort()
+    byConcern.set(c.concern, { ...prev, mention_count: prev.mention_count + c.mention_count, jurisdictions: towns })
+  }
+  return [...byConcern.values()]
 }
 
 export function findingConcerns(res: AreaConcernsResponse | null | undefined, place?: string | null): string | null {
@@ -266,6 +282,8 @@ export interface DotGroup {
   key: string
   label: string
   tone?: DotTone
+  /** A fixed colour for this group (concerns, #1139); otherwise the colour follows the group's place in the list. */
+  color?: string
   /** Dots drawn for this group. */
   shown: number
   /** Real whole-scope count for this group when the endpoint returns one for this grouping, otherwise null. */
@@ -391,7 +409,7 @@ export function dotGroupHeading(g: {
   return g.shown < g.total ? `${head} · showing ${fmt(g.shown)}` : head
 }
 
-type GroupIn = { key: string; label: string; dots: Dot[]; total?: number | null; tone?: DotTone }
+type GroupIn = { key: string; label: string; dots: Dot[]; total?: number | null; tone?: DotTone; color?: string }
 
 function dotGroups(groups: GroupIn[], unit?: [string, string], ratio = false): { groups: DotGroup[]; grandTotal: number | null } {
   const live = groups.filter((g) => g.dots.length > 0 || (g.total ?? 0) > 0)
@@ -406,6 +424,7 @@ function dotGroups(groups: GroupIn[], unit?: [string, string], ratio = false): {
         key: g.key,
         label: g.label,
         ...(g.tone ? { tone: g.tone } : {}),
+        ...(g.color ? { color: g.color } : {}),
         dots: g.dots,
         shown,
         total,
@@ -426,7 +445,7 @@ function countChart(
   title: string,
   source: string,
   unit: [string, string],
-  groups: Array<{ key: string; label: string; count: number | null | undefined; tone?: DotTone }>,
+  groups: Array<{ key: string; label: string; count: number | null | undefined; tone?: DotTone; color?: string }>,
 ): DotsSpec | null {
   const live = groups.filter((g) => (g.count ?? 0) > 0)
   const sum = live.reduce((a, g) => a + (g.count ?? 0), 0)
@@ -434,7 +453,7 @@ function countChart(
   // Each group's left-over dot can take one more place than the division alone, so that room is kept free.
   const perDot = sum <= COUNT_DOT_CAP ? 1 : dotRatio(sum, COUNT_DOT_CAP - live.length)
   const { groups: g, grandTotal } = dotGroups(
-    live.map((x) => ({ key: x.key, label: x.label, tone: x.tone, total: x.count ?? 0, dots: countDots(x.key, x.count ?? 0, perDot, unit) })),
+    live.map((x) => ({ key: x.key, label: x.label, tone: x.tone, color: x.color, total: x.count ?? 0, dots: countDots(x.key, x.count ?? 0, perDot, unit) })),
     unit,
     true,
   )
@@ -567,7 +586,7 @@ export function chartSpec(
         ['mention', 'mentions'],
         [...list]
           .sort((a, b) => b.mention_count - a.mention_count || a.concern.localeCompare(b.concern))
-          .map((c) => ({ key: c.concern, label: cap(concernLabel(c.concern)), count: c.mention_count })),
+          .map((c) => ({ key: c.concern, label: cap(concernLabel(c.concern)), count: c.mention_count, color: concernColor(c.concern) })),
       )
     }
     case 'meeting-mentions': {

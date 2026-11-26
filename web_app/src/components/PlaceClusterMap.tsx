@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import api from '../lib/api'
+import { PLACE_POPUP_OPTIONS, placePopupHtml } from '../lib/placePopup'
 
 /**
  * Clustered map of every place we index, served by `GET /api/browse/place-map`.
@@ -76,28 +77,6 @@ function clusterIcon(count: number, color: string): L.DivIcon {
   })
 }
 
-/** Popup HTML. State pins deep-link to the filtered places list; individual
- *  places link to their place home. Counts are real (from the warehouse). */
-function popupHtml(pin: PlaceMapPin, level: string): string {
-  const href =
-    level === 'state'
-      ? `/jurisdictions?state=${encodeURIComponent(pin.state_code ?? '')}`
-      : `/jurisdiction/${encodeURIComponent(pin.geoid)}/meetings`
-  const transcripts = `${pin.transcript_count.toLocaleString()} transcript${pin.transcript_count === 1 ? '' : 's'}`
-  const places =
-    level === 'state'
-      ? `<div style="color:#6b7280;font-size:12px;margin-top:2px">${pin.place_count.toLocaleString()} indexed place${pin.place_count === 1 ? '' : 's'}</div>`
-      : ''
-  return (
-    `<div style="min-width:160px">` +
-    `<div style="font-weight:700;color:#111827;font-size:14px">${pin.name}</div>` +
-    `<div style="color:#6b7280;font-size:12px;margin-top:2px">${transcripts}</div>` +
-    places +
-    `<a href="${href}" style="display:inline-block;margin-top:8px;color:#0d9488;font-weight:600;font-size:13px;text-decoration:none">View →</a>` +
-    `</div>`
-  )
-}
-
 /** Builds one marker-cluster group per level and toggles each on/off the map. */
 function ClusterLayers({
   levels,
@@ -129,7 +108,7 @@ function ClusterLayers({
       })
       const markers = lvl.pins.map((p) => {
         const m = L.marker([p.latitude, p.longitude], { icon: pinIcon(color) })
-        m.bindPopup(popupHtml(p, lvl.level))
+        m.bindPopup(placePopupHtml(p, lvl.level), PLACE_POPUP_OPTIONS)
         return m
       })
       group.addLayers(markers)

@@ -1,11 +1,15 @@
 {{
   config(
     materialized='table',
+    pre_hook=["{{ swap_guard() }}"],
+    indexes=[
+      {'columns': ["jurisdiction_id"], 'type': 'btree'},
+      {'columns': ["person_uid"], 'type': 'btree'}
+    ],
     post_hook=[
-      "CREATE INDEX IF NOT EXISTS mdm_bridge_person_jurisdiction_jurisdiction_id_idx ON {{ this }} (jurisdiction_id)",
-      "CREATE INDEX IF NOT EXISTS mdm_bridge_person_jurisdiction_person_uid_idx ON {{ this }} (person_uid)",
-      "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_person_jurisdiction_person_uid_fkey FOREIGN KEY (person_uid) REFERENCES {{ ref('mdm_person') }} (person_uid) NOT VALID",
-      "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_person_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID"
+      "{{ swap_guard_check() }}",
+      {'sql': "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_person_jurisdiction_person_uid_fkey FOREIGN KEY (person_uid) REFERENCES {{ ref('mdm_person') }} (person_uid) NOT VALID", 'transaction': false},
+      {'sql': "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_person_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID", 'transaction': false}
     ]
   )
 }}

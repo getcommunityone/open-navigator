@@ -264,6 +264,7 @@
     'meeting_policy_question_jev',
     'topic_company', 'topic_company_mention',
     'company_grant',
+    'business', 'business_mention',
     'person_government_term',
     'data_center_meeting_lean',
     'recorded_meeting_year'

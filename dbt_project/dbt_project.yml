@@ -16,6 +16,9 @@ profile: 'open_navigator'
 # marts on every run. Guarded: no-op until the partitioned parent is bootstrapped
 # (dbt run-operation bootstrap_event_people). See macros/event_extractions.sql.
 on-run-start:
+  # pg_trgm before any model builds: trigram indexes are declared in models' `indexes`
+  # config, which dbt builds on the tmp table before the swap, ahead of any hook (#938).
+  - "create extension if not exists pg_trgm"
   - "{{ ensure_event_partitions('gold.event_person') }}"
   - "{{ ensure_event_partitions('gold.event_decision') }}"
   - "{{ ensure_event_partitions('gold.event_place') }}"
@@ -28,10 +31,10 @@ on-run-start:
   # bronze tables of the open data center inventories; empty until the loader runs (#958)
   - "{{ ensure_data_center_inventory_tables() }}"
 
-# Rebuild-proof the /search performance indexes. Per-model post_hooks declare them,
-# but some rebuild paths skip post_hooks and silently drop them, turning text-search
-# legs into multi-second seq-scans that blow the homepage past the frontend's
-# fetch-abort. This re-ensures them idempotently after every run.
+# Rebuild-proof the /search performance indexes. Models declare them in their dbt `indexes`
+# config (#938; built before the swap). If one still goes missing, its text-search leg
+# falls back to a multi-second seq-scan that can push the homepage past the frontend's
+# fetch-abort, so this re-ensures them idempotently after every run.
 # See macros/ensure_search_indexes.sql.
 #
 # Then re-publish the public serving layer: the warehouse marts live in `gold`

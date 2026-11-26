@@ -1,13 +1,13 @@
 {{
   config(
     materialized='table',
+    pre_hook=["{{ swap_guard() }}"],
     indexes=[
       {'columns': ['jurisdiction_id'], 'type': 'btree'},
-      {'columns': ['state_code'], 'type': 'btree'}
+      {'columns': ['state_code'], 'type': 'btree'},
+      {'columns': ["to_tsvector('english', coalesce(title, ''))"], 'type': 'gin'}
     ],
-    post_hook=[
-      "CREATE INDEX IF NOT EXISTS bills_title_fts_idx ON {{ this }} USING gin (to_tsvector('english', coalesce(title, '')))"
-    ]
+    post_hook=["{{ swap_guard_check() }}"]
   )
 }}
 

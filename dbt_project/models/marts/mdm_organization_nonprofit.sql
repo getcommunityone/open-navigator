@@ -7,9 +7,11 @@
 {{
   config(
     materialized='table',
-    post_hook=[
-      "CREATE INDEX IF NOT EXISTS mdm_organization_nonprofit_ein_idx ON {{ this }} (ein)"
-    ]
+    pre_hook=["{{ swap_guard() }}"],
+    indexes=[
+      {'columns': ["ein"], 'type': 'btree'}
+    ],
+    post_hook=["{{ swap_guard_check() }}"]
   )
 }}
 

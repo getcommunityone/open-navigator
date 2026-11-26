@@ -3,38 +3,24 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { companySearchTerm } from '../utils/companySearchTerm'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
-import { fetchTopicMeetings, fetchTopicStates } from '../api/topics'
+import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
+import { topicStanceForMap } from '../utils/topicStance'
+import { CAPTION_COPY, captionText, pickCaption } from '../utils/storyCaption'
+import { useTopicStories } from '../hooks/useTopicStories'
 import { highlightSnippet } from '../lib/highlight'
 import { STATE_CODES } from '../lib/usStates'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesMap'
+import TimelineChart from '../components/stance/TimelineChart'
+import DumbbellChart from '../components/stance/DumbbellChart'
+import '../styles/folio.css'
 
 /**
  * A topic story (#1013): one curated topic's meetings, told from the transcript record. Everything shown is counted or
  * quoted from `topic_transcript_link` (meetings with a verbatim passage) and the decisions search for the topic. The
- * headline states only those counts; there is no sentiment claim without a positions record.
+ * headline is the caption picker's (#1125, utils/storyCaption): the strongest statement the scope's counts support.
  */
-interface TopicStoryDef {
-  slug: string
-  topicId: number
-  title: string
-  /** "Short-term rentals came up in …": the noun phrase the headline leads with. */
-  subject: string
-  lede: string
-  /** The API listing the platform companies this story names (#1015), when it has one. */
-  companiesPath?: string
-}
-
-const TOPIC_STORIES: Record<string, TopicStoryDef> = {
-  'short-term-rentals': {
-    slug: 'short-term-rentals',
-    topicId: 100003,
-    title: 'Short-term rentals',
-    subject: 'Short-term rentals',
-    lede: 'Airbnb, VRBO and vacation rentals: where local governments are talking about them, in the words said at the meeting.',
-    companiesPath: '/short-term-rentals/companies',
-  },
-}
+// The stories are derived from the topic catalog (#1133): every curated topic with linked meetings (utils/topicStories).
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 const fmtDate = (d?: string | null) => {
@@ -64,7 +50,8 @@ const PAGE = 8
 
 export default function TopicStory({ slug: slugProp }: { slug?: string }) {
   const params = useParams<{ storyId?: string }>()
-  const def = TOPIC_STORIES[slugProp ?? params.storyId ?? '']
+  const topicStories = useTopicStories()
+  const def = topicStories.stories[slugProp ?? params.storyId ?? '']
   const [sp, setSp] = useSearchParams()
   const raw = (sp.get('state') ?? '').trim().toUpperCase()
   const stateCode = STATE_CODES.includes(raw) ? raw : null
@@ -90,13 +77,25 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     enabled: Boolean(def),
     staleTime: 5 * 60_000,
   })
-  const scoped = useMemo(() => {
-    const all = national.data
-    if (!all) return null
-    if (!stateCode) return { meetings: all.total_meetings, states: all.states.length }
-    const s = all.states.find((x) => x.state_code === stateCode)
-    return { meetings: s?.meetings ?? 0, states: s ? 1 : 0 }
-  }, [national.data, stateCode])
+
+  // The four-colour split (#1127): the AI reading of each state's meetings, national like the map. Until the reading
+  // exists (#1126) the map is grey with a note; a failed request leaves the plain meetings map, claiming no stance.
+  const stanceQ = useQuery({
+    queryKey: ['topic-story', def?.topicId, 'state-map'],
+    queryFn: () => fetchTopicStanceMap(def!.topicId),
+    enabled: Boolean(def),
+    staleTime: 5 * 60_000,
+  })
+  const stance = useMemo(() => topicStanceForMap(stanceQ.data), [stanceQ.data])
+
+  // The headline's facts (#1125), keyed on the scope so the label and the numbers move together.
+  const captionQ = useQuery({
+    queryKey: ['caption-facts', def?.slug, stateCode ?? ''],
+    queryFn: () => fetchTopicCaptionFacts(def!.slug, stateCode ?? undefined),
+    enabled: Boolean(def),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
 
   const quotes = useMemo(() => {
     const out = new Map<string, StateQuote[]>()
@@ -150,10 +149,17 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     staleTime: 5 * 60_000,
   })
 
+  if (!def && topicStories.pending) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-16" aria-busy="true">
+        <p className="text-stone-500">Loading the story…</p>
+      </main>
+    )
+  }
   if (!def) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-16">
-        <p className="text-stone-700">That story isn't available.</p>
+        <p className="text-stone-700">{topicStories.failed ? 'This story could not be loaded right now.' : "That story isn't available."}</p>
         <Link to="/stories" className="text-teal-700 underline">
           See all data stories
         </Link>
@@ -161,14 +167,12 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     )
   }
 
-  const headline =
-    scoped == null
-      ? def.title
-      : scoped.meetings === 0
-        ? `No meetings on record about ${def.subject.toLowerCase()} ${stateName ? `in ${stateName}` : 'yet'}.`
-        : stateName
-          ? `${def.subject} came up in ${fmt(scoped.meetings)} ${scoped.meetings === 1 ? 'meeting' : 'meetings'} in ${stateName}.`
-          : `${def.subject} came up in ${fmt(scoped.meetings)} meetings across ${fmt(scoped.states)} states.`
+  const caption = pickCaption(def.slug, captionQ.data, { stateCode: stateCode ?? undefined, stateName, city: null })
+  const headline = captionQ.isPending
+    ? def.title
+    : captionQ.isSuccess && captionQ.data.meetings === 0
+      ? `No meetings on record about ${def.subject.toLowerCase()} ${stateName ? `in ${stateName}` : 'yet'}.`
+      : captionText(caption, CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase())
   const items = meetings.data?.pages.flatMap((p) => p.items) ?? []
   const total = meetings.data?.pages[0]?.total ?? 0
 
@@ -186,9 +190,14 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
           <span aria-hidden="true">×</span>
         </Link>
       </div>
-      <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-stone-900 sm:text-5xl" aria-busy={national.isPending || undefined}>
-        {national.isError ? def.title : headline}
+      <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-stone-900 sm:text-5xl" aria-busy={captionQ.isPending || undefined}>
+        {headline}
       </h1>
+      {caption.basis && (
+        <p className="mt-2 max-w-2xl text-sm text-stone-500">
+          {caption.basis}
+        </p>
+      )}
       <p className="mt-3 max-w-2xl text-stone-600">{def.lede}</p>
       <p className="mt-2 text-sm text-stone-500">Counted from local meeting recordings and transcripts that mention the topic.</p>
 
@@ -228,8 +237,19 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
             highlight={stateCode}
             href={(code) => `/stories/${def.slug}?state=${encodeURIComponent(code)}`}
             subject={def.subject.toLowerCase()}
+            stance={stance}
+            stanceUnit="meetings"
           />
         )}
+      </section>
+
+      {/* Meetings over time (#1140): the trend line with its milestone track, and the period dumbbell, for every topic. */}
+      <section className="folio mx-auto mt-10 max-w-4xl rounded-xl p-4 sm:p-6" aria-labelledby="topic-timeline-h">
+        <h2 id="topic-timeline-h" className="font-serif text-2xl font-semibold" style={{ color: 'var(--ink)' }}>
+          Meetings over time · {label}
+        </h2>
+        <TimelineChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} idBase={`topic-${def.slug}`} />
+        <DumbbellChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} idBase={`topic-${def.slug}`} />
       </section>
 
       {def.companiesPath && (

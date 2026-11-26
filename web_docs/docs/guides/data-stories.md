@@ -35,7 +35,11 @@ The fields come from `GET /api/data-centers/meeting-mentions` as nullable `meeti
 
 ## Which topics get a story
 
-A story or a challenge needs meeting recordings or transcripts behind it. Figure-only data, such as census measures, is shown under Explore. Today that means data centers. Within a story, a screen whose figures are not from recordings or transcripts (for the Data Center Story, sites on record and projects on record) is marked "For context" with its source named, and is never the story's headline claim. The opener's large counts lead with the transcript-based ones and show counts from other sources after them with their source.
+A story or a challenge needs meeting recordings or transcripts behind it. Figure-only data, such as census measures, is shown under Explore.
+
+Every curated topic with at least one linked meeting has a live story at `/stories/<query_id>` ([#1133](https://github.com/getcommunityone/open-navigator/issues/1133)). The list is read at runtime from `GET /api/topics` (curated topics with a meeting count above 0, `utils/topicStories.ts`), so a topic added later goes live with no code change. `/stories/data-centers` stays on the Data Center Story (`DataStory`); every other slug is told by `TopicStory`: its caption (#1125), the map of meetings per state with each state's newest passage, what was said and what was decided. On the home **Browse topics** strip a tile is live when its topic has meetings, and selecting it shows that topic's story card above, keeping the place. Flock and license plate readers share one topic and one tile. **Starting a nonprofit** links to its guide. A tile whose topic has no meetings on record (Insurance shopping until #1079 has data) says "Coming soon". Bike lanes has its own curated topic (100007, [#1162](https://github.com/getcommunityone/open-navigator/issues/1162)) and goes live after the next seed and rebuild finds meetings for it. A curated topic with meetings that has no tile of its own gets a plain one, most meetings first, before the guides. At the end of a story, **Next story** walks the same live list. Within a story, a screen whose figures are not from recordings or transcripts (for the Data Center Story, sites on record and projects on record) is marked "For context" with its source named, and is never the story's headline claim. The opener's large counts lead with the transcript-based ones and show counts from other sources after them with their source.
+
+Every topic story's map is the home box map with the same four-entry legend ([#1127](https://github.com/getcommunityone/open-navigator/issues/1127)). For topics other than data centers the colours come from the **AI reading of meetings** (`topic_meeting_lean`, [#1126](https://github.com/getcommunityone/open-navigator/issues/1126)), served by `GET /api/topics/{topic_id}/state-map` as distinct meetings per state: **Public leaned against** (red), **Public leaned for** (green), **Mixed** (purple) and **Meetings, no AI reading yet** (grey, darker = more meetings). A state's boxes are split in bands by those meeting counts, never by counted speakers, and the caption, hover card and data table say "AI reading of N meetings". Until the reading exists for a topic, the endpoint answers `available: false` and the map is grey with the note "No AI reading of these meetings yet; states show meetings only"; a failed request leaves the plain meetings map and claims no stance. Choosing a state (`?state=`) highlights it on the national map; the county drill-down the Data Center Story has needs a jurisdiction on each topic meeting and is tracked separately.
 
 ## The heading is a sentence
 
@@ -89,17 +93,30 @@ Twelve screens, in this order. Each has a short word as its header (never a numb
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
-### The title states the place's conclusion (#993)
+### The title states the place's strongest statement (#993, #1125)
 
-The story's title is a conclusion for the place in scope, with the place and topic still clickable. It uses the strongest
-claim the place's record supports:
-1. **"[America] hates [data centers]."** when that place's speakers on record pass the headline's gate (against at least
-   twice for, at least 10 speakers). The place reads "America" for the country, otherwise its name.
-2. **"[Washington] talked about [data centers] in 69 meetings."** otherwise, from the place's real meeting count.
-3. The question, **"What did local meetings in … say about …?"**, when nothing is on record.
+The story's title, and the caption on each **Browse topics** tile on the home page, is the strongest statement the record
+supports for the topic and the place in scope (`?state=&city=`), with the place and topic still clickable on the story. The
+caption picker (`web_app/src/utils/storyCaption.ts`) reads `GET /api/topics/{topic}/caption-facts` for exactly that scope
+and tries, in order:
+1. **"[America] hates [data centers]."** when the public was read as confidently against in enough meetings (an AI
+   reading: at least 50 nationally, 10 in a state, 3 in one place) or the counted speakers pass the headline's gate
+   (against at least twice for, at least 10 speakers). Only for topics where "against" has one direction.
+2. **"[America] is divided on [data centers]."** when officials sided against the public in at least 10 meetings (an AI
+   reading; the basis says "In 23 meetings across 10 states, officials backed data centers while the public pushed back
+   (AI reading).") or counted speakers split with both sides substantial.
+3. **Volume with state differences.** "[California] took up [short-term rentals] in 570 meetings, more than any other
+   state.", or for a near tie "California and North Carolina took up guns most: 659 and 585 meetings."; "...the 2nd most of
+   any state."; for a city "...more than any other place in Florida.". There is no per-resident claim: meeting coverage
+   varies too much by state.
+4. **Plain volume.** "[Florida] took up [short-term rentals] in 47 meetings."
+5. **The question**, when nothing is on record. Guides with no meeting record (starting a nonprofit, insurance) always
+   show their question, and their tile keeps its blurb.
 
-A small line under the title gives the numbers behind it. Most places have too few speakers with a recorded side for a
-sentiment, so they get the fact. On 25 Nov 2026, Washington had 0 speakers on record for or against.
+The home story card uses the same title. No title or basis line ever states a zero.
+A small line under the title gives the numbers behind it, and says when coverage varies by state. Every number is a real
+count for the scope; missing data falls through to the next rule. Thresholds and the reasons for them:
+[Story captions](../development/story-captions.md).
 
 ### Statements along the way (#981)
 
@@ -224,6 +241,8 @@ The Meetings screen (chart `meeting-mentions`) opens with three figures, all for
 - **Trend line.** Distinct meetings per year whose transcript discussed the topic, with the quoted passages in the tooltip. A toggle switches to the topic's **share of recorded meetings**: meetings on the topic divided by every recorded (transcribed) meeting in the same place and year (`recorded_meeting_year`). The line carries the note "Meetings in our record by year; recording coverage grew sharply in 2025–26, so the rise partly reflects coverage." A year with nothing recorded, or with no meetings on the topic and fewer than 25 recorded meetings, is a gap in the line, never a zero; the note names the gap years.
 - **Milestone track.** Under the line, on the same year scale, one lane per kind of event: meetings where officials approved, denied, tabled or adopted a moratorium (an **AI reading** of the transcript, labelled as such on the card), and state bills enacted once `topic_legislation_bill` is served. Click a square, or select one and use the arrow keys, Home and End; the card below gives the date, place, what happened and a link to the meeting or bill. Under 560px wide the track becomes a tap list, newest first.
 - **Period dumbbell.** Last year (hollow circle) against this year (filled dot) for each state in national scope, or each town in state scope, with a ±pp label and sort buttons (by this year, by change, by last year). Rows with too few recorded meetings are left out and the note says how many. In a city scope the dumbbell is not drawn (it compares places within the scope).
+
+Every other topic story (`/stories/<topic>`, for example `/stories/water-fluoridation`) shows the same trend line, milestone track and period dumbbell under its map, in a **Meetings over time** section that follows the page's state filter. Topics other than data centers count meetings from `topic_transcript_link` (no passage counts) and read their milestones from `topic_meeting_lean`.
 
 Below them, the passages are a **unit matrix**: one square per passage, regrouped by a toggle (All, By year, By state or By town, By outcome, By who spoke). The outcome and public-lean groupings are an AI reading and say so. The decisions, agenda and jobs-claim charts use the same matrix with their own grouping first. The design and thresholds: [Story charts: timeline, dumbbell and unit matrix](../development/story-charts-timeline-dumbbell.md).
 
