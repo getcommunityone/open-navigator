@@ -1,0 +1,4 @@
+company_key,company_name,aliases,match_terms,roles,website_url,source_kind,source_url,source_excerpt
+airbnb,Airbnb,"Airbnb|Airbnb, Inc.",airbnb,short_term_rental_platform,https://www.airbnb.com/,company_page,https://news.airbnb.com/about-us/,"Airbnb was born in 2007 when two hosts welcomed three guests to their San Francisco home"
+expedia-group,Expedia Group,"Expedia Group|Vrbo|HomeAway",vrbo|homeaway,short_term_rental_platform,https://www.expediagroup.com/,company_page,https://www.expediagroup.com/en-us/about-us,"We brought HomeAway and Vrbo into the fold to offer vacation rentals"
+booking-holdings,Booking Holdings,"Booking Holdings|Booking.com",booking.com,short_term_rental_platform,https://www.bookingholdings.com/,company_page,https://www.bookingholdings.com/brands/booking/,"Part of Booking Holdings Inc. (NASDAQ: BKNG), Booking.com's mission is to make it easier for everyone to experience the world."

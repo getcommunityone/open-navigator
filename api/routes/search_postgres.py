@@ -1293,7 +1293,12 @@ async def search_organizations_pg(
                     title=row['name'],
                     subtitle=location,
                     description=description,
-                    url=f"/search?types=organizations&state={row['state_code']}&ein={row['ein']}",
+                    # The organization page when the row has a master id (#1015), else the filtered search as before.
+                    url=(
+                        f"/organizations/{row['master_org_id']}"
+                        if row['master_org_id']
+                        else f"/search?types=organizations&state={row['state_code']}&ein={row['ein']}"
+                    ),
                     score=1.0,
                     metadata={
                         'master_org_id': row['master_org_id'],

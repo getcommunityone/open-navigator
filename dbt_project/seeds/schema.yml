@@ -393,6 +393,51 @@ seeds:
               config:
                 where: "source_kind = 'meeting_passage'"
 
+  - name: short_term_rental_companies
+    config:
+      column_types:
+        company_key: text
+        company_name: text
+        aliases: text
+        match_terms: text
+        roles: text
+        website_url: text
+        source_kind: text
+        source_url: text
+        source_excerpt: text
+    description: >
+      Curated short-term rental platform companies (#1015): Airbnb, Expedia Group (Vrbo, HomeAway) and Booking
+      Holdings (Booking.com). Each row enters the organization master as org_type 'company'
+      (stg_short_term_rental_companies__org -> mdm_organization) and gets a row in the
+      mdm_organization_short_term_rental satellite. match_terms ('|'-separated, lowercase) are the words that name
+      the company in a transcript or decision. Every row cites the company's own page (source_url) with a verbatim
+      source_excerpt. Add only real companies a source names; never a guessed website.
+    columns:
+      - name: company_key
+        description: "Stable slug (PK), e.g. airbnb."
+        tests: [unique, not_null]
+      - name: company_name
+        description: "The company's name as it is commonly written."
+        tests: [unique, not_null]
+      - name: aliases
+        description: "'|'-separated exact forms that name it (brands included, e.g. Vrbo)."
+      - name: match_terms
+        description: "'|'-separated lowercase full-text terms matched against transcripts and decisions."
+        tests: [not_null]
+      - name: roles
+        description: "'|'-separated roles; short_term_rental_platform."
+        tests: [not_null]
+      - name: website_url
+        description: "The company's own website."
+      - name: source_kind
+        description: "company_page: the company's own website."
+        tests: [not_null]
+      - name: source_url
+        description: "The page the excerpt is from."
+        tests: [not_null]
+      - name: source_excerpt
+        description: "Verbatim text from source_url."
+        tests: [not_null]
   - name: data_center_companies
     config:
       column_types:
