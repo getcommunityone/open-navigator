@@ -52,3 +52,10 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- A date sort orders meetings, transcripts and meeting documents by date, and the transcript candidate pool follows the same direction. The dispatcher skips the score re-sort only under a date sort, so relevance is unchanged.
+- The UI control keeps the tab and writes `?sort=`. Checked at phone width. Scans clean.
+
+Verdict stands: approve.
