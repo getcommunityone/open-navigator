@@ -46,4 +46,34 @@ describe('QuoteCard (#1108)', () => {
     expect(html).not.toContain('qcard-avatar')
     expect(html).toContain('Spoke for')
   })
+  it('shows the AI summary, labelled, and the meeting analysis link when on record (#1124)', () => {
+    const html = renderToStaticMarkup(
+      <QuoteCard
+        place="Testville, GA"
+        quote="a passage"
+        meeting="Council"
+        summary="The board <b>discussed</b> a pause."
+        analysisUrl="/meetings/12?state=GA"
+      />,
+    )
+    expect(html).toContain('AI summary')
+    // React-escaped: markup in the record is shown as text, never rendered.
+    expect(html).toContain('The board &lt;b&gt;discussed&lt;/b&gt; a pause.')
+    expect(html).toContain('class="qcard-summary-text"')
+    expect(html).toContain('href="/meetings/12?state=GA"')
+    expect(html).toContain('Open the meeting analysis →')
+    expect(html).toContain('In the meeting · Council')
+  })
+  it('shows no summary block and no link without them (#1124)', () => {
+    const html = renderToStaticMarkup(<QuoteCard place="Testville, GA" quote="a passage" summary="   " analysisUrl={null} />)
+    expect(html).not.toContain('AI summary')
+    expect(html).not.toContain('qcard-summary')
+    expect(html).not.toContain('Open the meeting analysis')
+  })
+  it('names an attributed speaker instead of "In the meeting" (#1124)', () => {
+    const html = renderToStaticMarkup(<QuoteCard place="Testville, GA" quote="a passage" meeting="Council" speakerName="Test P." role="Resident" />)
+    expect(html).toContain('Test P.')
+    expect(html).toContain('Resident')
+    expect(html).not.toContain('In the meeting')
+  })
 })

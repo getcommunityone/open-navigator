@@ -20,6 +20,7 @@ new), the route returns the scope with an empty ``items`` list instead of a 500.
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Any, Literal
 
@@ -792,6 +793,21 @@ class DataCenterMeetingMention(BaseModel):
     data_center_site_id: str | None = None
     site_name: str | None = Field(None, description="The tracked site discussed or nearby, if any.")
     site_match_basis: Literal["named_in_passage", "nearby_site"] | None = None
+    meeting_summary: str | None = Field(
+        None,
+        description="The meeting's AI summary from the record (event_meeting.meeting_summary, #1124); null when the "
+        "meeting has none or isn't in event_meeting.",
+    )
+    meeting_url: str | None = Field(
+        None, description="The app route of the meeting page (/meetings/<event_meeting_id>); null when not on record."
+    )
+    speaker_display_name: str | None = Field(
+        None,
+        description='"First L." of the person the record attributes the quoted words to (#1124): a counted public '
+        "comment from the meeting's analysis whose verbatim quote is inside this excerpt. Null when no attribution "
+        "exists (never guessed), or when two different speakers match.",
+    )
+    speaker_role: str | None = Field(None, description="That speaker's role as recorded; null with no speaker.")
 
 
 class DataCenterMeetingMentionStateCount(BaseModel):
@@ -1007,6 +1023,81 @@ async def _fetch_lean(conn: Any, sql: str, *params: Any) -> dict[str, dict[str, 
     return out
 
 
+MENTION_MEETING_SQL = (
+    "SELECT DISTINCT ON (e.video_id) e.video_id, e.event_meeting_id, "
+    "nullif(btrim(e.meeting_summary), '') AS meeting_summary "
+    "FROM event_meeting e WHERE e.video_id = ANY($1::text[]) "
+    "ORDER BY e.video_id, (nullif(btrim(e.meeting_summary), '') IS NULL), e.event_meeting_id"
+)
+"""The meeting page and AI summary for each passage's recording (#1124). A recording with two event_meeting rows takes
+the one with a summary, then the lowest id."""
+
+_NORM_QUOTE = "lower(regexp_replace(c.quote, '\\s+', ' ', 'g'))"
+_NORM_EVIDENCE = "lower(regexp_replace(regexp_replace(m.evidence, '</?mark>', '', 'g'), '\\s+', ' ', 'g'))"
+MENTION_SPEAKER_SQL = (
+    "SELECT m.data_center_meeting_mention_id, "
+    "min(c.speaker_display_name) AS speaker_display_name, min(c.speaker_role) AS speaker_role, "
+    "count(DISTINCT c.speaker_display_name)::int AS speakers "
+    "FROM data_center_meeting_mention m "
+    "JOIN data_center_public_comment c ON c.video_id = m.video_id "
+    "WHERE m.data_center_meeting_mention_id = ANY($1::text[]) "
+    "AND c.speaker_display_name IS NOT NULL AND length(btrim(c.quote)) >= 20 "
+    f"AND position({_NORM_QUOTE} IN {_NORM_EVIDENCE}) > 0 "
+    "GROUP BY m.data_center_meeting_mention_id"
+)
+"""Who said the quoted words (#1124), only where the record says so: a public comment from the same recording, with a
+name, whose whole verbatim quote (20+ characters) is inside the passage's excerpt. No timing guess, no fuzzy match."""
+
+_FIRST_L = re.compile(r"^\S+( \S\.)?$")
+
+
+def first_l(name: str | None) -> str | None:
+    """A served name as "First L." at most (AGENTS.md, Privacy): "Audra T." and "Audra" pass; "Audra Thompson" → "Audra T."."""
+    n = " ".join((name or "").split())
+    if not n:
+        return None
+    if _FIRST_L.match(n):
+        return n
+    parts = n.split(" ")
+    last = next((ch for ch in parts[-1] if ch.isalpha()), None)
+    return f"{parts[0]} {last.upper()}." if last else parts[0]
+
+
+async def _mention_extras(conn: Any, rows: list[dict[str, Any]]) -> None:
+    """Add meeting_summary, meeting_url, speaker_display_name and speaker_role to each row in place (#1124).
+
+    Each lookup is optional: a serving copy without event_meeting or data_center_public_comment (or a column) leaves
+    the fields null, and the passages are still served."""
+    video_ids = sorted({r["video_id"] for r in rows if r.get("video_id")})
+    mention_ids = [r["data_center_meeting_mention_id"] for r in rows]
+    meetings: dict[str, dict[str, Any]] = {}
+    speakers: dict[str, dict[str, Any]] = {}
+    if video_ids:
+        try:
+            for r in await conn.fetch(MENTION_MEETING_SQL, video_ids):
+                meetings[str(r["video_id"])] = dict(r)
+        except asyncpg.exceptions.PostgresError as e:
+            logger.warning("data-centers: event_meeting unavailable for mention cards ({}); summaries null", e)
+    if mention_ids:
+        try:
+            for r in await conn.fetch(MENTION_SPEAKER_SQL, mention_ids):
+                row = dict(r)
+                if int(row.get("speakers") or 0) == 1:
+                    speakers[str(row["data_center_meeting_mention_id"])] = row
+        except asyncpg.exceptions.PostgresError as e:
+            logger.warning("data-centers: data_center_public_comment unavailable for mention cards ({}); speakers null", e)
+    for r in rows:
+        meeting = meetings.get(str(r.get("video_id")))
+        if meeting:
+            r["meeting_summary"] = meeting.get("meeting_summary") or None
+            emid = meeting.get("event_meeting_id")
+            r["meeting_url"] = f"/meetings/{emid}" if emid is not None else None
+        sp = speakers.get(str(r["data_center_meeting_mention_id"]))
+        if sp:
+            r["speaker_display_name"] = first_l(sp.get("speaker_display_name"))
+            r["speaker_role"] = (sp.get("speaker_role") or None) if r["speaker_display_name"] else None
+
+
 def jump_url(video_url: str, start_seconds: float | None) -> str | None:
     """The recording at the passage's moment (YouTube ``t=`` in whole seconds)."""
     if start_seconds is None or "youtu" not in video_url:
@@ -1069,6 +1160,9 @@ async def list_data_center_meeting_mentions(
                         if place_rows:
                             lean_sql, lean_params = build_lean_by_place_query(applied.state_code, site_clean, strength)
                             place_lean = await _fetch_lean(conn, lean_sql, *lean_params)
+                item_rows = [dict(r) for r in rows]
+                with tracer.start_as_current_span("data-centers.meeting-mentions.card-extras"):
+                    await _mention_extras(conn, item_rows)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("meeting_mentions.relation_missing", True)
             logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)
@@ -1086,11 +1180,12 @@ async def list_data_center_meeting_mentions(
             for r in place_rows
         ]
         items = []
-        for r in rows:
-            row = dict(r)
+        for row in item_rows:
             row["jump_url"] = jump_url(row["video_url"], row.get("start_seconds"))
             items.append(DataCenterMeetingMention(**row))
         span.set_attribute("meeting_mentions.count", len(items))
+        span.set_attribute("meeting_mentions.with_summary", sum(1 for i in items if i.meeting_summary))
+        span.set_attribute("meeting_mentions.with_speaker", sum(1 for i in items if i.speaker_display_name))
         return DataCenterMeetingMentionsResponse(scope=applied, counts=counts, items=items)
 
 

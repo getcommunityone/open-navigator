@@ -24,7 +24,11 @@ class _Conn:
     def __init__(
         self, rows=None, counts=None, error: Exception | None = None, by_state=None, by_place=None,
         lean=None, lean_error: Exception | None = None,
+        meetings=None, speakers=None, extras_error: Exception | None = None,
     ):
+        self.meetings = meetings or []
+        self.speakers = speakers or []
+        self.extras_error = extras_error
         self.lean = lean or []
         self.lean_error = lean_error
         self.rows = rows or []
@@ -38,6 +42,10 @@ class _Conn:
         self.calls.append((sql, params))
         if self.error:
             raise self.error
+        if "FROM event_meeting e" in sql or "JOIN data_center_public_comment c" in sql:
+            if self.extras_error:
+                raise self.extras_error
+            return self.meetings if "FROM event_meeting e" in sql else self.speakers
         if "data_center_meeting_lean" in sql:
             if self.lean_error:
                 raise self.lean_error
@@ -268,3 +276,64 @@ def test_no_lean_query_without_a_state(get) -> None:
     conn = _Conn(by_place=_PLACES)
     get(conn)
     assert not any("data_center_meeting_lean" in c[0] for c in conn.calls)
+
+
+# --- #1124: the card's AI summary, meeting link and speaker -----------------------------------------------------
+
+
+_COUNTS = [{"passages": 1, "meetings": 1, "site_specific": 0}]
+
+
+def test_card_extras_summary_link_and_speaker_present(get) -> None:
+    conn = _Conn(
+        rows=[_item()], counts=_COUNTS,
+        meetings=[{"video_id": "7VghnjHd_1w", "event_meeting_id": 4321, "meeting_summary": "The council discussed a pause."}],
+        speakers=[{"data_center_meeting_mention_id": "m1", "speaker_display_name": "Test Person", "speaker_role": "Resident",
+                   "speakers": 1}],
+    )
+    (item,) = get(conn, {"state": "NC"}).json()["items"]
+    assert item["meeting_summary"] == "The council discussed a pause."
+    assert item["meeting_url"] == "/meetings/4321"
+    # Privacy: never more than "First L.", even if a fuller name reached the mart.
+    assert item["speaker_display_name"] == "Test P." and item["speaker_role"] == "Resident"
+    sql, params = next(c for c in conn.calls if "FROM event_meeting e" in c[0])
+    assert params == (["7VghnjHd_1w"],)
+    sql, params = next(c for c in conn.calls if "JOIN data_center_public_comment c" in c[0])
+    assert params == (["m1"],)
+    # Attribution only from a verbatim quote inside the excerpt: no timing guess.
+    assert "position(" in sql and "c.speaker_display_name IS NOT NULL" in sql
+
+
+def test_card_extras_absent_are_null(get) -> None:
+    (item,) = get(_Conn(rows=[_item()], counts=_COUNTS)).json()["items"]
+    assert item["meeting_summary"] is None and item["meeting_url"] is None
+    assert item["speaker_display_name"] is None and item["speaker_role"] is None
+
+
+def test_card_meeting_without_summary_keeps_link_only(get) -> None:
+    conn = _Conn(rows=[_item()], counts=_COUNTS, meetings=[{"video_id": "7VghnjHd_1w", "event_meeting_id": 9, "meeting_summary": None}])
+    (item,) = get(conn).json()["items"]
+    assert item["meeting_summary"] is None and item["meeting_url"] == "/meetings/9"
+
+
+def test_card_two_speakers_matching_is_no_speaker(get) -> None:
+    conn = _Conn(rows=[_item()], counts=_COUNTS, speakers=[
+        {"data_center_meeting_mention_id": "m1", "speaker_display_name": "A B.", "speaker_role": "Resident", "speakers": 2},
+    ])
+    (item,) = get(conn).json()["items"]
+    assert item["speaker_display_name"] is None and item["speaker_role"] is None
+
+
+def test_card_extras_missing_tables_still_answer(get) -> None:
+    err = asyncpg.exceptions.UndefinedColumnError("column \"meeting_summary\" does not exist")
+    resp = get(_Conn(rows=[_item()], counts=_COUNTS, extras_error=err))
+    assert resp.status_code == 200, resp.text
+    (item,) = resp.json()["items"]
+    assert item["meeting_summary"] is None and item["speaker_display_name"] is None
+
+
+def test_first_l() -> None:
+    assert data_centers.first_l("Audra Thompson") == "Audra T."
+    assert data_centers.first_l("Audra T.") == "Audra T."
+    assert data_centers.first_l("Audra") == "Audra"
+    assert data_centers.first_l("  ") is None and data_centers.first_l(None) is None

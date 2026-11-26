@@ -52,3 +52,23 @@ export function recordedRole(role: string | null | undefined): string | null {
   const r = (role ?? '').trim()
   return r && !/^(not stated|unknown|n\/?a|none|unspecified)$/i.test(r) ? r : null
 }
+
+/** The meeting's AI summary as served, trimmed; null when there is none (#1124). Never a stand-in line. */
+export function aiSummary(text: string | null | undefined): string | null {
+  const t = (text ?? '').replace(/\s+/g, ' ').trim()
+  return t || null
+}
+
+/**
+ * The meeting page link with the story's scope carried over (#1124; CLAUDE.md, scope travels in the URL): `?state=GA&city=…`
+ * appended to the app route the API serves. Only an in-app path ("/meetings/123") is accepted; anything else gives null.
+ */
+export function scopedMeetingHref(url: string | null | undefined, scope: { state?: string | null; city?: string | null } = {}): string | null {
+  if (!url || !url.startsWith('/') || url.startsWith('//')) return null
+  const [path, query = ''] = url.split('?', 2)
+  const params = new URLSearchParams(query)
+  if (scope.state) params.set('state', scope.state)
+  if (scope.city) params.set('city', scope.city)
+  const qs = params.toString()
+  return qs ? `${path}?${qs}` : path!
+}

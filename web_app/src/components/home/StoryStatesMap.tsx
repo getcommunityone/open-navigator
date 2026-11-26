@@ -59,6 +59,10 @@ export interface StateQuote {
   videoId?: string | null
   /** Seconds into the recording where the passage starts. */
   startSeconds?: number | null
+  /** The meeting's AI summary from the record (#1124), for a meeting passage. */
+  summary?: string | null
+  /** The meeting page in the app with the scope in its query (#1124); none → no link. */
+  analysisUrl?: string | null
 }
 
 interface Props {
@@ -293,6 +297,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           videoId={resolveVideoId(quote.videoId, quote.url)}
           startSeconds={quote.startSeconds ?? startFromUrl(quote.url)}
           url={quote.url}
+          summary={quote.summary ?? null}
+          analysisUrl={quote.analysisUrl ?? null}
         >
           <p style={{ margin: '10px 0 0', paddingTop: 8, borderTop: '1px solid #e7e5e4', fontSize: 12, color: '#57534e' }}>
             {stateName(shownCode)}: {plural(shownMeetings, 'meeting', 'meetings')}
