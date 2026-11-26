@@ -5,7 +5,7 @@ title: "feat(llm): Jev asks how the public leaned on a data center in each meeti
 author: jcbowyer
 reviewed_at: 2026-11-26
 reviewer: github-actions
-head_sha: c97e4a3fe9e60990d563664f0bafba3d24ca77ae
+head_sha: d09f2e1665fa8df172af2969014ca20bfa817b42
 verdict: approve
 ---
 
@@ -20,10 +20,11 @@ Automated review (#648) for PR #1114 on `feat/1113-jev-dc-public-lean`. Heuristi
 
 - `packages/llm/src/llm/typesafe/screen_transcripts.py`
 - `packages/llm/tests/test_screen_policy_outcomes.py`
+- `pull_requests/pr-1114-review.md`
 
 ## CI Status
 
-See the PR checks on `c97e4a3fe9e6`.
+See the PR checks on `d09f2e1665fa`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
