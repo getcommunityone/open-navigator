@@ -51,3 +51,11 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review
+
+- Scans: no secrets, no fabricated data, no personal data, no data changes.
+- Correctness: the lenses ask for window=auto until the reader picks a period; the highlighted chip and the empty-state wording come from the response's window, so label and cards match (scope-label rule). Picking a chip sends that window, as before. Checked in the browser at /?state=AL: Past year highlighted with real contested cards.
+- Docs: code-walkthrough.md.
+
+No blocking findings.
