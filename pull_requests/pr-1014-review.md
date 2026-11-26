@@ -57,3 +57,9 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- Browser and unit checks are recorded in the PR body. Scans clean. Nothing fabricated: every figure is counted or quoted from the warehouse, and every quote is verbatim.
+
+Verdict stands: approve.
