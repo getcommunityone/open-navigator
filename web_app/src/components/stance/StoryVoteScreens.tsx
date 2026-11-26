@@ -5,6 +5,7 @@ import { PAUSE_NOTE, storyScopeLabel, type ScreenText, type StoryScope, type Sto
 import { answerChange, optionLabel, optionTone, questionText } from '../../utils/storyQuestion'
 import ChoiceBars from './ChoiceBars'
 import KineticText from './KineticText'
+import ScreenNav from './ScreenNav'
 
 /** What the three vote screens share: the question, the reader's answers and how an answer is stored. */
 export interface VoteState {
