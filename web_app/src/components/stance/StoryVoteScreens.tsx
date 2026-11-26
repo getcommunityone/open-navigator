@@ -160,24 +160,19 @@ export function QuestionScreen(p: ScreenProps) {
             </p>
           )}
         </div>
-        <div className="stance-nav stance-nav-split">
-          {said || !vote.question ? (
-            <button
-              type="button"
-              className="folio-btn stance-next stance-next-end"
-              onClick={p.onNext}
-              aria-label={`Next: ${p.nextLabel}`}
-              title={`Next: ${p.nextLabel}`}
-              data-primary
-            >
-              Next <span aria-hidden="true">→</span>
-            </button>
-          ) : (
-            <button type="button" className="folio-link-btn stance-skip" onClick={p.onNext}>
-              Skip, I'd rather read first
-            </button>
-          )}
-        </div>
+        {/* #1138: the same nav as every screen; until an answer is given, "Skip" takes Next's spot. */}
+        <ScreenNav
+          nextLabel={p.nextLabel ?? 'Next'}
+          onNext={p.onNext}
+          onPrev={p.onPrev}
+          primary={
+            said || !vote.question ? undefined : (
+              <button type="button" className="folio-link-btn stance-skip stance-next-end" onClick={p.onNext} data-nav="next">
+                Skip, I'd rather read first
+              </button>
+            )
+          }
+        />
       </div>
     </Frame>
   )
@@ -275,19 +270,20 @@ export function VerdictScreen(p: VerdictProps) {
             </p>
           )}
         </div>
-        <div className="stance-nav">
-          {/* #981: the statements are asked in the story itself, so the story ends here, not at a separate challenge. */}
-          {(answered || !q) && (
-            <Link className="folio-btn stance-next" to={p.links.dataCenters} data-primary>
-              See every data center record <span aria-hidden="true">→</span>
-            </Link>
-          )}
-          {p.onPrev && (
-            <button type="button" className="folio-btn stance-back" onClick={p.onPrev}>
-              <span aria-hidden="true">←</span> Back
-            </button>
-          )}
-        </div>
+        {/* #981: the statements are asked in the story itself, so the story ends here, not at a separate challenge.
+            #1138: the same nav as every screen; the link to the records takes Next's spot once answered. */}
+        <ScreenNav
+          nextLabel={null}
+          onNext={() => {}}
+          onPrev={p.onPrev}
+          primary={
+            answered || !q ? (
+              <Link className="folio-btn stance-next stance-next-end" to={p.links.dataCenters} data-primary data-nav="next">
+                See every data center record <span aria-hidden="true">→</span>
+              </Link>
+            ) : undefined
+          }
+        />
         {answered && (
           <p className="stance-note stance-after-links">
             Or see <Link to={p.links.decisions}>local decisions</Link> for{' '}
