@@ -40,7 +40,18 @@ function meetingsAcross(meetings: number, states: number): string {
   return `in ${plural(meetings, 'meeting')}${states > 0 ? ` across ${plural(states, 'state')}` : ''}`
 }
 
-export function heroPoints(lean: HeroLeanTotals | null | undefined, speakers: HeroSpeakerTotals | null | undefined): HeroPoint[] {
+export interface HeroPointsOptions {
+  /** States with any hand-counted speaker (from positions `by_state`), so the hand count names its scope (#1134). */
+  speakerStates?: number | null
+  /** True when the page is scoped to a place: every line then starts "Nationally:" so it isn't read as the place's (#1134). */
+  nationally?: boolean
+}
+
+export function heroPoints(
+  lean: HeroLeanTotals | null | undefined,
+  speakers: HeroSpeakerTotals | null | undefined,
+  opts: HeroPointsOptions = {},
+): HeroPoint[] {
   const out: Omit<HeroPoint, 'n'>[] = []
 
   const against = num(lean?.public_against_meetings)
@@ -53,7 +64,11 @@ export function heroPoints(lean: HeroLeanTotals | null | undefined, speakers: He
     )
   }
   if (sTotal >= 1) {
-    parts.push(`Of ${plural(sTotal, 'speaker')} counted, ${sAgainst.toLocaleString('en-US')} spoke against.`)
+    const states = num(opts.speakerStates)
+    parts.push(
+      `${plural(sTotal, 'speaker')} counted by hand${states > 0 ? ` in ${plural(states, 'state')}` : ''}: ` +
+        `${sAgainst.toLocaleString('en-US')} against, ${num(speakers?.speakers_for).toLocaleString('en-US')} for.`,
+    )
   }
   if (parts.length) out.push({ icon: 'quote', title: 'Communities are saying no.', line: parts.join(' ') })
 
@@ -75,5 +90,5 @@ export function heroPoints(lean: HeroLeanTotals | null | undefined, speakers: He
     })
   }
 
-  return out.map((p, i) => ({ ...p, n: i + 1 }))
+  return out.map((p, i) => ({ ...p, n: i + 1, line: opts.nationally ? `Nationally: ${p.line}` : p.line }))
 }

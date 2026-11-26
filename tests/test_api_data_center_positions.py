@@ -257,6 +257,7 @@ def _lean_totals(**kw) -> dict[str, Any]:
     base = dict(
         public_against_meetings=12, public_against_states=5, stopped_meetings=4,
         disagreement_meetings=3, disagreement_states=2,
+        public_for_meetings=2, public_mixed_meetings=1, public_spoke_meetings=15,
     )
     base.update(kw)
     return base
@@ -286,3 +287,23 @@ def test_lean_totals_null_values_become_zero(get) -> None:
     row = _lean_totals(stopped_meetings=None)
     body = get(_Conn(totals=[_totals()], lean_totals=[row])).json()
     assert body["lean_totals"]["stopped_meetings"] == 0
+
+
+def test_lean_totals_other_leans_use_the_confident_threshold() -> None:
+    """#1134: for, mixed and spoke counts take the same P >= 0.7 as public_against, and spoke leaves out no-comment."""
+    from api.routes.data_centers import LEAN_TOTALS_SQL
+
+    sql = LEAN_TOTALS_SQL
+    for col in ("public_for_meetings", "public_mixed_meetings", "public_spoke_meetings"):
+        assert f"AS {col}" in sql
+    assert "l.public_lean = 'mostly_supported' AND coalesce(l.public_lean_p, 0) >= 0.7" in sql
+    assert "l.public_lean = 'mixed' AND coalesce(l.public_lean_p, 0) >= 0.7" in sql
+    assert "l.public_lean IN ('mostly_opposed', 'mostly_supported', 'mixed') AND coalesce(l.public_lean_p, 0) >= 0.7" in sql
+    assert "no_public_comment_on_data_center" not in sql
+
+
+def test_lean_totals_serve_the_other_leans(get) -> None:
+    body = get(_Conn(totals=[_totals()], lean_totals=[_lean_totals(public_mixed_meetings=None)])).json()
+    assert body["lean_totals"]["public_for_meetings"] == 2
+    assert body["lean_totals"]["public_mixed_meetings"] == 0
+    assert body["lean_totals"]["public_spoke_meetings"] == 15

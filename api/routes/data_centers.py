@@ -1662,6 +1662,19 @@ class LeanTotals(BaseModel):
     )
     disagreement_meetings: int = Field(0, description="Meetings where officials sided against the public (#1113 rule).")
     disagreement_states: int = Field(0, description="States with at least one such meeting.")
+    public_for_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly supportive (P >= 0.7) (#1134). Kept for audit: hand checks "
+        "found 'supported' unreliable (development/data-center-meeting-lean.md), so the hero never uses it in a claim.",
+    )
+    public_mixed_meetings: int = Field(
+        0, description="Meetings where Jev read the public as mixed (P >= 0.7) (#1134). Kept for audit, like public_for."
+    )
+    public_spoke_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as speaking on a data center at all (any lean but "
+        "no_public_comment_on_data_center, P >= 0.7) (#1134).",
+    )
 
 
 class DataCenterPositionsResponse(BaseModel):
@@ -1744,12 +1757,19 @@ POSITION_BY_STATE_SQL = (
 home map still shows every state. States with no row in the mart are simply absent."""
 
 
+_LEAN_CONFIDENT = "coalesce(l.public_lean_p, 0) >= 0.7"
+"""The confident threshold the mart's ``public_against`` uses (data_center_meeting_lean.sql), for the other leans (#1134)."""
+
 LEAN_TOTALS_SQL = (
     "SELECT count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
     "count(DISTINCT l.state_code) FILTER (WHERE l.public_against)::int AS public_against_states, "
     "count(*) FILTER (WHERE l.dc_outcome IN ('tabled_or_deferred', 'denied', 'moratorium'))::int AS stopped_meetings, "
     "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings, "
-    "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states "
+    "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states, "
+    f"count(*) FILTER (WHERE l.public_lean = 'mostly_supported' AND {_LEAN_CONFIDENT})::int AS public_for_meetings, "
+    f"count(*) FILTER (WHERE l.public_lean = 'mixed' AND {_LEAN_CONFIDENT})::int AS public_mixed_meetings, "
+    "count(*) FILTER (WHERE l.public_lean IN ('mostly_opposed', 'mostly_supported', 'mixed') "
+    f"AND {_LEAN_CONFIDENT})::int AS public_spoke_meetings "
     "FROM data_center_meeting_lean l"
 )
 """National totals of Jev's readings for the home hero (#1122): no scope parameters. The mart only holds screens

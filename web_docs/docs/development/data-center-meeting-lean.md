@@ -58,6 +58,16 @@ Spoke against red; disagreement meetings are not drawn on the map (no outlines, 
 
 So only "public leaned against" (about 7 of 8 right) and the refined disagreement rule are shown.
 
+## Decision: the home headline gates on confident "against" only (#1134)
+
+The home hero's **America hates data centers.** used to rest only on 29 hand-counted speakers in 4 states. It may now also
+pass on this reading: at least 50 meetings nationally (10 for a state's own page) where the public leaned against with
+p ≥ 0.7. Because "supported" and "mixed" failed the hand checks above, the gate does **not** compare against them (no
+"against ≥ 2× for/mixed" ratio), and the sentence states only the against count: "The public leaned against data centers
+in 283 meetings across 32 states (AI reading of meetings)." The confident for, mixed and spoke counts are served on
+positions `lean_totals` (`public_for_meetings`, `public_mixed_meetings`, `public_spoke_meetings`, same p ≥ 0.7) for audit
+only. On 26 Nov 2026 they were 14, 7 and 304; the 1,449 confident "no public comment" meetings are not counted as spoke.
+
 ## Limits
 
 - It is a classifier's reading of a transcript. A meeting can be misread; the hover line says "AI reading" and the
