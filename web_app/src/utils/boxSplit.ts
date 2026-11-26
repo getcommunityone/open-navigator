@@ -70,3 +70,34 @@ export function bandSides(s: StanceCounts | null | undefined, boxes: number): Ar
   while (out.length < boxes) out.push(null)
   return out
 }
+
+/**
+ * The real speaker sums across several places (e.g. a county's governments on the state drill-down, #1106). Missing or
+ * negative counts add nothing; with no places, every side is 0.
+ */
+export function sumStances(places: ReadonlyArray<Partial<StanceCounts>>): StanceCounts {
+  const n = (v: number | undefined) => Math.max(0, v || 0)
+  return places.reduce<StanceCounts>(
+    (a, p) => ({
+      speakers_for: a.speakers_for + n(p.speakers_for),
+      speakers_against: a.speakers_against + n(p.speakers_against),
+      speakers_question: a.speakers_question + n(p.speakers_question),
+      speakers_neutral: a.speakers_neutral + n(p.speakers_neutral),
+    }),
+    { speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0 },
+  )
+}
+
+/**
+ * The side of each dot in one area, in the order given (#1106): the dots are banded left to right, then top to bottom (as the
+ * home map does), so each side is one contiguous band. Null for every dot when the area has no speakers on record.
+ */
+export function dotSides(dots: ReadonlyArray<{ x: number; y: number }>, s: StanceCounts | null | undefined): Array<Stance | null> {
+  const order = dots.map((_, i) => i).sort((a, b) => dots[a]!.x - dots[b]!.x || dots[a]!.y - dots[b]!.y)
+  const sides = bandSides(s, dots.length)
+  const out: Array<Stance | null> = new Array(dots.length).fill(null)
+  order.forEach((i, rank) => {
+    out[i] = sides[rank] ?? null
+  })
+  return out
+}

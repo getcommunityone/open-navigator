@@ -189,7 +189,8 @@ def test_by_place_only_at_state_scope_and_not_narrowed_by_city(get) -> None:
     }
     conn = _Conn(by_place=[place])
     body = get(conn, {"state": "GA", "city": "Columbus"}).json()
-    assert body["counts"]["by_place"] == [place]
+    no_speakers = {"speakers_for": 0, "speakers_against": 0, "speakers_question": 0, "speakers_neutral": 0}
+    assert body["counts"]["by_place"] == [{**place, **no_speakers}]
     sql, params = next(c for c in conn.calls if "GROUP BY m.jurisdiction_id" in c[0])
     assert params == ("GA",)
     assert "ILIKE" not in sql
@@ -198,3 +199,23 @@ def test_by_place_only_at_state_scope_and_not_narrowed_by_city(get) -> None:
     body = get(conn).json()
     assert body["counts"]["by_place"] == []
     assert not any("GROUP BY m.jurisdiction_id" in c[0] for c in conn.calls)
+
+
+def test_by_place_carries_real_speaker_sums_per_government(get) -> None:
+    """#1106: each government gets the speaker sums from data_center_meeting_position for its meetings."""
+    place = {
+        "jurisdiction_id": "chandler_0412000", "jurisdiction_name": "Chandler", "jurisdiction_type": "city",
+        "geoid": "0412000", "latitude": 33.3, "longitude": -111.84, "meetings": 4,
+        "speakers_for": 3, "speakers_against": 7, "speakers_question": 1, "speakers_neutral": 2,
+    }
+    conn = _Conn(by_place=[place])
+    body = get(conn, {"state": "AZ"}).json()
+    assert body["counts"]["by_place"] == [place]
+    sql, params = next(c for c in conn.calls if "GROUP BY m.jurisdiction_id" in c[0])
+    assert params == ("AZ",)
+    assert "data_center_meeting_position" in sql
+    # Positions are summed per meeting first, then joined to the distinct (government, meeting) set,
+    # so a meeting with many passages can't multiply its speakers.
+    assert "GROUP BY p.video_id" in sql
+    assert "SELECT DISTINCT m.jurisdiction_id, m.video_id" in sql
+    assert "LEFT JOIN sp ON sp.jurisdiction_id = m.jurisdiction_id" in sql

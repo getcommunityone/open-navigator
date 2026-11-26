@@ -79,7 +79,7 @@ export function featPath(f: Feat): string {
 /** Without stance data (the rentals story) a state with meetings is one teal. */
 const MEETINGS_ONLY = HOUSE_THEME.seg[0]!
 
-const STANCE_LABEL: Record<Stance, string> = {
+export const STANCE_LABEL: Record<Stance, string> = {
   against: 'Spoke against',
   for: 'Spoke for',
   question: 'Asked a question',
@@ -92,7 +92,8 @@ function fmtDate(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function stanceLine(s: StanceCounts | undefined): string | null {
+/** The real speaker counts as one line ("3 spoke against · 1 asked a question"), or null with none on record. */
+export function stanceLine(s: StanceCounts | undefined): string | null {
   if (!s || speakersOf(s) === 0) return null
   return STANCE_ORDER.filter((k) => stanceCount(s, k) > 0)
     .map((k) => `${fmt(stanceCount(s, k))} ${STANCE_LABEL[k].toLowerCase()}`)
