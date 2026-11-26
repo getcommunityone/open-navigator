@@ -5,7 +5,7 @@ title: "feat(stories): maps show where the public leaned against data centers (A
 author: jcbowyer
 reviewed_at: 2026-11-26
 reviewer: github-actions
-head_sha: cefafd34c1180e71a045c176a0bc38962e0c6b6d
+head_sha: ca1a63327a196b48cdcb19b878f864b4b08dcc8b
 verdict: approve
 ---
 
@@ -26,6 +26,7 @@ Automated review (#648) for PR #1119 on `feat/1117-maps-public-lean`. Heuristic 
 - `dbt_project/models/marts/data_center_meeting_lean.sql`
 - `dbt_project/models/staging/stg_jev__transcript_screen.sql`
 - `packages/hosting/src/hosting/neon/sync_public_to_neon.py`
+- `pull_requests/pr-1119-review.md`
 - `tests/test_api_data_center_meeting_mentions.py`
 - `tests/test_api_data_center_positions.py`
 - `web_app/src/components/home/StoryStatesMap.tsx`
@@ -38,7 +39,7 @@ Automated review (#648) for PR #1119 on `feat/1117-maps-public-lean`. Heuristic 
 
 ## CI Status
 
-See the PR checks on `cefafd34c118`.
+See the PR checks on `ca1a63327a19`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
