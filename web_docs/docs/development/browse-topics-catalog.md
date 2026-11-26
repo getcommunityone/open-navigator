@@ -32,6 +32,8 @@ local build tagged 7,684 transcripts in 50 states. On the home page, Guns is a *
 
 Two guide topics are also on the strip as **Coming soon**: **Starting a nonprofit** ([#1078](https://github.com/getcommunityone/open-navigator/issues/1078)) and **Insurance shopping** ([#1079](https://github.com/getcommunityone/open-navigator/issues/1079)). They aren't meeting topics, so they have no keywords, counts or companies until their guide or data lands.
 
+The home **Browse topics** row snaps card by card, with round previous and next arrows at its edges (hidden below 640px, where you swipe) and one progress dot per page of visible cards; a dot scrolls to its page, and reduced motion turns the smooth scroll off ([#1101](https://github.com/getcommunityone/open-navigator/issues/1101)).
+
 ## What the page shows
 
 | Situation | API | Browse Topics |
