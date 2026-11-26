@@ -242,14 +242,17 @@ export default function DataStory() {
     },
     [setSp, idAt, recent, board],
   )
-  /** After a keyboard move, focus lands on the settled screen's first answer or its Continue button so the next key press carries on. */
+  /** After a keyboard move, focus lands on the settled screen's heading (#1146): a screen reader reads where it is, Tab goes on
+   *  to the screen's controls (Back, then Next), and the arrow keys still page because a heading isn't a control. */
   const onSettled = useCallback((h: Hold) => {
     if (dialogOpenRef.current) return
     const ae = document.activeElement as HTMLElement | null
     if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.closest('.stance-place'))) return
     const panel = rootRef.current?.querySelector<HTMLElement>(`[data-panel="${h.round}"]`)
     if (viaKeyboard.current) {
-      const target = panel?.querySelector<HTMLElement>('.stance-next') ?? panel?.querySelector<HTMLElement>('.stance-answers button:not(:disabled)')
+      const heading = panel?.querySelector<HTMLElement>('h2, h1, [role="heading"]')
+      if (heading && !heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1')
+      const target = heading ?? panel?.querySelector<HTMLElement>('.stance-next') ?? panel?.querySelector<HTMLElement>('.stance-answers button:not(:disabled)')
       target?.focus({ preventScroll: true })
     } else if (panel && (ae == null || ae === document.body || !panel.contains(ae))) {
       // After wheel or pointer scrolling nothing visibly takes focus, but the screen becomes the starting point for Tab, so

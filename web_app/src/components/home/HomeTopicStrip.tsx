@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Bike, Camera, ChevronLeft, ChevronRight, Crosshair, Droplets, HandHeart, House, MessagesSquare, Server, ShieldCheck, Volleyball, type LucideIcon } from 'lucide-react'
 import { useQueries } from '@tanstack/react-query'
@@ -114,6 +114,34 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
     const el = listRef.current
     if (el) el.scrollTo({ left: scrollLeftForPage(index, el.clientWidth, el.scrollWidth), behavior: behavior() })
   }
+
+  // Keyboard (#1146): one tab stop into the strip (roving tabindex); ←/→/Home/End move between tiles, Enter or Space picks one.
+  const selectedIndex = Math.max(0, TOPICS.findIndex((t) => t.story != null && t.story === selected))
+  const [focusIndex, setFocusIndex] = useState(selectedIndex)
+  useEffect(() => setFocusIndex(selectedIndex), [selectedIndex])
+  const tabStop = Math.min(focusIndex, TOPICS.length - 1)
+  const tileAt = (i: number) => listRef.current?.querySelectorAll<HTMLElement>('[data-topic-tile]')[i] ?? null
+  const onTileKey = (e: KeyboardEvent<HTMLUListElement>) => {
+    const n = TOPICS.length
+    const target = e.target as HTMLElement
+    if (!target.hasAttribute('data-topic-tile')) return
+    const next =
+      e.key === 'ArrowRight' ? (focusIndex + 1) % n
+      : e.key === 'ArrowLeft' ? (focusIndex - 1 + n) % n
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? n - 1
+      : null
+    if (next != null) {
+      e.preventDefault()
+      setFocusIndex(next)
+      const el = tileAt(next)
+      el?.focus({ preventScroll: true })
+    } else if (e.key === ' ' && target.tagName === 'A') {
+      // A guide tile is a link: Space follows it as Enter does, like the other tiles.
+      e.preventDefault()
+      target.click()
+    }
+  }
   return (
     <nav aria-labelledby="home-topics-h" className="home-topics">
       <div className="home-topics-head">
@@ -128,13 +156,25 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
         <button type="button" className="home-topics-arrow is-prev" aria-label="Previous topics" onClick={() => page(-1)} disabled={pos.atStart} hidden={pos.pages <= 1}>
           <ChevronLeft size={20} aria-hidden="true" />
         </button>
-        <ul ref={listRef} className="home-topics-list">
+        <p id="home-topics-keys" className="sr-only">
+          Use the left and right arrow keys to move between topics, Enter or Space to pick one.
+        </p>
+        <ul ref={listRef} className="home-topics-list" aria-labelledby="home-topics-h" aria-describedby="home-topics-keys" onKeyDown={onTileKey}>
           {TOPICS.map((t, i) => {
             const { key, title, blurb, story, status, companies, guide } = t
             const { Icon, tint, ink } = LOOK[key] ?? PLAIN_LOOK
             const cap = captions[i]
             const on = story != null && story === selected
             const companiesOn = status === 'soon' && key === picked
+            // The roving tab stop: only one tile is in the tab order; focusing one makes it the stop.
+            const rove = {
+              'data-topic-tile': '',
+              tabIndex: i === tabStop ? 0 : -1,
+              onFocus: () => {
+                setFocusIndex(i)
+                tileAt(i)?.scrollIntoView({ behavior: behavior(), block: 'nearest', inline: 'nearest' })
+              },
+            }
             const body = (
               <>
                 <span className="home-topic-icon" style={{ background: tint, color: ink, opacity: status === 'soon' ? 0.55 : 1 }} aria-hidden="true">
@@ -171,20 +211,21 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
             return (
               <li key={key}>
                 {status === 'live' && story ? (
-                  <button type="button" className={'home-topic' + (on ? ' is-on' : '')} aria-pressed={on} onClick={() => { onSelect(story); setPicked(key) }}>
+                  <button type="button" {...rove} className={'home-topic' + (on ? ' is-on' : '')} aria-pressed={on} onClick={() => { onSelect(story); setPicked(key) }}>
                     {body}
                   </button>
                 ) : status === 'guide' && guide ? (
-                  <a className="home-topic" href={docsUrl(guide)}>
+                  <a {...rove} className="home-topic" href={docsUrl(guide)}>
                     {body}
                   </a>
                 ) : companies ? (
                   // Coming soon, but its companies are tracked: picking it shows them below (the story above stays).
-                  <button type="button" className={'home-topic is-soon' + (companiesOn ? ' is-picked' : '')} aria-pressed={companiesOn} onClick={() => setPicked(key)}>
+                  <button type="button" {...rove} className={'home-topic is-soon' + (companiesOn ? ' is-picked' : '')} aria-pressed={companiesOn} onClick={() => setPicked(key)}>
                     {body}
                   </button>
                 ) : (
-                  <div className="home-topic is-soon" aria-disabled="true">
+                  // Coming soon with nothing to show: still reachable by the arrows, and announced as unavailable.
+                  <div {...rove} role="button" className="home-topic is-soon" aria-disabled="true">
                     {body}
                   </div>
                 )}

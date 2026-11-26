@@ -53,6 +53,7 @@ const FONTS = `
 .v9 { overflow-x: clip; max-width: 100%; }
 .v9 .v9-main { box-sizing: border-box; max-width: 100%; }
 .v9 .v9-search { display: flex; min-width: 0; }
+.v9 .v9-search:focus-within { outline: 2px solid #0f766e; outline-offset: 2px; }
 .v9 .v9-money-hook-text { flex: 1; min-width: 0; }
 .v9 .v9-burger { display: none; }
 html { scroll-behavior: smooth; }
@@ -101,7 +102,7 @@ html { scroll-behavior: smooth; }
 .v9 .home-topics-arrow:disabled { opacity: 0; pointer-events: none; }
 .v9 .home-topics-arrow[hidden] { display: none; }
 .v9 .home-topics-dots { display: flex; justify-content: center; gap: 4px; padding: 0 12px 12px; }
-.v9 .home-topics-dot { width: 22px; height: 22px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.v9 .home-topics-dot { width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
 .v9 .home-topics-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #d6d3d1; transition: background .15s, width .15s; }
 .v9 .home-topics-dot.is-on::before { background: #0f766e; width: 20px; border-radius: 999px; }
 .v9 .home-topics-dot:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; border-radius: 999px; }
@@ -109,6 +110,8 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { .v9 .home-topics-list { scroll-behavior: auto; } .v9 .home-topics-arrow, .v9 .home-topics-dot::before { transition: none; } }
 .v9 .home-topic { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; text-decoration: none; color: inherit; border-radius: 10px; }
 .v9 .home-topic:hover { background: #fafaf9; }
+.v9 .home-topic:focus-visible { outline: 3px solid #0f766e; outline-offset: -3px; }
+.v9 .home-topics-all:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; border-radius: 6px; }
 .v9 button.home-topic { width: 100%; background: none; border: 0; font: inherit; text-align: left; cursor: pointer; }
 .v9 .home-topic.is-on { background: #f0fdfa; box-shadow: inset 0 0 0 2px #0f766e; }
 .v9 .home-topic-on { display: inline-block; align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 12px; font-weight: 700; }
@@ -900,9 +903,10 @@ export default function HomeV9() {
       <SiteHeader />
 
       {/* ── Data stories first (#995): the conclusion, the quote map and the topics; the header's Data Stories tab. ── */}
+      <main id="main-content" tabIndex={-1} style={{ outline: 'none' }}>
       <HomeDataStories stateCode={stateCode} city={city ?? null} />
 
-      <main className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
+      <div className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
         {/* ── Hero: thesis + search + trending ── */}
         {/* The header's Search tab scrolls here (#975); results open on /search from this search. */}
         <section id="search" className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center', scrollMarginTop: 72 }}>
@@ -1981,7 +1985,7 @@ export default function HomeV9() {
             placeLabel={placeLabel}
           />
         </section>
-      </main>
+      </div>
 
 
       {/* ── How It Works (ported from the original home page, restyled for v9).
@@ -2166,6 +2170,7 @@ export default function HomeV9() {
         </div>
       )}
 
+      </main>
       <SiteFooter />
     </div>
   )

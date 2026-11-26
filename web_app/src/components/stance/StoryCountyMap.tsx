@@ -19,6 +19,7 @@ import QuoteCard from './QuoteCard'
 import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
 import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly } from '../../utils/touchOnly'
+import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
 export interface PlaceCount extends LeanCounts {
@@ -138,6 +139,23 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     }
     return out
   }, [grid, placed])
+  // Keyboard (#1146): one tab stop, the arrows move west to east between the counties with meetings (all, when none).
+  const order = useMemo(() => {
+    if (!grid || !placed) return []
+    const withMeetings = westToEast(grid.dots, (i) => ((placed.counts.get(grid.dots[i]!.id) ?? 0) > 0 ? grid.dots[i]!.id : null))
+    return withMeetings.length ? withMeetings : westToEast(grid.dots, (i) => grid.dots[i]!.id)
+  }, [grid, placed])
+  const keyNav = useMapKeyboard<string>({
+    keys: order,
+    active: hover,
+    setActive: setHover,
+    noun: 'county',
+    describe: (id) => {
+      const name = grid?.feats.find((f) => f.id === id)?.name ?? id
+      const n = placed?.counts.get(id) ?? 0
+      return `${/county|parish|borough|city/i.test(name) ? name : `${name} County`}: ${n ? plural(n) : 'no meetings on record'}.`
+    },
+  })
 
   if (isError) {
     return (
@@ -273,12 +291,13 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           </select>
         </span>
       </figcaption>
-      <div className="stance-map-stage" onMouseLeave={() => setHover(null)}>
+      <div className="stance-map-stage" onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+        {keyNav.sr}
         <svg
           viewBox={vb}
           className="stance-map-svg"
-          role="img"
           aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where an AI reading of the meetings found the public leaned against.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where the AI reading found officials sided against the public (see the data table).` : ''}`}
+          {...keyNav.svgProps}
         >
           {grid.dots.map((d, i) => {
             const n = counts.get(d.id)
