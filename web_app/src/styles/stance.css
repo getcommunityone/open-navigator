@@ -3138,6 +3138,8 @@ html.stance-snap {
   width: calc((100% - 36px) * 0.45);
   min-height: 52px;
   padding: 0 6px 0 2px;
+  /* Text that scrolls in a tall left column passes under the row, not through the buttons. */
+  background: var(--paper);
 }
 .stance-story[data-mode='pinned'] .stance-act .stance-grid > .stance-left {
   padding-bottom: 72px;

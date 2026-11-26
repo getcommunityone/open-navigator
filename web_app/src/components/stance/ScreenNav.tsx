@@ -36,8 +36,8 @@ const ScreenNav = forwardRef<HTMLButtonElement, Props>(function ScreenNav({ next
             className="folio-btn stance-next stance-next-end"
             ref={ref}
             onClick={onNext}
-            aria-label={`Next: ${nextLabel}`}
-            title={`Next: ${nextLabel}`}
+            aria-label={nextLabel === 'Next' ? 'Next' : `Next: ${nextLabel}`}
+            title={nextLabel === 'Next' ? 'Next' : `Next: ${nextLabel}`}
             data-primary
             data-nav="next"
           >
