@@ -252,6 +252,8 @@ export interface Dot {
   weight?: number
   /** A YouTube recording to play in place at the passage's moment (#972); only meeting passages with one set it. */
   video?: { videoId: string; start: number | null }
+  /** The verbatim passage the dot stands for, matched words in <mark> (#1036): shown with the video. */
+  quote?: string | null
 }
 
 /** A stance a dot group stands for: it picks the group's colour and its shape, so colour is never the only signal. */
@@ -586,6 +588,7 @@ export function chartSpec(
               date: m.meeting_date ?? null,
               url: m.jump_url ?? m.video_url ?? null,
               ...meetingVideo(m.video_url, m.start_seconds),
+              quote: m.evidence ?? null,
             })),
         })),
         res.counts?.passages ?? null,

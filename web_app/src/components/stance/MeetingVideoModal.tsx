@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { clockTime, youtubeEmbedUrl } from '../../lib/youtubeEmbed'
+import { highlightSnippet } from '../../lib/highlight'
 
 export interface MeetingVideo {
   videoId: string
@@ -12,6 +13,10 @@ export interface MeetingVideo {
   sub?: string
   /** The recording on YouTube at that moment, for "Open on YouTube". */
   url: string | null
+  /** The verbatim passage that put the meeting on the chart, matched words in <mark> (#1036). */
+  quote?: string | null
+  /** Who said it, when known ("Audra T. · Resident"). */
+  who?: string | null
 }
 
 interface Props {
@@ -116,6 +121,12 @@ export default function MeetingVideoModal({ video, onClose }: Props) {
               Close <span aria-hidden="true">×</span>
             </button>
           </div>
+          {video.quote && (
+            <blockquote className="stance-video-quote">
+              “{highlightSnippet(video.quote)}”
+              {video.who && <footer>{video.who}</footer>}
+            </blockquote>
+          )}
           <div className="stance-video-frame">
             <iframe
               src={youtubeEmbedUrl(video.videoId, video.start)}

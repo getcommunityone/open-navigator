@@ -2967,3 +2967,20 @@ html.stance-snap {
   font-size: 12px;
   color: var(--ink-2);
 }
+
+/* The passage in the meeting video popup (#1036). */
+.stance-video-quote {
+  margin: 0 0 12px;
+  padding-left: 12px;
+  border-left: 3px solid var(--brand, #0f766e);
+  font-size: 16px;
+  line-height: 1.5;
+  font-style: italic;
+  color: var(--ink);
+}
+.stance-video-quote footer {
+  margin-top: 4px;
+  font-size: 13px;
+  font-style: normal;
+  color: var(--ink-2);
+}

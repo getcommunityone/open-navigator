@@ -1459,6 +1459,9 @@ class PositionQuote(BaseModel):
     public_comment_id: str
     quote: str = Field(..., description="Verbatim from the transcript; rows without one are not returned.")
     speaker_role: str | None = None
+    speaker_display_name: str | None = Field(
+        None, description='"First L." (e.g. "Audra T."), first name only when ambiguous; null when no name was heard.'
+    )
     jurisdiction_name: str | None = None
     state_code: str | None = None
     meeting_date: date | None = None
@@ -1524,6 +1527,8 @@ def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[
     quotes_sql = (
         "SELECT * FROM ("
         "SELECT p.public_comment_id, p.stance_bucket, p.quote, p.speaker_role, p.jurisdiction_name, "
+        # Defensive read (#1036): works before the column reaches a serving copy.
+        "to_jsonb(p) ->> 'speaker_display_name' AS speaker_display_name, "
         "p.state_code, p.meeting_date, p.video_url, p.start_seconds::float8 AS start_seconds, "
         "p.decision_headline, p.match_basis, "
         "row_number() OVER (PARTITION BY p.stance_bucket ORDER BY p.meeting_rank, "

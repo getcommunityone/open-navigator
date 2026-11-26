@@ -35,6 +35,8 @@ export interface PositionQuote {
   /** The speaker's own words, verbatim from the transcript. */
   quote: string
   speaker_role?: string | null
+  /** "Audra T." (#1036): first name + last initial, or the first name only; null when no name was heard. */
+  speaker_display_name?: string | null
   jurisdiction_name?: string | null
   state_code?: string | null
   meeting_date?: string | null

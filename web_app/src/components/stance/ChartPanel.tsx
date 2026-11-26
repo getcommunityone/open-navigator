@@ -103,7 +103,7 @@ export function Dots({ spec }: { spec: DotsSpec }) {
                 ? () => {
                     hide()
                     playingFrom.current = i
-                    setPlaying({ video: { ...d.video!, title: d.title, sub, url: d.url }, from: i })
+                    setPlaying({ video: { ...d.video!, title: d.title, sub, url: d.url, quote: d.quote ?? null }, from: i })
                   }
                 : null
               const common = {

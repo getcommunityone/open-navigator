@@ -105,6 +105,11 @@ schema:
     logicalType: string
     physicalType: text
     description: The capacity the speaker gave (Resident, Business owner, ...), as extracted; null when not said.
+  - id: speaker_display_name
+    name: speaker_display_name
+    logicalType: string
+    physicalType: text
+    description: '"First L." from the analysis''s speaker_id (#1036): role words dropped; two name words -> "Audra T.", more -> first name only, a role-only id -> null. Never the full surname.'
   - id: stance_bucket
     name: stance_bucket
     logicalType: string

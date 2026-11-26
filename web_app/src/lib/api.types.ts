@@ -3044,6 +3044,11 @@ export interface components {
              * @description Verbatim from the transcript; rows without one are not returned.
              */
             quote: string;
+            /**
+             * Speaker Display Name
+             * @description "First L." (e.g. "Audra T."), first name only when ambiguous; null when no name was heard.
+             */
+            speaker_display_name?: string | null;
             /** Speaker Role */
             speaker_role?: string | null;
             /** Start Seconds */

@@ -97,7 +97,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         out.set(sq.state_code, {
           place: [sq.jurisdiction_name, sq.state_code].filter(Boolean).join(', '),
           side,
-          who: sq.speaker_role ?? null,
+          who: [sq.speaker_display_name, sq.speaker_role].filter(Boolean).join(' · ') || null,
           text: sq.quote,
           date: sq.meeting_date ?? null,
           meeting: sq.decision_headline ?? null,
