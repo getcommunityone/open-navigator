@@ -1,7 +1,7 @@
 """
 Extract the text of crawled agenda/minutes PDFs into bronze (#392).
 
-Selects the same documents ``staging.stg_scraped_meeting_documents`` publishes
+Selects exactly the documents ``staging.stg_scraped_meeting_documents`` publishes (#1035: the staging view is the rule)
 (day-dated agenda/minutes PDFs from the nationwide homepage crawl, not SuiteOne
 rows), reads each PDF from the crawl cache when the file is still on disk and
 downloads it otherwise, extracts embedded text with PyMuPDF, and upserts into
@@ -66,7 +66,12 @@ def build_select_sql(*, with_jurisdiction: bool) -> str:
                s.doc_type, s.meeting_date, s.local_path
         FROM {table} s
         WHERE s.state_code = %(state)s {juris}
-          AND {_PUBLISHED_FILTER}
+          AND s.doc_type = ANY(%(doc_types)s)
+          -- One rule (#1035): extract exactly what staging publishes, incl. dates read from link text / file names.
+          AND EXISTS (
+              SELECT 1 FROM staging.stg_scraped_meeting_documents g
+              WHERE g.jurisdiction_id = s.jurisdiction_id AND g.url_sha256 = s.url_sha256
+          )
           AND NOT EXISTS (
               SELECT 1 FROM {_TEXT_TABLE} t
               WHERE t.jurisdiction_id = s.jurisdiction_id AND t.url_sha256 = s.url_sha256

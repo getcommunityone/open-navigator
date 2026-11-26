@@ -58,10 +58,38 @@ with source as (
 
 ),
 
+-- #1035: when the crawl recorded only the year, read the full date from the link text ("Aug. 31, 2021", "3/12/2026")
+-- or the file name,
+-- kept only when it's a real date in that same year. Otherwise the row stays year-only and is not published.
+dated as (
+
+    select
+        s.jurisdiction_type, s.jurisdiction_id, s.census_geoid, s.state_code, s.url, s.url_sha256,
+        s.doc_type, s.resource_category, s.resource_kind, s.manifest_relative_path, s.meeting_title, s.loaded_at,
+        case when s.meeting_date_source = 'manifest_year_only'
+                  and p.parsed is not null
+                  and extract(year from p.parsed) = extract(year from s.meeting_date)
+             then p.parsed else s.meeting_date end                                   as meeting_date,
+        case when s.meeting_date_source = 'manifest_year_only'
+                  and p.parsed is not null
+                  and extract(year from p.parsed) = extract(year from s.meeting_date)
+             then 'anchor_text_parsed' else s.meeting_date_source end                as meeting_date_source
+    from source as s
+    left join lateral (
+        -- The link text first, then the file name ("january_9_2017_agenda.pdf"), with _ and - read as spaces.
+        select coalesce(
+            {{ safe_date_from_parts(link_text_date_parts('s.meeting_title')) }},
+            {{ safe_date_from_parts(link_text_date_parts("regexp_replace(regexp_replace(s.url, '^.*/', ''), '[_]+', ' ', 'g')")) }},
+            {{ safe_date_from_parts(link_text_date_parts("regexp_replace(regexp_replace(s.url, '^.*/', ''), '[_-]+', ' ', 'g')")) }}
+        ) as parsed
+    ) as p on true
+
+),
+
 filtered as (
 
     select *
-    from source
+    from dated
     where resource_kind = 'pdf'
       and nullif(btrim(url), '') is not null
       and doc_type in ('agenda', 'minutes')

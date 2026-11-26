@@ -19,6 +19,11 @@ upcoming meetings first, so residents can attend the meeting where a site is dec
 - When the agenda names a [tracked site](./data-center-sites.md) in the same state, the item links to it.
 - Coverage follows the agendas whose text we've extracted (today mostly Tuscaloosa, from SuiteOne). More cities come
   with the meeting adapters ([CORE-3.2](https://github.com/getcommunityone/open-navigator/issues/243)).
+- Agendas the crawler found on city and county websites often carry only a year in the crawl manifest. Since
+  [#1035](https://github.com/getcommunityone/open-navigator/issues/1035), staging reads the meeting date from the link
+  text ("January 27, 2026") or the file name (`01272026`, `2026-01-27`, `1/27/26`). It keeps the date only when its year
+  matches the manifest's year, and marks it `meeting_date_source = 'anchor_text_parsed'`. In Alabama this dates 908
+  documents that were previously dropped. Their text is then extracted by `python -m scrapers.meetings.doctext`.
 - Meetings are also searched by what was **said**: transcripts that discuss a data center show under
   **Said in meetings**, each passage quoted with the matched words highlighted and a link to that moment in the
   recording ([#445](https://github.com/getcommunityone/open-navigator/issues/445)). This reaches the many places whose
@@ -61,6 +66,9 @@ upcoming meetings first, so residents can attend the meeting where a site is dec
 - **Owner names count only near the site.** "Google" or "Meta" in a passage marks it `site_specific` only when the
   meeting's government is one of the governments around that company's site; a site or project name (6+
   characters) counts anywhere in the site's state.
+- **A parsed date must agree with the manifest year** (#1035). A file name like `2019-plan.pdf` crawled in 2026 is left
+  undated rather than given a wrong date; an impossible date (Feb 30) is also left undated. Links that now return 403
+  or 404 are recorded as `error` by doctext and are not retried with a disguised user agent.
 - **`has_transcript` is not trusted.** About 10,000 transcripts loaded between 2026-05-31 and 2026-06-10 carry full
   captions with `has_transcript = false` (Minneapolis's 2026-05-21 council meeting among them), so the model checks
   the text itself.
