@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStates } from '../api/topics'
 import { CAPTION_COPY, captionText, pickCaption } from '../utils/storyCaption'
+import { useTopicStories } from '../hooks/useTopicStories'
 import { highlightSnippet } from '../lib/highlight'
 import { STATE_CODES } from '../lib/usStates'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
@@ -15,27 +16,7 @@ import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesM
  * quoted from `topic_transcript_link` (meetings with a verbatim passage) and the decisions search for the topic. The
  * headline is the caption picker's (#1125, utils/storyCaption): the strongest statement the scope's counts support.
  */
-interface TopicStoryDef {
-  slug: string
-  topicId: number
-  title: string
-  /** "Short-term rentals came up in …": the noun phrase the headline leads with. */
-  subject: string
-  lede: string
-  /** The API listing the platform companies this story names (#1015), when it has one. */
-  companiesPath?: string
-}
-
-const TOPIC_STORIES: Record<string, TopicStoryDef> = {
-  'short-term-rentals': {
-    slug: 'short-term-rentals',
-    topicId: 100003,
-    title: 'Short-term rentals',
-    subject: 'Short-term rentals',
-    lede: 'Airbnb, VRBO and vacation rentals: where local governments are talking about them, in the words said at the meeting.',
-    companiesPath: '/short-term-rentals/companies',
-  },
-}
+// The stories are derived from the topic catalog (#1133): every curated topic with linked meetings (utils/topicStories).
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 const fmtDate = (d?: string | null) => {
@@ -65,7 +46,8 @@ const PAGE = 8
 
 export default function TopicStory({ slug: slugProp }: { slug?: string }) {
   const params = useParams<{ storyId?: string }>()
-  const def = TOPIC_STORIES[slugProp ?? params.storyId ?? '']
+  const topicStories = useTopicStories()
+  const def = topicStories.stories[slugProp ?? params.storyId ?? '']
   const [sp, setSp] = useSearchParams()
   const raw = (sp.get('state') ?? '').trim().toUpperCase()
   const stateCode = STATE_CODES.includes(raw) ? raw : null
@@ -153,10 +135,17 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     staleTime: 5 * 60_000,
   })
 
+  if (!def && topicStories.pending) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-16" aria-busy="true">
+        <p className="text-stone-500">Loading the story…</p>
+      </main>
+    )
+  }
   if (!def) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-16">
-        <p className="text-stone-700">That story isn't available.</p>
+        <p className="text-stone-700">{topicStories.failed ? 'This story could not be loaded right now.' : "That story isn't available."}</p>
         <Link to="/stories" className="text-teal-700 underline">
           See all data stories
         </Link>

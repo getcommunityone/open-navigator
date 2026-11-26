@@ -40,6 +40,7 @@ import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { nextStoryLink } from '../utils/storyNav'
+import { useTopicStories } from '../hooks/useTopicStories'
 
 // The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
 export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value, label: s.topic }))
@@ -75,6 +76,8 @@ export default function DataStory() {
 
   const allScreens = useMemo(() => story?.screens ?? [], [story])
   const { data, status, refetch } = useStoryData(stateCode, city)
+  // The live stories (#1133), so the end of the story leads on to the next one, topic stories included.
+  const { live: liveList } = useTopicStories()
   // The caption's facts (#1125), keyed on the scope so the label and the numbers move together.
   const captionQ = useQuery({
     queryKey: ['caption-facts', storyId, stateCode ?? '', city ?? ''],
@@ -438,7 +441,7 @@ export default function DataStory() {
   }
   const labels = screens.map((s, i) => stopLabel(s, texts[i]!))
   // The end of the story leads on (#1102): the next live story, or every data story, keeping the place.
-  const onward = nextStoryLink(storyId, scopeQuery(scope))
+  const onward = nextStoryLink(storyId, scopeQuery(scope), liveList)
   const vote: VoteState = {
     question,
     loading: packQ.isLoading,

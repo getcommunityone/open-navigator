@@ -83,10 +83,10 @@ drives the counts.
 
 ## Topics
 
-Strip card to caption key: Data centers `data-centers`; Short-term rentals `short-term-rentals`; Flock `flock` and License
-plate readers `license-plate-readers` (both read the curated topic "Flock and license plate readers", so the Flock card
-reads "Flock and license plate readers"); Guns `guns`; Pickleball `pickleball`; Bike lanes `bike-lanes` (the CivicSearch
-topic "Bicycle transportation", named as such); Starting a nonprofit and Insurance shopping are guides with no meeting
+Strip card to caption key: Data centers `data-centers`; Short-term rentals `short-term-rentals`; Flock and license plate
+readers `license-plate-readers` (one curated topic, 100004, so one tile since #1133; `flock` stays an alias); Guns `guns`; Pickleball `pickleball`; Bike lanes `bike-lanes` (the curated topic
+from #1131; until it has meetings the tile keeps its blurb. It no longer borrows the CivicSearch "Bicycle transportation"
+count, #1133); Starting a nonprofit and Insurance shopping are guides with no meeting
 record, so they always ask their question and the tile keeps its blurb. Insurance is not linked to the CivicSearch topic
 "Insurance discussions": a meeting about insurance is not evidence about shopping for it, so the guide does not borrow that count.
 
@@ -101,3 +101,7 @@ National titles on 26 Nov 2026 (local warehouse):
 | Pickleball | California brought up pickleball in 446 meetings, more than any other state. | next North Carolina, 292 |
 | Water fluoridation | America took up water fluoridation in 526 meetings. | top states tied at 45, under the 50-meeting floor |
 | Starting a nonprofit, Insurance | the question | guides with no meeting record |
+| Bike lanes | none yet | the curated topic (#1131) has no meetings linked, so the tile keeps its blurb |
+
+Once `topic_meeting_lean` (#1126) reaches `public`, (a) and (b) can lead for other topics (gold on 26 Nov 2026 held 34
+confident public-against meetings for Flock and license plate readers, under the national floor of 50).

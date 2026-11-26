@@ -106,7 +106,7 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     question: ['Where do the courts go in ', P, '? What meetings said about ', T, '.'],
   },
   'bike-lanes': {
-    topic: 'bicycle transportation',
+    topic: 'bike lanes',
     facts: 'bike-lanes',
     verb: 'took up',
     officials: sidedAgainst,
