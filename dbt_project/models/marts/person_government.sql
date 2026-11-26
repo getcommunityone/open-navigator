@@ -74,6 +74,7 @@ select
     o.party,
     o.district,
     o.email,
+    o.email_source_url,
     o.phone,
     o.photo_url,
     o.biography,
